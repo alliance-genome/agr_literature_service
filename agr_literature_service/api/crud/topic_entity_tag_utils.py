@@ -272,11 +272,13 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
         if curies_category in ["strain", "genotype", "fish"]:
             subtype = curies_category
         curies_category = "agm"
+
     return_dict = {}
     keyword_name = "curie" if curies_category in ["atpterm", "ncbitaxonterm", "ecoterm"] else "modEntityId"
     ateam_api_base_url = environ.get('ATEAM_API_URL')
     ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
     chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]
+
     for chunk in chunked_values:
         request_body = {
             "searchFilters": {
@@ -307,7 +309,8 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
             with urllib.request.urlopen(request) as response:
                 resp = response.read().decode("utf8")
                 resp_obj = json.loads(resp)
-                # process the API response
+
+                # process the API response and collect mappings
                 new_mappings = {}
                 if curies_category == "agm":
                     new_mappings = {
@@ -318,10 +321,17 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                         entity[keyword_name]: entity.get("name") or entity.get(curies_category + "Symbol", {}).get("displayText", entity[keyword_name])
                         for entity in resp_obj.get("results", [])
                     }
+
                 # update return dictionary and cache
                 for curie, name in new_mappings.items():
                     id_to_name_cache.set(curie, name)
                     return_dict[curie] = name
+
+                # If any curies in the chunk were not returned by the API, map them to themselves
+                for curie in chunk:
+                    if curie not in new_mappings:
+                        return_dict[curie] = curie  # map curie to itself if no result
+
         except HTTPError as e:  # ateam lookup failed so just return the match to themselves
             for atp_value in chunk:
                 return_dict[atp_value] = atp_value
