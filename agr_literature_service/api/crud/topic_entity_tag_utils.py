@@ -25,12 +25,14 @@ sgd_omics_display_tag = 'ATP:0000148'
 sgd_review_display_tag = 'ATP:0000130'
 
 sgd_primary_topics = ['ATP:0000128', 'ATP:0000012', 'ATP:0000079', 'ATP:0000129',
-                      'other primary info']
-sgd_review_topics = ['review']
+                      'ATP:0000147']
+sgd_review_topics = ['ATP:0000130']
 sgd_omics_topics = ['ATP:0000085', 'ATP:0000150']
 sgd_additional_topics = ['ATP:0000142', 'ATP:0000011', 'ATP:0000088', 'ATP:0000070',
                          'ATP:0000022', 'ATP:0000149', 'ATP:0000054', 'ATP:0000006',
-                         'other additional literature']
+                         'ATP:0000132']
+
+root_topic_atp = 'ATP:0000002'
 species_atp = 'ATP:0000123'
 
 
@@ -471,17 +473,15 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
         topic_entity_tag_data['display_tag'] = sgd_primary_display_tag
     elif topic in sgd_review_topics and display_tag != sgd_review_display_tag:
         topic_entity_tag_data['display_tag'] = sgd_review_display_tag
-    elif topic in sgd_omics_topics:
-        if display_tag != sgd_omics_display_tag:
-            topic_entity_tag_data['display_tag'] = sgd_omics_display_tag
-        if entity_type:
-            topic_entity_tag_data['entity_type'] = None
-        if entity:
-            topic_entity_tag_data['entity'] = None
-    elif topic in sgd_additional_topics:
-        if entity:
-            if display_tag != sgd_additional_display_tag:
-                topic_entity_tag_data['display_tag'] = sgd_additional_display_tag
+    elif topic in sgd_omics_topics and display_tag != sgd_omics_display_tag:
+        topic_entity_tag_data['display_tag'] = sgd_omics_display_tag
+    elif topic in sgd_additional_topics and display_tag != sgd_additional_display_tag:
+        topic_entity_tag_data['display_tag'] = sgd_additional_display_tag
+    ### for review, other primary literature, other additional literature
+    if topic == topic_entity_tag_data['display_tag']:
+        if topic_entity_tag_data['entity_type']:
+            topic_entity_tag_data['topic'] = topic_entity_tag_data['entity_type']
         else:
-            if display_tag:
-                topic_entity_tag_data['display_tag'] = None
+            # when there is no entity attached to the paper
+            # currently 2% review papers without an entity attached 
+            topic_entity_tag_data['topic'] = root_topic_atp
