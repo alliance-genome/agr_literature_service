@@ -115,10 +115,11 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000):
     if limit > 1000:
         limit = 1000
     jobs = []
-    wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).\
-        filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
-               WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
-               WorkflowTransitionModel.condition.contains(job_str)).limit(limit).all()
+    wft_list = (db.query(WorkflowTagModel, WorkflowTransitionModel)
+                .filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
+                        WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
+                        WorkflowTransitionModel.condition.contains(job_str))
+                .order_by(WorkflowTagModel.date_updated.desc()).limit(limit).all())
     for wft in wft_list:
         conditions = wft[1].condition.split(',')
         for condition in conditions:
