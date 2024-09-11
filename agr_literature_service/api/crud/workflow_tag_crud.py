@@ -101,21 +101,24 @@ def process_transition_actions(db: Session,
         process_action(db, current_workflow_tag_db_obj, action)
 
 
-def get_jobs(db: Session, job_str: str):
+def get_jobs(db: Session, job_str: str, limit: int = 1000):
     """
     :param db: Session: database session
     :param job_str: string can be just general "job" or job types like "extract_job"
                     We may have different jobs running on different systems so this
                     allows more flexibility.
+    :param limit: maximum number of jobs to return. Maximum allowed value is 1000
 
     we need to join the workflow_transition table and workflow_tag table via transition_to and workflow_tag_id
     and condition contains the string defined in job_str.
     """
+    if limit > 1000:
+        limit = 1000
     jobs = []
     wft_list = db.query(WorkflowTagModel, WorkflowTransitionModel).\
         filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
                WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
-               WorkflowTransitionModel.condition.contains(job_str)).all()
+               WorkflowTransitionModel.condition.contains(job_str)).limit(limit).all()
     for wft in wft_list:
         conditions = wft[1].condition.split(',')
         for condition in conditions:

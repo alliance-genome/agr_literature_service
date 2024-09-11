@@ -64,10 +64,10 @@ def show(reference_workflow_tag_id: int,
     return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
-@router.get('/jobs/{job_string}',
+@router.get('/jobs/{job_string}/{limit}',
             status_code=200)
-def get_jobs(job_string: str, db: Session = db_session):
-    return workflow_tag_crud.get_jobs(db, job_string)
+def get_jobs(job_string: str, limit: int, db: Session = db_session):
+    return workflow_tag_crud.get_jobs(db, job_string, limit)
 
 
 @router.post('/job/failed/{reference_workflow_tag_id}',
