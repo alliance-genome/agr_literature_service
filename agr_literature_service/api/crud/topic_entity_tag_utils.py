@@ -329,18 +329,14 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
 
                 return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
 
-        except HTTPError as e:  # ateam lookup failed so just return the match to themselves
+        except HTTPError as e:
 
-            # for atp_value in chunk:
-            #    return_dict[atp_value] = atp_value
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
 
             return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
 
-        except Exception as e:  # ateam lookup failed so just return the match to themselves
+        except Exception as e:
 
-            # for atp_value in chunk:
-            #    return_dict[atp_value] = atp_value
             logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
 
             return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
