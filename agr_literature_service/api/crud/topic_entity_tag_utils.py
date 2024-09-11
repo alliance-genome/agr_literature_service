@@ -327,24 +327,48 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                     id_to_name_cache.set(curie, name)
                     return_dict[curie] = name
 
-                # If any curies in the chunk were not returned by the API, map them to themselves
-                for curie in chunk:
-                    if curie not in new_mappings:
-                        return_dict[curie] = curie  # map curie to itself if no result
+                return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
 
         except HTTPError as e:  # ateam lookup failed so just return the match to themselves
-            for atp_value in chunk:
-                return_dict[atp_value] = atp_value
+
+            # for atp_value in chunk:
+            #    return_dict[atp_value] = atp_value
             logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
+
+            return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
+
         except Exception as e:  # ateam lookup failed so just return the match to themselves
-            for atp_value in chunk:
-                return_dict[atp_value] = atp_value
+
+            # for atp_value in chunk:
+            #    return_dict[atp_value] = atp_value
             logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
+
+            return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
 
     # add already cached curies to return_dict
     for curie in set(curies) - set(curies_not_in_cache):
         return_dict[curie] = id_to_name_cache.get(curie)
     return return_dict
+
+
+def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
+
+    sgd_curies = []
+    for curie in curie_list:
+        if curie in id_name_mapping:
+            continue
+        if curie.startswith('SGD:'):
+            sgd_curies.append(curie)
+        # add other mod IDs checking here
+
+    if len(sgd_curies) > 0:
+        id_name_mapping.update(_get_map_sgd_curies_to_names(curies_category=curies_category, curies=sgd_curies))
+    ## add fallback calls for other mods here
+
+    for curie in curie_list:
+        if curie not in id_name_mapping:
+            id_name_mapping[curie] = curie  # map curie to itself if no result
+    return id_name_mapping
 
 
 def check_atp_ids_validity(curies, maxret=1000):
