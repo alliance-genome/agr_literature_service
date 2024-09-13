@@ -342,8 +342,45 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
     ).one_or_none()
 
 
+def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str):
+
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=curie_or_reference_id)
+    all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+    if not all_workflow_tags_for_process or not reference_id:
+        return []
+
+    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm",
+                                                      curies=all_workflow_tags_for_process)
+    sql_query = """
+    SELECT distinct m.abbreviation, wft.workflow_tag_id, wft.updated_by,
+           wft.date_updated::date AS date_updated, u.email
+    FROM workflow_tag wft
+    JOIN mod m ON wft.mod_id = m.mod_id
+    JOIN users u ON wft.updated_by = u.id
+    WHERE wft.reference_id = :reference_id
+    AND wft.workflow_tag_id IN :all_workflow_tags_for_process
+    """
+
+    rows = db.execute(sql_query, {
+        'reference_id': reference_id,
+        'all_workflow_tags_for_process': tuple(all_workflow_tags_for_process)
+    }).fetchall()
+
+    tags = []
+    for row in rows:
+        row_dict = dict(row)
+        workflow_tag_id = row_dict['workflow_tag_id']
+        row_dict['workflow_tag_name'] = atp_curie_to_name.get(workflow_tag_id, workflow_tag_id)
+        tags.append(row_dict)
+
+    return tags
+
+
 def get_current_workflow_status(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str,
                                 mod_abbreviation: str):
+    if mod_abbreviation.upper() == 'ALL':
+        return _get_current_workflow_tag_db_objs(db, curie_or_reference_id, workflow_process_atp_id)
+
     current_workflow_tag_db_obj = _get_current_workflow_tag_db_obj(db, curie_or_reference_id,
                                                                    workflow_process_atp_id, mod_abbreviation)
     return None if not current_workflow_tag_db_obj else current_workflow_tag_db_obj.workflow_tag_id
