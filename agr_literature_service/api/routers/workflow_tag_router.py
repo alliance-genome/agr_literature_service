@@ -66,8 +66,8 @@ def show(reference_workflow_tag_id: int,
 
 @router.get('/jobs/{job_string}',
             status_code=200)
-def get_jobs(job_string: str, limit: int = 1000, db: Session = db_session):
-    return workflow_tag_crud.get_jobs(db, job_string, limit)
+def get_jobs(job_string: str, limit: int = 1000, offset: int = 0, db: Session = db_session):
+    return workflow_tag_crud.get_jobs(db, job_string, limit, offset)
 
 
 @router.post('/job/failed/{reference_workflow_tag_id}',
