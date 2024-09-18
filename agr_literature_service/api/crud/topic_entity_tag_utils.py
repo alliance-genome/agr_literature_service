@@ -167,7 +167,9 @@ def _get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
                 "modEntityIdFilters": {
                     "modEntityId": {
                         "queryString": " ".join(chunk),
-                        "tokenOperator": "OR"
+                        "tokenOperator": "OR",
+                        "useKeywordFields": False,
+                        "queryType": "matchQuery"
                     }
                 }
             }
@@ -286,7 +288,7 @@ def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
                     keyword_name: {
                         "queryString": " ".join(chunk),
                         "tokenOperator": "OR",
-                        "useKeywordFields": True,
+                        "useKeywordFields": False,
                         "queryType": "matchQuery"
                     }
                 }
