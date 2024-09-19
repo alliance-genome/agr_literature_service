@@ -122,7 +122,7 @@ alembic-apply-latest-migration:
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
 	docker-compose --env-file ${ENV_FILE} build dev_app
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
-	$(MAKE) ENV_FILE=${ENV_FILE} restart-api-and-automated-scripts
+	# $(MAKE) ENV_FILE=${ENV_FILE} restart-api-and-automated-scripts
 	$(MAKE) ENV_FILE=${ENV_FILE} restart-debezium-aws
 
 restart-automated-scripts:
