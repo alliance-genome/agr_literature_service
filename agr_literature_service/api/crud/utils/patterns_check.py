@@ -10,50 +10,57 @@ import logging
 import yaml
 import re
 from os import path
-from fastapi import HTTPException, status
 from typing import Dict
 
 logger = logging.getLogger(__name__)
 
-patterns: Dict = {}
-
-logger = logging.getLogger(__name__)
+patterns: Dict[str, Dict[str, str]] = {}
 
 
-def get_patterns():
+def get_patterns() -> Dict[str, Dict[str, str]]:
     global patterns
     filenames = ['reference', 'resource']
     if not patterns:
-        try:
-            for filename in filenames:
-                yml_ret = yaml.load(open(f'{path.dirname(__file__)}/yml/{filename}.yml'), Loader=yaml.FullLoader)
+        for filename in filenames:
+            file_path = f'{path.dirname(__file__)}/yml/{filename}.yml'
+            try:
+                with open(file_path, 'r') as f:
+                    yml_ret = yaml.load(f, Loader=yaml.FullLoader)
                 patterns[filename] = {}
                 for key in yml_ret:
                     for pattern in yml_ret[key]['pattern']:
                         patterns[filename][pattern[1]] = pattern[0]
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                                detail=f"Error convert {filename} yml file: {e}")
+            except Exception as e:
+                logger.error(f"Error converting {filename}.yml file: {e}")
+                raise RuntimeError(f"Error converting {filename}.yml file: {e}")
     return patterns
 
 
-def check_pattern(key: str, curie: str):
+def check_pattern(key: str, curie: str) -> bool:
     """
-    key: type of pattern, currently 'reference' or 'resource'
-    curie_prefix: type od cross reference i.e. 'DOI', 'MGI', 'ISBN'
-    curie: the actual curie without the curie_prefix
+    Validates a CURIE against a predefined pattern.
+
+    Args:
+        key (str): Type of pattern, currently 'reference' or 'resource'.
+        curie (str): The CURIE to validate.
+
+    Returns:
+        bool: True if the CURIE matches the pattern, False otherwise.
     """
     global patterns
     if not patterns:
         get_patterns()
     if key not in patterns:
-        logger.error(f"Unable to find {key} in pattern list")
-        return None
+        logger.error(f"Unable to find '{key}' in pattern list")
+        return False
     curie_prefix = curie.split(':')[0]
     if curie_prefix not in patterns[key]:
-        logger.error(f"Unable to find curie prefix {curie_prefix} in pattern list for {key}")
-        return None
+        logger.error(f"Unable to find CURIE prefix '{curie_prefix}' in pattern list for '{key}'")
+        return False
 
-    if re.match(patterns[key][curie_prefix], curie):
+    pattern = patterns[key][curie_prefix]
+    if re.match(pattern, curie):
         return True
-    return False
+    else:
+        logger.error(f"CURIE '{curie}' does not match the pattern for '{curie_prefix}'")
+        return False
