@@ -6,6 +6,8 @@ import shutil
 from urllib import request
 import datetime
 from os import environ, path, listdir, remove
+import html
+import re
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -189,3 +191,33 @@ def get_pmids_from_exclude_list(mod=None):
             exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
 
     return exclude_pmids
+
+
+def remove_surrogates(text):
+    """
+    to deal with error like the following:
+    'utf-8' codec can't encode characters in position 163848625-163848626:
+    surrogates not allowed
+    """
+
+    if text:
+        return re.sub(r'[\uD800-\uDFFF]', '', text)
+    return text
+
+
+def escape_special_characters(text):
+
+    if text:
+        text = remove_surrogates(text)
+
+        # Unescape HTML entities
+        text = html.unescape(text)
+
+        ## escape any newline, carriage return, and tab
+        if "\n" in text or "\r" in text or "\t" in text:
+            text = text.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
+
+        ## escape double quote
+        # text = text.replace('"', '\\"')
+
+    return text
