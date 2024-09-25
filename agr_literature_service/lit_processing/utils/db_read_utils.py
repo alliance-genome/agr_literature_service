@@ -11,6 +11,8 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.api.models import ReferenceModel, ResourceModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     ReferenceModReferencetypeAssociationModel, ModReferencetypeAssociationModel
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils \
+    import escape_special_characters, remove_surrogates
 
 
 def get_pmid_association_to_mod_via_reference(db_session, pmids, mod_abbreviation):
@@ -459,7 +461,7 @@ def get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids):
             "mod_corpus_association_id": x[1],
             "mod_abbreviation": x[2],
             "corpus": x[3],
-            "mod_corpus_sort_source": x[4],
+            "mod_corpus_sort_source": remove_surrogates(x[4]),
             "date_created": str(x[5]),
             "date_updated": str(x[6])
         })
@@ -482,7 +484,7 @@ def get_cross_reference_data_for_ref_ids(db_session, ref_ids):
         if reference_id in reference_id_to_xrefs:
             data = reference_id_to_xrefs[reference_id]
         row = {
-            "curie": x[1],
+            "curie": remove_surrogates(x[1]),
             "is_obsolete": x[2]
         }
         data.append(row)
@@ -507,17 +509,17 @@ def get_author_data_for_ref_ids(db_session, ref_ids):
             data = reference_id_to_authors[reference_id]
         data.append({
             "author_id": x[0],
-            "orcid": x[2],
+            "orcid": escape_special_characters(x[2]),
             "first_author": x[3],
             "order": x[4],
             "corresponding_author": x[5],
-            "name": x[6].replace('"', '\\"').replace("\n", " ") if x[6] else x[6],
-            "affilliations": [a.replace('\\', '\\\\').replace('"', '\\"') for a in x[7]] if x[7] else [],
-            "first_name": x[8].replace('"', '\\"') if x[8] else x[8],
-            "last_name": x[9].replace('"', '\\"') if x[9] else x[9],
-            "first_initial": x[10].replace('"', '\\"') if x[10] else x[10],
-            "date_updated": str(x[11]),
-            "date_created": str(x[12])
+            "name": escape_special_characters(x[6]),
+            "affilliations": [escape_special_characters(a) for a in x[7]] if x[7] else [],
+            "first_name": escape_special_characters(x[8]),
+            "last_name": escape_special_characters(x[9]),
+            "first_initial": escape_special_characters(x[10]),
+            "date_updated": escape_special_characters(str(x[11])),
+            "date_created": escape_special_characters(str(x[12]))
         })
         reference_id_to_authors[reference_id] = data
 
@@ -538,8 +540,8 @@ def get_mesh_term_data_for_ref_ids(db_session, ref_ids):
         if reference_id in reference_id_to_mesh_terms:
             data = reference_id_to_mesh_terms[reference_id]
         data.append({
-            "heading_term": x[2],
-            "qualifier_term": x[3],
+            "heading_term": remove_surrogates(x[2]),
+            "qualifier_term": remove_surrogates(x[3]),
             "mesh_detail_id": x[0]
         })
         reference_id_to_mesh_terms[reference_id] = data
@@ -564,8 +566,8 @@ def get_mod_reference_type_data_for_ref_ids(db_session, ref_ids):
         if reference_id in reference_id_to_mod_reference_types:
             data = reference_id_to_mod_reference_types[reference_id]
         data.append({
-            "reference_type": x[2],
-            "source": x[3],
+            "reference_type": remove_surrogates(x[2]),
+            "source": remove_surrogates(x[3]),
             "mod_reference_type_id": x[0]
         })
         reference_id_to_mod_reference_types[reference_id] = data

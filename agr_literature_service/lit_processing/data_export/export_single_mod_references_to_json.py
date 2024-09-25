@@ -6,7 +6,6 @@ from datetime import datetime, date
 import json
 import gzip
 import shutil
-import html
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
@@ -14,6 +13,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import get_journa
     get_all_reference_relation_data, get_mod_corpus_association_data_for_ref_ids, \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils \
+    import escape_special_characters, remove_surrogates
 from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
@@ -97,6 +98,7 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
     log.info("DONE!")
 
 
+"""
 def generate_json_file(metaData, data, filename_with_path):
 
     dataDict = {"data": data,
@@ -111,6 +113,33 @@ def generate_json_file(metaData, data, filename_with_path):
         log.info("Error when generating " + filename_with_path + ": " + str(e))
         fw.write(json.dumps(dataDict, indent=4, sort_keys=True))
     fw.close
+"""
+
+
+def generate_json_file(metaData, data, filename_with_path):
+
+    dataDict = {"data": data, "metaData": metaData}
+
+    problematic_json_file = filename_with_path + "_problematic_items"
+
+    try:
+        # attempt to serialize the entire dataDict to JSON
+        with open(filename_with_path, 'w', encoding='utf-8') as fw:
+            json.dump(dataDict, fw, indent=4, sort_keys=True, ensure_ascii=False)
+    except UnicodeEncodeError as e:
+        log.info(f"UnicodeEncodeError when generating {filename_with_path}: {e}")
+        # try to identify the problematic data
+        for index, item in enumerate(data):
+            try:
+                json.dumps(item, ensure_ascii=False)
+            except UnicodeEncodeError as item_e:
+                log.info(f"UnicodeEncodeError in data at index {index}: {item_e}")
+                log.info(f"Problematic data: {item}")
+                with open(problematic_json_file, 'w', encoding='utf-8') as error_file:
+                    json.dump(item, error_file, ensure_ascii=False)
+                break  # Stop after finding the first problematic item
+    except Exception as e:
+        log.info(f"Error when generating {filename_with_path}: {e}")
 
 
 def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma: no cover
@@ -310,35 +339,6 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
     db_session.close()
 
 
-def escape_special_characters(text, curie):
-
-    if text:
-        ## convert &#x3b1; => α ; &#x3b2; => β, etc
-        # text = text.replace('&#xa0;', ' ').replace('&#x3b1;', 'α').replace('&#x3b2;', 'β')
-        # text = text.replace('&#x394;', 'Δ').replace('&#x223c;', '∼').replace('&#x2019;', "’")
-        # text = text.replace('&#xb7;', "·")
-
-        text = html.unescape(text)
-
-        ## to escape \u0012; \u0005, etc
-        text = repr(text)
-
-        ## remove the surrounding single/double quotes brought in by "text = repr(text)"
-        text = text[1:-1]
-
-        ## escape any backslash
-        text = text.replace("\\", "\\\\")
-
-        ## escape any newline, carriage return, and tab
-        if "\n" in text or "\r" in text or "\t" in text:
-            text = text.replace('\n', '\\n').replace('\r', '\\r').replace('\t', '\\t')
-
-        ## escape double quote
-        text = text.replace('"', '\\"')
-
-    return text
-
-
 def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
 
     i = 0
@@ -352,31 +352,32 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         if i % 100 == 0:
             log.info(str(i) + " " + x[1])
 
-        abstract = escape_special_characters(x[12], x[1])
-        title = escape_special_characters(x[3], x[1])
+        abstract = escape_special_characters(x[12])
+        title = escape_special_characters(x[3])
 
         row = {'reference_id': x[0],
                'curie': x[1],
                'resource_id': x[2],
                'title': title,
-               'language': x[4],
-               'date_published': str(x[5]),
-               'date_arrived_in_pubmed': str(x[6]),
-               'date_last_modified_in_pubmed': str(x[7]),
-               'volume': x[8],
-               'plain_language_abstract': x[9],
-               'pubmed_abstract_languages': x[10],
-               'page_range': x[11],
+               'language': remove_surrogates(x[4]),
+               'date_published': remove_surrogates(str(x[5])),
+               'date_arrived_in_pubmed': remove_surrogates(str(x[6])),
+               'date_last_modified_in_pubmed': remove_surrogates(str(x[7])),
+               'volume': remove_surrogates(x[8]),
+               'plain_language_abstract': remove_surrogates(x[9]),
+               'pubmed_abstract_languages': [remove_surrogates(lang) for lang in x[10]] if x[10] else x[10],
+               'page_range': remove_surrogates(x[11]),
                'abstract': abstract,
-               'keywords': [k.replace('"', '\\"') for k in x[13]] if x[13] else x[13],
-               'pubmed_types': x[14],
-               'publisher': x[15],
-               'category': x[16],
-               'pubmed_publication_status': x[17],
-               'issue_name': x[18],
-               'date_updated': str(x[19]),
-               'date_created': str(x[20])}
+               'keywords': [remove_surrogates(k.replace('"', '\\"')) for k in x[13]] if x[13] else x[13],
+               'pubmed_types': [remove_surrogates(type) for type in x[14]] if x[14] else x[14],
+               'publisher': remove_surrogates(x[15]),
+               'category': remove_surrogates(x[16]),
+               'pubmed_publication_status': remove_surrogates(x[17]),
+               'issue_name': remove_surrogates(x[18]),
+               'date_updated': remove_surrogates(str(x[19])),
+               'date_created': remove_surrogates(str(x[20]))}
 
+        # row['authors'] = reference_id_to_authors.get(reference_id, [])
         row['authors'] = reference_id_to_authors.get(reference_id, [])
 
         row['cross_references'] = reference_id_to_xrefs.get(reference_id, [])
@@ -395,10 +396,8 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         if x.resource_id in resource_id_to_journal:
             (resource_curie, resource_title, resource_medline_abbreviation) = resource_id_to_journal[resource_id]
             row['resource_curie'] = resource_curie
-            row['resource_title'] = resource_title.replace('"', '\\"') if resource_title else resource_title
-            row['resource_medline_abbreviation'] = resource_medline_abbreviation
-            if resource_medline_abbreviation:
-                row['resource_medline_abbreviation'] = resource_medline_abbreviation.replace('"', '\\"')
+            row['resource_title'] = escape_special_characters(resource_title)
+            row['resource_medline_abbreviation'] = escape_special_characters(resource_medline_abbreviation)
         else:
             row['resource_curie'] = None
             row['resource_title'] = None
