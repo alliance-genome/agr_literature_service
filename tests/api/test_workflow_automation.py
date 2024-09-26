@@ -182,7 +182,7 @@ class TestWorkflowTagAutomation:
             response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
             print(response.content)
             print(response.text)
-            print(response.reason)
+            print(response.status_code)
 
             transition_req = {
                 "curie_or_reference_id": reference.curie,
@@ -195,7 +195,7 @@ class TestWorkflowTagAutomation:
                                    headers=auth_headers)
             print(response.content)
             print(response.text)
-            print(response.reason)
+            print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
 
             # Test actions by transitioning from "ATP:0000141" to "ATP:fileuploadinprogress"
@@ -211,7 +211,7 @@ class TestWorkflowTagAutomation:
                                    headers=auth_headers)
             print(response.content)
             print(response.text)
-            print(response.reason)
+            print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
 
             transition_req = {
@@ -223,7 +223,7 @@ class TestWorkflowTagAutomation:
                                    headers=auth_headers)
             print(response.content)
             print(response.text)
-            print(response.reason)
+            print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
             # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
@@ -241,7 +241,7 @@ class TestWorkflowTagAutomation:
                                   headers=auth_headers)
             print(response.content)
             print(response.text)
-            print(response.reason)
+            print(response.status_code)
             results = response.json()
             assert response.status_code == status.HTTP_200_OK
             results = response.json()
