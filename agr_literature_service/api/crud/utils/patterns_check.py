@@ -7,10 +7,11 @@ NOTE: yml file name must match the key for the dictionary.
       i.e. reference.yml is used to add a new key 'reference' to the patterns and patterns_prefixed.
 """
 import logging
-import yaml
 import re
 from os import path
-from typing import Dict
+from typing import Dict, Union
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ def get_patterns() -> Dict[str, Dict[str, str]]:
     return patterns
 
 
-def check_pattern(key: str, curie: str) -> bool:
+def check_pattern(key: str, curie: str) -> Union[bool, None]:
     """
     Validates a CURIE against a predefined pattern.
 
@@ -52,11 +53,11 @@ def check_pattern(key: str, curie: str) -> bool:
         get_patterns()
     if key not in patterns:
         logger.error(f"Unable to find '{key}' in pattern list")
-        return False
+        return None
     curie_prefix = curie.split(':')[0]
     if curie_prefix not in patterns[key]:
         logger.error(f"Unable to find CURIE prefix '{curie_prefix}' in pattern list for '{key}'")
-        return False
+        return None
 
     pattern = patterns[key][curie_prefix]
     if re.match(pattern, curie):
