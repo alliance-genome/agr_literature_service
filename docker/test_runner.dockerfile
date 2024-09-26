@@ -1,7 +1,7 @@
 ARG REG=agrdocker
 ARG ALLIANCE_RELEASE=latest
 
-FROM python:3.8-alpine3.16
+FROM python:3.11-alpine3.20
 
 RUN apk update && apk add --no-cache git gcc musl-dev postgresql-dev libffi-dev bash
 
