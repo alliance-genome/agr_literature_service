@@ -1,35 +1,38 @@
-#
-#  NOTE: species has been left in here so that particular curie prefixes can be easily found
-#        and incase we need to be species specific at some point.
-#
-
 ALL:
-    pattern: [['^DOI:\d{2}[.]\d{4,5}/\S+$', 'DOI'],
-              ['^ISBN:\d{13}$', 'ISBN'],
-              ['^PMCID:PMC\d+$', 'PMCID'],
-              ['^PMID:\d+$', 'PMID']]
+  pattern:
+    - ['^DOI:\d{2}[.]\d{4,5}/\S+$', 'DOI']
+    - ['^ISBN:\d{13}$', 'ISBN']
+    - ['^PMCID:PMC\d+$', 'PMCID']
+    - ['^PMID:\d+$', 'PMID']
+
 RGD:
-    example: 'RGD:1311419'
-    pattern: [['^RGD:\d+$', 'RGD']]
+  example: 'RGD:1311419'
+  pattern:
+    - ['^RGD:\d+$', 'RGD']
 ZFIN:
-    example: 'ZFIN:ZDB-PUB-200229-13'
-    pattern: [['^ZFIN:ZDB-PUB\S+$', 'ZFIN']]
+  example: 'ZFIN:ZDB-PUB-200229-13'
+  pattern:
+    - ['^ZFIN:ZDB-PUB\S+$', 'ZFIN']
 XB:
-    example: 'XB-ART-59369'
-    # Xenbase:XB-ART-11903
-    pattern: [['^Xenbase:XB-ART-\d+$', 'XenBase']]
+  example: 'XB-ART-59369'
+  pattern:
+    - ['^Xenbase:XB-ART-\d+$', 'XenBase']
 FB:
-    example: 'FB:FBrf0111489'
-    pattern: [['^FB:FBrf[0-9]{7}$', 'FB']]
+  example: 'FB:FBrf0111489'
+  pattern:
+    - ['^FB:FBrf[0-9]{7}$', 'FB']
 MGI:
-    example: 'MGI:5427319'
-    pattern: [['^MGI:\d+$', 'MGI']]
+  example: 'MGI:5427319'
+  pattern:
+    - ['^MGI:\d+$', 'MGI']
 SGD:
-    example: 'SGD:S000126523'
-    pattern: [['^SGD:S\d+$', 'SGD']]
+  example: 'SGD:S000126523'
+  pattern:
+    - ['^SGD:S\d+$', 'SGD']
 WB:
-    example: 'WB:WBPaper00031514'
-    pattern: [['^WB:WBPaper\d+$', 'WB'],
-              ['^CGC:cgc\d{1,4}$', 'CGC'],
-              ['^WM:\S+$', 'WM'],
-              ['^WBG:wbg\d{ 1,2 }[.]\d', 'WBG']]
+  example: 'WB:WBPaper00031514'
+  pattern:
+    - ['^WB:WBPaper\d+$', 'WB']
+    - ['^CGC:cgc\d{1,4}$', 'CGC']
+    - ['^WM:\S+$', 'WM']
+    - ['^WBG:wbg\d{1,2}[.]\d+$', 'WBG']

@@ -14,6 +14,7 @@ class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
 
 class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
     topic_entity_tag_source_id: int
+    source_evidence_assertion_name: Optional[str] = None
 
 
 class TopicEntityTagSourceSchemaUpdate(BaseModel):
@@ -58,14 +59,19 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     topic_entity_tag_id: int
     topic: str
+    topic_name: Optional[str] = None
     entity_type: Optional[str] = None
+    entity_type_name: Optional[str] = None
     entity: Optional[str] = None
     entity_name: Optional[str] = None
     entity_id_validation: Optional[str] = None
     entity_published_as: Optional[str] = None
     species: Optional[str] = None
+    species_name: Optional[str] = None
     display_tag: Optional[str] = None
+    display_tag_name: Optional[str] = None
     topic_entity_tag_source_id: int
+    topic_entity_tag_source: Optional[TopicEntityTagSourceSchemaShow] = None
     negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[str] = None

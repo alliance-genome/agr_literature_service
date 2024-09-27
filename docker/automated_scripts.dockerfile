@@ -1,8 +1,8 @@
-FROM ubuntu:20.04
+FROM python:3.11-bookworm
 # Set timezone:
 ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-RUN apt-get update && apt-get install -y cron git python3-pip
+RUN apt-get update && apt-get install -y cron git
 WORKDIR /usr/src/app/
 RUN mkdir -p /usr/app/agr_literature_service
 ADD ./agr_literature_service /usr/src/app/agr_literature_service

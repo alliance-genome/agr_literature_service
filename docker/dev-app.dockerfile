@@ -1,7 +1,7 @@
 ARG REG=agrdocker
 ARG ALLIANCE_RELEASE=latest
 
-FROM ubuntu:20.04
+FROM python:3.11-bookworm
 
 WORKDIR /usr/local/bin/src/literature
 RUN mkdir -p /usr/local/bin/src/literature/agr_literature_service

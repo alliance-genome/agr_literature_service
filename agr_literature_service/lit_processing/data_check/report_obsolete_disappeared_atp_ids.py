@@ -30,6 +30,7 @@ def check_data():
 
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} ATP ID(s) are obsolete or disappeared from A-team ATP table")
 
+    mod_to_report = {}
     for atp_curie in obsolete_disappeared_curies:
         rows = db_session.execute(f"SELECT r.curie, m.abbreviation, tet.topic, tet.entity_type, tet.display_tag  "
                                   f"FROM reference r, mod m, mod_corpus_association mca, topic_entity_tag tet "
@@ -41,7 +42,6 @@ def check_data():
                                   f"AND mca.mod_id = m.mod_id").fetchall()
 
         cols_to_check = ['topic', 'entity_type']
-        mod_to_report = {}
         for row in rows:
             col_name = "display_tag"
             for col in cols_to_check:
