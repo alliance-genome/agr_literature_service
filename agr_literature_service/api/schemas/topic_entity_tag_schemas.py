@@ -66,6 +66,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     species: Optional[str] = None
     display_tag: Optional[str] = None
     topic_entity_tag_source_id: int
+    topic_entity_tag_source: Optional[TopicEntityTagSourceSchemaShow] = None
     negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
     confidence_level: Optional[str] = None
