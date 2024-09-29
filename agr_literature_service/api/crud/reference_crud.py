@@ -1002,23 +1002,27 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
 
     mca = db.query(ModCorpusAssociationModel).filter_by(
         reference_id=reference.reference_id, mod_id=mod.mod_id).first()
-    newly_added_mca = False
-    if mca:
-        if mca.corpus is not True:
-            mca.corpus = True
+    try:
+        newly_added_mca = False
+        if mca:
+            if mca.corpus is not True:
+                mca.corpus = True
+                db.add(mca)
+                db.commit()
+                newly_added_mca = True
+        else:
+            mca = ModCorpusAssociationModel(reference_id=reference.reference_id,
+                                            mod_id=mod.mod_id,
+                                            corpus=True,
+                                            mod_corpus_sort_source='manual_creation')
             db.add(mca)
             db.commit()
             newly_added_mca = True
-    else:
-        mca = ModCorpusAssociationModel(reference_id=reference.reference_id,
-                                        mod_id=mod.mod_id,
-                                        corpus=True,
-                                        mod_corpus_sort_source='manual_creation')
-        db.add(mca)
-        db.commit()
-        newly_added_mca = True
-    if newly_added_mca:
-        check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
-        if get_current_workflow_status(db, reference_curie, "ATP:0000140",
-                                       mod_abbreviation) is None:
-            transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
+        if newly_added_mca:
+            check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+            if get_current_workflow_status(db, reference_curie, "ATP:0000140",
+                                           mod_abbreviation) is None:
+                transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
