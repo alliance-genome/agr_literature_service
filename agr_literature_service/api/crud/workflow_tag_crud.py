@@ -363,7 +363,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
 
-    rows = db.execute(sql_query, {
+    rows = db.execute(text(sql_query), {
         'reference_id': reference_id,
         'all_workflow_tags_for_process': tuple(all_workflow_tags_for_process)
     }).fetchall()
@@ -604,7 +604,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                                 detail=message)
         atp_curies = all_WF_tags_for_process
     else:
-        rows = db.execute("SELECT distinct workflow_tag_id FROM workflow_tag").fetchall()
+        rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
@@ -632,7 +632,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     """
 
     try:
-        rows = db.execute(query, params).fetchall()
+        rows = db.execute(text(query), params).fetchall()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -675,7 +675,7 @@ def get_reference_workflow_tags_by_mod(
         "AND wft.date_updated BETWEEN :startDate AND :endDate"
     )
 
-    rows = db.execute(query, {
+    rows = db.execute(text(query), {
         'curie_prefix': curie_prefix,
         'mod_abbreviation': mod_abbreviation,
         'workflow_tag_id': workflow_tag_id,
