@@ -55,5 +55,5 @@ def drop_open_db_sessions(db):
              FROM pg_stat_activity
              WHERE datname = current_database()
              AND pid <> pg_backend_pid();'''
-    db.execute(com)
+    db.execute(text(com))
     print(f"Closing {db}")
