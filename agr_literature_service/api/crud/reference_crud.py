@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_
+from sqlalchemy import ARRAY, Boolean, String, func, and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -317,12 +317,12 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
-            rows = db.execute(f"SELECT rv.updated_by, u.email "
-                              f"FROM reference_version rv, users u "
-                              f"WHERE curie = '{reference_data['curie']}' "
-                              f"AND copyright_license_id_mod IS true "
-                              f"AND rv.updated_by = u.id "
-                              f"ORDER BY rv.date_updated DESC LIMIT 1").fetchall()
+            rows = db.execute(text(f"SELECT rv.updated_by, u.email "
+                                   f"FROM reference_version rv, users u "
+                                   f"WHERE curie = '{reference_data['curie']}' "
+                                   f"AND copyright_license_id_mod IS true "
+                                   f"AND rv.updated_by = u.id "
+                                   f"ORDER BY rv.date_updated DESC LIMIT 1")).fetchall()
             if len(rows) == 1:
                 if rows[0]['email']:
                     reference_data["copyright_license_last_updated_by"] = rows[0]['email']
@@ -392,7 +392,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         AND rf.file_extension = 'pdf'
         AND rf.date_created <= NOW() - INTERVAL '7 days'
         """
-        rows = db.execute(sql_query).fetchall()
+        rows = db.execute(text(sql_query)).fetchall()
         pdf_eligible_mod_ids = [row['mod_id'] for row in rows if row['mod_id']]
         is_pmc = any(row['mod_id'] is None for row in rows)
         if is_pmc:
@@ -405,7 +405,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         WHERE mca.reference_id = {reference.reference_id}
         AND mca.corpus = True
         """
-        rows = db.execute(sql_query).fetchall()
+        rows = db.execute(text(sql_query)).fetchall()
         mod_list = set()
         for row in rows:
             if row['mod_id'] in pdf_eligible_mod_ids:
@@ -843,7 +843,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
     try:
         offset = (page * 25) - 25
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(query).fetchall()
+        rows = db.execute(text(query)).fetchall()
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -854,7 +854,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
     try:
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
-        rows = db.execute(query).fetchall()
+        rows = db.execute(text(query)).fetchall()
         tag = ''
         if filter == 'default':
             tag = "needed"
@@ -967,7 +967,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     if files_updated_from_date:
         select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
     select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
-    textpresso_referencefiles = db.execute(select_stmt).fetchall()
+    textpresso_referencefiles = db.execute(text(select_stmt)).fetchall()
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
