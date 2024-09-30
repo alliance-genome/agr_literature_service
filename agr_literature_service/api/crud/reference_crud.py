@@ -48,9 +48,14 @@ from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
     update_data
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_current_workflow_status
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
+
+file_needed_tag_atp_id = "ATP:0000141"  # file needed
 
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
@@ -981,3 +986,43 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             ]
         } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
     ]
+
+
+def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # noqa
+
+    reference = db.query(ReferenceModel).filter_by(curie=reference_curie).first()
+    if not reference:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Reference with curie {reference_curie} does not exist")
+
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
+
+    mca = db.query(ModCorpusAssociationModel).filter_by(
+        reference_id=reference.reference_id, mod_id=mod.mod_id).first()
+    try:
+        newly_added_mca = False
+        if mca:
+            if mca.corpus is not True:
+                mca.corpus = True
+                db.add(mca)
+                db.commit()
+                newly_added_mca = True
+        else:
+            mca = ModCorpusAssociationModel(reference_id=reference.reference_id,
+                                            mod_id=mod.mod_id,
+                                            corpus=True,
+                                            mod_corpus_sort_source='manual_creation')
+            db.add(mca)
+            db.commit()
+            newly_added_mca = True
+        if newly_added_mca:
+            check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+            if get_current_workflow_status(db, reference_curie, "ATP:0000140",
+                                           mod_abbreviation) is None:
+                transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")

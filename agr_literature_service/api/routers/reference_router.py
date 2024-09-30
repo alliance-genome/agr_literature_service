@@ -255,3 +255,14 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                                         species,
                                                         from_reference_id,
                                                         page_size)
+
+
+@router.post('/add_to_corpus/{mod_abbreviation}/{reference_curie}',
+             status_code=201)
+def add_to_corpus(mod_abbreviation: str,
+                  reference_curie: str,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
+
+    set_global_user_from_okta(db, user)
+    return reference_crud.add_to_corpus(db, mod_abbreviation, reference_curie)
