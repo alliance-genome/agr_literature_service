@@ -2,6 +2,7 @@ from collections.abc import Hashable
 import functools
 from os import environ
 import requests
+from sqlalchemy import text
 # from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 #    create_postgres_session
 from fastapi_okta.okta_utils import (
@@ -75,9 +76,9 @@ def get_next_local_curie(subdomain, db):
     rs = None
     if subdomain == 'reference':
         curie_start = "AGRKB:101"
-        rs = db.execute("SELECT curie FROM reference order by reference_id desc limit 1")
+        rs = db.execute(text("SELECT curie FROM reference order by reference_id desc limit 1"))
     else:
-        rs = db.execute("SELECT curie FROM resource order by resource_id desc limit 1")
+        rs = db.execute(text("SELECT curie FROM resource order by resource_id desc limit 1"))
     rows = None
     if rs:
         rows = rs.fetchall()
