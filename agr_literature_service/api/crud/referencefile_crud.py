@@ -12,7 +12,7 @@ from typing import List, Union
 import boto3
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session, subqueryload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
@@ -271,11 +271,11 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
     ref = get_reference(db=db, curie_or_reference_id=reference_curie)
 
     if mod_abbreviation is None:
-        rows = db.execute(f"SELECT m.abbreviation "
-                          f"FROM mod m, mod_corpus_association mca "
-                          f"WHERE m.mod_id = mca.mod_id "
-                          f"AND mca.reference_id = {ref.reference_id} "
-                          f"AND mca.corpus is True").fetchall()
+        rows = db.execute(text(f"SELECT m.abbreviation "
+                               f"FROM mod m, mod_corpus_association mca "
+                               f"WHERE m.mod_id = mca.mod_id "
+                               f"AND mca.reference_id = {ref.reference_id} "
+                               f"AND mca.corpus is True")).fetchall()
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod_abbreviation}
