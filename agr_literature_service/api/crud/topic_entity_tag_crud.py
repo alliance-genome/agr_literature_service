@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, create_engine
+from sqlalchemy import case, and_, create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
 
@@ -301,9 +301,9 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
-    db.execute(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-               f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-               f"{validating_tag.topic_entity_tag_id})")
+    db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
+                    f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
+                    f"{validating_tag.topic_entity_tag_id})"))
     if calculate_validation_values:
         db.commit()
         validated_tag_obj = db.query(TopicEntityTagModel).filter(
@@ -394,7 +394,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                                       f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
             query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
         if delete_all_first:
-            db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
+            db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
             db.commit()
         curr_ref_tags_in_db = None
         curr_reference_id = None
@@ -406,8 +406,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                 curr_ref_tags_in_db = None
             logger.info(f"Processing tag # {str(tag_counter)}")
             if not delete_all_first:
-                db.execute(f"DELETE FROM topic_entity_tag_validation "
-                           f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
+                db.execute(text(f"DELETE FROM topic_entity_tag_validation "
+                                f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
             curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
                                                 calculate_validation_values=False,
                                                 related_tags_in_db=curr_ref_tags_in_db)
@@ -667,14 +667,14 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     past_date = current_date - timedelta(days=int(days_updated))
     last_date_updated = past_date.strftime("%Y-%m-%d")
 
-    rows = db.execute(f"SELECT cr.curie, tet.*, u.email "
-                      f"FROM cross_reference cr "
-                      f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
-                      f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                      f"JOIN users u ON tet.updated_by = u.id "
-                      f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                      f"WHERE m.abbreviation = '{mod_abbreviation}' "
-                      f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
+    rows = db.execute(text(f"SELECT cr.curie, tet.*, u.email "
+                           f"FROM cross_reference cr "
+                           f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
+                           f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           f"JOIN users u ON tet.updated_by = u.id "
+                           f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           f"WHERE m.abbreviation = '{mod_abbreviation}' "
+                           f"AND tet.date_updated >= '{last_date_updated}'")).fetchall()
 
     # tags = [dict(row) for row in rows]
     # there are duplicate rows returned
@@ -691,10 +691,10 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
 
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
-    src_rows = db.execute(f"SELECT tets.* "
-                          f"FROM topic_entity_tag_source tets "
-                          f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                          f"WHERE m.abbreviation = '{mod_abbreviation}'").fetchall()
+    src_rows = db.execute(text(f"SELECT tets.* "
+                               f"FROM topic_entity_tag_source tets "
+                               f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                               f"WHERE m.abbreviation = '{mod_abbreviation}'")).fetchall()
     metadata = [dict(row) for row in src_rows]
 
     return {"metadata": metadata, "data": data}
@@ -704,12 +704,12 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     curie_to_name_mapping = {}
 
-    rows = db.execute(f"SELECT DISTINCT tet.reference_id "
-                      f"FROM topic_entity_tag tet "
-                      f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                      f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                      f"WHERE m.abbreviation = '{mod_abbreviation}' "
-                      f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
+    rows = db.execute(text(f"SELECT DISTINCT tet.reference_id "
+                           f"FROM topic_entity_tag tet "
+                           f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           f"WHERE m.abbreviation = '{mod_abbreviation}' "
+                           f"AND tet.date_updated >= '{last_date_updated}'")).fetchall()
     for x in rows:
         curie_to_name_mapping.update(get_curie_to_name_from_all_tets(db, str(x['reference_id'])))
     return curie_to_name_mapping
