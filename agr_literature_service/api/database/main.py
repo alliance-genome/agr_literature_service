@@ -1,6 +1,7 @@
 
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
+from sqlalchemy import text
 
 from fastapi import Depends
 
@@ -22,7 +23,7 @@ def create_all_tables():
 
 
 def create_default_user():
-    engine.connect().execute("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING")
+    engine.connect().execute(text("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING"))
 
 
 def get_db():
