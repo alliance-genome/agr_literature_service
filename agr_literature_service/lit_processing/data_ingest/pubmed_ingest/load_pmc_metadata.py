@@ -1,5 +1,7 @@
 import logging
 from os import path
+from sqlalchemy import text
+
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_pmid_to_reference_id_mapping
@@ -26,13 +28,13 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
     script_nm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, script_nm)
 
-    ref_files_id_pmc_set = set([row["referencefile_id"] for row in db_session.execute(
-        "SELECT referencefile_id FROM referencefile_mod WHERE mod_id is null").fetchall()])
+    ref_files_id_pmc_set = set([row["referencefile_id"] for row in db_session.execute(text(
+        "SELECT referencefile_id FROM referencefile_mod WHERE mod_id is null")).fetchall()])
 
     ref_file_key_dbid = {}
     ref_file_uniq_filename_set = set()
-    for row in db_session.execute("SELECT referencefile_id, reference_id, md5sum, display_name, file_extension FROM "
-                                  "referencefile").fetchall():
+    for row in db_session.execute(text("SELECT referencefile_id, reference_id, md5sum, display_name, file_extension FROM "
+                                       "referencefile")).fetchall():
         ref_file_key = (row["reference_id"], row["md5sum"])
         ref_file_dbid = row["referencefile_id"]
         uniq_filename = (row["reference_id"], row["display_name"] + "." + row["file_extension"])
