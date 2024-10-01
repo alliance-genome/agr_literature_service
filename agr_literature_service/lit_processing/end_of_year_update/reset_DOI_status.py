@@ -1,5 +1,7 @@
 import logging
 import requests
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from os import path
 from agr_literature_service.api.models import CrossReferenceModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -21,12 +23,12 @@ def reset_DOI_status():
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    rows = db_session.execute("select reference_id, curie "
-                              "from   cross_reference "
-                              "where  curie_prefix = 'DOI' "
-                              "and    reference_id in "
-                              "(select reference_id from cross_reference "
-                              "where curie_prefix = 'PMID' and is_obsolete is True)").fetchall()
+    rows = db_session.execute(text("select reference_id, curie "
+                                   "from   cross_reference "
+                                   "where  curie_prefix = 'DOI' "
+                                   "and    reference_id in "
+                                   "(select reference_id from cross_reference "
+                                   "where curie_prefix = 'PMID' and is_obsolete is True)")).fetchall()
 
     found = check_for_doi_in_doi_resolver(bad_doi)
     if found:
@@ -90,13 +92,13 @@ def check_for_doi_in_pubmed(doi): # noqa
 """
 
 
-def check_for_valid_pmid(db_session, reference_id):
+def check_for_valid_pmid(db_session: Session, reference_id):
 
-    rows = db_session.execute(f"SELECT cross_reference_id "
-                              f"FROM   cross_reference "
-                              f"WHERE  reference_id = {reference_id} "
-                              f"AND    curie_prefix = 'PMID' "
-                              f"AND    is_obsolete is False").fetchall()
+    rows = db_session.execute(text(f"SELECT cross_reference_id "
+                                   f"FROM   cross_reference "
+                                   f"WHERE  reference_id = {reference_id} "
+                                   f"AND    curie_prefix = 'PMID' "
+                                   f"AND    is_obsolete is False")).fetchall()
     if len(rows) > 0:
         return True
     return False
