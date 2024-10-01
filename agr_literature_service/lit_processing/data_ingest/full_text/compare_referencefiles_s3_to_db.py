@@ -4,6 +4,8 @@ import boto3
 # from botocore.exceptions import ClientError
 from os import environ
 from typing import Set, Dict
+from sqlalchemy import text
+
 # remove
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.report_utils import send_report
@@ -27,7 +29,7 @@ def compare_s3_files():
     s3_md5sum_dict = dict()  # type: Dict
 
     db_session = create_postgres_session(False)
-    rs = db_session.execute("SELECT md5sum FROM referencefile")
+    rs = db_session.execute(text("SELECT md5sum FROM referencefile"))
     rows = rs.fetchall()
     for x in rows:
         db_md5sum.add(x[0])
