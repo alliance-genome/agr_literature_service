@@ -1,4 +1,5 @@
 import argparse
+from sqlalchemy import text
 import logging
 from os import environ, makedirs, path, rename, remove
 from dotenv import load_dotenv
@@ -267,7 +268,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
 
     db_session = create_postgres_session(False)
 
-    rs = db_session.execute("SELECT mod_id FROM mod where abbreviation = '" + mod + "'")
+    rs = db_session.execute(text("SELECT mod_id FROM mod where abbreviation = '" + mod + "'"))
     rows = rs.fetchall()
     mod_id = rows[0][0]
 
@@ -292,23 +293,23 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
         rs = None
         if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
             refColNmList = ", ".join(get_reference_col_names())
-            rs = db_session.execute(f"SELECT {refColNmList} "
-                                    f"FROM reference "
-                                    f"WHERE reference_id IN "
-                                    f"(select reference_id from mod_corpus_association "
-                                    f"where mod_id = {mod_id} and corpus is True) "
-                                    f"order by reference_id "
-                                    f"limit {limit} "
-                                    f"offset {offset}")
+            rs = db_session.execute(text(f"SELECT {refColNmList} "
+                                         f"FROM reference "
+                                         f"WHERE reference_id IN "
+                                         f"(select reference_id from mod_corpus_association "
+                                         f"where mod_id = {mod_id} and corpus is True) "
+                                         f"order by reference_id "
+                                         f"limit {limit} "
+                                         f"offset {offset}"))
         else:
             refColNmList = "r." + ", r.".join(get_reference_col_names())
-            rs = db_session.execute(f"SELECT {refColNmList} "
-                                    f"FROM reference r, mod_corpus_association m "
-                                    f"WHERE r.reference_id = m.reference_id "
-                                    f"AND m.mod_id = {mod_id} and m.corpus is True "
-                                    f"order by r.reference_id "
-                                    f"limit {limit} "
-                                    f"offset {offset}")
+            rs = db_session.execute(text(f"SELECT {refColNmList} "
+                                         f"FROM reference r, mod_corpus_association m "
+                                         f"WHERE r.reference_id = m.reference_id "
+                                         f"AND m.mod_id = {mod_id} and m.corpus is True "
+                                         f"order by r.reference_id "
+                                         f"limit {limit} "
+                                         f"offset {offset}"))
 
         rows = rs.fetchall()
         if len(rows) == 0:
