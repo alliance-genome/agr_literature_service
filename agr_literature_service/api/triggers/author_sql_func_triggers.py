@@ -1,3 +1,4 @@
+from sqlalchemy import text
 
 author_update_function = """
 CREATE OR REPLACE FUNCTION author_update_citation()
@@ -58,8 +59,8 @@ EXECUTE FUNCTION public.author_update_citation();
 
 
 def add_author_triggers(db_session):
-    db_session.execute(author_update_function)
-    # db_session.execute(author_update_trigger)
-    db_session.execute(author_citation_insert_trigger)
-    db_session.execute(author_citation_delete_trigger)
-    db_session.execute(author_citation_update_trigger)
+    db_session.execute(text(author_update_function))
+    # db_session.execute(text(author_update_trigger))
+    db_session.execute(text(author_citation_insert_trigger))
+    db_session.execute(text(author_citation_delete_trigger))
+    db_session.execute(text(author_citation_update_trigger))
