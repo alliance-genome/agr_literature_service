@@ -605,7 +605,7 @@ def get_pmid_list_without_pmc_package(mods, db_session: Session = None):
                                        f"AND cr.is_obsolete is False "
                                        f"AND cr.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.mod_id = {mod_id} ")).fetchall()
+                                       f"AND mca.mod_id = {mod_id} ")).mappings().fetchall()
         for x in rows:
             if x["reference_id"] not in reference_ids_with_PMC:
                 pmid = x["curie"].replace("PMID:", "")
@@ -618,7 +618,7 @@ def get_pmid_list_without_pmc_package(mods, db_session: Session = None):
 def get_pmid_to_reference_id_mapping(db_session: Session):
     pmid_to_reference_id = {}
     rows = db_session.execute(text("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and "
-                                   "is_obsolete = False")).fetchall()
+                                   "is_obsolete = False")).mappings().fetchall()
     for x in rows:
         pmid = x["curie"].replace("PMID:", "")
         pmid_to_reference_id[pmid] = x["reference_id"]
@@ -635,7 +635,7 @@ def sort_pmids(db_session: Session, pmids, mod_to_pmids):
                                    f"WHERE  cr.curie in ({pmids_with_prefix}) "
                                    f"AND    cr.reference_id = mca.reference_id "
                                    f"AND    mca.corpus is True "
-                                   f"AND    mca.mod_id = m.mod_id")).fetchall()
+                                   f"AND    mca.mod_id = m.mod_id")).mappings().fetchall()
     pmids_in_mod = set()
     for x in rows:
         pmid = x["curie"].replace("PMID:", "")
@@ -660,7 +660,7 @@ def get_mod_papers(db_session: Session, mod):
                                    f"WHERE  cr.curie_prefix = 'PMID' "
                                    f"AND    cr.reference_id = mca.reference_id "
                                    f"AND    mca.mod_id = m.mod_id "
-                                   f"AND    m.abbreviation = '{mod}'")).fetchall()
+                                   f"AND    m.abbreviation = '{mod}'")).mappings().fetchall()
     in_corpus_set = set()
     out_corpus_set = set()
     for x in rows:

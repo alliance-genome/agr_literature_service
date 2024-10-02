@@ -40,7 +40,7 @@ def add_file_uploaded_workflow(db_session: Session, curie_or_reference_id, mod=N
                                        f"FROM mod m, mod_corpus_association mca "
                                        f"WHERE m.mod_id = mca.mod_id "
                                        f"AND mca.reference_id = {ref.reference_id} "
-                                       f"AND mca.corpus is True")).fetchall()
+                                       f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod}
@@ -263,17 +263,17 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                                        f"AND mca.reference_id = r.reference_id "
                                        f"AND r.prepublication_pipeline is False")).fetchall()
     for x in mca_rows:
-        if x['reference_id'] not in valid_reference_ids:
+        if x[1] not in valid_reference_ids:
             # move the papers outside corpus if they only have invalid MOD curies
             try:
                 db_session.execute(text(f"UPDATE mod_corpus_association "
                                         f"SET corpus = False "
                                         f"WHERE mod_corpus_association_id = {int(x[0])}"))
                 if logger:
-                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}")
+                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
             except Exception as e:
                 if logger:
-                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}. Error = {e}")
+                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
 
     db_session.commit()
     # db_session.rollback()
@@ -1055,7 +1055,7 @@ def _get_curator_email_who_added_reference_relation(db_session: Session, referen
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND u.id = t.user_id")).fetchall()
+                                   f"AND u.id = t.user_id")).mappings().fetchall()
     if len(rows) == 0:
         return None
     for row in rows:
