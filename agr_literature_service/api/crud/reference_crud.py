@@ -322,7 +322,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                                    f"WHERE curie = '{reference_data['curie']}' "
                                    f"AND copyright_license_id_mod IS true "
                                    f"AND rv.updated_by = u.id "
-                                   f"ORDER BY rv.date_updated DESC LIMIT 1")).fetchall()
+                                   f"ORDER BY rv.date_updated DESC LIMIT 1")).mappings().fetchall()
             if len(rows) == 1:
                 if rows[0]['email']:
                     reference_data["copyright_license_last_updated_by"] = rows[0]['email']
@@ -392,7 +392,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         AND rf.file_extension = 'pdf'
         AND rf.date_created <= NOW() - INTERVAL '7 days'
         """
-        rows = db.execute(text(sql_query)).fetchall()
+        rows = db.execute(text(sql_query)).mappings().fetchall()
         pdf_eligible_mod_ids = [row['mod_id'] for row in rows if row['mod_id']]
         is_pmc = any(row['mod_id'] is None for row in rows)
         if is_pmc:
@@ -405,7 +405,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         WHERE mca.reference_id = {reference.reference_id}
         AND mca.corpus = True
         """
-        rows = db.execute(text(sql_query)).fetchall()
+        rows = db.execute(text(sql_query)).mappings().fetchall()
         mod_list = set()
         for row in rows:
             if row['mod_id'] in pdf_eligible_mod_ids:
@@ -843,7 +843,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
     try:
         offset = (page * 25) - 25
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(text(query)).fetchall()
+        rows = db.execute(text(query)).mappings().fetchall()
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -854,7 +854,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
     try:
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
-        rows = db.execute(text(query)).fetchall()
+        rows = db.execute(text(query)).mappings().fetchall()
         tag = ''
         if filter == 'default':
             tag = "needed"
@@ -869,8 +869,8 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
         fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
             date_created = str(x['date_created']).split(' ')[0]
-            main_file_count = x[3]
-            suppl_file_count = x[4]
+            main_file_count = x['MAINCOUNT']
+            suppl_file_count = x['SUPCOUNT']
             fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['doi']}\t{x['short_citation']}\t "
                      f"{workflowtag}\t{main_file_count}\t{suppl_file_count}\t{date_created}\n")
         fw.close()
@@ -967,7 +967,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     if files_updated_from_date:
         select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
     select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
-    textpresso_referencefiles = db.execute(text(select_stmt)).fetchall()
+    textpresso_referencefiles = db.execute(text(select_stmt)).mappings().fetchall()
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,

@@ -366,7 +366,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     rows = db.execute(text(sql_query), {
         'reference_id': reference_id,
         'all_workflow_tags_for_process': tuple(all_workflow_tags_for_process)
-    }).fetchall()
+    }).mappings().fetchall()
 
     tags = []
     for row in rows:
@@ -632,7 +632,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     """
 
     try:
-        rows = db.execute(text(query), params).fetchall()
+        rows = db.execute(text(query), params).mappings().fetchall()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

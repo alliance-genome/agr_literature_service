@@ -275,7 +275,7 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
                                f"FROM mod m, mod_corpus_association mca "
                                f"WHERE m.mod_id = mca.mod_id "
                                f"AND mca.reference_id = {ref.reference_id} "
-                               f"AND mca.corpus is True")).fetchall()
+                               f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod_abbreviation}
