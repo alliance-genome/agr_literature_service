@@ -1,5 +1,6 @@
 import logging
 from os import path
+from sqlalchemy import text
 
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, MeshDetailModel, \
