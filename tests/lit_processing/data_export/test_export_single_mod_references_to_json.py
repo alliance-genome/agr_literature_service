@@ -1,6 +1,7 @@
 import json
 from os import path, stat, rename, environ
 from datetime import date
+from sqlalchemy import text
 
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     dump_data, concatenate_json_files, get_meta_data, generate_json_file, get_reference_col_names,\
@@ -21,7 +22,7 @@ class TestExportSingleModReferencesToJson:
         curie_to_reference_id = {}
 
         ## ZFIN papers
-        rs = db.execute("SELECT reference_id, curie FROM cross_reference where curie in ('PMID:33622238', 'PMID:34354223', 'PMID:35151207')")
+        rs = db.execute(text("SELECT reference_id, curie FROM cross_reference where curie in ('PMID:33622238', 'PMID:34354223', 'PMID:35151207')"))
         rows = rs.fetchall()
         for x in rows:
             reference_id_list.append(x[0])
