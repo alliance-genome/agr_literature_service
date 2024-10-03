@@ -19,14 +19,15 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import popula
 from agr_literature_service.api.config import config
 
 
+@pytest.fixture
 def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
-        print("***** Deleting test data from all tables *****")
-        with engine.begin() as conn:  # Use connection context
+        print("***** Truncating test data from all tables *****")
+        with engine.begin() as conn:
             for table in reversed(Base.metadata.sorted_tables):
                 if table.fullname != "users":
-                    conn.execute(table.delete())  # Use connection for execution
-        db_session.commit()  # Commit the transaction
+                    conn.execute(f"TRUNCATE TABLE {table.fullname} RESTART IDENTITY CASCADE")
+        db_session.commit()  # Ensure the transaction is committed
 
 
 @pytest.fixture
@@ -39,13 +40,15 @@ def db() -> Session:
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
 
         initialize()
-        db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
-        delete_all_table_content(engine, db_session)  # Clean before test starts
-        yield db_session
-        delete_all_table_content(engine, db_session)  # Clean after test ends
-        drop_open_db_sessions(db_session)  # Close any open sessions
-        print("***** Closing DB session *****")
-        db_session.close()  # Close the session
+        db_session = sessionmaker(bind=engine, autoflush=True)()
+        try:
+            delete_all_table_content(engine, db_session)  # Clean before test starts
+            yield db_session
+            delete_all_table_content(engine, db_session)  # Clean after test ends
+            drop_open_db_sessions(db_session)  # Close any open sessions
+        finally:
+            print("***** Closing DB session *****")
+            db_session.close()  # Close the session
 
 
 @pytest.fixture
@@ -82,7 +85,7 @@ def populate_test_mod_reference_types(db):
                                                                       display_order=display_order)
             db.add(mod_reference_type_obj)
             display_order = math.ceil((display_order + 1) / 10) * 10
-    db.commit()
+    db.commit()  # Commit after adding mod reference types
 
 
 @pytest.fixture
