@@ -19,38 +19,33 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import popula
 from agr_literature_service.api.config import config
 
 
-def delete_all_table_content(engine):
+def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
-        # for table in ['author']:
-        #    print(f"Stop triggers for {table}")
-        #    engine.execute(f"ALTER TABLE {table} DISABLE TRIGGER ALL;")
-
         print("***** Deleting test data from all tables *****")
-        for table in reversed(Base.metadata.sorted_tables):
-            # print(f"***** Deleting table {table.fullname}")
-            if table.fullname != "users":
-                engine.execute(table.delete())
-        # for table in ['author']:
-        #    print(f"Start trigger for {table}")
-        #    engine.execute(f"ALTER TABLE {table} ENABLE TRIGGER ALL;")
+        with engine.begin() as conn:  # Use connection context
+            for table in reversed(Base.metadata.sorted_tables):
+                if table.fullname != "users":
+                    conn.execute(table.delete())  # Use connection for execution
+        db_session.commit()  # Commit the transaction
 
 
 @pytest.fixture
 def db() -> Session:
     print("***** Creating DB session *****")
-    if ("rds.amazonaws.com" in config.PSQL_HOST):
-        msg = "***** Warning: not allow to run test on stage or prod database *****"
+    if "rds.amazonaws.com" in config.PSQL_HOST:
+        msg = "***** Warning: not allowed to run test on stage or prod database *****"
         pytest.exit(msg)
     else:
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+
         initialize()
-        delete_all_table_content(engine)
-        db = sessionmaker(bind=engine, autoflush=True)()
-        yield db
-        delete_all_table_content(engine)
-        drop_open_db_sessions(db)
+        db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
+        delete_all_table_content(engine, db_session)  # Clean before test starts
+        yield db_session
+        delete_all_table_content(engine, db_session)  # Clean after test ends
+        drop_open_db_sessions(db_session)  # Close any open sessions
         print("***** Closing DB session *****")
-        db.close()
+        db_session.close()  # Close the session
 
 
 @pytest.fixture
@@ -69,17 +64,21 @@ def cleanup_tmp_files_when_done():
 @pytest.fixture
 def populate_test_mod_reference_types(db):
     populate_test_mods()
-    mod_reference_types = {'ZFIN': ['Journal', 'Review'], 'FB': ['book'], 'WB': ['Journal_article', 'Micropublication'],
-                           'SGD': ['Journal']}
+    mod_reference_types = {
+        'ZFIN': ['Journal', 'Review'],
+        'FB': ['book'],
+        'WB': ['Journal_article', 'Micropublication'],
+        'SGD': ['Journal']
+    }
     for mod, reference_types in mod_reference_types.items():
-        mod = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
+        mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
         display_order = 10
         for reference_type in reference_types:
             rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
             if rt_obj is None:
                 rt_obj = ReferencetypeModel(label=reference_type)
                 db.add(rt_obj)
-            mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod, referencetype=rt_obj,
+            mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod_obj, referencetype=rt_obj,
                                                                       display_order=display_order)
             db.add(mod_reference_type_obj)
             display_order = math.ceil((display_order + 1) / 10) * 10
