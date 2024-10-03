@@ -19,8 +19,8 @@ def create_postgres_engine(verbose):
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
-    # future=True is recommended for 2.0-style behavior
-    engine = create_engine(engine_var, future=True)
+    # future=True is recommended for 2.0-style behavior.  But referencefile unit test would fail, so removed it.
+    engine = create_engine(engine_var)
     if verbose:
         print('Using server: {}'.format(SERVER))
         print('Using database: {}'.format(DB))
