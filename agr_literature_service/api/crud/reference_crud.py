@@ -427,14 +427,13 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                     mod_reference_type_id=ref_mod_referencetype.reference_mod_referencetype_id,
                     reference_type=ref_mod_referencetype.mod_referencetype.referencetype.label,
                     mod_abbreviation=ref_mod_referencetype.mod_referencetype.mod.abbreviation)))
-    if "obsolete_reference" in reference_data:
-        reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
-                                                 reference_data["obsolete_reference"]]
-        del reference_data["obsolete_reference"]
+    reference_data["obsolete_references"] = [obs_reference["curie"] for obs_reference in
+                                             reference_data["obsolete_reference"]]
+    del reference_data["obsolete_reference"]
 
     # So thisis wierd, we check reference.mod_corpus_association BUT
     # use reference_data["mod_corpus_association"]
-    if reference.mod_corpus_association and "mod_corpus_association" in reference_data:
+    if reference.mod_corpus_association:
         for i in range(len(reference_data["mod_corpus_association"])):
             del reference_data["mod_corpus_association"][i]["reference_id"]
             reference_data["mod_corpus_association"][i]["mod_abbreviation"] = reference_data[
@@ -451,12 +450,12 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
 
             reference_data["workflow_tags"].append(ont_json)
 
-    if reference.mesh_term and "mesh_term" in reference_data:
+    if reference.mesh_term:
         for mesh_term in reference_data["mesh_term"]:
             del mesh_term["reference_id"]
         reference_data['mesh_terms'] = reference_data['mesh_term']
 
-    if reference.author and "author" in reference_data:
+    if reference.author:
         authors = []
         for author in reference_data["author"]:
             del author["reference_id"]
