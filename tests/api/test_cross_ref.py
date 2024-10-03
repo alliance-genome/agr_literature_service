@@ -3,6 +3,7 @@ from collections import namedtuple
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
+from sqlalchemy import text
 
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.main import app
@@ -20,8 +21,8 @@ TestXrefData = namedtuple('TestXrefData', ['response', 'related_ref_curie'])
 def test_cross_reference(db, auth_headers, test_reference): # noqa
     print("***** Adding a test cross reference *****")
     with TestClient(app) as client:
-        db.execute("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                   "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
+        db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                        "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')"))
         db.commit()
         new_cross_ref = {
             "curie": "XREF:123456",
@@ -115,10 +116,10 @@ class TestCrossRef:
 
     def test_show_all_xrefs(self, db, test_cross_reference, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
-            db.execute("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                       "VALUES ('XREF2', 'Madeup2', 'http://www.bob2.com/[%s]')")
-            db.execute("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                       "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')")
+            db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                            "VALUES ('XREF2', 'Madeup2', 'http://www.bob2.com/[%s]')"))
+            db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                            "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')"))
             db.commit()
             new_cross_ref = {
                 "curie": "XREF2:123456",
