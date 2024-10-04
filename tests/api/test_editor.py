@@ -81,7 +81,14 @@ class TestEditor:
     def test_show_editor(self, test_editor): # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/editor/{test_editor.new_editor_id}")
-            assert response.json()['orcid'] == "ORCID:2345-2345-2345-234X"
+            assert response.status_code == status.HTTP_200_OK
+
+            resp_data = response.json()
+
+            assert "resource_id" in resp_data
+            assert resp_data['resource_id'] is not None
+
+            assert resp_data['orcid'] == "ORCID:2345-2345-2345-234X"
 
     def test_destroy_editor(self, test_editor, auth_headers): # noqa
         with TestClient(app) as client:

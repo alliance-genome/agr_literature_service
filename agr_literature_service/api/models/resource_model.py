@@ -95,7 +95,7 @@ class ResourceModel(Base, AuditedModel):
     editor = relationship(
         "EditorModel",
         lazy="joined",
-        back_populates="resource",
+        back_populates=None,
         cascade="all, delete, delete-orphan"
     )
 

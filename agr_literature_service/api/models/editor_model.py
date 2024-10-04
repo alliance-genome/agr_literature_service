@@ -33,10 +33,12 @@ class EditorModel(Base, AuditedModel):
         index=True
     )
 
+    """
     resource = relationship(
         "ResourceModel",
         back_populates="editor"
     )
+    """
 
     orcid = Column(
         String(),
