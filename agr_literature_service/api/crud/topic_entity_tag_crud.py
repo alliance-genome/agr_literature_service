@@ -301,14 +301,15 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
-    db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-                    f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-                    f"{validating_tag.topic_entity_tag_id})"))
-    if calculate_validation_values:
-        db.commit()
-        validated_tag_obj = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
-        set_validation_values_to_tag(validated_tag_obj)
+    with db.begin():
+        db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
+                        f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
+                        f"{validating_tag.topic_entity_tag_id})"))
+        if calculate_validation_values:
+            db.commit()
+            validated_tag_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
+            set_validation_values_to_tag(validated_tag_obj)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
@@ -394,8 +395,9 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                                       f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
             query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
         if delete_all_first:
-            db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
-            db.commit()
+            with db.begin():
+                db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
+                # db.commit()
         curr_ref_tags_in_db = None
         curr_reference_id = None
         curr_mod_id = None
@@ -406,8 +408,9 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                 curr_ref_tags_in_db = None
             logger.info(f"Processing tag # {str(tag_counter)}")
             if not delete_all_first:
-                db.execute(text(f"DELETE FROM topic_entity_tag_validation "
-                                f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
+                with db.begin():
+                    db.execute(text(f"DELETE FROM topic_entity_tag_validation "
+                                    f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
             curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
                                                 calculate_validation_values=False,
                                                 related_tags_in_db=curr_ref_tags_in_db)
