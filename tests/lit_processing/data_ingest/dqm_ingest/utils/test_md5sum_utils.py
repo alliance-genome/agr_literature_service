@@ -22,26 +22,27 @@ class TestMd5sumUtil:
             }
         }
         try:
-            db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('FB', 'FlyBase', 'FlyBase', 'now()') "))
-            mod_results = db.execute(text("select abbreviation, mod_id from mod where abbreviation='FB'"))
-            ids = mod_results.fetchall()
-            mod_id_FB = ids[0]["mod_id"]
-            db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') "))
+            with db.begin():  # Start a transaction block
+                db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('FB', 'FlyBase', 'FlyBase', 'now()') "))
+                mod_results = db.execute(text("select abbreviation, mod_id from mod where abbreviation='FB'"))
+                ids = mod_results.fetchall()
+                mod_id_FB = ids[0]["mod_id"]
+                db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') "))
 
-            db.execute(text("insert into  reference (title, curie, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'now()') "))
-            ref_results = db.execute(text("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'"))
-            refs = ref_results.fetchall()
-            reference_id = refs[0]["reference_id"]
-            print("reference_id here:" + str(reference_id))
+                db.execute(text("insert into  reference (title, curie, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'now()') "))
+                ref_results = db.execute(text("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'"))
+                refs = ref_results.fetchall()
+                reference_id = refs[0]["reference_id"]
+                print("reference_id here:" + str(reference_id))
 
-            db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'FB:FBrf00000001', 'FB', 'now()', 'false') "))
-            db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'PMID:9241', 'PMID', 'now()', 'false') "))
-            db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'Xenbase:XB-ART-58863', 'Xenbase', 'now()', 'false') "))
-            db.execute(text(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_FB}, 'd70b2ce7c56deab14722fb4ac2e7d287', 'now()') "))
-            db.execute(text(f"insert into  reference_mod_md5sum (reference_id, md5sum, date_updated) values ({reference_id}, 'd70b2ce7c56deab14722fb4ac2e7d288', 'now()') "))
+                db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'FB:FBrf00000001', 'FB', 'now()', 'false') "))
+                db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'PMID:9241', 'PMID', 'now()', 'false') "))
+                db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created, is_obsolete) values ({reference_id}, 'Xenbase:XB-ART-58863', 'Xenbase', 'now()', 'false') "))
+                db.execute(text(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_FB}, 'd70b2ce7c56deab14722fb4ac2e7d287', 'now()') "))
+                db.execute(text(f"insert into  reference_mod_md5sum (reference_id, md5sum, date_updated) values ({reference_id}, 'd70b2ce7c56deab14722fb4ac2e7d288', 'now()') "))
         except Exception as e:
             print(e)
-        db.commit()
+        # db.commit()
 
         print(" here to update md5sum")
         save_database_md5data(md5sum_data)
@@ -74,27 +75,28 @@ class TestMd5sumUtil:
 
     def test_load_database_md5data(self, db):  # noqa
         try:
-            db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('FB', 'FlyBase', 'FlyBase', 'now()') "))
-            mod_results = db.execute(text("select abbreviation, mod_id from mod where abbreviation='FB'"))
-            ids = mod_results.fetchall()
-            mod_id_FB = ids[0]["mod_id"]
-            db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') "))
-            mod_results = db.execute(text("select abbreviation, mod_id from mod where abbreviation='XB'"))
-            ids = mod_results.fetchall()
-            mod_id_XB = ids[0]["mod_id"]
-            db.execute(text("insert into  reference (title, curie, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'now()') "))
-            ref_results = db.execute(text("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'"))
-            refs = ref_results.fetchall()
-            reference_id = str(refs[0]["reference_id"])
-            db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'FB:FBrf0001', 'FB', 'now()') "))
-            db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'PMID:0001', 'PMID', 'now()') "))
-            db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'Xenbase:XB-ART-0001', 'Xenbase', 'now()') "))
-            db.execute(text(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_FB}, 'TEST-md5sum-FB', 'now()') "))
-            db.execute(text(f"insert into  reference_mod_md5sum (reference_id, md5sum, date_updated) values ({reference_id}, 'TEST-md5sum-PMID', 'now()') "))
-            db.execute(text(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_XB}, 'TEST-md5sum-XB', 'now()') "))
+            with db.begin():  # Start a transaction block
+                db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('FB', 'FlyBase', 'FlyBase', 'now()') "))
+                mod_results = db.execute(text("select abbreviation, mod_id from mod where abbreviation='FB'"))
+                ids = mod_results.fetchall()
+                mod_id_FB = ids[0]["mod_id"]
+                db.execute(text("insert into  mod (abbreviation, short_name, full_name, date_created) values ('XB', 'Xenbase', 'Xenbase', 'now()') "))
+                mod_results = db.execute(text("select abbreviation, mod_id from mod where abbreviation='XB'"))
+                ids = mod_results.fetchall()
+                mod_id_XB = ids[0]["mod_id"]
+                db.execute(text("insert into  reference (title, curie, date_created) values ('Bob', 'AGR:AGR-Reference-0000808175', 'now()') "))
+                ref_results = db.execute(text("select reference_id from reference where curie='AGR:AGR-Reference-0000808175'"))
+                refs = ref_results.fetchall()
+                reference_id = str(refs[0]["reference_id"])
+                db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'FB:FBrf0001', 'FB', 'now()') "))
+                db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'PMID:0001', 'PMID', 'now()') "))
+                db.execute(text(f"insert into  cross_reference (reference_id, curie, curie_prefix, date_created) values ({reference_id}, 'Xenbase:XB-ART-0001', 'Xenbase', 'now()') "))
+                db.execute(text(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_FB}, 'TEST-md5sum-FB', 'now()') "))
+                db.execute(text(f"insert into  reference_mod_md5sum (reference_id, md5sum, date_updated) values ({reference_id}, 'TEST-md5sum-PMID', 'now()') "))
+                db.execute(text(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ({reference_id}, {mod_id_XB}, 'TEST-md5sum-XB', 'now()') "))
         except Exception as e:
             print(e)
-        db.commit()
+        # db.commit()
 
         print(" here to load md5sum into dict")
         mods = ["FB", "XB", "PMID", "TEST"]
