@@ -20,6 +20,8 @@ enable_versioning()
 
 class ModCorpusAssociationModel(AuditedModel, Base):
     __tablename__ = "mod_corpus_association"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     mod_corpus_association_id = Column(
@@ -30,7 +32,7 @@ class ModCorpusAssociationModel(AuditedModel, Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id",
+        ForeignKey("lit.reference.reference_id",
                    ondelete="CASCADE"),
         index=True
     )
@@ -42,7 +44,7 @@ class ModCorpusAssociationModel(AuditedModel, Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True
     )
 

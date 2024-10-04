@@ -18,6 +18,8 @@ enable_versioning()
 
 class WorkflowTransitionModel(AuditedModel, Base):
     __tablename__ = "workflow_transition"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     workflow_transition_id = Column(
@@ -29,7 +31,7 @@ class WorkflowTransitionModel(AuditedModel, Base):
     # mod id
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

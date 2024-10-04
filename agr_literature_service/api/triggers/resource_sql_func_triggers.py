@@ -19,9 +19,9 @@ BEGIN
 $$;
 """
 resource_update_trigger = """
-DROP TRIGGER IF EXISTS resource_citation_trigger on public.resource;
+DROP TRIGGER IF EXISTS resource_citation_trigger on lit.resource;
 CREATE TRIGGER resource_citation_trigger
-AFTER UPDATE ON resource
+AFTER UPDATE ON lit.resource
         FOR EACH ROW
         EXECUTE FUNCTION public.resource_update_citation();
 """

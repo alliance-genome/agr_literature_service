@@ -23,6 +23,8 @@ enable_versioning()
 
 class CrossReferenceModel(Base, AuditedModel):
     __tablename__ = "cross_reference"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     cross_reference_id = Column(
@@ -52,7 +54,7 @@ class CrossReferenceModel(Base, AuditedModel):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         index=True
     )
 
@@ -63,7 +65,7 @@ class CrossReferenceModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id"),
+        ForeignKey("lit.resource.resource_id"),
         index=True
     )
 

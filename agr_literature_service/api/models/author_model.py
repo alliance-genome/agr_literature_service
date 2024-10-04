@@ -18,6 +18,8 @@ enable_versioning()
 
 class AuthorModel(Base, AuditedModel):
     __tablename__ = "author"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     author_id = Column(
@@ -28,7 +30,7 @@ class AuthorModel(Base, AuditedModel):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         index=True
     )
 

@@ -11,6 +11,8 @@ from agr_literature_service.api.database.base import Base
 
 class MeshDetailModel(Base):
     __tablename__ = "mesh_detail"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
 
     mesh_detail_id = Column(
         Integer,
@@ -20,7 +22,7 @@ class MeshDetailModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id",
+        ForeignKey("lit.reference.reference_id",
                    ondelete="CASCADE"),
         index=True
     )

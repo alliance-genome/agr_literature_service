@@ -14,6 +14,8 @@ from sqlalchemy.schema import Index
 
 class ReferenceModMd5sumModel(Base):
     __tablename__ = "reference_mod_md5sum"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
 
     reference_mod_md5sum_id = Column(
         Integer,
@@ -23,7 +25,7 @@ class ReferenceModMd5sumModel(Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
@@ -34,7 +36,7 @@ class ReferenceModMd5sumModel(Base):
 
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=True,
     )

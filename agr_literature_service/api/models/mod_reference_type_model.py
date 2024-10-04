@@ -18,6 +18,8 @@ enable_versioning()
 
 class ReferencetypeModel(Base):
     __tablename__ = "referencetype"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     referencetype_id = Column(
@@ -35,6 +37,8 @@ class ReferencetypeModel(Base):
 
 class ModReferencetypeAssociationModel(Base):
     __tablename__ = "mod_referencetype"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
     __table_args__ = (UniqueConstraint('mod_id', 'referencetype_id', name='uniq_mrt_new'),)
 
@@ -45,7 +49,7 @@ class ModReferencetypeAssociationModel(Base):
     )
 
     mod_id = Column(
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -53,12 +57,13 @@ class ModReferencetypeAssociationModel(Base):
     mod = relationship("ModModel")
 
     referencetype_id = Column(
-        ForeignKey("referencetype.referencetype_id", ondelete="CASCADE"),
+        Integer,
+        ForeignKey("lit.referencetype.referencetype_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
 
-    referencetype = relationship("ReferencetypeModel")
+    referencetype = relationship("ReferencetypeModel", foreign_keys="ModReferencetypeAssociationModel.referencetype_id")
 
     display_order = Column(
         Integer,
@@ -68,6 +73,8 @@ class ModReferencetypeAssociationModel(Base):
 
 class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
     __tablename__ = "reference_mod_referencetype"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
     __table_args__ = (UniqueConstraint('reference_id', 'mod_referencetype_id', name='uniq_rmrt'),)
 
@@ -78,13 +85,16 @@ class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
     )
 
     reference_id = Column(
-        ForeignKey("reference.reference_id"),
+        Integer,
+        ForeignKey("lit.reference.reference_id"),
         index=True,
     )
 
     mod_referencetype_id = Column(
-        ForeignKey("mod_referencetype.mod_referencetype_id"),
-        index=True,
+        Integer,
+        ForeignKey("mod_referencetype.mod_referencetype_id"), index=True,
     )
 
-    mod_referencetype = relationship("ModReferencetypeAssociationModel")
+    mod_referencetype = relationship("ModReferencetypeAssociationModel",
+                                     foreign_keys="ReferenceModReferencetypeAssociationModel.mod_referencetype_id",
+                                     primaryjoin="ReferenceModReferencetypeAssociationModel.mod_referencetype_id == ModReferencetypeAssociationModel.mod_referencetype_id")

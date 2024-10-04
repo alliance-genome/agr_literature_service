@@ -24,11 +24,14 @@ from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel
 from agr_literature_service.api.models.workflow_transition_model import WorkflowTransitionModel
-from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel
+from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagSourceModel, TopicEntityTagModel
 from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
 from agr_literature_service.api.models.referencefile_model import ReferencefileModel, ReferencefileModAssociationModel
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from agr_literature_service.api.models.citation_model import CitationModel
+from agr_literature_service.api.models.ontologyterm_model import OntologyTermModel
+from agr_literature_service.api.models.gene_reference_model import GeneReferenceModel
+from agr_literature_service.api.models.test_model import TESTModel
 import logging
 
 logger = logging.getLogger(__name__)

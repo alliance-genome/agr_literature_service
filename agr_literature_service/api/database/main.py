@@ -1,6 +1,6 @@
 
 from sqlalchemy import create_engine
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, text
 
 from fastapi import Depends
 
@@ -22,7 +22,7 @@ def create_all_tables():
 
 
 def create_default_user():
-    engine.connect().execute("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING")
+    engine.connect().execute(text("INSERT INTO lit.users (id) VALUES ('default_user') ON CONFLICT DO NOTHING"))
 
 
 def get_db():
@@ -46,7 +46,7 @@ def is_database_online(session: Session = db_session):
 def create_all_triggers():
     db_session = next(get_db(), None)
     db_session.commit()
-    add_sql_triggers_functions(db_session)
+    #add_sql_triggers_functions(db_session)
 
 
 def drop_open_db_sessions(db):

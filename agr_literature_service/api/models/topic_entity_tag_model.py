@@ -34,11 +34,14 @@ topic_entity_tag_validation = Table(
 
     UniqueConstraint(
         'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id', name='validation_unique'),
+schema="lit"
 )
 
 
 class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
+    #__bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__ = {
         'exclude': ['validated_by']
     }
@@ -51,7 +54,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -182,6 +185,8 @@ class TopicEntityTagModel(AuditedModel, Base):
 
 class TopicEntityTagSourceModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag_source"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     topic_entity_tag_source_id = Column(
@@ -199,7 +204,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
 
     secondary_data_provider_id = Column(
         Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )

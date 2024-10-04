@@ -16,6 +16,8 @@ enable_versioning()
 
 class ResourceDescriptorPageModel(Base):
     __tablename__ = "resource_descriptor_pages"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
 
     resource_descriptor_pages_id = Column(
         Integer,
@@ -37,7 +39,7 @@ class ResourceDescriptorPageModel(Base):
 
     resource_descriptor_id = Column(
         Integer,
-        ForeignKey("resource_descriptors.resource_descriptor_id",
+        ForeignKey("lit.resource_descriptors.resource_descriptor_id",
                    ondelete="CASCADE"),
         index=True
     )
@@ -50,6 +52,8 @@ class ResourceDescriptorPageModel(Base):
 
 class ResourceDescriptorModel(Base):
     __tablename__ = "resource_descriptors"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
 
     resource_descriptor_id = Column(
         Integer,

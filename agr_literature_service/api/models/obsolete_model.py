@@ -26,6 +26,8 @@ class ObsoleteReferenceModel(Base):
              Similarly for z being obsoleted. (x, y and z should have new_id of null)
     """
     __tablename__ = "obsolete_reference_curie"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     obsolete_id = Column(
@@ -42,6 +44,6 @@ class ObsoleteReferenceModel(Base):
 
     new_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         index=True
     )

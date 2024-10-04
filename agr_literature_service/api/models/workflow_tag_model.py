@@ -18,6 +18,8 @@ enable_versioning()
 
 class WorkflowTagModel(AuditedModel, Base):
     __tablename__ = "workflow_tag"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     reference_workflow_tag_id = Column(
@@ -29,7 +31,7 @@ class WorkflowTagModel(AuditedModel, Base):
 # reference id - internal reference id
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -50,7 +52,7 @@ class WorkflowTagModel(AuditedModel, Base):
 # mod - from mod table (null means all).  Curators will be explicit and know that null means all, would never want to be vague and separate vague null from explicit all.
     mod_id = Column(
         Integer,
-        ForeignKey("mod.mod_id"),
+        ForeignKey("lit.mod.mod_id"),
         index=True,
         nullable=True
     )

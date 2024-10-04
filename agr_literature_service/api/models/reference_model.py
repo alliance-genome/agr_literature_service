@@ -21,6 +21,8 @@ enable_versioning()
 
 class ReferenceModel(Base, AuditedModel):
     __tablename__ = "reference"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     reference_id = Column(
@@ -62,7 +64,7 @@ class ReferenceModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id"),
+        ForeignKey("lit.resource.resource_id"),
         index=True,
         nullable=True
     )
@@ -231,7 +233,7 @@ class ReferenceModel(Base, AuditedModel):
 
     copyright_license_id = Column(
         Integer,
-        ForeignKey("copyright_license.copyright_license_id"),
+        ForeignKey("lit.copyright_license.copyright_license_id"),
         nullable=True,
         index=True
     )
@@ -242,7 +244,7 @@ class ReferenceModel(Base, AuditedModel):
 
     citation_id = Column(
         Integer,
-        ForeignKey("citation.citation_id"),
+        ForeignKey("lit.citation.citation_id"),
         index=True,
         nullable=True
     )

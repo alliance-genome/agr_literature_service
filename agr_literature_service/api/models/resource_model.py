@@ -20,6 +20,8 @@ enable_versioning()
 class ResourceModel(Base, AuditedModel):
     __versioned__: Dict = {}
     __tablename__ = "resource"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
 
     resource_id = Column(
         Integer,

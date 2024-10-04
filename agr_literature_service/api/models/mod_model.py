@@ -17,6 +17,8 @@ enable_versioning()
 
 class ModModel(Base, AuditedModel):
     __tablename__ = "mod"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     mod_id = Column(
@@ -49,7 +51,7 @@ class ModModel(Base, AuditedModel):
         nullable=True
     )
 
-    referencetypes = relationship("ModReferencetypeAssociationModel")
+    referencetypes = relationship("ModReferencetypeAssociationModel", back_populates="mod")
 
     def __str__(self):
         """

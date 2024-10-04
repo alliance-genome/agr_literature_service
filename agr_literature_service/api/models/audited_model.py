@@ -17,6 +17,8 @@ def get_default_user_value():
 
 class AuditedModel(object):
     __tablename__ = "audited"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     # date created - timestamp
     # date updated - timestamp
     date_created = Column(

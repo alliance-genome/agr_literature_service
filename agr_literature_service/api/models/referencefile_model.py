@@ -19,6 +19,9 @@ enable_versioning()
 
 class ReferencefileModel(Base, AuditedModel):
     __tablename__ = "referencefile"
+    #__bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
+
     __versioned__: Dict = {}
     __table_args__ = (
         Index('idx_md5sum', 'md5sum', unique=False),
@@ -40,7 +43,7 @@ class ReferencefileModel(Base, AuditedModel):
 
     reference_id = Column(
         Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        ForeignKey("lit.reference.reference_id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
@@ -88,8 +91,7 @@ class ReferencefileModel(Base, AuditedModel):
 
     referencefile_mods = relationship(
         "ReferencefileModAssociationModel",
-        back_populates="referencefile",
-        cascade="all, delete, delete-orphan"
+        back_populates="referencefile", foreign_keys="ReferencefileModAssociationModel.referencefile_id"
     )
 
     def __str__(self):
@@ -102,6 +104,8 @@ class ReferencefileModel(Base, AuditedModel):
 
 class ReferencefileModAssociationModel(Base, AuditedModel):
     __tablename__ = "referencefile_mod"
+    #__bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     referencefile_mod_id = Column(
@@ -111,7 +115,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
     )
 
     mod_id = Column(
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=True
     )
@@ -119,6 +123,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
     mod = relationship("ModModel")
 
     referencefile_id = Column(
+        Integer,
         ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
         index=True,
         nullable=False

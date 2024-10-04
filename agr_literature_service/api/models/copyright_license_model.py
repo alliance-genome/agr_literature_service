@@ -12,6 +12,8 @@ enable_versioning()
 
 class CopyrightLicenseModel(Base):
     __tablename__ = "copyright_license"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     copyright_license_id = Column(

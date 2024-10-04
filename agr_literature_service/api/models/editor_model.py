@@ -18,6 +18,8 @@ enable_versioning()
 
 class EditorModel(Base, AuditedModel):
     __tablename__ = "editor"
+    __bind_key__ = 'lit'
+    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     editor_id = Column(
@@ -28,7 +30,7 @@ class EditorModel(Base, AuditedModel):
 
     resource_id = Column(
         Integer,
-        ForeignKey("resource.resource_id",
+        ForeignKey("lit.resource.resource_id",
                    ondelete="CASCADE"),
         index=True
     )
