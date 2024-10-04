@@ -51,7 +51,10 @@ class ModModel(Base, AuditedModel):
         nullable=True
     )
 
-    referencetypes = relationship("ModReferencetypeAssociationModel", back_populates="mod")
+    referencetypes = relationship(
+        "ModReferencetypeAssociationModel",
+        back_populates="mod"
+    )
 
     def __str__(self):
         """

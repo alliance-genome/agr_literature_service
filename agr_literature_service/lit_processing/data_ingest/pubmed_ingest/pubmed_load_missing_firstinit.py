@@ -1,6 +1,8 @@
 import logging
 from os import environ, path
 import json
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import AuthorModel
@@ -72,15 +74,15 @@ def update_author_table(key_to_first_initial, reference_id_to_pmid):
         db_session.commit()
 
 
-def get_pmid_to_reference_id_mapping(db_session):
+def get_pmid_to_reference_id_mapping(db_session: Session):
 
     pmid_to_reference_id = {}
     reference_id_to_pmid = {}
-    rows = db_session.execute("SELECT cr.reference_id, cr.curie "
-                              "FROM cross_reference cr, author a "
-                              "WHERE cr.curie_prefix = 'PMID' "
-                              "AND cr.reference_id = a.reference_id "
-                              "AND a.first_initial is NULL").fetchall()
+    rows = db_session.execute(text("SELECT cr.reference_id, cr.curie "
+                                   "FROM cross_reference cr, author a "
+                                   "WHERE cr.curie_prefix = 'PMID' "
+                                   "AND cr.reference_id = a.reference_id "
+                                   "AND a.first_initial is NULL")).fetchall()
 
     for x in rows:
         reference_id_to_pmid[x[0]] = x[1].replace('PMID:', '')

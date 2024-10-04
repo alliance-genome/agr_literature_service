@@ -26,7 +26,9 @@ def test_referencefile(db, auth_headers, test_reference): # noqa
         "pdf_type": "pdf",
         "md5sum": "1234567890"
     }
-    yield create_metadata(db, ReferencefileSchemaPost(**new_referencefile))
+    with db.begin_nested():
+        yield create_metadata(db, ReferencefileSchemaPost(**new_referencefile))
+        db.rollback()
 
 
 class TestReferencefile:

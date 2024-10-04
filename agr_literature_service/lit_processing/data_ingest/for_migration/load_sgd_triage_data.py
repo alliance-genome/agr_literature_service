@@ -1,6 +1,7 @@
 import logging
 import requests
 from os import environ
+from sqlalchemy import text
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from fastapi_okta.okta_utils import (
@@ -108,22 +109,22 @@ def load_data():
 
 def ref_curie_mapping(db_session):
 
-    sgdid_to_ref_curie = dict([(x[0], x[1]) for x in db_session.execute(
+    sgdid_to_ref_curie = dict([(x[0], x[1]) for x in db_session.execute(text(
         f"SELECT cr.curie, r.curie "
         f"FROM   cross_reference cr, reference r "
         f"WHERE  cr.reference_id = r.reference_id "
         f"AND    cr.curie_prefix = '{mod}' "
-        f"AND    cr.is_obsolete is False").fetchall()])
+        f"AND    cr.is_obsolete is False")).fetchall()])
 
     return sgdid_to_ref_curie
 
 
 def get_source_id(db_session):
 
-    rows = db_session.execute(f"SELECT t.topic_entity_tag_source_id "
-                              f"FROM   topic_entity_tag_source t, mod m "
-                              f"WHERE  t.mod_id = m.mod_id "
-                              f"AND    m.abbreviation = '{mod}'").fetchall()
+    rows = db_session.execute(text(f"SELECT t.topic_entity_tag_source_id "
+                                   f"FROM   topic_entity_tag_source t, mod m "
+                                   f"WHERE  t.mod_id = m.mod_id "
+                                   f"AND    m.abbreviation = '{mod}'")).fetchall()
     return rows[0][0]
 
 

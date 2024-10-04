@@ -54,7 +54,7 @@ class ModReferencetypeAssociationModel(Base):
         nullable=False
     )
 
-    mod = relationship("ModModel")
+    mod = relationship("ModModel", back_populates="referencetypes")
 
     referencetype_id = Column(
         Integer,

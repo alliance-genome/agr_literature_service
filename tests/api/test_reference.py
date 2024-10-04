@@ -6,6 +6,7 @@ import json
 from typing import Dict, Tuple
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy_continuum import Operation
 from starlette.testclient import TestClient
 from fastapi import status
@@ -437,7 +438,7 @@ class TestReference:
                        ORDER BY transaction_id
                 """.format(response1.json())
 
-            rs = db.execute(sql)
+            rs = db.execute(text(sql))
             # (33, 1, 36, 'Research_Article', True)
             # (36, 1, 37, 'Other', True)
             # (37, 2, None, 'Other', True)

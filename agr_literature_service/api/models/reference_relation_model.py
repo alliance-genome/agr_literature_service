@@ -66,10 +66,10 @@ class ReferenceRelationModel(Base):
     )
 
 
-#@event.listens_for(ReferenceRelationModel.__table__, 'after_create')
+@event.listens_for(ReferenceRelationModel.__table__, 'after_create')
 def receive_after_create(target, connection, **kw):
     connection.execute(text(
-        "CREATE UNIQUE INDEX ix_reference_relation_least_greatest ON lit.reference_relation ("
+        "CREATE UNIQUE INDEX ix_reference_relation_least_greatest ON reference_relation ("
         "LEAST(reference_id_from, reference_id_to), GREATEST(reference_id_from, reference_id_to)"
-        ");")
-    )
+        ");"
+    ))

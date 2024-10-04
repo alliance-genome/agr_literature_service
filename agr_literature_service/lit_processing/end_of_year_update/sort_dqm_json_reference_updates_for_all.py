@@ -1,4 +1,5 @@
 import argparse
+from sqlalchemy import text
 import json
 import sys
 import html
@@ -100,14 +101,14 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
     mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
-    XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(
+    XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(text(
         "SELECT curie, resource_id FROM cross_reference WHERE resource_id is not null "
-        "AND is_obsolete is False").fetchall()}
-    rows = db_session.execute(
+        "AND is_obsolete is False")).fetchall()}
+    rows = db_session.execute(text(
         "SELECT r.curie, c.curie_prefix, c.curie FROM reference r, cross_reference c "
         "WHERE c.curie_prefix = 'CGC' "
         "AND c.is_obsolete is False "
-        "AND r.reference_id = c.reference_id").fetchall()
+        "AND r.reference_id = c.reference_id")).fetchall()
     ref_cgcs_valid = defaultdict(lambda: defaultdict(set))
     for agr, prefix, identifier in rows:
         ref_cgcs_valid[agr][prefix].add(identifier)

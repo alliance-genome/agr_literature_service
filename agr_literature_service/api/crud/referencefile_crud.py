@@ -12,7 +12,7 @@ from typing import List, Union
 import boto3
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session, subqueryload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
@@ -35,6 +35,10 @@ from agr_literature_service.api.schemas.response_message_schemas import messageE
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
 logger = logging.getLogger(__name__)
+
+file_upload_process_atp_id = "ATP:0000140"
+file_uploaded_tag_atp_id = "ATP:0000134"
+file_upload_in_progress_tag_atp_id = "ATP:0000139"
 
 
 def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
@@ -252,17 +256,14 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
         file_upload_single(db, metadata, file)
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     cleanup_old_pdf_file(db, metadata["reference_curie"], mod_abbreviation)
-    if metadata["file_class"] == 'main' and metadata["file_extension"] == 'pdf':
-        transition_WFT_for_pdf_file(db, metadata["reference_curie"], mod_abbreviation,
-                                    metadata["file_publication_status"])
+    transition_WFT_for_uploaded_file(db, metadata["reference_curie"], mod_abbreviation,
+                                     metadata["file_class"], metadata["file_extension"],
+                                     metadata["file_publication_status"])
 
 
-def transition_WFT_for_pdf_file(db, reference_curie, mod_abbreviation, file_publication_status):
-    logger.info("Transition WFT for pdf file")
-    file_upload_process_atp_id = "ATP:0000140"
-    file_uploaded_tag_atp_id = "ATP:0000134"
-    file_upload_in_progress_tag_atp_id = "ATP:0000139"
-    if file_publication_status == 'final':
+def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, file_extension, file_publication_status):
+    logger.info("Transition WFT for uploaded file")
+    if file_class == 'main' and file_extension == 'pdf' and file_publication_status == 'final':
         wft_tag_atp_id = file_uploaded_tag_atp_id
     else:
         wft_tag_atp_id = file_upload_in_progress_tag_atp_id
@@ -270,11 +271,11 @@ def transition_WFT_for_pdf_file(db, reference_curie, mod_abbreviation, file_publ
     ref = get_reference(db=db, curie_or_reference_id=reference_curie)
 
     if mod_abbreviation is None:
-        rows = db.execute(f"SELECT m.abbreviation "
-                          f"FROM mod m, mod_corpus_association mca "
-                          f"WHERE m.mod_id = mca.mod_id "
-                          f"AND mca.reference_id = {ref.reference_id} "
-                          f"AND mca.corpus is True").fetchall()
+        rows = db.execute(text(f"SELECT m.abbreviation "
+                               f"FROM mod m, mod_corpus_association mca "
+                               f"WHERE m.mod_id = mca.mod_id "
+                               f"AND mca.reference_id = {ref.reference_id} "
+                               f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod_abbreviation}

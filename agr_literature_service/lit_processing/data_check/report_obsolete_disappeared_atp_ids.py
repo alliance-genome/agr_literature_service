@@ -1,4 +1,5 @@
 import logging
+from sqlalchemy import text
 from os import environ, path
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -16,11 +17,11 @@ def check_data():
 
     db_session = create_postgres_session(False)
 
-    distinct_values = db_session.execute("SELECT DISTINCT topic FROM topic_entity_tag "
-                                         "UNION "
-                                         "SELECT DISTINCT entity_type FROM topic_entity_tag "
-                                         "UNION "
-                                         "SELECT DISTINCT display_tag FROM topic_entity_tag").fetchall()
+    distinct_values = db_session.execute(text("SELECT DISTINCT topic FROM topic_entity_tag "
+                                              "UNION "
+                                              "SELECT DISTINCT entity_type FROM topic_entity_tag "
+                                              "UNION "
+                                              "SELECT DISTINCT display_tag FROM topic_entity_tag")).fetchall()
     all_distinct_curies = [row[0] for row in distinct_values if row[0] and row[0].startswith('ATP:')]
 
     logger.info(f"Total {len(all_distinct_curies)} unique ATP IDs are in topic_entity_tag table.")
@@ -32,14 +33,14 @@ def check_data():
 
     mod_to_report = {}
     for atp_curie in obsolete_disappeared_curies:
-        rows = db_session.execute(f"SELECT r.curie, m.abbreviation, tet.topic, tet.entity_type, tet.display_tag  "
-                                  f"FROM reference r, mod m, mod_corpus_association mca, topic_entity_tag tet "
-                                  f"WHERE (tet.topic = '{atp_curie}' or tet.entity_type = '{atp_curie}' "
-                                  f"       or tet.display_tag = '{atp_curie}') "
-                                  f"AND tet.reference_id = r.reference_id "
-                                  f"AND tet.reference_id = mca.reference_id "
-                                  f"AND mca.corpus is True "
-                                  f"AND mca.mod_id = m.mod_id").fetchall()
+        rows = db_session.execute(text(f"SELECT r.curie, m.abbreviation, tet.topic, tet.entity_type, tet.display_tag  "
+                                       f"FROM reference r, mod m, mod_corpus_association mca, topic_entity_tag tet "
+                                       f"WHERE (tet.topic = '{atp_curie}' or tet.entity_type = '{atp_curie}' "
+                                       f"       or tet.display_tag = '{atp_curie}') "
+                                       f"AND tet.reference_id = r.reference_id "
+                                       f"AND tet.reference_id = mca.reference_id "
+                                       f"AND mca.corpus is True "
+                                       f"AND mca.mod_id = m.mod_id")).fetchall()
 
         cols_to_check = ['topic', 'entity_type']
         for row in rows:

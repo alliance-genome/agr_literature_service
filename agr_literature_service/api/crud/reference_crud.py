@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_
+from sqlalchemy import ARRAY, Boolean, String, func, and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -48,9 +48,14 @@ from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
     update_data
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_current_workflow_status
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
+
+file_needed_tag_atp_id = "ATP:0000141"  # file needed
 
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
@@ -312,12 +317,12 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
-            rows = db.execute(f"SELECT rv.updated_by, u.email "
-                              f"FROM reference_version rv, users u "
-                              f"WHERE curie = '{reference_data['curie']}' "
-                              f"AND copyright_license_id_mod IS true "
-                              f"AND rv.updated_by = u.id "
-                              f"ORDER BY rv.date_updated DESC LIMIT 1").fetchall()
+            rows = db.execute(text(f"SELECT rv.updated_by, u.email "
+                                   f"FROM reference_version rv, users u "
+                                   f"WHERE curie = '{reference_data['curie']}' "
+                                   f"AND copyright_license_id_mod IS true "
+                                   f"AND rv.updated_by = u.id "
+                                   f"ORDER BY rv.date_updated DESC LIMIT 1")).mappings().fetchall()
             if len(rows) == 1:
                 if rows[0]['email']:
                     reference_data["copyright_license_last_updated_by"] = rows[0]['email']
@@ -387,7 +392,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         AND rf.file_extension = 'pdf'
         AND rf.date_created <= NOW() - INTERVAL '7 days'
         """
-        rows = db.execute(sql_query).fetchall()
+        rows = db.execute(text(sql_query)).mappings().fetchall()
         pdf_eligible_mod_ids = [row['mod_id'] for row in rows if row['mod_id']]
         is_pmc = any(row['mod_id'] is None for row in rows)
         if is_pmc:
@@ -400,7 +405,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         WHERE mca.reference_id = {reference.reference_id}
         AND mca.corpus = True
         """
-        rows = db.execute(sql_query).fetchall()
+        rows = db.execute(text(sql_query)).mappings().fetchall()
         mod_list = set()
         for row in rows:
             if row['mod_id'] in pdf_eligible_mod_ids:
@@ -838,7 +843,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
     try:
         offset = (page * 25) - 25
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(query).fetchall()
+        rows = db.execute(text(query)).mappings().fetchall()
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -849,7 +854,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
     try:
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
-        rows = db.execute(query).fetchall()
+        rows = db.execute(text(query)).mappings().fetchall()
         tag = ''
         if filter == 'default':
             tag = "needed"
@@ -864,8 +869,8 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
         fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
             date_created = str(x['date_created']).split(' ')[0]
-            main_file_count = x[3]
-            suppl_file_count = x[4]
+            main_file_count = x['MAINCOUNT']
+            suppl_file_count = x['SUPCOUNT']
             fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['doi']}\t{x['short_citation']}\t "
                      f"{workflowtag}\t{main_file_count}\t{suppl_file_count}\t{date_created}\n")
         fw.close()
@@ -962,7 +967,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     if files_updated_from_date:
         select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
     select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
-    textpresso_referencefiles = db.execute(select_stmt).fetchall()
+    textpresso_referencefiles = db.execute(text(select_stmt)).mappings().fetchall()
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
@@ -981,3 +986,43 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             ]
         } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
     ]
+
+
+def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # noqa
+
+    reference = db.query(ReferenceModel).filter_by(curie=reference_curie).first()
+    if not reference:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Reference with curie {reference_curie} does not exist")
+
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
+
+    mca = db.query(ModCorpusAssociationModel).filter_by(
+        reference_id=reference.reference_id, mod_id=mod.mod_id).first()
+    try:
+        newly_added_mca = False
+        if mca:
+            if mca.corpus is not True:
+                mca.corpus = True
+                db.add(mca)
+                db.commit()
+                newly_added_mca = True
+        else:
+            mca = ModCorpusAssociationModel(reference_id=reference.reference_id,
+                                            mod_id=mod.mod_id,
+                                            corpus=True,
+                                            mod_corpus_sort_source='manual_creation')
+            db.add(mca)
+            db.commit()
+            newly_added_mca = True
+        if newly_added_mca:
+            check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+            if get_current_workflow_status(db, reference_curie, "ATP:0000140",
+                                           mod_abbreviation) is None:
+                transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
