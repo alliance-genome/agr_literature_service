@@ -266,9 +266,10 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
         if x[1] not in valid_reference_ids:
             # move the papers outside corpus if they only have invalid MOD curies
             try:
-                db_session.execute(text(f"UPDATE mod_corpus_association "
-                                        f"SET corpus = False "
-                                        f"WHERE mod_corpus_association_id = {int(x[0])}"))
+                with db_session.begin():
+                    db_session.execute(text(f"UPDATE mod_corpus_association "
+                                            f"SET corpus = False "
+                                            f"WHERE mod_corpus_association_id = {int(x[0])}"))
                 if logger:
                     logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
             except Exception as e:
