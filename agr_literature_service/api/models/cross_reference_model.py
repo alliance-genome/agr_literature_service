@@ -72,7 +72,7 @@ class CrossReferenceModel(Base, AuditedModel):
         back_populates="cross_reference"
     )
 
-    pages = Column(
+    pages: Column = Column(
         ARRAY(String()),
         nullable=True
     )

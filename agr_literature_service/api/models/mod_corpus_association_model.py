@@ -57,7 +57,7 @@ class ModCorpusAssociationModel(AuditedModel, Base):
         default=None
     )
 
-    mod_corpus_sort_source = Column(
+    mod_corpus_sort_source: Column = Column(
         Enum(ModCorpusSortSourceType),
         unique=False,
         nullable=False

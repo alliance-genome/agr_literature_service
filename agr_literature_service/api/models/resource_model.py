@@ -4,7 +4,7 @@ resource_model.py
 """
 
 
-from typing import Dict
+from typing import Dict, List, Optional
 
 from sqlalchemy import ARRAY, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship
@@ -52,7 +52,7 @@ class ResourceModel(Base, AuditedModel):
         nullable=True
     )
 
-    title_synonyms = Column(
+    title_synonyms: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
@@ -99,13 +99,13 @@ class ResourceModel(Base, AuditedModel):
         cascade="all, delete, delete-orphan"
     )
 
-    volumes = Column(
+    volumes: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
     )
 
-    abbreviation_synonyms = Column(
+    abbreviation_synonyms: Column = Column(
         ARRAY(String()),
         nullable=True
     )

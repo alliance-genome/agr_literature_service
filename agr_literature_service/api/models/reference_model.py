@@ -141,7 +141,7 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
-    pubmed_abstract_languages = Column(
+    pubmed_abstract_languages: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
@@ -159,13 +159,13 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
-    keywords = Column(
+    keywords: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
     )
 
-    pubmed_types = Column(
+    pubmed_types: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
@@ -177,13 +177,13 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
-    category = Column(
+    category: Column = Column(
         Enum(ReferenceCategory),
         unique=False,
         nullable=True
     )
 
-    pubmed_publication_status = Column(
+    pubmed_publication_status: Column = Column(
         Enum(PubMedPublicationStatus),
         unique=False,
         nullable=True
