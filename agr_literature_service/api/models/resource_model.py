@@ -4,7 +4,7 @@ resource_model.py
 """
 
 
-from typing import Dict, List, Optional
+from typing import Dict
 
 from sqlalchemy import ARRAY, Column, DateTime, Integer, String
 from sqlalchemy.orm import relationship

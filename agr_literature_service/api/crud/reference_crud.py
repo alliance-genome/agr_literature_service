@@ -906,7 +906,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
         bib_info.pubmed_types = [str(pub_type).replace("_", " ") for pub_type in pubmed_types]
     else:
         bib_info.pubmed_types = []
-        
+
     bib_info.title = str(reference.title or '')
     if reference.resource is not None:
         bib_info.journal = str(reference.resource.title or '')

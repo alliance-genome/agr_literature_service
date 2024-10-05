@@ -560,7 +560,7 @@ class ModReferenceTypeEntry(TypedDict):
     reference_type: str
     source: str
     mod_reference_type_id: int
-    
+
 
 def get_mod_reference_type_data_for_ref_ids(db_session: Session, ref_ids):
 

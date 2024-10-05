@@ -5,8 +5,8 @@ from os import environ, path
 import sys
 import logging
 import logging.config
-import boto3 # type: ignore
-from botocore.exceptions import ClientError # type: ignore
+import boto3  # type: ignore
+from botocore.exceptions import ClientError  # type: ignore
 
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir

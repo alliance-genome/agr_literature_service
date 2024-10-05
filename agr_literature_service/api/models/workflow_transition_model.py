@@ -3,7 +3,7 @@ workflow_transition_model.py
 ==================
 """
 
-from typing import Dict, List, Optional
+from typing import Dict
 
 from sqlalchemy import (Column, ForeignKey, Integer,
                         String, ARRAY)
