@@ -9,7 +9,7 @@ import tempfile
 from itertools import count
 from typing import List, Union
 
-import boto3
+import boto3 # type: ignore
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, or_, text
@@ -389,12 +389,12 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         if mod_abbreviation == "WB":
             # if a final file is uploaded by WB and the same file is in the system as temp, then set it to final
             if metadata["file_publication_status"] == "final" and referencefile_instance.file_publication_status == "temp":
-                referencefile_instance.file_publication_status = "final"
+                referencefile_instance.file_publication_status = "final" # type: ignore
             # If WB uploads a temp and the same file is already present but not for WB, then set the status to temp
             elif "WB" not in {referencefile_mod.mod.abbreviation for referencefile_mod in
                               referencefile_instance.referencefile_mods if referencefile_mod.mod is not None} and \
                     metadata["file_publication_status"] == "temp" and referencefile_instance.file_publication_status == "final":
-                referencefile_instance.file_publication_status = "temp"
+                referencefile_instance.file_publication_status = "temp" # type: ignore
             db.commit()
         if all(referencefile_mod.mod.abbreviation != mod_abbreviation for referencefile_mod in
                referencefile_instance.referencefile_mods if referencefile_mod.mod is not None):

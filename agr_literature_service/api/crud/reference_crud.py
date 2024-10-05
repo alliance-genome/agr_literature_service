@@ -901,11 +901,12 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete
                                  and (xref.curie_prefix not in all_mods_abbreviations
                                       or xref.curie_prefix == mod_abbreviation)]
-    if reference.pubmed_types is not None:
-        bib_info.pubmed_types = [str(pub_type).replace("_", " ") for pub_type in reference.pubmed_types]
+    pubmed_types = getattr(reference, 'pubmed_types', None)
+    if pubmed_types:
+        bib_info.pubmed_types = [str(pub_type).replace("_", " ") for pub_type in pubmed_types]
     else:
         bib_info.pubmed_types = []
-
+        
     bib_info.title = str(reference.title or '')
     if reference.resource is not None:
         bib_info.journal = str(reference.resource.title or '')

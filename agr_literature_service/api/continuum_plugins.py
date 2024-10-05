@@ -1,4 +1,4 @@
-from sqlalchemy_continuum.plugins import Plugin
+from sqlalchemy_continuum.plugins import Plugin # type: ignore
 
 from agr_literature_service.api.user import get_global_user_id
 

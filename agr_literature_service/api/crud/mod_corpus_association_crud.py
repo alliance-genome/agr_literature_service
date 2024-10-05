@@ -62,7 +62,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if get_current_workflow_status(db, reference_curie, "ATP:0000140",
                                        mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-    return db_obj.mod_corpus_association_id
+    return db_obj.mod_corpus_association_id.value
 
 
 def delete_workflow_tag_if_file_needed(db, reference, mod):
