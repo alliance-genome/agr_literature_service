@@ -1,5 +1,6 @@
 import math
 import shutil
+from typing import Generator
 
 import pytest
 from agr_literature_service.api.models import (
