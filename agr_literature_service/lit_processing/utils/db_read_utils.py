@@ -1,6 +1,6 @@
 from sqlalchemy import or_, text
 from fastapi.encoders import jsonable_encoder
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, List, Any, TypedDict
 from datetime import datetime, timedelta
 import json
 
@@ -159,7 +159,8 @@ def adding_author_row(x, reference_id_to_authors):
 
 
 def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
-    reference_id_to_authors = {}
+
+    reference_id_to_authors: Dict[int, List[Dict[str, Any]]] = {}
 
     if mod and len(reference_id_list) > query_cutoff:
         author_limit = 500000
@@ -206,7 +207,8 @@ def adding_mesh_term_row(x, reference_id_to_mesh_terms):
 
 
 def get_mesh_term_data(db_session: Session, mod, reference_id_list, query_cutoff):
-    reference_id_to_mesh_terms = {}
+
+    reference_id_to_mesh_terms: Dict[int, List[Tuple[str, str]]] = {}
 
     if mod and len(reference_id_list) > query_cutoff:
         mesh_limit = 1000000
@@ -232,8 +234,9 @@ def get_mesh_term_data(db_session: Session, mod, reference_id_list, query_cutoff
 
 
 def get_cross_reference_data(db_session: Session, mod, reference_id_list):
-    reference_id_to_doi = {}
-    reference_id_to_pmcid = {}
+
+    reference_id_to_doi: Dict[int, str] = {}
+    reference_id_to_pmcid: Dict[int, str] = {}
 
     allCrossRefs = None
     if mod:
@@ -272,7 +275,8 @@ def get_cross_reference_data_for_resource(db_session: Session):
 
 
 def get_reference_relation_data(db_session: Session, mod, reference_id_list):
-    reference_ids_to_reference_relation_type = {}
+
+    reference_ids_to_reference_relation_type: Dict[Tuple[int, int], str] = {}
 
     allReferenceRelations = None
     if mod:
@@ -297,7 +301,7 @@ def get_reference_relation_data(db_session: Session, mod, reference_id_list):
 
 def get_all_reference_relation_data(db_session: Session, logger=None):
 
-    reference_id_to_reference_relation_data = {}
+    reference_id_to_reference_relation_data: Dict[int, Dict[str, List[Dict[str, str]]]] = {}
 
     type_mapping = {
         'ErratumFor': 'ErratumIn',
@@ -444,7 +448,8 @@ def get_journal_by_resource_id(db_session: Session):
 
 
 def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
-    reference_id_to_mod_corpus_data = {}
+
+    reference_id_to_mod_corpus_data: Dict[int, List[Dict[str, Any]]] = {}
 
     rs = db_session.execute(text(
         "SELECT mca.reference_id, mca.mod_corpus_association_id, m.abbreviation, mca.corpus, mca.mod_corpus_sort_source, mca.date_created, mca.date_updated FROM mod_corpus_association mca, mod m WHERE m.mod_id = mca.mod_id and mca.reference_id IN (" + ref_ids + ")"))
@@ -470,7 +475,8 @@ def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
 
 
 def get_cross_reference_data_for_ref_ids(db_session: Session, ref_ids):
-    reference_id_to_xrefs = {}
+
+    reference_id_to_xrefs: Dict[int, List[Dict[str, Any]]] = {}
 
     rs = db_session.execute(text(
         "SELECT reference_id, curie, is_obsolete FROM cross_reference WHERE reference_id IN (" + ref_ids + ")"))
@@ -493,7 +499,8 @@ def get_cross_reference_data_for_ref_ids(db_session: Session, ref_ids):
 
 
 def get_author_data_for_ref_ids(db_session: Session, ref_ids):
-    reference_id_to_authors = {}
+
+    reference_id_to_authors: Dict[int, List[Dict[str, Any]]] = {}
 
     rows = db_session.execute(text(f"SELECT a.author_id, a.reference_id, a.orcid, a.first_author, "
                                    f"a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, "
@@ -526,7 +533,8 @@ def get_author_data_for_ref_ids(db_session: Session, ref_ids):
 
 
 def get_mesh_term_data_for_ref_ids(db_session: Session, ref_ids):
-    reference_id_to_mesh_terms = {}
+
+    reference_id_to_mesh_terms: Dict[int, List[Dict[str, Any]]] = {}
 
     rs = db_session.execute(text(
         "SELECT mesh_detail_id, reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ") order by reference_id, mesh_detail_id"))
@@ -548,8 +556,15 @@ def get_mesh_term_data_for_ref_ids(db_session: Session, ref_ids):
     return reference_id_to_mesh_terms
 
 
+class ModReferenceTypeEntry(TypedDict):
+    reference_type: str
+    source: str
+    mod_reference_type_id: int
+    
+
 def get_mod_reference_type_data_for_ref_ids(db_session: Session, ref_ids):
-    reference_id_to_mod_reference_types = {}
+
+    reference_id_to_mod_reference_types: Dict[int, List[ModReferenceTypeEntry]] = {}
 
     rs = db_session.execute(text("SELECT rmrt.reference_mod_referencetype_id, rmrt.reference_id, rt.label, "
                                  "mod.abbreviation FROM reference_mod_referencetype rmrt JOIN mod_referencetype mrt "

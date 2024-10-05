@@ -16,7 +16,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
-from agr_literature_service.api.crud.utils.patterns_check import check_pattern
+from agr_literature_service.api.crud.utils.patterns_check import check_pattern # type: ignore
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -854,7 +854,7 @@ def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_typ
         lc_json = [x.lower() for x in json_mrt_data[mod] if x]
         lc_db: Set[str] = set()
         if mod in db_mrt_data:
-            lc_json: List[str] = [x.lower() for x in json_mrt_data[mod] if x]
+            lc_json = [x.lower() for x in json_mrt_data[mod] if x]
         for ref_type_label in json_mrt_data[mod]:
             if ref_type_label and ref_type_label.lower() not in lc_db:
                 try:
