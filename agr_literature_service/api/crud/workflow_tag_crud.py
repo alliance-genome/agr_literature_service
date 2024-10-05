@@ -97,7 +97,8 @@ def process_transition_actions(db: Session,
     Get ref_id and mod_id from current_workflow_tag_db_obj
     From the list of job_names to methods call the appropriate method with args.
     """
-    for action in transition.actions:
+    actions = transition.actions if isinstance(transition.actions, list) else transition.actions.value
+    for action in actions:
         process_action(db, current_workflow_tag_db_obj, action)
 
 
@@ -313,8 +314,11 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         if transition and transition.requirements:
             check_requirements(reference, mod, transition)
         if not current_workflow_tag_db_obj:
-            current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
-                                                           workflow_tag_id=new_workflow_tag_atp_id)
+            current_workflow_tag_db_obj = WorkflowTagModel(
+                reference=reference,
+                mod=mod,
+                workflow_tag_id=new_workflow_tag_atp_id
+            )
         else:
             current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
         db.commit()

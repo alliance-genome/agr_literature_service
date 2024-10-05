@@ -727,8 +727,8 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):  # pragma: n
             if year_re_result:
                 year = year_re_result.group(1)
 
-    title = ref_db_obj.title or ''
-    if not re.search('[.]$', str(title)):
+    title = getattr(ref_db_obj, 'title', '') or ''
+    if not re.search(r'[.]$', str(title)):
         title = title + '.'
 
     authorNames = ''
@@ -901,8 +901,11 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete
                                  and (xref.curie_prefix not in all_mods_abbreviations
                                       or xref.curie_prefix == mod_abbreviation)]
-    if reference.pubmed_types:
+    if reference.pubmed_types is not None:
         bib_info.pubmed_types = [str(pub_type).replace("_", " ") for pub_type in reference.pubmed_types]
+    else:
+        bib_info.pubmed_types = []
+
     bib_info.title = str(reference.title or '')
     if reference.resource is not None:
         bib_info.journal = str(reference.resource.title or '')
@@ -910,7 +913,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     if reference.date_published:
         bib_info.year = str(reference.date_published)
     bib_info.abstract = str(reference.abstract or '')
-    bib_info.reference_curie = reference.curie
+    bib_info.reference_curie = str(reference.curie)
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
