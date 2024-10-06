@@ -46,8 +46,8 @@ class TestMd5sumUtil:
             db.execute(text(f"INSERT INTO reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) VALUES ({reference_id}, {mod_id_FB}, 'd70b2ce7c56deab14722fb4ac2e7d287', now())"))
             db.execute(text(f"INSERT INTO reference_mod_md5sum (reference_id, md5sum, date_updated) VALUES ({reference_id}, 'd70b2ce7c56deab14722fb4ac2e7d288', now())"))
 
-        # Call the function under test, passing the db session
-        save_database_md5data(md5sum_data, db_session=db)
+        # Call the function under test
+        save_database_md5data(md5sum_data)
 
         # Assertions
         # Assert md5sum for PMID
@@ -105,72 +105,72 @@ class TestMd5sumUtil:
         assert md5sum_FB_after == md5sum_FB, "md5sum changed after empty update"
 
 
-def test_load_database_md5data(self, db): # noqa
-    # Data Insertion
-    with db.begin():
-        # Insert 'FB' mod
-        db.execute(
-            text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES (:abbr, :short_name, :full_name, now())"),
-            {"abbr": "FB", "short_name": "FlyBase", "full_name": "FlyBase"}
-        )
-        mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation = :abbr"), {"abbr": "FB"})
-        ids = mod_results.mappings().fetchall()
-        if not ids:
-            raise ValueError("Mod 'FB' not found after insertion.")
-        mod_id_FB = ids[0]["mod_id"]
-
-        # Insert 'XB' mod
-        db.execute(
-            text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES (:abbr, :short_name, :full_name, now())"),
-            {"abbr": "XB", "short_name": "Xenbase", "full_name": "Xenbase"}
-        )
-        mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation = :abbr"), {"abbr": "XB"})
-        ids = mod_results.mappings().fetchall()
-        if not ids:
-            raise ValueError("Mod 'XB' not found after insertion.")
-        mod_id_XB = ids[0]["mod_id"]
-
-        # Insert reference
-        db.execute(
-            text("INSERT INTO reference (title, curie, date_created) VALUES (:title, :curie, now())"),
-            {"title": "Bob", "curie": "AGR:AGR-Reference-0000808175"}
-        )
-        ref_results = db.execute(text("SELECT reference_id FROM reference WHERE curie = :curie"), {"curie": "AGR:AGR-Reference-0000808175"})
-        refs = ref_results.mappings().fetchall()
-        if not refs:
-            raise ValueError("Reference not found after insertion.")
-        reference_id = refs[0]["reference_id"]
-
-        # Insert cross_references
-        cross_refs = [
-            {"reference_id": reference_id, "curie": "FB:FBrf0001", "curie_prefix": "FB"},
-            {"reference_id": reference_id, "curie": "PMID:0001", "curie_prefix": "PMID"},
-            {"reference_id": reference_id, "curie": "Xenbase:XB-ART-0001", "curie_prefix": "Xenbase"},
-        ]
-        for cr in cross_refs:
+    def test_load_database_md5data(self, db): # noqa
+        # Data Insertion
+        with db.begin():
+            # Insert 'FB' mod
             db.execute(
-                text("INSERT INTO cross_reference (reference_id, curie, curie_prefix, date_created) VALUES (:reference_id, :curie, :curie_prefix, now())"),
-                cr
+                text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES (:abbr, :short_name, :full_name, now())"),
+                {"abbr": "FB", "short_name": "FlyBase", "full_name": "FlyBase"}
             )
+            mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation = :abbr"), {"abbr": "FB"})
+            ids = mod_results.mappings().fetchall()
+            if not ids:
+                raise ValueError("Mod 'FB' not found after insertion.")
+            mod_id_FB = ids[0]["mod_id"]
 
-        # Insert reference_mod_md5sum
-        md5sums = [
-            {"reference_id": reference_id, "mod_id": mod_id_FB, "md5sum": "TEST-md5sum-FB"},
-            {"reference_id": reference_id, "mod_id": None, "md5sum": "TEST-md5sum-PMID"},
-            {"reference_id": reference_id, "mod_id": mod_id_XB, "md5sum": "TEST-md5sum-XB"},
-        ]
-        for md5 in md5sums:
+            # Insert 'XB' mod
             db.execute(
-                text("INSERT INTO reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) VALUES (:reference_id, :mod_id, :md5sum, now())"),
-                md5
+                text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES (:abbr, :short_name, :full_name, now())"),
+                {"abbr": "XB", "short_name": "Xenbase", "full_name": "Xenbase"}
             )
+            mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation = :abbr"), {"abbr": "XB"})
+            ids = mod_results.mappings().fetchall()
+            if not ids:
+                raise ValueError("Mod 'XB' not found after insertion.")
+            mod_id_XB = ids[0]["mod_id"]
 
-    # Call the function under test, ensuring data is committed and visible
-    mods = ["FB", "XB", "PMID", "TEST"]
-    dict_md5sum = load_database_md5data(mods, db_session=db)
-    print(dict_md5sum)
+            # Insert reference
+            db.execute(
+                text("INSERT INTO reference (title, curie, date_created) VALUES (:title, :curie, now())"),
+                {"title": "Bob", "curie": "AGR:AGR-Reference-0000808175"}
+            )
+            ref_results = db.execute(text("SELECT reference_id FROM reference WHERE curie = :curie"), {"curie": "AGR:AGR-Reference-0000808175"})
+            refs = ref_results.mappings().fetchall()
+            if not refs:
+                raise ValueError("Reference not found after insertion.")
+            reference_id = refs[0]["reference_id"]
 
-    # Assertions
-    assert dict_md5sum['FB']['FB:FBrf0001'] == 'TEST-md5sum-FB'
-    assert dict_md5sum['XB']['Xenbase:XB-ART-0001'] == 'TEST-md5sum-XB'
-    assert dict_md5sum['PMID']['PMID:0001'] == 'TEST-md5sum-PMID'
+            # Insert cross_references
+            cross_refs = [
+                {"reference_id": reference_id, "curie": "FB:FBrf0001", "curie_prefix": "FB"},
+                {"reference_id": reference_id, "curie": "PMID:0001", "curie_prefix": "PMID"},
+                {"reference_id": reference_id, "curie": "Xenbase:XB-ART-0001", "curie_prefix": "Xenbase"},
+            ]
+            for cr in cross_refs:
+                db.execute(
+                    text("INSERT INTO cross_reference (reference_id, curie, curie_prefix, date_created) VALUES (:reference_id, :curie, :curie_prefix, now())"),
+                    cr
+                )
+
+            # Insert reference_mod_md5sum
+            md5sums = [
+                {"reference_id": reference_id, "mod_id": mod_id_FB, "md5sum": "TEST-md5sum-FB"},
+                {"reference_id": reference_id, "mod_id": None, "md5sum": "TEST-md5sum-PMID"},
+                {"reference_id": reference_id, "mod_id": mod_id_XB, "md5sum": "TEST-md5sum-XB"},
+            ]
+            for md5 in md5sums:
+                db.execute(
+                    text("INSERT INTO reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) VALUES (:reference_id, :mod_id, :md5sum, now())"),
+                    md5
+                )
+
+        # Call the function under test, ensuring data is committed and visible
+        mods = ["FB", "XB", "PMID", "TEST"]
+        dict_md5sum = load_database_md5data(mods, db_session=db)
+        print(dict_md5sum)
+
+        # Assertions
+        assert dict_md5sum['FB']['FB:FBrf0001'] == 'TEST-md5sum-FB'
+        assert dict_md5sum['XB']['Xenbase:XB-ART-0001'] == 'TEST-md5sum-XB'
+        assert dict_md5sum['PMID']['PMID:0001'] == 'TEST-md5sum-PMID'
