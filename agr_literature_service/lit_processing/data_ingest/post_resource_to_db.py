@@ -198,12 +198,12 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
         db_session.refresh(x)
         resource_id = x.resource_id
 
-        xref_okay, message = process_cross_references(db_session, resource_id, curie, cross_references)
+        xref_okay, message = process_cross_references(db_session, int(resource_id), curie, cross_references)
 
         if not xref_okay:
             return xref_okay, message
 
-        editor_okay, message = process_editors(db_session, resource_id, editors)
+        editor_okay, message = process_editors(db_session, int(resource_id), editors)
 
         if not editor_okay:
             return editor_okay, message

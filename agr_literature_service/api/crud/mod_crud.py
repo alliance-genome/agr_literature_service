@@ -4,7 +4,6 @@ mod_crud.py
 """
 
 from datetime import datetime
-
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -96,8 +95,10 @@ def taxons(db: Session, type='default'):
                 taxons.append({'mod_abbreviation': mod.abbreviation,
                                'taxon_ids': mod.taxon_ids})
             else:
+                taxon_ids_list = list(mod.taxon_ids)
+                first_taxon_id = taxon_ids_list[0] if taxon_ids_list else None
                 taxons.append({'mod_abbreviation': mod.abbreviation,
-                               'taxon_id': mod.taxon_ids[0]})
+                               'taxon_id': first_taxon_id})
     return taxons
 
 
