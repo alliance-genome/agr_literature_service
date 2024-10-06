@@ -90,7 +90,7 @@ class TestMd5sumUtil:
 
         # Test with empty md5sum_data
         md5sum_data_empty = {}
-        save_database_md5data(md5sum_data_empty, db_session=db)
+        save_database_md5data(md5sum_data_empty)
         # Assertions to verify no changes
         md5sum_results = db.execute(text("""
             SELECT rmm.md5sum
@@ -167,7 +167,7 @@ class TestMd5sumUtil:
 
         # Call the function under test, ensuring data is committed and visible
         mods = ["FB", "XB", "PMID", "TEST"]
-        dict_md5sum = load_database_md5data(mods, db_session=db)
+        dict_md5sum = load_database_md5data(mods)
         print(dict_md5sum)
 
         # Assertions
