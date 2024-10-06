@@ -3,7 +3,6 @@ mod_reference_type_model.py
 ===========================
 """
 
-
 from typing import Dict
 
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
@@ -23,78 +22,74 @@ class ReferencetypeModel(Base):
     __versioned__: Dict = {}
 
     referencetype_id = Column(
-        Integer,
-        primary_key=True,
+        Integer, primary_key=True,
         autoincrement=True
     )
-
     label = Column(
         String(),
         unique=True,
         nullable=False
     )
 
+    # Back reference for ModReferencetypeAssociationModel
+    mod_referencetypes = relationship("ModReferencetypeAssociationModel", back_populates="referencetype")
+
 
 class ModReferencetypeAssociationModel(Base):
     __tablename__ = "mod_referencetype"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
+    __table_args__ = (
+        UniqueConstraint('mod_id', 'referencetype_id', name='uniq_mrt_new'),
+        {"schema": "lit"}
+    )
     __versioned__: Dict = {}
-    __table_args__ = (UniqueConstraint('mod_id', 'referencetype_id', name='uniq_mrt_new'),)
 
     mod_referencetype_id = Column(
         Integer,
         autoincrement=True,
         primary_key=True
     )
-
     mod_id = Column(
         ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
-
-    mod = relationship("ModModel", back_populates="referencetypes")
-
     referencetype_id = Column(
-        Integer,
         ForeignKey("lit.referencetype.referencetype_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
 
-    referencetype = relationship("ReferencetypeModel", foreign_keys="ModReferencetypeAssociationModel.referencetype_id")
+    mod = relationship("ModModel", back_populates="referencetypes")
+    referencetype = relationship("ReferencetypeModel", back_populates="mod_referencetypes")
 
-    display_order = Column(
-        Integer,
-        nullable=False
-    )
+    # Add a back reference for ReferenceModReferencetypeAssociationModel
+    reference_mod_referencetypes = relationship("ReferenceModReferencetypeAssociationModel",
+                                                back_populates="mod_referencetype")
 
 
 class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
     __tablename__ = "reference_mod_referencetype"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
+    __table_args__ = (
+        UniqueConstraint('reference_id', 'mod_referencetype_id', name='uniq_rmrt'),
+        {"schema": "lit"}
+    )
     __versioned__: Dict = {}
-    __table_args__ = (UniqueConstraint('reference_id', 'mod_referencetype_id', name='uniq_rmrt'),)
 
     reference_mod_referencetype_id = Column(
         Integer,
         autoincrement=True,
         primary_key=True
     )
-
     reference_id = Column(
-        Integer,
-        ForeignKey("lit.reference.reference_id"),
-        index=True,
+        Integer, ForeignKey("lit.reference.reference_id"),
+        index=True
     )
-
     mod_referencetype_id = Column(
-        Integer,
-        ForeignKey("mod_referencetype.mod_referencetype_id"), index=True,
+        Integer, ForeignKey("lit.mod_referencetype.mod_referencetype_id"),
+        index=True
     )
 
     mod_referencetype = relationship("ModReferencetypeAssociationModel",
-                                     foreign_keys="ReferenceModReferencetypeAssociationModel.mod_referencetype_id",
-                                     primaryjoin="ReferenceModReferencetypeAssociationModel.mod_referencetype_id == ModReferencetypeAssociationModel.mod_referencetype_id")
+                                     back_populates="reference_mod_referencetypes")

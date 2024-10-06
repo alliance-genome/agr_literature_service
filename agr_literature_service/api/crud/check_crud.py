@@ -56,7 +56,7 @@ def check_database(db: Session):
     except Exception as e:
         res['alembic_version'] = f"Unable to query database for alembic version: {e}"
 
-    query = "select count(1) from reference"
+    query = "select count(1) from lit.reference"
     try:
         rows = db.execute(text(query)).fetchall()
         # ref_count = rows[0]

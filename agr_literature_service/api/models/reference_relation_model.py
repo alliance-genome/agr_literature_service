@@ -20,7 +20,6 @@ enable_versioning()
 class ReferenceRelationModel(Base):
     __tablename__ = "reference_relation"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     reference_relation_id = Column(
@@ -62,14 +61,14 @@ class ReferenceRelationModel(Base):
     )
 
     __table_args__ = (
-        CheckConstraint('reference_id_from != reference_id_to', name='check_ref_ids_not_equal'),
+        CheckConstraint('reference_id_from != reference_id_to', name='check_ref_ids_not_equal'), {"schema": "lit"}
     )
 
 
 @event.listens_for(ReferenceRelationModel.__table__, 'after_create')
 def receive_after_create(target, connection, **kw):
     connection.execute(text(
-        "CREATE UNIQUE INDEX ix_reference_relation_least_greatest ON reference_relation ("
+        "CREATE UNIQUE INDEX ix_reference_relation_least_greatest ON lit.reference_relation ("
         "LEAST(reference_id_from, reference_id_to), GREATEST(reference_id_from, reference_id_to)"
         ");"
     ))

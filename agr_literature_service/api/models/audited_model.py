@@ -17,7 +17,7 @@ def get_default_user_value():
 
 class AuditedModel(object):
     __tablename__ = "audited"
-    __bind_key__ = 'lit'
+    #__bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
     # date created - timestamp
     # date updated - timestamp
@@ -41,11 +41,11 @@ class AuditedModel(object):
 
     @declared_attr
     def created_by(cls):
-        return Column('created_by', ForeignKey('users.id'), default=get_default_user_value, nullable=True)
+        return Column('created_by', ForeignKey('lit.users.id'), default=get_default_user_value, nullable=True)
 
     @declared_attr
     def updated_by(cls):
-        return Column('updated_by', ForeignKey('users.id'), default=get_default_user_value,
+        return Column('updated_by', ForeignKey('lit.users.id'), default=get_default_user_value,
                       onupdate=get_default_user_value, nullable=True)
 
 

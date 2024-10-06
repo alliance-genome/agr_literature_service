@@ -21,7 +21,6 @@ enable_versioning()
 class ModCorpusAssociationModel(AuditedModel, Base):
     __tablename__ = "mod_corpus_association"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     mod_corpus_association_id = Column(
@@ -65,4 +64,4 @@ class ModCorpusAssociationModel(AuditedModel, Base):
         nullable=False
     )
 
-    __table_args__ = (UniqueConstraint('reference_id', 'mod_id', name='_mod_corpus_association_unique'),)
+    __table_args__ = (UniqueConstraint('reference_id', 'mod_id', name='_mod_corpus_association_unique'), {"schema": "lit"})

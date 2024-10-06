@@ -356,9 +356,9 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     sql_query = """
     SELECT distinct m.abbreviation, wft.workflow_tag_id, wft.updated_by,
            wft.date_updated::date AS date_updated, u.email
-    FROM workflow_tag wft
-    JOIN mod m ON wft.mod_id = m.mod_id
-    JOIN users u ON wft.updated_by = u.id
+    FROM lit.workflow_tag wft
+    JOIN lit.mod m ON wft.mod_id = m.mod_id
+    JOIN lit.users u ON wft.updated_by = u.id
     WHERE wft.reference_id = :reference_id
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
@@ -604,7 +604,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                                 detail=message)
         atp_curies = all_WF_tags_for_process
     else:
-        rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
+        rows = db.execute(text("SELECT distinct workflow_tag_id FROM lit.workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
@@ -624,8 +624,8 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
 
     query = f"""
     SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
-    FROM mod m
-    JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+    FROM lit.mod m
+    JOIN lit.workflow_tag wt ON m.mod_id = wt.mod_id
     {where}
     GROUP BY m.abbreviation, wt.workflow_tag_id
     ORDER BY m.abbreviation, wt.workflow_tag_id
@@ -665,10 +665,10 @@ def get_reference_workflow_tags_by_mod(
     # endDate:   "2024-08-26"
     query = text(
         "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, wft.date_updated "
-        "FROM reference r "
-        "JOIN cross_reference cr ON r.reference_id = cr.reference_id "
-        "JOIN workflow_tag wft ON cr.reference_id = wft.reference_id "
-        "JOIN mod m ON wft.mod_id = m.mod_id "
+        "FROM lit.reference r "
+        "JOIN lit.cross_reference cr ON r.reference_id = cr.reference_id "
+        "JOIN lit.workflow_tag wft ON cr.reference_id = wft.reference_id "
+        "JOIN lit.mod m ON wft.mod_id = m.mod_id "
         "WHERE cr.curie_prefix = :curie_prefix "
         "AND m.abbreviation = :mod_abbreviation "
         "AND wft.workflow_tag_id = :workflow_tag_id "

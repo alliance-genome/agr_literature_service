@@ -20,14 +20,14 @@ topic_entity_tag_validation = Table(
     Base.metadata,
     Column(
         "validated_topic_entity_tag_id",
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        ForeignKey("lit.topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
         index=True,
         primary_key=True
     ),
 
     Column(
         "validating_topic_entity_tag_id",
-        ForeignKey("topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
+        ForeignKey("lit.topic_entity_tag.topic_entity_tag_id", ondelete='CASCADE'),
         index=True,
         primary_key=True,
     ),
@@ -41,7 +41,6 @@ schema="lit"
 class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
     #__bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
     __versioned__ = {
         'exclude': ['validated_by']
     }
@@ -67,7 +66,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     topic_entity_tag_source_id = Column(
         Integer,
-        ForeignKey("topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
+        ForeignKey("lit.topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
@@ -180,13 +179,19 @@ class TopicEntityTagModel(AuditedModel, Base):
             ),
             name="valid_entity_type_dependencies"
         ),
+        {"schema": "lit"}
     )
 
 
 class TopicEntityTagSourceModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag_source"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
+    __table_args__ = (
+        UniqueConstraint(
+            'source_evidence_assertion', 'source_method', 'data_provider', 'secondary_data_provider_id',
+            name='topic_entity_tag_source_unique'),
+        {"schema": "lit"}
+    )
     __versioned__: Dict = {}
 
     topic_entity_tag_source_id = Column(
@@ -241,8 +246,4 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         nullable=True
     )
 
-    __table_args__ = (
-        UniqueConstraint(
-            'source_evidence_assertion', 'source_method', 'data_provider', 'secondary_data_provider_id',
-            name='topic_entity_tag_source_unique'),
-    )
+

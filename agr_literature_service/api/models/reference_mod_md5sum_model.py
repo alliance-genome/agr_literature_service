@@ -15,7 +15,6 @@ from sqlalchemy.schema import Index
 class ReferenceModMd5sumModel(Base):
     __tablename__ = "reference_mod_md5sum"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
 
     reference_mod_md5sum_id = Column(
         Integer,
@@ -72,4 +71,5 @@ class ReferenceModMd5sumModel(Base):
             unique=True,
             postgresql_where=mod_id.is_(None)
         ),
+        {"schema": "lit"}
     )

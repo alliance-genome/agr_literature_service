@@ -12,22 +12,24 @@ from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.database.versioning import enable_versioning
-
+import logging
+logging.basicConfig()
+logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 
 enable_versioning()
 
 
 class ReferencefileModel(Base, AuditedModel):
     __tablename__ = "referencefile"
-    #__bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
 
-    __versioned__: Dict = {}
     __table_args__ = (
         Index('idx_md5sum', 'md5sum', unique=False),
         Index('idx_reference_id_display_name', 'reference_id', 'display_name', 'file_extension', unique=True),
         Index('idx_md5sum_reference_id', 'md5sum', 'reference_id', unique=True),
+        {"schema": "lit"}
     )
+
+    __versioned__: Dict = {}
 
     referencefile_id = Column(
         Integer,
@@ -91,7 +93,8 @@ class ReferencefileModel(Base, AuditedModel):
 
     referencefile_mods = relationship(
         "ReferencefileModAssociationModel",
-        back_populates="referencefile", foreign_keys="ReferencefileModAssociationModel.referencefile_id"
+        back_populates="referencefile",
+        primaryjoin = "ReferencefileModel.referencefile_id == ReferencefileModAssociationModel.referencefile_id"
     )
 
     def __str__(self):
@@ -104,8 +107,6 @@ class ReferencefileModel(Base, AuditedModel):
 
 class ReferencefileModAssociationModel(Base, AuditedModel):
     __tablename__ = "referencefile_mod"
-    #__bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     referencefile_mod_id = Column(
@@ -124,12 +125,16 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     referencefile_id = Column(
         Integer,
-        ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
+        ForeignKey("lit.referencefile.referencefile_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
 
-    referencefile = relationship("ReferencefileModel")
+    referencefile = relationship(
+        "ReferencefileModel",
+        back_populates="referencefile_mods"
+    )
+
 
     __table_args__ = (
         Index('idx_referencefile_mod_not_null',
@@ -140,4 +145,5 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
               'referencefile_id',
               unique=True,
               postgresql_where=(mod_id.is_(None))),
+        {"schema": "lit"}
     )

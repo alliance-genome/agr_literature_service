@@ -302,7 +302,7 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
     with db.begin():
-        db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
+        db.execute(text(f"INSERT INTO lit.topic_entity_tag_validation (validated_topic_entity_tag_id, "
                         f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
                         f"{validating_tag.topic_entity_tag_id})"))
         if calculate_validation_values:
@@ -396,7 +396,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
             query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
         if delete_all_first:
             with db.begin():
-                db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
+                db.execute(text("DELETE FROM lit.topic_entity_tag_validation" + reference_query_filter))
                 # db.commit()
         curr_ref_tags_in_db = None
         curr_reference_id = None
@@ -409,7 +409,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
             logger.info(f"Processing tag # {str(tag_counter)}")
             if not delete_all_first:
                 with db.begin():
-                    db.execute(text(f"DELETE FROM topic_entity_tag_validation "
+                    db.execute(text(f"DELETE FROM lit.topic_entity_tag_validation "
                                     f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
             curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
                                                 calculate_validation_values=False,
@@ -671,11 +671,11 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     last_date_updated = past_date.strftime("%Y-%m-%d")
 
     rows = db.execute(text(f"SELECT cr.curie, tet.*, u.email "
-                           f"FROM cross_reference cr "
-                           f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
-                           f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                           f"JOIN users u ON tet.updated_by = u.id "
-                           f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           f"FROM lit.cross_reference cr "
+                           f"JOIN lit.topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
+                           f"JOIN lit.topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           f"JOIN lit.users u ON tet.updated_by = u.id "
+                           f"JOIN lit.mod m ON tets.secondary_data_provider_id = m.mod_id "
                            f"WHERE m.abbreviation = '{mod_abbreviation}' "
                            f"AND tet.date_updated >= '{last_date_updated}'")).mappings().fetchall()
 
@@ -695,8 +695,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
     src_rows = db.execute(text(f"SELECT tets.* "
-                               f"FROM topic_entity_tag_source tets "
-                               f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                               f"FROM lit.topic_entity_tag_source tets "
+                               f"JOIN lit.mod m ON tets.secondary_data_provider_id = m.mod_id "
                                f"WHERE m.abbreviation = '{mod_abbreviation}'")).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
@@ -708,9 +708,9 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
     curie_to_name_mapping = {}
 
     rows = db.execute(text(f"SELECT DISTINCT tet.reference_id "
-                           f"FROM topic_entity_tag tet "
-                           f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                           f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           f"FROM lit.topic_entity_tag tet "
+                           f"JOIN lit.topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           f"JOIN lit.mod m ON tets.secondary_data_provider_id = m.mod_id "
                            f"WHERE m.abbreviation = '{mod_abbreviation}' "
                            f"AND tet.date_updated >= '{last_date_updated}'")).mappings().fetchall()
     for x in rows:

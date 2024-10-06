@@ -24,7 +24,6 @@ enable_versioning()
 class CrossReferenceModel(Base, AuditedModel):
     __tablename__ = "cross_reference"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     cross_reference_id = Column(
@@ -108,7 +107,8 @@ class CrossReferenceModel(Base, AuditedModel):
         Index('idx_curie',
               'curie',
               unique=True,
-              postgresql_where=(is_obsolete.is_(False)))
+              postgresql_where=(is_obsolete.is_(False))),
+        {"schema": "lit"}
     )
 
     def __str__(self):

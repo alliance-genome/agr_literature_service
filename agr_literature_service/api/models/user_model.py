@@ -14,7 +14,6 @@ from agr_literature_service.api.database.base import Base
 class UserModel(Base):
     __tablename__ = "users"
     __bind_key__ = 'lit'
-    __table_args__ = {"schema": "lit"}
     __versioned__: Dict = {}
 
     id = Column(
@@ -32,4 +31,5 @@ class UserModel(Base):
         UniqueConstraint(
             'id',
             name='users_unique'),
+        {"schema": "lit"}
     )

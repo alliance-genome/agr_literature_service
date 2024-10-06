@@ -272,7 +272,7 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
 
     if mod_abbreviation is None:
         rows = db.execute(text(f"SELECT m.abbreviation "
-                               f"FROM mod m, mod_corpus_association mca "
+                               f"FROM lit.mod m, lit.mod_corpus_association mca "
                                f"WHERE m.mod_id = mca.mod_id "
                                f"AND mca.reference_id = {ref.reference_id} "
                                f"AND mca.corpus is True")).mappings().fetchall()
