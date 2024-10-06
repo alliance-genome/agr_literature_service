@@ -30,7 +30,7 @@ class TestMd5sumUtil:
             db.execute(text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES ('XB', 'Xenbase', 'Xenbase', now())"))
             mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation='XB'"))
             ids = mod_results.fetchall()
-            mod_id_XB = ids[0]["mod_id"]
+            # mod_id_XB = ids[0]["mod_id"]
             # Insert reference
             db.execute(text("INSERT INTO reference (title, curie, date_created) VALUES ('Bob', 'AGR:AGR-Reference-0000808175', now())"))
             ref_results = db.execute(text("SELECT reference_id FROM reference WHERE curie='AGR:AGR-Reference-0000808175'"))
@@ -105,7 +105,7 @@ class TestMd5sumUtil:
         assert md5sum_FB_after == md5sum_FB, "md5sum changed after empty update"
 
 
-def test_load_database_md5data(self, db):
+def test_load_database_md5data(self, db): # noqa
     # Data Insertion
     with db.begin():
         # Insert 'FB' mod
