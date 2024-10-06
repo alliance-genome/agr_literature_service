@@ -31,9 +31,10 @@ def get_db():
     try:
         yield db
     except Exception as e:
-        print('Error: ' + str(type(e)))
+        db.rollback()
+        print('Error in get_db: ' + str((e))
+        raise
     finally:
-        db.commit()
         db.close()
 
 
