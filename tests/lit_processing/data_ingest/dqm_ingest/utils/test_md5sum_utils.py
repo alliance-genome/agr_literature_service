@@ -24,17 +24,17 @@ class TestMd5sumUtil:
             # Insert 'FB' mod
             db.execute(text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES ('FB', 'FlyBase', 'FlyBase', now())"))
             mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation='FB'"))
-            ids = mod_results.fetchall()
+            ids = mod_results.mappings().fetchall()
             mod_id_FB = ids[0]["mod_id"]
             # Insert 'XB' mod
             db.execute(text("INSERT INTO mod (abbreviation, short_name, full_name, date_created) VALUES ('XB', 'Xenbase', 'Xenbase', now())"))
             mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation='XB'"))
-            ids = mod_results.fetchall()
+            ids = mod_results.mappings().fetchall()
             # mod_id_XB = ids[0]["mod_id"]
             # Insert reference
             db.execute(text("INSERT INTO reference (title, curie, date_created) VALUES ('Bob', 'AGR:AGR-Reference-0000808175', now())"))
             ref_results = db.execute(text("SELECT reference_id FROM reference WHERE curie='AGR:AGR-Reference-0000808175'"))
-            refs = ref_results.fetchall()
+            refs = ref_results.mappings().fetchall()
             reference_id = refs[0]["reference_id"]
 
             # Insert cross_references
@@ -57,7 +57,7 @@ class TestMd5sumUtil:
             JOIN reference_mod_md5sum rmm ON r.reference_id = rmm.reference_id
             WHERE rmm.mod_id IS NULL AND r.curie_prefix='PMID' AND r.curie='PMID:9241'
         """))
-        md5sums = md5sum_results.fetchall()
+        md5sums = md5sum_results.mappings().fetchall()
         assert md5sums, "No md5sum found for PMID:9241"
         md5sum_PMID = md5sums[0]["md5sum"]
         assert md5sum_PMID == md5sum_data["PMID"]["PMID:9241"]
@@ -70,7 +70,7 @@ class TestMd5sumUtil:
             JOIN mod m ON rmm.mod_id = m.mod_id
             WHERE m.abbreviation='FB' AND r.curie='FB:FBrf00000001'
         """))
-        md5sums = md5sum_results.fetchall()
+        md5sums = md5sum_results.mappings().fetchall()
         assert md5sums, "No md5sum found for FB:FBrf00000001"
         md5sum_FB = md5sums[0]["md5sum"]
         assert md5sum_FB == md5sum_data["FB"]["FB:FBrf00000001"]
@@ -83,7 +83,7 @@ class TestMd5sumUtil:
             JOIN mod m ON rmm.mod_id = m.mod_id
             WHERE m.abbreviation='XB' AND r.curie='Xenbase:XB-ART-58863'
         """))
-        md5sums = md5sum_results.fetchall()
+        md5sums = md5sum_results.mappings().fetchall()
         assert md5sums, "No md5sum found for Xenbase:XB-ART-58863"
         md5sum_XB = md5sums[0]["md5sum"]
         assert md5sum_XB == md5sum_data["XB"]["Xenbase:XB-ART-58863"]
@@ -99,7 +99,7 @@ class TestMd5sumUtil:
             JOIN mod m ON rmm.mod_id = m.mod_id
             WHERE m.abbreviation='FB' AND r.curie='FB:FBrf00000001'
         """))
-        md5sums = md5sum_results.fetchall()
+        md5sums = md5sum_results.mappings().fetchall()
         assert md5sums, "No md5sum found for FB:FBrf00000001 after empty update"
         md5sum_FB_after = md5sums[0]["md5sum"]
         assert md5sum_FB_after == md5sum_FB, "md5sum changed after empty update"
@@ -114,7 +114,7 @@ def test_load_database_md5data(self, db): # noqa
             {"abbr": "FB", "short_name": "FlyBase", "full_name": "FlyBase"}
         )
         mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation = :abbr"), {"abbr": "FB"})
-        ids = mod_results.fetchall()
+        ids = mod_results.mappings().fetchall()
         if not ids:
             raise ValueError("Mod 'FB' not found after insertion.")
         mod_id_FB = ids[0]["mod_id"]
@@ -125,7 +125,7 @@ def test_load_database_md5data(self, db): # noqa
             {"abbr": "XB", "short_name": "Xenbase", "full_name": "Xenbase"}
         )
         mod_results = db.execute(text("SELECT abbreviation, mod_id FROM mod WHERE abbreviation = :abbr"), {"abbr": "XB"})
-        ids = mod_results.fetchall()
+        ids = mod_results.mappings().fetchall()
         if not ids:
             raise ValueError("Mod 'XB' not found after insertion.")
         mod_id_XB = ids[0]["mod_id"]
@@ -136,7 +136,7 @@ def test_load_database_md5data(self, db): # noqa
             {"title": "Bob", "curie": "AGR:AGR-Reference-0000808175"}
         )
         ref_results = db.execute(text("SELECT reference_id FROM reference WHERE curie = :curie"), {"curie": "AGR:AGR-Reference-0000808175"})
-        refs = ref_results.fetchall()
+        refs = ref_results.mappings().fetchall()
         if not refs:
             raise ValueError("Reference not found after insertion.")
         reference_id = refs[0]["reference_id"]
