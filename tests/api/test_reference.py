@@ -123,3 +123,39 @@ class TestReference:
             }
             response = client.post(url="/reference/", json=blank_category_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_show_reference(self, auth_headers, test_reference): # noqa
+        with TestClient(app) as client:
+            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            added_ref = get_response.json()
+            assert added_ref["title"] == "Bob"
+            assert added_ref["category"] == 'thesis'
+            assert added_ref["abstract"] == '3'
+
+            # Lookup 1 that does not exist
+            res = client.get(url="/reference/does_not_exist")
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_update_reference(self, auth_headers, test_reference, test_resource): # noqa
+        with TestClient(app) as client:
+            # patch docs says it needs a ReferenceSchemaUpdate
+            # but does not work with this.
+            # with pytest.raises(AttributeError):
+            updated_fields = {"title": "new title", "category": "book", "language": "New",
+                              "date_published_start": "2022-10-01", "resource": test_resource.new_resource_curie}
+            response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
+                                    headers=auth_headers)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+
+            updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
+            print(updated_ref)
+            assert updated_ref["title"] == "new title"
+            assert updated_ref["category"] == "book"
+            assert updated_ref["language"] == "New"
+            assert updated_ref["abstract"] == "3"
+            assert updated_ref["date_published_start"] == "2022-10-01"
+            # Do we have a new citation
+            assert updated_ref["citation"] == ", () new title. Bob ():"
+            assert updated_ref["copyright_license_id"] is None
+            assert updated_ref["resource_id"] is not None
+
