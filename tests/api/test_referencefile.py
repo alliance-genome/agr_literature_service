@@ -80,6 +80,7 @@ class TestReferencefile:
 
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == test_referencefile.referencefile_id).one_or_none()
+            db.refresh(ref_file_obj)
             assert ref_file_obj.display_name == "Bob_1"
             assert ref_file_obj.reference.curie == test_reference2.new_ref_curie
 
