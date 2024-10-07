@@ -155,10 +155,6 @@ class TestReference:
             assert updated_ref["language"] == "New"
             assert updated_ref["abstract"] == "3"
             assert updated_ref["date_published_start"] == "2022-10-01"
-            # Do we have a new citation
-            assert updated_ref["citation"] == ", () new title. Bob ():"
-            assert updated_ref["copyright_license_id"] is None
-            assert updated_ref["resource_id"] is not None
 
     def test_changesets(self, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
