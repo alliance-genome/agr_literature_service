@@ -75,7 +75,7 @@ class TestReferencefile:
                                     json=patch_referencefile_ref1, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
             response = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
-            assert response.json()["display_name"] == "Bob"  # If name conflict resolution is not expected
+            assert response.json()["display_name"] == "Bob_1"
             assert response.json()["reference_curie"] == test_reference2.new_ref_curie
 
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
