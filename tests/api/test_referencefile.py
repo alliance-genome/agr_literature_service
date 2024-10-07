@@ -27,8 +27,8 @@ def test_referencefile(db, auth_headers, test_reference): # noqa
         "md5sum": "1234567890"
     }
     try:
-        referencefile = create_metadata(db, ReferencefileSchemaPost(**new_referencefile))
-        db.commit()
+        new_referencefile_id = create_metadata(db, ReferencefileSchemaPost(**new_referencefile))
+        referencefile = db.query(ReferencefileModel).filter_by(referencefile_id=new_referencefile_id).one()
         yield referencefile
     finally:
         db.rollback()
