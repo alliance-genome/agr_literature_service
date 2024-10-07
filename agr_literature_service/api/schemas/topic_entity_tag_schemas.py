@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, List
 from pydantic import BaseModel, Field, constr
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -78,6 +78,8 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     note: Optional[str] = None
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
+    validating_users: Optional[List[str]] = []
+    validating_tags: Optional[List[int]] = []
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
