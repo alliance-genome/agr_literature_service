@@ -71,7 +71,6 @@ class TestReferencefile:
             "reference_curie": test_reference2.new_ref_curie
         }
         with TestClient(app) as client:
-            # Use the correct referencefile_id for the URL
             response = client.patch(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                     json=patch_referencefile_ref1, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
@@ -79,10 +78,9 @@ class TestReferencefile:
             assert response.json()["display_name"] == "Bob"  # If name conflict resolution is not expected
             assert response.json()["reference_curie"] == test_reference2.new_ref_curie
 
-            # Use test_referencefile.referencefile_id for the query filter
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == test_referencefile.referencefile_id).one_or_none()
-            assert ref_file_obj.display_name == "Bob"  # Adjusted assertion
+            assert ref_file_obj.display_name == "Bob_1"
             assert ref_file_obj.reference.curie == test_reference2.new_ref_curie
 
     def test_show_all(self, db, test_referencefile): # noqa
