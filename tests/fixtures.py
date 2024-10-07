@@ -1,5 +1,6 @@
 import math
 import shutil
+from typing import Generator
 
 import pytest
 from agr_literature_service.api.models import (
@@ -30,7 +31,7 @@ def delete_all_table_content(engine, db_session):
 
 
 @pytest.fixture
-def db() -> Session:
+def db() -> Generator[Session, None, None]:
     print("***** Creating DB session *****")
     if "rds.amazonaws.com" in config.PSQL_HOST:
         msg = "***** Warning: not allowed to run test on stage or prod database *****"

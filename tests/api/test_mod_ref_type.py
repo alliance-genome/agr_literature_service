@@ -106,21 +106,27 @@ class TestModReferenceType:
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_display_order(self, db, test_mod_ref_type, auth_headers): # noqa
-        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").one_or_none()
+        # mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").one_or_none()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").scalar()
+
         mrts = db.query(ModReferencetypeAssociationModel).filter(
             ModReferencetypeAssociationModel.mod_id == mod_id).all()
         for idx, mrt in enumerate(mrts):
             assert mrt.display_order == (idx + 1) * 10
 
         reference_id = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == test_mod_ref_type.related_ref_curie).one()
+            ReferenceModel.curie == test_mod_ref_type.related_ref_curie).scalar()
+
         allowed_pubmed_types = ("test1", "test2")
+
         insert_mod_reference_type_into_db(
             db, pubmed_types=allowed_pubmed_types, mod_abbreviation="SGD", referencetype_label="test1",
             reference_id=reference_id)
+
         new_ref_mod_reftype_id = insert_mod_reference_type_into_db(
             db, pubmed_types=allowed_pubmed_types, mod_abbreviation="SGD", referencetype_label="test2",
             reference_id=reference_id)
+
         new_ref_mod_reftype = db.query(ReferenceModReferencetypeAssociationModel).filter(
             ReferenceModReferencetypeAssociationModel.reference_mod_referencetype_id == new_ref_mod_reftype_id).one()
         assert new_ref_mod_reftype.mod_referencetype.display_order == 30

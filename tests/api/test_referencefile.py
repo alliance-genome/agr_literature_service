@@ -35,7 +35,7 @@ class TestReferencefile:
 
     def test_show_referencefile(self, test_referencefile):
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            response = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
             assert response.status_code == status.HTTP_200_OK
 
     def test_patch_referencefile(self, db, test_referencefile, auth_headers): # noqa
@@ -43,10 +43,10 @@ class TestReferencefile:
             "display_name": "Bob2"
         }
         with TestClient(app) as client:
-            response = client.patch(url=f"/reference/referencefile/{test_referencefile}",
+            response = client.patch(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                     json=patch_referencefile, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            response = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
             assert response.json()["display_name"] == patch_referencefile["display_name"]
             ref_file_obj = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == test_referencefile).one_or_none()
@@ -67,10 +67,10 @@ class TestReferencefile:
             "reference_curie": test_reference2.new_ref_curie
         }
         with TestClient(app) as client:
-            response = client.patch(url=f"/reference/referencefile/{test_referencefile}",
+            response = client.patch(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                     json=patch_referencefile_ref1, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            response = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
             assert response.json()["display_name"] == "Bob_1"
             assert response.json()["reference_curie"] == test_reference2.new_ref_curie
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
@@ -82,7 +82,7 @@ class TestReferencefile:
 
     def test_show_all(self, db, test_referencefile): # noqa
         with TestClient(app) as client:
-            response_file = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            response_file = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
             response = client.get(url=f"/reference/referencefile/show_all/"
                                       f"{response_file.json()['reference_curie']}")
             assert len(response.json()) > 0
@@ -90,9 +90,9 @@ class TestReferencefile:
 
     def test_delete_reference_cascade(self, test_referencefile, auth_headers): # noqa
         with TestClient(app) as client:
-            response_file = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            response_file = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
             client.delete(url=f"/reference/{response_file.json()['reference_curie']}", headers=auth_headers)
-            response_file = client.get(url=f"/reference/referencefile/{test_referencefile}")
+            response_file = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}")
             assert response_file.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_referencefile_with_mod(self, db, test_reference, auth_headers): # noqa
@@ -198,7 +198,7 @@ class TestReferencefile:
                 }
                 client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
             request = client.post(url=f"/reference/referencefile/merge/{test_reference.new_ref_curie}/"
-                                      f"{test_referencefile}/{test_referencefile2}", headers=auth_headers)
+                                      f"{test_referencefile.referencefile_id}/{test_referencefile2}", headers=auth_headers)
             assert request.status_code == status.HTTP_201_CREATED
             request = client.get(url=f"/reference/referencefile/{test_referencefile2}")
             assert request.json()["display_name"] == "Bob"

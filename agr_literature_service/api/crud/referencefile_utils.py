@@ -47,6 +47,6 @@ def remove_file_from_s3(md5sum: str):  # pragma: no cover
 def remove_from_s3_and_db(db: Session, referencefile: ReferencefileModel):
     copies = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == referencefile.md5sum).all()
     if len(copies) == 1:
-        remove_file_from_s3(referencefile.md5sum)
+        remove_file_from_s3(str(referencefile.md5sum))
     db.delete(referencefile)
     db.commit()

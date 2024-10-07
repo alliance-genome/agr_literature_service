@@ -53,7 +53,7 @@ class ReferenceRelationModel(Base):
         back_populates="reference_relation_in"
     )
 
-    reference_relation_type = Column(
+    reference_relation_type: Column = Column(
         Enum(ReferenceRelationType),
         unique=False,
         nullable=False

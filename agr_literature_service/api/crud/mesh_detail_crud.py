@@ -40,7 +40,7 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:
     db.add(db_obj)
     db.commit()
 
-    return db_obj.mesh_detail_id
+    return int(db_obj.mesh_detail_id)
 
 
 def destroy(db: Session, mesh_detail_id: int) -> None:

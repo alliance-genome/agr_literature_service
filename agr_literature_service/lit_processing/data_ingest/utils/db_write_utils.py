@@ -1,6 +1,6 @@
 from os import environ, makedirs, path
 import json
-from typing import List, Dict, Tuple
+from typing import List, Dict, Set, Tuple
 
 from sqlalchemy import or_, and_, text
 from sqlalchemy.orm import Session
@@ -16,7 +16,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
-from agr_literature_service.api.crud.utils.patterns_check import check_pattern
+from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -781,7 +781,7 @@ def are_additions_and_deletions_only_format_changes(author_count_db, author_orde
 
 def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference_id, mod_corpus_association_db, mod_corpus_association_json, logger):
 
-    db_mod_corpus_association = {}
+    db_mod_corpus_association: Dict[str, Dict[str, int | bool]] = {}
     for db_mca_entry in mod_corpus_association_db:
         if db_mca_entry.get('mod') is None or db_mca_entry['mod'].get('abbreviation') is None:
             continue
@@ -818,7 +818,7 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
 
 def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
 
-    db_mrt_data = {}
+    db_mrt_data: Dict[str, Dict[str, int]] = {}
     to_delete_duplicate_rows = []
     for mrt in db_mod_ref_types:
         source = mrt['mod_referencetype']['mod']['abbreviation']
@@ -831,7 +831,7 @@ def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_typ
         else:
             to_delete_duplicate_rows.append((mrt_id, ref_type))
 
-    json_mrt_data = dict()
+    json_mrt_data: Dict[str, List[str]] = {}
     referenceTypes = set()
     referenceTypesConflict = set()
     meeting_abstract_present = any(x['referenceType'] == 'Meeting_abstract' for x in json_mod_ref_types)
@@ -852,9 +852,9 @@ def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_typ
 
     for mod in json_mrt_data:
         lc_json = [x.lower() for x in json_mrt_data[mod] if x]
-        lc_db = []
+        lc_db: Set[str] = set()
         if mod in db_mrt_data:
-            lc_db = {x.lower() for x in db_mrt_data[mod].keys() if x}
+            lc_json = [x.lower() for x in json_mrt_data[mod] if x]
         for ref_type_label in json_mrt_data[mod]:
             if ref_type_label and ref_type_label.lower() not in lc_db:
                 try:

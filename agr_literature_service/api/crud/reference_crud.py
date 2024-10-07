@@ -721,12 +721,14 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):  # pragma: n
     # Authors, (year) title.   Journal  volume (issue): page_range
     year = ''
     if ref_db_obj.date_published:
-        year_re_result = re.search(r"(\d{4})", ref_db_obj.date_published)
-        if year_re_result:
-            year = year_re_result.group(1)
+        date_published_value = ref_db_obj.date_published
+        if isinstance(date_published_value, str):
+            year_re_result = re.search(r"(\d{4})", date_published_value)
+            if year_re_result:
+                year = year_re_result.group(1)
 
-    title = ref_db_obj.title or ''
-    if not re.search('[.]$', title):
+    title = getattr(ref_db_obj, 'title', '') or ''
+    if not re.search(r'[.]$', str(title)):
         title = title + '.'
 
     authorNames = ''
@@ -889,23 +891,30 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
     for author in sorted(reference.author, key=lambda a: a.order):
-        bib_info.add_author(author.last_name, author.first_initial, author.name)
+        last_name = str(author.last_name or '')
+        first_initial = str(author.first_initial or '')
+        full_name = str(author.name or '')
+        bib_info.add_author(last_name, first_initial, full_name)
     all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
                               db.query(ModModel).all()]
     xref: CrossReferenceModel
     bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete
                                  and (xref.curie_prefix not in all_mods_abbreviations
                                       or xref.curie_prefix == mod_abbreviation)]
-    if reference.pubmed_types:
-        bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
-    bib_info.title = reference.title
+    pubmed_types = getattr(reference, 'pubmed_types', None)
+    if pubmed_types:
+        bib_info.pubmed_types = [str(pub_type).replace("_", " ") for pub_type in pubmed_types]
+    else:
+        bib_info.pubmed_types = []
+
+    bib_info.title = str(reference.title or '')
     if reference.resource is not None:
-        bib_info.journal = reference.resource.title
+        bib_info.journal = str(reference.resource.title or '')
     bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
     if reference.date_published:
-        bib_info.year = reference.date_published
-    bib_info.abstract = reference.abstract
-    bib_info.reference_curie = reference.curie
+        bib_info.year = str(reference.date_published)
+    bib_info.abstract = str(reference.abstract or '')
+    bib_info.reference_curie = str(reference.curie)
     return bib_info.get_formatted_bib(format_type=return_format)
 
 

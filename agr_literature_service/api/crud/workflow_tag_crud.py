@@ -97,7 +97,8 @@ def process_transition_actions(db: Session,
     Get ref_id and mod_id from current_workflow_tag_db_obj
     From the list of job_names to methods call the appropriate method with args.
     """
-    for action in transition.actions:
+    actions = transition.actions if isinstance(transition.actions, list) else transition.actions.value
+    for action in actions:
         process_action(db, current_workflow_tag_db_obj, action)
 
 
@@ -268,7 +269,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                                   new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     mod, process_atp_id, reference = transition_sanity_check(db, transition_type, mod_abbreviation,
                                                              curie_or_reference_id, new_workflow_tag_atp_id)
-    # current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
+    current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
@@ -316,8 +317,9 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
                                                            workflow_tag_id=new_workflow_tag_atp_id)
             db.add(current_workflow_tag_db_obj)
+
         else:
-            current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
+            current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id  # type: ignore
         db.commit()
         # So new tag has been set.
         # Now do the necessary actions if they are specified.
@@ -446,7 +448,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     db.add(db_obj)
     db.commit()
 
-    return db_obj.reference_workflow_tag_id
+    return int(db_obj.reference_workflow_tag_id)
 
 
 def destroy(db: Session, reference_workflow_tag_id: int) -> None:
@@ -633,17 +635,18 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     """
 
     try:
-        rows = db.execute(text(query), params).mappings().fetchall()
+        rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     data = []
     for x in rows:
+        x_dict = dict(x)
         data.append({
-            "mod_abbreviation": x['abbreviation'],
-            "workflow_tag_id": x['workflow_tag_id'],
-            "workflow_tag_name": atp_curie_to_name[x['workflow_tag_id']],
-            "tag_count": x['tag_count']
+            "mod_abbreviation": x_dict['abbreviation'],
+            "workflow_tag_id": x_dict['workflow_tag_id'],
+            "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
+            "tag_count": x_dict['tag_count']
         })
     return data
 
@@ -676,7 +679,7 @@ def get_reference_workflow_tags_by_mod(
         "AND wft.date_updated BETWEEN :startDate AND :endDate"
     )
 
-    rows = db.execute(text(query), {
+    rows = db.execute(query, {
         'curie_prefix': curie_prefix,
         'mod_abbreviation': mod_abbreviation,
         'workflow_tag_id': workflow_tag_id,

@@ -41,10 +41,16 @@ def create(db: Session, cross_reference) -> int:
         db.commit()
     except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. "
-                                   f"Error details: {str(e.orig.args[0])}")
-    return db_obj.cross_reference_id
+        orig_args = getattr(e.orig, 'args', None)
+        if orig_args:
+            error_details = f"Error details: {str(orig_args[0])}"
+        else:
+            error_details = f"Error details: {str(e)}"
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. {error_details}"
+        )
+    return int(db_obj.cross_reference_id)
 
 
 def destroy(db: Session, cross_reference_id: int) -> None:

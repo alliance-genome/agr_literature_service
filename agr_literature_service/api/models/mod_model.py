@@ -43,7 +43,7 @@ class ModModel(Base, AuditedModel):
         nullable=False
     )
 
-    taxon_ids = Column(
+    taxon_ids: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
