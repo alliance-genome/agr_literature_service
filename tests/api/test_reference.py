@@ -4,7 +4,7 @@ import logging
 from collections import namedtuple
 import json
 from typing import Dict, Tuple
-
+import time
 import pytest
 from sqlalchemy import text
 from sqlalchemy_continuum import Operation
@@ -308,10 +308,13 @@ class TestReference:
             assert author is not None
             assert author.first_name == 'S.'
 
+            # Wait for the citation generation to complete
+            time.sleep(1)
+            
             # Fetch the citation again to make sure it's populated
             response = client.get(url=f"/reference/{new_curie}").json()
 
-            # assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
