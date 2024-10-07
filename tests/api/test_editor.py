@@ -84,7 +84,7 @@ class TestEditor:
             assert response.status_code == status.HTTP_200_OK
 
             resp_data = response.json()
-
+            print("resp_data=", resp_data)
             assert "resource_id" in resp_data
             assert resp_data['resource_id'] is not None
 
