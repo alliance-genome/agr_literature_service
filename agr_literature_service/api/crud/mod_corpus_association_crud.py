@@ -141,6 +141,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
             setattr(mod_corpus_association_db_obj, field, value)
 
     mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
+    db.add(mod_corpus_association_db_obj)
     db.commit()
 
     return {"message": "updated"}

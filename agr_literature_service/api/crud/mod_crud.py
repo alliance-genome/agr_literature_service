@@ -66,6 +66,7 @@ def patch(db: Session, mod_id: int, mod_update):
         setattr(mod_db_obj, field, value)
 
     mod_db_obj.dateUpdated = datetime.utcnow()
+    db.add(mod_db_obj)
     db.commit()
 
     return {"message": "updated"}

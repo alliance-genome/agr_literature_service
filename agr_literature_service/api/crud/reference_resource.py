@@ -83,6 +83,7 @@ def create_obj(db: Session, obj_type: Any, obj_data, non_fatal=False):
     res_ref = stripout(db, obj_data, non_fatal)
     db_obj = obj_type(**obj_data)
     add(res_ref, db_obj)
+    db.add(db_obj)
     return db_obj
 
 

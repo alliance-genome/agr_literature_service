@@ -61,10 +61,11 @@ def get_workflow_tags_from_process(workflow_process_atp_id: str):
     return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
-def workflow_tag_add(current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
-    WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
-                     mod=current_workflow_tag_db_obj.mod,
-                     workflow_tag_id=new_tag)
+def workflow_tag_add(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
+    new_tag_obj = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
+                                   mod=current_workflow_tag_db_obj.mod,
+                                   workflow_tag_id=new_tag)
+    db.add(new_tag_obj)
 
 
 def workflow_tag_remove(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, delete_tag: str = None):

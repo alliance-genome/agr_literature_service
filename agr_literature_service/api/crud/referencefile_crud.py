@@ -182,7 +182,7 @@ def merge_referencefiles(db: Session,
         mod_abbreviation = referencefile_mod.mod.abbreviation if referencefile_mod.mod is not None else None
         if mod_abbreviation not in winning_mod_set:
             referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
-
+            db.add(referencefile_mod)
     db.commit()
     # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
     db.delete(losing_referencefile)

@@ -68,6 +68,7 @@ def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
         setattr(cross_reference_db_obj, field, value)
     if "curie" in cross_reference_update:
         set_curie_prefix(cross_reference_db_obj)
+    db.add(cross_reference_db_obj)
     db.commit()
     return {"message": "updated"}
 

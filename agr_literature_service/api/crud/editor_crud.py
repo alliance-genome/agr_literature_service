@@ -77,6 +77,7 @@ def patch(db: Session, editor_id: int, editor_update) -> dict:
         setattr(editor_db_obj, field, value)
 
     editor_db_obj.dateUpdated = datetime.utcnow()
+    db.add(editor_db_obj)
     db.commit()
 
     return {"message": "updated"}

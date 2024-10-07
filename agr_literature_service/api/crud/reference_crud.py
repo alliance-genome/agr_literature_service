@@ -259,6 +259,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     # currently do not update citation on patches. code will call update_citation separately when all done
     # reference_db_obj.citation = get_citation_from_obj(db, reference_db_obj)
     reference_db_obj.dateUpdated = datetime.utcnow()
+    db.add(reference_db_obj)
     db.commit()
 
     return {"message": "updated"}
