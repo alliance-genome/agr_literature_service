@@ -53,7 +53,8 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
             raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                                 detail="Method proceed_on_value with second arg {new_atp} must start with ATP:")
         #  Add new wft for this ref and mod
-        WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
-                         mod=current_workflow_tag_db_obj.mod,
-                         workflow_tag_id=new_atp)
+        wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
+                               mod=current_workflow_tag_db_obj.mod,
+                               workflow_tag_id=new_atp)
+        db.add(wtm)
         db.commit()

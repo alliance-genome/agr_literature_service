@@ -315,6 +315,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         if not current_workflow_tag_db_obj:
             current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
                                                            workflow_tag_id=new_workflow_tag_atp_id)
+            db.add(current_workflow_tag_db_obj)
         else:
             current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
         db.commit()
