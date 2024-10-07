@@ -82,7 +82,6 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     validating_tags: Optional[List[int]] = []
 
 
-
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
     reference_curie: str
 
