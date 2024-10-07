@@ -176,7 +176,7 @@ class TestReference:
         with TestClient(app) as client:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT
-            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
-            assert get_response.status_code == status.HTTP_404_NOT_FOUND
-            # delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
-            # assert delete_response.status_code == status.HTTP_404_NOT_FOUND
+            # get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            # assert get_response.status_code == status.HTTP_404_NOT_FOUND
+            delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
+            assert delete_response.status_code == status.HTTP_404_NOT_FOUND
