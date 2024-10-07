@@ -84,10 +84,8 @@ class TestEditor:
             assert response.status_code == status.HTTP_200_OK
 
             resp_data = response.json()
-
-            assert "resource_id" in resp_data
-            assert resp_data['resource_id'] is not None
-
+            assert "name" in resp_data
+            assert resp_data['name'] == '003_TCU'
             assert resp_data['orcid'] == "ORCID:2345-2345-2345-234X"
 
     def test_destroy_editor(self, test_editor, auth_headers): # noqa

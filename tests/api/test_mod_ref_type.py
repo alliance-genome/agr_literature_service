@@ -107,7 +107,7 @@ class TestModReferenceType:
 
     def test_display_order(self, db, test_mod_ref_type, auth_headers): # noqa
         # mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").one_or_none()
-        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").scalar_one_or_none()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").scalar()
 
         mrts = db.query(ModReferencetypeAssociationModel).filter(
             ModReferencetypeAssociationModel.mod_id == mod_id).all()
@@ -115,7 +115,7 @@ class TestModReferenceType:
             assert mrt.display_order == (idx + 1) * 10
 
         reference_id = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == test_mod_ref_type.related_ref_curie).scalar_one()
+            ReferenceModel.curie == test_mod_ref_type.related_ref_curie).scalar()
 
         allowed_pubmed_types = ("test1", "test2")
 
