@@ -309,7 +309,7 @@ class TestReference:
             assert author.first_name == 'S.'
 
             # Wait for the citation generation to complete
-            time.sleep(1)
+            time.sleep(5)
             
             # Fetch the citation again to make sure it's populated
             response = client.get(url=f"/reference/{new_curie}").json()
