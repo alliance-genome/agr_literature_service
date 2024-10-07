@@ -115,7 +115,7 @@ class TestModReferenceType:
             assert mrt.display_order == (idx + 1) * 10
 
         reference_id = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == test_mod_ref_type.related_ref_curie).scalar_one()
+            ReferenceModel.curie == test_mod_ref_type.related_ref_curie).scalar()
 
         allowed_pubmed_types = ("test1", "test2")
 
