@@ -172,3 +172,12 @@ class TestReference:
             # assert transactions[2]['changeset']['citation'][0] == ", () Bob.   (): "
             # assert transactions[2]['changeset']['citation'][1] == ", () new title.  ():"
 
+    def test_delete_reference(self, auth_headers, test_reference): # noqa
+        with TestClient(app) as client:
+            delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
+            assert delete_response.status_code == status.HTTP_204_NO_CONTENT
+            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            assert get_response.status_code == status.HTTP_404_NOT_FOUND
+            delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
+            assert delete_response.status_code == status.HTTP_404_NOT_FOUND
+
