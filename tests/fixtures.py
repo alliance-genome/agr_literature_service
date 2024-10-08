@@ -104,7 +104,7 @@ def populate_test_mod_reference_types(db):
         print(f"Error during mod reference type population: {e}")
         db.rollback()  # Roll back the transaction in case of error, but only after an actual exception
 
-    yield db  # Yield the database session for use in tests
+    # yield db  # Yield the database session for use in tests
 
 
 @pytest.fixture
