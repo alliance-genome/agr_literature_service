@@ -39,6 +39,13 @@ def db() -> Generator[Session, None, None]:
     else:
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
 
+        try:
+            with engine.connect() as connection:
+                connection.execute("SELECT 1")
+                print("***** Database connection successful *****")
+        except Exception as e:
+            pytest.exit(f"***** Database connection failed: {e} *****")
+
         initialize()
         db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
         delete_all_table_content(engine, db_session)  # Clean before test starts
