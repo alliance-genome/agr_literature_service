@@ -35,7 +35,9 @@ class TestReferenceModMd5sum:
             ref_model = ReferenceModel(**new_reference)
             db.add(ref_model)
             print("insert reference wit title Bob")
+            db.commit()
         except Exception as e:
+            db.rollback()
             print('Error: ' + str(type(e)))
         reference_obj = db.query(ReferenceModel).filter(ReferenceModel.title == "Bob").one_or_none()
         assert reference_obj is not None
@@ -58,7 +60,9 @@ class TestReferenceModMd5sum:
             md5_model = ReferenceModMd5sumModel(**new_md5sum)
             db.add(md5_model)
             print("insert data into reference_mod_md5sum")
+            db.commit()
         except Exception as e:
+            db.rollback()
             print('Error: ' + str(type(e)))
         reference_mod_md5sum_obj = db.query(ReferenceModMd5sumModel).filter(and_(ReferenceModMd5sumModel.reference_id == reference_id,
                                                                             ReferenceModMd5sumModel.mod_id == mod_id_FB,
