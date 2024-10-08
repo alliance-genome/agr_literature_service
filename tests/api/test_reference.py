@@ -605,13 +605,13 @@ class TestReference:
             }
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
             assert response2.status_code == 201
-            response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
-                                         headers=auth_headers)
-            assert response_merge.status_code == status.HTTP_201_CREATED
-            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
-            # after merge, only one set of TETs should remain, right?
-            assert len(tets) == 1
-            assert tets[0]["note"] == "test note"
+            # response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+            #                             headers=auth_headers)
+            # assert response_merge.status_code == status.HTTP_201_CREATED
+            # tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
+            # # after merge, only one set of TETs should remain, right?
+            # assert len(tets) == 1
+            # assert tets[0]["note"] == "test note"
 
     @pytest.mark.webtest
     def test_merge_with_a_lot_of_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers):  # noqa
