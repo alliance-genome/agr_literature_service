@@ -55,7 +55,7 @@ def initialize():
     print('Default user created')
 
     try:
-        #create_all_triggers()
+        create_all_triggers()
         logger.debug("Triggers updated successfully")
     except Exception as e:
         logger.error('Create triggers Error: ' + str(type(e)))
