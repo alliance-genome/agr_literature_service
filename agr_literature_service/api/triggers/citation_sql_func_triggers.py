@@ -171,3 +171,4 @@ def add_citation_methods(db_session):
     db_session.execute(text(get_short_author_string))
     db_session.execute(text(citation_update))
     db_session.execute(text(citation_seq))
+    db_session.commit()
