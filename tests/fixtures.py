@@ -23,15 +23,11 @@ from agr_literature_service.api.config import config
 def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
-        try:
-            with engine.begin() as conn:  # Use connection context
-                for table in reversed(Base.metadata.sorted_tables):
-                    if table.fullname != "users":
-                        conn.execute(table.delete())  # Use connection for execution
-            db_session.commit()  # Commit the transaction
-        except Exception as e:
-            print(f"Error during table cleanup: {e}")
-            db_session.rollback()
+        with engine.begin() as conn:  # Use connection context
+            for table in reversed(Base.metadata.sorted_tables):
+                if table.fullname != "users":
+                    conn.execute(table.delete())  # Use connection for execution
+        db_session.commit()  # Commit the transaction
 
 
 @pytest.fixture
@@ -44,14 +40,9 @@ def db() -> Generator[Session, None, None]:
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
 
         initialize()
-
-        # Update session creation for SQLAlchemy 2.x
-        SessionLocal = sessionmaker(engine)
-        db_session = SessionLocal()
-
+        db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
         delete_all_table_content(engine, db_session)  # Clean before test starts
         yield db_session
-
         delete_all_table_content(engine, db_session)  # Clean after test ends
         drop_open_db_sessions(db_session)  # Close any open sessions
         print("***** Closing DB session *****")
@@ -73,60 +64,26 @@ def cleanup_tmp_files_when_done():
 
 @pytest.fixture
 def populate_test_mod_reference_types(db):
-    # Dictionary of mod reference types to be inserted
+    populate_test_mods()
     mod_reference_types = {
         'ZFIN': ['Journal', 'Review'],
         'FB': ['book'],
         'WB': ['Journal_article', 'Micropublication'],
         'SGD': ['Journal']
     }
-
-    try:
-        for mod, reference_types in mod_reference_types.items():
-            mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
-
-            display_order = 10
-            for reference_type in reference_types:
-                # Check if the reference type already exists to avoid duplicates
-                rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
-                if rt_obj is None:
-                    # Only add if it doesn't already exist
-                    rt_obj = ReferencetypeModel(label=reference_type)
-                    db.add(rt_obj)
-
-                # Add mod-reference type association
-                mod_reference_type_obj = ModReferencetypeAssociationModel(
-                    mod=mod_obj, 
-                    referencetype=rt_obj,
-                    display_order=display_order
-                )
-                db.add(mod_reference_type_obj)
-
-                display_order = math.ceil((display_order + 1) / 10) * 10
-        
-        # Commit the transaction to ensure all changes are persisted
-        db.commit()
-    
-    except Exception as e:
-        print(f"Error during mod reference type population: {e}")
-        db.rollback()  # Roll back the transaction in case of error
-
-    # Check if the referencetype table is populated correctly
-    verify_reference_type_population(db)
-
-    yield db  # Yield the db session for test usage
-
-
-def verify_reference_type_population(db):
-    # Check that all expected reference types are in the table
-    expected_reference_types = ['Journal', 'Review', 'book', 'Journal_article', 'Micropublication']
-    
-    reference_types_in_db = db.query(ReferencetypeModel).filter(ReferencetypeModel.label.in_(expected_reference_types)).all()
-    
-    if len(reference_types_in_db) != len(expected_reference_types):
-        print(f"Warning: Not all reference types were inserted. Found {len(reference_types_in_db)} out of {len(expected_reference_types)}.")
-    else:
-        print("Referencetype table populated correctly.")
+    for mod, reference_types in mod_reference_types.items():
+        mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
+        display_order = 10
+        for reference_type in reference_types:
+            rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
+            if rt_obj is None:
+                rt_obj = ReferencetypeModel(label=reference_type)
+                db.add(rt_obj)
+            mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod_obj, referencetype=rt_obj,
+                                                                      display_order=display_order)
+            db.add(mod_reference_type_obj)
+            display_order = math.ceil((display_order + 1) / 10) * 10
+    db.commit()
 
 
 @pytest.fixture
