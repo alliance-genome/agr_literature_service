@@ -40,19 +40,22 @@ def initialize():
     print('Initialising models')
     try:
         configure_mappers()
+        print('Mappers initialized')
     except Exception as e:
         logger.error('configure Mappers Error: ' + str(type(e)))
         logger.error(e)
 
     try:
         create_all_tables()
+        print('Tables created')
     except Exception as e:
         logger.error('Create all tables Error: ' + str(type(e)))
         logger.error(e)
     create_default_user()
+    print('Default user created')
 
     try:
-        create_all_triggers()
+        #create_all_triggers()
         logger.debug("Triggers updated successfully")
     except Exception as e:
         logger.error('Create triggers Error: ' + str(type(e)))
