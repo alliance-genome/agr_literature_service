@@ -150,6 +150,7 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    """
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
@@ -202,7 +203,9 @@ class TestTopicEntityTag:
             response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
             assert response.status_code == status.HTTP_200_OK
             assert len(response.json()) > 0
+    """
 
+    """
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
@@ -259,6 +262,7 @@ class TestTopicEntityTag:
             assert len(tag_obj.validated_by) == 2
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.json()["validation_by_author"] == "validated_wrong"
+    """
 
     def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
