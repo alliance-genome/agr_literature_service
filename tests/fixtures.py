@@ -41,15 +41,15 @@ def db() -> Generator[Session, None, None]:
 
         initialize()
         db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
-        delete_all_table_content(engine, db_session)  # Clean before test starts
-        try:
+
+        with db_session.begin_nested():
+            delete_all_table_content(engine, db_session)  # Clean before test starts
             yield db_session
-        finally:
-            db_session.rollback()  # Rollback any remaining transactions
             delete_all_table_content(engine, db_session)  # Clean after test ends
-            drop_open_db_sessions(db_session)  # Close any open sessions
-            print("***** Closing DB session *****")
-            db_session.close()  # Close the session
+
+        drop_open_db_sessions(db_session)  # Close any open sessions
+        print("***** Closing DB session *****")
+        db_session.close()  # Close the session
 
 
 @pytest.fixture
