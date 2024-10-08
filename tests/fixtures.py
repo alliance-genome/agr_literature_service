@@ -46,7 +46,7 @@ def db() -> Generator[Session, None, None]:
         initialize()
 
         # Update session creation for SQLAlchemy 2.x
-        SessionLocal = sessionmaker(engine, autoflush=False)  # Removed 'bind' and set explicit sessionmaker
+        SessionLocal = sessionmaker(engine)
         db_session = SessionLocal()
 
         delete_all_table_content(engine, db_session)  # Clean before test starts
