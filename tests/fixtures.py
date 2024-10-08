@@ -11,9 +11,10 @@ from agr_literature_service.api.models import (
     drop_open_db_sessions)
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from os import environ, path
+
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.api.config import config
@@ -32,28 +33,32 @@ def delete_all_table_content(engine, db_session):
 @pytest.fixture
 def db() -> Generator[Session, None, None]:
     print("***** Creating DB session *****")
+    
+    # Check to prevent running tests on a production or stage database
     if "rds.amazonaws.com" in config.PSQL_HOST:
         msg = "***** Warning: not allowed to run test on stage or prod database *****"
         pytest.exit(msg)
     else:
+        # Create engine and session
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+        initialize()  # Assuming this initializes your database schema
+        
+        # Create a session factory (session maker)
+        SessionLocal = sessionmaker(bind=engine, autoflush=True)
+        db_session = SessionLocal()
 
         try:
-            with engine.connect() as connection:
-                result = connection.execute(text("SELECT 1"))
-                scalar_result = result.scalar()
-                print("***** Database connection successful *****")
+            delete_all_table_content(engine, db_session)
+            yield db_session
         except Exception as e:
-            pytest.exit(f"***** Database connection failed: {e} *****")
-
-        initialize()
-        db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
-        delete_all_table_content(engine, db_session)  # Clean before test starts
-        yield db_session
-        delete_all_table_content(engine, db_session)  # Clean after test ends
-        drop_open_db_sessions(db_session)  # Close any open sessions
-        print("***** Closing DB session *****")
-        db_session.close()  # Close the session
+            db_session.rollback()
+            raise e
+        finally:
+            delete_all_table_content(engine, db_session)  # Clean after test ends
+            drop_open_db_sessions(db_session)  # Close any open sessions
+            
+            print("***** Closing DB session *****")
+            db_session.close()
 
 
 @pytest.fixture
