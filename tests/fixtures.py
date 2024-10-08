@@ -73,13 +73,14 @@ def cleanup_tmp_files_when_done():
 
 @pytest.fixture
 def populate_test_mod_reference_types(db):
-    populate_test_mods()
+    # Dictionary of mod reference types to be inserted
     mod_reference_types = {
         'ZFIN': ['Journal', 'Review'],
         'FB': ['book'],
         'WB': ['Journal_article', 'Micropublication'],
         'SGD': ['Journal']
     }
+
     try:
         for mod, reference_types in mod_reference_types.items():
             mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
@@ -89,22 +90,43 @@ def populate_test_mod_reference_types(db):
                 # Check if the reference type already exists to avoid duplicates
                 rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
                 if rt_obj is None:
+                    # Only add if it doesn't already exist
                     rt_obj = ReferencetypeModel(label=reference_type)
                     db.add(rt_obj)
 
                 # Add mod-reference type association
-                mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod_obj, referencetype=rt_obj,
-                                                                          display_order=display_order)
+                mod_reference_type_obj = ModReferencetypeAssociationModel(
+                    mod=mod_obj, 
+                    referencetype=rt_obj,
+                    display_order=display_order
+                )
                 db.add(mod_reference_type_obj)
-                display_order = math.ceil((display_order + 1) / 10) * 10
 
-        # Commit the transaction after all inserts
+                display_order = math.ceil((display_order + 1) / 10) * 10
+        
+        # Commit the transaction to ensure all changes are persisted
         db.commit()
+    
     except Exception as e:
         print(f"Error during mod reference type population: {e}")
-        db.rollback()  # Roll back the transaction in case of error, but only after an actual exception
+        db.rollback()  # Roll back the transaction in case of error
 
-    # yield db  # Yield the database session for use in tests
+    # Check if the referencetype table is populated correctly
+    verify_reference_type_population(db)
+
+    yield db  # Yield the db session for test usage
+
+
+def verify_reference_type_population(db):
+    # Check that all expected reference types are in the table
+    expected_reference_types = ['Journal', 'Review', 'book', 'Journal_article', 'Micropublication']
+    
+    reference_types_in_db = db.query(ReferencetypeModel).filter(ReferencetypeModel.label.in_(expected_reference_types)).all()
+    
+    if len(reference_types_in_db) != len(expected_reference_types):
+        print(f"Warning: Not all reference types were inserted. Found {len(reference_types_in_db)} out of {len(expected_reference_types)}.")
+    else:
+        print("Referencetype table populated correctly.")
 
 
 @pytest.fixture
