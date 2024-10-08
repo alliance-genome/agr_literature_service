@@ -92,11 +92,7 @@ def populate_test_mod_reference_types(db):
                                                                       display_order=display_order)
             db.add(mod_reference_type_obj)
             display_order = math.ceil((display_order + 1) / 10) * 10
-    try:
-        db.commit()
-    except Exception as e:
-        print(f"Error during mod reference type population: {e}")
-        db.rollback()
+    db.commit()
 
 
 @pytest.fixture
