@@ -41,19 +41,12 @@ def db() -> Generator[Session, None, None]:
 
         initialize()
         db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
-
+        delete_all_table_content(engine, db_session)  # Clean before test starts
         try:
-            delete_all_table_content(engine, db_session)  # Clean before test starts
-            db_session.commit()  # Commit the deletion before starting the test
             yield db_session
-
+        finally:
             db_session.rollback()  # Rollback any remaining transactions
             delete_all_table_content(engine, db_session)  # Clean after test ends
-            db_session.commit()
-        except Exception as e:
-            db_session.rollback()
-            raise e
-        finally:
             drop_open_db_sessions(db_session)  # Close any open sessions
             print("***** Closing DB session *****")
             db_session.close()  # Close the session
