@@ -47,9 +47,8 @@ def is_database_online(session: Session = db_session):
 
 
 def create_all_triggers():
-    db_session = next(get_db(), None)
-    db_session.commit()
-    add_sql_triggers_functions(db_session)
+    db = sessionmaker(bind=engine, autoflush=True)
+    add_sql_triggers_functions(db)
 
 
 def drop_open_db_sessions(db):
