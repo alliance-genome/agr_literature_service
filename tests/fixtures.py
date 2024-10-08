@@ -23,11 +23,15 @@ from agr_literature_service.api.config import config
 def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
-        with engine.begin() as conn:  # Use connection context
-            for table in reversed(Base.metadata.sorted_tables):
-                if table.fullname != "users":
-                    conn.execute(table.delete())  # Use connection for execution
-        db_session.commit()  # Commit the transaction
+        try:
+            with engine.begin() as conn:  # Use connection context
+                for table in reversed(Base.metadata.sorted_tables):
+                    if table.fullname != "users":
+                        conn.execute(table.delete())  # Use connection for execution
+            db_session.commit()  # Commit the transaction
+        except Exception as e:
+            print(f"Error during table cleanup: {e}")
+            db_session.rollback()
 
 
 @pytest.fixture
@@ -88,7 +92,11 @@ def populate_test_mod_reference_types(db):
                                                                       display_order=display_order)
             db.add(mod_reference_type_obj)
             display_order = math.ceil((display_order + 1) / 10) * 10
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        print(f"Error during mod reference type population: {e}")
+        db.rollback()
 
 
 @pytest.fixture
