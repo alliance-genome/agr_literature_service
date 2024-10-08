@@ -41,6 +41,7 @@ def db() -> Generator[Session, None, None]:
 
         initialize()
         db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
+        db_session.commit()
         delete_all_table_content(engine, db_session)  # Clean before test starts
         yield db_session
         delete_all_table_content(engine, db_session)  # Clean after test ends
