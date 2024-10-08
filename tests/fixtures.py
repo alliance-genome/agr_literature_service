@@ -80,22 +80,31 @@ def populate_test_mod_reference_types(db):
         'WB': ['Journal_article', 'Micropublication'],
         'SGD': ['Journal']
     }
-    for mod, reference_types in mod_reference_types.items():
-        mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
-        display_order = 10
-        for reference_type in reference_types:
-            rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
-            if rt_obj is None:
-                rt_obj = ReferencetypeModel(label=reference_type)
-                db.add(rt_obj)
-            mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod_obj, referencetype=rt_obj,
-                                                                      display_order=display_order)
-            db.add(mod_reference_type_obj)
-            display_order = math.ceil((display_order + 1) / 10) * 10
     try:
+        for mod, reference_types in mod_reference_types.items():
+            mod_obj = db.query(ModModel).filter(ModModel.abbreviation == mod).one()
+
+            display_order = 10
+            for reference_type in reference_types:
+                # Check if the reference type already exists to avoid duplicates
+                rt_obj = db.query(ReferencetypeModel).filter(ReferencetypeModel.label == reference_type).one_or_none()
+                if rt_obj is None:
+                    rt_obj = ReferencetypeModel(label=reference_type)
+                    db.add(rt_obj)
+
+                # Add mod-reference type association
+                mod_reference_type_obj = ModReferencetypeAssociationModel(mod=mod_obj, referencetype=rt_obj,
+                                                                          display_order=display_order)
+                db.add(mod_reference_type_obj)
+                display_order = math.ceil((display_order + 1) / 10) * 10
+
+        # Commit the transaction after all inserts
         db.commit()
     except Exception as e:
-        db.rollback()
+        print(f"Error during mod reference type population: {e}")
+        db.rollback()  # Roll back the transaction in case of error, but only after an actual exception
+
+    yield db  # Yield the database session for use in tests
 
 
 @pytest.fixture
