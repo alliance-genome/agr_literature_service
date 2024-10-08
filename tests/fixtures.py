@@ -40,9 +40,14 @@ def db() -> Generator[Session, None, None]:
         engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
 
         initialize()
-        db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
+
+        # Update session creation for SQLAlchemy 2.x
+        SessionLocal = sessionmaker(engine, autoflush=False)  # Removed 'bind' and set explicit sessionmaker
+        db_session = SessionLocal()
+
         delete_all_table_content(engine, db_session)  # Clean before test starts
         yield db_session
+
         delete_all_table_content(engine, db_session)  # Clean after test ends
         drop_open_db_sessions(db_session)  # Close any open sessions
         print("***** Closing DB session *****")
