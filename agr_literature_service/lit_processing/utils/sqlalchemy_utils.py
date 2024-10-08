@@ -34,7 +34,7 @@ def create_postgres_session(verbose):
     engine = create_postgres_engine(verbose)
 
     # SQLAlchemy 2.0 recommends using 'autocommit=False' explicitly in sessionmaker
-    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Session = sessionmaker(engine, autoflush=False, autocommit=False)
     session = Session()
 
     return session
