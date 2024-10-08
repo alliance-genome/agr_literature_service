@@ -4,8 +4,8 @@ from sqlalchemy import text
 logger = logging.getLogger(__name__)
 
 citation_update = r"""
-CREATE OR REPLACE PROCEDURE update_citations(
-    ref_id reference.reference_id%type
+CREATE OR REPLACE PROCEDURE lit.update_citations(
+    ref_id lit.reference.reference_id%type
 )
 as $$
 DECLARE
@@ -15,20 +15,20 @@ DECLARE
 --   <resource abbrev>
 --   <volume>(<issue>):<page(s)>
    sht_citation TEXT default '';
-   author_short author.name%type default '';
+   author_short lit.author.name%type default '';
    s_auth record default NULL;
-   ref_year reference.page_range%type;
+   ref_year lit.reference.page_range%type;
    res_abbr TEXT default '';
    journal TEXT;
-   volume reference.volume%type;
-   issue_name reference.issue_name%type;
-   page_range reference.page_range%type;
+   volume lit.reference.volume%type;
+   issue_name lit.reference.issue_name%type;
+   page_range lit.reference.page_range%type;
    citation_identifier integer;
    --- build <volume>(<issue>):<page(s)> into ref_details
    ref_details TEXT default '';
    -- used in queries for short
-   iso resource.iso_abbreviation%type;
-   medline resource.iso_abbreviation%type;
+   iso lit.resource.iso_abbreviation%type;
+   medline lit.resource.iso_abbreviation%type;
 -- Long citation
 --  citation = get_citation_from_args(authorNames, year, title, journal,
 --                                     ref_db_obj.volume or '',
@@ -36,8 +36,8 @@ DECLARE
 --                                     ref_db_obj.page_range or '')
    long_citation TEXT default '';
    -- volume, issue and page range same as short citation
-   title reference.title%type;
-   authors author.name%type default '';
+   title lit.reference.title%type;
+   authors lit.author.name%type default '';
    auth record;
 BEGIN
     raise notice 'update citations for %', ref_id;
@@ -46,15 +46,15 @@ BEGIN
     END IF;
     -- Also need to update data in short_citation column in the citation table in the database
 
-    for auth in SELECT * FROM author
-      WHERE author.reference_id = ref_id
-      ORDER BY author.order asc
+    for auth in SELECT * FROM lit.author
+      WHERE lit.author.reference_id = ref_id
+      ORDER BY lit.author.order asc
     loop
       -- raise notice 'Record %', auth;
       authors = CONCAT(authors , auth.name, '; ');
       -- raise notice 'String %', authors;
       IF author_short = '' THEN
-        author_short = get_short_author_string(auth);
+        author_short = lit.get_short_author_string(auth);
       END IF;
     end loop;
     -- raise notice 'Author record for short is %', s_auth;
@@ -69,7 +69,7 @@ BEGIN
     -- raise notice 'Authors %', authors;
     -- Get the resource abbr
     SELECT res.iso_abbreviation, res.medline_abbreviation, res.title into iso, medline, journal
-      FROM reference ref, resource res
+      FROM lit.reference ref, lit.resource res
       WHERE ref.resource_id = res.resource_id AND
             ref.reference_id = ref_id;
     IF iso is not NULL THEN
@@ -82,7 +82,7 @@ BEGIN
     -- Reference details
     SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id
            into title, volume, issue_name, page_range, ref_year, citation_identifier
-      FROM reference ref
+      FROM lit.reference ref
       WHERE reference_id = ref_id;
     if title is NULL THEN
       title := '';
@@ -110,57 +110,57 @@ BEGIN
     -- raise notice '%', long_citation;
     sht_citation :=  author_short || ' (' || ref_year || ') ' || res_abbr || ' ' || ref_details;
     -- raise notice '%', sht_citation;
-    SELECT citation_id from reference where reference_id = ref_id into citation_identifier;
+    SELECT citation_id from lit.reference where reference_id = ref_id into citation_identifier;
     raise notice 'citation_id from reference is %', citation_identifier;
     IF citation_identifier is NULL THEN
       -- raise notice 'sh cit: %', sht_citation;
       -- raise notice 'cit: %', long_citation;
-      INSERT INTO citation (citation, short_citation) VALUES (long_citation, sht_citation)
+      INSERT INTO lit.citation (citation, short_citation) VALUES (long_citation, sht_citation)
              RETURNING citation_id into citation_identifier;
       -- raise notice 'citation inserted new id is %', citation_identifier;
       -- raise notice 'citation_id %', citation_identifier;
-      UPDATE reference SET citation_id = citation_identifier WHERE reference.reference_id = ref_id;
+      UPDATE lit.reference SET citation_id = citation_identifier WHERE lit.reference.reference_id = ref_id;
     ELSE
-      UPDATE citation SET citation = long_citation, short_citation = sht_citation
-        WHERE citation.citation_id = citation_identifier;
+      UPDATE lit.citation SET citation = long_citation, short_citation = sht_citation
+        WHERE lit.citation.citation_id = citation_identifier;
     END IF;
 END $$ language plpgsql;
 """
 
 get_short_author_string = r"""
-CREATE OR REPLACE FUNCTION get_short_author_string(
+CREATE OR REPLACE FUNCTION lit.get_short_author_string(
     author record
 )
   RETURNS TEXT
   language plpgsql
 as $$
 DECLARE
-  s_auth author.name%type;
+  s_auth lit.author.name%type;
 BEGIN
-     IF NOT coalesce(author.first_initial, '') = '' THEN
-        IF NOT coalesce(author.last_name, '') = '' THEN
-            return CONCAT(author.last_name, ' ', author.first_initial);
+     IF NOT coalesce(lit.author.first_initial, '') = '' THEN
+        IF NOT coalesce(lit.author.last_name, '') = '' THEN
+            return CONCAT(lit.author.last_name, ' ', lit.author.first_initial);
         END IF;
     END IF;
-     IF NOT coalesce(author.first_name, '') = '' THEN
-        IF NOT coalesce(author.last_name, '') = '' THEN
-            return CONCAT(author.last_name, ' ', author.first_name);
+     IF NOT coalesce(lit.author.first_name, '') = '' THEN
+        IF NOT coalesce(lit.author.last_name, '') = '' THEN
+            return CONCAT(lit.author.last_name, ' ', lit.author.first_name);
         END IF;
     END IF;
-    return CONCAT(author.name, '');
+    return CONCAT(lit.author.name, '');
 END;
 $$;
 """
 
 citation_seq = r"""
-CREATE OR REPLACE FUNCTION get_next_citation_id()
+CREATE OR REPLACE FUNCTION lit.get_next_citation_id()
   RETURNS int
   language plpgsql
 as $$
 DECLARE
   cit_id integer;
 BEGIN
-    SELECT into cit_id currval('citation_citation_id_seq');
+    SELECT into cit_id currval('lit.citation_citation_id_seq');
     return cit_id;
 END;
 $$;
