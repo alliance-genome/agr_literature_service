@@ -16,7 +16,9 @@ class TestReferenceModMd5sum:
             x = ModModel(**mod_data)
             db.add(x)
             print("Insert " + mod_data["abbreviation"] + " info into Mod table.")
+            db.commit()
         except Exception as e:
+            db.rollback()
             print("An error occurred when inserting " + mod_data["abbreviation"] + " info into Mod table. " + str(e))
 
         mod_obj = db.query(ModModel).filter(ModModel.abbreviation == "FB").one_or_none()
