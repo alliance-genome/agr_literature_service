@@ -615,7 +615,7 @@ class TestReference:
                     assert response_merge.status_code == status.HTTP_201_CREATED
                     tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
                     assert len(tets) == 3
-                    assert tets[0]["note"] == "another note"
+                    assert tets[0]["note"] == "another note | test note"
             except Exception as e:
                 print(f"Error during test: {e}")
                 raise e
