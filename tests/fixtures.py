@@ -41,7 +41,8 @@ def db() -> Generator[Session, None, None]:
 
         try:
             with engine.connect() as connection:
-                connection.execute("SELECT 1")
+                result = connection.execute(text("SELECT 1"))
+                scalar_result = result.scalar()
                 print("***** Database connection successful *****")
         except Exception as e:
             pytest.exit(f"***** Database connection failed: {e} *****")
