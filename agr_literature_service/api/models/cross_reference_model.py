@@ -24,7 +24,7 @@ enable_versioning()
 class CrossReferenceModel(Base, AuditedModel):
     __tablename__ = "cross_reference"
     __bind_key__ = 'lit'
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     cross_reference_id = Column(
         Integer,

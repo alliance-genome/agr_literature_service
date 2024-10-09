@@ -192,7 +192,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
             name='topic_entity_tag_source_unique'),
         {"schema": "lit"}
     )
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     topic_entity_tag_source_id = Column(
         Integer,

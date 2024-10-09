@@ -20,7 +20,7 @@ enable_versioning()
 class ReferenceRelationModel(Base):
     __tablename__ = "reference_relation"
     __bind_key__ = 'lit'
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     reference_relation_id = Column(
         Integer,

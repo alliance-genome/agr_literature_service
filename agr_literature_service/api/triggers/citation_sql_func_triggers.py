@@ -161,6 +161,7 @@ DECLARE
   cit_id integer;
 BEGIN
     SELECT into cit_id currval('lit.citation_citation_id_seq');
+    raise notice 'cit_id: %', cit_id;
     return cit_id;
 END;
 $$;

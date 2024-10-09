@@ -20,7 +20,7 @@ class EditorModel(Base, AuditedModel):
     __tablename__ = "editor"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     editor_id = Column(
         Integer,

@@ -14,7 +14,7 @@ from agr_literature_service.api.database.base import Base
 class UserModel(Base):
     __tablename__ = "users"
     __bind_key__ = 'lit'
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     id = Column(
         String,

@@ -19,7 +19,7 @@ class ReferencetypeModel(Base):
     __tablename__ = "referencetype"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     referencetype_id = Column(
         Integer, primary_key=True,

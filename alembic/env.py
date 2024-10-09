@@ -51,12 +51,36 @@ def run_migrations_offline():
     script output.
 
     """
+    """
+    def include_name(name, type_, parent_names):
+        if type_ == "schema":
+            # note this will not include the default schema
+            return name in ["lit"]
+        else:
+            return True
+    """
+
+    def include_object(object, name, type_, reflected, compare_to):
+        #if type_ == "table" and object.schema != "lit":
+        #    return False
+        #else:
+        #    return True
+        print("schema:" + object.schema + "target schema:" + target_metadata.schema)
+        if (type_ == 'table' and object.schema == target_metadata.schema):
+            return True
+        if (type_ == 'column' and object.table.schema == target_metadata.schema):
+            return True
+
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        version_table_schema=target_metadata.schema,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
+        include_object=include_object,
+        include_name = include_name
     )
 
     with context.begin_transaction():
@@ -70,6 +94,17 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
+    def include_object(object, name, type_, reflected, compare_to):
+        #if type_ == "table" and object.schema != "lit":
+        #    return False
+        #else:
+        #    return True
+        #print("schema:" + object.schema + "target schema:" + target_metadata.schema)
+        if (type_ == 'table' and object.schema == target_metadata.schema):
+            return True
+        if (type_ == 'column' and object.table.schema == target_metadata.schema):
+            return True
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section),
         prefix="sqlalchemy.",
@@ -80,12 +115,22 @@ def run_migrations_online():
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
-            compare_type=True
+            version_table_schema=target_metadata.schema,
+            compare_type=True,
+            include_schemas=True,
+            include_object=include_object,
+            include_name=include_name
         )
 
         with context.begin_transaction():
             context.run_migrations()
 
+
+def include_name(name, type_, parent_names):
+    if type_ == "schema":
+        return name in ["lit"]
+    else:
+        return True
 
 if context.is_offline_mode():
     run_migrations_offline()

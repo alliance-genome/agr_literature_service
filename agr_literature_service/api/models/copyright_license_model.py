@@ -14,7 +14,7 @@ class CopyrightLicenseModel(Base):
     __tablename__ = "copyright_license"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     copyright_license_id = Column(
         Integer,

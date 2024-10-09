@@ -23,7 +23,7 @@ class ReferenceModel(Base, AuditedModel):
     __tablename__ = "reference"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit'}
 
     reference_id = Column(
         Integer,
