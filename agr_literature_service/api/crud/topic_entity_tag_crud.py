@@ -4,6 +4,7 @@ topic_entity_tag_crud.py
 """
 import copy
 import logging
+from typing import Optional
 from collections import defaultdict
 from os import environ
 from typing import Dict, Set
@@ -143,7 +144,7 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
-    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    topic_entity_tag: Optional[TopicEntityTagModel] = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
@@ -213,7 +214,7 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                                                   calculate_validation_values: bool = True):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
-    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))
+    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -236,7 +237,7 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
                                                   calculate_validation_values: bool = True):
     # 1. new tag negative, existing tag positive = validate existing (wrong) if existing is more specific
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
-    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))
+    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -263,9 +264,9 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # 2. new tag negative, existing tag positive = validate new tag (wrong) if existing is more specific
     # 3. new tag positive, existing tag negative = validate new tag (wrong) if existing is more generic
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
-    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))
+    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
-    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))
+    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
@@ -301,15 +302,14 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
-    with db.begin():
-        db.execute(text(f"INSERT INTO lit.topic_entity_tag_validation (validated_topic_entity_tag_id, "
-                        f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-                        f"{validating_tag.topic_entity_tag_id})"))
-        if calculate_validation_values:
-            db.commit()
-            validated_tag_obj = db.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
-            set_validation_values_to_tag(validated_tag_obj)
+    db.execute(text(f"INSERT INTO lit.topic_entity_tag_validation (validated_topic_entity_tag_id, "
+                    f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
+                    f"{validating_tag.topic_entity_tag_id})"))
+    if calculate_validation_values:
+        db.commit()
+        validated_tag_obj = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
+        set_validation_values_to_tag(validated_tag_obj)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
@@ -395,6 +395,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                                       f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
             query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
         if delete_all_first:
+            db.execute(text("DELETE FROM lit.topic_entity_tag_validation" + reference_query_filter))
+            db.commit()
             with db.begin():
                 db.execute(text("DELETE FROM lit.topic_entity_tag_validation" + reference_query_filter))
                 # db.commit()
@@ -408,9 +410,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                 curr_ref_tags_in_db = None
             logger.info(f"Processing tag # {str(tag_counter)}")
             if not delete_all_first:
-                with db.begin():
-                    db.execute(text(f"DELETE FROM lit.topic_entity_tag_validation "
-                                    f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
+                db.execute(text(f"DELETE FROM lit.topic_entity_tag_validation "
+                                f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
             curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
                                                 calculate_validation_values=False,
                                                 related_tags_in_db=curr_ref_tags_in_db)
@@ -613,7 +614,11 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if sort_by in ['topic', 'entity_type', 'species', 'display_tag', 'entity']:
                 column_property = getattr(TopicEntityTagModel, sort_by, None)
                 column = column_property.property.columns[0]
-                order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                order_expression = case(
+                    {column.is_(None): 1 if desc_sort else 0},
+                    else_=0 if desc_sort else 1
+                )
+                # order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
                 sorted_column_values = get_sorted_column_values(reference_id, db,
                                                                 sort_by, desc_sort)
                 curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
@@ -645,7 +650,11 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                                         detail=f"Failed to get the column '{sort_by}' from the models.")
 
                 # check for None values and order accordingly
-                order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                # order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                order_expression = case(
+                    {column_property.is_(None): 1 if desc_sort else 0},
+                    else_=0 if desc_sort else 1
+                )
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 

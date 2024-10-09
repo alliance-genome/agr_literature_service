@@ -12,16 +12,13 @@ from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.database.versioning import enable_versioning
-import logging
-logging.basicConfig()
-logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+
 
 enable_versioning()
 
 
 class ReferencefileModel(Base, AuditedModel):
     __tablename__ = "referencefile"
-
     __table_args__ = (
         Index('idx_md5sum', 'md5sum', unique=False),
         Index('idx_reference_id_display_name', 'reference_id', 'display_name', 'file_extension', unique=True),
@@ -116,6 +113,7 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
     )
 
     mod_id = Column(
+        Integer,
         ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=True

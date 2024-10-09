@@ -135,6 +135,7 @@ def patch(db: Session, mod_reference_type_id: int, mod_reference_type_update):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="The provided reference type and mod combination is not valid")
         ref_mod_ref_type_obj.mod_referencetype = mod_ref_type
+    db.add(ref_mod_ref_type_obj)
     db.commit()
     return {"message": "updated"}
 

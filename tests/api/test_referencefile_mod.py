@@ -22,7 +22,7 @@ def test_referencefile_mod(db, auth_headers, test_referencefile): # noqa
     populate_test_mods()
     with TestClient(app) as client:
         new_referencefile_mod = {
-            "referencefile_id": int(test_referencefile),
+            "referencefile_id": test_referencefile.referencefile_id,
             "mod_abbreviation": "WB"
         }
         response = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)

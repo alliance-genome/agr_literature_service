@@ -22,7 +22,8 @@ class ReferencetypeModel(Base):
     __versioned__: Dict = {'schema': 'lit'}
 
     referencetype_id = Column(
-        Integer, primary_key=True,
+        Integer,
+        primary_key=True,
         autoincrement=True
     )
     label = Column(

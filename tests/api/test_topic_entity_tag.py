@@ -128,8 +128,12 @@ class TestTopicEntityTag:
                 "topic": "new_topic",
                 "entity_type": "new_type",
                 "entity": "new_entity",
-                "updated_by": "new_user",
-                "novel_topic_data": False,
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "display_tag": None,
+                "novel_topic_data": True,
+                "negated": False,
+                "species": "NCBITaxon:6239"
             }
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers,
                                     json=patch_data)

@@ -3,14 +3,15 @@ import urllib.request
 import yaml
 import logging
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from agr_literature_service.api.config import config
 from agr_literature_service.api.models.resource_descriptor_models import (
     ResourceDescriptorModel, ResourceDescriptorPageModel)
 from agr_literature_service.api.database.main import get_db
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
+    create_postgres_session
 
-db_session: Optional[Session] = None
+db_session: Session = create_postgres_session(False)
 
 
 def initialize_database():

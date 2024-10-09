@@ -55,11 +55,8 @@ class WorkflowTransitionModel(AuditedModel, Base):
         nullable=False
     )
 
-    requirements = Column(
-        ARRAY(String),
-        unique=False,
-        nullable=True
-    )
+    # Correct type annotations
+    requirements: Column = Column(ARRAY(String), unique=False, nullable=True)
 
     transition_type = Column(
         String(),
@@ -69,11 +66,7 @@ class WorkflowTransitionModel(AuditedModel, Base):
         server_default='any'
     )
 
-    actions = Column(
-        ARRAY(String()),
-        unique=False,
-        nullable=True
-    )
+    actions: Column = Column(ARRAY(String()), unique=False, nullable=True)
 
     condition = Column(
         String(),

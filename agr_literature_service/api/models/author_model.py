@@ -56,7 +56,7 @@ class AuthorModel(Base, AuditedModel):
         nullable=True
     )
 
-    corresponding_author = Column(
+    corresponding_author: Column = Column(
         Boolean(),
         nullable=True
     )
@@ -67,7 +67,7 @@ class AuthorModel(Base, AuditedModel):
         nullable=True
     )
 
-    affiliations = Column(
+    affiliations: Column = Column(
         ARRAY(String),
         unique=False,
         nullable=True
