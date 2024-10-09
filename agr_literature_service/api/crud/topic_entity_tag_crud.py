@@ -132,23 +132,15 @@ def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagMo
 
 
 def add_list_of_users_who_validated_tag(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    """
     validating_tag: TopicEntityTagModel
     tag_data_dict["validating_users"] = list({validating_tag.created_by for validating_tag in
-                                              topic_entity_tag_db_obj.validated_by}) or []
-    """
-    validating_users_set = {validating_tag.created_by for validating_tag in topic_entity_tag_db_obj.validated_by}
-    tag_data_dict["validating_users"] = list(validating_users_set) if validating_users_set else []
+                                              topic_entity_tag_db_obj.validated_by})
 
 
 def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel, tag_data_dict: Dict):
-    """
     validating_tag: TopicEntityTagModel
     tag_data_dict["validating_tags"] = list({validating_tag.topic_entity_tag_id for validating_tag in
-                                            topic_entity_tag_db_obj.validated_by}) or []
-    """
-    validating_tags_set = {validating_tag.topic_entity_tag_id for validating_tag in topic_entity_tag_db_obj.validated_by}
-    tag_data_dict["validating_tags"] = list(validating_tags_set) if validating_tags_set else []
+                                            topic_entity_tag_db_obj.validated_by})
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
