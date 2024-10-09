@@ -312,7 +312,7 @@ class TestReference:
             response = client.get(url=f"/reference/{new_curie}").json()
 
             # need to check if citation is created
-            # assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
+            assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
@@ -476,7 +476,7 @@ class TestReference:
             # 3) changesets, see test_001_reference.
             ########################################
 
-    """
+
     def test_merge_with_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
@@ -615,11 +615,10 @@ class TestReference:
                     assert response_merge.status_code == status.HTTP_201_CREATED
                     tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
                     assert len(tets) == 3
-                    assert tets[0]["note"] == "test note"
+                    assert tets[0]["note"] == "another note | test note"
             except Exception as e:
                 print(f"Error during test: {e}")
                 raise e
-    """
 
     @pytest.mark.webtest
     def test_merge_with_a_lot_of_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers):  # noqa

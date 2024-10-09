@@ -32,3 +32,4 @@ AFTER UPDATE ON resource
 def add_resource_triggers(db_session):
     db_session.execute(text(resource_update_function))
     db_session.execute(text(resource_update_trigger))
+    db_session.commit()

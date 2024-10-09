@@ -48,8 +48,8 @@ AFTER UPDATE ON reference
 
 
 def add_reference_triggers(db_session):
-    with db_session.begin():
-        db_session.execute(text(reference_update_function))
-        # db_session.execute(text(reference_update_trigger))
-        db_session.execute(text(reference_citation_insert_trigger))
-        db_session.execute(text(reference_citation_update_trigger))
+    db_session.execute(text(reference_update_function))
+    # db_session.execute(text(reference_update_trigger))
+    db_session.execute(text(reference_citation_insert_trigger))
+    db_session.execute(text(reference_citation_update_trigger))
+    db_session.commit()
