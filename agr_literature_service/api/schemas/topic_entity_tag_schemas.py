@@ -79,7 +79,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
     validating_users: Optional[List[str]] = None,
-    validating_tags: Optional[List[str]] = None
+    validating_tags: Optional[List[int]] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
