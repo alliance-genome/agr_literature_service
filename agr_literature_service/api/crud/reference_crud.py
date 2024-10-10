@@ -783,7 +783,11 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by, filter):
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by: str, filter: str):
+
+    if order_by not in ['date_created', 'curie', 'short_citation']:
+        raise ValueError(f"Invalid order_by field: {order_by}")
+
     subquery: Optional[TextClause] = None
     if filter == 'default':
         subquery = text("""SELECT b.reference_id,
@@ -801,41 +805,41 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix
                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
         """)
-    elif filter == 'ATP:0000134' or filter == 'ATP:0000135':
+    elif filter in ['ATP:0000134', 'ATP:0000135']:
         subquery = text("""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
                               COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                       FROM mod_corpus_association AS b
-                       JOIN mod ON b.mod_id = mod.mod_id
-                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE workflow_tag_id=:filter
-                       AND mod.abbreviation = :mod_abbreviation
-                       AND corpus = true
-                       GROUP BY b.reference_id
+                        FROM mod_corpus_association AS b
+                        JOIN mod ON b.mod_id = mod.mod_id
+                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+                        WHERE workflow_tag_id=:filter
+                        AND mod.abbreviation = :mod_abbreviation
+                        AND corpus = true
+                        GROUP BY b.reference_id
         """)
 
     return text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
-                      SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
+                       SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
                FROM reference, citation,
                     ({subquery})
-                     AS sub_select,
-                        (SELECT cross_reference.curie, reference_id
-                         FROM cross_reference
-                         WHERE curie_prefix='PMID') as ref_pmid,
-                         (SELECT cross_reference.curie, reference_id
-                         FROM cross_reference
-                         WHERE curie_prefix='DOI') as ref_doi,
-                        (SELECT cross_reference.curie, reference_id
-                         FROM cross_reference
-                         WHERE curie_prefix=:curie_prefix) as ref_mod
+                   AS sub_select,
+                      (SELECT cross_reference.curie, reference_id
+                      FROM cross_reference
+                      WHERE curie_prefix='PMID') as ref_pmid,
+                      (SELECT cross_reference.curie, reference_id
+                      FROM cross_reference
+                      WHERE curie_prefix='DOI') as ref_doi,
+                      (SELECT cross_reference.curie, reference_id
+                       FROM cross_reference
+                       WHERE curie_prefix=:curie_prefix) as ref_mod
                WHERE sub_select.reference_id=reference.reference_id
                AND sub_select.reference_id=ref_pmid.reference_id
                AND sub_select.reference_id=ref_doi.reference_id
                AND sub_select.reference_id=ref_mod.reference_id
                AND reference.citation_id=citation.citation_id
-               ORDER BY date_created {order_by}
-           """).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)
+               ORDER BY {order_by}
+          """).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
@@ -902,7 +906,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
         bib_info.add_author(last_name, first_initial, full_name)
     all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
                               db.query(ModModel).all()]
-    xref: CrossReferenceModel
+
     bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete
                                  and (xref.curie_prefix not in all_mods_abbreviations
                                       or xref.curie_prefix == mod_abbreviation)]
