@@ -15,7 +15,7 @@ from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
 from sqlalchemy import ARRAY, Boolean, String, func, and_, text
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.expression import cast, or_
+from sqlalchemy.sql.expression import cast, or_, bindparam
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
@@ -783,12 +783,8 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, filter):
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by, filter):
     subquery = ''
-    if mod_abbreviation == 'XB':
-        curie_prefix = 'Xenbase'
-    else:
-        curie_prefix = mod_abbreviation
     if filter == 'default':
         subquery = text("""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
@@ -843,9 +839,13 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
+    if mod_abbreviation == 'XB':
+        curie_prefix = 'Xenbase'
+    else:
+        curie_prefix = mod_abbreviation
     try:
         offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter).text + f" LIMIT 25 OFFSET {offset}"
+        query = sql_query_for_missing_files(db, mod_abbreviation, curie_prefix, order_by, filter).text + f" LIMIT 25 OFFSET {offset}"
         rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
         data = jsonable_encoder(rows)
     except Exception:
@@ -855,8 +855,12 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
+    if mod_abbreviation == 'XB':
+        curie_prefix = 'Xenbase'
+    else:
+        curie_prefix = mod_abbreviation
     try:
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter).text
+        query = sql_query_for_missing_files(db, mod_abbreviation, curie_prefix, order_by, filter).text
         rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
         tag = ''
         if filter == 'default':
