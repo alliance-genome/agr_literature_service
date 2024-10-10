@@ -785,9 +785,6 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str):
 
-    # if order_by not in ['date_created', 'curie', 'short_citation']:
-    #    raise ValueError(f"Invalid order_by field: {order_by}")
-
     subquery: Optional[TextClause] = None
     curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
 
@@ -848,12 +845,22 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
 
+    if order_by not in ['date_created', 'curie', 'short_citation']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid order_by field: {order_by}")
+    if filter is None:
+        filter = 'default'
+    if filter not in ['default', 'ATP:0000134', 'ATP:0000135']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid filter: {filter}")
     try:
         offset = (page * 25) - 25
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
         query = query.append_text(" LIMIT 25 OFFSET :offset").bindparams(offset=offset)
         rows = db.execute(query).mappings().fetchall()
         data = jsonable_encoder(rows)
+        if not data:
+            return []
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Cant search missing files.")
