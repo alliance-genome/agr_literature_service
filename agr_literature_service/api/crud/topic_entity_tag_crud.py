@@ -715,12 +715,13 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     curie_to_name_mapping = {}
 
-    rows = db.execute(text(f"SELECT DISTINCT tet.reference_id "
-                           f"FROM topic_entity_tag tet "
-                           f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                           f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                           f"WHERE m.abbreviation = '{mod_abbreviation}' "
-                           f"AND tet.date_updated >= '{last_date_updated}'")).mappings().fetchall()
+    rows = db.execute(text("SELECT DISTINCT tet.reference_id "
+                           "FROM topic_entity_tag tet "
+                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tet.date_updated >= :last_date_updated"), 
+                           {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
     for x in rows:
         curie_to_name_mapping.update(get_curie_to_name_from_all_tets(db, str(x['reference_id'])))
     return curie_to_name_mapping
