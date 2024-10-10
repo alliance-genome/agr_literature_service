@@ -676,14 +676,15 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     past_date = current_date - timedelta(days=int(days_updated))
     last_date_updated = past_date.strftime("%Y-%m-%d")
 
-    rows = db.execute(text(f"SELECT cr.curie, tet.*, u.email "
-                           f"FROM cross_reference cr "
-                           f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
-                           f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                           f"JOIN users u ON tet.updated_by = u.id "
-                           f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                           f"WHERE m.abbreviation = '{mod_abbreviation}' "
-                           f"AND tet.date_updated >= '{last_date_updated}'")).mappings().fetchall()
+    rows = db.execute(text("SELECT cr.curie, tet.*, u.email "
+                           "FROM cross_reference cr "
+                           "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
+                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN users u ON tet.updated_by = u.id "
+                           "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tet.date_updated >= :last_date_updated"), 
+                           {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
 
     # tags = [dict(row) for row in rows]
     # there are duplicate rows returned
@@ -700,10 +701,11 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
 
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
-    src_rows = db.execute(text(f"SELECT tets.* "
-                               f"FROM topic_entity_tag_source tets "
-                               f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                               f"WHERE m.abbreviation = '{mod_abbreviation}'")).mappings().fetchall()
+    src_rows = db.execute(text("SELECT tets.* "
+                               "FROM topic_entity_tag_source tets "
+                               "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                               "WHERE m.abbreviation = :mod_abbreviation"), 
+                               {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
     return {"metadata": metadata, "data": data}
