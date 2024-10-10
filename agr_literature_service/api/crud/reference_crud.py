@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
+from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause, bindparam
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
 
@@ -785,10 +785,12 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by: str, filter: str):
 
-    if order_by not in ['date_created', 'curie', 'short_citation']:
-        raise ValueError(f"Invalid order_by field: {order_by}")
+    # if order_by not in ['date_created', 'curie', 'short_citation']:
+    #    raise ValueError(f"Invalid order_by field: {order_by}")
 
     subquery: Optional[TextClause] = None
+    curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+
     if filter == 'default':
         subquery = text("""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
@@ -839,18 +841,18 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix
                AND sub_select.reference_id=ref_mod.reference_id
                AND reference.citation_id=citation.citation_id
                ORDER BY {order_by}
-          """).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)
+          """).bindparams(bindparam('mod_abbreviation', mod_abbreviation),
+                          bindparam('filter', filter),
+                          bindparam('curie_prefix', curie_prefix))
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
-    if mod_abbreviation == 'XB':
-        curie_prefix = 'Xenbase'
-    else:
-        curie_prefix = mod_abbreviation
+
     try:
         offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, curie_prefix, order_by, filter).text + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
+        query = query.append_text(" LIMIT 25 OFFSET :offset").bindparams(offset=offset)
+        rows = db.execute(query).mappings().fetchall()
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -859,20 +861,15 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
-    if mod_abbreviation == 'XB':
-        curie_prefix = 'Xenbase'
-    else:
-        curie_prefix = mod_abbreviation
     try:
-        query = sql_query_for_missing_files(db, mod_abbreviation, curie_prefix, order_by, filter).text
-        rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
-        tag = ''
-        if filter == 'default':
-            tag = "needed"
-        elif filter == 'ATP:0000134':
-            tag = "uploaded"
-        elif filter == 'ATP:0000135':
-            tag = "unobtainable"
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
+        rows = db.execute(query).mappings().fetchall()
+        tag = {
+            'default': 'needed',
+            'ATP:0000134': 'uploaded',
+            'ATP:0000135': 'unobtainable'
+        }.get(filter, 'needed')
+
         tmp_file = f"{mod_abbreviation}_file_{tag}.tsv"
         workflowtag = f"file {tag}"
         tmp_file_with_path = f"{getcwd()}/{tmp_file}"
@@ -969,6 +966,8 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)
     """
 
+    query_params = {'mod_id': mod_id}
+
     # Add condition for reference_type if provided
     if reference_type:
         query_str += """
@@ -981,42 +980,46 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             AND mrt.mod_id = :mod_id
         )
         """
+        query_params['reference_type'] = reference_type
 
     # Add species filter if provided
     if species:
         query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
+        query_params['species'] = species
+
     # Add the WB species list if the mod is WB and no species filter is provided
     elif mod_abbreviation == 'WB':
-        query_str += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))"
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in :wb_species_list)"
+        query_params['wb_species_list'] = tuple(wb_textpresso_species_list)
 
     # Add condition for `from_reference_id` if provided
     if from_reference_id:
         query_str += " AND r.reference_id > :from_reference_id"
+        query_params['from_reference_id'] = from_reference_id
 
     # Add condition for files updated from a specific date if provided
     if files_updated_from_date:
         query_str += " AND rf.date_updated >= :files_updated_from_date"
+        query_params['files_updated_from_date'] = files_updated_from_date
 
     # Add limit for pagination
     query_str += " ORDER BY r.reference_id LIMIT :page_size"
+    query_params['page_size'] = page_size
 
-    # Bind parameters and execute the query
-    query = text(query_str).bindparams(
-        mod_id=mod_id,
-        reference_type=reference_type,
-        species=species,
-        files_updated_from_date=files_updated_from_date,
-        page_size=page_size
-    )
-
-    textpresso_referencefiles = db.execute(query).mappings().fetchall()
+    textpresso_referencefiles = db.execute(text(query_str).bindparams(**query_params)).mappings().fetchall()
 
     # Aggregate reference files for each reference
+    """
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile['reference_id'], reffile['curie'])].add(
             (reffile['referencefile_id'], reffile['md5sum'], reffile['mod_id'] is None, reffile['date_created'])
         )
+    """
+    aggregated_reffiles = defaultdict(set)
+    for reffile in textpresso_referencefiles:
+        aggregated_reffiles[(reffile.reference_id, reffile.curie)].add(
+            (reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None, reffile.date_created))
 
     # Return the aggregated results
     return [
