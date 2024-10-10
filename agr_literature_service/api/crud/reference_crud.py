@@ -1001,16 +1001,15 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     query_str += " ORDER BY r.reference_id LIMIT :page_size"
 
     # Bind parameters and execute the query
-    select_stmt = text(query_str).bindparams(
-        bindparam('mod_id', mod_id),
-        bindparam('reference_type', reference_type),
-        bindparam('species', species),
-        bindparam('from_reference_id', from_reference_id),
-        bindparam('files_updated_from_date', files_updated_from_date),
-        bindparam('page_size', page_size)
+    query = text(query_str).bindparams(
+        mod_id=mod_abbreviation,
+        reference_type=reference_type,
+        species=species,
+        files_updated_from_date=files_updated_from_date,
+        page_size=page_size
     )
 
-    textpresso_referencefiles = db.execute(select_stmt).mappings().fetchall()
+    textpresso_referencefiles = db.execute(query).mappings().fetchall()
 
     # Aggregate reference files for each reference
     aggregated_reffiles = defaultdict(set)
