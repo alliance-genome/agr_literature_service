@@ -683,8 +683,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                            "JOIN users u ON tet.updated_by = u.id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
-                           "AND tet.date_updated >= :last_date_updated"), 
-                           {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
+                           "AND tet.date_updated >= :last_date_updated"),
+                      {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
 
     # tags = [dict(row) for row in rows]
     # there are duplicate rows returned
@@ -704,8 +704,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     src_rows = db.execute(text("SELECT tets.* "
                                "FROM topic_entity_tag_source tets "
                                "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                               "WHERE m.abbreviation = :mod_abbreviation"), 
-                               {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
+                               "WHERE m.abbreviation = :mod_abbreviation"),
+                          {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
     return {"metadata": metadata, "data": data}
@@ -720,8 +720,8 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
                            "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
-                           "AND tet.date_updated >= :last_date_updated"), 
-                           {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
+                           "AND tet.date_updated >= :last_date_updated"),
+                      {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
     for x in rows:
         curie_to_name_mapping.update(get_curie_to_name_from_all_tets(db, str(x['reference_id'])))
     return curie_to_name_mapping
