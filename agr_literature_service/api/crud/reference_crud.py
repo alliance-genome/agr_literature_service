@@ -790,36 +790,36 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
     else:
         curie_prefix = mod_abbreviation
     if filter == 'default':
-        subquery = f"""SELECT b.reference_id,
+        subquery = text("""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
                               COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
                        FROM mod_corpus_association AS b
                        JOIN mod ON b.mod_id = mod.mod_id
                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE mod.abbreviation = '{mod_abbreviation}'
+                       WHERE mod.abbreviation = :mod_abbreviation
                        AND corpus=true
                        GROUP BY b.reference_id
                        HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
                                OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
-        """
+        """)
     elif filter == 'ATP:0000134' or filter == 'ATP:0000135':
-        subquery = f"""SELECT b.reference_id,
+        subquery = text("""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
                               COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
                        FROM mod_corpus_association AS b
                        JOIN mod ON b.mod_id = mod.mod_id
                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE workflow_tag_id='{filter}'
-                       AND mod.abbreviation = '{mod_abbreviation}'
+                       WHERE workflow_tag_id=:filter
+                       AND mod.abbreviation = :mod_abbreviation
                        AND corpus = true
                        GROUP BY b.reference_id
-        """
+        """)
 
-    return f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
+    return text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
                       SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
                FROM reference, citation,
                     ({subquery})
@@ -832,21 +832,21 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, fi
                          WHERE curie_prefix='DOI') as ref_doi,
                         (SELECT cross_reference.curie, reference_id
                          FROM cross_reference
-                         WHERE curie_prefix='{curie_prefix}') as ref_mod
+                         WHERE curie_prefix=:curie_prefix) as ref_mod
                WHERE sub_select.reference_id=reference.reference_id
                AND sub_select.reference_id=ref_pmid.reference_id
                AND sub_select.reference_id=ref_doi.reference_id
                AND sub_select.reference_id=ref_mod.reference_id
                AND reference.citation_id=citation.citation_id
                ORDER BY date_created {order_by}
-           """
+           """).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
     try:
         offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(text(query)).mappings().fetchall()
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter).text + f" LIMIT 25 OFFSET {offset}"
+        rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
         data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -856,8 +856,8 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
     try:
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
-        rows = db.execute(text(query)).mappings().fetchall()
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter).text
+        rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
         tag = ''
         if filter == 'default':
             tag = "needed"
