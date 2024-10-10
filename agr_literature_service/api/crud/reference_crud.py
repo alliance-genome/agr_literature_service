@@ -6,14 +6,14 @@ import logging
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from os import getcwd
 
 from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_, text
+from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_, bindparam
 
@@ -784,7 +784,7 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by, filter):
-    subquery = ''
+    subquery: Optional[TextClause] = None
     if filter == 'default':
         subquery = text("""SELECT b.reference_id,
                               COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
