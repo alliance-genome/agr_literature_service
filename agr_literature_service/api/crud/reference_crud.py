@@ -15,7 +15,7 @@ from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
 from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.expression import cast, or_, bindparam
+from sqlalchemy.sql.expression import cast, or_
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
@@ -1002,7 +1002,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
 
     # Bind parameters and execute the query
     query = text(query_str).bindparams(
-        mod_id=mod_abbreviation,
+        mod_id=mod_id,
         reference_type=reference_type,
         species=species,
         files_updated_from_date=files_updated_from_date,
