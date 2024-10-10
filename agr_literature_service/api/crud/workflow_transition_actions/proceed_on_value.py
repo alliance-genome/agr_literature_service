@@ -2,6 +2,7 @@ from agr_literature_service.api.models import (
     WorkflowTagModel
 )
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from fastapi import HTTPException, status
 
 
@@ -37,7 +38,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                 rmrt.reference_id = {current_workflow_tag_db_obj.reference_id} and
                 mrt.mod_referencetype_id = rmrt.mod_referencetype_id
         """
-        rows = db.execute(select).fetchall()
+        rows = db.execute(text(select)).fetchall()
         for row in rows:
             if check_value == row[0]:
                 call_process = True
@@ -52,7 +53,8 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
             raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                                 detail="Method proceed_on_value with second arg {new_atp} must start with ATP:")
         #  Add new wft for this ref and mod
-        WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
-                         mod=current_workflow_tag_db_obj.mod,
-                         workflow_tag_id=new_atp)
+        wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
+                               mod=current_workflow_tag_db_obj.mod,
+                               workflow_tag_id=new_atp)
+        db.add(wtm)
         db.commit()

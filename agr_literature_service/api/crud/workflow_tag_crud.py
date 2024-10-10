@@ -61,10 +61,11 @@ def get_workflow_tags_from_process(workflow_process_atp_id: str):
     return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
-def workflow_tag_add(current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
-    WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
-                     mod=current_workflow_tag_db_obj.mod,
-                     workflow_tag_id=new_tag)
+def workflow_tag_add(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
+    new_tag_obj = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
+                                   mod=current_workflow_tag_db_obj.mod,
+                                   workflow_tag_id=new_tag)
+    db.add(new_tag_obj)
 
 
 def workflow_tag_remove(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, delete_tag: str = None):
@@ -97,7 +98,8 @@ def process_transition_actions(db: Session,
     Get ref_id and mod_id from current_workflow_tag_db_obj
     From the list of job_names to methods call the appropriate method with args.
     """
-    for action in transition.actions:
+    actions = transition.actions if isinstance(transition.actions, list) else transition.actions.value
+    for action in actions:
         process_action(db, current_workflow_tag_db_obj, action)
 
 
@@ -268,7 +270,7 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                                   new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     mod, process_atp_id, reference = transition_sanity_check(db, transition_type, mod_abbreviation,
                                                              curie_or_reference_id, new_workflow_tag_atp_id)
-    # current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
+    current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
@@ -315,8 +317,10 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         if not current_workflow_tag_db_obj:
             current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
                                                            workflow_tag_id=new_workflow_tag_atp_id)
+            db.add(current_workflow_tag_db_obj)
+
         else:
-            current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id
+            current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id  # type: ignore
         db.commit()
         # So new tag has been set.
         # Now do the necessary actions if they are specified.
@@ -363,10 +367,10 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
 
-    rows = db.execute(sql_query, {
+    rows = db.execute(text(sql_query), {
         'reference_id': reference_id,
         'all_workflow_tags_for_process': tuple(all_workflow_tags_for_process)
-    }).fetchall()
+    }).mappings().fetchall()
 
     tags = []
     for row in rows:
@@ -445,7 +449,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     db.add(db_obj)
     db.commit()
 
-    return db_obj.reference_workflow_tag_id
+    return int(db_obj.reference_workflow_tag_id)
 
 
 def destroy(db: Session, reference_workflow_tag_id: int) -> None:
@@ -604,7 +608,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                                 detail=message)
         atp_curies = all_WF_tags_for_process
     else:
-        rows = db.execute("SELECT distinct workflow_tag_id FROM workflow_tag").fetchall()
+        rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
@@ -632,17 +636,18 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     """
 
     try:
-        rows = db.execute(query, params).fetchall()
+        rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
     data = []
     for x in rows:
+        x_dict = dict(x)
         data.append({
-            "mod_abbreviation": x['abbreviation'],
-            "workflow_tag_id": x['workflow_tag_id'],
-            "workflow_tag_name": atp_curie_to_name[x['workflow_tag_id']],
-            "tag_count": x['tag_count']
+            "mod_abbreviation": x_dict['abbreviation'],
+            "workflow_tag_id": x_dict['workflow_tag_id'],
+            "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
+            "tag_count": x_dict['tag_count']
         })
     return data
 

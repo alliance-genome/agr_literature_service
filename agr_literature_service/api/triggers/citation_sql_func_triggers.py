@@ -1,4 +1,5 @@
 import logging
+from sqlalchemy import text
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +168,7 @@ $$;
 
 
 def add_citation_methods(db_session):
-    db_session.execute(get_short_author_string)
-    db_session.execute(citation_update)
-    db_session.execute(citation_seq)
+    db_session.execute(text(get_short_author_string))
+    db_session.execute(text(citation_update))
+    db_session.execute(text(citation_seq))
+    db_session.commit()

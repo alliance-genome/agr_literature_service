@@ -110,7 +110,8 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
         primary_key=True
     )
 
-    mod_id = Column(
+    mod_id: Column = Column(
+        Integer,
         ForeignKey("mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=True
@@ -118,7 +119,8 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     mod = relationship("ModModel")
 
-    referencefile_id = Column(
+    referencefile_id: Column = Column(
+        Integer,
         ForeignKey("referencefile.referencefile_id", ondelete="CASCADE"),
         index=True,
         nullable=False

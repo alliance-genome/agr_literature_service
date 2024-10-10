@@ -55,13 +55,14 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     db_obj.mod = mod
     db.add(db_obj)
     db.commit()
+    db.refresh(db_obj)  # This refreshes the object and ensures that the ID is populated
 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
         if get_current_workflow_status(db, reference_curie, "ATP:0000140",
                                        mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-    return db_obj.mod_corpus_association_id
+    return int(db_obj.mod_corpus_association_id)
 
 
 def delete_workflow_tag_if_file_needed(db, reference, mod):
@@ -140,6 +141,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
             setattr(mod_corpus_association_db_obj, field, value)
 
     mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
+    db.add(mod_corpus_association_db_obj)
     db.commit()
 
     return {"message": "updated"}

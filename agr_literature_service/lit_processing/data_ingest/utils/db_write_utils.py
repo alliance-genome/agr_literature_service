@@ -1,8 +1,9 @@
 from os import environ, makedirs, path
 import json
-from typing import List, Dict, Tuple
+from typing import List, Dict, Set, Tuple
 
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
+from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
@@ -15,7 +16,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
-from agr_literature_service.api.crud.utils.patterns_check import check_pattern
+from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -26,7 +27,7 @@ file_needed_tag_atp_id = "ATP:0000141"  # file needed
 file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
 
 
-def add_file_uploaded_workflow(db_session, curie_or_reference_id, mod=None, transition_type="automated", logger=None):  # pragma: no cover
+def add_file_uploaded_workflow(db_session: Session, curie_or_reference_id, mod=None, transition_type="automated", logger=None):  # pragma: no cover
     logger.info("Add file uploaded workflow")
     ref = get_reference(db=db_session, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
@@ -35,11 +36,11 @@ def add_file_uploaded_workflow(db_session, curie_or_reference_id, mod=None, tran
             return
 
     if mod is None:
-        rows = db_session.execute(f"SELECT m.abbreviation "
-                                  f"FROM mod m, mod_corpus_association mca "
-                                  f"WHERE m.mod_id = mca.mod_id "
-                                  f"AND mca.reference_id = {ref.reference_id} "
-                                  f"AND mca.corpus is True").fetchall()
+        rows = db_session.execute(text(f"SELECT m.abbreviation "
+                                       f"FROM mod m, mod_corpus_association mca "
+                                       f"WHERE m.mod_id = mca.mod_id "
+                                       f"AND mca.reference_id = {ref.reference_id} "
+                                       f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod}
@@ -61,7 +62,7 @@ def add_file_uploaded_workflow(db_session, curie_or_reference_id, mod=None, tran
     db_session.commit()
 
 
-def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):  # pragma: no cover
+def add_file_needed_for_new_papers(db_session: Session, mod, curie_or_reference_id=None, transition_type="automated", logger=None):  # pragma: no cover
 
     if logger:
         logger.info("Adding file_needed tag for new papers...")
@@ -88,7 +89,7 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
     reference_ids_with_wft = {row.reference_id for row in rows}
 
     if curie_or_reference_id is None:
-        rows = db_session.execute(f"SELECT reference_id FROM mod_corpus_association WHERE mod_id = {mod_id} AND corpus is True").fetchall()
+        rows = db_session.execute(text(f"SELECT reference_id FROM mod_corpus_association WHERE mod_id = {mod_id} AND corpus is True")).fetchall()
         if rows is None:
             if logger:
                 logger.error("Error: query for mod_corpus_association returned None.")
@@ -127,7 +128,7 @@ def add_file_needed_for_new_papers(db_session, mod, curie_or_reference_id=None, 
     # db_session.rollback()
 
 
-def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, logger=None):  # pragma: no cover
+def move_mod_papers_into_corpus(db_session: Session, mod, mod_id, mod_reference_id_set, logger=None):  # pragma: no cover
 
     try:
         for x in db_session.query(ModCorpusAssociationModel).filter_by(
@@ -149,7 +150,7 @@ def move_mod_papers_into_corpus(db_session, mod, mod_id, mod_reference_id_set, l
     # db_session.rollback()
 
 
-def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, logger=None):  # pragma: no cover
+def change_mod_curie_status(db_session: Session, mod, mod_curie_set, mod_curie_to_pmid, logger=None):  # pragma: no cover
 
     curie_prefix = mod
     if mod == 'XB':
@@ -200,7 +201,7 @@ def change_mod_curie_status(db_session, mod, mod_curie_set, mod_curie_to_pmid, l
                                  mod_curie_to_pmid, logger)
 
 
-def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mod_curie_to_pmid, logger):  # pragma: no cover
+def add_not_loaded_pubmed_papers(db_session: Session, mod, mod_id, mod_curies_to_load, mod_curie_to_pmid, logger):  # pragma: no cover
 
     mod_curies_not_in_db = set()
     for curie in mod_curies_to_load:
@@ -247,42 +248,43 @@ def add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_to_load, mo
         logger.info(f"{mod} curies that are not loaded into the database: {mod_curies_not_in_db}")
 
 
-def move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger=None):  # pragma: no cover
+def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_prefix, logger=None):  # pragma: no cover
 
-    cr_rows = db_session.execute(f"SELECT reference_id "
-                                 f"FROM cross_reference "
-                                 f"WHERE curie_prefix = '{curie_prefix}' "
-                                 f"AND is_obsolete is False").fetchall()
+    cr_rows = db_session.execute(text(f"SELECT reference_id "
+                                      f"FROM cross_reference "
+                                      f"WHERE curie_prefix = '{curie_prefix}' "
+                                      f"AND is_obsolete is False")).fetchall()
     valid_reference_ids = {row[0] for row in cr_rows}
 
-    mca_rows = db_session.execute(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
-                                  f"FROM mod_corpus_association mca, reference r "
-                                  f"WHERE mca.mod_id = {mod_id} "
-                                  f"AND mca.corpus is True "
-                                  f"AND mca.reference_id = r.reference_id "
-                                  f"AND r.prepublication_pipeline is False").fetchall()
+    mca_rows = db_session.execute(text(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
+                                       f"FROM mod_corpus_association mca, reference r "
+                                       f"WHERE mca.mod_id = {mod_id} "
+                                       f"AND mca.corpus is True "
+                                       f"AND mca.reference_id = r.reference_id "
+                                       f"AND r.prepublication_pipeline is False")).fetchall()
     for x in mca_rows:
-        if x['reference_id'] not in valid_reference_ids:
+        if x[1] not in valid_reference_ids:
             # move the papers outside corpus if they only have invalid MOD curies
             try:
-                db_session.execute(f"UPDATE mod_corpus_association "
-                                   f"SET corpus = False "
-                                   f"WHERE mod_corpus_association_id = {int(x[0])}")
+                with db_session.begin():
+                    db_session.execute(text(f"UPDATE mod_corpus_association "
+                                            f"SET corpus = False "
+                                            f"WHERE mod_corpus_association_id = {int(x[0])}"))
                 if logger:
-                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}")
+                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
             except Exception as e:
                 if logger:
-                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x['mod_corpus_association_id']}. Error = {e}")
+                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
 
     db_session.commit()
     # db_session.rollback()
 
 
-def _is_prepublication_pipeline(db_session, reference_id):  # pragma: no cover
+def _is_prepublication_pipeline(db_session: Session, reference_id):  # pragma: no cover
 
-    rows = db_session.execute(f"SELECT prepublication_pipeline "
-                              f"FROM   reference "
-                              f"WHERE  reference_id = {reference_id}").fetchall()
+    rows = db_session.execute(text(f"SELECT prepublication_pipeline "
+                                   f"FROM   reference "
+                                   f"WHERE  reference_id = {reference_id}")).fetchall()
     return rows[0][0]
 
 
@@ -316,15 +318,15 @@ def mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=N
     # db_session.rollback()
 
 
-def mark_false_positive_papers_as_out_of_corpus(db_session, mod, fp_pmids, logger=None):  # noqa: C901
+def mark_false_positive_papers_as_out_of_corpus(db_session: Session, mod, fp_pmids, logger=None):  # noqa: C901
 
     mod_id = _get_mod_id_by_mod(db_session, mod)
 
-    rows = db_session.execute(f"SELECT cr.reference_id, cr.curie "
-                              f"FROM cross_reference cr, mod_corpus_association mca "
-                              f"WHERE cr.curie_prefix = 'PMID' "
-                              f"AND cr.reference_id = mca.reference_id "
-                              f"AND mca.mod_id = {mod_id}").fetchall()
+    rows = db_session.execute(text(f"SELECT cr.reference_id, cr.curie "
+                                   f"FROM cross_reference cr, mod_corpus_association mca "
+                                   f"WHERE cr.curie_prefix = 'PMID' "
+                                   f"AND cr.reference_id = mca.reference_id "
+                                   f"AND mca.mod_id = {mod_id}")).fetchall()
 
     to_unlink_reference_id_list = []
     i = 0
@@ -387,7 +389,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
     db_session = create_postgres_session(False)
 
     ref_curies = ", ".join(["'" + x + "'" for x in ref_curie_list])
-    rs = db_session.execute("SELECT reference_id, curie FROM reference WHERE curie IN (" + ref_curies + ")")
+    rs = db_session.execute(text("SELECT reference_id, curie FROM reference WHERE curie IN (" + ref_curies + ")"))
     rows = rs.fetchall()
     curie_to_reference_id = {}
     for x in rows:
@@ -417,7 +419,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
             continue
         just_added.add(entry["curie"])
 
-        rs = db_session.execute("SELECT reference_id, resource_id, is_obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'")
+        rs = db_session.execute(text("SELECT reference_id, resource_id, is_obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'"))
         rows = rs.fetchall()
         if len(rows) > 0:
             for x in rows:
@@ -461,7 +463,7 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, str]], author_list_in_json: List[Dict[str, str]], pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def update_authors(db_session: Session, reference_id, author_list_in_db: List[Dict[str, str]], author_list_in_json: List[Dict[str, str]], pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -636,7 +638,7 @@ def update_authors(db_session, reference_id, author_list_in_db: List[Dict[str, s
     return []
 
 
-def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, fw, logger):  # pragma: no cover
+def insert_authors(db_session: Session, reference_id, pmid, author_order_to_add_record, fw, logger):  # pragma: no cover
 
     name_added: List[str] = []
     author: Author
@@ -667,7 +669,7 @@ def insert_authors(db_session, reference_id, pmid, author_order_to_add_record, f
     return name_added
 
 
-def update_author_row(db_session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, fw, logger):  # pragma: no cover
+def update_author_row(db_session: Session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, fw, logger):  # pragma: no cover
 
     x = db_session.query(AuthorModel).filter_by(
         reference_id=reference_id, order=author_order).one_or_none()
@@ -777,9 +779,9 @@ def are_additions_and_deletions_only_format_changes(author_count_db, author_orde
     return False
 
 
-def update_mod_corpus_associations(db_session, mod_to_mod_id, reference_id, mod_corpus_association_db, mod_corpus_association_json, logger):
+def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference_id, mod_corpus_association_db, mod_corpus_association_json, logger):
 
-    db_mod_corpus_association = {}
+    db_mod_corpus_association: Dict[str, Dict[str, int | bool]] = {}
     for db_mca_entry in mod_corpus_association_db:
         if db_mca_entry.get('mod') is None or db_mca_entry['mod'].get('abbreviation') is None:
             continue
@@ -814,9 +816,9 @@ def update_mod_corpus_associations(db_session, mod_to_mod_id, reference_id, mod_
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
 
 
-def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
+def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
 
-    db_mrt_data = {}
+    db_mrt_data: Dict[str, Dict[str, int]] = {}
     to_delete_duplicate_rows = []
     for mrt in db_mod_ref_types:
         source = mrt['mod_referencetype']['mod']['abbreviation']
@@ -829,7 +831,7 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
         else:
             to_delete_duplicate_rows.append((mrt_id, ref_type))
 
-    json_mrt_data = dict()
+    json_mrt_data: Dict[str, List[str]] = {}
     referenceTypes = set()
     referenceTypesConflict = set()
     meeting_abstract_present = any(x['referenceType'] == 'Meeting_abstract' for x in json_mod_ref_types)
@@ -850,9 +852,9 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
 
     for mod in json_mrt_data:
         lc_json = [x.lower() for x in json_mrt_data[mod] if x]
-        lc_db = []
+        lc_db: Set[str] = set()
         if mod in db_mrt_data:
-            lc_db = {x.lower() for x in db_mrt_data[mod].keys() if x}
+            lc_json = [x.lower() for x in json_mrt_data[mod] if x]
         for ref_type_label in json_mrt_data[mod]:
             if ref_type_label and ref_type_label.lower() not in lc_db:
                 try:
@@ -884,14 +886,14 @@ def update_mod_reference_types(db_session, reference_id, db_mod_ref_types, json_
         referenceTypesConflict.add('Meeting_abstract')
 
 
-def _get_mod_id_by_mod(db_session, mod):  # pragma: no cover
+def _get_mod_id_by_mod(db_session: Session, mod):  # pragma: no cover
 
     m = db_session.query(ModModel).filter_by(abbreviation=mod).one_or_none()
 
     return m.mod_id
 
 
-def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger):
+def add_mca_to_existing_references(db_session: Session, agr_curies_to_corpus, mod, logger):
 
     mod_id = _get_mod_id_by_mod(db_session, mod)
 
@@ -918,7 +920,7 @@ def add_mca_to_existing_references(db_session, agr_curies_to_corpus, mod, logger
     db_session.commit()
 
 
-def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, logger):  # noqa: C901 # pragma: no cover
+def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_valid, logger):  # noqa: C901 # pragma: no cover
 
     # check for papers with same doi in the database
     # print ("ref_xref_valid=", str(ref_xref_valid['AGR:AGR-Reference-0000167781']))
@@ -1005,7 +1007,7 @@ def check_handle_duplicate(db_session, mod, pmids, xref_ref, ref_xref_valid, log
     return (log_path, log_url, not_loaded_pmids)
 
 
-def _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     ## check to see if any newly added ones matches this entry
     rows = db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
@@ -1023,7 +1025,7 @@ def _insert_reference_relation(db_session, fw, pmid, reference_id_from, referenc
         fw.write("PMID:" + str(pmid) + ": INSERT reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def _update_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _update_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     all = db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
 
@@ -1036,7 +1038,7 @@ def _update_reference_relation(db_session, fw, pmid, reference_id_from, referenc
     _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
 
 
-def _delete_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     for x in db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_relation_type=type).all():
         try:
@@ -1046,15 +1048,15 @@ def _delete_reference_relation(db_session, fw, pmid, reference_id_from, referenc
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
 
 
-def _get_curator_email_who_added_reference_relation(db_session, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    rows = db_session.execute(f"SELECT u.email "
-                              f"FROM reference_relation_version rcc, transaction t, users u "
-                              f"WHERE rcc.reference_id_from = {reference_id_from} "
-                              f"AND rcc.reference_id_to = {reference_id_to} "
-                              f"AND rcc.reference_relation_type = '{type}' "
-                              f"AND rcc.transaction_id = t.id "
-                              f"AND u.id = t.user_id").fetchall()
+    rows = db_session.execute(text(f"SELECT u.email "
+                                   f"FROM reference_relation_version rcc, transaction t, users u "
+                                   f"WHERE rcc.reference_id_from = {reference_id_from} "
+                                   f"AND rcc.reference_id_to = {reference_id_to} "
+                                   f"AND rcc.reference_relation_type = '{type}' "
+                                   f"AND rcc.transaction_id = t.id "
+                                   f"AND u.id = t.user_id")).mappings().fetchall()
     if len(rows) == 0:
         return None
     for row in rows:
@@ -1063,22 +1065,22 @@ def _get_curator_email_who_added_reference_relation(db_session, reference_id_fro
     return None
 
 
-def _is_reference_relation_added_by_mod_dqm(db_session, reference_id_from, reference_id_to, type):  # pragma: no cover
+def _is_reference_relation_added_by_mod_dqm(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     user_id = "sort_dqm_json_reference_updates"
-    rows = db_session.execute(f"SELECT * "
-                              f"FROM reference_relation_version rcc, transaction t "
-                              f"WHERE rcc.reference_id_from = {reference_id_from} "
-                              f"AND rcc.reference_id_to = {reference_id_to} "
-                              f"AND rcc.reference_relation_type = '{type}' "
-                              f"AND rcc.transaction_id = t.id "
-                              f"AND t.user_id = '{user_id}'").fetchall()
+    rows = db_session.execute(text(f"SELECT * "
+                                   f"FROM reference_relation_version rcc, transaction t "
+                                   f"WHERE rcc.reference_id_from = {reference_id_from} "
+                                   f"AND rcc.reference_id_to = {reference_id_to} "
+                                   f"AND rcc.reference_relation_type = '{type}' "
+                                   f"AND rcc.transaction_id = t.id "
+                                   f"AND t.user_id = '{user_id}'")).fetchall()
     if len(rows) > 0:
         return True
     return False
 
 
-def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_reference_relation_type, reference_relation_in_json, update_log):  # noqa: C901
+def update_reference_relations(db_session: Session, fw, pmid, reference_id, pmid_to_reference_id, reference_ids_to_reference_relation_type, reference_relation_in_json, update_log):  # noqa: C901
 
     type_mapping = {'ErratumIn': 'ErratumFor',
                     'CommentIn': 'CommentOn',
@@ -1159,7 +1161,7 @@ def update_reference_relations(db_session, fw, pmid, reference_id, pmid_to_refer
                     update_log['pmids_updated'].append(pmid)
 
 
-def _insert_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no cover
+def _insert_mesh_term(db_session: Session, fw, pmid, reference_id, terms):  # pragma: no cover
 
     (heading_term, qualifier_term) = terms
 
@@ -1175,7 +1177,7 @@ def _insert_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no 
         fw.write("PMID:" + str(pmid) + ": INSERT mesh term: " + str(terms) + " failed: " + str(e) + "\n")
 
 
-def _delete_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no cover
+def _delete_mesh_term(db_session: Session, fw, pmid, reference_id, terms):  # pragma: no cover
 
     (heading_term, qualifier_term) = terms
 
@@ -1195,7 +1197,7 @@ def _delete_mesh_term(db_session, fw, pmid, reference_id, terms):  # pragma: no 
         fw.write("PMID:" + str(pmid) + ": DELETE mesh term: " + str(terms) + " failed: " + str(e) + "\n")
 
 
-def update_mesh_terms(db_session, fw, pmid, reference_id, mesh_terms_in_db, mesh_terms_in_json_data, update_log):
+def update_mesh_terms(db_session: Session, fw, pmid, reference_id, mesh_terms_in_db, mesh_terms_in_json_data, update_log):
 
     if mesh_terms_in_json_data is None:
         mesh_terms_in_json_data = []
@@ -1237,12 +1239,12 @@ def _prefix_xref_identifier(identifier, prefix):  # pragma: no cover
     return identifier
 
 
-def _check_xref_existence(db_session, model, curie):  # pragma: no cover
+def _check_xref_existence(db_session: Session, model, curie):  # pragma: no cover
     """Checks if an entry exists in the database."""
     return db_session.query(model).filter_by(curie=curie, is_obsolete=False).one_or_none()
 
 
-def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma: no cover
+def _update_doi(db_session: Session, fw, pmid, reference_id, old_doi, new_doi):  # pragma: no cover
 
     try:
         new_doi_curie = None
@@ -1271,7 +1273,7 @@ def _update_doi(db_session, fw, pmid, reference_id, old_doi, new_doi):  # pragma
         fw.write(f"PMID:{pmid}: UPDATE DOI from {old_doi} to {new_doi} failed: {e}\n")
 
 
-def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma: no cover
+def _insert_doi(db_session: Session, fw, pmid, reference_id, doi, logger=None):  # pragma: no cover
 
     ## for some reason, we need to add this check to make sure it is not in db
     doi_curie = _prefix_xref_identifier(doi, 'DOI')
@@ -1299,7 +1301,7 @@ def _insert_doi(db_session, fw, pmid, reference_id, doi, logger=None):  # pragma
         fw.write(f"PMID:{pmid}: INSERT DOI:{doi} failed: {e}\n")
 
 
-def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid, logger):  # pragma: no cover
+def _update_pmcid(db_session: Session, fw, pmid, reference_id, old_pmcid, new_pmcid, logger):  # pragma: no cover
 
     new_pmcid_curie = None
     old_pmcid_curie = None
@@ -1329,7 +1331,7 @@ def _update_pmcid(db_session, fw, pmid, reference_id, old_pmcid, new_pmcid, logg
             fw.write(f"PMID:{pmid}: UPDATE PMCID from {old_pmcid} to {new_pmcid} failed: {e}\n")
 
 
-def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pragma: no cover
+def _insert_pmcid(db_session: Session, fw, pmid, reference_id, pmcid, logger=None):  # pragma: no cover
 
     ## for some reason, we need to add this check to make sure it is not in db
     curie = _prefix_xref_identifier(pmcid, 'PMCID')
@@ -1364,7 +1366,7 @@ def _insert_pmcid(db_session, fw, pmid, reference_id, pmcid, logger=None):  # pr
         fw.write(f"PMID:{pmid}: INSERT PMCID:{pmcid} failed: {e}\n")
 
 
-def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed, pmids_with_pub_status_changed, update_log, logger=None):  # pragma: no cover
+def update_cross_reference(db_session: Session, fw, pmid, reference_id, doi_db, doi_list_in_db, doi_json, pmcid_db, pmcid_list_in_db, pmcid_json, pub_status_changed, pmids_with_pub_status_changed, update_log, logger=None):  # pragma: no cover
 
     if doi_json:
         if doi_json.startswith('10.'):
@@ -1427,7 +1429,7 @@ def update_cross_reference(db_session, fw, pmid, reference_id, doi_db, doi_list_
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
 
 
-def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, referencefile_id, logger):  # pragma: no cover
+def insert_referencefile_mod_for_pmc(db_session: Session, pmid, file_name_with_suffix, referencefile_id, logger):  # pragma: no cover
 
     try:
         x = ReferencefileModAssociationModel(referencefile_id=referencefile_id)
@@ -1437,7 +1439,7 @@ def insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix, re
         logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + ": an error occurred when loading data into Referencefile_modtable: " + str(e))
 
 
-def insert_referencefile(db_session, pmid, file_class, file_publication_status, file_name_with_suffix, reference_id, md5sum, logger):  # pragma: no cover
+def insert_referencefile(db_session: Session, pmid, file_class, file_publication_status, file_name_with_suffix, reference_id, md5sum, logger):  # pragma: no cover
 
     file_extension = file_name_with_suffix.split(".")[-1].lower()
     display_name = file_name_with_suffix.replace("." + file_extension, "")

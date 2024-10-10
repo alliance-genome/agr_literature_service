@@ -1,6 +1,8 @@
 import time
 import logging
 import requests
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from xml.etree import ElementTree
 from os import environ, path
 
@@ -94,7 +96,7 @@ def get_pmid_for_doi(doi): # noqa
         logger.info(f"Error(s) occurred when searching PubMed: {e}")
 
 
-def add_pmid_to_existing_papers(db, papers_to_add_pmid): # noqa
+def add_pmid_to_existing_papers(db: Session, papers_to_add_pmid): # noqa
 
     try:
         for (reference_id, pmid) in papers_to_add_pmid:
@@ -108,7 +110,7 @@ def add_pmid_to_existing_papers(db, papers_to_add_pmid): # noqa
         logger.info(f"Error(s) occurred when adding PMID(s) into cross_reference table: {e}")
 
 
-def update_papers(db, pmids_to_update): # noqa
+def update_papers(db: Session, pmids_to_update): # noqa
 
     pmids = "|".join(pmids_to_update)
 
@@ -138,12 +140,12 @@ def send_report_for_merging_paper(papers_to_merge): # noqa
         logger.info(f"An error occurred when sending email to slack: {e}")
 
 
-def get_cross_reference_data(db): # noqa
+def get_cross_reference_data(db: Session): # noqa
 
-    rows = db.execute("SELECT reference_id, curie "
-                      "FROM cross_reference "
-                      "WHERE curie_prefix in ('PMID', 'DOI') "
-                      "AND is_obsolete is False").fetchall()
+    rows = db.execute(text("SELECT reference_id, curie "
+                           "FROM cross_reference "
+                           "WHERE curie_prefix in ('PMID', 'DOI') "
+                           "AND is_obsolete is False")).fetchall()
 
     # reference_id_pmid = {row[0]: row[1] for row in rows if row[1].startswith('PMID')}
     # reference_id_doi = {row[0]: row[1] for row in rows if row[1].startswith('DOI')}

@@ -44,15 +44,15 @@ class ModReferencetypeAssociationModel(Base):
         primary_key=True
     )
 
-    mod_id = Column(
+    mod_id: Column = Column(
         ForeignKey("mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
 
-    mod = relationship("ModModel")
+    mod = relationship("ModModel", back_populates="referencetypes")
 
-    referencetype_id = Column(
+    referencetype_id: Column = Column(
         ForeignKey("referencetype.referencetype_id", ondelete="CASCADE"),
         index=True,
         nullable=False
@@ -77,12 +77,12 @@ class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
         primary_key=True
     )
 
-    reference_id = Column(
+    reference_id: Column = Column(
         ForeignKey("reference.reference_id"),
         index=True,
     )
 
-    mod_referencetype_id = Column(
+    mod_referencetype_id: Column = Column(
         ForeignKey("mod_referencetype.mod_referencetype_id"),
         index=True,
     )

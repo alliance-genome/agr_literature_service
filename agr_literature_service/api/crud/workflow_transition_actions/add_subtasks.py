@@ -42,9 +42,12 @@ def add_subtasks(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, arg
     trans_count = 0
     for transition in transitions:
         trans_count += 1
-        WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
-                         mod=current_workflow_tag_db_obj.mod,
-                         workflow_tag_id=transition.transition_to)
+        new_workflow_tag = WorkflowTagModel(
+            reference=current_workflow_tag_db_obj.reference,
+            mod=current_workflow_tag_db_obj.mod,
+            workflow_tag_id=transition.transition_to
+        )
+        db.add(new_workflow_tag)
     if trans_count == 0:
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail="add_subtasks method did not add any subtasks. Please check the transition table.")

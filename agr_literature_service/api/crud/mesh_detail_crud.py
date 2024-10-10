@@ -40,7 +40,7 @@ def create(db: Session, mesh_detail: MeshDetailSchemaPost) -> int:
     db.add(db_obj)
     db.commit()
 
-    return db_obj.mesh_detail_id
+    return int(db_obj.mesh_detail_id)
 
 
 def destroy(db: Session, mesh_detail_id: int) -> None:
@@ -87,6 +87,7 @@ def patch(db: Session, mesh_detail_id: int, mesh_detail_update) -> dict:
             setattr(mesh_detail_db_obj, field, value)
 
     mesh_detail_db_obj.dateUpdated = datetime.utcnow()
+    db.add(mesh_detail_db_obj)
     db.commit()
 
     return {"message": "updated"}

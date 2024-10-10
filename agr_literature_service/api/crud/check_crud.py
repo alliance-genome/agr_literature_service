@@ -14,6 +14,7 @@ import urllib.request
 from os import environ
 
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from fastapi_okta.okta_utils import get_authentication_token
 
 import logging
@@ -43,7 +44,7 @@ def check_database(db: Session):
     res = {}
     query = "select version_num from alembic_version"
     try:
-        rows = db.execute(query).fetchall()
+        rows = db.execute(text(query)).fetchall()
         alembic_version = []
         for row in rows:
             alembic_version.append(row[0])
@@ -57,7 +58,7 @@ def check_database(db: Session):
 
     query = "select count(1) from reference"
     try:
-        rows = db.execute(query).fetchall()
+        rows = db.execute(text(query)).fetchall()
         # ref_count = rows[0]
         res['ref_count'] = rows[0][0]
     except Exception as e:

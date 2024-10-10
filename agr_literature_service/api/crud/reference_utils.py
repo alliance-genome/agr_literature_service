@@ -4,7 +4,7 @@ from typing import List
 
 from fastapi import HTTPException, status
 from sqlalchemy import or_
-from sqlalchemy.orm import Session, Load
+from sqlalchemy.orm import Session, subqueryload, joinedload
 
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
 
@@ -108,23 +108,27 @@ def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: 
                   load_authors: bool = False, load_mod_corpus_associations: bool = False,
                   load_mesh_terms: bool = False, load_obsolete_references: bool = False):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
-    options = None
+    options = []
     query = db.query(ReferenceModel)
-    if load_referencefiles or load_authors or load_mod_corpus_associations or load_mesh_terms or \
-            load_obsolete_references:
-        options = Load(ReferenceModel)
-        if load_referencefiles:
-            options.subqueryload(ReferenceModel.referencefiles).subqueryload(
-                ReferencefileModel.referencefile_mods)
-        if load_authors:
-            options.joinedload(ReferenceModel.author)
-        if load_mod_corpus_associations:
-            options.joinedload(ReferenceModel.mod_corpus_association)
-        if load_mesh_terms:
-            options.joinedload(ReferenceModel.mesh_term)
-        if load_obsolete_references:
-            options.joinedload(ReferenceModel.obsolete_reference)
-        query = query.options(options)
+
+    if load_referencefiles:
+        options.append(subqueryload(ReferenceModel.referencefiles).subqueryload(ReferencefileModel.referencefile_mods))
+
+    if load_authors:
+        options.append(joinedload(ReferenceModel.author))
+
+    if load_mod_corpus_associations:
+        options.append(joinedload(ReferenceModel.mod_corpus_association))
+
+    if load_mesh_terms:
+        options.append(joinedload(ReferenceModel.mesh_term))
+
+    if load_obsolete_references:
+        options.append(joinedload(ReferenceModel.obsolete_reference))
+
+    if options:
+        query = query.options(*options)
+
     reference = query.filter(or_(ReferenceModel.curie == curie_or_reference_id,
                                  ReferenceModel.reference_id == reference_id)).one_or_none()
     if reference is None and reference_id is None:

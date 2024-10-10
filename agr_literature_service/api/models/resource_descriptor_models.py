@@ -76,7 +76,7 @@ class ResourceDescriptorModel(Base):
         nullable=True
     )
 
-    aliases = Column(
+    aliases: Column = Column(
         ARRAY(String()),
         nullable=True
     )

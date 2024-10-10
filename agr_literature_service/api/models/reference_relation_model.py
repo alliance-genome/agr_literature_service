@@ -6,7 +6,7 @@ reference_relation_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, event, CheckConstraint
+from sqlalchemy import Column, Enum, ForeignKey, Integer, event, CheckConstraint, text
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -53,7 +53,7 @@ class ReferenceRelationModel(Base):
         back_populates="reference_relation_in"
     )
 
-    reference_relation_type = Column(
+    reference_relation_type: Column = Column(
         Enum(ReferenceRelationType),
         unique=False,
         nullable=False
@@ -66,8 +66,8 @@ class ReferenceRelationModel(Base):
 
 @event.listens_for(ReferenceRelationModel.__table__, 'after_create')
 def receive_after_create(target, connection, **kw):
-    connection.execute(
+    connection.execute(text(
         "CREATE UNIQUE INDEX ix_reference_relation_least_greatest ON reference_relation ("
         "LEAST(reference_id_from, reference_id_to), GREATEST(reference_id_from, reference_id_to)"
         ");"
-    )
+    ))
