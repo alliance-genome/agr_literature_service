@@ -927,11 +927,14 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
                                   species: str = None, from_reference_id: int = None, page_size: int = 1000):
     if reference_type and reference_type not in ['Experimental', 'Not_experimental', 'Meeting_abstract']:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="The reference_type passed in is not an valid reference_type.")
+                            detail="The reference_type passed in is not a valid reference_type.")
+
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"The mod_abbreviation: {mod_abbreviation} is not in the database.")
+
+    mod_id = mod.mod_id
 
     """
     Caenorhabditis elegans   NCBITaxon:6239
@@ -939,7 +942,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     Caenorhabditis briggsae  NCBITaxon:6238
     Caenorhabditis japonica  NCBITaxon:281687
     Caenorhabditis remanei   NCBITaxon:31234
-    Brugia malayi 	     NCBITaxon:6279
+    Brugia malayi            NCBITaxon:6279
     Onchocerca volvulus      NCBITaxon:6282
     Pristionchus pacificus   NCBITaxon:54126
     Strongyloides ratti      NCBITaxon:34506
@@ -948,64 +951,84 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
 
     wb_textpresso_species_list = "'NCBITaxon:6239', 'NCBITaxon:135651', 'NCBITaxon:6238', 'NCBITaxon:281687', 'NCBITaxon:31234', 'NCBITaxon:6279', 'NCBITaxon:6282', 'NCBITaxon:54126', 'NCBITaxon:34506', 'NCBITaxon:70415'"
 
-    mod_id = mod.mod_id
-    select_stmt = text("""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
-      FROM reference r
-      JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
-      JOIN referencefile rf ON rf.reference_id = r.reference_id
-      JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
-      WHERE mca.corpus is True
-      AND mca.mod_id = :mod_id
-      AND rf.file_class = 'main'
-      AND rf.file_extension = 'pdf'
-      AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)""")
+    # Start building the query string
+    query_str = """
+        SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+        FROM reference r
+        JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
+        JOIN referencefile rf ON rf.reference_id = r.reference_id
+        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+        WHERE mca.corpus is True
+        AND mca.mod_id = :mod_id
+        AND rf.file_class = 'main'
+        AND rf.file_extension = 'pdf'
+        AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)
+    """
 
+    # Add condition for reference_type if provided
     if reference_type:
-        select_stmt = select_stmt.append_text("""
+        query_str += """
         AND r.reference_id IN (
             SELECT rmrt.reference_id
-            FROM reference_mod_referencetype rmrt, mod_referencetype mrt, referencetype rt
+            FROM reference_mod_referencetype rmrt
+            JOIN mod_referencetype mrt ON mrt.mod_referencetype_id = rmrt.mod_referencetype_id
+            JOIN referencetype rt ON rt.referencetype_id = mrt.referencetype_id
             WHERE rt.label = :reference_type
-            AND rt.referencetype_id = mrt.referencetype_id
             AND mrt.mod_id = :mod_id
-            AND mrt.mod_referencetype_id = rmrt.mod_referencetype_id
         )
-        """)
-    if species:
-        select_stmt = select_stmt.append_text(" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)")
-    elif mod_abbreviation == 'WB':
-        select_stmt = select_stmt.append_text(f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))")
+        """
 
+    # Add species filter if provided
+    if species:
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
+    # Add the WB species list if the mod is WB and no species filter is provided
+    elif mod_abbreviation == 'WB':
+        query_str += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))"
+
+    # Add condition for `from_reference_id` if provided
     if from_reference_id:
-        select_stmt = select_stmt.append_text(" AND r.reference_id > :from_reference_id")
+        query_str += " AND r.reference_id > :from_reference_id"
+
+    # Add condition for files updated from a specific date if provided
     if files_updated_from_date:
-        select_stmt = select_stmt.append_text(" AND rf.date_updated >= :files_updated_from_date")
-    select_stmt = select_stmt.append_text(" ORDER BY r.reference_id LIMIT :page_size")
-    textpresso_referencefiles = db.execute(select_stmt.bindparams(
+        query_str += " AND rf.date_updated >= :files_updated_from_date"
+
+    # Add limit for pagination
+    query_str += " ORDER BY r.reference_id LIMIT :page_size"
+
+    # Bind parameters and execute the query
+    select_stmt = text(query_str).bindparams(
         bindparam('mod_id', mod_id),
         bindparam('reference_type', reference_type),
         bindparam('species', species),
         bindparam('from_reference_id', from_reference_id),
         bindparam('files_updated_from_date', files_updated_from_date),
         bindparam('page_size', page_size)
-    )).mappings().fetchall()
+    )
+
+    textpresso_referencefiles = db.execute(select_stmt).mappings().fetchall()
+
+    # Aggregate reference files for each reference
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
-        aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
-                                                                        reffile.mod_id is None, reffile.date_created))
+        aggregated_reffiles[(reffile['reference_id'], reffile['curie'])].add(
+            (reffile['referencefile_id'], reffile['md5sum'], reffile['mod_id'] is None, reffile['date_created'])
+        )
+
+    # Return the aggregated results
     return [
         {
             "reference_curie": reference_curie,
             "reference_id": reference_id,
             "main_referencefiles": [
                 {
-                    "referencefile_id": reffile_md5sum_source_date[0],
-                    "md5sum": reffile_md5sum_source_date[1],
-                    "source_is_pmc": reffile_md5sum_source_date[2] == 1,
-                    "date_created": reffile_md5sum_source_date[3]
-                } for reffile_md5sum_source_date in reffiles_md5sums_sources_dates
+                    "referencefile_id": reffile_data[0],
+                    "md5sum": reffile_data[1],
+                    "source_is_pmc": reffile_data[2],
+                    "date_created": reffile_data[3]
+                } for reffile_data in reffiles_data
             ]
-        } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
+        } for (reference_id, reference_curie), reffiles_data in aggregated_reffiles.items()
     ]
 
 
