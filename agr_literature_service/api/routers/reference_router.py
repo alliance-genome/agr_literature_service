@@ -214,7 +214,7 @@ def missing_files(mod_abbreviation: str,
                   page: int,
                   filter: str,
                   db: Session = db_session):
-    missing_files = reference_crud.get_missing_files_from_db(db, mod_abbreviation, order_by, page, filter)
+    missing_files = reference_crud.missing_files(db, mod_abbreviation, order_by, page, filter)
     if not missing_files:
         return []
     return missing_files
