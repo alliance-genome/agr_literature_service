@@ -783,7 +783,7 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by: str, filter: str):
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str):
 
     # if order_by not in ['date_created', 'curie', 'short_citation']:
     #    raise ValueError(f"Invalid order_by field: {order_by}")
