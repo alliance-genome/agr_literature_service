@@ -20,7 +20,7 @@ class AuthorModel(Base, AuditedModel):
     __tablename__ = "author"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     author_id = Column(
         Integer,

@@ -20,7 +20,7 @@ class WorkflowTagModel(AuditedModel, Base):
     __tablename__ = "workflow_tag"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     reference_workflow_tag_id = Column(
         Integer,

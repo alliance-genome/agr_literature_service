@@ -28,7 +28,7 @@ class ObsoleteReferenceModel(Base):
     __tablename__ = "obsolete_reference_curie"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     obsolete_id = Column(
         Integer,

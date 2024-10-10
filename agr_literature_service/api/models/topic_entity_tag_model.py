@@ -41,9 +41,7 @@ schema="lit"
 class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
     #__bind_key__ = 'lit'
-    __versioned__ = {
-        'exclude': ['validated_by']
-    }
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True, 'exclude': ['validated_by']}
 
     topic_entity_tag_id = Column(
         Integer,
@@ -192,7 +190,7 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
             name='topic_entity_tag_source_unique'),
         {"schema": "lit"}
     )
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     topic_entity_tag_source_id = Column(
         Integer,

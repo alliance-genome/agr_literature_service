@@ -26,7 +26,7 @@ class ReferencefileModel(Base, AuditedModel):
         {"schema": "lit"}
     )
 
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     referencefile_id = Column(
         Integer,
@@ -104,7 +104,7 @@ class ReferencefileModel(Base, AuditedModel):
 
 class ReferencefileModAssociationModel(Base, AuditedModel):
     __tablename__ = "referencefile_mod"
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     referencefile_mod_id = Column(
         Integer,

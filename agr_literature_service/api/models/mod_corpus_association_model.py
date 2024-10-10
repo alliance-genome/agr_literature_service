@@ -21,7 +21,7 @@ enable_versioning()
 class ModCorpusAssociationModel(AuditedModel, Base):
     __tablename__ = "mod_corpus_association"
     __bind_key__ = 'lit'
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     mod_corpus_association_id = Column(
         Integer,

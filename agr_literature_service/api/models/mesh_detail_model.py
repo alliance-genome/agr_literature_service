@@ -15,7 +15,7 @@ class MeshDetailModel(Base):
     __tablename__ = "mesh_detail"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     mesh_detail_id = Column(
         Integer,

@@ -19,7 +19,7 @@ class ModModel(Base, AuditedModel):
     __tablename__ = "mod"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     mod_id = Column(
         Integer,

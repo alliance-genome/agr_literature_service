@@ -19,7 +19,7 @@ class ReferencetypeModel(Base):
     __tablename__ = "referencetype"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     referencetype_id = Column(
         Integer,
@@ -43,7 +43,7 @@ class ModReferencetypeAssociationModel(Base):
         UniqueConstraint('mod_id', 'referencetype_id', name='uniq_mrt_new'),
         {"schema": "lit"}
     )
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     mod_referencetype_id = Column(
         Integer,
@@ -76,7 +76,7 @@ class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):
         UniqueConstraint('reference_id', 'mod_referencetype_id', name='uniq_rmrt'),
         {"schema": "lit"}
     )
-    __versioned__: Dict = {}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     reference_mod_referencetype_id = Column(
         Integer,

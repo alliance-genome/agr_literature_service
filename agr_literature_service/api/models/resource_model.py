@@ -18,7 +18,7 @@ enable_versioning()
 
 
 class ResourceModel(Base, AuditedModel):
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
     __tablename__ = "resource"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}

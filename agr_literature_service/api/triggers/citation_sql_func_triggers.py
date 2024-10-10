@@ -113,12 +113,12 @@ BEGIN
     SELECT citation_id from lit.reference where reference_id = ref_id into citation_identifier;
     raise notice 'citation_id from reference is %', citation_identifier;
     IF citation_identifier is NULL THEN
-      -- raise notice 'sh cit: %', sht_citation;
-      -- raise notice 'cit: %', long_citation;
+       raise notice 'sh cit: %', sht_citation;
+       raise notice 'cit: %', long_citation;
       INSERT INTO lit.citation (citation, short_citation) VALUES (long_citation, sht_citation)
              RETURNING citation_id into citation_identifier;
-      -- raise notice 'citation inserted new id is %', citation_identifier;
-      -- raise notice 'citation_id %', citation_identifier;
+       raise notice 'citation inserted new id is %', citation_identifier;
+       raise notice 'citation_id %', citation_identifier;
       UPDATE lit.reference SET citation_id = citation_identifier WHERE lit.reference.reference_id = ref_id;
     ELSE
       UPDATE lit.citation SET citation = long_citation, short_citation = sht_citation
@@ -137,17 +137,17 @@ as $$
 DECLARE
   s_auth lit.author.name%type;
 BEGIN
-     IF NOT coalesce(lit.author.first_initial, '') = '' THEN
-        IF NOT coalesce(lit.author.last_name, '') = '' THEN
-            return CONCAT(lit.author.last_name, ' ', lit.author.first_initial);
+     IF NOT coalesce(author.first_initial, '') = '' THEN
+        IF NOT coalesce(author.last_name, '') = '' THEN
+            return CONCAT(author.last_name, ' ', author.first_initial);
         END IF;
     END IF;
-     IF NOT coalesce(lit.author.first_name, '') = '' THEN
-        IF NOT coalesce(lit.author.last_name, '') = '' THEN
-            return CONCAT(lit.author.last_name, ' ', lit.author.first_name);
+     IF NOT coalesce(author.first_name, '') = '' THEN
+        IF NOT coalesce(author.last_name, '') = '' THEN
+            return CONCAT(author.last_name, ' ', author.first_name);
         END IF;
     END IF;
-    return CONCAT(lit.author.name, '');
+    return CONCAT(author.name, '');
 END;
 $$;
 """

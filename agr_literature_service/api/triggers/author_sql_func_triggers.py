@@ -10,7 +10,7 @@ BEGIN
     raise notice 'OLD Author update citations for %', OLD;
     raise notice 'Author update citations for ref %', NEW.reference_id;
     -- Call the update_citations function based on the reference_id
-    PERFORM update_citations(COALESCE(NEW.reference_id, OLD.reference_id));
+    CALL lit.update_citations(COALESCE(NEW.reference_id, OLD.reference_id));
     return NEW;
 END;
 $$;

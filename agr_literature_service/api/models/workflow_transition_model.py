@@ -20,7 +20,7 @@ class WorkflowTransitionModel(AuditedModel, Base):
     __tablename__ = "workflow_transition"
     __bind_key__ = 'lit'
     __table_args__ = {"schema": "lit"}
-    __versioned__: Dict = {'schema': 'lit'}
+    __versioned__: Dict = {'schema': 'lit', 'inherit': True}
 
     workflow_transition_id = Column(
         Integer,
