@@ -945,39 +945,46 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     wb_textpresso_species_list = "'NCBITaxon:6239', 'NCBITaxon:135651', 'NCBITaxon:6238', 'NCBITaxon:281687', 'NCBITaxon:31234', 'NCBITaxon:6279', 'NCBITaxon:6282', 'NCBITaxon:54126', 'NCBITaxon:34506', 'NCBITaxon:70415'"
 
     mod_id = mod.mod_id
-    select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+    select_stmt = text("""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
       FROM reference r
       JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
       JOIN referencefile rf ON rf.reference_id = r.reference_id
       JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
       WHERE mca.corpus is True
-      AND mca.mod_id = {mod_id}
+      AND mca.mod_id = :mod_id
       AND rf.file_class = 'main'
       AND rf.file_extension = 'pdf'
-      AND (rfm.mod_id is NULL OR rfm.mod_id = {mod_id})"""
+      AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)""")
 
     if reference_type:
-        select_stmt += f"""
+        select_stmt = select_stmt.append_text("""
         AND r.reference_id IN (
             SELECT rmrt.reference_id
             FROM reference_mod_referencetype rmrt, mod_referencetype mrt, referencetype rt
-            WHERE rt.label = '{reference_type}'
+            WHERE rt.label = :reference_type
             AND rt.referencetype_id = mrt.referencetype_id
-            AND mrt.mod_id = {mod_id}
+            AND mrt.mod_id = :mod_id
             AND mrt.mod_referencetype_id = rmrt.mod_referencetype_id
         )
-        """
+        """)
     if species:
-        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = '{species}')"
+        select_stmt = select_stmt.append_text(" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)")
     elif mod_abbreviation == 'WB':
-        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))"
+        select_stmt = select_stmt.append_text(f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))")
 
     if from_reference_id:
-        select_stmt += f" AND r.reference_id > {from_reference_id}"
+        select_stmt = select_stmt.append_text(" AND r.reference_id > :from_reference_id")
     if files_updated_from_date:
-        select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
-    select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
-    textpresso_referencefiles = db.execute(text(select_stmt)).mappings().fetchall()
+        select_stmt = select_stmt.append_text(" AND rf.date_updated >= :files_updated_from_date")
+    select_stmt = select_stmt.append_text(" ORDER BY r.reference_id LIMIT :page_size")
+    textpresso_referencefiles = db.execute(select_stmt.bindparams(
+        bindparam('mod_id', mod_id),
+        bindparam('reference_type', reference_type),
+        bindparam('species', species),
+        bindparam('from_reference_id', from_reference_id),
+        bindparam('files_updated_from_date', files_updated_from_date),
+        bindparam('page_size', page_size)
+    )).mappings().fetchall()
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
