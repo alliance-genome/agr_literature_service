@@ -784,7 +784,7 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str):
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: int = 0, limit: int = 25):
 
     subquery: Optional[TextClause] = None
     curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
@@ -842,11 +842,15 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
           """)
     if filter == 'default':
         return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
-                                bindparam('curie_prefix', curie_prefix))
+                                bindparam('curie_prefix', curie_prefix),
+                                bindparam('limit', limit),
+                                bindparam('offset', offset))
     else:
         return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
                                 bindparam('filter', filter),
-                                bindparam('curie_prefix', curie_prefix))
+                                bindparam('curie_prefix', curie_prefix),
+                                bindparam('limit', limit),
+                                bindparam('offset', offset))
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
@@ -862,9 +866,9 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail=f"Invalid filter: {filter}")
     try:
-        offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
-        query = query.append_text(" LIMIT 25 OFFSET :offset").bindparams(offset=offset)
+        limit = 25
+        offset = (page - 1) * limit
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter, offset, limit)
         rows = db.execute(query).mappings().fetchall()
         data = jsonable_encoder(rows)
         if not data:
