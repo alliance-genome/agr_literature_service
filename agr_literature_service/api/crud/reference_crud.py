@@ -845,6 +845,8 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
 
+    if order_by is None:
+        order_by = 'curie'
     # if order_by not in ['date_created', 'curie', 'short_citation']:
     #    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
     #                        detail=f"Invalid order_by field: {order_by}")
