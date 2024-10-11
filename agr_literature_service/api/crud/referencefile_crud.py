@@ -9,10 +9,10 @@ import tempfile
 from itertools import count
 from typing import List, Union
 
-import boto3
+import boto3  # type: ignore
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, text
 from sqlalchemy.orm import Session, subqueryload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
@@ -46,7 +46,6 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
     logger.info("Getting main pdf referencefile")
     reference: ReferenceModel = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id),
                                               load_referencefiles=True)
-    referencefile: ReferencefileModel
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"
                                and referencefile.pdf_type == "pdf" and referencefile.file_extension == "pdf"]
@@ -183,7 +182,7 @@ def merge_referencefiles(db: Session,
         mod_abbreviation = referencefile_mod.mod.abbreviation if referencefile_mod.mod is not None else None
         if mod_abbreviation not in winning_mod_set:
             referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
-
+            db.add(referencefile_mod)
     db.commit()
     # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
     db.delete(losing_referencefile)
@@ -271,11 +270,11 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
     ref = get_reference(db=db, curie_or_reference_id=reference_curie)
 
     if mod_abbreviation is None:
-        rows = db.execute(f"SELECT m.abbreviation "
-                          f"FROM mod m, mod_corpus_association mca "
-                          f"WHERE m.mod_id = mca.mod_id "
-                          f"AND mca.reference_id = {ref.reference_id} "
-                          f"AND mca.corpus is True").fetchall()
+        rows = db.execute(text(f"SELECT m.abbreviation "
+                               f"FROM mod m, mod_corpus_association mca "
+                               f"WHERE m.mod_id = mca.mod_id "
+                               f"AND mca.reference_id = {ref.reference_id} "
+                               f"AND mca.corpus is True")).mappings().fetchall()
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod_abbreviation}
@@ -377,29 +376,29 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
         md5sum_hash.update(byte_block)
     md5sum = md5sum_hash.hexdigest()
     folder = get_s3_folder_from_md5sum(md5sum)
-    referencefile: ReferencefileModel = db.query(ReferencefileModel).filter(
+    referencefile_instance: ReferencefileModel = db.query(ReferencefileModel).filter(
         and_(
             ReferencefileModel.md5sum == md5sum,
             ReferencefileModel.reference.has(ReferenceModel.curie == metadata["reference_curie"])
         )
     ).one_or_none()
-    if referencefile is not None:
+    if referencefile_instance is not None:
         # the file already exists, and it's already associated with the provided reference, but the metadata in the
         # request may be incompatible with the one in the db. The metadata in the db will not be modified and a new
         # connection between the file and the mod will be created. See below for special cases for WB
         if mod_abbreviation == "WB":
             # if a final file is uploaded by WB and the same file is in the system as temp, then set it to final
-            if metadata["file_publication_status"] == "final" and referencefile.file_publication_status == "temp":
-                referencefile.file_publication_status = "final"
+            if metadata["file_publication_status"] == "final" and referencefile_instance.file_publication_status == "temp":
+                referencefile_instance.file_publication_status = "final"  # type: ignore
             # If WB uploads a temp and the same file is already present but not for WB, then set the status to temp
             elif "WB" not in {referencefile_mod.mod.abbreviation for referencefile_mod in
-                              referencefile.referencefile_mods if referencefile_mod.mod is not None} and \
-                    metadata["file_publication_status"] == "temp" and referencefile.file_publication_status == "final":
-                referencefile.file_publication_status = "temp"
+                              referencefile_instance.referencefile_mods if referencefile_mod.mod is not None} and \
+                    metadata["file_publication_status"] == "temp" and referencefile_instance.file_publication_status == "final":
+                referencefile_instance.file_publication_status = "temp"  # type: ignore
             db.commit()
         if all(referencefile_mod.mod.abbreviation != mod_abbreviation for referencefile_mod in
-               referencefile.referencefile_mods if referencefile_mod.mod is not None):
-            create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile.referencefile_id,
+               referencefile_instance.referencefile_mods if referencefile_mod.mod is not None):
+            create_mod_connection(db, ReferencefileModSchemaPost(referencefile_id=referencefile_instance.referencefile_id,
                                                                  mod_abbreviation=mod_abbreviation))
     else:
         # 2 possible cases here: i) an entry with the same md5sum does not exist; ii) same md5sum exists, but it's

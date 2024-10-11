@@ -4,6 +4,7 @@ topic_entity_tag_crud.py
 """
 import copy
 import logging
+from typing import Optional
 from collections import defaultdict
 from os import environ
 from typing import Dict, Set
@@ -12,7 +13,7 @@ from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, create_engine
+from sqlalchemy import case, and_, create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
 
@@ -143,7 +144,7 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
 
 
 def show_tag(db: Session, topic_entity_tag_id: int):
-    topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
+    topic_entity_tag: Optional[TopicEntityTagModel] = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
@@ -213,7 +214,7 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
                                                   calculate_validation_values: bool = True):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
-    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))
+    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -236,7 +237,7 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
                                                   calculate_validation_values: bool = True):
     # 1. new tag negative, existing tag positive = validate existing (wrong) if existing is more specific
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
-    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))
+    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -263,9 +264,9 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # 2. new tag negative, existing tag positive = validate new tag (wrong) if existing is more specific
     # 3. new tag positive, existing tag negative = validate new tag (wrong) if existing is more generic
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
-    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))
+    more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
-    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))
+    more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
@@ -301,9 +302,9 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
-    db.execute(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-               f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-               f"{validating_tag.topic_entity_tag_id})")
+    db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
+                    f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
+                    f"{validating_tag.topic_entity_tag_id})"))
     if calculate_validation_values:
         db.commit()
         validated_tag_obj = db.query(TopicEntityTagModel).filter(
@@ -394,7 +395,7 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                                       f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
             query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
         if delete_all_first:
-            db.execute("DELETE FROM topic_entity_tag_validation" + reference_query_filter)
+            db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
             db.commit()
         curr_ref_tags_in_db = None
         curr_reference_id = None
@@ -406,8 +407,8 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
                 curr_ref_tags_in_db = None
             logger.info(f"Processing tag # {str(tag_counter)}")
             if not delete_all_first:
-                db.execute(f"DELETE FROM topic_entity_tag_validation "
-                           f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}")
+                db.execute(text(f"DELETE FROM topic_entity_tag_validation "
+                                f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
             curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
                                                 calculate_validation_values=False,
                                                 related_tags_in_db=curr_ref_tags_in_db)
@@ -610,7 +611,11 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             if sort_by in ['topic', 'entity_type', 'species', 'display_tag', 'entity']:
                 column_property = getattr(TopicEntityTagModel, sort_by, None)
                 column = column_property.property.columns[0]
-                order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                order_expression = case(
+                    {column.is_(None): 1 if desc_sort else 0},
+                    else_=0 if desc_sort else 1
+                )
+                # order_expression = case([(column.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
                 sorted_column_values = get_sorted_column_values(reference_id, db,
                                                                 sort_by, desc_sort)
                 curie_ordering = case({curie: index for index, curie in enumerate(sorted_column_values)},
@@ -642,7 +647,11 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                                         detail=f"Failed to get the column '{sort_by}' from the models.")
 
                 # check for None values and order accordingly
-                order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                # order_expression = case([(column_property.is_(None), 1 if desc_sort else 0)], else_=0 if desc_sort else 1)
+                order_expression = case(
+                    {column_property.is_(None): 1 if desc_sort else 0},
+                    else_=0 if desc_sort else 1
+                )
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 
@@ -667,14 +676,15 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     past_date = current_date - timedelta(days=int(days_updated))
     last_date_updated = past_date.strftime("%Y-%m-%d")
 
-    rows = db.execute(f"SELECT cr.curie, tet.*, u.email "
-                      f"FROM cross_reference cr "
-                      f"JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = '{mod_abbreviation}' "
-                      f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                      f"JOIN users u ON tet.updated_by = u.id "
-                      f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                      f"WHERE m.abbreviation = '{mod_abbreviation}' "
-                      f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
+    rows = db.execute(text("SELECT cr.curie, tet.*, u.email "
+                           "FROM cross_reference cr "
+                           "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
+                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN users u ON tet.updated_by = u.id "
+                           "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tet.date_updated >= :last_date_updated"),
+                      {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
 
     # tags = [dict(row) for row in rows]
     # there are duplicate rows returned
@@ -691,10 +701,11 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
 
     data = [get_tet_with_names(db, tag, curie_to_name_mapping) for tag in tags]
 
-    src_rows = db.execute(f"SELECT tets.* "
-                          f"FROM topic_entity_tag_source tets "
-                          f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                          f"WHERE m.abbreviation = '{mod_abbreviation}'").fetchall()
+    src_rows = db.execute(text("SELECT tets.* "
+                               "FROM topic_entity_tag_source tets "
+                               "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                               "WHERE m.abbreviation = :mod_abbreviation"),
+                          {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
     return {"metadata": metadata, "data": data}
@@ -704,12 +715,13 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 
     curie_to_name_mapping = {}
 
-    rows = db.execute(f"SELECT DISTINCT tet.reference_id "
-                      f"FROM topic_entity_tag tet "
-                      f"JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
-                      f"JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                      f"WHERE m.abbreviation = '{mod_abbreviation}' "
-                      f"AND tet.date_updated >= '{last_date_updated}'").fetchall()
+    rows = db.execute(text("SELECT DISTINCT tet.reference_id "
+                           "FROM topic_entity_tag tet "
+                           "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+                           "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
+                           "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tet.date_updated >= :last_date_updated"),
+                      {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
     for x in rows:
         curie_to_name_mapping.update(get_curie_to_name_from_all_tets(db, str(x['reference_id'])))
     return curie_to_name_mapping

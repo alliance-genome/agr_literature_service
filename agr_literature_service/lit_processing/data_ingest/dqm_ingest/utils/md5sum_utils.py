@@ -1,5 +1,6 @@
 import json
 import hashlib
+from sqlalchemy import text
 import argparse
 from collections import defaultdict
 from os import environ, path, makedirs, listdir
@@ -158,56 +159,94 @@ def save_s3_md5data(md5dict, mods):
 
 def save_database_md5data(md5dict):
     """
-    save md5sum from dict into database, insert if does exist, update if exist and different ?
-    dictionary of key (mod/pmid) to dictionary of key (primaryId) value actual_md5sum_value
-    examples:
+    Save md5sum from dict into the database.
+    If it exists, update it; otherwise, insert it.
+    Dictionary structure:
     md5dict['SGD']['SGD:0000000056'] = 'a1b7c6f32fb8a80ef5955543b9dafde8'
-    md5dict['PMID']['PMID:12345678'] = '6a7cbf3a9e634fab93122b7c45a5d326'
-    md5sum_data = {"XB":   {
-                              "PMID:9241":      "9177c6f32fb8a80ef5955543b9dafde6",
-                              "PMID:10735":     "5a24bf3a9e634fab93122b7c45a5d326"},
-                   "FB":   {
-                              "FBrf0251347":    "d70b2ce7c56deab14722fb4ac2e7d287",
-                              "FB:FBrf0251348": "9ca72344a115c9ce612cab87869ccd94"},
-                   "PMID": {
-                              "PMID:9241":      "6eac9538fafd9f73eff28dd0a28a2edf"}
-    }
     :param md5dict:
-    :return:
     """
+
     db_session = create_postgres_session(False)
-    mod_ids = {mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"] for
-               mod_abbr_id in db_session.execute("select abbreviation, mod_id from mod").fetchall()}
-    for mod, md5sums in md5dict.items():
-        mod_id = mod_ids.get(mod)
-        mod_id_sql = "mod_id is null" if mod_id is None else f"mod_id = {mod_id}"
-        for primary_id, md5sum in md5sums.items():
-            refs = db_session.execute(f"select reference_id from cross_reference r where r.curie = '{primary_id}' "
-                                      f"and is_obsolete='false' ").fetchall()
-            if len(refs) == 0:
-                continue
-            reference_id = refs[0]["reference_id"]
-            md5sums = db_session.execute(f"select md5sum, reference_mod_md5sum_id from reference_mod_md5sum "
-                                         f"where {mod_id_sql} and reference_id = {reference_id} ").fetchall()
-            if len(md5sums) == 0:
-                print("insert new md5sum: " + mod + " primary_id:" + str(primary_id) + ' ' + md5sum)
-                db_session.execute(f"insert into reference_mod_md5sum(reference_id, mod_id, md5sum, date_updated) "
-                                   f"values ({reference_id}, {mod_id if mod_id else 'null'}, '{md5sum}', 'now()') ")
-            elif md5sums[0]["md5sum"] != md5sum:
-                print('need to update: ' + mod + '->' + str(primary_id) + ' old:' + md5sums[0][
-                    "md5sum"] + '->new:' + md5sum)
-                try:
-                    db_session.execute(f"update reference_mod_md5sum set md5sum='{md5sum}' where  "
-                                       f"reference_mod_md5sum_id ='{md5sums[0]['reference_mod_md5sum_id']}' ")
-                except Exception as e:
-                    logger.error('Error: ' + str(type(e)))
-    db_session.commit()
-    db_session.close()
+
+    try:
+        mod_ids = {
+            mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"]
+            for mod_abbr_id in db_session.execute(
+                text("select abbreviation, mod_id from mod")
+            ).mappings().fetchall()
+        }
+
+        for mod, md5sums in md5dict.items():
+            mod_id = mod_ids.get(mod)
+            mod_id_sql = "mod_id is null" if mod_id is None else f"mod_id = {mod_id}"
+
+            for primary_id, md5sum in md5sums.items():
+                refs = db_session.execute(
+                    text("""
+                        select reference_id
+                        from cross_reference r
+                        where r.curie = :primary_id
+                        and is_obsolete = 'false'
+                    """),
+                    {"primary_id": primary_id}
+                ).mappings().fetchall()
+
+                if len(refs) == 0:
+                    continue
+
+                reference_id = refs[0]["reference_id"]
+
+                md5sum_data = db_session.execute(
+                    text(f"""
+                        select md5sum, reference_mod_md5sum_id
+                        from reference_mod_md5sum
+                        where {mod_id_sql} and reference_id = :reference_id
+                    """),
+                    {"reference_id": reference_id}
+                ).mappings().fetchall()
+
+                if len(md5sum_data) == 0:
+                    print(f"Insert new md5sum: {mod} primary_id: {primary_id} {md5sum}")
+                    db_session.execute(
+                        text("""
+                            insert into reference_mod_md5sum
+                            (reference_id, mod_id, md5sum, date_updated)
+                            values (:reference_id, :mod_id, :md5sum, now())
+                        """),
+                        {
+                            "reference_id": reference_id,
+                            "mod_id": mod_id if mod_id else None,  # Use None for null
+                            "md5sum": md5sum
+                        }
+                    )
+                elif md5sum_data[0]["md5sum"] != md5sum:
+                    print(f"Need to update: {mod} -> {primary_id} old: {md5sum_data[0]['md5sum']} -> new: {md5sum}")
+                    try:
+                        db_session.execute(
+                            text("""
+                                update reference_mod_md5sum
+                                set md5sum = :md5sum
+                                where reference_mod_md5sum_id = :reference_mod_md5sum_id
+                            """),
+                            {
+                                "md5sum": md5sum,
+                                "reference_mod_md5sum_id": md5sum_data[0]['reference_mod_md5sum_id']
+                            }
+                        )
+                    except Exception as e:
+                        logger.error(f"Error updating md5sum: {str(e)}")
+        db_session.commit()
+
+    except Exception as e:
+        logger.error(f"Error during md5sum save operation: {str(e)}")
+        db_session.rollback()
+    finally:
+        db_session.close()
 
 
 def load_database_md5data(mods):
-    """
 
+    """
     :param mods:["FB", "WB", "ZFIN", "SGD", "MGI", "RGD", "XB", "PMID"]
     :return sample:
     md5sum_data = {"XB":   {
@@ -224,19 +263,19 @@ def load_database_md5data(mods):
     md5dict = defaultdict(dict)
     db_session = create_postgres_session(False)
     mod_ids = {mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"] for
-               mod_abbr_id in db_session.execute("select abbreviation, mod_id from mod").fetchall()}
+               mod_abbr_id in db_session.execute(text("select abbreviation, mod_id from mod")).mappings().fetchall()}
     for mod in mods:
         mod_id = mod_ids.get(mod)
         prefix = 'Xenbase' if mod == 'XB' else mod
         if mod_id is not None:
-            md5sums = db_session.execute(f"select r.curie, rmm.md5sum from cross_reference r, "
-                                         f"reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
-                                         f"rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like "
-                                         f"'{prefix}:%') ").fetchall()
+            md5sums = db_session.execute(text(f"select r.curie, rmm.md5sum from cross_reference r, "
+                                              f"reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
+                                              f"rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like "
+                                              f"'{prefix}:%') ")).mappings().fetchall()
         elif mod == "PMID":
-            md5sums = db_session.execute("select r.curie, rmm.md5sum from cross_reference r, "
-                                         "reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
-                                         "rmm.mod_id is null and r.curie like 'PMID:%' ").fetchall()
+            md5sums = db_session.execute(text("select r.curie, rmm.md5sum from cross_reference r, "
+                                              "reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
+                                              "rmm.mod_id is null and r.curie like 'PMID:%' ")).mappings().fetchall()
         else:
             logger.error("invalid mod:" + mod)
             continue

@@ -1,6 +1,6 @@
-
 from sqlalchemy import create_engine
 from sqlalchemy import MetaData
+from sqlalchemy import text
 
 from fastapi import Depends
 
@@ -14,7 +14,9 @@ from agr_literature_service.api.triggers.triggers import add_sql_triggers_functi
 metadata = MetaData()
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-SessionLocal = sessionmaker(bind=engine, autoflush=True)
+# In SQLAlchemy 2.x, sessionmaker(bind=engine) is deprecated.
+# Remove bind argument, bind engine directly
+SessionLocal = sessionmaker(engine, autoflush=True)
 
 
 def create_all_tables():
@@ -22,7 +24,9 @@ def create_all_tables():
 
 
 def create_default_user():
-    engine.connect().execute("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING")
+    db = sessionmaker(engine, autoflush=True)
+    with db.begin() as session:
+        session.execute(text("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING"))
 
 
 def get_db():
@@ -30,9 +34,10 @@ def get_db():
     try:
         yield db
     except Exception as e:
-        print('Error: ' + str(type(e)))
+        db.rollback()
+        print("Error in get_db: " + str(e))
+        raise
     finally:
-        db.commit()
         db.close()
 
 
@@ -44,9 +49,10 @@ def is_database_online(session: Session = db_session):
 
 
 def create_all_triggers():
-    db_session = next(get_db(), None)
-    db_session.commit()
-    add_sql_triggers_functions(db_session)
+    # Explicit session handling in SQLAlchemy 2.x
+    with SessionLocal() as session:
+        add_sql_triggers_functions(session)
+        session.commit()  # commit after adding the triggers
 
 
 def drop_open_db_sessions(db):
@@ -54,5 +60,6 @@ def drop_open_db_sessions(db):
              FROM pg_stat_activity
              WHERE datname = current_database()
              AND pid <> pg_backend_pid();'''
-    db.execute(com)
+    db.execute(text(com))
+    db.commit()  # commit after executing the SQL
     print(f"Closing {db}")

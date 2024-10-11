@@ -43,13 +43,16 @@ class ModModel(Base, AuditedModel):
         nullable=False
     )
 
-    taxon_ids = Column(
+    taxon_ids: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
     )
 
-    referencetypes = relationship("ModReferencetypeAssociationModel")
+    referencetypes = relationship(
+        "ModReferencetypeAssociationModel",
+        back_populates="mod"
+    )
 
     def __str__(self):
         """

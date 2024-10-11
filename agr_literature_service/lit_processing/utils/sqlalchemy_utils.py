@@ -12,14 +12,14 @@ def create_postgres_engine(verbose):
 
     """Connect to database."""
     USER = environ.get('PSQL_USERNAME', 'postgres')
-    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
+    PASSWORD = environ.get('PSQL_PASSWORD')
     SERVER = environ.get('PSQL_HOST', 'localhost')
     PORT = environ.get('PSQL_PORT', '5432')
-
     DB = environ.get('PSQL_DATABASE', 'literature')
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
+    # future=True is recommended for 2.0-style behavior.  But referencefile unit test would fail, so removed it.
     engine = create_engine(engine_var)
     if verbose:
         print('Using server: {}'.format(SERVER))
@@ -33,7 +33,8 @@ def create_postgres_session(verbose):
 
     engine = create_postgres_engine(verbose)
 
-    Session = sessionmaker(bind=engine)
+    # SQLAlchemy 2.0 recommends using 'autocommit=False' explicitly in sessionmaker
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = Session()
 
     return session

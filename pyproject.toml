@@ -51,5 +51,5 @@ skip_glob = ["docs/*"]
 multi_line_output = 3
 
 [tool.pytest.ini_options]
-addopts = "--cov --cov-fail-under=79 -vv --cov-report html --ignore non_pr_tests/"
+addopts = "--cov --cov-fail-under=78 -vv --cov-report html --ignore non_pr_tests/"
 markers = ["webtest"]

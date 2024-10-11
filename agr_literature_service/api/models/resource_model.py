@@ -52,7 +52,7 @@ class ResourceModel(Base, AuditedModel):
         nullable=True
     )
 
-    title_synonyms = Column(
+    title_synonyms: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
@@ -95,17 +95,17 @@ class ResourceModel(Base, AuditedModel):
     editor = relationship(
         "EditorModel",
         lazy="joined",
-        back_populates="resource",
+        back_populates=None,
         cascade="all, delete, delete-orphan"
     )
 
-    volumes = Column(
+    volumes: Column = Column(
         ARRAY(String()),
         unique=False,
         nullable=True
     )
 
-    abbreviation_synonyms = Column(
+    abbreviation_synonyms: Column = Column(
         ARRAY(String()),
         nullable=True
     )

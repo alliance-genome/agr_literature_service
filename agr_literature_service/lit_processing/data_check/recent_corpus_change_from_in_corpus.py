@@ -1,4 +1,6 @@
 import logging
+from sqlalchemy import text
+
 # from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -46,7 +48,7 @@ where r.reference_id = m.reference_id and
 
 logger.info("Getting data from the database...")
 
-rows = db_session.execute(query).fetchall()
+rows = db_session.execute(text(query)).fetchall()
 
 message = ''
 for x in rows:

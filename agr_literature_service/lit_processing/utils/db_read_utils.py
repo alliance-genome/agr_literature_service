@@ -1,6 +1,6 @@
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from fastapi.encoders import jsonable_encoder
-from typing import Dict, Tuple, Union
+from typing import Dict, Tuple, Union, List, Any, TypedDict
 from datetime import datetime, timedelta
 import json
 
@@ -15,7 +15,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     import escape_special_characters, remove_surrogates
 
 
-def get_pmid_association_to_mod_via_reference(db_session, pmids, mod_abbreviation):
+def get_pmid_association_to_mod_via_reference(db_session: Session, pmids, mod_abbreviation):
     allRows = db_session.query(
         CrossReferenceModel.curie,
         ReferenceModel.curie,
@@ -51,30 +51,29 @@ def get_curie_to_title_mapping(curie_list):
     db_session = create_postgres_session(False)
 
     curies = ", ".join(["'" + x + "'" for x in curie_list])
-    rs = db_session.execute("SELECT curie, title FROM reference WHERE curie IN (" + curies + ")")
+    rs = db_session.execute(text("SELECT curie, title FROM reference WHERE curie IN (" + curies + ")"))
     rows = rs.fetchall()
 
-    ref_curie_to_title = {}
-    for x in rows:
-        ref_curie_to_title[x[0]] = x[1]
+    ref_curie_to_title = {x[0]: x[1] for x in rows}
 
     db_session.close()
 
     return ref_curie_to_title
 
 
-def get_references_by_curies(db_session, curie_list):
+def get_references_by_curies(db_session: Session, curie_list):
     if len(curie_list) == 0:
         return {}
 
     ref_curie_to_reference = {}
 
     query = db_session.query(ReferenceModel)
-    query = query.options(joinedload(ReferenceModel.mod_referencetypes).subqueryload(
-        ReferenceModReferencetypeAssociationModel.mod_referencetype).subqueryload(ModReferencetypeAssociationModel.mod))
-    query = query.options(joinedload(ReferenceModel.mod_referencetypes).subqueryload(
-        ReferenceModReferencetypeAssociationModel.mod_referencetype).subqueryload(
-        ModReferencetypeAssociationModel.referencetype))
+    query = query.options(joinedload(ReferenceModel.mod_referencetypes)
+                          .subqueryload(ReferenceModReferencetypeAssociationModel.mod_referencetype)
+                          .subqueryload(ModReferencetypeAssociationModel.mod))
+    query = query.options(joinedload(ReferenceModel.mod_referencetypes)
+                          .subqueryload(ReferenceModReferencetypeAssociationModel.mod_referencetype)
+                          .subqueryload(ModReferencetypeAssociationModel.referencetype))
     query = query.options(joinedload(ReferenceModel.author))
     query = query.options(joinedload(ReferenceModel.mod_corpus_association))
     query = query.options(joinedload(ReferenceModel.obsolete_reference))
@@ -87,17 +86,17 @@ def get_references_by_curies(db_session, curie_list):
     return ref_curie_to_reference
 
 
-def get_reference_id_by_curie(db_session, curie):
+def get_reference_id_by_curie(db_session: Session, curie):
     x = db_session.query(ReferenceModel).filter_by(curie=curie).one_or_none()
     if x:
         return x.reference_id
     return None
 
 
-def set_pmid_list(db_session, mod, pmids4mod, json_file):
-    f = open(json_file)
-    json_data = json.load(f)
-    f.close()
+def set_pmid_list(db_session: Session, mod, pmids4mod, json_file):
+
+    with open(json_file) as f:
+        json_data = json.load(f)
 
     for x in json_data:
         if x.get('crossReferences'):
@@ -110,7 +109,7 @@ def set_pmid_list(db_session, mod, pmids4mod, json_file):
                         pmids4mod[mod].add(pmid)
 
 
-def retrieve_newly_added_pmids(db_session):
+def retrieve_newly_added_pmids(db_session: Session):
     pmids_new = []
 
     filter_after = datetime.today() - timedelta(days=150)
@@ -122,7 +121,7 @@ def retrieve_newly_added_pmids(db_session):
     return pmids_new
 
 
-def retrieve_all_pmids(db_session):
+def retrieve_all_pmids(db_session: Session):
     pmids = []
     for x in db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie.like('PMID:%')).all():
         if x.is_obsolete:
@@ -132,7 +131,7 @@ def retrieve_all_pmids(db_session):
     return pmids
 
 
-def get_reference_id_by_pmid(db_session, pmid):
+def get_reference_id_by_pmid(db_session: Session, pmid):
     x = db_session.query(CrossReferenceModel).filter(CrossReferenceModel.curie == 'PMID:' + pmid).one_or_none()
     if x:
         return x.reference_id
@@ -159,23 +158,24 @@ def adding_author_row(x, reference_id_to_authors):
     reference_id_to_authors[reference_id] = authors
 
 
-def get_author_data(db_session, mod, reference_id_list, query_cutoff):
-    reference_id_to_authors = {}
+def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
+
+    reference_id_to_authors: Dict[int, List[Dict[str, Any]]] = {}
 
     if mod and len(reference_id_list) > query_cutoff:
         author_limit = 500000
         for index in range(500):
             offset = index * author_limit
-            rows = db_session.execute(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
-                                      f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
-                                      f"a.last_name, a.first_initial "
-                                      f"FROM author a, mod_corpus_association mca, mod m "
-                                      f"WHERE a.reference_id = mca.reference_id "
-                                      f"AND mca.mod_id = m.mod_id "
-                                      f"AND m.abbreviation = '{mod}' "
-                                      f"ORDER BY a.reference_id, a.order "
-                                      f"LIMIT {author_limit} "
-                                      f"OFFSET {offset}").fetchall()
+            rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
+                                           f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                                           f"a.last_name, a.first_initial "
+                                           f"FROM author a, mod_corpus_association mca, mod m "
+                                           f"WHERE a.reference_id = mca.reference_id "
+                                           f"AND mca.mod_id = m.mod_id "
+                                           f"AND m.abbreviation = '{mod}' "
+                                           f"ORDER BY a.reference_id, a.order "
+                                           f"LIMIT {author_limit} "
+                                           f"OFFSET {offset}")).fetchall()
 
             if len(rows) == 0:
                 break
@@ -184,12 +184,12 @@ def get_author_data(db_session, mod, reference_id_list, query_cutoff):
     elif reference_id_list and len(reference_id_list) > 0:
         # name & order are keywords in postgres so have use alias 'a' for table name
         ref_ids = ", ".join([str(x) for x in reference_id_list])
-        rows = db_session.execute(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
-                                  f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
-                                  f"a.last_name, a.first_initial "
-                                  f"FROM author a "
-                                  f"WHERE  reference_id IN ({ref_ids}) "
-                                  f"ORDER BY a.reference_id, a.order").fetchall()
+        rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
+                                       f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                                       f"a.last_name, a.first_initial "
+                                       f"FROM author a "
+                                       f"WHERE  reference_id IN ({ref_ids}) "
+                                       f"ORDER BY a.reference_id, a.order")).fetchall()
         for x in rows:
             adding_author_row(x, reference_id_to_authors)
 
@@ -206,16 +206,17 @@ def adding_mesh_term_row(x, reference_id_to_mesh_terms):
     reference_id_to_mesh_terms[reference_id] = mesh_terms
 
 
-def get_mesh_term_data(db_session, mod, reference_id_list, query_cutoff):
-    reference_id_to_mesh_terms = {}
+def get_mesh_term_data(db_session: Session, mod, reference_id_list, query_cutoff):
+
+    reference_id_to_mesh_terms: Dict[int, List[Tuple[str, str]]] = {}
 
     if mod and len(reference_id_list) > query_cutoff:
         mesh_limit = 1000000
         for index in range(50):
             offset = index * mesh_limit
-            rs = db_session.execute(
+            rs = db_session.execute(text(
                 "select md.reference_id, md.heading_term, md.qualifier_term from mesh_detail md, mod_corpus_association mca, mod m where md.reference_id = mca.reference_id and mca.mod_id = m.mod_id and m.abbreviation = '" + mod + "' order by md.mesh_detail_id limit " + str(
-                    mesh_limit) + " offset " + str(offset))
+                    mesh_limit) + " offset " + str(offset)))
             rows = rs.fetchall()
             if len(rows) == 0:
                 break
@@ -224,7 +225,7 @@ def get_mesh_term_data(db_session, mod, reference_id_list, query_cutoff):
     elif reference_id_list and len(reference_id_list) > 0:
         ref_ids = ", ".join([str(x) for x in reference_id_list])
         raw_sql = "SELECT reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ")"
-        rs = db_session.execute(raw_sql)
+        rs = db_session.execute(text(raw_sql))
         rows = rs.fetchall()
         for x in rows:
             adding_mesh_term_row(x, reference_id_to_mesh_terms)
@@ -232,9 +233,10 @@ def get_mesh_term_data(db_session, mod, reference_id_list, query_cutoff):
     return reference_id_to_mesh_terms
 
 
-def get_cross_reference_data(db_session, mod, reference_id_list):
-    reference_id_to_doi = {}
-    reference_id_to_pmcid = {}
+def get_cross_reference_data(db_session: Session, mod, reference_id_list):
+
+    reference_id_to_doi: Dict[int, str] = {}
+    reference_id_to_pmcid: Dict[int, str] = {}
 
     allCrossRefs = None
     if mod:
@@ -259,7 +261,7 @@ def get_cross_reference_data(db_session, mod, reference_id_list):
     return (reference_id_to_doi, reference_id_to_pmcid)
 
 
-def get_cross_reference_data_for_resource(db_session):
+def get_cross_reference_data_for_resource(db_session: Session):
     resource_id_to_issn = {}
     resource_id_to_nlm = {}
 
@@ -272,8 +274,9 @@ def get_cross_reference_data_for_resource(db_session):
     return (resource_id_to_issn, resource_id_to_nlm)
 
 
-def get_reference_relation_data(db_session, mod, reference_id_list):
-    reference_ids_to_reference_relation_type = {}
+def get_reference_relation_data(db_session: Session, mod, reference_id_list):
+
+    reference_ids_to_reference_relation_type: Dict[Tuple[int, int], str] = {}
 
     allReferenceRelations = None
     if mod:
@@ -296,9 +299,9 @@ def get_reference_relation_data(db_session, mod, reference_id_list):
     return reference_ids_to_reference_relation_type
 
 
-def get_all_reference_relation_data(db_session, logger=None):
+def get_all_reference_relation_data(db_session: Session, logger=None):
 
-    reference_id_to_reference_relation_data = {}
+    reference_id_to_reference_relation_data: Dict[int, Dict[str, List[Dict[str, str]]]] = {}
 
     type_mapping = {
         'ErratumFor': 'ErratumIn',
@@ -312,15 +315,15 @@ def get_all_reference_relation_data(db_session, logger=None):
     }
 
     reference_id_to_curies = {}
-    rs = db_session.execute(
-        "select cc.reference_id, cc.curie, r.curie from cross_reference cc, reference r where cc.reference_id = r.reference_id and (cc.reference_id in (select reference_id_from from reference_relation) or cc.reference_id in (select reference_id_to from reference_relation))")
+    rs = db_session.execute(text(
+        "select cc.reference_id, cc.curie, r.curie from cross_reference cc, reference r where cc.reference_id = r.reference_id and (cc.reference_id in (select reference_id_from from reference_relation) or cc.reference_id in (select reference_id_to from reference_relation))"))
     rows = rs.fetchall()
     for x in rows:
         if x[1].startswith('PMID:'):
             reference_id_to_curies[x[0]] = (x[1], x[2])
 
-    rs = db_session.execute(
-        "select reference_id_from, reference_id_to, reference_relation_type from reference_relation")
+    rs = db_session.execute(text(
+        "select reference_id_from, reference_id_to, reference_relation_type from reference_relation"))
 
     for x in rs:
 
@@ -362,7 +365,7 @@ def get_all_reference_relation_data(db_session, logger=None):
     return reference_id_to_reference_relation_data
 
 
-def get_journal_data(db_session):
+def get_journal_data(db_session: Session):
     journal_to_resource_id = {}
 
     for x in db_session.query(ResourceModel).order_by(ResourceModel.resource_id).all():
@@ -372,7 +375,7 @@ def get_journal_data(db_session):
     return journal_to_resource_id
 
 
-def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, reference_id_to_pmid):
+def get_reference_ids_by_pmids(db_session: Session, pmids, pmid_to_reference_id, reference_id_to_pmid):
     pmid_list = []
     for pmid in pmids.split('|'):
         pmid_list.append('PMID:' + pmid)
@@ -385,7 +388,7 @@ def get_reference_ids_by_pmids(db_session, pmids, pmid_to_reference_id, referenc
         reference_id_to_pmid[x.reference_id] = pmid
 
 
-def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session, pmid_to_reference_id, reference_id_to_pmid):
+def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session: Session, pmid_to_reference_id, reference_id_to_pmid):
     in_corpus = {}
     for x in db_session.query(ModCorpusAssociationModel).all():
         in_corpus[x.reference_id] = 1
@@ -398,7 +401,7 @@ def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session, pmid
         reference_id_to_pmid[x.reference_id] = pmid
 
 
-def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id_to_pmid):
+def get_pmid_to_reference_id(db_session: Session, mod, pmid_to_reference_id, reference_id_to_pmid):
     query = db_session.query(CrossReferenceModel)
     query = query.join(ReferenceModel.cross_reference)
     query = query.filter(CrossReferenceModel.curie.like('PMID:%'))
@@ -412,10 +415,10 @@ def get_pmid_to_reference_id(db_session, mod, pmid_to_reference_id, reference_id
         reference_id_to_pmid[x.reference_id] = pmid
 
 
-def get_doi_data(db_session):
+def get_doi_data(db_session: Session):
     doi_to_reference_id = {}
 
-    rs = db_session.execute("select curie, reference_id from cross_reference where curie like 'DOI:%%'")
+    rs = db_session.execute(text("select curie, reference_id from cross_reference where curie like 'DOI:%%'"))
     rows = rs.fetchall()
     for x in rows:
         doi_to_reference_id[x[0]] = x[1]
@@ -423,7 +426,7 @@ def get_doi_data(db_session):
     return doi_to_reference_id
 
 
-def get_reference_by_pmid(db_session, pmid):
+def get_reference_by_pmid(db_session: Session, pmid):
     x = db_session.query(CrossReferenceModel).filter_by(curie='PMID:' + pmid).one_or_none()
 
     if x:
@@ -431,10 +434,10 @@ def get_reference_by_pmid(db_session, pmid):
     return None
 
 
-def get_journal_by_resource_id(db_session):
+def get_journal_by_resource_id(db_session: Session):
     resource_id_to_journal = {}
 
-    rs = db_session.execute("SELECT resource_id, curie, title, medline_abbreviation FROM resource")
+    rs = db_session.execute(text("SELECT resource_id, curie, title, medline_abbreviation FROM resource"))
 
     rows = rs.fetchall()
 
@@ -444,11 +447,12 @@ def get_journal_by_resource_id(db_session):
     return resource_id_to_journal
 
 
-def get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids):
-    reference_id_to_mod_corpus_data = {}
+def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
 
-    rs = db_session.execute(
-        "SELECT mca.reference_id, mca.mod_corpus_association_id, m.abbreviation, mca.corpus, mca.mod_corpus_sort_source, mca.date_created, mca.date_updated FROM mod_corpus_association mca, mod m WHERE m.mod_id = mca.mod_id and mca.reference_id IN (" + ref_ids + ")")
+    reference_id_to_mod_corpus_data: Dict[int, List[Dict[str, Any]]] = {}
+
+    rs = db_session.execute(text(
+        "SELECT mca.reference_id, mca.mod_corpus_association_id, m.abbreviation, mca.corpus, mca.mod_corpus_sort_source, mca.date_created, mca.date_updated FROM mod_corpus_association mca, mod m WHERE m.mod_id = mca.mod_id and mca.reference_id IN (" + ref_ids + ")"))
 
     rows = rs.fetchall()
 
@@ -470,11 +474,12 @@ def get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids):
     return reference_id_to_mod_corpus_data
 
 
-def get_cross_reference_data_for_ref_ids(db_session, ref_ids):
-    reference_id_to_xrefs = {}
+def get_cross_reference_data_for_ref_ids(db_session: Session, ref_ids):
 
-    rs = db_session.execute(
-        "SELECT reference_id, curie, is_obsolete FROM cross_reference WHERE reference_id IN (" + ref_ids + ")")
+    reference_id_to_xrefs: Dict[int, List[Dict[str, Any]]] = {}
+
+    rs = db_session.execute(text(
+        "SELECT reference_id, curie, is_obsolete FROM cross_reference WHERE reference_id IN (" + ref_ids + ")"))
 
     rows = rs.fetchall()
 
@@ -493,15 +498,16 @@ def get_cross_reference_data_for_ref_ids(db_session, ref_ids):
     return reference_id_to_xrefs
 
 
-def get_author_data_for_ref_ids(db_session, ref_ids):
-    reference_id_to_authors = {}
+def get_author_data_for_ref_ids(db_session: Session, ref_ids):
 
-    rows = db_session.execute(f"SELECT a.author_id, a.reference_id, a.orcid, a.first_author, "
-                              f"a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, "
-                              f"a.last_name, a.first_initial, a.date_updated, a.date_created "
-                              f"FROM author a "
-                              f"WHERE reference_id IN ({ref_ids}) "
-                              f"ORDER BY a.reference_id, a.order").fetchall()
+    reference_id_to_authors: Dict[int, List[Dict[str, Any]]] = {}
+
+    rows = db_session.execute(text(f"SELECT a.author_id, a.reference_id, a.orcid, a.first_author, "
+                                   f"a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                                   f"a.last_name, a.first_initial, a.date_updated, a.date_created "
+                                   f"FROM author a "
+                                   f"WHERE reference_id IN ({ref_ids}) "
+                                   f"ORDER BY a.reference_id, a.order")).fetchall()
     for x in rows:
         data = []
         reference_id = x[1]
@@ -526,11 +532,12 @@ def get_author_data_for_ref_ids(db_session, ref_ids):
     return reference_id_to_authors
 
 
-def get_mesh_term_data_for_ref_ids(db_session, ref_ids):
-    reference_id_to_mesh_terms = {}
+def get_mesh_term_data_for_ref_ids(db_session: Session, ref_ids):
 
-    rs = db_session.execute(
-        "SELECT mesh_detail_id, reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ") order by reference_id, mesh_detail_id")
+    reference_id_to_mesh_terms: Dict[int, List[Dict[str, Any]]] = {}
+
+    rs = db_session.execute(text(
+        "SELECT mesh_detail_id, reference_id, heading_term, qualifier_term FROM mesh_detail WHERE reference_id IN (" + ref_ids + ") order by reference_id, mesh_detail_id"))
 
     rows = rs.fetchall()
 
@@ -549,14 +556,21 @@ def get_mesh_term_data_for_ref_ids(db_session, ref_ids):
     return reference_id_to_mesh_terms
 
 
-def get_mod_reference_type_data_for_ref_ids(db_session, ref_ids):
-    reference_id_to_mod_reference_types = {}
+class ModReferenceTypeEntry(TypedDict):
+    reference_type: str
+    source: str
+    mod_reference_type_id: int
 
-    rs = db_session.execute("SELECT rmrt.reference_mod_referencetype_id, rmrt.reference_id, rt.label, "
-                            "mod.abbreviation FROM reference_mod_referencetype rmrt JOIN mod_referencetype mrt "
-                            "ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id JOIN referencetype rt "
-                            "ON mrt.referencetype_id = rt.referencetype_id JOIN mod ON mrt.mod_id = mod.mod_id "
-                            "WHERE rmrt.reference_id IN (" + ref_ids + ")")
+
+def get_mod_reference_type_data_for_ref_ids(db_session: Session, ref_ids):
+
+    reference_id_to_mod_reference_types: Dict[int, List[ModReferenceTypeEntry]] = {}
+
+    rs = db_session.execute(text("SELECT rmrt.reference_mod_referencetype_id, rmrt.reference_id, rt.label, "
+                                 "mod.abbreviation FROM reference_mod_referencetype rmrt JOIN mod_referencetype mrt "
+                                 "ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id JOIN referencetype rt "
+                                 "ON mrt.referencetype_id = rt.referencetype_id JOIN mod ON mrt.mod_id = mod.mod_id "
+                                 "WHERE rmrt.reference_id IN (" + ref_ids + ")"))
 
     rows = rs.fetchall()
 
@@ -581,16 +595,16 @@ def get_mod_abbreviations(db_session: Session = None):
     return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation != 'GO').all()]
 
 
-def get_pmid_list_without_pmc_package(mods, db_session=None):
+def get_pmid_list_without_pmc_package(mods, db_session: Session = None):
     if db_session is None:
         db_session = create_postgres_session(False)
 
     mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
 
-    rows = db_session.execute("SELECT distinct rf.reference_id "
-                              "FROM referencefile rf, referencefile_mod rfm "
-                              "WHERE rfm.mod_id is null "
-                              "AND rf.referencefile_id = rfm.referencefile_id ").fetchall()
+    rows = db_session.execute(text("SELECT distinct rf.reference_id "
+                                   "FROM referencefile rf, referencefile_mod rfm "
+                                   "WHERE rfm.mod_id is null "
+                                   "AND rf.referencefile_id = rfm.referencefile_id ")).fetchall()
 
     reference_ids_with_PMC = {x[0] for x in rows}
 
@@ -600,13 +614,13 @@ def get_pmid_list_without_pmc_package(mods, db_session=None):
 
         mod_id = mod_to_mod_id[mod]
 
-        rows = db_session.execute(f"SELECT cr.reference_id, cr.curie "
-                                  f"FROM cross_reference cr, mod_corpus_association mca "
-                                  f"WHERE cr.curie_prefix = 'PMID' "
-                                  f"AND cr.is_obsolete is False "
-                                  f"AND cr.reference_id = mca.reference_id "
-                                  f"AND mca.corpus is True "
-                                  f"AND mca.mod_id = {mod_id} ").fetchall()
+        rows = db_session.execute(text(f"SELECT cr.reference_id, cr.curie "
+                                       f"FROM cross_reference cr, mod_corpus_association mca "
+                                       f"WHERE cr.curie_prefix = 'PMID' "
+                                       f"AND cr.is_obsolete is False "
+                                       f"AND cr.reference_id = mca.reference_id "
+                                       f"AND mca.corpus is True "
+                                       f"AND mca.mod_id = {mod_id} ")).mappings().fetchall()
         for x in rows:
             if x["reference_id"] not in reference_ids_with_PMC:
                 pmid = x["curie"].replace("PMID:", "")
@@ -616,10 +630,10 @@ def get_pmid_list_without_pmc_package(mods, db_session=None):
     return pmids
 
 
-def get_pmid_to_reference_id_mapping(db_session):
+def get_pmid_to_reference_id_mapping(db_session: Session):
     pmid_to_reference_id = {}
-    rows = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and "
-                              "is_obsolete = False").fetchall()
+    rows = db_session.execute(text("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID' and "
+                                   "is_obsolete = False")).mappings().fetchall()
     for x in rows:
         pmid = x["curie"].replace("PMID:", "")
         pmid_to_reference_id[pmid] = x["reference_id"]
@@ -627,16 +641,16 @@ def get_pmid_to_reference_id_mapping(db_session):
     return pmid_to_reference_id
 
 
-def sort_pmids(db_session, pmids, mod_to_pmids):
+def sort_pmids(db_session: Session, pmids, mod_to_pmids):
 
     pmids_with_prefix = ", ".join(["'" + "PMID:" + x + "'" for x in pmids])
 
-    rows = db_session.execute(f"SELECT m.abbreviation, cr.curie "
-                              f"FROM   mod m, cross_reference cr, mod_corpus_association mca "
-                              f"WHERE  cr.curie in ({pmids_with_prefix}) "
-                              f"AND    cr.reference_id = mca.reference_id "
-                              f"AND    mca.corpus is True "
-                              f"AND    mca.mod_id = m.mod_id").fetchall()
+    rows = db_session.execute(text(f"SELECT m.abbreviation, cr.curie "
+                                   f"FROM   mod m, cross_reference cr, mod_corpus_association mca "
+                                   f"WHERE  cr.curie in ({pmids_with_prefix}) "
+                                   f"AND    cr.reference_id = mca.reference_id "
+                                   f"AND    mca.corpus is True "
+                                   f"AND    mca.mod_id = m.mod_id")).mappings().fetchall()
     pmids_in_mod = set()
     for x in rows:
         pmid = x["curie"].replace("PMID:", "")
@@ -654,14 +668,14 @@ def sort_pmids(db_session, pmids, mod_to_pmids):
     return mod_to_pmids
 
 
-def get_mod_papers(db_session, mod):
+def get_mod_papers(db_session: Session, mod):
 
-    rows = db_session.execute(f"SELECT cr.curie, mca.corpus "
-                              f"FROM   cross_reference cr, mod_corpus_association mca, mod m "
-                              f"WHERE  cr.curie_prefix = 'PMID' "
-                              f"AND    cr.reference_id = mca.reference_id "
-                              f"AND    mca.mod_id = m.mod_id "
-                              f"AND    m.abbreviation = '{mod}'").fetchall()
+    rows = db_session.execute(text(f"SELECT cr.curie, mca.corpus "
+                                   f"FROM   cross_reference cr, mod_corpus_association mca, mod m "
+                                   f"WHERE  cr.curie_prefix = 'PMID' "
+                                   f"AND    cr.reference_id = mca.reference_id "
+                                   f"AND    mca.mod_id = m.mod_id "
+                                   f"AND    m.abbreviation = '{mod}'")).mappings().fetchall()
     in_corpus_set = set()
     out_corpus_set = set()
     for x in rows:

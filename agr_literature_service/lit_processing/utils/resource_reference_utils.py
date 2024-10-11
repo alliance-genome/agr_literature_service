@@ -26,6 +26,7 @@ import sys
 from typing import Dict, Union
 import logging.config
 from sqlalchemy.orm import Session
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ResourceModel, ReferenceModel, CrossReferenceModel
 # from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
@@ -33,7 +34,7 @@ xref_ref: Dict = {}
 ref_xref_valid: Dict = {}
 ref_xref_obsolete: Dict = {}
 datatype: str = ""
-db_session: Session = None
+db_session: Session = create_postgres_session(False)
 
 logging.basicConfig(level=logging.INFO,
                     stream=sys.stdout,

@@ -6,16 +6,17 @@ import logging
 import re
 from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from os import getcwd
 
 from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_
+from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
+from sqlalchemy.exc import SQLAlchemyError
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
@@ -259,6 +260,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     # currently do not update citation on patches. code will call update_citation separately when all done
     # reference_db_obj.citation = get_citation_from_obj(db, reference_db_obj)
     reference_db_obj.dateUpdated = datetime.utcnow()
+    db.add(reference_db_obj)
     db.commit()
 
     return {"message": "updated"}
@@ -317,12 +319,12 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_url"] = crl.url
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
-            rows = db.execute(f"SELECT rv.updated_by, u.email "
-                              f"FROM reference_version rv, users u "
-                              f"WHERE curie = '{reference_data['curie']}' "
-                              f"AND copyright_license_id_mod IS true "
-                              f"AND rv.updated_by = u.id "
-                              f"ORDER BY rv.date_updated DESC LIMIT 1").fetchall()
+            rows = db.execute(text(f"SELECT rv.updated_by, u.email "
+                                   f"FROM reference_version rv, users u "
+                                   f"WHERE curie = '{reference_data['curie']}' "
+                                   f"AND copyright_license_id_mod IS true "
+                                   f"AND rv.updated_by = u.id "
+                                   f"ORDER BY rv.date_updated DESC LIMIT 1")).mappings().fetchall()
             if len(rows) == 1:
                 if rows[0]['email']:
                     reference_data["copyright_license_last_updated_by"] = rows[0]['email']
@@ -392,7 +394,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         AND rf.file_extension = 'pdf'
         AND rf.date_created <= NOW() - INTERVAL '7 days'
         """
-        rows = db.execute(sql_query).fetchall()
+        rows = db.execute(text(sql_query)).mappings().fetchall()
         pdf_eligible_mod_ids = [row['mod_id'] for row in rows if row['mod_id']]
         is_pmc = any(row['mod_id'] is None for row in rows)
         if is_pmc:
@@ -405,7 +407,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         WHERE mca.reference_id = {reference.reference_id}
         AND mca.corpus = True
         """
-        rows = db.execute(sql_query).fetchall()
+        rows = db.execute(text(sql_query)).mappings().fetchall()
         mod_list = set()
         for row in rows:
             if row['mod_id'] in pdf_eligible_mod_ids:
@@ -721,12 +723,14 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):  # pragma: n
     # Authors, (year) title.   Journal  volume (issue): page_range
     year = ''
     if ref_db_obj.date_published:
-        year_re_result = re.search(r"(\d{4})", ref_db_obj.date_published)
-        if year_re_result:
-            year = year_re_result.group(1)
+        date_published_value = ref_db_obj.date_published
+        if isinstance(date_published_value, str):
+            year_re_result = re.search(r"(\d{4})", date_published_value)
+            if year_re_result:
+                year = year_re_result.group(1)
 
-    title = ref_db_obj.title or ''
-    if not re.search('[.]$', title):
+    title = getattr(ref_db_obj, 'title', '') or ''
+    if not re.search(r'[.]$', str(title)):
         title = title + '.'
 
     authorNames = ''
@@ -780,74 +784,115 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by, filter):
-    subquery = ''
-    if mod_abbreviation == 'XB':
-        curie_prefix = 'Xenbase'
-    else:
-        curie_prefix = mod_abbreviation
-    if filter == 'default':
-        subquery = f"""SELECT b.reference_id,
-                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                       FROM mod_corpus_association AS b
-                       JOIN mod ON b.mod_id = mod.mod_id
-                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE mod.abbreviation = '{mod_abbreviation}'
-                       AND corpus=true
-                       GROUP BY b.reference_id
-                       HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                               OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
-                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
-        """
-    elif filter == 'ATP:0000134' or filter == 'ATP:0000135':
-        subquery = f"""SELECT b.reference_id,
-                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                       FROM mod_corpus_association AS b
-                       JOIN mod ON b.mod_id = mod.mod_id
-                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE workflow_tag_id='{filter}'
-                       AND mod.abbreviation = '{mod_abbreviation}'
-                       AND corpus = true
-                       GROUP BY b.reference_id
-        """
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: Optional[int] = None, limit: Optional[int] = None):
 
-    return f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
-                      SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
-               FROM reference, citation,
-                    ({subquery})
-                     AS sub_select,
-                        (SELECT cross_reference.curie, reference_id
-                         FROM cross_reference
-                         WHERE curie_prefix='PMID') as ref_pmid,
-                         (SELECT cross_reference.curie, reference_id
-                         FROM cross_reference
-                         WHERE curie_prefix='DOI') as ref_doi,
-                        (SELECT cross_reference.curie, reference_id
-                         FROM cross_reference
-                         WHERE curie_prefix='{curie_prefix}') as ref_mod
-               WHERE sub_select.reference_id=reference.reference_id
-               AND sub_select.reference_id=ref_pmid.reference_id
-               AND sub_select.reference_id=ref_doi.reference_id
-               AND sub_select.reference_id=ref_mod.reference_id
-               AND reference.citation_id=citation.citation_id
-               ORDER BY date_created {order_by}
-           """
+    subquery: Optional[TextClause] = None
+    curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+
+    if filter == 'default':
+        subquery = text("""
+            SELECT b.reference_id,
+                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS maincount,
+                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS supcount
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE mod.abbreviation = :mod_abbreviation
+            AND corpus = true
+            GROUP BY b.reference_id
+            HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                    OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
+        """)
+    elif filter in ['ATP:0000134', 'ATP:0000135']:
+        subquery = text("""
+            SELECT b.reference_id,
+                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS maincount,
+                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS supcount
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE workflow_tag_id = :filter
+            AND mod.abbreviation = :mod_abbreviation
+            AND corpus = true
+            GROUP BY b.reference_id
+        """)
+
+    query_str = f"""
+        SELECT reference.curie, short_citation, reference.date_created,
+               sub_select.maincount AS maincount, sub_select.supcount AS supcount,
+               ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
+        FROM reference, citation,
+             ({subquery}) AS sub_select,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = 'PMID') AS ref_pmid,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = 'DOI') AS ref_doi,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = :curie_prefix) AS ref_mod
+        WHERE sub_select.reference_id = reference.reference_id
+        AND sub_select.reference_id = ref_pmid.reference_id
+        AND sub_select.reference_id = ref_doi.reference_id
+        AND sub_select.reference_id = ref_mod.reference_id
+        AND reference.citation_id = citation.citation_id
+        ORDER BY reference.date_created {order_by}
+    """
+
+    # Conditionally add limit and offset only if they are provided
+    if limit is not None:
+        query_str += " LIMIT :limit"
+    if offset is not None:
+        query_str += " OFFSET :offset"
+
+    query = text(query_str)
+
+    # Bind the necessary parameters, including limit and offset if present
+    params = {
+        'mod_abbreviation': mod_abbreviation,
+        'curie_prefix': curie_prefix,
+    }
+    if filter != 'default':
+        params['filter'] = filter
+    if limit is not None:
+        params['limit'] = str(limit)
+    if offset is not None:
+        params['offset'] = str(offset)
+
+    return query.bindparams(**params)
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
+
+    if order_by is None:
+        order_by = 'desc'
+    elif order_by.lower() not in ['asc', 'desc']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid order_by value: {order_by}")
+    if filter is None:
+        filter = 'default'
+    if filter not in ['default', 'ATP:0000134', 'ATP:0000135']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid filter: {filter}")
     try:
-        offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter) + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(query).fetchall()
+        limit = 25
+        offset = (page - 1) * limit
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter, offset, limit)
+        rows = db.execute(query).mappings().fetchall()
         data = jsonable_encoder(rows)
-    except Exception:
+        if not data:
+            return []
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Database error: {str(e)}")
+    except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Cant search missing files.")
+                            detail=f"Can't search missing files: {str(e)}")
     return data
 
 
@@ -855,24 +900,24 @@ def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, fi
     try:
         query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
         rows = db.execute(query).fetchall()
-        tag = ''
-        if filter == 'default':
-            tag = "needed"
-        elif filter == 'ATP:0000134':
-            tag = "uploaded"
-        elif filter == 'ATP:0000135':
-            tag = "unobtainable"
+        tag = {
+            'default': 'needed',
+            'ATP:0000134': 'uploaded',
+            'ATP:0000135': 'unobtainable'
+        }.get(filter, 'needed')
+
         tmp_file = f"{mod_abbreviation}_file_{tag}.tsv"
         workflowtag = f"file {tag}"
         tmp_file_with_path = f"{getcwd()}/{tmp_file}"
         fw = open(tmp_file_with_path, "w")
         fw.write("Curie\tMOD Curie\tPMID\tDOI\tCitation\tWorkflow Tag\tMain File Count\tSuppl File Count\tDate Created\n")
         for x in rows:
-            date_created = str(x['date_created']).split(' ')[0]
+            date_created = str(x[2]).split(' ')[0]
             main_file_count = x[3]
             suppl_file_count = x[4]
-            fw.write(f"{x['curie']}]\t{x['mod_curie']}\t{x['pmid']}\t{x['doi']}\t{x['short_citation']}\t "
+            fw.write(f"{x[0]}\t{x[5]}\t{x[6]}\t{x[7]}\t{x[1]}\t"
                      f"{workflowtag}\t{main_file_count}\t{suppl_file_count}\t{date_created}\n")
+
         fw.close()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -889,23 +934,30 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
     for author in sorted(reference.author, key=lambda a: a.order):
-        bib_info.add_author(author.last_name, author.first_initial, author.name)
+        last_name = str(author.last_name or '')
+        first_initial = str(author.first_initial or '')
+        full_name = str(author.name or '')
+        bib_info.add_author(last_name, first_initial, full_name)
     all_mods_abbreviations = [mod.abbreviation if mod.abbreviation != "XB" else mod.short_name for mod in
                               db.query(ModModel).all()]
-    xref: CrossReferenceModel
+
     bib_info.cross_references = [xref.curie for xref in reference.cross_reference if not xref.is_obsolete
                                  and (xref.curie_prefix not in all_mods_abbreviations
                                       or xref.curie_prefix == mod_abbreviation)]
-    if reference.pubmed_types:
-        bib_info.pubmed_types = [pub_type.replace("_", " ") for pub_type in reference.pubmed_types]
-    bib_info.title = reference.title
+    pubmed_types = getattr(reference, 'pubmed_types', None)
+    if pubmed_types:
+        bib_info.pubmed_types = [str(pub_type).replace("_", " ") for pub_type in pubmed_types]
+    else:
+        bib_info.pubmed_types = []
+
+    bib_info.title = str(reference.title or '')
     if reference.resource is not None:
-        bib_info.journal = reference.resource.title
+        bib_info.journal = str(reference.resource.title or '')
     bib_info.citation = Citation(volume=reference.volume, pages=reference.page_range)
     if reference.date_published:
-        bib_info.year = reference.date_published
-    bib_info.abstract = reference.abstract
-    bib_info.reference_curie = reference.curie
+        bib_info.year = str(reference.date_published)
+    bib_info.abstract = str(reference.abstract or '')
+    bib_info.reference_curie = str(reference.curie)
     return bib_info.get_formatted_bib(format_type=return_format)
 
 
@@ -913,11 +965,14 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
                                   species: str = None, from_reference_id: int = None, page_size: int = 1000):
     if reference_type and reference_type not in ['Experimental', 'Not_experimental', 'Meeting_abstract']:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="The reference_type passed in is not an valid reference_type.")
+                            detail="The reference_type passed in is not a valid reference_type.")
+
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"The mod_abbreviation: {mod_abbreviation} is not in the database.")
+
+    mod_id = mod.mod_id
 
     """
     Caenorhabditis elegans   NCBITaxon:6239
@@ -925,66 +980,102 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     Caenorhabditis briggsae  NCBITaxon:6238
     Caenorhabditis japonica  NCBITaxon:281687
     Caenorhabditis remanei   NCBITaxon:31234
-    Brugia malayi 	     NCBITaxon:6279
+    Brugia malayi            NCBITaxon:6279
     Onchocerca volvulus      NCBITaxon:6282
     Pristionchus pacificus   NCBITaxon:54126
     Strongyloides ratti      NCBITaxon:34506
     Trichuris muris          NCBITaxon:70415
     """
 
-    wb_textpresso_species_list = "'NCBITaxon:6239', 'NCBITaxon:135651', 'NCBITaxon:6238', 'NCBITaxon:281687', 'NCBITaxon:31234', 'NCBITaxon:6279', 'NCBITaxon:6282', 'NCBITaxon:54126', 'NCBITaxon:34506', 'NCBITaxon:70415'"
+    wb_textpresso_species_list = (
+        'NCBITaxon:6239', 'NCBITaxon:135651', 'NCBITaxon:6238', 'NCBITaxon:281687',
+        'NCBITaxon:31234', 'NCBITaxon:6279', 'NCBITaxon:6282', 'NCBITaxon:54126',
+        'NCBITaxon:34506', 'NCBITaxon:70415'
+    )
 
-    mod_id = mod.mod_id
-    select_stmt = f"""SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
-      FROM reference r
-      JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
-      JOIN referencefile rf ON rf.reference_id = r.reference_id
-      JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
-      WHERE mca.corpus is True
-      AND mca.mod_id = {mod_id}
-      AND rf.file_class = 'main'
-      AND rf.file_extension = 'pdf'
-      AND (rfm.mod_id is NULL OR rfm.mod_id = {mod_id})"""
+    # Start building the query string
+    query_str = """
+        SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
+        FROM reference r
+        JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
+        JOIN referencefile rf ON rf.reference_id = r.reference_id
+        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+        WHERE mca.corpus is True
+        AND mca.mod_id = :mod_id
+        AND rf.file_class = 'main'
+        AND rf.file_extension = 'pdf'
+        AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)
+    """
 
+    query_params = {'mod_id': mod_id}
+
+    # Add condition for reference_type if provided
     if reference_type:
-        select_stmt += f"""
+        query_str += """
         AND r.reference_id IN (
             SELECT rmrt.reference_id
-            FROM reference_mod_referencetype rmrt, mod_referencetype mrt, referencetype rt
-            WHERE rt.label = '{reference_type}'
-            AND rt.referencetype_id = mrt.referencetype_id
-            AND mrt.mod_id = {mod_id}
-            AND mrt.mod_referencetype_id = rmrt.mod_referencetype_id
+            FROM reference_mod_referencetype rmrt
+            JOIN mod_referencetype mrt ON mrt.mod_referencetype_id = rmrt.mod_referencetype_id
+            JOIN referencetype rt ON rt.referencetype_id = mrt.referencetype_id
+            WHERE rt.label = :reference_type
+            AND mrt.mod_id = :mod_id
         )
         """
-    if species:
-        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = '{species}')"
-    elif mod_abbreviation == 'WB':
-        select_stmt += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))"
+        query_params['reference_type'] = reference_type
 
+    # Add species filter if provided
+    if species:
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
+        query_params['species'] = species
+
+    # Add the WB species list if the mod is WB and no species filter is provided
+    elif mod_abbreviation == 'WB':
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in :wb_species_list)"
+        query_params['wb_species_list'] = wb_textpresso_species_list
+
+    # Add condition for `from_reference_id` if provided
     if from_reference_id:
-        select_stmt += f" AND r.reference_id > {from_reference_id}"
+        query_str += " AND r.reference_id > :from_reference_id"
+        query_params['from_reference_id'] = from_reference_id
+
+    # Add condition for files updated from a specific date if provided
     if files_updated_from_date:
-        select_stmt += f" AND rf.date_updated >= '{files_updated_from_date}'"
-    select_stmt += f" ORDER BY r.reference_id LIMIT {page_size}"
-    textpresso_referencefiles = db.execute(select_stmt).fetchall()
+        query_str += " AND rf.date_updated >= :files_updated_from_date"
+        query_params['files_updated_from_date'] = files_updated_from_date
+
+    # Add limit for pagination
+    query_str += " ORDER BY r.reference_id LIMIT :page_size"
+    query_params['page_size'] = page_size
+
+    textpresso_referencefiles = db.execute(text(query_str).bindparams(**query_params)).mappings().fetchall()
+
+    # Aggregate reference files for each reference
+    """
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
-        aggregated_reffiles[(reffile.reference_id, reffile.curie)].add((reffile.referencefile_id, reffile.md5sum,
-                                                                        reffile.mod_id is None, reffile.date_created))
+        aggregated_reffiles[(reffile['reference_id'], reffile['curie'])].add(
+            (reffile['referencefile_id'], reffile['md5sum'], reffile['mod_id'] is None, reffile['date_created'])
+        )
+    """
+    aggregated_reffiles = defaultdict(set)
+    for reffile in textpresso_referencefiles:
+        aggregated_reffiles[(reffile.reference_id, reffile.curie)].add(
+            (reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None, reffile.date_created))
+
+    # Return the aggregated results
     return [
         {
             "reference_curie": reference_curie,
             "reference_id": reference_id,
             "main_referencefiles": [
                 {
-                    "referencefile_id": reffile_md5sum_source_date[0],
-                    "md5sum": reffile_md5sum_source_date[1],
-                    "source_is_pmc": reffile_md5sum_source_date[2] == 1,
-                    "date_created": reffile_md5sum_source_date[3]
-                } for reffile_md5sum_source_date in reffiles_md5sums_sources_dates
+                    "referencefile_id": reffile_data[0],
+                    "md5sum": reffile_data[1],
+                    "source_is_pmc": reffile_data[2],
+                    "date_created": reffile_data[3]
+                } for reffile_data in reffiles_data
             ]
-        } for (reference_id, reference_curie), reffiles_md5sums_sources_dates in aggregated_reffiles.items()
+        } for (reference_id, reference_curie), reffiles_data in aggregated_reffiles.items()
     ]
 
 
