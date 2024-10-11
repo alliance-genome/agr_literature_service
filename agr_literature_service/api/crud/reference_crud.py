@@ -871,7 +871,9 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
 
     if order_by is None:
         order_by = 'desc'
-
+    elif order_by.lower() not in ['asc', 'desc']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid order_by value: {order_by}")
     if filter is None:
         filter = 'default'
     if filter not in ['default', 'ATP:0000134', 'ATP:0000135']:
