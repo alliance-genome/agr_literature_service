@@ -804,6 +804,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
                                OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
                        AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
+                       LIMIT {limit} OFFSET {offset}
         """)
     elif filter in ['ATP:0000134', 'ATP:0000135']:
         subquery = text("""SELECT b.reference_id,
@@ -817,6 +818,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
                         AND mod.abbreviation = :mod_abbreviation
                         AND corpus = true
                         GROUP BY b.reference_id
+                        LIMIT {limit} OFFSET {offset}
         """)
 
     query = text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
@@ -842,15 +844,11 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
           """)
     if filter == 'default':
         return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
-                                bindparam('curie_prefix', curie_prefix),
-                                bindparam('limit', limit),
-                                bindparam('offset', offset))
+                                bindparam('curie_prefix', curie_prefix))
     else:
         return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
                                 bindparam('filter', filter),
-                                bindparam('curie_prefix', curie_prefix),
-                                bindparam('limit', limit),
-                                bindparam('offset', offset))
+                                bindparam('curie_prefix', curie_prefix))
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
