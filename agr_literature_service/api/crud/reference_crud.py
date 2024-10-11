@@ -790,65 +790,72 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
     curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
 
     if filter == 'default':
-        subquery = text("""SELECT b.reference_id,
-                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                       FROM mod_corpus_association AS b
-                       JOIN mod ON b.mod_id = mod.mod_id
-                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE mod.abbreviation = :mod_abbreviation
-                       AND corpus=true
-                       GROUP BY b.reference_id
-                       HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                               OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
-                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
-                       LIMIT {limit} OFFSET {offset}
+        subquery = text("""
+            SELECT b.reference_id,
+                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE mod.abbreviation = :mod_abbreviation
+            AND corpus = true
+            GROUP BY b.reference_id
+            HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                    OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
+            LIMIT :limit OFFSET :offset
         """)
     elif filter in ['ATP:0000134', 'ATP:0000135']:
-        subquery = text("""SELECT b.reference_id,
-                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                        FROM mod_corpus_association AS b
-                        JOIN mod ON b.mod_id = mod.mod_id
-                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                        WHERE workflow_tag_id=:filter
-                        AND mod.abbreviation = :mod_abbreviation
-                        AND corpus = true
-                        GROUP BY b.reference_id
-                        LIMIT {limit} OFFSET {offset}
+        subquery = text("""
+            SELECT b.reference_id,
+                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE workflow_tag_id = :filter
+            AND mod.abbreviation = :mod_abbreviation
+            AND corpus = true
+            GROUP BY b.reference_id
+            LIMIT :limit OFFSET :offset
         """)
 
-    query = text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
-                       SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
-               FROM reference, citation,
-                    ({subquery})
-                   AS sub_select,
-                      (SELECT cross_reference.curie, reference_id
-                      FROM cross_reference
-                      WHERE curie_prefix='PMID') as ref_pmid,
-                      (SELECT cross_reference.curie, reference_id
-                      FROM cross_reference
-                      WHERE curie_prefix='DOI') as ref_doi,
-                      (SELECT cross_reference.curie, reference_id
-                       FROM cross_reference
-                       WHERE curie_prefix=:curie_prefix) as ref_mod
-               WHERE sub_select.reference_id=reference.reference_id
-               AND sub_select.reference_id=ref_pmid.reference_id
-               AND sub_select.reference_id=ref_doi.reference_id
-               AND sub_select.reference_id=ref_mod.reference_id
-               AND reference.citation_id=citation.citation_id
-               ORDER BY {order_by}
-          """)
+    query = text(f"""
+        SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
+               SUPCOUNT, ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
+        FROM reference, citation,
+             ({subquery}) AS sub_select,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = 'PMID') AS ref_pmid,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = 'DOI') AS ref_doi,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = :curie_prefix) AS ref_mod
+        WHERE sub_select.reference_id = reference.reference_id
+        AND sub_select.reference_id = ref_pmid.reference_id
+        AND sub_select.reference_id = ref_doi.reference_id
+        AND sub_select.reference_id = ref_mod.reference_id
+        AND reference.citation_id = citation.citation_id
+        ORDER BY {order_by}
+    """)
+
     if filter == 'default':
         return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
-                                bindparam('curie_prefix', curie_prefix))
+                                bindparam('curie_prefix', curie_prefix),
+                                bindparam('limit', limit),
+                                bindparam('offset', offset))
     else:
         return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
                                 bindparam('filter', filter),
-                                bindparam('curie_prefix', curie_prefix))
+                                bindparam('curie_prefix', curie_prefix),
+                                bindparam('limit', limit),
+                                bindparam('offset', offset))
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
