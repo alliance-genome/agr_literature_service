@@ -865,7 +865,7 @@ class TestReference:
 
     def test_get_missing_files(self, auth_headers, test_reference, test_mod, test_referencefile): # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/missing_files/{test_mod.new_mod_abbreviation}?filter=default&page=1&order_by=",
+            response = client.get(url=f"/reference/missing_files/{test_mod.new_mod_abbreviation}?filter=default&page=1&order_by=desc",
                                   headers=auth_headers)
             print(f"response.json -> {response.json()}")
             assert response.status_code == status.HTTP_200_OK
