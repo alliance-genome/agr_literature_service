@@ -863,9 +863,12 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
         data = jsonable_encoder(rows)
         if not data:
             return []
-    except Exception:
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Database error: {str(e)}")
+    except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Cant search missing files.")
+                            detail=f"Can't search missing files: {str(e)}")
     return data
 
 
