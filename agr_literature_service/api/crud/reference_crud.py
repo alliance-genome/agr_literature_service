@@ -786,6 +786,9 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: int = 0, limit: int = 25):
 
+    if not order_by:
+        order_by = 'reference.date_created'
+
     subquery: Optional[TextClause] = None
     curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
 
