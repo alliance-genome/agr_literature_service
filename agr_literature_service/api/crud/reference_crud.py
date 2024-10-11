@@ -13,9 +13,10 @@ from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from starlette.background import BackgroundTask
-from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
+from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause, bindparam
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
+from sqlalchemy.exc import SQLAlchemyError
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
@@ -783,96 +784,122 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, curie_prefix: str, order_by: str, filter: str):
+def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: int = 0, limit: int = 25):
 
-    if order_by not in ['date_created', 'curie', 'short_citation']:
-        raise ValueError(f"Invalid order_by field: {order_by}")
+    if not order_by:
+        order_by = 'reference.date_created'
 
     subquery: Optional[TextClause] = None
+    curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+
     if filter == 'default':
-        subquery = text("""SELECT b.reference_id,
-                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                       FROM mod_corpus_association AS b
-                       JOIN mod ON b.mod_id = mod.mod_id
-                       LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                       LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                       WHERE mod.abbreviation = :mod_abbreviation
-                       AND corpus=true
-                       GROUP BY b.reference_id
-                       HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                               OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
-                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-                       AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
+        subquery = text("""
+            SELECT b.reference_id,
+                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE mod.abbreviation = :mod_abbreviation
+            AND corpus = true
+            GROUP BY b.reference_id
+            HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
+                    OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
+            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
+            LIMIT :limit OFFSET :offset
         """)
     elif filter in ['ATP:0000134', 'ATP:0000135']:
-        subquery = text("""SELECT b.reference_id,
-                              COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
-                              COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
-                        FROM mod_corpus_association AS b
-                        JOIN mod ON b.mod_id = mod.mod_id
-                        LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-                        LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-                        WHERE workflow_tag_id=:filter
-                        AND mod.abbreviation = :mod_abbreviation
-                        AND corpus = true
-                        GROUP BY b.reference_id
+        subquery = text("""
+            SELECT b.reference_id,
+                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS MAINCOUNT,
+                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS SUPCOUNT
+            FROM mod_corpus_association AS b
+            JOIN mod ON b.mod_id = mod.mod_id
+            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE workflow_tag_id = :filter
+            AND mod.abbreviation = :mod_abbreviation
+            AND corpus = true
+            GROUP BY b.reference_id
+            LIMIT :limit OFFSET :offset
         """)
 
-    return text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
-                       SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
-               FROM reference, citation,
-                    ({subquery})
-                   AS sub_select,
-                      (SELECT cross_reference.curie, reference_id
-                      FROM cross_reference
-                      WHERE curie_prefix='PMID') as ref_pmid,
-                      (SELECT cross_reference.curie, reference_id
-                      FROM cross_reference
-                      WHERE curie_prefix='DOI') as ref_doi,
-                      (SELECT cross_reference.curie, reference_id
-                       FROM cross_reference
-                       WHERE curie_prefix=:curie_prefix) as ref_mod
-               WHERE sub_select.reference_id=reference.reference_id
-               AND sub_select.reference_id=ref_pmid.reference_id
-               AND sub_select.reference_id=ref_doi.reference_id
-               AND sub_select.reference_id=ref_mod.reference_id
-               AND reference.citation_id=citation.citation_id
-               ORDER BY {order_by}
-          """).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)
+    query = text(f"""
+        SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
+               SUPCOUNT, ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
+        FROM reference, citation,
+             ({subquery}) AS sub_select,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = 'PMID') AS ref_pmid,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = 'DOI') AS ref_doi,
+             (SELECT cross_reference.curie, reference_id
+              FROM cross_reference
+              WHERE curie_prefix = :curie_prefix) AS ref_mod
+        WHERE sub_select.reference_id = reference.reference_id
+        AND sub_select.reference_id = ref_pmid.reference_id
+        AND sub_select.reference_id = ref_doi.reference_id
+        AND sub_select.reference_id = ref_mod.reference_id
+        AND reference.citation_id = citation.citation_id
+        ORDER BY {order_by}
+    """)
+
+    if filter == 'default':
+        return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
+                                bindparam('curie_prefix', curie_prefix),
+                                bindparam('limit', limit),
+                                bindparam('offset', offset))
+    else:
+        return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
+                                bindparam('filter', filter),
+                                bindparam('curie_prefix', curie_prefix),
+                                bindparam('limit', limit),
+                                bindparam('offset', offset))
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
-    if mod_abbreviation == 'XB':
-        curie_prefix = 'Xenbase'
-    else:
-        curie_prefix = mod_abbreviation
+
+    if order_by is None:
+        order_by = 'curie'
+    # if order_by not in ['date_created', 'curie', 'short_citation']:
+    #    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+    #                        detail=f"Invalid order_by field: {order_by}")
+    if filter is None:
+        filter = 'default'
+    if filter not in ['default', 'ATP:0000134', 'ATP:0000135']:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Invalid filter: {filter}")
     try:
-        offset = (page * 25) - 25
-        query = sql_query_for_missing_files(db, mod_abbreviation, curie_prefix, order_by, filter).text + f" LIMIT 25 OFFSET {offset}"
-        rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
+        limit = 25
+        offset = (page - 1) * limit
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter, offset, limit)
+        rows = db.execute(query).mappings().fetchall()
         data = jsonable_encoder(rows)
-    except Exception:
+        if not data:
+            return []
+    except SQLAlchemyError as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"Database error: {str(e)}")
+    except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Cant search missing files.")
+                            detail=f"Can't search missing files: {str(e)}")
     return data
 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
-    if mod_abbreviation == 'XB':
-        curie_prefix = 'Xenbase'
-    else:
-        curie_prefix = mod_abbreviation
     try:
-        query = sql_query_for_missing_files(db, mod_abbreviation, curie_prefix, order_by, filter).text
-        rows = db.execute(text(query).bindparams(mod_abbreviation=mod_abbreviation, filter=filter, curie_prefix=curie_prefix)).mappings().fetchall()
-        tag = ''
-        if filter == 'default':
-            tag = "needed"
-        elif filter == 'ATP:0000134':
-            tag = "uploaded"
-        elif filter == 'ATP:0000135':
-            tag = "unobtainable"
+        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
+        rows = db.execute(query).mappings().fetchall()
+        tag = {
+            'default': 'needed',
+            'ATP:0000134': 'uploaded',
+            'ATP:0000135': 'unobtainable'
+        }.get(filter, 'needed')
+
         tmp_file = f"{mod_abbreviation}_file_{tag}.tsv"
         workflowtag = f"file {tag}"
         tmp_file_with_path = f"{getcwd()}/{tmp_file}"
@@ -969,6 +996,8 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)
     """
 
+    query_params = {'mod_id': mod_id}
+
     # Add condition for reference_type if provided
     if reference_type:
         query_str += """
@@ -981,42 +1010,46 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
             AND mrt.mod_id = :mod_id
         )
         """
+        query_params['reference_type'] = reference_type
 
     # Add species filter if provided
     if species:
         query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
+        query_params['species'] = species
+
     # Add the WB species list if the mod is WB and no species filter is provided
     elif mod_abbreviation == 'WB':
-        query_str += f" AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in ({wb_textpresso_species_list}))"
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in :wb_species_list)"
+        query_params['wb_species_list'] = tuple(wb_textpresso_species_list)
 
     # Add condition for `from_reference_id` if provided
     if from_reference_id:
         query_str += " AND r.reference_id > :from_reference_id"
+        query_params['from_reference_id'] = from_reference_id
 
     # Add condition for files updated from a specific date if provided
     if files_updated_from_date:
         query_str += " AND rf.date_updated >= :files_updated_from_date"
+        query_params['files_updated_from_date'] = files_updated_from_date
 
     # Add limit for pagination
     query_str += " ORDER BY r.reference_id LIMIT :page_size"
+    query_params['page_size'] = page_size
 
-    # Bind parameters and execute the query
-    query = text(query_str).bindparams(
-        mod_id=mod_id,
-        reference_type=reference_type,
-        species=species,
-        files_updated_from_date=files_updated_from_date,
-        page_size=page_size
-    )
-
-    textpresso_referencefiles = db.execute(query).mappings().fetchall()
+    textpresso_referencefiles = db.execute(text(query_str).bindparams(**query_params)).mappings().fetchall()
 
     # Aggregate reference files for each reference
+    """
     aggregated_reffiles = defaultdict(set)
     for reffile in textpresso_referencefiles:
         aggregated_reffiles[(reffile['reference_id'], reffile['curie'])].add(
             (reffile['referencefile_id'], reffile['md5sum'], reffile['mod_id'] is None, reffile['date_created'])
         )
+    """
+    aggregated_reffiles = defaultdict(set)
+    for reffile in textpresso_referencefiles:
+        aggregated_reffiles[(reffile.reference_id, reffile.curie)].add(
+            (reffile.referencefile_id, reffile.md5sum, reffile.mod_id is None, reffile.date_created))
 
     # Return the aggregated results
     return [
