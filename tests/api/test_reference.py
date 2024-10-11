@@ -867,7 +867,9 @@ class TestReference:
         with TestClient(app) as client:
             response = client.get(url=f"/reference/missing_files/{test_mod.new_mod_abbreviation}?filter=default&page=1&order_by=",
                                   headers=auth_headers)
+            print(f"response.status_code -> {response.status_code}")
             print(f"response.json -> {response.json()}")
+            print(f"response.text -> {response.text}") 
             assert response.status_code == status.HTTP_200_OK
             print(response)
             assert response.json() == []
