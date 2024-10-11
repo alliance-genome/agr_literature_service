@@ -16,6 +16,7 @@ from starlette.background import BackgroundTask
 from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause, bindparam
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
+from sqlalchemy.exc import SQLAlchemyError
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
