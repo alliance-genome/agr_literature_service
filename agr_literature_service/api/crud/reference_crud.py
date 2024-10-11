@@ -821,7 +821,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
             GROUP BY b.reference_id
         """)
 
-    query = text(f"""
+    query_str = f"""
         SELECT reference.curie, short_citation, reference.date_created,
                sub_select.maincount AS maincount, sub_select.supcount AS supcount,
                ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
@@ -842,15 +842,15 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
         AND sub_select.reference_id = ref_mod.reference_id
         AND reference.citation_id = citation.citation_id
         ORDER BY reference.date_created {order_by}
-    """)
+    """
 
     # Conditionally add limit and offset only if they are provided
     if limit is not None:
-        query += " LIMIT :limit"
+        query_str += " LIMIT :limit"
     if offset is not None:
-        query += " OFFSET :offset"
+        query_str += " OFFSET :offset"
 
-    query = text(query)
+    query = text(query_str)
 
     # Bind the necessary parameters, including limit and offset if present
     params = {
@@ -860,9 +860,9 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
     if filter != 'default':
         params['filter'] = filter
     if limit is not None:
-        params['limit'] = limit
+        params['limit'] = str(limit)
     if offset is not None:
-        params['offset'] = offset
+        params['offset'] = str(offset)
 
     return query.bindparams(**params)
 
