@@ -846,9 +846,11 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
 
     # Conditionally add limit and offset only if they are provided
     if limit is not None:
-        query = query.append_text(" LIMIT :limit")
+        query += " LIMIT :limit"
     if offset is not None:
-        query = query.append_text(" OFFSET :offset")
+        query += " OFFSET :offset"
+
+    query = text(query)
 
     # Bind the necessary parameters, including limit and offset if present
     params = {
