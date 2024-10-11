@@ -819,7 +819,7 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
                         GROUP BY b.reference_id
         """)
 
-    return text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
+    query = text(f"""SELECT reference.curie, short_citation, reference.date_created, MAINCOUNT,
                        SUPCOUNT, ref_pmid.curie as PMID,ref_doi.curie as DOI, ref_mod.curie AS mod_curie
                FROM reference, citation,
                     ({subquery})
@@ -839,9 +839,14 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
                AND sub_select.reference_id=ref_mod.reference_id
                AND reference.citation_id=citation.citation_id
                ORDER BY {order_by}
-          """).bindparams(bindparam('mod_abbreviation', mod_abbreviation),
-                          bindparam('filter', filter),
-                          bindparam('curie_prefix', curie_prefix))
+          """)
+    if filter == 'default':
+        return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
+                                bindparam('curie_prefix', curie_prefix))
+    else:
+        return query.bindparams(bindparam('mod_abbreviation', mod_abbreviation),
+                                bindparam('filter', filter),
+                                bindparam('curie_prefix', curie_prefix))
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
