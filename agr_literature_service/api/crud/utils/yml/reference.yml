@@ -16,7 +16,7 @@ ZFIN:
 XB:
   example: 'XB-ART-59369'
   pattern:
-    - ['^Xenbase:XB-ART-\d+$', 'XenBase']
+    - ['^Xenbase:XB-ART-\d+$', 'Xenbase']
 FB:
   example: 'FB:FBrf0111489'
   pattern:
