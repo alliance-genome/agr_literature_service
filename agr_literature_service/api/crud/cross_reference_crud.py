@@ -197,11 +197,11 @@ def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):
             curie_prefix=curie_prefix,
             is_obsolete=False
         ).one_or_none()
-        
+
         if cr:
             cr.is_obsolete = True
             db.add(cr)
-            db.commit()    
+            db.commit()
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
