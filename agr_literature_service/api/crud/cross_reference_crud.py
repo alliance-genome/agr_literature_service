@@ -189,6 +189,25 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
             create(db, new_xref)
 
 
+def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):
+    try:
+        curie_prefix = "Xenbase" if mod_abbreviation == 'XB' else mod_abbreviation
+        cr = db.query(CrossReferenceModel).filter_by(
+            reference_id=reference_id,
+            curie_prefix=curie_prefix,
+            is_obsolete=False
+        ).one_or_none()
+        
+        if cr:
+            cr.is_obsolete = True
+            db.add(cr)
+            db.commit()    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Error setting {mod_abbreviation} MOD ID to invalid for reference_id = {reference_id}. Error={str(e)}")
+
+
 def show_changesets(db: Session, cross_reference_id: int):
     cross_reference = get_cross_reference(db, str(cross_reference_id))
     history = []
