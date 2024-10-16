@@ -12,7 +12,7 @@ def create_postgres_engine(verbose):
 
     """Connect to database."""
     USER = environ.get('PSQL_USERNAME', 'postgres')
-    PASSWORD = environ.get('PSQL_PASSWORD', 'postgres')
+    PASSWORD = environ.get('PSQL_PASSWORD')
     SERVER = environ.get('PSQL_HOST', 'localhost')
     PORT = environ.get('PSQL_PORT', '5432')
     DB = environ.get('PSQL_DATABASE', 'literature')

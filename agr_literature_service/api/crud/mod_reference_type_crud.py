@@ -15,20 +15,32 @@ from agr_literature_service.api.schemas import ModReferenceTypeSchemaPost
 
 def insert_mod_reference_type_into_db(db_session, pubmed_types, mod_abbreviation, referencetype_label, reference_id):
     mod = db_session.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
-    ref_type = db_session.query(ReferencetypeModel).filter(ReferencetypeModel.label == referencetype_label)\
-        .one_or_none()
+    if mod is None:
+        raise ValueError(f"Mod with abbreviation '{mod_abbreviation}' not found.")
+    ref_type = db_session.query(ReferencetypeModel).filter(
+        ReferencetypeModel.label == referencetype_label).one_or_none()
     mrt = db_session.query(ModReferencetypeAssociationModel).filter(
         ModReferencetypeAssociationModel.mod == mod,
         ModReferencetypeAssociationModel.referencetype == ref_type).one_or_none()
     if (ref_type is None or mrt is None) and mod.abbreviation == "SGD":
-        if referencetype_label in set(pubmed_types):
+        if referencetype_label in pubmed_types:
             if ref_type is None:
                 ref_type = ReferencetypeModel(label=referencetype_label)
+                db_session.add(ref_type)
+                db_session.flush()  # make sure ref_type gets an ID before associating it
             max_display_order = max((mod_ref_type.display_order for mod_ref_type in mod.referencetypes),
                                     default=0)
             mrt = ModReferencetypeAssociationModel(
                 mod=mod, referencetype=ref_type,
                 display_order=math.ceil((max_display_order + 1) / 10) * 10)
+            db_session.add(mrt)
+            db_session.flush()
+    existing_row = db_session.query(ReferenceModReferencetypeAssociationModel).filter_by(
+        reference_id=reference_id,
+        mod_referencetype_id=mrt.mod_referencetype_id
+    ).one_or_none()
+    if existing_row:
+        return existing_row.reference_mod_referencetype_id
     if mrt is not None:
         rmrt = ReferenceModReferencetypeAssociationModel(reference_id=reference_id, mod_referencetype=mrt)
         db_session.add(rmrt)
