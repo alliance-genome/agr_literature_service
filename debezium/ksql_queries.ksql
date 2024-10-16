@@ -30,7 +30,7 @@ CREATE TABLE reference (
     title string,
     volume string
   ) WITH (
-    KAFKA_TOPIC='abc.public.reference',
+    KAFKA_TOPIC='abc.lit.reference',
     VALUE_FORMAT='json'
   );
 
@@ -40,7 +40,7 @@ CREATE TABLE cross_reference (
     curie string,
     is_obsolete boolean
   ) WITH (
-    KAFKA_TOPIC='abc.public.cross_reference',
+    KAFKA_TOPIC='abc.lit.cross_reference',
     VALUE_FORMAT='json'
   );
 
@@ -50,7 +50,7 @@ CREATE TABLE author (
     orcid string,
     name string
   ) WITH (
-    KAFKA_TOPIC='abc.public.author',
+    KAFKA_TOPIC='abc.lit.author',
     VALUE_FORMAT='json'
   );
 
@@ -58,7 +58,7 @@ CREATE TABLE mod (
     mod_id string PRIMARY KEY,
     abbreviation string
   ) WITH (
-    KAFKA_TOPIC='abc.public.mod',
+    KAFKA_TOPIC='abc.lit.mod',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
   );
@@ -69,7 +69,7 @@ CREATE TABLE mod_corpus_association (
     reference_id string,
     corpus boolean
   ) WITH (
-    KAFKA_TOPIC='abc.public.mod_corpus_association',
+    KAFKA_TOPIC='abc.lit.mod_corpus_association',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
   );
@@ -79,7 +79,7 @@ CREATE TABLE obsolete_reference_curie (
     curie string,
     new_id string
   ) WITH (
-    KAFKA_TOPIC='abc.public.obsolete_reference_curie',
+    KAFKA_TOPIC='abc.lit.obsolete_reference_curie',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
   );
@@ -89,7 +89,7 @@ CREATE TABLE citation (
     citation string,
     short_citation string
   ) WITH (
-    KAFKA_TOPIC='abc.public.citation',
+    KAFKA_TOPIC='abc.lit.citation',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
@@ -98,7 +98,7 @@ CREATE TABLE referencetype(
     referencetype_id string PRIMARY KEY,
     label string
   ) WITH (
-    KAFKA_TOPIC='abc.public.referencetype',
+    KAFKA_TOPIC='abc.lit.referencetype',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
@@ -109,7 +109,7 @@ CREATE TABLE mod_referencetype(
     referencetype_id string,
     display_order string
   ) WITH (
-    KAFKA_TOPIC='abc.public.mod_referencetype',
+    KAFKA_TOPIC='abc.lit.mod_referencetype',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
@@ -119,7 +119,7 @@ CREATE TABLE reference_mod_referencetype(
     reference_id string,
     mod_referencetype_id string
   ) WITH (
-    KAFKA_TOPIC='abc.public.reference_mod_referencetype',
+    KAFKA_TOPIC='abc.lit.reference_mod_referencetype',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
@@ -129,7 +129,7 @@ CREATE TABLE topic_entity_tag_source(
     source_method string,
     source_evidence_assertion string
   ) WITH (
-    KAFKA_TOPIC='abc.public.topic_entity_tag_source',
+    KAFKA_TOPIC='abc.lit.topic_entity_tag_source',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );
@@ -154,7 +154,7 @@ CREATE TABLE topic_entity_tag(
     novel_topic_data boolean,
     entity_id_validation string
   ) WITH (
-    KAFKA_TOPIC='abc.public.topic_entity_tag',
+    KAFKA_TOPIC='abc.lit.topic_entity_tag',
     VALUE_FORMAT='json',
     KEY_FORMAT='json'
 );

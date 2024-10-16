@@ -67,6 +67,10 @@ class ModReferencetypeAssociationModel(Base):
     # Add a back reference for ReferenceModReferencetypeAssociationModel
     reference_mod_referencetypes = relationship("ReferenceModReferencetypeAssociationModel",
                                                 back_populates="mod_referencetype")
+    display_order = Column(
+        Integer,
+        nullable=False
+    )
 
 
 class ReferenceModReferencetypeAssociationModel(Base, AuditedModel):

@@ -52,7 +52,7 @@ test_reference_curies = [
     'AGRKB:101000000014457'   # end of merge test examples
 ]
 
-trigger_list = ['reference', 'resource', 'author', 'cross_reference']
+trigger_list = ['lit.reference', 'lit.resource', 'lit.author', 'lit.cross_reference']
 
 ALL_OUTPUT = 2  # For verbosity
 
@@ -94,13 +94,13 @@ def dump_schema(user, password, server, port, db):
     # Dump full original database if requested.
     filename = f"{dump_dir}/{server}-literature.sql"
     if full_orig_dump:
-        com = f"pg_dump -Fc --clean -n public -h {server} -p {port} -U {user} -W {db} > {filename}"
+        com = f"pg_dump -Fc --clean -n public -n lit -h {server} -p {port} -U {user} -W {db} > {filename}"
         print(com)
         system(f"PGPASSWORD={password} {com}")
 
     # Dump schema for original database.
     filename = f"{dump_dir}/literature_schema.sql"
-    com = f"pg_dump -Fc --schema-only --clean -n public -h {server} -p {port} -U {user} -d {db} > {filename}"
+    com = f"pg_dump -Fc --schema-only --clean -n public -n lit -h {server} -p {port} -U {user} -d {db} > {filename}"
     print(com)
     system(f"PGPASSWORD={password} {com}")
 
@@ -120,15 +120,27 @@ def load_schema(user, password, server, port, db):
     if verbose:
         print(com)
     system(f"PGPASSWORD={password} {com}")
+    add_schema('lit', user, password, server, port, db)
 
     if verbose:
         print(f"Load schema for {db}")
     filename = f"{dump_dir}/literature_schema.sql"
-    com = f"pg_restore -h {server} -n public -U {user} -p {port} -d {db} < {filename}"
+    com = f"pg_restore -h {server} -n public -n lit -U {user} -p {port} -d {db} < {filename}"
     if verbose:
         print(com)
     system(f"PGPASSWORD={password} {com}")
 
+def add_schema(schemaName: str, user, password, server, port, db):
+    sql_add_schema1 = f'psql -h {server} -d {db} -p {port} -U {user} -c " CREATE SCHEMA {schemaName};"'
+    sql_add_schema2 = f'psql -h {server} -d {db} -p {port} -U {user} -c " GRANT ALL ON SCHEMA {schemaName} TO public;"'
+    sql_add_schema3 = f'psql -h {server} -d {db} -p {port} -U {user} -c " GRANT ALL ON SCHEMA {schemaName} TO postgres;"'
+    if verbose:
+        print(sql_add_schema1)
+        print(sql_add_schema2)
+        print(sql_add_schema3)
+    system(f"PGPASSWORD={password} {sql_add_schema1}")
+    system(f"PGPASSWORD={password} {sql_add_schema2}")
+    system(f"PGPASSWORD={password} {sql_add_schema3}")
 
 def dump_subset():
     global verbose, dump_dir
@@ -140,7 +152,7 @@ def dump_subset():
     if verbose:
         print(f"Dumping database {db} to {dump_dir}")
     filename = f"{dump_dir}/literature_subset.sql"
-    com = f"pg_dump -Fc --clean -n public -h {server} -p {port} -U {user} -d {db} > {filename}"
+    com = f"pg_dump -Fc --clean -n public -n lit -h {server} -p {port} -U {user} -d {db} > {filename}"
     if verbose:
         print(com)
     system(f"PGPASSWORD={password} {com}")
@@ -178,6 +190,7 @@ def create_postgres_engine(source=False):
         DB = environ.get('PSQL_DATABASE', 'literature_subset')
         db_type = "Target"
         load_schema(USER, PASSWORD, SERVER, PORT, DB)
+
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
@@ -315,24 +328,30 @@ def add_sequence_data(db_subset_session):
         # and set seq to that  +1 and or 0 if none found
         if max_val:
             print(f"setting max value to {max_val + 1} for {x[2]}")
-            com = f"ALTER SEQUENCE {x[2]} RESTART WITH {max_val+1}"
-            db_subset_session.execute(com)
+            if x[0].startswith("lit."):
+                com = f"ALTER SEQUENCE lit.{x[2]} RESTART WITH {max_val+1}"
+            else:
+                com = f"ALTER SEQUENCE {x[2]} RESTART WITH {max_val + 1}"
+            db_subset_session.execute(text(com))
         else:
             print(f"setting max value to 0 for {x[2]} as none found")
-            com = f"ALTER SEQUENCE {x[2]} RESTART WITH 1"
-            db_subset_session.execute(com)
+            if x[0].startswith("lit."):
+                com = f"ALTER SEQUENCE lit.{x[2]} RESTART WITH 1"
+            else:
+                com = f"ALTER SEQUENCE {x[2]} RESTART WITH 1"
+            db_subset_session.execute(text(com))
 
 
 def add_alembic(db_orig_session, db_subset_session):
     # Add alembic_version
-    alembic_rows = db_orig_session.execute("SELECT version_num from alembic_version")
+    alembic_rows = db_orig_session.execute(text("SELECT version_num from lit.alembic_version"))
     version = ''
     for alembic_row in alembic_rows:
         version = alembic_row[0]
     if not version:
         print("ERROR: Could not find version_num for alembic_version table")
     else:
-        db_subset_session.execute(f"INSERT into alembic_version (version_num) VALUES ('{version}');")
+        db_subset_session.execute(text(f"INSERT into lit.alembic_version (version_num) VALUES ('{version}');"))
     db_subset_session.commit()
     db_subset_session.close()
 
@@ -340,7 +359,7 @@ def add_alembic(db_orig_session, db_subset_session):
 def trigger_settings(db_session, state="DISABLE"):
     global trigger_list
     for table in trigger_list:
-        db_session.execute(f'ALTER TABLE {table} {state} TRIGGER all;')
+        db_session.execute(text(f'ALTER TABLE {table} {state} TRIGGER all;'))
     db_session.commit()
 
 
@@ -421,9 +440,9 @@ def start():
 
     # Sanity checks
     okay = True
-    tables = ['reference', 'citation']  # add other tables?
+    tables = ['lit.reference', 'lit.citation']  # add other tables?
     for table_name in tables:
-        count_rows = db_subset_session.execute(f"SELECT count(1) from {table_name}")
+        count_rows = db_subset_session.execute(text(f"SELECT count(1) from {table_name}"))
         count = 0
         for count_row in count_rows:
             count = count_row[0]
@@ -441,8 +460,8 @@ def start():
     # add sequence data. What value to use next in a sequence
     add_sequence_data(db_subset_session)
 
-    # for what ever reason need this:
-    db_subset_session.execute("REFRESH MATERIALIZED VIEW _view")
+    # for what ever reason need this: no long need this ? no materialized view with \dm
+    db_subset_session.execute(text("REFRESH MATERIALIZED VIEW _view"))
     db_subset_session.commit()
     if subset_dump:
         dump_subset()

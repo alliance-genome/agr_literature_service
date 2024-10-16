@@ -49,7 +49,8 @@ AFTER UPDATE ON lit.author
 FOR EACH ROW
 WHEN (
     NEW.name IS DISTINCT FROM OLD.name OR
-    NEW.order IS DISTINCT FROM OLD.order
+    NEW.order IS DISTINCT FROM OLD.order OR
+    NEW.last_name IS DISTINCT FROM OLD.last_name
 )
 EXECUTE FUNCTION lit.author_update_citation();
 """

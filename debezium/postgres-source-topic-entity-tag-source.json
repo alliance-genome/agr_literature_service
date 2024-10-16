@@ -11,7 +11,7 @@
     "database.password": "${PSQL_PASSWORD}",
     "database.dbname" : "${PSQL_DATABASE}",
     "database.server.name": "abc",
-    "table.include.list": "public.topic_entity_tag_source",
+    "table.include.list": "lit.topic_entity_tag_source",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
     "poll.interval.ms": "100",
