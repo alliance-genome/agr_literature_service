@@ -1,17 +1,3 @@
-"""
-Add transitions.
-
-i.e.
-   python3 -d transitions_add.py -f file_upload -v 1
-
-   data files (methods that return the data to insert into the table) are in the
-   directory 'data'.
-   If new transitions are added then update existing files or create a new file and
-   import it here (See # Data files) and add an elif (see # Add new data files here with appropriate elif)
-
-    get_name_to_atp_and_children method maybe useful outside the workflow module,
-    so we may want to move this into the api at some point.
-"""
 import json
 from fastapi_okta.okta_utils import get_authentication_token
 import urllib.request
@@ -20,41 +6,28 @@ import logging
 from fastapi import HTTPException
 from urllib.error import HTTPError
 from starlette import status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine, \
-    create_postgres_session
-
-from agr_literature_service.api.models import WorkflowTransitionModel
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+from agr_literature_service.api.models import ModModel, WorkflowTransitionModel
 
 # Data files
 from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.file_upload import get_data as file_upload
 from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.classification import get_data as classifications
-from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.text_conversion import get_data as text_conversions
+from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.text_conversion import get_data as text_conversion
+from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.entity_extraction import get_data as entity_extraction
 from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.stage import get_data as stage
 
 
 logger = logging.getLogger(__name__)
 name_to_atp = {}
 atp_to_name = {}
-mod_ids = {}
 
 helptext = "--filename file1 -debug"
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter, description=helptext)
 parser.add_argument('-f', '--filename', help='Filename to be processed.', type=str, required=True)
 parser.add_argument('-v', '--verbose', help='Print a lot of info during run.', default=False, type=bool, required=False)
 args = parser.parse_args()
-
-
-def load_mod_abbr(db):
-    global mod_ids
-    try:
-        mod_results = db.execute("select abbreviation, mod_id from mod")
-        mods = mod_results.fetchall()
-        for mod in mods:
-            if mod["abbreviation"] != 'GO':
-                mod_ids[mod["abbreviation"]] = mod["mod_id"]
-    except Exception as e:
-        print('Error: ' + str(type(e)))
 
 
 def get_name_to_atp_and_children(token, debug, curie='ATP:0000177'):
@@ -90,22 +63,26 @@ def get_name_to_atp_and_children(token, debug, curie='ATP:0000177'):
                             detail="Error from A-team API")
 
 
-def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
+def add_transitions(db_session: Session, filename: str, debug: bool = False):  # noqa
     global name_to_atp
-    global mod_ids
+
+    mod_ids = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).filter(ModModel.abbreviation != 'GO').all()])
 
     # Add new data files here with appropriate elif
     if filename == "file_upload":
         data_to_add = file_upload(name_to_atp)
     elif filename == "classifications":
         data_to_add = classifications(name_to_atp)
-    elif filename == "text_conversions":
-        data_to_add = text_conversions(name_to_atp)
+    elif filename == "text_conversion":
+        data_to_add = text_conversion(name_to_atp)
+    elif filename == "entity_extraction":
+        data_to_add = entity_extraction(name_to_atp)
     elif filename == "stage":
         data_to_add = stage(name_to_atp)
     else:
         print(f"Unknown filename {filename}")
         return
+
     for transition in data_to_add:
         mod_list: list = []
         if 'mod' in transition:
@@ -129,39 +106,36 @@ def add_transitions(db: Session, filename: str, debug: bool = False):  # noqa
             except KeyError:
                 print(f"ERROR: {transition['to']} is not found in name_to_atp")
                 exit(-1)
-            wft = db.query(WorkflowTransitionModel).\
-                filter(WorkflowTransitionModel.mod_id == mod_ids[mod_abbr],
-                       WorkflowTransitionModel.transition_from == trans_from,
-                       WorkflowTransitionModel.transition_to == trans_to).one_or_none()
+
+            stmt = select(WorkflowTransitionModel).filter_by(
+                mod_id=mod_ids[mod_abbr],
+                transition_from=trans_from,
+                transition_to=trans_to
+            )
+
+            wft = db_session.scalars(stmt).one_or_none()
+
             if wft:
                 if debug:
                     print(f"Transition found, will update actions and condition only for {wft}")
-            if not wft:
+            else:
                 if debug:
                     print(f"Adding new wft {wft}")
-                wft = WorkflowTransitionModel(mod_id=mod_ids[mod_abbr],
-                                              transition_from=trans_from,
-                                              transition_to=trans_to)
-                db.add(wft)
-            if 'actions' in transition and transition['actions'] != "None":
-                wft.actions = transition['actions']
-            else:
-                wft.actions = []
-            if 'condition' in transition and transition['condition'] != "None":
-                wft.condition = transition['condition']
-            else:
-                wft.condition = None
-            if 'requirements' in transition and transition['requirements'] != "None":
-                wft.requirements = transition['requirements']
-            else:
-                wft.requirements = None
-            if 'transition_type' in transition:
-                wft.transition_type = transition['transition_type']
-            else:
-                wft.transition_type = "any"
-    db.commit()
+                wft = WorkflowTransitionModel(
+                    mod_id=mod_ids[mod_abbr],
+                    transition_from=trans_from,
+                    transition_to=trans_to
+                )
+                db_session.add(wft)
+
+            wft.actions = transition.get('actions', [])
+            wft.condition = transition.get('condition', None)
+            wft.requirements = transition.get('requirements', None)
+            wft.transition_type = transition.get('transition_type', "any")
+
+    db_session.commit()
     if debug:
-        wfts = db.query(WorkflowTransitionModel).all()
+        wfts = db_session.query(WorkflowTransitionModel).all()
         for wft in wfts:
             print(f"Final: {wft}")
 
@@ -171,9 +145,5 @@ if __name__ == "__main__":
     if not auth_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     get_name_to_atp_and_children(token=auth_token, debug=args.verbose)
-    engine = create_postgres_engine(False)
-    db_connection = engine.connect()
-    db_session: Session = create_postgres_session(False)
-
-    load_mod_abbr(db_session)
+    db_session = create_postgres_session(False)
     add_transitions(db_session, args.filename, args.verbose)
