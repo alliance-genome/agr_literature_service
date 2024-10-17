@@ -1,5 +1,7 @@
 """
 
+reference classification complete (ATP:0000169)
+
 entity extraction (ATP:0000172)
 
     entity extraction complete (ATP:0000174)
@@ -39,44 +41,38 @@ def get_data(name_to_atp):
     mod can only be 'ALL', the actual mod abbreviation or 'NOT_' + mod abbreviation
     i.e. ALL, WB, NOT_FB are three examples.
     """
-    test_data = []
-    # for each XXX extraction needed for job control
-    for entry in ('allele', 'antibody', 'gene', 'species', 'transgenic allele', 'strain'):
-        if entry == "strain":
-            item = {
-                'mod': 'ALL',
-                'from': 'entity extraction',
-                'to': f'{entry} extraction complete',
-                'condition': 'on_success'
-            }
-            test_data.append(item)
-            continue
+    transition_data = []
+
+    # add 'strain' after curators finish adding missing terms for 'strain'
+    for entry in ('entity', 'allele', 'antibody', 'gene', 'species', 'transgenic allele'):
         item = {
             'mod': 'ALL',
-            'from': 'entity extraction needed',
+            'from': 'reference classification complete',
             'to': f'{entry} extraction needed',
-            'condition': f'{entry}_extraction_job'
+            'condition': f'{entry}_extraction_job',
+            'actions': [],
+            'transition_type': 'action'
         }
-        test_data.append(item)
+        transition_data.append(item)
         item = {
             'mod': 'ALL',
             'from': f'{entry} extraction needed',
             'to': f'{entry} extraction in progress',
             'condition': 'on_start'
         }
-        test_data.append(item)
+        transition_data.append(item)
         item = {
             'mod': 'ALL',
             'from': f'{entry} extraction in progress',
             'to': f'{entry} extraction failed',
             'condition': 'on_failed'
         }
-        test_data.append(item)
+        transition_data.append(item)
         item = {
             'mod': 'ALL',
             'from': f'{entry} extraction in progress',
             'to': f'{entry} extraction complete',
             'condition': 'on_success'
         }
-        test_data.append(item)
-    return test_data
+        transition_data.append(item)
+    return transition_data
