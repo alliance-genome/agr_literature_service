@@ -36,7 +36,7 @@ upload_file () {
     -H 'Content-Type: multipart/form-data' \
     -F "file=@\"${filepath}\";type=text/plain" \
     -F 'metadata_file=')
-  if [[ $response == null ]]; then
+  if [[ "${response}" == "\"success\"" ]]; then
     upload_status="success"
     response="empty response"
   else
