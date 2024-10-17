@@ -12,8 +12,8 @@ from typing import List, Union
 import boto3  # type: ignore
 from fastapi import HTTPException, status, UploadFile
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, or_, text
-from sqlalchemy.orm import Session, subqueryload
+from sqlalchemy import and_, or_, text, select
+from sqlalchemy.orm import Session, subqueryload, joinedload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
@@ -62,21 +62,31 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
 
 
 def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List[str], mod_abbreviation: str):
-    ref_id_curie_map = {ref.reference_id: ref.curie for ref in db.query(
-        ReferenceModel.reference_id, ReferenceModel.curie).filter(ReferenceModel.curie.in_(curies)).all()}
-    all_ref_files = db.query(ReferencefileModel).filter(ReferencefileModel.reference_id.in_(
-        list(ref_id_curie_map.keys()))).all()
+    ref_id_curie_map = {ref.reference_id: ref.curie for ref in db.execute(
+        select(ReferenceModel.reference_id, ReferenceModel.curie).where(ReferenceModel.curie.in_(curies))
+    ).all()}
+
+    all_ref_files = db.execute(
+        select(ReferencefileModel)
+        .where(ReferencefileModel.reference_id.in_(list(ref_id_curie_map.keys())))
+        .options(joinedload(ReferencefileModel.referencefile_mods))
+    ).unique().scalars().all()
+
     curie_main_ref_file_map = {}
+
     for ref_file in all_ref_files:
-        main_pdf_reffile_id = None
         if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.pdf_type == "pdf":
+            main_pdf_reffile_id = None
+            pmc_main_pdf_reffile_id = None
             for ref_file_mod in ref_file.referencefile_mods:
-                if (ref_file_mod.mod and ref_file_mod.mod.abbreviation == mod_abbreviation or ref_file_mod.mod is
-                        None and main_pdf_reffile_id is None):
+                if ref_file_mod.mod and ref_file_mod.mod.abbreviation == mod_abbreviation:
                     main_pdf_reffile_id = ref_file.referencefile_id
-                    if ref_file_mod.mod is not None:
-                        break
-        curie_main_ref_file_map[ref_id_curie_map[ref_file.reference_id]] = main_pdf_reffile_id
+                    break
+                if (ref_file_mod.mod is None and main_pdf_reffile_id is None):
+                    pmc_main_pdf_reffile_id = ref_file.referencefile_id
+            main_pdf_reffile_id = main_pdf_reffile_id or pmc_main_pdf_reffile_id
+            if main_pdf_reffile_id:
+                curie_main_ref_file_map[ref_id_curie_map[ref_file.reference_id]] = main_pdf_reffile_id
     return curie_main_ref_file_map
 
 

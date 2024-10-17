@@ -9,7 +9,8 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id, \
+    set_mod_curie_to_invalid
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, WorkflowTagModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, get_current_workflow_status
@@ -136,6 +137,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                     transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
             elif (value is False or value is None) and mod_corpus_association_db_obj.corpus is True:
                 delete_workflow_tag_if_file_needed(db, reference_obj, mod_corpus_association_db_obj.mod)
+                set_mod_curie_to_invalid(db, reference_obj.reference_id, mod_corpus_association_db_obj.mod.abbreviation)
             setattr(mod_corpus_association_db_obj, field, value)
         else:
             setattr(mod_corpus_association_db_obj, field, value)
