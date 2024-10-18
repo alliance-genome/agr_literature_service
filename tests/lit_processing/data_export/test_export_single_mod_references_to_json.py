@@ -22,7 +22,7 @@ class TestExportSingleModReferencesToJson:
         curie_to_reference_id = {}
 
         ## ZFIN papers
-        rs = db.execute(text("SELECT reference_id, curie FROM cross_reference where curie in ('PMID:33622238', 'PMID:34354223', 'PMID:35151207')"))
+        rs = db.execute(text("SELECT reference_id, curie FROM lit.cross_reference where curie in ('PMID:33622238', 'PMID:34354223', 'PMID:35151207')"))
         rows = rs.fetchall()
         for x in rows:
             reference_id_list.append(x[0])

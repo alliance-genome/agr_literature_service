@@ -32,7 +32,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
         # reference types are not loaded by default so we have to grab them manually
         select = f"""
         select rt.label
-          from referencetype rt, mod_referencetype mrt, reference_mod_referencetype rmrt
+          from lit.referencetype rt, lit.mod_referencetype mrt, lit.reference_mod_referencetype rmrt
           where rt.referencetype_id = mrt.referencetype_id and
                 mrt.mod_id = {current_workflow_tag_db_obj.mod_id} and
                 rmrt.reference_id = {current_workflow_tag_db_obj.reference_id} and

@@ -16,7 +16,7 @@ class TestSqlalchemyUtils:
         assert isinstance(engine, Engine)
 
         with engine.connect() as connection:
-            res = connection.execute(text("SELECT * FROM USERS"))
+            res = connection.execute(text("SELECT * FROM lit.USERS"))
             assert len([row for row in res]) > 0
 
         create_postgres_engine(verbose=True)
@@ -26,7 +26,7 @@ class TestSqlalchemyUtils:
     def test_create_postgres_session(self, db, capfd): # noqa
         session = create_postgres_session(verbose=False)
         assert isinstance(session, Session)
-        res = session.execute(text("SELECT * from USERS"))
+        res = session.execute(text("SELECT * from lit.USERS"))
         assert len([row for row in res]) > 0
 
         create_postgres_session(verbose=True)
@@ -36,5 +36,5 @@ class TestSqlalchemyUtils:
     def test_sqlalchemy_load_ref_xref(self, db, test_cross_reference): # noqa
         sqlalchemy_load_ref_xref(datatype="reference")
         sqlalchemy_load_ref_xref(datatype="resource")
-        res = db.execute(text("SELECT * from cross_reference"))
+        res = db.execute(text("SELECT * from lit.cross_reference"))
         assert len([row for row in res]) > 0

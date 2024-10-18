@@ -28,6 +28,7 @@ def create_all_tables():
 def create_default_user():
     db = sessionmaker(engine, autoflush=True)
     with db.begin() as session:
+        session.execute(text("SET search_path TO lit, public"))
         session.execute(text("INSERT INTO lit.users (id) VALUES ('default_user') ON CONFLICT DO NOTHING"))
 
 

@@ -22,7 +22,7 @@ def test_cross_reference(db, auth_headers, test_reference): # noqa
     print("***** Adding a test cross reference *****")
     with TestClient(app) as client:
         with db.begin():
-            db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+            db.execute(text("INSERT INTO lit.resource_descriptors (db_prefix, name, default_url) "
                             "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')"))
             # No need for db.commit() here, it is handled by `with db.begin()`
         new_cross_ref = {
@@ -118,9 +118,9 @@ class TestCrossRef:
     def test_show_all_xrefs(self, db, test_cross_reference, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             with db.begin():
-                db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                db.execute(text("INSERT INTO lit.resource_descriptors (db_prefix, name, default_url) "
                                 "VALUES ('XREF2', 'Madeup2', 'http://www.bob2.com/[%s]')"))
-                db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
+                db.execute(text("INSERT INTO lit.resource_descriptors (db_prefix, name, default_url) "
                                 "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')"))
             new_cross_ref = {
                 "curie": "XREF2:123456",

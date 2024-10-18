@@ -436,7 +436,7 @@ class TestReference:
             # 1) Manually examine the _version table
             #####################################
             sql = """SELECT transaction_id, operation_type, end_transaction_id, category, category_mod
-                     FROM reference_version
+                     FROM lit.reference_version
                        WHERE curie = '{}'
                        ORDER BY transaction_id
                 """.format(response1.json())

@@ -320,7 +320,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
             reference_data["copyright_license_description"] = crl.description
             reference_data["copyright_license_open_access"] = crl.open_access
             rows = db.execute(text(f"SELECT rv.updated_by, u.email "
-                                   f"FROM reference_version rv, users u "
+                                   f"FROM lit.reference_version rv, lit.users u "
                                    f"WHERE curie = '{reference_data['curie']}' "
                                    f"AND copyright_license_id_mod IS true "
                                    f"AND rv.updated_by = u.id "
@@ -794,11 +794,11 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
             SELECT b.reference_id,
                    COUNT(1) FILTER (WHERE c.file_class = 'main') AS maincount,
                    COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS supcount
-            FROM mod_corpus_association AS b
-            JOIN mod ON b.mod_id = mod.mod_id
-            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-            WHERE mod.abbreviation = :mod_abbreviation
+            FROM lit.mod_corpus_association AS b
+            JOIN lit.mod ON b.mod_id = mod.mod_id
+            LEFT JOIN lit.referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN lit.workflow_tag AS d ON b.reference_id = d.reference_id
+            WHERE lit.mod.abbreviation = :mod_abbreviation
             AND corpus = true
             GROUP BY b.reference_id
             HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
@@ -811,37 +811,37 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
             SELECT b.reference_id,
                    COUNT(1) FILTER (WHERE c.file_class = 'main') AS maincount,
                    COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS supcount
-            FROM mod_corpus_association AS b
-            JOIN mod ON b.mod_id = mod.mod_id
-            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
+            FROM lit.mod_corpus_association AS b
+            JOIN lit.mod ON b.mod_id = mod.mod_id
+            LEFT JOIN lit.referencefile AS c ON b.reference_id = c.reference_id
+            LEFT JOIN lit.workflow_tag AS d ON b.reference_id = d.reference_id
             WHERE workflow_tag_id = :filter
-            AND mod.abbreviation = :mod_abbreviation
+            AND lit.mod.abbreviation = :mod_abbreviation
             AND corpus = true
             GROUP BY b.reference_id
         """)
 
     query_str = f"""
-        SELECT reference.curie, short_citation, reference.date_created,
+        SELECT lit.reference.curie, short_citation, lit.reference.date_created,
                sub_select.maincount AS maincount, sub_select.supcount AS supcount,
                ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
-        FROM reference, citation,
+        FROM lit.reference, lit.citation,
              ({subquery}) AS sub_select,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
+             (SELECT lit.cross_reference.curie, reference_id
+              FROM lit.cross_reference
               WHERE curie_prefix = 'PMID') AS ref_pmid,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
+             (SELECT lit.cross_reference.curie, reference_id
+              FROM lit.cross_reference
               WHERE curie_prefix = 'DOI') AS ref_doi,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
+             (SELECT lit.cross_reference.curie, reference_id
+              FROM lit.cross_reference
               WHERE curie_prefix = :curie_prefix) AS ref_mod
-        WHERE sub_select.reference_id = reference.reference_id
+        WHERE sub_select.reference_id = lit.reference.reference_id
         AND sub_select.reference_id = ref_pmid.reference_id
         AND sub_select.reference_id = ref_doi.reference_id
         AND sub_select.reference_id = ref_mod.reference_id
-        AND reference.citation_id = citation.citation_id
-        ORDER BY reference.date_created {order_by}
+        AND lit.reference.citation_id = lit.citation.citation_id
+        ORDER BY lit.reference.date_created {order_by}
     """
 
     # Conditionally add limit and offset only if they are provided
@@ -996,10 +996,10 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
     # Start building the query string
     query_str = """
         SELECT r.curie, r.reference_id, rf.referencefile_id, rf.md5sum, rfm.mod_id, rf.date_created
-        FROM reference r
-        JOIN mod_corpus_association mca on r.reference_id = mca.reference_id
-        JOIN referencefile rf ON rf.reference_id = r.reference_id
-        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+        FROM lit.reference r
+        JOIN lit.mod_corpus_association mca on r.reference_id = mca.reference_id
+        JOIN lit.referencefile rf ON rf.reference_id = r.reference_id
+        JOIN lit.referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
         WHERE mca.corpus is True
         AND mca.mod_id = :mod_id
         AND rf.file_class = 'main'
@@ -1014,9 +1014,9 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         query_str += """
         AND r.reference_id IN (
             SELECT rmrt.reference_id
-            FROM reference_mod_referencetype rmrt
-            JOIN mod_referencetype mrt ON mrt.mod_referencetype_id = rmrt.mod_referencetype_id
-            JOIN referencetype rt ON rt.referencetype_id = mrt.referencetype_id
+            FROM lit.reference_mod_referencetype rmrt
+            JOIN lit.mod_referencetype mrt ON mrt.mod_referencetype_id = rmrt.mod_referencetype_id
+            JOIN lit.referencetype rt ON rt.referencetype_id = mrt.referencetype_id
             WHERE rt.label = :reference_type
             AND mrt.mod_id = :mod_id
         )
@@ -1025,12 +1025,12 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
 
     # Add species filter if provided
     if species:
-        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity = :species)"
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM lit.topic_entity_tag WHERE entity = :species)"
         query_params['species'] = species
 
     # Add the WB species list if the mod is WB and no species filter is provided
     elif mod_abbreviation == 'WB':
-        query_str += " AND r.reference_id IN (SELECT reference_id FROM topic_entity_tag WHERE entity in :wb_species_list)"
+        query_str += " AND r.reference_id IN (SELECT reference_id FROM lit.topic_entity_tag WHERE entity in :wb_species_list)"
         query_params['wb_species_list'] = wb_textpresso_species_list
 
     # Add condition for `from_reference_id` if provided
