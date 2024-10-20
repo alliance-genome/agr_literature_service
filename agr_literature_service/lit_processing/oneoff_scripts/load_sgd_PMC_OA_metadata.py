@@ -22,14 +22,14 @@ def load_data():
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    rs = db_session.execute("SELECT referencefile_id, reference_id, md5sum FROM referencefile")
+    rs = db_session.execute("SELECT referencefile_id, reference_id, md5sum FROM lit.referencefile")
     rows = rs.fetchall()
     referencefile_loaded = {}
     for x in rows:
         # (reference_id, md5sum) => referencefile_id
         referencefile_loaded[(x[1], x[2])] = x[0]
 
-    rs = db_session.execute("SELECT referencefile_id FROM referencefile_mod WHERE mod_id is null")
+    rs = db_session.execute("SELECT referencefile_id FROM lit.referencefile_mod WHERE mod_id is null")
     rows = rs.fetchall()
     referencefile_mod_loaded = {}
     for x in rows:

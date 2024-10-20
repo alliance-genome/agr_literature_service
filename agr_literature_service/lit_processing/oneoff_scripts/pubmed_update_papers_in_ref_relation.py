@@ -14,10 +14,10 @@ def batch_update_data():
 
     db = create_postgres_session(False)
     rows = db.execute("SELECT distinct curie "
-                      "FROM   cross_reference "
+                      "FROM   lit.cross_reference "
                       "WHERE  curie_prefix = 'PMID' "
-                      "AND    (reference_id in (select reference_id_from from reference_relation) "
-                      "OR      reference_id in (select reference_id_to from reference_relation))").fetchall()
+                      "AND    (reference_id in (select reference_id_from from lit.reference_relation) "
+                      "OR      reference_id in (select reference_id_to from lit.reference_relation))").fetchall()
     pmids = []
     batch_count = 0
     for x in rows:

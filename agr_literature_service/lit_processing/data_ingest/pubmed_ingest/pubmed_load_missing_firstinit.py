@@ -79,7 +79,7 @@ def get_pmid_to_reference_id_mapping(db_session: Session):
     pmid_to_reference_id = {}
     reference_id_to_pmid = {}
     rows = db_session.execute(text("SELECT cr.reference_id, cr.curie "
-                                   "FROM cross_reference cr, author a "
+                                   "FROM lit.cross_reference cr, lit.author a "
                                    "WHERE cr.curie_prefix = 'PMID' "
                                    "AND cr.reference_id = a.reference_id "
                                    "AND a.first_initial is NULL")).fetchall()

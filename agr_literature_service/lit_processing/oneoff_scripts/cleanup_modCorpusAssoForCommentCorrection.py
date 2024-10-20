@@ -41,7 +41,7 @@ def cleanup_data():
 
     log.info("Retrieving data from reference_relation table...")
 
-    rs = db_connection.execute("SELECT reference_id_from, reference_id_to from reference_relation")
+    rs = db_connection.execute("SELECT reference_id_from, reference_id_to from lit.reference_relation")
 
     rows = rs.fetchall()
 

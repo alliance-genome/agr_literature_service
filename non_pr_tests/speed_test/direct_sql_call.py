@@ -22,7 +22,7 @@ def sql_direct(curies, max_number, count_start=0, verbose=False):
     conn = establish_db_connection()
     cursor = conn.cursor()
     query = ('SELECT r.* '
-             'from public.references r '
+             'from lit.references r '
              'where r.curie = %s')
     while(count <= max_number):
         curie = curies[count + count_start]
@@ -43,7 +43,7 @@ def batch_sql_direct(curies, batch_size, count_start=0, verbose=False):
     cursor = conn.cursor()
     list_str = "'" + "', '".join(batch_list) + "'"
     query = ('SELECT r.* '
-             'from public.references r '
+             'from lit.references r '
              'where r.curie in ({})').format(list_str)
     list_str = "'" + "', '".join(batch_list) + "'"
 

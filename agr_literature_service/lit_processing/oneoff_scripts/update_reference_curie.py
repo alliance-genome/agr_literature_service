@@ -24,7 +24,7 @@ def update_curies():
 
         offset = index * limit
 
-        rs = db_session.execute("SELECT reference_id, curie FROM reference order by reference_id limit " + str(limit) + " offset " + str(offset))
+        rs = db_session.execute("SELECT reference_id, curie FROM lit.reference order by reference_id limit " + str(limit) + " offset " + str(offset))
         rows = rs.fetchall()
 
         if len(rows) == 0:
@@ -38,7 +38,7 @@ def update_curies():
             old_curie = x[1]
             new_curie = curr_curie
 
-            db_session.execute("UPDATE reference set curie = '" + new_curie + "' WHERE reference_id = " + str(reference_id))
+            db_session.execute("UPDATE lit.reference set curie = '" + new_curie + "' WHERE reference_id = " + str(reference_id))
 
             curr_curie = get_next_curie(curr_curie, counter)
             counter += 1

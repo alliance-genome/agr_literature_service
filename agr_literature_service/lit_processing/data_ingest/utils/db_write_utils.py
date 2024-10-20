@@ -37,7 +37,7 @@ def add_file_uploaded_workflow(db_session: Session, curie_or_reference_id, mod=N
 
     if mod is None:
         rows = db_session.execute(text(f"SELECT m.abbreviation "
-                                       f"FROM mod m, mod_corpus_association mca "
+                                       f"FROM lit.mod m, lit.mod_corpus_association mca "
                                        f"WHERE m.mod_id = mca.mod_id "
                                        f"AND mca.reference_id = {ref.reference_id} "
                                        f"AND mca.corpus is True")).mappings().fetchall()
@@ -89,7 +89,7 @@ def add_file_needed_for_new_papers(db_session: Session, mod, curie_or_reference_
     reference_ids_with_wft = {row.reference_id for row in rows}
 
     if curie_or_reference_id is None:
-        rows = db_session.execute(text(f"SELECT reference_id FROM mod_corpus_association WHERE mod_id = {mod_id} AND corpus is True")).fetchall()
+        rows = db_session.execute(text(f"SELECT reference_id FROM lit.mod_corpus_association WHERE mod_id = {mod_id} AND corpus is True")).fetchall()
         if rows is None:
             if logger:
                 logger.error("Error: query for mod_corpus_association returned None.")
@@ -251,13 +251,13 @@ def add_not_loaded_pubmed_papers(db_session: Session, mod, mod_id, mod_curies_to
 def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_prefix, logger=None):  # pragma: no cover
 
     cr_rows = db_session.execute(text(f"SELECT reference_id "
-                                      f"FROM cross_reference "
+                                      f"FROM lit.cross_reference "
                                       f"WHERE curie_prefix = '{curie_prefix}' "
                                       f"AND is_obsolete is False")).fetchall()
     valid_reference_ids = {row[0] for row in cr_rows}
 
     mca_rows = db_session.execute(text(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
-                                       f"FROM mod_corpus_association mca, reference r "
+                                       f"FROM lit.mod_corpus_association mca, lit.reference r "
                                        f"WHERE mca.mod_id = {mod_id} "
                                        f"AND mca.corpus is True "
                                        f"AND mca.reference_id = r.reference_id "
@@ -267,7 +267,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
             # move the papers outside corpus if they only have invalid MOD curies
             try:
                 with db_session.begin():
-                    db_session.execute(text(f"UPDATE mod_corpus_association "
+                    db_session.execute(text(f"UPDATE lit.mod_corpus_association "
                                             f"SET corpus = False "
                                             f"WHERE mod_corpus_association_id = {int(x[0])}"))
                 if logger:
@@ -283,7 +283,7 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
 def _is_prepublication_pipeline(db_session: Session, reference_id):  # pragma: no cover
 
     rows = db_session.execute(text(f"SELECT prepublication_pipeline "
-                                   f"FROM   reference "
+                                   f"FROM   lit.reference "
                                    f"WHERE  reference_id = {reference_id}")).fetchall()
     return rows[0][0]
 
@@ -323,7 +323,7 @@ def mark_false_positive_papers_as_out_of_corpus(db_session: Session, mod, fp_pmi
     mod_id = _get_mod_id_by_mod(db_session, mod)
 
     rows = db_session.execute(text(f"SELECT cr.reference_id, cr.curie "
-                                   f"FROM cross_reference cr, mod_corpus_association mca "
+                                   f"FROM lit.cross_reference cr, lit.mod_corpus_association mca "
                                    f"WHERE cr.curie_prefix = 'PMID' "
                                    f"AND cr.reference_id = mca.reference_id "
                                    f"AND mca.mod_id = {mod_id}")).fetchall()
@@ -389,7 +389,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
     db_session = create_postgres_session(False)
 
     ref_curies = ", ".join(["'" + x + "'" for x in ref_curie_list])
-    rs = db_session.execute(text("SELECT reference_id, curie FROM reference WHERE curie IN (" + ref_curies + ")"))
+    rs = db_session.execute(text("SELECT reference_id, curie FROM lit.reference WHERE curie IN (" + ref_curies + ")"))
     rows = rs.fetchall()
     curie_to_reference_id = {}
     for x in rows:
@@ -419,7 +419,7 @@ def add_cross_references(cross_references_to_add, ref_curie_list, logger, live_c
             continue
         just_added.add(entry["curie"])
 
-        rs = db_session.execute(text("SELECT reference_id, resource_id, is_obsolete FROM cross_reference WHERE curie = '" + entry["curie"] + "'"))
+        rs = db_session.execute(text("SELECT reference_id, resource_id, is_obsolete FROM lit.cross_reference WHERE curie = '" + entry["curie"] + "'"))
         rows = rs.fetchall()
         if len(rows) > 0:
             for x in rows:
@@ -1051,7 +1051,7 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
     rows = db_session.execute(text(f"SELECT u.email "
-                                   f"FROM reference_relation_version rcc, transaction t, users u "
+                                   f"FROM lit.reference_relation_version rcc, transaction t, lit.users u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
@@ -1069,7 +1069,7 @@ def _is_reference_relation_added_by_mod_dqm(db_session: Session, reference_id_fr
 
     user_id = "sort_dqm_json_reference_updates"
     rows = db_session.execute(text(f"SELECT * "
-                                   f"FROM reference_relation_version rcc, transaction t "
+                                   f"FROM lit.reference_relation_version rcc, transaction t "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "

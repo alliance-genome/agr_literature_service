@@ -22,6 +22,18 @@ SessionLocal = sessionmaker(engine, autoflush=True)
 
 
 def create_all_tables():
+    db = sessionmaker(engine, autoflush=True)
+    with db.begin() as session:
+        session.execute(text("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'lit') THEN
+                            EXECUTE 'CREATE SCHEMA lit';
+                        END IF;
+                    END $$;
+                """))
+        session.execute(text("GRANT ALL ON SCHEMA lit TO postgres"))
+        session.execute(text("GRANT ALL ON SCHEMA lit TO public"))
     Base.metadata.create_all(engine)
 
 

@@ -23,7 +23,7 @@ def update_curies():
     for index in range(loop_count):
 
         offset = index * limit
-        rs = db_session.execute("SELECT resource_id, curie FROM resource order by resource_id limit " + str(limit) + " offset " + str(offset))
+        rs = db_session.execute("SELECT resource_id, curie FROM lit.resource order by resource_id limit " + str(limit) + " offset " + str(offset))
         rows = rs.fetchall()
         if len(rows) == 0:
             break
@@ -36,7 +36,7 @@ def update_curies():
             old_curie = x[1]
             new_curie = curr_curie
 
-            db_session.execute("UPDATE resource set curie = '" + new_curie + "' WHERE resource_id = " + str(resource_id))
+            db_session.execute("UPDATE lit.resource set curie = '" + new_curie + "' WHERE resource_id = " + str(resource_id))
 
             curr_curie = get_next_curie(curr_curie, counter)
             counter += 1

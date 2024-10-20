@@ -22,7 +22,7 @@ def load_data():
     for index in range(loop_count):
 
         offset = index * limit
-        rs = db_session.execute("SELECT resource_id, date_created, created_by FROM resource order by resource_id limit " + str(limit) + " offset " + str(offset))
+        rs = db_session.execute("SELECT resource_id, date_created, created_by FROM lit.resource order by resource_id limit " + str(limit) + " offset " + str(offset))
         rows = rs.fetchall()
         if len(rows) == 0:
             break
@@ -35,7 +35,7 @@ def load_data():
     i = 0
     for index in range(loop_count):
         offset = index * limit
-        rs = db_session.execute("SELECT curie, resource_id, curie_prefix FROM cross_reference WHERE resource_id is not null order by resource_id limit " + str(limit) + " offset " + str(offset))
+        rs = db_session.execute("SELECT curie, resource_id, curie_prefix FROM lit.cross_reference WHERE resource_id is not null order by resource_id limit " + str(limit) + " offset " + str(offset))
         rows = rs.fetchall()
         if len(rows) == 0:
             break
@@ -47,7 +47,7 @@ def load_data():
                 continue
             curie_prefix = curie.split(":")[0]
             (date_created, created_by) = resource_id_to_date_created_created_by[resource_id]
-            db_session.execute("UPDATE cross_reference SET curie_prefix = '" + curie_prefix + "', date_created = '" + str(date_created) + "', date_updated = '" + str(date_created) + "', created_by = '" + created_by + "', updated_by = '" + created_by + "' WHERE curie = '" + curie + "'")
+            db_session.execute("UPDATE lit.cross_reference SET curie_prefix = '" + curie_prefix + "', date_created = '" + str(date_created) + "', date_updated = '" + str(date_created) + "', created_by = '" + created_by + "', updated_by = '" + created_by + "' WHERE curie = '" + curie + "'")
             logger.info(str(i) + " updating cross_reference data for resource_id = " + str(resource_id) + ", curie_prefix = " + curie_prefix)
         db_session.commit()
     db_session.commit()

@@ -6,7 +6,8 @@ user_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, String, UniqueConstraint
+from sqlalchemy import Column, String
+# from sqlalchemy import UniqueConstraint
 
 from agr_literature_service.api.database.base import Base
 
@@ -15,6 +16,7 @@ class UserModel(Base):
     __tablename__ = "users"
     __bind_key__ = 'lit'
     __versioned__: Dict = {'schema': 'lit', 'inherit': True}
+    __table_args__ = {"schema": "lit"}
 
     id = Column(
         String,
@@ -27,9 +29,9 @@ class UserModel(Base):
         nullable=True
     )
 
-    __table_args__ = (
-        UniqueConstraint(
-            'id',
-            name='users_unique'),
-        {"schema": "lit"}
-    )
+    # __table_args__ = (
+    #    UniqueConstraint(
+    #        'id',
+    #        name='users_unique'),
+    #    {"schema": "lit"}
+    # )

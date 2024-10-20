@@ -26,7 +26,7 @@ def populate_license_column():
 
     logger.info("Retrieving data from copyright_license table...")
 
-    rows = db_session.execute("SELECT copyright_license_id, name FROM copyright_license").fetchall()
+    rows = db_session.execute("SELECT copyright_license_id, name FROM lit.copyright_license").fetchall()
 
     license_name_to_id = {}
     for x in rows:
@@ -36,7 +36,7 @@ def populate_license_column():
 
     rows = db_session.execute(
         "SELECT reference_id, curie "
-        "FROM cross_reference "
+        "FROM lit.cross_reference "
         "WHERE curie_prefix = 'PMCID'").fetchall()
     pmcid_to_reference_id = {}
     for x in rows:
@@ -47,7 +47,7 @@ def populate_license_column():
 
     rows = db_session.execute(
         "SELECT reference_id "
-        "FROM reference "
+        "FROM lit.reference "
         "WHERE copyright_license_id is not null").fetchall()
 
     license_id_populated = set()

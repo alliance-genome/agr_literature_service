@@ -117,12 +117,12 @@ def cleanup_user_email_to_okta_uid():
     # create correct user entries with okta uid in id column
     for email in email_to_uid:
         uid = email_to_uid[email]
-        rs = db_connection.execute(f"SELECT * FROM users WHERE id = '{uid}'")
+        rs = db_connection.execute(f"SELECT * FROM lit.users WHERE id = '{uid}'")
         rows = rs.fetchall()
         # if len(rows) > 0:
         #     print(f"uid {uid} already in")
         if len(rows) == 0:
-            rs = db_connection.execute(f"INSERT INTO users VALUES ('{uid}', '{email}')")
+            rs = db_connection.execute(f"INSERT INTO lit.users VALUES ('{uid}', '{email}')")
             print(f"creating uid {uid} to email {email} in users table")
 
     rs = db_connection.execute("SELECT * FROM transaction WHERE user_id != '0oa1cs2ineBqEFiD85d7' AND user_id != '00u1mhf3mf28xjpPt5d7' AND user_id != '00u1ctzvjgMpk87Qm5d7' ")
@@ -145,7 +145,7 @@ def cleanup_user_email_to_okta_uid():
     if tids:
         for table_name in table_names:
             print(f"\ntids {table_name}")
-            rs = db_connection.execute(f"SELECT transaction_id FROM {table_name}_version WHERE transaction_id IN ({tids})")
+            rs = db_connection.execute(f"SELECT transaction_id FROM lit.{table_name}_version WHERE transaction_id IN ({tids})")
             rows = rs.fetchall()
             for x in rows:
                 this_tid = x[0]
@@ -200,11 +200,11 @@ def cleanup_user_email_to_okta_uid():
     #         print(x)
 
     # clean up users that aren't correct
-    rs = db_connection.execute("DELETE FROM users WHERE id = 'chris@wormbase.org'")
-    rs = db_connection.execute("DELETE FROM users WHERE id = 'juancarlos@wormbase.org'")
-    rs = db_connection.execute("DELETE FROM users WHERE id = 'mfisher103@gmail.com'")
-    rs = db_connection.execute("DELETE FROM users WHERE id = 'valerio.arnaboldi@wormbase.org'")
-    rs = db_connection.execute("DELETE FROM users WHERE id = 'zfinfish@gmail.com'")
+    rs = db_connection.execute("DELETE FROM lit.users WHERE id = 'chris@wormbase.org'")
+    rs = db_connection.execute("DELETE FROM lit.users WHERE id = 'juancarlos@wormbase.org'")
+    rs = db_connection.execute("DELETE FROM lit.users WHERE id = 'mfisher103@gmail.com'")
+    rs = db_connection.execute("DELETE FROM lit.users WHERE id = 'valerio.arnaboldi@wormbase.org'")
+    rs = db_connection.execute("DELETE FROM lit.users WHERE id = 'zfinfish@gmail.com'")
 
 
 if __name__ == "__main__":

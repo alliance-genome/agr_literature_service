@@ -179,8 +179,8 @@ class TestDbReadUtils:
         assert mt_rows[24].qualifier_term == 'genetics'
 
         ## test mark_false_positive_papers_as_out_of_corpus()
-        mca_rows = db.execute(text("SELECT cr.curie FROM cross_reference cr, mod_corpus_association mca, "
-                                   "mod m WHERE mca.reference_id = cr.reference_id "
+        mca_rows = db.execute(text("SELECT cr.curie FROM lit.cross_reference cr, lit.mod_corpus_association mca, "
+                                   "lit.mod m WHERE mca.reference_id = cr.reference_id "
                                    "AND mca.mod_id = m.mod_id "
                                    "AND m.abbreviation = 'XB'")).fetchall()
         assert len(mca_rows) > 0
@@ -190,7 +190,7 @@ class TestDbReadUtils:
             fp_pmids.add(x[0].replace("PMID:", ""))
         mark_false_positive_papers_as_out_of_corpus(db, 'XB', fp_pmids)
 
-        cr_rows = db.execute(text("SELECT is_obsolete FROM cross_reference "
+        cr_rows = db.execute(text("SELECT is_obsolete FROM lit.cross_reference "
                                   "WHERE curie_prefix = 'Xenbase'")).fetchall()
         for x in cr_rows:
             assert x[0] is True

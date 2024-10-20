@@ -104,7 +104,7 @@ def get_pmid_to_reference_id_mapping(db_session):
 
     pmid_to_reference_id = {}
     reference_id_to_pmid = {}
-    rows = db_session.execute("SELECT reference_id, curie FROM cross_reference \
+    rows = db_session.execute("SELECT reference_id, curie FROM lit.cross_reference \
                                WHERE curie_prefix = 'PMID'").fetchall()
     for x in rows:
         reference_id_to_pmid[x[0]] = x[1].replace('PMID:', '')

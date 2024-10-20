@@ -19,16 +19,16 @@ logger = logging.getLogger('literature logger')
 def get_from_database(db_session):
     wb_xref_to_reference_id = {}
     agrkb_to_atp = {}
-    rows = db_session.execute("SELECT reference_id, curie, is_obsolete FROM cross_reference "
+    rows = db_session.execute("SELECT reference_id, curie, is_obsolete FROM lit.cross_reference "
                               "WHERE curie_prefix = 'WB'").fetchall()
     for x in rows:
         # logger.info(f"reference_id {x[0]}\t{x[1]}\t{x[2]}")
         wb_xref_to_reference_id[x[1]] = [x[0], x[2]]
-    rows = db_session.execute("SELECT reference.reference_id, reference.curie, workflow_tag.workflow_tag_id, workflow_tag.reference_workflow_tag_id "
-                              "FROM reference, workflow_tag "
-                              "WHERE reference.reference_id = workflow_tag.reference_id "
-                              "AND workflow_tag.workflow_tag_id IN ( 'ATP:0000103', 'ATP:0000104', 'ATP:0000106' ) "
-                              "ORDER BY workflow_tag.date_updated").fetchall()
+    rows = db_session.execute("SELECT r.reference_id, r.curie, w.workflow_tag_id, w.reference_workflow_tag_id "
+                              "FROM lit.reference r, lit.workflow_tag w"
+                              "WHERE r.reference_id = w.reference_id "
+                              "AND w.workflow_tag_id IN ( 'ATP:0000103', 'ATP:0000104', 'ATP:0000106' ) "
+                              "ORDER BY w.date_updated").fetchall()
     for x in rows:
         agrkb_to_atp[x[0]] = [x[1], x[2], x[3]]
     return wb_xref_to_reference_id, agrkb_to_atp

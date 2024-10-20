@@ -11,6 +11,8 @@ from agr_literature_service.api.database.versioning import enable_versioning
 from typing import Dict
 
 enable_versioning()
+
+
 class MeshDetailModel(Base):
     __tablename__ = "mesh_detail"
     __bind_key__ = 'lit'

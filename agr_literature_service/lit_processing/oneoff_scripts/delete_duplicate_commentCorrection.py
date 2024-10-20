@@ -15,7 +15,7 @@ log.setLevel(logging.INFO)
 
 foundRow = {}
 
-rs = db_connection.execute("SELECT reference_relation_id, reference_id_from, reference_id_to, reference_relation_type FROM reference_relation order by reference_relation_id")
+rs = db_connection.execute("SELECT reference_relation_id, reference_id_from, reference_id_to, reference_relation_type FROM lit.reference_relation order by reference_relation_id")
 
 rows = rs.fetchall()
 

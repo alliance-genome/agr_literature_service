@@ -19,21 +19,21 @@ def add_file_uploaded_workflow():
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    rows = db_session.execute("SELECT mod_id, abbreviation FROM mod").fetchall()
+    rows = db_session.execute("SELECT mod_id, abbreviation FROM lit.mod").fetchall()
     mod_id_to_mod = {row['mod_id']: row['abbreviation'] for row in rows}
 
     rows = db_session.execute(f"SELECT mod_id, reference_id "
-                              f"FROM workflow_tag "
+                              f"FROM lit.workflow_tag "
                               f"WHERE workflow_tag_id = '{file_uploaded_tag_atp_id}'").fetchall()
     mod_reference_with_pdf_uploaded = {(x['mod_id'], x['reference_id']) for x in rows}
 
     rows = db_session.execute("SELECT mod_id, reference_id "
-                              "FROM mod_corpus_association "
+                              "FROM lit.mod_corpus_association "
                               "WHERE corpus is True").fetchall()
     mod_reference_in_corpus = {(x['mod_id'], x['reference_id']) for x in rows}
 
     rows = db_session.execute("SELECT rfm.mod_id, rf.reference_id "
-                              "FROM referencefile rf, referencefile_mod rfm "
+                              "FROM lit.referencefile rf, lit.referencefile_mod rfm "
                               "WHERE rf.referencefile_id = rfm.referencefile_id "
                               "AND rf.file_class = 'main' "
                               "AND rf.file_publication_status = 'final' "

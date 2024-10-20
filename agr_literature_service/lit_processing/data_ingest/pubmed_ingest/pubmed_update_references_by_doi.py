@@ -143,7 +143,7 @@ def send_report_for_merging_paper(papers_to_merge): # noqa
 def get_cross_reference_data(db: Session): # noqa
 
     rows = db.execute(text("SELECT reference_id, curie "
-                           "FROM cross_reference "
+                           "FROM lit.cross_reference "
                            "WHERE curie_prefix in ('PMID', 'DOI') "
                            "AND is_obsolete is False")).fetchall()
 

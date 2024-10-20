@@ -33,14 +33,19 @@ topic_entity_tag_validation = Table(
     ),
 
     UniqueConstraint(
-        'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id', name='validation_unique'),
-schema="lit"
+        'validated_topic_entity_tag_id', 'validating_topic_entity_tag_id',
+        name='validation_unique',
+        # schema="lit"
+    ),
+
+
+    schema="lit"  # Define schema here at the table level
 )
 
 
 class TopicEntityTagModel(AuditedModel, Base):
     __tablename__ = "topic_entity_tag"
-    #__bind_key__ = 'lit'
+    # __bind_key__ = 'lit'
     __versioned__: Dict = {'schema': 'lit', 'inherit': True, 'exclude': ['validated_by']}
 
     topic_entity_tag_id = Column(
@@ -243,5 +248,3 @@ class TopicEntityTagSourceModel(AuditedModel, Base):
         unique=False,
         nullable=True
     )
-
-

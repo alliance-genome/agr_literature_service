@@ -41,12 +41,12 @@ def update_database(db_session, i, reference_id_list):
 
 
 hasPmid = set()
-rs = db_connection.execute("SELECT reference_id FROM cross_reference WHERE curie ~ '^PMID:' AND is_obsolete = false AND reference_id IS NOT NULL")
+rs = db_connection.execute("SELECT reference_id FROM lit.cross_reference WHERE curie ~ '^PMID:' AND is_obsolete = false AND reference_id IS NOT NULL")
 rows = rs.fetchall()
 for x in rows:
     hasPmid.add(x[0])
 
-rs = db_connection.execute("SELECT reference_id FROM reference WHERE reference.date_last_modified_in_pubmed IS NOT NULL")
+rs = db_connection.execute("SELECT reference_id FROM lit.reference WHERE reference.date_last_modified_in_pubmed IS NOT NULL")
 rows = rs.fetchall()
 batch_size = 500
 # to try a smaller subset

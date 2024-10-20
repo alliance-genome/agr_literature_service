@@ -64,7 +64,7 @@ def get_pmcids():
         offset = index * limit
         logger.info(f"offset={offset} Retrieving pmcids...")
         rows = db_session.execute(f"SELECT cr.curie "
-                                  f"FROM cross_reference cr, mod_corpus_association mca "
+                                  f"FROM lit.cross_reference cr, lit.mod_corpus_association mca "
                                   f"WHERE cr.curie_prefix = 'PMCID' "
                                   f"AND cr.is_obsolete is False "
                                   f"AND cr.reference_id = mca.reference_id "

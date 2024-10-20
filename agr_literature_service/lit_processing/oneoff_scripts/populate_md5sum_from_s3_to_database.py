@@ -12,7 +12,7 @@ def load_md5sum_from_s3_to_database():
     mod_ids = {}
     try:
         db_session = create_postgres_session(False)
-        mod_results = db_session.execute("select abbreviation, mod_id from mod")
+        mod_results = db_session.execute("select abbreviation, mod_id from lit.mod")
         ids = mod_results.fetchall()
         for id in ids:
             mod_ids[id["abbreviation"]] = id["mod_id"]
@@ -32,9 +32,9 @@ def load_md5sum_from_s3_to_database():
             # in the PMID_md5sum, key for PMID without prefix PMID:, but in cross_reference.curie it store with PMID:nnnnn
             if mod == 'PMID':
                 PMID_temp = 'PMID:' + PMID
-                PMID_results = db_session.execute(f"SELECT reference_id FROM cross_reference WHERE curie  = '{PMID_temp}'")
+                PMID_results = db_session.execute(f"SELECT reference_id FROM lit.cross_reference WHERE curie  = '{PMID_temp}'")
             else:
-                PMID_results = db_session.execute(f"SELECT reference_id FROM cross_reference WHERE curie  = '{PMID}'")
+                PMID_results = db_session.execute(f"SELECT reference_id FROM lit.cross_reference WHERE curie  = '{PMID}'")
             PMIDs = PMID_results.fetchall()
             if len(PMIDs) == 0:
                 print('unable to find this in cross_reference:', PMID, '->', md5dict[mod][PMID])
@@ -43,12 +43,12 @@ def load_md5sum_from_s3_to_database():
                 md5sum = md5dict[mod][PMID]
                 try:
                     if mod == 'PMID':
-                        db_connection.execute(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ('{reference_id}', null, '{md5sum}', 'now()') ")
+                        db_connection.execute(f"insert into  lit.reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ('{reference_id}', null, '{md5sum}', 'now()') ")
                     else:
-                        db_connection.execute(f"insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ('{reference_id}', '{mod_id}', '{md5sum}', 'now()') ")
+                        db_connection.execute(f"insert into  lit.reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ('{reference_id}', '{mod_id}', '{md5sum}', 'now()') ")
                 except Exception as e:
                     print('Error: ' + str(type(e)))
-                    print("insert into  reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ('{reference_id}', '{mod_id}', '{md5sum}', 'now()') ")
+                    print("insert into  lit.reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated) values ('{reference_id}', '{mod_id}', '{md5sum}', 'now()') ")
     db_session.commit()
     db_session.close()
 

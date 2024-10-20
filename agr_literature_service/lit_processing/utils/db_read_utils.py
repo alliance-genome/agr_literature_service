@@ -169,7 +169,7 @@ def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
             rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
                                            f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
                                            f"a.last_name, a.first_initial "
-                                           f"FROM lit.author a, lit.mod_corpus_association mca, mod m "
+                                           f"FROM lit.author a, lit.mod_corpus_association mca, lit.mod m "
                                            f"WHERE a.reference_id = mca.reference_id "
                                            f"AND mca.mod_id = m.mod_id "
                                            f"AND m.abbreviation = '{mod}' "

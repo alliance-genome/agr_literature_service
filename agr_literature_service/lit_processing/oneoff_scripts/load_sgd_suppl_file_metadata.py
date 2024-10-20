@@ -22,11 +22,11 @@ def load_data():
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    rs = db_session.execute("SELECT mod_id FROM mod WHERE abbreviation = 'SGD'")
+    rs = db_session.execute("SELECT mod_id FROM lit.mod WHERE abbreviation = 'SGD'")
     rows = rs.fetchall()
     mod_id = rows[0][0]
 
-    rs = db_session.execute("SELECT referencefile_id, reference_id, md5sum, display_name, file_extension FROM referencefile")
+    rs = db_session.execute("SELECT referencefile_id, reference_id, md5sum, display_name, file_extension FROM lit.referencefile")
     rows = rs.fetchall()
     referencefile_loaded = {}
     display_name_used = {}
@@ -35,7 +35,7 @@ def load_data():
         referencefile_loaded[(x[1], x[2])] = x[0]
         key = (x[1], x[3], x[4])
         display_name_used[key] = x[3]
-    rs = db_session.execute("SELECT referencefile_id FROM referencefile_mod where mod_id = " + str(mod_id))
+    rs = db_session.execute("SELECT referencefile_id FROM lit.referencefile_mod where mod_id = " + str(mod_id))
     rows = rs.fetchall()
     referencefile_mod_loaded = {}
     for x in rows:

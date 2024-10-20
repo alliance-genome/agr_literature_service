@@ -18,7 +18,7 @@ def update_date_published_start_end():
     for index in range(loop_count):
         offset = index * limit
         rows = db_session.execute(f"SELECT reference_id, date_published_start, date_published_end "
-                                  f"FROM reference "
+                                  f"FROM lit.reference "
                                   f"ORDER BY reference_id limit {limit} "
                                   f"offset {offset}").fetchall()
         if len(rows) == 0:
@@ -32,7 +32,7 @@ def update_date_published_start_end():
 
             row_count += 1
             try:
-                db_session.execute(f"UPDATE reference "
+                db_session.execute(f"UPDATE lit.reference "
                                    f"set date_published_start = '{date_published_start[0:10]}', "
                                    f"date_published_end = '{date_published_end[0:10]}' "
                                    f"WHERE reference_id = {reference_id}")

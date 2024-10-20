@@ -25,7 +25,7 @@ def delete_all_table_content(engine, db_session):
         print("***** Deleting test data from all tables *****")
         with engine.begin() as conn:  # Use connection context
             for table in reversed(Base.metadata.sorted_tables):
-                if table.fullname != "users":
+                if table.fullname != "lit.users":
                     conn.execute(table.delete())  # Use connection for execution
         db_session.commit()  # Commit the transaction
 

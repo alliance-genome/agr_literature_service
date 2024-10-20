@@ -28,20 +28,20 @@ def populate_audited_columns():
     data_count = {}
     for table_name in audited_tables_with_data:
         # logger.info(f"looking at {table_name}")
-        rs = db_connection.execute(f"SELECT COUNT(*) FROM {table_name}_version")
+        rs = db_connection.execute(f"SELECT COUNT(*) FROM lit.{table_name}_version")
         rows = rs.fetchall()
         # if rows[0][0] > 0:
         #     logger.info(f"table {table_name} has {rows[0][0]} entries")
         version_count[table_name] = rows[0][0]
-        rs = db_connection.execute(f"SELECT COUNT(*) FROM {table_name}")
+        rs = db_connection.execute(f"SELECT COUNT(*) FROM lit.{table_name}")
         rows = rs.fetchall()
         data_count[table_name] = rows[0][0]
         logger.info(f"table {table_name} data {data_count[table_name]} version {version_count[table_name]}")
 
     # juancarlos set the mods
     uid_juancarlos = '00u1ctzvjgMpk87Qm5d7'
-    rs = db_connection.execute(f"UPDATE mod SET created_by = '{uid_juancarlos}' WHERE created_by IS NULL")
-    rs = db_connection.execute(f"UPDATE mod SET updated_by = '{uid_juancarlos}' WHERE updated_by IS NULL")
+    rs = db_connection.execute(f"UPDATE lit.mod SET created_by = '{uid_juancarlos}' WHERE created_by IS NULL")
+    rs = db_connection.execute(f"UPDATE lit.mod SET updated_by = '{uid_juancarlos}' WHERE updated_by IS NULL")
 
     # ceri set some cross_reference entries, but we don't track audited object for them
     # ceri created some mod_corpus_association entries with these transaction ids  911180, 911184, 946252, 1025540, 1025541
@@ -69,13 +69,13 @@ def populate_audited_columns():
 
     # resource has date created only.  but there's exactly 9 timestamps for date_created for all 43025 resources
     resource_dates = []
-    rs = db_connection.execute("SELECT DISTINCT(date_created) FROM public.resource WHERE date_updated IS NULL")
+    rs = db_connection.execute("SELECT DISTINCT(date_created) FROM lit.resource WHERE date_updated IS NULL")
     rows = rs.fetchall()
     for x in rows:
         resource_dates.append(x[0])
     for res_date in resource_dates:
-        logger.info(f"UPDATE public.resource SET date_updated = '{res_date}' WHERE date_updated IS NULL AND date_created = '{res_date}'")
-        rs = db_connection.execute(f"UPDATE public.resource SET date_updated = '{res_date}' WHERE date_updated IS NULL AND date_created = '{res_date}'")
+        logger.info(f"UPDATE lit.resource SET date_updated = '{res_date}' WHERE date_updated IS NULL AND date_created = '{res_date}'")
+        rs = db_connection.execute(f"UPDATE lit.resource SET date_updated = '{res_date}' WHERE date_updated IS NULL AND date_created = '{res_date}'")
 
     # user processing
     okta_client_id = '0oa1cs2ineBqEFiD85d7'
@@ -90,10 +90,10 @@ def populate_audited_columns():
         # rows = rs.fetchall()
         # if rows[0][0] > 0:
         #     logger.info(f"table {table_name} has {rows[0][0]} created_by entries")
-        logger.info(f"UPDATE {table_name} SET created_by = '{okta_client_id}' WHERE created_by IS NULL")
-        rs = db_connection.execute(f"UPDATE {table_name} SET created_by = '{okta_client_id}' WHERE created_by IS NULL")
-        logger.info(f"UPDATE {table_name} SET updated_by = '{okta_client_id}' WHERE updated_by IS NULL")
-        rs = db_connection.execute(f"UPDATE {table_name} SET updated_by = '{okta_client_id}' WHERE updated_by IS NULL")
+        logger.info(f"UPDATE lit.{table_name} SET created_by = '{okta_client_id}' WHERE created_by IS NULL")
+        rs = db_connection.execute(f"UPDATE lit.{table_name} SET created_by = '{okta_client_id}' WHERE created_by IS NULL")
+        logger.info(f"UPDATE lit.{table_name} SET updated_by = '{okta_client_id}' WHERE updated_by IS NULL")
+        rs = db_connection.execute(f"UPDATE lit.{table_name} SET updated_by = '{okta_client_id}' WHERE updated_by IS NULL")
 
 
 if __name__ == "__main__":

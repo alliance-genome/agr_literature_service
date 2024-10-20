@@ -50,12 +50,12 @@ class ModReferencetypeAssociationModel(Base):
         autoincrement=True,
         primary_key=True
     )
-    mod_id = Column(
+    mod_id: Column = Column(
         ForeignKey("lit.mod.mod_id", ondelete="CASCADE"),
         index=True,
         nullable=False
     )
-    referencetype_id = Column(
+    referencetype_id: Column = Column(
         ForeignKey("lit.referencetype.referencetype_id", ondelete="CASCADE"),
         index=True,
         nullable=False

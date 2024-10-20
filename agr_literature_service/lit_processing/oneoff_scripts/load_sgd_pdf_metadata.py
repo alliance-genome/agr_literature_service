@@ -24,13 +24,13 @@ def load_data():
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    rs = db_session.execute("SELECT md5sum FROM referencefile")
+    rs = db_session.execute("SELECT md5sum FROM lit.referencefile")
     rows = rs.fetchall()
     loaded = {}
     for x in rows:
         loaded[x[0]] = 1
 
-    rs = db_session.execute("SELECT mod_id FROM mod WHERE abbreviation = 'SGD'")
+    rs = db_session.execute("SELECT mod_id FROM lit.mod WHERE abbreviation = 'SGD'")
     rows = rs.fetchall()
     mod_id = rows[0][0]
 

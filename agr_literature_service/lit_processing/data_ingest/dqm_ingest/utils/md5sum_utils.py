@@ -172,7 +172,7 @@ def save_database_md5data(md5dict):
         mod_ids = {
             mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"]
             for mod_abbr_id in db_session.execute(
-                text("select abbreviation, mod_id from mod")
+                text("select abbreviation, mod_id from lit.mod")
             ).mappings().fetchall()
         }
 
@@ -184,7 +184,7 @@ def save_database_md5data(md5dict):
                 refs = db_session.execute(
                     text("""
                         select reference_id
-                        from cross_reference r
+                        from lit.cross_reference r
                         where r.curie = :primary_id
                         and is_obsolete = 'false'
                     """),
@@ -199,7 +199,7 @@ def save_database_md5data(md5dict):
                 md5sum_data = db_session.execute(
                     text(f"""
                         select md5sum, reference_mod_md5sum_id
-                        from reference_mod_md5sum
+                        from lit.reference_mod_md5sum
                         where {mod_id_sql} and reference_id = :reference_id
                     """),
                     {"reference_id": reference_id}
@@ -209,7 +209,7 @@ def save_database_md5data(md5dict):
                     print(f"Insert new md5sum: {mod} primary_id: {primary_id} {md5sum}")
                     db_session.execute(
                         text("""
-                            insert into reference_mod_md5sum
+                            insert into lit.reference_mod_md5sum
                             (reference_id, mod_id, md5sum, date_updated)
                             values (:reference_id, :mod_id, :md5sum, now())
                         """),
@@ -224,7 +224,7 @@ def save_database_md5data(md5dict):
                     try:
                         db_session.execute(
                             text("""
-                                update reference_mod_md5sum
+                                update lit.reference_mod_md5sum
                                 set md5sum = :md5sum
                                 where reference_mod_md5sum_id = :reference_mod_md5sum_id
                             """),
@@ -263,18 +263,18 @@ def load_database_md5data(mods):
     md5dict = defaultdict(dict)
     db_session = create_postgres_session(False)
     mod_ids = {mod_abbr_id["abbreviation"]: mod_abbr_id["mod_id"] for
-               mod_abbr_id in db_session.execute(text("select abbreviation, mod_id from mod")).mappings().fetchall()}
+               mod_abbr_id in db_session.execute(text("select abbreviation, mod_id from lit.mod")).mappings().fetchall()}
     for mod in mods:
         mod_id = mod_ids.get(mod)
         prefix = 'Xenbase' if mod == 'XB' else mod
         if mod_id is not None:
-            md5sums = db_session.execute(text(f"select r.curie, rmm.md5sum from cross_reference r, "
-                                              f"reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
+            md5sums = db_session.execute(text(f"select r.curie, rmm.md5sum from lit.cross_reference r, "
+                                              f"lit.reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
                                               f"rmm.mod_id  = {mod_id} and (r.curie like 'PMID:%' or r.curie like "
                                               f"'{prefix}:%') ")).mappings().fetchall()
         elif mod == "PMID":
-            md5sums = db_session.execute(text("select r.curie, rmm.md5sum from cross_reference r, "
-                                              "reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
+            md5sums = db_session.execute(text("select r.curie, rmm.md5sum from lit.cross_reference r, "
+                                              "lit.reference_mod_md5sum rmm  where r.reference_id=rmm.reference_id and "
                                               "rmm.mod_id is null and r.curie like 'PMID:%' ")).mappings().fetchall()
         else:
             logger.error("invalid mod:" + mod)

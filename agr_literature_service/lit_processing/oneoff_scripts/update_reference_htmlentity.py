@@ -21,7 +21,7 @@ def update_author_entity():
     try:
         db_session = create_postgres_session(False)
         author_results = db_session.execute(
-            "select  name, first_name, last_name, affiliations, author_id, reference_id from  author ")
+            "select  name, first_name, last_name, affiliations, author_id, reference_id from  lit.author ")
         ids = author_results.fetchall()
         for id in ids:
             author_name = id["name"]
@@ -78,7 +78,7 @@ def update_mesh_detail_entity():
     try:
         db_session = create_postgres_session(False)
         mesh_detail_results = db_session.execute(
-            " select  qualifier_term, heading_term, mesh_detail_id from mesh_detail")
+            " select  qualifier_term, heading_term, mesh_detail_id from lit.mesh_detail")
         ids = mesh_detail_results.fetchall()
         for id in ids:
             mesh_detail_id = id["mesh_detail_id"]
@@ -113,7 +113,7 @@ def update_reference_entity():  # noqa: C901
     try:
         db_session = create_postgres_session(False)
         reference_results = db_session.execute(
-            "select  abstract, title, plain_language_abstract, publisher, keywords, reference_id from  reference ")
+            "select  abstract, title, plain_language_abstract, publisher, keywords, reference_id from  lit.reference ")
         ids = reference_results.fetchall()
         for id in ids:
             publisher = id["publisher"]

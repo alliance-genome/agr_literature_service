@@ -16,7 +16,7 @@ logger = logging.getLogger('literature logger')
 
 def get_from_database(db_session):
     wb_xref_to_reference_id = {}
-    rows = db_session.execute("SELECT reference_id, curie, is_obsolete FROM cross_reference "
+    rows = db_session.execute("SELECT reference_id, curie, is_obsolete FROM lit.cross_reference "
                               "WHERE curie_prefix = 'WB'").fetchall()
     for x in rows:
         # logger.info(f"reference_id {x[0]}\t{x[1]}\t{x[2]}")

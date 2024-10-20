@@ -21,7 +21,7 @@ def delete_orcid():
 
     for index in range(loop_count):
         offset = index * limit
-        rs = db_session.execute("SELECT curie FROM cross_reference WHERE curie like 'ORCID:%%' order by curie limit " + str(limit) + " offset " + str(offset))
+        rs = db_session.execute("SELECT curie FROM lit.cross_reference WHERE curie like 'ORCID:%%' order by curie limit " + str(limit) + " offset " + str(offset))
         rows = rs.fetchall()
         if len(rows) == 0:
             break
@@ -32,7 +32,7 @@ def delete_orcid():
     i = 0
     for orcid in orcid_list:
         i += 1
-        db_session.execute("DELETE FROM cross_reference WHERE curie = '" + orcid + "'")
+        db_session.execute("DELETE FROM lit.cross_reference WHERE curie = '" + orcid + "'")
         logger.info(str(i) + ": Deleting " + orcid + " from cross_reference table.")
         if i % 500 == 0:
             db_session.commit()

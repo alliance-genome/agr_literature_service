@@ -14,7 +14,7 @@ def generate_metadata():
     db_session = create_postgres_session(False)
 
     pmid_to_reference_id = {}
-    rs = db_session.execute("SELECT curie, reference_id FROM cross_reference WHERE curie_prefix = 'PMID'")
+    rs = db_session.execute("SELECT curie, reference_id FROM lit.cross_reference WHERE curie_prefix = 'PMID'")
     rows = rs.fetchall()
     for x in rows:
         pmid = x[0].replace("PMID:", "")

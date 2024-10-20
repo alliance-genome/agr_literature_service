@@ -15,7 +15,7 @@ def fix_resource_data():
     logger.info("Getting data from the database...")
 
     resource_id_to_nlm = {}
-    rows = db_session.execute("SELECT resource_id, curie FROM cross_reference "
+    rows = db_session.execute("SELECT resource_id, curie FROM lit.cross_reference "
                               "WHERE curie_prefix = 'NLM' and is_obsolete = False").fetchall()
     for x in rows:
         resource_id_to_nlm[x[0]] = x[1]
@@ -45,7 +45,7 @@ def get_duplicate_resources(db_session, resource_id_to_nlm):
     duplicate_resource_id_to_correct_resource_id = {}
 
     rows = db_session.execute("SELECT resource_id, curie, title, iso_abbreviation, created_by "
-                              "FROM resource ORDER BY resource_id").fetchall()
+                              "FROM lit.resource ORDER BY resource_id").fetchall()
 
     for x in rows:
         resource_id = x[0]
@@ -71,7 +71,7 @@ def get_duplicate_resources(db_session, resource_id_to_nlm):
 
 def delete_editor_rows(db_session, duplicate_resource_id_to_correct_resource_id):
 
-    rows = db_session.execute("SELECT editor_id, resource_id FROM editor").fetchall()
+    rows = db_session.execute("SELECT editor_id, resource_id FROM lit.editor").fetchall()
     row_count = 0
     for x in rows:
         editor_id = x[0]
@@ -94,7 +94,7 @@ def delete_editor_rows(db_session, duplicate_resource_id_to_correct_resource_id)
 def update_editor_table(db_session, duplicate_resource_id_to_correct_resource_id):
 
     ## fix resource_id in EDITOR table
-    rows = db_session.execute("SELECT editor_id, resource_id FROM editor").fetchall()
+    rows = db_session.execute("SELECT editor_id, resource_id FROM lit.editor").fetchall()
     row_count = 0
     for x in rows:
         editor_id = x[0]
@@ -123,7 +123,7 @@ def update_reference_table(db_session, duplicate_resource_id_to_correct_resource
     row_count = 0
     for index in range(loop_count):
         offset = index * limit
-        rows = db_session.execute(f"SELECT reference_id, resource_id FROM reference "
+        rows = db_session.execute(f"SELECT reference_id, resource_id FROM lit.reference "
                                   f"ORDER BY reference_id limit {limit} "
                                   f"offset {offset}").fetchall()
         if len(rows) == 0:
@@ -151,7 +151,7 @@ def update_reference_table(db_session, duplicate_resource_id_to_correct_resource
 def remove_duplicate_ones(db_session, duplicate_resource_id_to_correct_resource_id):
 
     resource_ids_with_XREF = set()
-    rows = db_session.execute("SELECT resource_id FROM cross_reference "
+    rows = db_session.execute("SELECT resource_id FROM lit.cross_reference "
                               "WHERE resource_id is not NULL").fetchall()
     for x in rows:
         resource_ids_with_XREF.add(x[0])
@@ -175,7 +175,7 @@ def remove_duplicate_ones(db_session, duplicate_resource_id_to_correct_resource_
 
             ## remove from resource_version table
             try:
-                db_session.execute(f"DELETE from resource_version WHERE resource_id = {duplicate_resource_id}")
+                db_session.execute(f"DELETE from lit.resource_version WHERE resource_id = {duplicate_resource_id}")
                 logger.info("DELETE RESOURCE_VERSION for resource_id = " + str(duplicate_resource_id))
             except Exception as e:
                 logger.info("Error occurred when deleting RESOURCE_VERSION for resource_id = " + str(duplicate_resource_id) + " error = " + str(e))

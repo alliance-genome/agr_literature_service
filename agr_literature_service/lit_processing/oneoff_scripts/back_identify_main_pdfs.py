@@ -77,7 +77,7 @@ def get_pmcids_without_main_pdf(db_session):
     pmcid_set = set()
 
     rows = db_session.execute("SELECT distinct cr.curie "
-                              "FROM cross_reference cr, referencefile rf, referencefile_mod rfm "
+                              "FROM lit.cross_reference cr, lit.referencefile rf, lit.referencefile_mod rfm "
                               "WHERE cr.curie_prefix = 'PMCID' "
                               "AND cr.reference_id = rf.reference_id "
                               "AND rf.file_class = 'supplement' "
@@ -85,7 +85,7 @@ def get_pmcids_without_main_pdf(db_session):
                               "AND rfm.mod_id is NULL "
                               "AND NOT EXISTS ( "
                               "SELECT 1 "
-                              "FROM referencefile "
+                              "FROM lit.referencefile "
                               "WHERE reference_id = rf.reference_id "
                               "AND file_class = 'main')").fetchall()
     for x in rows:

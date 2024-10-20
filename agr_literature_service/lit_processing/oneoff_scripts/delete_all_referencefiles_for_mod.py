@@ -7,8 +7,8 @@ from agr_literature_service.api.crud.referencefile_mod_utils import destroy as d
 def remove_all_referencefiles_for_mod(mod_abbreviation):
     db_session = create_postgres_session(False)
 
-    rs = db_session.execute(f"SELECT referencefile_mod_id from referencefile_mod where mod_id ="
-                            f" (select mod_id from mod where abbreviation = {mod_abbreviation})")
+    rs = db_session.execute(f"SELECT referencefile_mod_id from lit.referencefile_mod where mod_id ="
+                            f" (select mod_id from lit.mod where abbreviation = {mod_abbreviation})")
     referencefile_mod_ids = [row[0] for row in rs.fetchall()]
 
     for referencefile_mod_id in referencefile_mod_ids:

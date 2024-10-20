@@ -36,9 +36,9 @@ db_session = create_postgres_session(False)
 #  updated_by_mod             | boolean                     |           | not null | false
 query = """
 SELECT r.curie, m.date_updated, m.corpus, m.mod_id
-from mod_corpus_association_version mv,
-     mod_corpus_association m,
-     reference r
+from lit.mod_corpus_association_version mv,
+     lit.mod_corpus_association m,
+     lit.reference r
 where r.reference_id = m.reference_id and
       m.mod_corpus_association_id = mv.mod_corpus_association_id and
       mv.corpus_mod = 't' and --  corpus has changed

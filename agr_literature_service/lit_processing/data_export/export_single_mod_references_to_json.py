@@ -268,7 +268,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
 
     db_session = create_postgres_session(False)
 
-    rs = db_session.execute(text("SELECT mod_id FROM mod where abbreviation = '" + mod + "'"))
+    rs = db_session.execute(text("SELECT mod_id FROM lit.mod where abbreviation = '" + mod + "'"))
     rows = rs.fetchall()
     mod_id = rows[0][0]
 
@@ -294,9 +294,9 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
         if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
             refColNmList = ", ".join(get_reference_col_names())
             rs = db_session.execute(text(f"SELECT {refColNmList} "
-                                         f"FROM reference "
+                                         f"FROM lit.reference "
                                          f"WHERE reference_id IN "
-                                         f"(select reference_id from mod_corpus_association "
+                                         f"(select reference_id from lit.mod_corpus_association "
                                          f"where mod_id = {mod_id} and corpus is True) "
                                          f"order by reference_id "
                                          f"limit {limit} "
@@ -304,7 +304,7 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
         else:
             refColNmList = "r." + ", r.".join(get_reference_col_names())
             rs = db_session.execute(text(f"SELECT {refColNmList} "
-                                         f"FROM reference r, mod_corpus_association m "
+                                         f"FROM lit.reference r, lit.mod_corpus_association m "
                                          f"WHERE r.reference_id = m.reference_id "
                                          f"AND m.mod_id = {mod_id} and m.corpus is True "
                                          f"order by r.reference_id "

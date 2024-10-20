@@ -30,7 +30,7 @@ def update_file_class():
 
         try:
             rows = db_session.execute(f"SELECT referencefile_id, display_name, file_extension "
-                                      f"FROM referencefile "
+                                      f"FROM lit.referencefile "
                                       f"WHERE file_class = 'supplement' "
                                       f"ORDER BY referencefile_id "
                                       f"LIMIT {LIMIT} "
@@ -48,7 +48,7 @@ def update_file_class():
 
             if file_class != 'supplement':
                 try:
-                    db_session.execute(f"UPDATE referencefile "
+                    db_session.execute(f"UPDATE lit.referencefile "
                                        f"SET file_class = '{file_class}' "
                                        f"WHERE referencefile_id = {referencefile_id}")
                     logger.info(f"SET file_class to '{file_class}' for display_name = '{file_name}' and file_extension = '{file_extension}'")

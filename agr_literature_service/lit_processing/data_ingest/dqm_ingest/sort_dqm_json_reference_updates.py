@@ -209,10 +209,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
     set_global_user_id(db_session, scriptNm)
     mod_to_mod_id = {x.abbreviation: x.mod_id for x in db_session.query(ModModel).all()}
     XREF_to_resource_id = {x["curie"]: x["resource_id"] for x in db_session.execute(text(
-        "SELECT curie, resource_id FROM cross_reference WHERE resource_id is not null "
+        "SELECT curie, resource_id FROM lit.cross_reference WHERE resource_id is not null "
         "AND is_obsolete is False")).mappings().fetchall()}
     rows = db_session.execute(text(
-        "SELECT r.curie, c.curie_prefix, c.curie FROM reference r, cross_reference c "
+        "SELECT r.curie, c.curie_prefix, c.curie FROM lit.reference r, lit.cross_reference c "
         "WHERE c.curie_prefix = 'CGC' "
         "AND c.is_obsolete is False "
         "AND r.reference_id = c.reference_id")).mappings().fetchall()

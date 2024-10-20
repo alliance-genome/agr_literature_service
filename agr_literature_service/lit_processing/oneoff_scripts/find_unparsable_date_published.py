@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_xrefs(curie):
-    xref_results = db_session.execute(f"SELECT curie FROM cross_reference WHERE reference_id IN ( SELECT reference_id FROM reference WHERE curie = '{curie}')")
+    xref_results = db_session.execute(f"SELECT curie FROM lit.cross_reference WHERE reference_id IN ( SELECT reference_id FROM lit.reference WHERE curie = '{curie}')")
     xrefs = xref_results.fetchall()
     return ", ".join([xref[0] for xref in xrefs])
 
@@ -28,7 +28,7 @@ def query_data():
 
     # rs = db_session.execute("SELECT reference_id, curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published_start IS NULL AND date_published_end IS NULL ORDER BY curie LIMIT 10000")  # process sample
 
-    rs = db_session.execute("SELECT reference_id, curie, date_published FROM reference WHERE date_published IS NOT NULL AND date_published_start IS NULL AND date_published_end IS NULL ORDER BY curie")  # process everything
+    rs = db_session.execute("SELECT reference_id, curie, date_published FROM lit.reference WHERE date_published IS NOT NULL AND date_published_start IS NULL AND date_published_end IS NULL ORDER BY curie")  # process everything
 
     # data returns like
     # [('AGR:AGR-Reference-0000000001', '2013-04-19'), ('AGR:AGR-Reference-0000000002', '1975-01-01'), ('AGR:AGR-Reference-0000000003', '1996-05-15'), ('AGR:AGR-Reference-0000000004', '1988-07-01'), ('AGR:AGR-Reference-0000000005', '2007-01-01')]
@@ -68,8 +68,8 @@ def find_data_mappings(db_session):
 def update_db_dates(db_session, reference_id, start_date_string, end_date_string):
     try:
         # 0.8 sec to process 1k entries with raw sql  12 min 33 sec for about 906358 references
-        db_session.execute(f"UPDATE reference SET date_published_start = '{start_date_string}', date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
-        logger.info(f"UPDATE reference SET date_published_start = '{start_date_string}', date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
+        db_session.execute(f"UPDATE lit.reference SET date_published_start = '{start_date_string}', date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
+        logger.info(f"UPDATE lit.reference SET date_published_start = '{start_date_string}', date_published_end = '{end_date_string}' WHERE reference_id = '{reference_id}'")
 
         # 2 min 20 sec to process 1k entries with sql alchemy
         # x = db_session.query(ReferenceModel).filter_by(reference_id=reference_id).one_or_none()

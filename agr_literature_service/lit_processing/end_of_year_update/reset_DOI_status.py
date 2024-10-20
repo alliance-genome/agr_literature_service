@@ -24,7 +24,7 @@ def reset_DOI_status():
     set_global_user_id(db_session, scriptNm)
 
     rows = db_session.execute(text("select reference_id, curie "
-                                   "from   cross_reference "
+                                   "from   lit.cross_reference "
                                    "where  curie_prefix = 'DOI' "
                                    "and    reference_id in "
                                    "(select reference_id from cross_reference "
@@ -95,7 +95,7 @@ def check_for_doi_in_pubmed(doi): # noqa
 def check_for_valid_pmid(db_session: Session, reference_id):
 
     rows = db_session.execute(text(f"SELECT cross_reference_id "
-                                   f"FROM   cross_reference "
+                                   f"FROM   lit.cross_reference "
                                    f"WHERE  reference_id = {reference_id} "
                                    f"AND    curie_prefix = 'PMID' "
                                    f"AND    is_obsolete is False")).fetchall()

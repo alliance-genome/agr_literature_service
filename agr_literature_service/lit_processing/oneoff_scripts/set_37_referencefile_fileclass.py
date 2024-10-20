@@ -62,7 +62,7 @@ def find_data_mappings(db_session):
 
     db_md5_fileclass = {}
     logger.info(f"{md5s}")
-    db_result = db_session.execute(f"SELECT md5sum, file_class FROM public.referencefile WHERE md5sum IN ('{md5s}')")
+    db_result = db_session.execute(f"SELECT md5sum, file_class FROM lit.referencefile WHERE md5sum IN ('{md5s}')")
     rows = db_result.fetchall()
     for row in rows:
         db_md5_fileclass[row[0]] = row[1]

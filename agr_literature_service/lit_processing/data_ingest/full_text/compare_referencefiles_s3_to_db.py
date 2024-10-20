@@ -29,7 +29,7 @@ def compare_s3_files():
     s3_md5sum_dict = dict()  # type: Dict
 
     db_session = create_postgres_session(False)
-    rs = db_session.execute(text("SELECT md5sum FROM referencefile"))
+    rs = db_session.execute(text("SELECT md5sum FROM lit.referencefile"))
     rows = rs.fetchall()
     for x in rows:
         db_md5sum.add(x[0])

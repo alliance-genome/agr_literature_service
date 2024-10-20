@@ -130,6 +130,7 @@ def load_schema(user, password, server, port, db):
         print(com)
     system(f"PGPASSWORD={password} {com}")
 
+
 def add_schema(schemaName: str, user, password, server, port, db):
     sql_add_schema1 = f'psql -h {server} -d {db} -p {port} -U {user} -c " CREATE SCHEMA {schemaName};"'
     sql_add_schema2 = f'psql -h {server} -d {db} -p {port} -U {user} -c " GRANT ALL ON SCHEMA {schemaName} TO public;"'
@@ -141,6 +142,7 @@ def add_schema(schemaName: str, user, password, server, port, db):
     system(f"PGPASSWORD={password} {sql_add_schema1}")
     system(f"PGPASSWORD={password} {sql_add_schema2}")
     system(f"PGPASSWORD={password} {sql_add_schema3}")
+
 
 def dump_subset():
     global verbose, dump_dir
@@ -190,7 +192,6 @@ def create_postgres_engine(source=False):
         DB = environ.get('PSQL_DATABASE', 'literature_subset')
         db_type = "Target"
         load_schema(USER, PASSWORD, SERVER, PORT, DB)
-
 
     # Create our SQL Alchemy engine from our environmental variables.
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB

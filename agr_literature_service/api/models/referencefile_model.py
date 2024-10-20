@@ -91,7 +91,8 @@ class ReferencefileModel(Base, AuditedModel):
     referencefile_mods = relationship(
         "ReferencefileModAssociationModel",
         back_populates="referencefile",
-        primaryjoin = "ReferencefileModel.referencefile_id == ReferencefileModAssociationModel.referencefile_id"
+        cascade="all, delete, delete-orphan"
+        # primaryjoin = "ReferencefileModel.referencefile_id == ReferencefileModAssociationModel.referencefile_id"
     )
 
     def __str__(self):
@@ -130,9 +131,8 @@ class ReferencefileModAssociationModel(Base, AuditedModel):
 
     referencefile = relationship(
         "ReferencefileModel",
-        back_populates="referencefile_mods"
+        # back_populates="referencefile_mods"
     )
-
 
     __table_args__ = (
         Index('idx_referencefile_mod_not_null',

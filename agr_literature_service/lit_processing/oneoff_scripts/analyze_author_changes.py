@@ -106,14 +106,14 @@ def analyze_author_changes(db_session):
     # for pmid in pmids:
 
     # uncomment this block to process from a db query to get pmids
-    print("SELECT curie FROM cross_reference WHERE reference_id IN ( SELECT reference_id FROM author_version WHERE operation_type = 2 AND date_created > '2024-01-01' ) AND curie_prefix = 'PMID'\n")
-    rs = db_session.execute("SELECT curie FROM cross_reference WHERE reference_id IN ( SELECT reference_id FROM author_version WHERE operation_type = 2 AND date_created > '2024-01-01' ) AND curie_prefix = 'PMID'")
+    print("SELECT curie FROM lit.cross_reference WHERE reference_id IN ( SELECT reference_id FROM lit.author_version WHERE operation_type = 2 AND date_created > '2024-01-01' ) AND curie_prefix = 'PMID'\n")
+    rs = db_session.execute("SELECT curie FROM lit.cross_reference WHERE reference_id IN ( SELECT reference_id FROM lit.author_version WHERE operation_type = 2 AND date_created > '2024-01-01' ) AND curie_prefix = 'PMID'")
     pmids = rs.fetchall()
     for something in pmids:
         pmid = something[0]
 
     # do not comment out this block, it works with either set of blocks above
-        rs = db_session.execute(f"SELECT curie, reference_id FROM cross_reference WHERE curie = '{pmid}'")
+        rs = db_session.execute(f"SELECT curie, reference_id FROM lit.cross_reference WHERE curie = '{pmid}'")
         rows = rs.fetchall()
         for x in rows:
             process_reference_id(db_session, x[1], x[0])
@@ -152,7 +152,7 @@ def process_reference_id(db_session, reference_id, agrkb):      # noqa: C901 pra
 
     aid_tid = {}
     tids_author_set = set()
-    rs = db_session.execute(f"SELECT reference_id, author_id, transaction_id, date_updated, name, first_name, last_name, first_initial, orcid, \"order\", operation_type, affiliations FROM author_version WHERE reference_id = '{reference_id}'")
+    rs = db_session.execute(f"SELECT reference_id, author_id, transaction_id, date_updated, name, first_name, last_name, first_initial, orcid, \"order\", operation_type, affiliations FROM lit.author_version WHERE reference_id = '{reference_id}'")
     rows = rs.fetchall()
     if debug_output:
         print(f"data for reference {reference_id} ref_id, aid, tid, date, name, fn, ln, fi, orcid, order, optype, affiliations")
@@ -207,7 +207,7 @@ def process_reference_id(db_session, reference_id, agrkb):      # noqa: C901 pra
         users_set.remove(None)
     s = [str(i) for i in users_set]
     userids = "','".join(s)
-    rs = db_session.execute(f"SELECT id, email FROM users WHERE id IN ('{userids}')")
+    rs = db_session.execute(f"SELECT id, email FROM lit.users WHERE id IN ('{userids}')")
     rows = rs.fetchall()
     if debug_output:
         print("users info: userid, email")
@@ -375,7 +375,7 @@ def process_reference_id_with_publication_status(db_session, reference_id):
     print(reference_id)
 
     tids_author_set = set()
-    rs = db_session.execute(f"SELECT reference_id, author_id, transaction_id, date_updated FROM author_version WHERE reference_id = '{reference_id}'")
+    rs = db_session.execute(f"SELECT reference_id, author_id, transaction_id, date_updated FROM lit.author_version WHERE reference_id = '{reference_id}'")
     rows = rs.fetchall()
     for x in rows:
         tids_author_set.add(x[2])
@@ -384,7 +384,7 @@ def process_reference_id_with_publication_status(db_session, reference_id):
         print(tid)
 
     tids_pubstatus_set = set()
-    rs = db_session.execute(f"SELECT reference_id, pubmed_publication_status, transaction_id, date_updated FROM reference_version WHERE reference_id = '{reference_id}'")
+    rs = db_session.execute(f"SELECT reference_id, pubmed_publication_status, transaction_id, date_updated FROM lit.reference_version WHERE reference_id = '{reference_id}'")
     rows = rs.fetchall()
     for x in rows:
         tids_pubstatus_set.add(x[2])
