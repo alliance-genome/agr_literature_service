@@ -33,6 +33,20 @@ entity extraction (ATP:0000172)
         species extraction needed (ATP:0000206)
         transgenic allele extraction needed (ATP:0000269)
 
+TODO:
+
+    Adding following actions to the transition rows with transition_to = 'ATP:000016'
+    (reference classification complete) when everything is ready
+
+    actions = ARRAY[
+      'proceed_on_value::reference_type::paper::ATP:0000173',  # entity extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000206',  # species extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000221',  # allele extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000220',  # gene extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000269',  # transgenic allele extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000175'   # antibody extraction needed
+    ]
+
 """
 
 
