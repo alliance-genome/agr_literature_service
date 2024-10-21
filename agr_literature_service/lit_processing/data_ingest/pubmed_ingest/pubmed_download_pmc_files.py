@@ -222,7 +222,7 @@ def load_license_into_db(pmids_with_ref_ids, pmid_to_license):
 
     db_session = create_postgres_session(False)
 
-    rows = db_session.execute("SELECT copyright_license_id, name FROM copyright_license").fetchall()
+    rows = db_session.execute(text("SELECT copyright_license_id, name FROM copyright_license")).fetchall()
     license_to_id = {}
     for x in rows:
         license_to_id[x[1]] = x[0]
