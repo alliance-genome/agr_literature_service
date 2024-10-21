@@ -200,7 +200,7 @@ def get_pmids():  # pragma: no cover
                                        f"AND mca.corpus is True "
                                        f"order by cr.reference_id "
                                        f"limit {limit} "
-                                       f"offset {offset}")).fetchall()
+                                       f"offset {offset}")).mappings().fetchall()
         if len(rows) == 0:
             break
 
