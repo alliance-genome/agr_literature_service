@@ -17,6 +17,7 @@ entity extraction (ATP:0000172)
         antibody extraction failed (ATP:0000188)
         gene extraction failed (ATP:0000216)
         species extraction failed (ATP:0000204)
+        strain extraction failed (ATP:0000270)
         transgenic allele extraction failed (ATP:0000267)
 
     entity extraction in progress (ATP:0000190)
@@ -24,6 +25,7 @@ entity extraction (ATP:0000172)
         antibody extraction in progress (ATP:0000195)
         gene extraction in progress (ATP:0000218)
         species extraction in progress (ATP:0000205)
+        strain extraction in progress (ATP:0000271)
         transgenic allele extraction in progress (ATP:0000268)
 
     entity extraction needed (ATP:0000173)
@@ -31,6 +33,7 @@ entity extraction (ATP:0000172)
         antibody extraction needed (ATP:0000175)
         gene extraction needed (ATP:0000220)
         species extraction needed (ATP:0000206)
+        strain extraction needed (ATP:0000272)
         transgenic allele extraction needed (ATP:0000269)
 
 TODO:
@@ -44,7 +47,8 @@ TODO:
       'proceed_on_value::reference_type::paper::ATP:0000221',  # allele extraction needed
       'proceed_on_value::reference_type::paper::ATP:0000220',  # gene extraction needed
       'proceed_on_value::reference_type::paper::ATP:0000269',  # transgenic allele extraction needed
-      'proceed_on_value::reference_type::paper::ATP:0000175'   # antibody extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000175',  # antibody extraction needed
+      'proceed_on_value::reference_type::paper::ATP:0000272'   # strain extraction needed
     ]
 
 """
@@ -57,8 +61,7 @@ def get_data(name_to_atp):
     """
     transition_data = []
 
-    # add 'strain' after curators finish adding missing terms for 'strain'
-    for entry in ('entity', 'allele', 'antibody', 'gene', 'species', 'transgenic allele'):
+    for entry in ('entity', 'allele', 'antibody', 'gene', 'species', 'strain', 'transgenic allele'):
         item = {
             'mod': 'ALL',
             'from': 'reference classification complete',
