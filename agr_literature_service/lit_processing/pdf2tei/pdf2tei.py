@@ -32,6 +32,8 @@ def main():
     for job in jobs:
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
+        # set to in progress WF tag as soon as the PDF => TEI starts
+        job_change_atp_code(db, reference_workflow_tag_id, "on_start")
         mod_id = job['mod_id']
         reference_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == ref_id).one().curie
         mod_abbreviation = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_id).one().abbreviation
