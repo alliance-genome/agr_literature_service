@@ -9,7 +9,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, Optional
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
@@ -26,6 +26,10 @@ process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
 ]
+ref_classification_in_progress_atp_id = "ATP:0000178"
+entity_extraction_in_progress_atp_id = "ATP:0000190"
+text_conversion_in_progress_atp_id = "ATP:0000198"
+
 logger = logging.getLogger(__name__)
 
 
@@ -690,3 +694,65 @@ def get_reference_workflow_tags_by_mod(
 
     tags = [dict(row) for row in rows]
     return tags
+
+
+def is_job_running_for_paper(db: Session, reference_curie: str, mod_abbreviation: str) -> Optional[str]:
+    """
+    Check if a job is running for a paper.
+
+    Possible jobs:
+        - text conversion in progress (ATP:0000198)
+        - reference classification in progress (ATP:0000178)
+        - entity extraction in progress (ATP:0000190)
+    :param db: Database session
+    :param reference_curie: The curie of the reference to check
+    :param mod_abbreviation: The abbreviation of the mod to check
+    :return: The job type that is running, or None if no job is running
+    """
+
+    """
+    text conversion in progress (ATP:0000198)
+
+    reference classification in progress (ATP:0000178)
+        allele phenotype classification in progress (ATP:0000261)
+        allele sequence change classification in progress (ATP:0000260)
+        antibody classification in progress (ATP:0000201)
+        catalytic activity classification in progress (ATP:0000184)
+        disease classification in progress (ATP:0000186)
+        expression classification in progress (ATP:0000183)
+        genetic interaction classification in progress (ATP:0000259)
+        physical interaction classification in progress (ATP:0000185)
+        regulatory interaction classification in progress (ATP:0000258)
+        RNAi classification in progress (ATP:0000224)
+        transgene overexpression phenotype classification in progress (ATP:0000257)
+
+    entity extraction in progress (ATP:0000190)
+        allele extraction in progress (ATP:0000219)
+        antibody extraction in progress (ATP:0000195)
+        gene extraction in progress (ATP:0000218)
+        species extraction in progress (ATP:0000205)
+        strain extraction in progress (ATP:0000271)
+        transgene allele extraction in progress (ATP:0000268)
+    """
+
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
+
+    job_types = {
+        "text conversion": [text_conversion_in_progress_atp_id],
+        "reference classification": get_workflow_tags_from_process(ref_classification_in_progress_atp_id) + [ref_classification_in_progress_atp_id],
+        "entity extraction": get_workflow_tags_from_process(entity_extraction_in_progress_atp_id) + [entity_extraction_in_progress_atp_id]
+    }
+
+    for job_type, workflow_tags in job_types.items():
+        rows = db.query(WorkflowTagModel).filter(
+            and_(
+                WorkflowTagModel.workflow_tag_id.in_(workflow_tags),
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id
+            )
+        ).all()
+
+        if rows:
+            return job_type
+    return None
