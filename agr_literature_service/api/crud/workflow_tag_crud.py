@@ -743,7 +743,7 @@ def is_job_running_for_paper(db: Session, reference_curie: str, mod_abbreviation
     if mod is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"The mod_abbreviation {mod_abbreviation} is not in the database.")
-    mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
+    mod_id = mod.mod_id
 
     job_types = {
         "text conversion": [text_conversion_in_progress_atp_id],
