@@ -736,6 +736,13 @@ def is_job_running_for_paper(db: Session, reference_curie: str, mod_abbreviation
     """
 
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    if reference_id is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie {reference_curie} is not in the database.")
+    mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod_abbreviation {mod_abbreviation} is not in the database.")
     mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
 
     job_types = {
