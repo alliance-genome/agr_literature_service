@@ -211,16 +211,17 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                             detail=f"Bad reference_workflow_tag_id {reference_workflow_tag_id}")
     # Get what it is transitioning too
     try:
-        new_transition = db.query(WorkflowTransitionModel).\
+        new_transitions = db.query(WorkflowTransitionModel).\
             filter(WorkflowTransitionModel.transition_from == workflow_tag.workflow_tag_id,
                    WorkflowTransitionModel.condition.contains(condition),
-                   WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one()
+                   WorkflowTransitionModel.mod_id == workflow_tag.mod_id).all()
         # Set to new tag
-        workflow_tag.workflow_tag_id = new_transition.transition_to
-        # if we have any actions then do these.
-        if new_transition.actions:
-            process_transition_actions(db, new_transition, workflow_tag)
-            db.commit()
+        for new_transition in new_transitions:
+            workflow_tag.workflow_tag_id = new_transition.transition_to
+            # if we have any actions then do these.
+            if new_transition.actions:
+                process_transition_actions(db, new_transition, workflow_tag)
+                db.commit()
         db.commit()
     except NoResultFound:
         error = f"""
