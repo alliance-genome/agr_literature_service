@@ -36,6 +36,15 @@ upload_file () {
     -H 'Content-Type: multipart/form-data' \
     -F "file=@\"${filepath}\";type=text/plain" \
     -F 'metadata_file=')
+
+  # Check if the response contains a "detail" field with specific phrases
+  detail_message=$(echo "$response" | jq -r '.detail // empty')
+
+  if [[ "${detail_message}" == *"is currently in progress"* && "${detail_message}" == *"process is complete before uploading any files"* ]]; then
+    echo "INFO: ${detail_message}"
+    return
+  fi
+  
   if [[ "${response}" == "\"success\"" ]]; then
     upload_status="success"
     response="empty response"
