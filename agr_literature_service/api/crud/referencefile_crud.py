@@ -224,10 +224,11 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                                 detail="The specified curie is not in the standard Alliance format and no cross "
                                        "references match the specified value.")
         metadata["reference_curie"] = ref_curie_res.curie
-    job_type = is_job_running_for_paper(db, metadata["reference_curie"], metadata["mod_abbreviation"])
-    if job_type:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
+    if metadata["mod_abbreviation"]:
+        job_type = is_job_running_for_paper(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+        if job_type:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
     if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
         workflow_tag_atp_id = get_current_workflow_status(db,
