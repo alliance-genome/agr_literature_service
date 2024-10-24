@@ -43,6 +43,8 @@ def update_database(): # noqa
             doi = reference_id_to_doi[reference_id]
             logger.info(f"{i}: processing {doi}")
             pmids = get_pmid_for_doi(doi)
+            if pmids is None:
+                continue
             if len(pmids) == 1:
                 pmid = "PMID:" + pmids[0]
                 if pmid in pmid_to_reference_id:

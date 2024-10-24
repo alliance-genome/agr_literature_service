@@ -332,7 +332,9 @@ def add_sequence_data(db_subset_session):
             if x[0].startswith("lit."):
                 com = f"ALTER SEQUENCE lit.{x[2]} RESTART WITH {max_val+1}"
             else:
+
                 com = f"ALTER SEQUENCE {x[2]} RESTART WITH {max_val + 1}"
+            print(com)
             db_subset_session.execute(text(com))
         else:
             print(f"setting max value to 0 for {x[2]} as none found")

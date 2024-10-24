@@ -28,10 +28,3 @@ class UserModel(Base):
         String,
         nullable=True
     )
-
-    # __table_args__ = (
-    #    UniqueConstraint(
-    #        'id',
-    #        name='users_unique'),
-    #    {"schema": "lit"}
-    # )

@@ -56,9 +56,10 @@ def check_data():
             mod_to_report[mod] = report_rows
     db_session.close()
 
-    for mod in mod_to_report:
-        logger.info(f"Sending report for {mod}...")
-        send_report_to_slack(mod, mod_to_report[mod], atp_to_name)
+    if mod_to_report:
+        for mod in mod_to_report:
+            logger.info(f"Sending report for {mod}...")
+            send_report_to_slack(mod, mod_to_report[mod], atp_to_name)
 
 
 def send_report_to_slack(mod, rows_to_report, atp_to_name):

@@ -10,4 +10,9 @@ from agr_literature_service.global_utils import execute_once
 def enable_versioning():
     # make_versioned()  # Call without arguments to set up default versioning
     user_plugin = UserPlugin()
-    make_versioned(user_cls='UserModel', plugins=[user_plugin, PropertyModTrackerPlugin()])
+    make_versioned(user_cls='UserModel', plugins=[user_plugin, PropertyModTrackerPlugin()],
+                   options={
+                       'versioned_table_schema': 'lit',  # Specify the schema for versioned tables
+                       'versioned_table': 'lit.transaction',  # Specify the versioned table name
+                       'id_sequence': 'lit.transaction_id_seq'}  # Specify the sequence in the public schema
+                   )

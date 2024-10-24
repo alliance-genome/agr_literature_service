@@ -102,7 +102,8 @@ def run_migrations_online():
         #else:
         #    return True
         #print("schema:" + object.schema + "target schema:" + target_metadata.schema)
-        if (type_ == 'table' and object.schema == target_metadata.schema):
+        #if (type_ == 'table' and object.schema == target_metadata.schema):
+        if (type_ == 'table' and (  object.schema == target_metadata.schema or object.schema == 'public')):
             return True
         if (type_ == 'column' and object.table.schema == target_metadata.schema):
             return True
@@ -130,7 +131,7 @@ def run_migrations_online():
 
 def include_name(name, type_, parent_names):
     if type_ == "schema":
-        return name in ["lit"]
+        return name in ["lit", "public"]
     else:
         return True
 
