@@ -740,8 +740,8 @@ def is_job_running_for_paper(db: Session, reference_curie: str, mod_abbreviation
 
     job_types = {
         "text conversion": [text_conversion_in_progress_atp_id],
-        "reference classification": get_workflow_tags_from_process(ref_classification_in_progress_atp_id) + [ref_classification_in_progress_atp_id],
-        "entity extraction": get_workflow_tags_from_process(entity_extraction_in_progress_atp_id) + [entity_extraction_in_progress_atp_id]
+        "reference classification": (get_workflow_tags_from_process(ref_classification_in_progress_atp_id) or []) + [ref_classification_in_progress_atp_id],
+        "entity extraction": (get_workflow_tags_from_process(entity_extraction_in_progress_atp_id) or []) + [entity_extraction_in_progress_atp_id]
     }
 
     for job_type, workflow_tags in job_types.items():
