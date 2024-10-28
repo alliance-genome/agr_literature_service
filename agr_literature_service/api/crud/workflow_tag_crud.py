@@ -697,7 +697,7 @@ def get_reference_workflow_tags_by_mod(
     return tags
 
 
-def is_job_running_for_paper(db: Session, reference_curie: str, mod_abbreviation: str) -> Optional[str]:
+def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: str) -> Optional[str]:
     """
     Check if a job is running for a paper.
 

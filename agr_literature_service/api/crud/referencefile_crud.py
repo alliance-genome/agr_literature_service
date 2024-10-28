@@ -23,7 +23,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status, is_job_running_for_paper
+    transition_to_workflow_status, is_file_upload_blocked
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
@@ -225,7 +225,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                                        "references match the specified value.")
         metadata["reference_curie"] = ref_curie_res.curie
     if metadata["mod_abbreviation"]:
-        job_type = is_job_running_for_paper(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+        job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
         if job_type:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
