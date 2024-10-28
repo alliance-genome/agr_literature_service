@@ -9,7 +9,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union
+from typing import Union, Optional
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
@@ -26,6 +26,10 @@ process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
 ]
+ref_classification_in_progress_atp_id = "ATP:0000178"
+entity_extraction_in_progress_atp_id = "ATP:0000190"
+text_conversion_in_progress_atp_id = "ATP:0000198"
+
 logger = logging.getLogger(__name__)
 
 
@@ -207,16 +211,17 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
                             detail=f"Bad reference_workflow_tag_id {reference_workflow_tag_id}")
     # Get what it is transitioning too
     try:
-        new_transition = db.query(WorkflowTransitionModel).\
+        new_transitions = db.query(WorkflowTransitionModel).\
             filter(WorkflowTransitionModel.transition_from == workflow_tag.workflow_tag_id,
                    WorkflowTransitionModel.condition.contains(condition),
-                   WorkflowTransitionModel.mod_id == workflow_tag.mod_id).one()
+                   WorkflowTransitionModel.mod_id == workflow_tag.mod_id).all()
         # Set to new tag
-        workflow_tag.workflow_tag_id = new_transition.transition_to
-        # if we have any actions then do these.
-        if new_transition.actions:
-            process_transition_actions(db, new_transition, workflow_tag)
-            db.commit()
+        for new_transition in new_transitions:
+            workflow_tag.workflow_tag_id = new_transition.transition_to
+            # if we have any actions then do these.
+            if new_transition.actions:
+                process_transition_actions(db, new_transition, workflow_tag)
+                db.commit()
         db.commit()
     except NoResultFound:
         error = f"""
@@ -690,3 +695,72 @@ def get_reference_workflow_tags_by_mod(
 
     tags = [dict(row) for row in rows]
     return tags
+
+
+def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: str) -> Optional[str]:
+    """
+    Check if a job is running for a paper.
+
+    Possible jobs:
+        - text conversion in progress (ATP:0000198)
+        - reference classification in progress (ATP:0000178)
+        - entity extraction in progress (ATP:0000190)
+    :param db: Database session
+    :param reference_curie: The curie of the reference to check
+    :param mod_abbreviation: The abbreviation of the mod to check
+    :return: The job type that is running, or None if no job is running
+    """
+
+    """
+    text conversion in progress (ATP:0000198)
+
+    reference classification in progress (ATP:0000178)
+        allele phenotype classification in progress (ATP:0000261)
+        allele sequence change classification in progress (ATP:0000260)
+        antibody classification in progress (ATP:0000201)
+        catalytic activity classification in progress (ATP:0000184)
+        disease classification in progress (ATP:0000186)
+        expression classification in progress (ATP:0000183)
+        genetic interaction classification in progress (ATP:0000259)
+        physical interaction classification in progress (ATP:0000185)
+        regulatory interaction classification in progress (ATP:0000258)
+        RNAi classification in progress (ATP:0000224)
+        transgene overexpression phenotype classification in progress (ATP:0000257)
+
+    entity extraction in progress (ATP:0000190)
+        allele extraction in progress (ATP:0000219)
+        antibody extraction in progress (ATP:0000195)
+        gene extraction in progress (ATP:0000218)
+        species extraction in progress (ATP:0000205)
+        strain extraction in progress (ATP:0000271)
+        transgene allele extraction in progress (ATP:0000268)
+    """
+
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    if reference_id is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie {reference_curie} is not in the database.")
+    mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod_abbreviation {mod_abbreviation} is not in the database.")
+    mod_id = mod.mod_id
+
+    job_types = {
+        "text conversion": [text_conversion_in_progress_atp_id],
+        "reference classification": (get_workflow_tags_from_process(ref_classification_in_progress_atp_id) or []) + [ref_classification_in_progress_atp_id],
+        "entity extraction": (get_workflow_tags_from_process(entity_extraction_in_progress_atp_id) or []) + [entity_extraction_in_progress_atp_id]
+    }
+
+    for job_type, workflow_tags in job_types.items():
+        rows = db.query(WorkflowTagModel).filter(
+            and_(
+                WorkflowTagModel.workflow_tag_id.in_(workflow_tags),
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id
+            )
+        ).all()
+
+        if rows:
+            return job_type
+    return None

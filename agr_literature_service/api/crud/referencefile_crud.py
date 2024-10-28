@@ -23,7 +23,7 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status
+    transition_to_workflow_status, is_file_upload_blocked
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 file_upload_process_atp_id = "ATP:0000140"
 file_uploaded_tag_atp_id = "ATP:0000134"
 file_upload_in_progress_tag_atp_id = "ATP:0000139"
+text_conversion_process_atp_id = "ATP:0000161"
 
 
 def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
@@ -223,12 +224,16 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                                 detail="The specified curie is not in the standard Alliance format and no cross "
                                        "references match the specified value.")
         metadata["reference_curie"] = ref_curie_res.curie
+    if metadata["mod_abbreviation"]:
+        job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+        if job_type:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
     if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
-        workflow_process_atp_id = "ATP:0000161"  # text conversion
         workflow_tag_atp_id = get_current_workflow_status(db,
                                                           metadata["reference_curie"],
-                                                          workflow_process_atp_id,
+                                                          text_conversion_process_atp_id,
                                                           metadata["mod_abbreviation"])
         if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
