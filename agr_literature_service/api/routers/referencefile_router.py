@@ -3,7 +3,7 @@ import logging
 from json import JSONDecodeError
 from typing import Union, List
 
-from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException, Response
+from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
