@@ -23,7 +23,8 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status, is_file_upload_blocked
+    transition_to_workflow_status, is_file_upload_blocked, reset_workflow_tags_after_deleting_main_pdf
+from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
@@ -49,7 +50,7 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                               load_referencefiles=True)
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"
-                               and referencefile.pdf_type == "pdf" and referencefile.file_extension == "pdf"]
+                               and referencefile.file_extension == "pdf"]
     if mod_abbreviation is not None:
         for main_pdf_ref_file in main_pdf_referencefiles:
             for ref_file_mod in main_pdf_ref_file.referencefile_mods:
@@ -76,7 +77,7 @@ def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List
     curie_main_ref_file_map = {}
 
     for ref_file in all_ref_files:
-        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.pdf_type == "pdf":
+        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.file_extension == "pdf":
             main_pdf_reffile_id = None
             pmc_main_pdf_reffile_id = None
             for ref_file_mod in ref_file.referencefile_mods:
@@ -155,12 +156,54 @@ def patch(db: Session, referencefile_id: int, request):
 
 def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
+    reference_id = referencefile.reference_id
+    file_class = referencefile.file_class
+    file_publication_status = referencefile.file_publication_status
+    file_extension = referencefile.file_extension
+    all_mods = set()
     if mod_access == OktaAccess.ALL_ACCESS:
         remove_from_s3_and_db(db, referencefile)
     elif mod_access != OktaAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:
-            if referencefile_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]:
-                destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
+            if referencefile_mod.mod_id is None:
+                all_mods.add('PMC')
+            else:
+                all_mods.add(referencefile_mod.mod.abbreviation)
+                if referencefile_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]:
+                    destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="You are not signed in. Please sign in to delete a file.")
+
+    if file_class == 'main' and file_publication_status == 'final' and file_extension == 'pdf':
+        cleanup_wft_tet_tags_for_deleted_main_pdf(db, reference_id, all_mods,
+                                                  OKTA_ACCESS_MOD_ABBR[mod_access])
+
+
+def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mods, access_level):
+
+    mods = set()
+    if access_level != 'all_access':
+        mods.add(access_level)
+    elif len(all_mods) > 0 and 'PMC' not in all_mods:
+        mods = all_mods
+    else:
+        sql_query = text("""
+        SELECT m.abbreviation
+        FROM mod_corpus_association mca
+        JOIN mod m ON mca.mod_id = m.mod_id
+        WHERE mca.reference_id = :reference_id
+        AND mca.corpus = TRUE
+        """)
+        rows = db.execute(sql_query, {'reference_id': reference_id}).fetchall()
+        mods.update(row[0] for row in rows)
+
+    for mod_abbreviation in mods:
+        reset_workflow_tags_after_deleting_main_pdf(db, str(reference_id), mod_abbreviation)
+        manual_tet_count = delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
+        if manual_tet_count > 0:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail="There are curated topic and entity tags associated with this reference. Please check with the Curator who added the tags.")
 
 
 def merge_referencefiles(db: Session,
@@ -311,7 +354,7 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
         reffiles = db.query(ReferencefileModel).filter_by(
-            reference_id=ref.reference_id, file_class='main', file_extension='pdf', pdf_type='pdf').order_by(
+            reference_id=ref.reference_id, file_class='main', file_extension='pdf', file_publication_status='final').order_by(
                 ReferencefileModel.file_publication_status, ReferencefileModel.date_updated.desc()).all()
 
         if len(reffiles) >= 2:
