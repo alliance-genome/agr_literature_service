@@ -135,13 +135,13 @@ def download_additional_files_tarball(reference_id: int,
 
 
 @router.delete('/{referencefile_id}',
-               status_code=status.HTTP_204_NO_CONTENT)
+               response_model=str)
 def delete(referencefile_id: int,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_from_okta(db, user)
     referencefile_crud.destroy(db, referencefile_id, get_okta_mod_access(user))
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return 'success'
 
 
 @router.get('/{referencefile_id}',
