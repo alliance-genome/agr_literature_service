@@ -589,7 +589,7 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
             FROM topic_entity_tag_source
             WHERE topic_entity_tag_source_id = topic_entity_tag.topic_entity_tag_source_id
             AND secondary_data_provider_id = :mod_id
-            AND source_method = "abc_literature_system"
+            AND source_method = 'abc_literature_system'
         )
         AND NOT EXISTS (
             SELECT 1
