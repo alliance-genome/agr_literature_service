@@ -203,7 +203,7 @@ def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mod
         manual_tet_count = delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
         if manual_tet_count > 0:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="There are curated topic and entity tags associated with this reference. Please check with the Curator who added the tags.")
+                                detail="Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags.")
 
 
 def merge_referencefiles(db: Session,
