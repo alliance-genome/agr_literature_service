@@ -542,6 +542,7 @@ def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation
             select topic_entity_tag_source_id
             from topic_entity_tag_source
             where secondary_data_provider_id = :mod_id
+            and source_method = "abc_literature_system"
             and source_evidence_assertion in ('ATP:0000035', 'ATP:0000036')
         )
         """)
@@ -601,6 +602,7 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
         select topic_entity_tag_source_id
         from topic_entity_tag_source
         where secondary_data_provider_id = :mod_id
+        and source_method = "abc_literature_system"
         and source_evidence_assertion in ('ATP:0000035', 'ATP:0000036')
     )
     """)
