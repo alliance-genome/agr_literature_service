@@ -619,7 +619,6 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
              (source_method != 'abc_literature_system' AND source_evidence_assertion NOT IN ('ATP:0000035', 'ATP:0000036'))
             )
         )
-    )
     """)
 
     rows = db.execute(sql_query, {
