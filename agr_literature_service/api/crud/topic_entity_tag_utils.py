@@ -551,7 +551,6 @@ def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation
                    (source_method != 'abc_literature_system' AND source_evidence_assertion NOT IN ('ATP:0000035', 'ATP:0000036'))
                 )
             )
-        )
         """)
 
         db.execute(sql_query, {
@@ -615,8 +614,8 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
             FROM topic_entity_tag_source
             WHERE secondary_data_provider_id = :mod_id
             AND (
-             (source_method = 'abc_literature_system' AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')) OR
-             (source_method != 'abc_literature_system' AND source_evidence_assertion NOT IN ('ATP:0000035', 'ATP:0000036'))
+               (source_method = 'abc_literature_system' AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')) OR
+               (source_method != 'abc_literature_system' AND source_evidence_assertion NOT IN ('ATP:0000035', 'ATP:0000036'))
             )
         )
     """)
