@@ -50,7 +50,7 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                               load_referencefiles=True)
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"
-                               and referencefile.file_extension == "pdf"]
+                               and (referencefile.pdf_type is None or referencefile.pdf_type == "pdf")]
     if mod_abbreviation is not None:
         for main_pdf_ref_file in main_pdf_referencefiles:
             for ref_file_mod in main_pdf_ref_file.referencefile_mods:
@@ -77,7 +77,7 @@ def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List
     curie_main_ref_file_map = {}
 
     for ref_file in all_ref_files:
-        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.file_extension == "pdf":
+        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and (ref_file.pdf_type is None or ref_file.pdf_type == "pdf"):
             main_pdf_reffile_id = None
             pmc_main_pdf_reffile_id = None
             for ref_file_mod in ref_file.referencefile_mods:
