@@ -159,7 +159,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
     reference_id = referencefile.reference_id
     file_class = referencefile.file_class
     file_publication_status = referencefile.file_publication_status
-    file_extension = referencefile.file_extension
+    pdf_type = referencefile.pdf_type
     all_mods = set()
     if mod_access == OktaAccess.ALL_ACCESS:
         remove_from_s3_and_db(db, referencefile)
@@ -175,7 +175,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="You are not signed in. Please sign in to delete a file.")
 
-    if file_class == 'main' and file_publication_status == 'final' and file_extension == 'pdf':
+    if file_class == 'main' and file_publication_status == 'final' and (pdf_type is None or pdf_type == 'pdf'):
         cleanup_wft_tet_tags_for_deleted_main_pdf(db, reference_id, all_mods,
                                                   OKTA_ACCESS_MOD_ABBR[mod_access])
 
