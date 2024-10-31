@@ -607,7 +607,7 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
                             detail=f"An error occurred when deleting non-manual tets: {e}")
 
     sql_query = text("""
-        SELECT count(*) FROM topic_entity_tag
+        SELECT * FROM topic_entity_tag
         WHERE reference_id = :reference_id
         AND topic_entity_tag_source_id in (
             SELECT topic_entity_tag_source_id
