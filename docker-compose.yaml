@@ -48,7 +48,7 @@ services:
 
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
     hostname: elasticsearch
     restart: always
     environment:
@@ -344,7 +344,7 @@ services:
       /setup.sh
 
   dbz_ksql_server:
-    image: confluentinc/ksqldb-server:0.26.0
+    image: confluentinc/ksqldb-server:0.29.0
     depends_on:
       - dbz_kafka
       - dbz_connector
@@ -369,7 +369,7 @@ services:
   # - determine the server IP address (for some reason this version of ksqldb cli does not work with host names): $ ping dbz_ksql_server
   # - start the ksql client connecting to the server: $ ksql http://<ksqldb_server_ip>:8088
   dbz_ksql_cli:
-    image: confluentinc/ksqldb-cli:0.26.0
+    image: confluentinc/ksqldb-cli:0.29.0
     depends_on:
       - dbz_ksql_server
     networks:

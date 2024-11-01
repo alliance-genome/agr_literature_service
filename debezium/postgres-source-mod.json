@@ -20,6 +20,7 @@
     "transforms.extractKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
     "transforms.extractValue.field": "after",
     "transforms.extractValue.type": "org.apache.kafka.connect.transforms.ExtractField$Value",
-    "plugin.name": "pgoutput"
+    "plugin.name": "pgoutput",
+    "topic.prefix": "abc"
   }
 }

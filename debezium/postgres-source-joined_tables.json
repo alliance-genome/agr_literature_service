@@ -19,6 +19,7 @@
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
     "transforms.unwrap.drop.tombstones": "false",
     "transforms.unwrap.operation.header": "true",
-    "plugin.name": "pgoutput"
+    "plugin.name": "pgoutput",
+    "topic.prefix": "abc"
   }
 }
