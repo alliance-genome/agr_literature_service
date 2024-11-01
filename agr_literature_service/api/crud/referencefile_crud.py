@@ -50,7 +50,7 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                               load_referencefiles=True)
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"
-                               and (referencefile.pdf_type is None or referencefile.pdf_type == "pdf")]
+                               and referencefile.file_extension == 'pdf']
     if mod_abbreviation is not None:
         for main_pdf_ref_file in main_pdf_referencefiles:
             for ref_file_mod in main_pdf_ref_file.referencefile_mods:
@@ -77,7 +77,7 @@ def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List
     curie_main_ref_file_map = {}
 
     for ref_file in all_ref_files:
-        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and (ref_file.pdf_type is None or ref_file.pdf_type == "pdf"):
+        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.file_extension == "pdf":
             main_pdf_reffile_id = None
             pmc_main_pdf_reffile_id = None
             for ref_file_mod in ref_file.referencefile_mods:
@@ -159,7 +159,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
     reference_id = referencefile.reference_id
     file_class = referencefile.file_class
     file_publication_status = referencefile.file_publication_status
-    pdf_type = referencefile.pdf_type
+    file_extension = referencefile.file_extension
     all_mods = set()
     if mod_access == OktaAccess.ALL_ACCESS:
         remove_from_s3_and_db(db, referencefile)
@@ -175,7 +175,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="You are not signed in. Please sign in to delete a file.")
 
-    if file_class == 'main' and file_publication_status == 'final' and (pdf_type is None or pdf_type == 'pdf'):
+    if file_class == 'main' and file_publication_status == 'final' and file_extension == 'pdf':
         cleanup_wft_tet_tags_for_deleted_main_pdf(db, reference_id, all_mods,
                                                   OKTA_ACCESS_MOD_ABBR[mod_access])
 
