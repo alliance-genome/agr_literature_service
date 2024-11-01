@@ -6,7 +6,8 @@ from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import topic_entity_tag_crud
+from agr_literature_service.api.crud import topic_entity_tag_crud, \
+    topic_entity_id_mapping_utils
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
@@ -189,3 +190,11 @@ def revalidate_all_tags(email: str = None,
         return {
             "message": "Revalidation of all tags started. You will receive an email when done."
         }
+
+
+@router.get('/entity_validation/{entity_type}/{entity_list}',
+            status_code=200)
+def entity_validation(entity_type: str,
+                      entity_list: str,
+                      db: Session = db_session):
+    return topic_entity_id_mapping_utils.map_entity_to_curie(db, entity_type, entity_list)
