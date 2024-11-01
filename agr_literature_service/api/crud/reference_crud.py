@@ -786,52 +786,37 @@ def add_license(db: Session, curie: str, license: str):  # noqa
 
 def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: Optional[int] = None, limit: Optional[int] = None):
 
-    subquery: Optional[TextClause] = None
     curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+    workflow_tag_id_clause: Optional[TextClause] = None
 
     if filter == 'default':
-        subquery = text("""
-            SELECT b.reference_id
-            FROM mod_corpus_association AS b
-            JOIN mod ON b.mod_id = mod.mod_id
-            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-            WHERE (d.workflow_tag_id = 'ATP:0000139' OR d.workflow_tag_id = 'ATP:0000141')
-            AND mod.abbreviation = :mod_abbreviation
-            AND corpus = true
-            GROUP BY b.reference_id
-        """)
+        workflow_tag_id_clause = text("""WHERE (d.workflow_tag_id = 'ATP:0000139' OR d.workflow_tag_id = 'ATP:0000141')""")
     elif filter in ['ATP:0000134', 'ATP:0000135']:
-        subquery = text("""
+        workflow_tag_id_clause = text("""WHERE workflow_tag_id = :filter""")
+    query_str = f"""
+        SELECT reference.reference_id, reference.curie, short_citation, reference.date_created, ref_pmid.curie AS PMID, ref_doi.curie AS DOI, ref_mod.curie AS mod_curie
+        FROM reference
+        JOIN citation ON reference.citation_id = citation.citation_id
+        JOIN
+          (
             SELECT b.reference_id
             FROM mod_corpus_association AS b
             JOIN mod ON b.mod_id = mod.mod_id
             LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-            WHERE workflow_tag_id = :filter
-            AND mod.abbreviation = :mod_abbreviation
-            AND corpus = true
-            GROUP BY b.reference_id
-        """)
-
-    query_str = f"""
-        SELECT reference.reference_id, reference.curie, short_citation, reference.date_created,
-               ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
-        FROM reference, citation,
-             ({subquery}) AS sub_select,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
-              WHERE curie_prefix = 'PMID') AS ref_pmid,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
-              WHERE curie_prefix = 'DOI') AS ref_doi,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
-              WHERE curie_prefix = :curie_prefix) AS ref_mod
-        WHERE sub_select.reference_id = reference.reference_id
-        AND sub_select.reference_id = ref_pmid.reference_id
-        AND sub_select.reference_id = ref_doi.reference_id
-        AND sub_select.reference_id = ref_mod.reference_id
-        AND reference.citation_id = citation.citation_id
-        ORDER BY reference.date_created {order_by}
+            {workflow_tag_id_clause}
+            AND mod.abbreviation = 'WB'
+            AND b.corpus = TRUE
+          ) AS sub_select ON sub_select.reference_id = reference.reference_id
+        LEFT JOIN
+          (
+            SELECT curie, reference_id
+            FROM cross_reference
+            WHERE curie_prefix IN ('PMID', 'DOI', 'WB')
+          ) AS cross_ref ON cross_ref.reference_id = reference.reference_id
+        LEFT JOIN cross_reference AS ref_pmid ON ref_pmid.reference_id = reference.reference_id AND ref_pmid.curie_prefix = 'PMID'
+        LEFT JOIN cross_reference AS ref_doi ON ref_doi.reference_id = reference.reference_id AND ref_doi.curie_prefix = 'DOI'
+        LEFT JOIN cross_reference AS ref_mod ON ref_mod.reference_id = reference.reference_id AND ref_mod.curie_prefix = 'WB'
+        ORDER BY reference.date_created DESC
     """
 
     # Conditionally add limit and offset only if they are provided
@@ -860,7 +845,7 @@ def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: s
         return ref_data
 
     reference_ids = [item['reference_id'] for item in ref_data if 'reference_id' in item]
-    reffile_query_str = f"""
+    reffile_query_str = """
         SELECT reference_id,
                    COUNT(1) FILTER (WHERE file_class = 'main') AS maincount,
                    COUNT(1) FILTER (WHERE file_class = 'supplement') AS supcount
