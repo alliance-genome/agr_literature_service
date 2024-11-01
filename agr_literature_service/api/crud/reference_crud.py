@@ -860,16 +860,15 @@ def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: s
         return ref_data
 
     reference_ids = [item['reference_id'] for item in ref_data if 'reference_id' in item]
-    reference_ids_sql_txt = ', '.join(str(item) for item in reference_ids)
     reffile_query_str = f"""
         SELECT reference_id,
                    COUNT(1) FILTER (WHERE file_class = 'main') AS maincount,
                    COUNT(1) FILTER (WHERE file_class = 'supplement') AS supcount
         FROM referencefile
-        WHERE reference_id IN ({reference_ids_sql_txt})
+        WHERE reference_id = ANY(:reference_ids)
         GROUP BY reference_id
     """
-    rows_reffile = db.execute(text(reffile_query_str)).mappings().fetchall()
+    rows_reffile = db.execute(text(reffile_query_str), {'reference_ids': reference_ids}).mappings().fetchall()
     reffile_data = jsonable_encoder(rows_reffile)
     reffile_dict = {
         entry['reference_id']: (entry['maincount'], entry['supcount'])
