@@ -15,10 +15,8 @@ curie_prefix_list = [
     "ZFIN"
 ]
 # TODO 2: optimize sqls/add indexes if needed
-# TODO 3: adding endpoint for searching topic (for TET page autocomplete)
-# TODO 4: adding endpoint for searching species (for TET page autocomplete)
-# TODO 5: adding function for name to id mapping (for TET table display)
-# TODO 6: adding caching for name to id mapping
+# TODO 3: adding function for name to id mapping (for TET table display)
+# TODO 4: adding caching for name to id mapping
 
 
 def map_entity_to_curie(db: Session, entity_type, entity_list):
@@ -92,6 +90,18 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list):
         WHERE sa.slotannotationtype = 'AlleleSymbolSlotAnnotation'
         AND UPPER(sa.displaytext) IN :entity_name_list
         """)
+        ## using subquery doesn't help in this case
+        ## exection time is similar
+        # sql_query = text("""
+        # SELECT DISTINCT be.modentityid, sa.obsolete, sa.displaytext
+        # FROM biologicalentity be
+        # JOIN (
+        #    SELECT singleallele_id, obsolete, displaytext
+        #    FROM slotannotation
+        #    WHERE slotannotationtype = 'AlleleSymbolSlotAnnotation'
+        #    AND UPPER(displaytext) IN :entity_name_list
+        # ) AS sa ON be.id = sa.singleallele_id;
+        # """)
     elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
         sql_query = text("""
         SELECT DISTINCT be.modentityid, be.obsolete, agm.name
@@ -120,7 +130,6 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list):
     else:
         return None
     rows = db.execute(sql_query, {'entity_name_list': tuple(entity_name_list)}).fetchall()
-
     return rows
 
 
@@ -154,3 +163,66 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
         return None
     rows = db.execute(sql_query, {'entity_curie_list': tuple(entity_curie_list)}).fetchall()
     return rows
+
+
+def search_topic(db: Session, topic):
+    # ATP:0000002 (topic tag)
+    search_query = f"%{topic.upper()}%"
+    sql_query = text("""
+    SELECT ot.curie, ot.name
+    FROM ontologyterm ot
+    JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+    JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+    WHERE ot.ontologytermtype = 'ATPTerm'
+    AND UPPER(ot.name) LIKE :search_query
+    AND ot.obsolete = false
+    AND ancestor.curie = 'ATP:0000002'
+    ORDER BY LENGTH(ot.name)
+    LIMIT 10
+    """)
+    rows = db.execute(sql_query, {'search_query': search_query}).fetchall()
+
+    data = [
+        {
+            "curie": row[0],
+            "name": row[1]
+        }
+        for row in (rows or [])
+    ]
+    json_data = jsonable_encoder(data)
+    return JSONResponse(content=json_data)
+
+
+def search_species(db: Session, species):
+
+    sql_query = None
+    search_query = None
+    if species.upper().startswith("NCBITAXON"):
+        search_query = f"{species.upper()}%"
+        sql_query = text("""
+        SELECT curie, name
+        FROM ontologyterm
+        WHERE ontologytermtype = 'NCBITaxonTerm'
+        AND UPPER(curie) like :search_query
+        LIMIT 10
+        """)
+    else:
+        search_query = f"%{species.upper()}%"
+        sql_query = text("""
+        SELECT curie, name
+        FROM ontologyterm
+        WHERE ontologytermtype = 'NCBITaxonTerm'
+        AND UPPER(name) like :search_query
+        LIMIT 10
+        """)
+    rows = db.execute(sql_query, {'search_query': search_query}).fetchall()
+
+    data = [
+        {
+            "curie": row[0],
+            "name": row[1]
+        }
+        for row in (rows or [])
+    ]
+    json_data = jsonable_encoder(data)
+    return JSONResponse(content=json_data)
