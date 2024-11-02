@@ -784,64 +784,39 @@ def add_license(db: Session, curie: str, license: str):  # noqa
     return {"message": "Update Success!"}
 
 
-def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: Optional[int] = None, limit: Optional[int] = None):
+def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: str, filter: str, offset: Optional[int] = None, limit: Optional[int] = None):
 
-    subquery: Optional[TextClause] = None
     curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+    workflow_tag_id_clause: Optional[TextClause] = None
 
     if filter == 'default':
-        subquery = text("""
-            SELECT b.reference_id,
-                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS maincount,
-                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS supcount
-            FROM mod_corpus_association AS b
-            JOIN mod ON b.mod_id = mod.mod_id
-            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
-            LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-            WHERE mod.abbreviation = :mod_abbreviation
-            AND corpus = true
-            GROUP BY b.reference_id
-            HAVING (COUNT(1) FILTER (WHERE c.file_class = 'main') < 1
-                    OR COUNT(1) FILTER (WHERE c.file_class = 'supplement') < 1)
-            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000134') < 1
-            AND COUNT(1) FILTER (WHERE d.workflow_tag_id = 'ATP:0000135') < 1
-        """)
+        workflow_tag_id_clause = text("""WHERE (d.workflow_tag_id = 'ATP:0000139' OR d.workflow_tag_id = 'ATP:0000141')""")
     elif filter in ['ATP:0000134', 'ATP:0000135']:
-        subquery = text("""
-            SELECT b.reference_id,
-                   COUNT(1) FILTER (WHERE c.file_class = 'main') AS maincount,
-                   COUNT(1) FILTER (WHERE c.file_class = 'supplement') AS supcount
+        workflow_tag_id_clause = text("""WHERE workflow_tag_id = :filter""")
+    query_str = f"""
+        SELECT reference.reference_id, reference.curie, short_citation, reference.date_created, ref_pmid.curie AS PMID, ref_doi.curie AS DOI, ref_mod.curie AS mod_curie
+        FROM reference
+        JOIN citation ON reference.citation_id = citation.citation_id
+        JOIN
+          (
+            SELECT b.reference_id
             FROM mod_corpus_association AS b
             JOIN mod ON b.mod_id = mod.mod_id
-            LEFT JOIN referencefile AS c ON b.reference_id = c.reference_id
             LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
-            WHERE workflow_tag_id = :filter
-            AND mod.abbreviation = :mod_abbreviation
-            AND corpus = true
-            GROUP BY b.reference_id
-        """)
-
-    query_str = f"""
-        SELECT reference.curie, short_citation, reference.date_created,
-               sub_select.maincount AS maincount, sub_select.supcount AS supcount,
-               ref_pmid.curie as PMID, ref_doi.curie as DOI, ref_mod.curie AS mod_curie
-        FROM reference, citation,
-             ({subquery}) AS sub_select,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
-              WHERE curie_prefix = 'PMID') AS ref_pmid,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
-              WHERE curie_prefix = 'DOI') AS ref_doi,
-             (SELECT cross_reference.curie, reference_id
-              FROM cross_reference
-              WHERE curie_prefix = :curie_prefix) AS ref_mod
-        WHERE sub_select.reference_id = reference.reference_id
-        AND sub_select.reference_id = ref_pmid.reference_id
-        AND sub_select.reference_id = ref_doi.reference_id
-        AND sub_select.reference_id = ref_mod.reference_id
-        AND reference.citation_id = citation.citation_id
-        ORDER BY reference.date_created {order_by}
+            {workflow_tag_id_clause}
+            AND mod.abbreviation = 'WB'
+            AND b.corpus = TRUE
+          ) AS sub_select ON sub_select.reference_id = reference.reference_id
+        LEFT JOIN
+          (
+            SELECT curie, reference_id
+            FROM cross_reference
+            WHERE curie_prefix IN ('PMID', 'DOI', 'WB')
+          ) AS cross_ref ON cross_ref.reference_id = reference.reference_id
+        LEFT JOIN cross_reference AS ref_pmid ON ref_pmid.reference_id = reference.reference_id AND ref_pmid.curie_prefix = 'PMID'
+        LEFT JOIN cross_reference AS ref_doi ON ref_doi.reference_id = reference.reference_id AND ref_doi.curie_prefix = 'DOI'
+        LEFT JOIN cross_reference AS ref_mod ON ref_mod.reference_id = reference.reference_id AND ref_mod.curie_prefix = 'WB'
+        ORDER BY reference.date_created DESC
     """
 
     # Conditionally add limit and offset only if they are provided
@@ -864,7 +839,35 @@ def sql_query_for_missing_files(db: Session, mod_abbreviation: str, order_by: st
     if offset is not None:
         params['offset'] = str(offset)
 
-    return query.bindparams(**params)
+    rows = db.execute(query, params).mappings().fetchall()
+    ref_data = jsonable_encoder(rows)
+    if not ref_data:
+        return ref_data
+
+    reference_ids = [item['reference_id'] for item in ref_data if 'reference_id' in item]
+    reffile_query_str = """
+        SELECT reference_id,
+                   COUNT(1) FILTER (WHERE file_class = 'main') AS maincount,
+                   COUNT(1) FILTER (WHERE file_class = 'supplement') AS supcount
+        FROM referencefile
+        WHERE reference_id = ANY(:reference_ids)
+        GROUP BY reference_id
+    """
+    rows_reffile = db.execute(text(reffile_query_str), {'reference_ids': reference_ids}).mappings().fetchall()
+    reffile_data = jsonable_encoder(rows_reffile)
+    reffile_dict = {
+        entry['reference_id']: (entry['maincount'], entry['supcount'])
+        for entry in reffile_data
+    }
+    for item in ref_data:
+        item_reference_id = item['reference_id']
+        if item_reference_id in reffile_dict:
+            item['maincount'] = reffile_dict[item_reference_id][0]
+            item['supcount'] = reffile_dict[item_reference_id][1]
+        else:
+            item['maincount'] = 0
+            item['supcount'] = 0
+    return ref_data
 
 
 def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, filter: str):
@@ -882,9 +885,7 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
     try:
         limit = 25
         offset = (page - 1) * limit
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter, offset, limit)
-        rows = db.execute(query).mappings().fetchall()
-        data = jsonable_encoder(rows)
+        data = sql_query_for_workflow_files(db, mod_abbreviation, order_by, filter, offset, limit)
         if not data:
             return []
     except SQLAlchemyError as e:
@@ -892,13 +893,13 @@ def missing_files(db: Session, mod_abbreviation: str, order_by: str, page: int, 
                             detail=f"Database error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Can't search missing files: {str(e)}")
+                            detail=f"Can't search workflow files: {str(e)}")
     return data
 
 
 def download_tracker_table(db: Session, mod_abbreviation: str, order_by: str, filter: str):
     try:
-        query = sql_query_for_missing_files(db, mod_abbreviation, order_by, filter)
+        query = sql_query_for_workflow_files(db, mod_abbreviation, order_by, filter)
         rows = db.execute(query).fetchall()
         tag = {
             'default': 'needed',
