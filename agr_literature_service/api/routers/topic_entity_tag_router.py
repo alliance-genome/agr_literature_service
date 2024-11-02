@@ -198,3 +198,17 @@ def entity_validation(entity_type: str,
                       entity_list: str,
                       db: Session = db_session):
     return topic_entity_id_mapping_utils.map_entity_to_curie(db, entity_type, entity_list)
+
+
+@router.get('/search_topic/{topic}',
+            status_code=200)
+def search_topic(topic: str,
+                 db: Session = db_session):
+    return topic_entity_id_mapping_utils.search_topic(db, topic)
+
+
+@router.get('/search_species/{species}',
+            status_code=200)
+def search_species(species: str,
+                   db: Session = db_session):
+    return topic_entity_id_mapping_utils.search_species(db, species)
