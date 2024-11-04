@@ -192,12 +192,14 @@ def revalidate_all_tags(email: str = None,
         }
 
 
-@router.get('/entity_validation/{entity_type}/{entity_list}',
+@router.get('/entity_validation/{taxon}/{entity_type}/{entity_list}',
             status_code=200)
-def entity_validation(entity_type: str,
+def entity_validation(taxon: str,
+                      entity_type: str,
                       entity_list: str,
                       db: Session = db_session):
-    return topic_entity_id_mapping_utils.map_entity_to_curie(db, entity_type, entity_list)
+    return topic_entity_id_mapping_utils.map_entity_to_curie(db, entity_type,
+                                                             entity_list, taxon)
 
 
 @router.get('/search_topic/{topic}',
