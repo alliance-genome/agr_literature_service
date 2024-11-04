@@ -14,9 +14,9 @@ curie_prefix_list = [
     "XenBase",
     "ZFIN"
 ]
-# TODO 2: optimize sqls/add indexes if needed
-# TODO 3: adding function for name to id mapping (for TET table display)
-# TODO 4: adding caching for name to id mapping
+
+# TODO 2: adding functions for getting/loading ATP parent/children tree/terms
+# TODO 3: adding caching for name to id mapping
 
 
 def map_entity_to_curie(db: Session, entity_type, entity_list, taxon):
