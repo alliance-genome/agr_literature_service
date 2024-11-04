@@ -794,7 +794,7 @@ def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: s
     elif filter in ['ATP:0000134', 'ATP:0000135']:
         workflow_tag_id_clause = text("""WHERE workflow_tag_id = :filter""")
     query_str = f"""
-        SELECT reference.reference_id, reference.curie, short_citation, reference.date_created, ref_pmid.curie AS PMID, ref_doi.curie AS DOI, ref_mod.curie AS mod_curie
+        SELECT reference.reference_id, reference.curie, short_citation, reference.date_created, MAX(ref_pmid.curie) AS PMID, MAX(ref_doi.curie) AS DOI, MAX(ref_mod.curie) AS mod_curie
         FROM reference
         JOIN citation ON reference.citation_id = citation.citation_id
         JOIN
@@ -804,18 +804,19 @@ def sql_query_for_workflow_files(db: Session, mod_abbreviation: str, order_by: s
             JOIN mod ON b.mod_id = mod.mod_id
             LEFT JOIN workflow_tag AS d ON b.reference_id = d.reference_id
             {workflow_tag_id_clause}
-            AND mod.abbreviation = 'WB'
+            AND mod.abbreviation = :mod_abbreviation
             AND b.corpus = TRUE
           ) AS sub_select ON sub_select.reference_id = reference.reference_id
         LEFT JOIN
           (
             SELECT curie, reference_id
             FROM cross_reference
-            WHERE curie_prefix IN ('PMID', 'DOI', 'WB')
+            WHERE curie_prefix IN ('PMID', 'DOI', :mod_abbreviation)
           ) AS cross_ref ON cross_ref.reference_id = reference.reference_id
         LEFT JOIN cross_reference AS ref_pmid ON ref_pmid.reference_id = reference.reference_id AND ref_pmid.curie_prefix = 'PMID'
         LEFT JOIN cross_reference AS ref_doi ON ref_doi.reference_id = reference.reference_id AND ref_doi.curie_prefix = 'DOI'
-        LEFT JOIN cross_reference AS ref_mod ON ref_mod.reference_id = reference.reference_id AND ref_mod.curie_prefix = 'WB'
+        LEFT JOIN cross_reference AS ref_mod ON ref_mod.reference_id = reference.reference_id AND ref_mod.curie_prefix = :mod_abbreviation
+        GROUP BY reference.reference_id, reference.curie, short_citation, reference.date_created
         ORDER BY reference.date_created DESC
     """
 
