@@ -6,13 +6,16 @@ from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import topic_entity_tag_crud
+from agr_literature_service.api.crud import topic_entity_tag_crud, \
+    topic_entity_tag_utils
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
-from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
-    TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
-    TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
+from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, \
+    TopicEntityTagSchemaPost, ResponseMessageSchema
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import \
+    TopicEntityTagSchemaRelated, TopicEntityTagSourceSchemaUpdate, \
+    TopicEntityTagSchemaUpdate, TopicEntityTagSourceSchemaShow, \
+    TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -189,3 +192,14 @@ def revalidate_all_tags(email: str = None,
         return {
             "message": "Revalidation of all tags started. You will receive an email when done."
         }
+
+
+@router.delete('/delete_manual_tets/{reference_curie}/{mod_abbreviation}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def delete_manual_tags(reference_curie,
+                       mod_abbreviation,
+                       user: OktaUser = db_user,
+                       db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    topic_entity_tag_utils.delete_manual_tets(db, reference_curie, mod_abbreviation)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
