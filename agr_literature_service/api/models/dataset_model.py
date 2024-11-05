@@ -1,6 +1,6 @@
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
+from sqlalchemy import Column, ForeignKey, Integer, String, Table
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -8,6 +8,24 @@ from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
+
+# Association table for many-to-many relationship between Dataset and TopicEntityTag
+dataset_topic_entity_tag = Table(
+    'dataset_topic_entity_tag',
+    Base.metadata,
+    
+    Column(
+        'dataset_id', 
+        Integer, 
+        ForeignKey('dataset.dataset_id')
+    ),
+    
+    Column(
+        'topic_entity_tag_id', 
+        Integer, 
+        ForeignKey('topic_entity_tag.topic_entity_tag_id')
+    )
+)
 
 
 class DatasetModel(AuditedModel, Base):
@@ -49,3 +67,11 @@ class DatasetModel(AuditedModel, Base):
         unique=False,
         nullable=False
     )
+
+    # Add relationship to TopicEntityTag
+    topic_entity_tags = relationship(
+        "TopicEntityTagModel",
+        secondary=dataset_topic_entity_tag,
+        back_populates="datasets"
+    )
+

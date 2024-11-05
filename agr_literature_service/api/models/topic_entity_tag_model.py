@@ -164,6 +164,13 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
+    # Add relationship to Dataset
+    datasets = relationship(
+        "DatasetModel",
+        secondary="dataset_topic_entity_tag",
+        back_populates="topic_entity_tags"
+    )
+
     def __str__(self):
         return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \
                f"\n-\tval_auth:{self.validation_by_author}\tval_pb:{self.validation_by_professional_biocurator}" \
