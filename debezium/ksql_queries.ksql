@@ -190,6 +190,7 @@ CREATE TABLE topic_entity_tags AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'novel_topic_data':=cast(novel_topic_data as string), 'source_method':=source_method, 'source_evidence_assertion':=source_evidence_assertion)) \"TOPIC_ENTITY_TAGS\"
     FROM topic_entity_tag_with_source
+    where reference_id is not null
     GROUP BY reference_id
     EMIT CHANGES;
 
@@ -197,6 +198,7 @@ CREATE TABLE cross_references AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('curie':=curie, 'is_obsolete':=cast(is_obsolete as string))) \"CROSS_REFERENCES\"
     FROM cross_reference
+    where reference_id is not null
     GROUP BY reference_id
     EMIT CHANGES;
 
@@ -204,6 +206,7 @@ CREATE TABLE authors AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('name':=name, 'orcid':=orcid)) \"AUTHORS\"
     FROM author
+    where reference_id is not null
     GROUP BY reference_id
     EMIT CHANGES;
 
@@ -213,7 +216,7 @@ CREATE TABLE mods_in_corpus AS
     FROM mod_corpus_association
     JOIN mod
     ON mod_corpus_association.mod_id = mod.mod_id
-    WHERE mod_corpus_association.corpus = true
+    WHERE mod_corpus_association.corpus = true and mod_corpus_association.reference_id is not null
     GROUP BY mod_corpus_association.reference_id
     EMIT CHANGES;
 
@@ -223,7 +226,7 @@ CREATE TABLE mods_needs_review AS
     FROM mod_corpus_association
     JOIN mod
     ON mod_corpus_association.mod_id = mod.mod_id
-    WHERE mod_corpus_association.corpus is NULL
+    WHERE mod_corpus_association.corpus is NULL and mod_corpus_association.reference_id is not null
     GROUP BY mod_corpus_association.reference_id
     EMIT CHANGES;
 
@@ -233,7 +236,7 @@ CREATE TABLE mods_in_corpus_or_needs_review AS
     FROM mod_corpus_association
     JOIN mod
     ON mod_corpus_association.mod_id = mod.mod_id
-    WHERE mod_corpus_association.corpus is NULL OR mod_corpus_association.corpus = true
+    WHERE (mod_corpus_association.corpus is NULL OR mod_corpus_association.corpus = true) and mod_corpus_association.reference_id is not null
     GROUP BY mod_corpus_association.reference_id
     EMIT CHANGES;
 
@@ -251,6 +254,7 @@ CREATE TABLE mod_referencetype_referencetype_full AS
     FROM reference_mod_referencetype
     JOIN mod_referencetype_referencetype
     ON mod_referencetype_referencetype.mod_referencetype_id = reference_mod_referencetype.mod_referencetype_id
+    where reference_mod_referencetype.reference_id is not null
     GROUP BY reference_mod_referencetype.reference_id
     EMIT CHANGES;
 
@@ -258,6 +262,7 @@ CREATE TABLE obsolete_curies AS
     SELECT new_id \"REFERENCE_ID\",
     collect_list(curie) \"OBSOLETE_CURIES\"
     FROM obsolete_reference_curie
+    where new_id is not null
     GROUP BY new_id
     EMIT CHANGES;
 
