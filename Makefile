@@ -88,6 +88,8 @@ restart-debezium-local:
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_setup
 
 restart-debezium-aws:
+    docker-compose --env-file ${ENV_FILE} up -d elasticsearch
+	sleep 10
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 	docker-compose --env-file ${ENV_FILE} up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 10
