@@ -318,6 +318,9 @@ services:
       - OFFSET_STORAGE_TOPIC=my_source_connect_offsets
       - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
       - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
+      - KAFKA_HEAP_OPTS=-Xms512m -Xmx32g
+      - MAX_POLL_INTERVAL_MS=10000
+      - MAX_POLL_RECORDS=100
     networks:
       - agr-literature
 
