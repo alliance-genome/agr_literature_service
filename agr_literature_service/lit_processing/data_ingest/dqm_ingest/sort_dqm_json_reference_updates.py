@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from collections import defaultdict
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
-    load_database_md5data, generate_new_md5, save_database_md5data
+    load_database_md5data, generate_new_md5, update_md5sum
 from agr_literature_service.api.models import ReferenceModel, ModModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     write_json
@@ -293,6 +293,7 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         aggregate_mod_biblio_all = dict()
         xref_to_pages = dict()
         report[mod] = []
+        md5sum_to_update = []
         # report2[mod] = []
         missing_papers_in_mod[mod] = []
         missing_agr_in_mod[mod] = []
@@ -368,12 +369,13 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
                 continue
             if old_md5 == 'none':
                 logger.info(f"primaryId {primary_id} is new for {mod} but could pre-exist for other mod")
+                md5sum_to_update.append((primary_id, None, new_md5))
             elif new_md5 == 'none':
                 # logger.info(f"{primary_id} in previous dqm submission, not in current")
                 fh_mod_report[mod].write(f"{primary_id} in previous dqm submission, not in current")
             else:
                 logger.info(f"primaryId {primary_id} has changed")
-
+                md5sum_to_update.append((primary_id, old_md5, new_md5))
             # inject the mod corpus association data because if it came from
             # that mod dqm file it should have this entry
             mod_corpus_associations = [{"mod_abbreviation": mod, "mod_corpus_sort_source": "dqm_files", "corpus": True}]
@@ -675,13 +677,10 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         # if env_state == 'build':
         env_state = environ.get('ENV_STATE', 'build')
         if env_state != 'test':
-            merge_md5dict = {}
-            merge_md5dict[mod] = {**old_md5dict[mod], **new_md5dict[mod]}
             try:
-                save_database_md5data(merge_md5dict)
+                update_md5sum(md5sum_to_update, mod)
             except Exception as e:
                 logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
-
         fh_mod_report[mod].close()
 
         try:
