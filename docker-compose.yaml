@@ -393,6 +393,12 @@ services:
       - "49001:8080"
       - "50000:50000"
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+        reservations:
+          memory: 256m
 
   file_uploader:
     build:
