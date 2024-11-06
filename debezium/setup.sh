@@ -21,7 +21,7 @@ sleep 10
 export SINK_NAME="elastic-sink-temp"
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$DEBEZIUM_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
 
-sleep 20000
+sleep 7200
 new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count | jq '.count')
 if [[ $new_index_doc_count -gt 0 ]]
 then
