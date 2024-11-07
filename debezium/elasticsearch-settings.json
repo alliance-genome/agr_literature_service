@@ -497,7 +497,24 @@
                 "ignore_above": 256
               }
             }
-          }
+          },
+	  "mod_corpus_associations": {
+            "type": "nested",
+            "properties": {
+              "mod_id": {
+                "type": "integer"
+              },
+              "corpus": {
+                "type": "boolean"
+              },
+              "date_sorted_inside_corpus": {
+                "type": "date",
+                "format": "date_optional_time||epoch_millis",
+                "null_value": null,
+                "ignore_malformed": true
+              }
+            }
+	  }  
         }
       }
     }
