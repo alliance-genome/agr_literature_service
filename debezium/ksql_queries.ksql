@@ -549,6 +549,25 @@ CREATE TABLE reference_mod_reference_types AS SELECT
     LEFT OUTER JOIN mod_referencetype_referencetype_full mod_referencetype_referencetype_full ON
     reference_obsolete_curies.reference_id = mod_referencetype_referencetype_full.reference_id;
 
+CREATE TABLE reference_workflow_tag(
+    reference_workflow_tag_id string PRIMARY KEY,
+    reference_id string,
+    workflow_tag_id string,
+    mod_id string,
+    created_by string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.workflow_tag',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
+CREATE TABLE reference_workflow_tags AS
+    SELECT reference_workflow_tag.reference_id \"REFERENCE_ID\",
+    collect_list(map('workflow_tag_id':=workflow_tag_id)) \"WORKFLOW_TAGS\"
+    FROM reference_workflow_tag reference_workflow_tag
+    GROUP BY reference_workflow_tag.reference_id
+    EMIT CHANGES;
+
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
@@ -588,9 +607,11 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.mods_in_corpus_or_needs_review \"mods_in_corpus_or_needs_review\",
     reference_mod_reference_types.obsolete_curies \"obsolete_curies\",
     reference_mod_reference_types.label \"mod_reference_types\",
-    topic_entity_tags.topic_entity_tags \"topic_entity_tags\"
+    topic_entity_tags.topic_entity_tags \"topic_entity_tags\",
+    reference_workflow_tags.workflow_tags \"workflow_tags\"
     FROM reference_mod_reference_types reference_mod_reference_types
     LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
-    reference_mod_reference_types.reference_id = topic_entity_tags.reference_id;
+    reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
+    LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id;
 ",
 "streamsProperties": {}}
