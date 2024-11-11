@@ -5,6 +5,7 @@ import argparse
 from collections import defaultdict
 from os import environ, path, makedirs, listdir
 import logging.config
+from agr_literature_service.api.models import ModModel, CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3, download_file_from_s3
@@ -359,6 +360,64 @@ def generate_md5sum_from_dict(json_dict):
     json_data = json.dumps(json_dict, indent=4, sort_keys=True)
     md5sum = hashlib.md5(json_data.encode('utf-8')).hexdigest()
     return md5sum
+
+
+def update_md5sum(md5sum_to_update, mod_abbreviation=None):
+
+    db = create_postgres_session(False)
+
+    mod_id = None
+    mod_id_sql = "mod_id IS NULL"
+    if mod_abbreviation:
+        mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+        if not mod:
+            logger.info(f"mod abbreviation {mod_abbreviation} is not in the database")
+            return
+        mod_id = mod.mod_id
+        mod_id_sql = "mod_id = :mod_id"
+    row_count = 0
+    for row in md5sum_to_update:
+        row_count += 1
+        (xref_curie, old_md5sum, new_md5sum) = row
+        if old_md5sum:
+            print(f"Need to update: {mod_abbreviation} {xref_curie} old_md5sum={old_md5sum} new_md5sum={new_md5sum}")
+            sql_query = text(f"""
+            UPDATE reference_mod_md5sum
+            SET md5sum = :new_md5sum
+            WHERE reference_id IN (
+                select reference_id
+                from cross_reference
+                where curie = :xref_curie
+                and is_obsolete IS FALSE
+            )
+            AND md5sum = :old_md5sum
+            AND {mod_id_sql}
+            """)
+            db.execute(sql_query, {
+                "new_md5sum": new_md5sum,
+                "xref_curie": xref_curie,
+                "old_md5sum": old_md5sum,
+                **({"mod_id": mod_id} if mod_id else {})
+            })
+        else:
+            print(f"Insert new md5sum: {mod_abbreviation} {xref_curie} {new_md5sum}")
+            refs = db.query(CrossReferenceModel).filter(
+                CrossReferenceModel.curie == xref_curie, CrossReferenceModel.is_obsolete.is_(False)).all()
+            if len(refs) != 1:
+                continue
+            reference_id = refs[0].reference_id
+            sql_query = text("""
+            INSERT into reference_mod_md5sum (reference_id, mod_id, md5sum, date_updated)
+            VALUES (:reference_id, :mod_id, :new_md5sum, now())
+            """)
+            db.execute(sql_query, {
+                "reference_id": reference_id,
+                "mod_id": mod_id if mod_id else None,
+                "new_md5sum": new_md5sum
+            })
+        if row_count % 100 == 0:
+            db.commit()
+    db.commit()
 
 
 if __name__ == "__main__":
