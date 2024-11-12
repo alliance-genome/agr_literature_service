@@ -14,35 +14,40 @@ TestDatasetData = namedtuple('TestDatasetData', ['response', 'mod_abbreviation',
                                                  'dataset_type'])
 
 
+test_atp_id = "TEST_ATP_ID"
+test_dataset_type = "document"
+
+
 @pytest.fixture
 def test_dataset(db, test_mod, auth_headers):  # noqa
     print("***** Adding a test dataset *****")
     with TestClient(app) as client:
         new_dataset = {
             "mod_abbreviation": test_mod.new_mod_abbreviation,
-            "data_type_topic": "TOPIC_ATP_ID",
-            "dataset_type": "document",
+            "data_type_topic": test_atp_id,
+            "dataset_type": test_dataset_type,
             "dataset_note": "This is a test dataset"
         }
         response = client.post(url="/datasets/", json=new_dataset, headers=auth_headers)
-        yield TestDatasetData(response, test_mod.new_mod_abbreviation, "TOPIC_ATP_ID", "document")
+        yield TestDatasetData(response, test_mod.new_mod_abbreviation, test_atp_id, test_dataset_type)
 
 
 class TestDataset:
-    def test_create_dataset(self, db, auth_headers, test_dataset):  # noqa
+    def test_create_dataset(self, db, auth_headers, test_mod, test_dataset):  # noqa
         with TestClient(app) as client:
             assert test_dataset.response.status_code == status.HTTP_201_CREATED
             # check db for dataset
             dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
                 DatasetModel.mod.has(abbreviation=test_dataset.mod_abbreviation),
-                DatasetModel.data_type_topic == "TOPIC_ATP_ID",
-                DatasetModel.dataset_type == "document").one()
-            assert dataset.data_type_topic == "TOPIC_ATP_ID"
-            assert dataset.dataset_type == "document"
+                DatasetModel.data_type_topic == test_dataset.data_type_topic,
+                DatasetModel.dataset_type == test_dataset.dataset_type).one()
+            assert dataset.mod.abbreviation == test_mod.new_mod_abbreviation
+            assert dataset.data_type_topic == test_atp_id
+            assert dataset.dataset_type == test_dataset_type
 
     def test_download_dataset(self, test_mod, test_dataset):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/datasets/{test_mod.new_mod_abbreviation}/TOPIC_ATP_ID/document/")
+            response = client.get(url=f"/datasets/{test_mod.new_mod_abbreviation}/{test_atp_id}/document/")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()['dataset_title'] == "Test Dataset"
 
