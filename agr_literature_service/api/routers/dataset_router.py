@@ -7,7 +7,8 @@ from starlette import status
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import dataset_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, DatasetSchemaShow, DatasetSchemaBase
+from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, DatasetSchemaShow, DatasetSchemaBase, \
+    DatasetSchemaDownload, DatasetSchemaUpdate
 
 router = APIRouter(
     prefix='/datasets',
@@ -34,26 +35,40 @@ def delete_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: st
                                        dataset_type=dataset_type)
 
 
-@router.get("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/", response_model=DatasetSchemaShow)
+@router.patch("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=str)
+def patch_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, dataset_update: DatasetSchemaUpdate,
+                  db: Session = db_session):
+    return dataset_crud.patch_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+                                      dataset_type=dataset_type, dataset_update=dataset_update)
+
+
+@router.get("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+            response_model=DatasetSchemaDownload)
 def download_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, db: Session = Depends(get_db)):
     db_dataset = dataset_crud.download_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
                                                dataset_type=dataset_type)
     return db_dataset
 
 
-@router.post("/", response_model=Dataset)
-def add_topic_entity_tag_to_dataset(dataset_id: int, dataset: DatasetUpdate, db: Session = Depends(get_db)):
-    db_dataset = dataset_crud.update_dataset(db, dataset_id, dataset)
-    if db_dataset is None:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    return db_dataset
+@router.post("/topic_entity_tag/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+             status_code=status.HTTP_202_ACCEPTED)
+def add_topic_entity_tag_to_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                                    topic_entity_tag_id: int, db: Session = Depends(get_db)):
+    dataset_crud.add_topic_entity_tag_to_dataset(db, mod_abbreviation=mod_abbreviation,
+                                                 data_type_topic=data_type_topic,
+                                                 dataset_type=dataset_type,
+                                                 topic_entity_tag_id=topic_entity_tag_id)
 
 
-@router.delete("/", response_model=bool)
-def delete_topic_entity_tag_from_dataset(dataset_id: int, db: Session = Depends(get_db)):
-    success = dataset_crud.delete_dataset(db, dataset_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    return success
+@router.delete("/topic_entity_tag/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+               status_code=status.HTTP_202_ACCEPTED)
+def delete_topic_entity_tag_from_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                                         topic_entity_tag_id: int, db: Session = Depends(get_db)):
+    dataset_crud.delete_topic_entity_tag_from_dataset(db, mod_abbreviation=mod_abbreviation,
+                                                      data_type_topic=data_type_topic,
+                                                      dataset_type=dataset_type,
+                                                      topic_entity_tag_id=topic_entity_tag_id)
 
 

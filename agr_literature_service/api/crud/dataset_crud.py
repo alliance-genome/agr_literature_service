@@ -7,7 +7,7 @@ from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaShow, DatasetSchemaPost, \
-    DatasetSchemaDownload
+    DatasetSchemaDownload, DatasetSchemaUpdate
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str) -> Optional[DatasetModel]:
@@ -103,10 +103,11 @@ def destroy_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, da
     db.commit()
 
 
-def patch_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str):
+def patch_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                  dataset_update: DatasetSchemaUpdate):
     dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
                           dataset_type=dataset_type)
-    for key, value in dataset.dict(exclude_unset=True).items():
+    for key, value in dataset_update.dict(exclude_unset=True).items():
         setattr(dataset, key, value)
     db.commit()
     db.refresh(dataset)
