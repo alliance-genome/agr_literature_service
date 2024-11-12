@@ -20,6 +20,11 @@ class DatasetSchemaShow(DatasetSchemaPost):
     topic_entity_tags: [List[TopicEntityTagSchemaRelated]]
 
 
+class DatasetSchemaDownload(DatasetSchemaPost):
+    dataset_id: int
+    data: List[str]
+
+
 class DatasetSchemaUpdate(BaseModel):
     mod_abbreviation: Optional[constr(min_length=1)]  # type: ignore
     data_type_topic: Optional[constr(min_length=1)]  # type: ignore

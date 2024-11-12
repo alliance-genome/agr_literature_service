@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel
-from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaShow, DatasetSchemaPost
+from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaShow, DatasetSchemaPost, \
+    DatasetSchemaDownload
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str) -> Optional[DatasetModel]:
@@ -42,11 +43,28 @@ def delete_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dat
     db.commit()
 
 
-def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str) -> DatasetSchemaShow:
+def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
+                     dataset_type: str) -> DatasetSchemaDownload:
     dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type)
-    # TODO: Implement dataset download logic here (document level should return agrkb ids, entity level should return 
-    #  entity curies) 
-    return DatasetSchemaShow.from_orm(dataset)
+    # Return agrkb ids or entity curies based on the dataset type
+    if dataset_type == "document":
+        data = [tag.reference.curie for tag in dataset.topic_entity_tags]
+    elif dataset_type == "entity":
+        data = [tag.entity for tag in dataset.topic_entity_tags]
+    else:
+        raise ValueError("Invalid dataset type")
+    return DatasetSchemaDownload(
+        dataset_id=dataset.dataset_id,
+        data=data,
+        mod_abbreviation=dataset.mod.abbreviation,
+        data_type_topic=dataset.data_type_topic,
+        dataset_type=dataset.dataset_type,
+        notes=dataset.notes,
+        date_created=dataset.date_created,
+        date_updated=dataset.date_updated,
+        created_by=dataset.created_by,
+        updated_by=dataset.updated_by
+    )
 
 
 def add_topic_entity_tag_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
