@@ -1,14 +1,31 @@
-from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel
-from agr_literature_service.api.schemas.dataset_schema import DatasetCreate, DatasetUpdate
+from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaShow, DatasetSchemaPost
 
 
-def create_blank_dataset(db: Session, dataset: DatasetCreate) -> DatasetModel:
+def get_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str) -> Optional[DatasetModel]:
+    dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
+        DatasetModel.mod.has(mod_abbreviation=mod_abbreviation),
+        DatasetModel.data_type_topic == data_type_topic,
+        DatasetModel.dataset_type == dataset_type
+    ).first()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    return dataset
+
+
+def create_dataset(db: Session, dataset: DatasetSchemaPost) -> str:
+    mod = db.query(ModModel).filter(ModModel.abbreviation == dataset.mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=404, detail=f"Mod with abbreviation {dataset.mod_abbreviation} not found")
     db_dataset = DatasetModel(
-        mod_id=dataset.mod_id,
+        mod_id=mod.mod_id,
         data_type_topic=dataset.data_type_topic,
         dataset_type=dataset.dataset_type,
         notes=dataset.notes
@@ -16,62 +33,62 @@ def create_blank_dataset(db: Session, dataset: DatasetCreate) -> DatasetModel:
     db.add(db_dataset)
     db.commit()
     db.refresh(db_dataset)
-    return db_dataset
+    return "created"
 
 
-def get_dataset(db: Session, dataset_id: int) -> Optional[DatasetModel]:
-    return db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_id).first()
+def delete_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str):
+    dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type)
+    db.delete(dataset)
+    db.commit()
 
 
-def get_datasets(db: Session, skip: int = 0, limit: int = 100) -> List[DatasetModel]:
-    return db.query(DatasetModel).offset(skip).limit(limit).all()
+def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str) -> DatasetSchemaShow:
+    dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type)
+    # TODO: Implement dataset download logic here (document level should return agrkb ids, entity level should return 
+    #  entity curies) 
+    return DatasetSchemaShow.from_orm(dataset)
 
 
-def add_topic_entity_tag_to_dataset(db: Session, dataset_id: int, topic_entity_tag_id: int) -> Optional[DatasetModel]:
-    dataset = get_dataset(db, dataset_id)
-    if not dataset:
-        return None
-
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+def add_topic_entity_tag_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                                    topic_entity_tag_id: int):
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+                          dataset_type=dataset_type)
+    topic_entity_tag = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
     if not topic_entity_tag:
-        return None
-
+        raise HTTPException(status_code=404, detail="Tag not found")
     dataset.topic_entity_tags.append(topic_entity_tag)
     db.commit()
     db.refresh(dataset)
-    return dataset
 
 
-def remove_topic_entity_tag_from_dataset(db: Session, dataset_id: int, topic_entity_tag_id: int) -> Optional[DatasetModel]:
-    dataset = get_dataset(db, dataset_id)
-    if not dataset:
-        return None
-
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
-    if not topic_entity_tag:
-        return None
-
+def delete_topic_entity_tag_from_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                                         topic_entity_tag_id: int):
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+                          dataset_type=dataset_type)
+    
+    topic_entity_tag = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id
+    ).first()
+    
+    if topic_entity_tag is None:
+        raise HTTPException(status_code=404, detail="Topic Entity Tag not found")
+    
     dataset.topic_entity_tags.remove(topic_entity_tag)
     db.commit()
-    db.refresh(dataset)
-    return dataset
 
 
-def destroy_dataset(db: Session, dataset_id: int) -> bool:
-    dataset = get_dataset(db, dataset_id)
-    if not dataset:
-        return False
-
+def destroy_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str):
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+                          dataset_type=dataset_type)
     db.delete(dataset)
     db.commit()
-    return True
 
 
-def update_dataset(db: Session, dataset_id: int, dataset: DatasetUpdate) -> Optional[DatasetModel]:
-    db_dataset = get_dataset(db, dataset_id)
-    if db_dataset:
-        for key, value in dataset.dict(exclude_unset=True).items():
-            setattr(db_dataset, key, value)
-        db.commit()
-        db.refresh(db_dataset)
-    return db_dataset
+def patch_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str):
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+                          dataset_type=dataset_type)
+    for key, value in dataset.dict(exclude_unset=True).items():
+        setattr(dataset, key, value)
+    db.commit()
+    db.refresh(dataset)

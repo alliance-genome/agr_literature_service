@@ -1,6 +1,6 @@
 from typing import Dict
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Table
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -73,5 +73,9 @@ class DatasetModel(AuditedModel, Base):
         "TopicEntityTagModel",
         secondary=dataset_topic_entity_tag,
         back_populates="datasets"
+    )
+
+    __table_args__ = (
+        UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', name='unique_dataset'),
     )
 
