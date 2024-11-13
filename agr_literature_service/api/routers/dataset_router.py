@@ -1,14 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Security
+from fastapi import APIRouter, Depends, Security
 from sqlalchemy.orm import Session
-from typing import List
-
 from starlette import status
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import dataset_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, DatasetSchemaShow, DatasetSchemaBase, \
-    DatasetSchemaDownload, DatasetSchemaUpdate
+from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, DatasetSchemaDownload, \
+    DatasetSchemaUpdate
 
 router = APIRouter(
     prefix='/datasets',
@@ -30,25 +28,27 @@ def create_dataset(dataset: DatasetSchemaPost, db: Session = db_session):
 
 @router.delete("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/{version}/",
                status_code=status.HTTP_204_NO_CONTENT)
-def delete_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, db: Session = db_session):
+def delete_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int,
+                   db: Session = db_session):
     return dataset_crud.delete_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                                       dataset_type=dataset_type)
+                                       dataset_type=dataset_type, version=version)
 
 
-@router.patch("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+@router.patch("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/{version}/",
               status_code=status.HTTP_202_ACCEPTED,
               response_model=str)
-def patch_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, dataset_update: DatasetSchemaUpdate,
-                  db: Session = db_session):
+def patch_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int,
+                  dataset_update: DatasetSchemaUpdate, db: Session = db_session):
     return dataset_crud.patch_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                                      dataset_type=dataset_type, dataset_update=dataset_update)
+                                      dataset_type=dataset_type, version=version, dataset_update=dataset_update)
 
 
-@router.get("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+@router.get("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/{version}/",
             response_model=DatasetSchemaDownload)
-def download_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, db: Session = Depends(get_db)):
+def download_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int,
+                     db: Session = Depends(get_db)):
     db_dataset = dataset_crud.download_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                                               dataset_type=dataset_type)
+                                               dataset_type=dataset_type, version=version)
     return db_dataset
 
 

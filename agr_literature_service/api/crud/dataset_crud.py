@@ -52,8 +52,8 @@ def delete_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dat
 
 
 def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
-                     dataset_type: str) -> DatasetSchemaDownload:
-    dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type)
+                     dataset_type: str, version: int) -> DatasetSchemaDownload:
+    dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type, version)
     # Return agrkb ids or entity curies based on the dataset type
     document_data_training = []
     document_data_testing = []

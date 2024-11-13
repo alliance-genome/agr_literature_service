@@ -5,15 +5,16 @@ from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
-from agr_literature_service.api.models import TopicEntityTagModel
+from agr_literature_service.api.models import TopicEntityTagModel, ReferenceModel
+from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.api.models.audited_model import AuditedModel
 
 enable_versioning()
 
 
 # Association table for many-to-many relationship between Dataset and TopicEntityTag
-class DatasetTopicEntityTag(Base):
-    __tablename__ = 'dataset_topic_entity_tag'
+class DatasetEntry(Base):
+    __tablename__ = 'dataset_entry'
 
     dataset_id: Mapped[int] = mapped_column(
         ForeignKey('dataset.dataset_id'),
@@ -21,14 +22,58 @@ class DatasetTopicEntityTag(Base):
         ondelete='CASCADE'
     )
 
-    topic_entity_tag_id: Mapped[int] = mapped_column(
+    dataset: Mapped["DatasetModel"] = relationship(back_populates="dataset_entries")
+
+    supporting_topic_entity_tag_id: Mapped[int] = mapped_column(
         ForeignKey('topic_entity_tag.topic_entity_tag_id'),
-        primary_key=True,
-        ondelete='CASCADE'
+        ondelete="SET NULL"
     )
 
-    dataset: Mapped["DatasetModel"] = relationship(back_populates="topic_entity_tags")
-    topic_entity_tag: Mapped["TopicEntityTagModel"] = relationship(back_populates="datasets")
+    supporting_topic_entity_tag: Mapped["TopicEntityTagModel"] = relationship(back_populates="dataset_entries")
+
+    supporting_workflow_tag_id: Mapped[int] = mapped_column(
+        ForeignKey('topic_entity_tag.topic_entity_tag_id'),
+        ondelete="SET NULL"
+    )
+
+    supporting_workflow_tag: Mapped["WorkflowTagModel"] = relationship(back_populates="dataset_entries")
+
+    reference_id: Mapped[int] = mapped_column(
+        ForeignKey('reference.reference_id')
+    )
+
+    reference: Mapped["ReferenceModel"] = relationship()
+
+    entity = Column(
+        String(),
+        nullable=True,
+        default=None
+    )
+
+    entity_count = Column(
+        Integer(),
+        nullable=True,
+        default=None
+    )
+
+    sentence = Column(
+        String(),
+        nullable=True,
+        default=None
+    )
+
+    section = Column(
+        String(),
+        nullable=True,
+        default=None
+    )
+
+    positive = Column(
+        Boolean(),
+        nullable=False,
+        default=True,
+        server_default='true'
+    )
 
     set_type = Column(
         Enum('training', 'testing', name='set_type_enum'),
@@ -66,7 +111,7 @@ class DatasetModel(AuditedModel, Base):
         foreign_keys="DatasetModel.mod_id"
     )
 
-    data_type_topic = Column(
+    data_type = Column(
         String(),
         unique=False,
         nullable=False
@@ -80,7 +125,7 @@ class DatasetModel(AuditedModel, Base):
 
     version = Column(
         Integer(),
-        nullable=True,
+        nullable=False,
     )
 
     description = Column(
@@ -89,11 +134,21 @@ class DatasetModel(AuditedModel, Base):
         nullable=False
     )
 
-    topic_entity_tag_associations: Mapped[List["DatasetTopicEntityTag"]] = relationship(
-        back_populates="dataset_associations")
+    frozen = Column(
+        Boolean(),
+        nullable=False,
+        default=False
+    )
+
+    production = Column(
+        Boolean(),
+        nullable=False,
+        default=False
+    )
+
+    dataset_entries: Mapped[List["DatasetEntry"]] = relationship()
 
     __table_args__ = (
-        UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', 'version', name='unique_dataset',
-                         condition=(func.count() == 1)),
+        UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', 'version', name='unique_dataset')
     )
 

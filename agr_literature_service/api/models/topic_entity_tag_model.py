@@ -166,8 +166,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     # Add relationship to Dataset
-    dataset_associations: Mapped[List["DatasetTopicEntityTag"]] = relationship(
-        back_populates="topic_entity_tag_associations")
+    dataset_entries: Mapped[List["DatasetTopicEntityTag"]] = relationship(back_populates="dataset_entries")
 
     def __str__(self):
         return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \
