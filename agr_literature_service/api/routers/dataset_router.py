@@ -28,7 +28,7 @@ def create_dataset(dataset: DatasetSchemaPost, db: Session = db_session):
     return dataset_crud.create_dataset(db, dataset)
 
 
-@router.delete("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+@router.delete("/{mod_abbreviation}/{data_type_topic}/{dataset_type}/{version}/",
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_dataset(mod_abbreviation: str, data_type_topic: str, dataset_type: str, db: Session = db_session):
     return dataset_crud.delete_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
@@ -70,5 +70,15 @@ def delete_topic_entity_tag_from_dataset(mod_abbreviation: str, data_type_topic:
                                                       data_type_topic=data_type_topic,
                                                       dataset_type=dataset_type,
                                                       topic_entity_tag_id=topic_entity_tag_id)
+
+
+@router.post("/create_version/{mod_abbreviation}/{data_type_topic}/{dataset_type}/",
+             status_code=status.HTTP_201_CREATED,
+             response_model=str)
+def create_dataset_version(mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                           db: Session = Depends(get_db)):
+    return dataset_crud.create_version(db, mod_abbreviation=mod_abbreviation,
+                                       data_type_topic=data_type_topic,
+                                       dataset_type=dataset_type)
 
 

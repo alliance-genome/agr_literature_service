@@ -1,5 +1,6 @@
+from typing import Optional, List, Union, Dict
+
 from pydantic import BaseModel
-from typing import Optional, List
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated
@@ -12,24 +13,27 @@ class DatasetSchemaBase(AuditedObjectModelSchema):
 
 
 class DatasetSchemaPost(DatasetSchemaBase):
-    notes: str
+    title: str
+    description: str
 
 
 class DatasetSchemaShow(DatasetSchemaPost):
     dataset_id: int
+    version: Union[int, None]
     topic_entity_tags: [List[TopicEntityTagSchemaRelated]]
 
 
 class DatasetSchemaDownload(DatasetSchemaPost):
     dataset_id: int
-    data: List[str]
+    document_data_training: List[Dict[str, int]]
+    document_data_testing: List[Dict[str, int]]
+    entity_data_training: List[Dict[str, List[str]]]
+    entity_data_testing: List[Dict[str, List[str]]]
 
 
 class DatasetSchemaUpdate(BaseModel):
-    mod_abbreviation: Optional[constr(min_length=1)]  # type: ignore
-    data_type_topic: Optional[constr(min_length=1)]  # type: ignore
-    dataset_type: Optional[constr(min_length=1)]  # type: ignore
-    notes: Optional[constr(min_length=1)]  # type: ignore
+    title: Optional[const(min_length=1)]  # type: ignore
+    description: Optional[constr(min_length=1)]  # type: ignore
     date_created: Optional[constr(min_length=1)]  # type: ignore
     date_updated: Optional[constr(min_length=1)]  # type: ignore
     created_by: Optional[constr(min_length=1)]  # type: ignore

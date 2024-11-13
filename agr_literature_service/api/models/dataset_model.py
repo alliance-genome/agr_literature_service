@@ -89,7 +89,8 @@ class DatasetModel(AuditedModel, Base):
         nullable=False
     )
 
-    topic_entity_tags: Mapped[List["DatasetTopicEntityTag"]] = relationship(back_populates="dataset")
+    topic_entity_tag_associations: Mapped[List["DatasetTopicEntityTag"]] = relationship(
+        back_populates="dataset_associations")
 
     __table_args__ = (
         UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', 'version', name='unique_dataset',
