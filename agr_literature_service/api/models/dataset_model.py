@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, UniqueConstraint, Boolean, Enum
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, UniqueConstraint, Boolean, Enum, func
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -92,6 +92,7 @@ class DatasetModel(AuditedModel, Base):
     topic_entity_tags: Mapped[List["DatasetTopicEntityTag"]] = relationship(back_populates="dataset")
 
     __table_args__ = (
-        UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', 'version', name='unique_dataset'),
+        UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', 'version', name='unique_dataset',
+                         condition=(func.count() == 1)),
     )
 
