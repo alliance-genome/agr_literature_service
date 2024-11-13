@@ -49,9 +49,14 @@ class TestDataset:
         with TestClient(app) as client:
             response = client.get(url=f"/datasets/{test_mod.new_mod_abbreviation}/{test_atp_id}/document/")
             assert response.status_code == status.HTTP_200_OK
-            assert response.json()['dataset_title'] == "Test Dataset"
+            dataset = response.json()
+            assert dataset['mod_abbreviation'] == test_mod.new_mod_abbreviation
+            assert dataset['data_type_topic'] == test_atp_id
+            assert dataset['dataset_type'] == test_dataset_type
+            assert dataset['dataset_note'] == "This is a test dataset"
+            assert len(dataset['data']) == 0
 
-    def test_get_nonexistent_dataset(self):
+    def test_download_dataset_wrong(self):
         with TestClient(app) as client:
             response = client.get(url="/datasets/NONEXISTENT/INVALID/FAKE/")
             assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -59,8 +64,8 @@ class TestDataset:
     def test_update_dataset(self, db, auth_headers, test_dataset):  # noqa
         with TestClient(app) as client:
             updated_dataset = {
-                "dataset_title": "Updated Test Dataset",
-                "dataset_release_version": "1.1"
+                "data_type_topic": "NEW_TOPIC",
+                "dataset_type": "entity"
             }
             response = client.patch(url=f"/datasets/TEST/REFERENCE/SAMPLE/",
                                     json=updated_dataset, headers=auth_headers)
