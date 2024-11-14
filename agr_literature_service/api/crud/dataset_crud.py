@@ -2,10 +2,11 @@ from collections import defaultdict
 from typing import Optional
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModModel, WorkflowTagModel
-from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetTopicEntityTag, DatasetEntry
+from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntry
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
     DatasetSchemaDownload, DatasetSchemaUpdate
@@ -97,32 +98,26 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
     )
 
 
-def add_tag_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
-                       version: int, topic_entity_tag_id: int = None, workflow_tag_id: int = None,
-                       set_type: str = "training"):
-    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                          dataset_type=dataset_type, version=version)
-    if (topic_entity_tag_id is None and workflow_tag_id is None) or (
-            topic_entity_tag_id is not None and workflow_tag_id is not None):
+def check_either_tet_or_workflow_tag_id_provided(topic_entity_tag_id, workflow_tag_id):
+    if topic_entity_tag_id is not None and workflow_tag_id is not None:
         raise HTTPException(status_code=400,
                             detail="Exactly one of topic_entity_tag_id or workflow_tag_id must be provided")
-    if topic_entity_tag_id:
-        topic_entity_tag = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
-        if not topic_entity_tag:
-            raise HTTPException(status_code=404, detail="Tag not found")
-    if workflow_tag_id:
-        workflow_tag = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_workflow_tag_id == workflow_tag_id).first()
-        if not workflow_tag:
-            raise HTTPException(status_code=404, detail="Tag not found")
+
+
+def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                         version: int, reference_id: int, entity: str = None,
+                         supporting_topic_entity_tag_id: int = None, supporting_workflow_tag_id: int = None,
+                         set_type: str = "training"):
+    check_either_tet_or_workflow_tag_id_provided(supporting_topic_entity_tag_id, supporting_workflow_tag_id)
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+                          dataset_type=dataset_type, version=version)
+    
     new_dataset_entry = DatasetEntry(
         dataset_id=dataset.dataset_id,
-        supporting_topic_entity_tag_id=topic_entity_tag.topic_entity_tag_id if topic_entity_tag else None,
-        supporting_topic_entity_tag=workflow_tag.reference_workflow_tag_id if workflow_tag else None,
-        reference_id=topic_entity_tag.reference_id,
-        entity=topic_entity_tag.entity,
-        positive=not topic_entity_tag.negated,
+        supporting_topic_entity_tag_id=supporting_topic_entity_tag_id,
+        supporting_workflow_tag_id=supporting_workflow_tag_id,
+        reference_id=reference_id,
+        entity=entity,
         set_type=set_type
     )
     db.add(new_dataset_entry)
@@ -130,21 +125,18 @@ def add_tag_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
     db.refresh(dataset)
 
 
-def delete_topic_entity_tag_from_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
-                                         topic_entity_tag_id: int):
+def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int,
+                              reference_id: int, entity: str = None):
     dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                          dataset_type=dataset_type)
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id
+                          dataset_type=dataset_type, version=version)
+    dataset_entry = db.query(DatasetEntry).filter(
+        DatasetEntry.dataset_id == dataset.dataset_id,
+        DatasetEntry.reference_id == reference_id,
+        DatasetEntry.entity == entity
     ).first()
-    if topic_entity_tag is None:
-        raise HTTPException(status_code=404, detail="Topic Entity Tag not found")
-    dataset_tag_association = db.query(DatasetTopicEntityTag).filter(
-        DatasetTopicEntityTag.dataset_id == dataset.dataset_id,
-        DatasetTopicEntityTag.topic_entity_tag_id == topic_entity_tag.topic_entity_tag_id).first()
-    if dataset_tag_association is None:
+    if dataset_entry is None:
         raise HTTPException(status_code=404, detail="Dataset-Topic Entity Tag association not found")
-    db.delete(dataset_tag_association)
+    db.delete(dataset_entry)
     db.commit()
 
 
@@ -156,34 +148,3 @@ def patch_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, data
         setattr(dataset, key, value)
     db.commit()
     db.refresh(dataset)
-
-
-def create_version(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str):
-    max_version = db.query(DatasetModel.version).filter(
-        DatasetModel.mod.abbreviation == mod_abbreviation,
-        DatasetModel.data_type_topic == data_type_topic,
-        DatasetModel.dataset_type == dataset_type
-    ).order_by(DatasetModel.version.desc()).first()
-    current_dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                                  dataset_type=dataset_type)
-    new_version = max_version.version + 1 if max_version else 1
-    new_dataset = DatasetModel(
-        mod_id=current_dataset.mod_id,
-        data_type_topic=data_type_topic,
-        dataset_type=dataset_type,
-        version=new_version,
-        title=current_dataset.title,
-        description=current_dataset.description
-    )
-    db.add(new_dataset)
-    db.commit()
-    db.refresh(new_dataset)
-    for dataset_tag_association in current_dataset.topic_entity_tag_associations:
-        new_dataset_tag_association = DatasetTopicEntityTag(
-            dataset_id=new_dataset.dataset_id,
-            topic_entity_tag_id=dataset_tag_association.topic_entity_tag_id,
-            set_type=dataset_tag_association.set_type
-        )
-        db.add(new_dataset_tag_association)
-    db.commit()
-    return new_version

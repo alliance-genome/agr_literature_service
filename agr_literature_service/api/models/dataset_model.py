@@ -84,6 +84,10 @@ class DatasetEntry(Base):
         server_default='training'
     )
 
+    __table_args__ = (
+        UniqueConstraint('dataset_id', 'reference_id', 'entity', name='unique_dataset_entry')
+    )
+
 
 class DatasetModel(AuditedModel, Base):
     __tablename__ = "dataset"
