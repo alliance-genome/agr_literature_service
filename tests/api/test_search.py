@@ -64,6 +64,7 @@ def initialize_elasticsearch():
             {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
         ],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196","mod_abbreviation": "FB"}],
         "mod_reference_types": ["review"],
         "language" : "English",
         "date_created": "1636139454923830"
@@ -80,6 +81,7 @@ def initialize_elasticsearch():
         "date_published": "2022",
         "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["note"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -95,6 +97,7 @@ def initialize_elasticsearch():
         "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["Journal"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -110,6 +113,7 @@ def initialize_elasticsearch():
         "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
