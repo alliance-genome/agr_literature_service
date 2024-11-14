@@ -56,7 +56,7 @@ class TestDataset:
 
     def test_show_dataset(self, db, test_dataset, test_mod):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/datasets/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
+            response = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
                                       f"{test_dataset.dataset_type}/{test_dataset.version}/")
             assert response.status_code == status.HTTP_200_OK
             dataset = response.json()
@@ -65,16 +65,44 @@ class TestDataset:
             assert dataset['dataset_type'] == test_dataset_type
             assert dataset['description'] == "This is a test dataset"
 
+    def test_add_dataset_entry(self, db, auth_headers, test_dataset):  # noqa
+        with TestClient(app) as client:
+            # Assuming we have a topic entity tag with id 1
+            response = client.post(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+
+            # Verify the addition in the database
+            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
+            assert any(tag.id == 1 for tag in dataset.topic_entity_tags)
+
+    def test_remove_dataset_entry(self, db, auth_headers, test_dataset):  # noqa
+        with TestClient(app) as client:
+            # First, add a topic entity tag
+            client.post(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
+                        headers=auth_headers)
+
+            # Now remove it
+            response = client.delete(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
+                                     headers=auth_headers)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+
+            # Verify the removal in the database
+            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
+            assert all(tag.id != 1 for tag in dataset.topic_entity_tags)
+
     def test_download_dataset(self, test_mod, test_dataset):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/datasets/{test_mod.new_mod_abbreviation}/{test_atp_id}/document/")
+            response = client.get(url=f"/datasets/download/{test_mod.new_mod_abbreviation}/{test_dataset.data_type}/"
+                                      f"{test_dataset.dataset_type}/{test_dataset.version}")
             assert response.status_code == status.HTTP_200_OK
             dataset = response.json()
             assert dataset['mod_abbreviation'] == test_mod.new_mod_abbreviation
-            assert dataset['data_type_topic'] == test_atp_id
+            assert dataset['data_type'] == test_atp_id
             assert dataset['dataset_type'] == test_dataset_type
-            assert dataset['dataset_note'] == "This is a test dataset"
-            assert len(dataset['data']) == 0
+            assert dataset['description'] == "This is a test dataset"
+            assert len(dataset['data_training']) == 0
+            assert len(dataset['data_testing']) == 0
 
     def test_download_dataset_wrong(self):
         with TestClient(app) as client:
@@ -105,32 +133,6 @@ class TestDataset:
             # Verify the deletion in the database
             dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).first()
             assert dataset is None
-
-    def test_add_topic_entity_tag(self, db, auth_headers, test_dataset):  # noqa
-        with TestClient(app) as client:
-            # Assuming we have a topic entity tag with id 1
-            response = client.post(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
-                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
-
-            # Verify the addition in the database
-            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
-            assert any(tag.id == 1 for tag in dataset.topic_entity_tags)
-
-    def test_remove_topic_entity_tag(self, db, auth_headers, test_dataset):  # noqa
-        with TestClient(app) as client:
-            # First, add a topic entity tag
-            client.post(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
-                        headers=auth_headers)
-
-            # Now remove it
-            response = client.delete(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
-                                     headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
-
-            # Verify the removal in the database
-            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
-            assert all(tag.id != 1 for tag in dataset.topic_entity_tags)
 
 
 if __name__ == "__main__":

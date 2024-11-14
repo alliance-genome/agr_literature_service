@@ -95,14 +95,15 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
         raise ValueError("Invalid dataset type")
     return DatasetSchemaDownload(
         dataset_id=dataset.dataset_id,
+        title=dataset.title,
         data_training=data_training,
         data_testing=data_testing,
         mod_abbreviation=dataset.mod.abbreviation,
         data_type=dataset.data_type,
         dataset_type=dataset.dataset_type,
         description=dataset.description,
-        date_created=dataset.date_created,
-        date_updated=dataset.date_updated,
+        date_created=str(dataset.date_created),
+        date_updated=str(dataset.date_updated),
         created_by=dataset.created_by,
         updated_by=dataset.updated_by
     )
