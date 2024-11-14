@@ -60,6 +60,7 @@ def initialize_elasticsearch():
         "date_published_end": date5,
         "authors": [{"name": "John Q Public", "orcid": "null"}, {"name": "Socrates", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -76,6 +77,7 @@ def initialize_elasticsearch():
         "date_published_end": date1,
         "authors": [{"name": "Jane Doe", "orcid": "null"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -92,6 +94,7 @@ def initialize_elasticsearch():
         "date_published_end": date2,
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["note"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -108,6 +111,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date4,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -124,6 +128,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["Journal"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -140,6 +145,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date5,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -156,6 +162,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date6,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
@@ -172,6 +179,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date7,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "date_created": "1636139454923830"
     }
@@ -187,6 +195,7 @@ def initialize_elasticsearch():
         "date_arrived_in_pubmed": date8,
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
         "date_created": "1636139454923830"
