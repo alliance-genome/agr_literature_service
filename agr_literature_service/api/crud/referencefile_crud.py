@@ -50,7 +50,7 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                               load_referencefiles=True)
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"
-                               and referencefile.file_extension == 'pdf']
+                               and referencefile.pdf_type == 'pdf']
     if mod_abbreviation is not None:
         for main_pdf_ref_file in main_pdf_referencefiles:
             for ref_file_mod in main_pdf_ref_file.referencefile_mods:
@@ -77,7 +77,7 @@ def get_main_pdf_referencefile_ids_for_ref_curies_list(db: Session, curies: List
     curie_main_ref_file_map = {}
 
     for ref_file in all_ref_files:
-        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.file_extension == "pdf":
+        if ref_file.file_class == "main" and ref_file.file_publication_status == "final" and ref_file.pdf_type == "pdf":
             main_pdf_reffile_id = None
             pmc_main_pdf_reffile_id = None
             for ref_file_mod in ref_file.referencefile_mods:
@@ -159,7 +159,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
     reference_id = referencefile.reference_id
     file_class = referencefile.file_class
     file_publication_status = referencefile.file_publication_status
-    file_extension = referencefile.file_extension
+    pdf_type = referencefile.pdf_type
     all_mods = set()
     if mod_access == OktaAccess.ALL_ACCESS:
         remove_from_s3_and_db(db, referencefile)
@@ -175,7 +175,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="You are not signed in. Please sign in to delete a file.")
 
-    if file_class == 'main' and file_publication_status == 'final' and file_extension == 'pdf':
+    if file_class == 'main' and file_publication_status == 'final' and pdf_type == 'pdf':
         cleanup_wft_tet_tags_for_deleted_main_pdf(db, reference_id, all_mods,
                                                   OKTA_ACCESS_MOD_ABBR[mod_access])
 
@@ -273,7 +273,19 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
-    if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
+    if (
+        metadata["file_class"] == 'main'
+        and metadata["file_publication_status"] == 'final'
+        and metadata["file_extension"] == 'pdf'
+        and metadata.get("pdf_type") in (None, '')
+    ):
+        metadata["pdf_type"] = 'pdf'
+
+    if metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final' and metadata['file_extension'] == 'pdf':
+        if 'pdf_type' not in metadata or metadata["pdf_type"] == '':
+            metadata["pdf_type"] = 'pdf'
+
+    if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["pdf_type"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
         workflow_tag_atp_id = get_current_workflow_status(db,
                                                           metadata["reference_curie"],
                                                           text_conversion_process_atp_id,
@@ -314,13 +326,13 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     cleanup_old_pdf_file(db, metadata["reference_curie"], mod_abbreviation)
     transition_WFT_for_uploaded_file(db, metadata["reference_curie"], mod_abbreviation,
-                                     metadata["file_class"], metadata["file_extension"],
+                                     metadata["file_class"], metadata["pdf_type"],
                                      metadata["file_publication_status"])
 
 
-def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, file_extension, file_publication_status):
+def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, pdf_type, file_publication_status):
     logger.info("Transition WFT for uploaded file")
-    if file_class == 'main' and file_extension == 'pdf' and file_publication_status == 'final':
+    if file_class == 'main' and pdf_type == 'pdf' and file_publication_status == 'final':
         wft_tag_atp_id = file_uploaded_tag_atp_id
     else:
         wft_tag_atp_id = file_upload_in_progress_tag_atp_id
@@ -354,7 +366,7 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
         reffiles = db.query(ReferencefileModel).filter_by(
-            reference_id=ref.reference_id, file_class='main', file_extension='pdf', file_publication_status='final').order_by(
+            reference_id=ref.reference_id, file_class='main', pdf_type='pdf', file_publication_status='final').order_by(
                 ReferencefileModel.file_publication_status, ReferencefileModel.date_updated.desc()).all()
 
         if len(reffiles) >= 2:
@@ -402,6 +414,16 @@ def create_metadata(db: Session, request: ReferencefileSchemaPost):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Mod with abbreviation {request.mod_abbreviation} does not exist")
     del request_dict["mod_abbreviation"]
+
+    # if it is a main PDF, set the pdf_type = 'pdf' if it is NULL
+    if (
+        request_dict["file_class"] == 'main'
+        and request_dict["file_publication_status"] == 'final'
+        and request_dict["file_extension"] == 'pdf'
+        and request_dict.get("pdf_type") in (None, '')
+    ):
+        request_dict["pdf_type"] = 'pdf'
+
     new_ref_file_obj = ReferencefileModel(**request_dict)
     db.add(new_ref_file_obj)
     db.commit()

@@ -391,7 +391,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
         WHERE rf.reference_id = {reference.reference_id}
         AND rf.file_class = 'main'
-        AND rf.file_extension = 'pdf'
+        AND rf.pdf_type = 'pdf'
         AND rf.date_created <= NOW() - INTERVAL '7 days'
         """
         rows = db.execute(text(sql_query)).mappings().fetchall()
@@ -1005,7 +1005,7 @@ def get_textpresso_reference_list(db, mod_abbreviation, files_updated_from_date=
         WHERE mca.corpus is True
         AND mca.mod_id = :mod_id
         AND rf.file_class = 'main'
-        AND rf.file_extension = 'pdf'
+        AND rf.pdf_type = 'pdf'
         AND (rfm.mod_id is NULL OR rfm.mod_id = :mod_id)
     """
 
