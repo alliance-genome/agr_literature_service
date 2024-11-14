@@ -14,7 +14,7 @@ def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type
                 version: int = None) -> Optional[DatasetModel]:
     dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
         DatasetModel.mod.has(abbreviation=mod_abbreviation),
-        DatasetModel.data_type_topic == data_type,
+        DatasetModel.data_type == data_type,
         DatasetModel.dataset_type == dataset_type,
         DatasetModel.version == version,
     ).first()

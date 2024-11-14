@@ -53,6 +53,18 @@ class TestDataset:
             assert dataset.data_type == test_atp_id
             assert dataset.dataset_type == test_dataset_type
 
+
+    def test_show_dataset(self, db, test_dataset, test_mod):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url=f"/datasets/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
+                                      f"{test_dataset.dataset_type}/{test_dataset.version}/")
+            assert response.status_code == status.HTTP_200_OK
+            dataset = response.json()
+            assert dataset['mod_abbreviation'] == test_mod.new_mod_abbreviation
+            assert dataset['data_type'] == test_atp_id
+            assert dataset['dataset_type'] == test_dataset_type
+            assert dataset['description'] == "This is a test dataset"
+
     def test_download_dataset(self, test_mod, test_dataset):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/datasets/{test_mod.new_mod_abbreviation}/{test_atp_id}/document/")
