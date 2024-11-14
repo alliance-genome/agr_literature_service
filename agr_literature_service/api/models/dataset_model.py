@@ -32,7 +32,7 @@ class DatasetEntry(Base):
     supporting_topic_entity_tag: Mapped["TopicEntityTagModel"] = relationship(back_populates="dataset_entries")
 
     supporting_workflow_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('topic_entity_tag.topic_entity_tag_id'),
+        ForeignKey('workflow_tag.reference_workflow_tag_id'),
         ondelete="SET NULL"
     )
 
@@ -41,6 +41,8 @@ class DatasetEntry(Base):
     reference_id: Mapped[int] = mapped_column(
         ForeignKey('reference.reference_id')
     )
+
+    # TODO: update reference ids when merging references
 
     reference: Mapped["ReferenceModel"] = relationship()
 

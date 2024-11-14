@@ -4,10 +4,10 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ModModel
-from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetTopicEntityTag
+from agr_literature_service.api.models import ModModel, WorkflowTagModel
+from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetTopicEntityTag, DatasetEntry
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel
-from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaShow, DatasetSchemaPost, \
+from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
     DatasetSchemaDownload, DatasetSchemaUpdate
 
 
@@ -28,12 +28,21 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> str:
     mod = db.query(ModModel).filter(ModModel.abbreviation == dataset.mod_abbreviation).first()
     if not mod:
         raise HTTPException(status_code=404, detail=f"Mod with abbreviation {dataset.mod_abbreviation} not found")
+    max_version = db.query(DatasetModel.version).filter(
+        DatasetModel.mod_id == mod.mod_id,
+        DatasetModel.data_type == dataset.data_type,
+        DatasetModel.dataset_type == dataset.dataset_type
+    ).order_by(DatasetModel.version.desc()).first()
+    new_version = max_version.version + 1 if max_version else 1
     db_dataset = DatasetModel(
         mod_id=mod.mod_id,
-        data_type_topic=dataset.data_type_topic,
+        data_type=dataset.data_type,
         dataset_type=dataset.dataset_type,
         title=dataset.title,
-        description=dataset.description
+        description=dataset.description,
+        version=new_version,
+        frozen=False,
+        production=False
     )
     db.add(db_dataset)
     try:
@@ -55,40 +64,30 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
                      dataset_type: str, version: int) -> DatasetSchemaDownload:
     dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type, version)
     # Return agrkb ids or entity curies based on the dataset type
-    document_data_training = []
-    document_data_testing = []
-    entity_data_training = []
-    entity_data_testing = []
+    dataset_entry: DatasetEntry
     if dataset_type == "document":
-        tag_association: DatasetTopicEntityTag
-        document_data_training = [
-            {tag_association.topic_entity_tag.reference.curie: 0 if tag_association.topic_entity_tag.negated else 1}
-            for tag_association in dataset.topic_entity_tag_associations if tag_association.set_type == "training"
-        ]
-        document_data_testing = [
-            {tag_association.topic_entity_tag.reference.curie: 0 if tag_association.topic_entity_tag.negated else 1}
-            for tag_association in dataset.topic_entity_tag_associations if tag_association.set_type == "testing"
-        ]
+        data_training = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
+                         for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"}
+        data_testing = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
+                        for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "testing"}
     elif dataset_type == "entity":
-        entity_data_training = defaultdict(list)
-        entity_data_testing = defaultdict(list)
-        for tag_association in dataset.topic_entity_tag_associations:
-            if tag_association.set_type == "training":
-                entity_data_training[tag_association.topic_entity_tag.reference.curie].append(
-                    tag_association.topic_entity_tag.entity)
+        data_training = defaultdict(list)
+        data_testing = defaultdict(list)
+        for dataset_entry in dataset.dataset_entries:
+            if dataset_entry.set_type == "training":
+                data_training[dataset_entry.reference.curie].append(
+                    dataset_entry.entity)
             else:
-                entity_data_testing[tag_association.topic_entity_tag.reference.curie].append(
-                    tag_association.topic_entity_tag.entity)
+                data_testing[dataset_entry.reference.curie].append(
+                    dataset_entry.entity)
     else:
         raise ValueError("Invalid dataset type")
     return DatasetSchemaDownload(
         dataset_id=dataset.dataset_id,
-        document_data_training=document_data_training,
-        document_data_testing=document_data_testing,
-        entity_data_training=entity_data_training,
-        entity_data_testing=entity_data_testing,
+        data_training=data_training,
+        data_testing=data_testing,
         mod_abbreviation=dataset.mod.abbreviation,
-        data_type_topic=dataset.data_type_topic,
+        data_type=dataset.data_type,
         dataset_type=dataset.dataset_type,
         description=dataset.description,
         date_created=dataset.date_created,
@@ -98,20 +97,35 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
     )
 
 
-def add_topic_entity_tag_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
-                                    topic_entity_tag_id: int, set_type: str = "training"):
+def add_tag_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+                       version: int, topic_entity_tag_id: int = None, workflow_tag_id: int = None,
+                       set_type: str = "training"):
     dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
-                          dataset_type=dataset_type)
-    topic_entity_tag = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
-    if not topic_entity_tag:
-        raise HTTPException(status_code=404, detail="Tag not found")
-    new_dataset_tag_association = DatasetTopicEntityTag(
+                          dataset_type=dataset_type, version=version)
+    if (topic_entity_tag_id is None and workflow_tag_id is None) or (
+            topic_entity_tag_id is not None and workflow_tag_id is not None):
+        raise HTTPException(status_code=400,
+                            detail="Exactly one of topic_entity_tag_id or workflow_tag_id must be provided")
+    if topic_entity_tag_id:
+        topic_entity_tag = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).first()
+        if not topic_entity_tag:
+            raise HTTPException(status_code=404, detail="Tag not found")
+    if workflow_tag_id:
+        workflow_tag = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_workflow_tag_id == workflow_tag_id).first()
+        if not workflow_tag:
+            raise HTTPException(status_code=404, detail="Tag not found")
+    new_dataset_entry = DatasetEntry(
         dataset_id=dataset.dataset_id,
-        topic_entity_tag_id=topic_entity_tag.topic_entity_tag_id,
+        supporting_topic_entity_tag_id=topic_entity_tag.topic_entity_tag_id if topic_entity_tag else None,
+        supporting_topic_entity_tag=workflow_tag.reference_workflow_tag_id if workflow_tag else None,
+        reference_id=topic_entity_tag.reference_id,
+        entity=topic_entity_tag.entity,
+        positive=not topic_entity_tag.negated,
         set_type=set_type
     )
-    db.add(new_dataset_tag_association)
+    db.add(new_dataset_entry)
     db.commit()
     db.refresh(dataset)
 

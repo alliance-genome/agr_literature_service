@@ -8,7 +8,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEnt
 
 class DatasetSchemaBase(AuditedObjectModelSchema):
     mod_abbreviation: str
-    data_type_topic: str
+    data_type: str
     dataset_type: str
 
 
@@ -25,10 +25,8 @@ class DatasetSchemaShow(DatasetSchemaPost):
 
 class DatasetSchemaDownload(DatasetSchemaPost):
     dataset_id: int
-    document_data_training: List[Dict[str, int]]
-    document_data_testing: List[Dict[str, int]]
-    entity_data_training: List[Dict[str, List[str]]]
-    entity_data_testing: List[Dict[str, List[str]]]
+    data_training: Union[Dict[str, int], Dict[str, List[str]]]
+    data_testing: Union[Dict[str, int], Dict[str, List[str]]]
 
 
 class DatasetSchemaUpdate(BaseModel):
