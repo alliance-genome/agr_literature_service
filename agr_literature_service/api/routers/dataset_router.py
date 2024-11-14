@@ -29,6 +29,16 @@ def create_dataset(request: DatasetSchemaPost, user: OktaUser = db_user, db: Ses
     return dataset_crud.create_dataset(db, dataset=request)
 
 
+@router.get("/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
+            status_code=status.HTTP_200_OK,
+            response_model=DatasetSchemaShow)
+def show_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int
+                 , user: OktaUser = db_user, db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    return dataset_crud.show_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
+                                     dataset_type=dataset_type, version=version)
+
+
 @router.delete("/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,

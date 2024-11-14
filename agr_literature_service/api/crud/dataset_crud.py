@@ -161,3 +161,21 @@ def patch_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_ty
         setattr(dataset, key, value)
     db.commit()
     db.refresh(dataset)
+
+
+def show_dataset(db, mod_abbreviation, data_type, dataset_type, version):
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
+                          dataset_type=dataset_type, version=version)
+    return DatasetSchemaShow(
+        dataset_id=dataset.dataset_id,
+        mod_abbreviation=dataset.mod.abbreviation,
+        data_type=dataset.data_type,
+        dataset_type=dataset.dataset_type,
+        version=dataset.version,
+        title=dataset.title,
+        description=dataset.description,
+        created_by=dataset.created_by,
+        updated_by=dataset.updated_by,
+        date_created=str(dataset.date_created),
+        date_updated=str(dataset.date_updated)
+    )
