@@ -7,6 +7,7 @@ from fastapi import status
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import DatasetModel
+from agr_literature_service.api.models.dataset_model import DatasetEntryModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod # noqa
@@ -41,21 +42,20 @@ def test_dataset(db, test_mod, auth_headers):  # noqa
 
 class TestDataset:
     def test_create_dataset(self, db, auth_headers, test_mod, test_dataset):  # noqa
-        with TestClient(app) as client:
-            assert test_dataset.response.status_code == status.HTTP_201_CREATED
-            # check db for dataset
-            dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
-                DatasetModel.mod.has(abbreviation=test_dataset.mod_abbreviation),
-                DatasetModel.data_type == test_dataset.data_type,
-                DatasetModel.dataset_type == test_dataset.dataset_type,
-                DatasetModel.version == test_dataset.version
-            ).one()
-            assert test_dataset.mod_abbreviation == test_mod.new_mod_abbreviation
-            assert test_dataset.data_type == test_atp_id
-            assert test_dataset.dataset_type == test_dataset_type
-            assert dataset.mod.abbreviation == test_mod.new_mod_abbreviation
-            assert dataset.data_type == test_atp_id
-            assert dataset.dataset_type == test_dataset_type
+        assert test_dataset.response.status_code == status.HTTP_201_CREATED
+        # check db for dataset
+        dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
+            DatasetModel.mod.has(abbreviation=test_dataset.mod_abbreviation),
+            DatasetModel.data_type == test_dataset.data_type,
+            DatasetModel.dataset_type == test_dataset.dataset_type,
+            DatasetModel.version == test_dataset.version
+        ).one()
+        assert test_dataset.mod_abbreviation == test_mod.new_mod_abbreviation
+        assert test_dataset.data_type == test_atp_id
+        assert test_dataset.dataset_type == test_dataset_type
+        assert dataset.mod.abbreviation == test_mod.new_mod_abbreviation
+        assert dataset.data_type == test_atp_id
+        assert dataset.dataset_type == test_dataset_type
 
 
     def test_show_dataset(self, db, test_dataset, test_mod):  # noqa
@@ -80,7 +80,7 @@ class TestDataset:
                 "entity": None,
                 "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
             }
-            response = client.post(url=f"/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
+            response = client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
@@ -91,7 +91,8 @@ class TestDataset:
             # Verify the addition in the database
             dataset: Type[DatasetModel] = db.query(DatasetModel).filter(
                 DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
-            assert len(dataset.dataset_entries) > 0
+            dataset_entry: DatasetEntryModel = dataset.dataset_entries[0]
+            assert dataset_entry.reference.curie == test_topic_entity_tag.related_ref_curie
 
 
     def test_remove_dataset_entry(self, db, auth_headers, test_dataset):  # noqa

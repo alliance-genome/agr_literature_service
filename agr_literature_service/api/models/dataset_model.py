@@ -1,6 +1,6 @@
 from typing import Dict, List
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Table, UniqueConstraint, Boolean, Enum, func
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
