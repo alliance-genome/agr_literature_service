@@ -10,8 +10,8 @@ from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod # noqa
 
-TestDatasetData = namedtuple('TestDatasetData', ['response', 'mod_abbreviation', 'data_type_topic',
-                                                 'dataset_type'])
+TestDatasetData = namedtuple('TestDatasetData', ['response', 'mod_abbreviation', 'data_type',
+                                                 'dataset_type', 'version'])
 
 
 test_atp_id = "TEST_ATP_ID"
@@ -24,12 +24,15 @@ def test_dataset(db, test_mod, auth_headers):  # noqa
     with TestClient(app) as client:
         new_dataset = {
             "mod_abbreviation": test_mod.new_mod_abbreviation,
-            "data_type_topic": test_atp_id,
+            "data_type": test_atp_id,
             "dataset_type": test_dataset_type,
-            "dataset_note": "This is a test dataset"
+            "title": "Test dataset",
+            "description": "This is a test dataset"
         }
         response = client.post(url="/datasets/", json=new_dataset, headers=auth_headers)
-        yield TestDatasetData(response, test_mod.new_mod_abbreviation, test_atp_id, test_dataset_type)
+        new_dataset_metadata = response.json()
+        yield TestDatasetData(response, new_dataset_metadata["mod_abbreviation"], new_dataset_metadata["data_type"],
+                              new_dataset_metadata["dataset_type"], new_dataset_metadata["version"])
 
 
 class TestDataset:
@@ -39,10 +42,15 @@ class TestDataset:
             # check db for dataset
             dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
                 DatasetModel.mod.has(abbreviation=test_dataset.mod_abbreviation),
-                DatasetModel.data_type_topic == test_dataset.data_type_topic,
-                DatasetModel.dataset_type == test_dataset.dataset_type).one()
+                DatasetModel.data_type == test_dataset.data_type,
+                DatasetModel.dataset_type == test_dataset.dataset_type,
+                DatasetModel.version == test_dataset.version
+            ).one()
+            assert test_dataset.mod_abbreviation == test_mod.new_mod_abbreviation
+            assert test_dataset.data_type == test_atp_id
+            assert test_dataset.dataset_type == test_dataset_type
             assert dataset.mod.abbreviation == test_mod.new_mod_abbreviation
-            assert dataset.data_type_topic == test_atp_id
+            assert dataset.data_type == test_atp_id
             assert dataset.dataset_type == test_dataset_type
 
     def test_download_dataset(self, test_mod, test_dataset):  # noqa

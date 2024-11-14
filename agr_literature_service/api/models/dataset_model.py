@@ -13,27 +13,24 @@ enable_versioning()
 
 
 # Association table for many-to-many relationship between Dataset and TopicEntityTag
-class DatasetEntry(Base):
+class DatasetEntryModel(Base):
     __tablename__ = 'dataset_entry'
 
     dataset_id: Mapped[int] = mapped_column(
-        ForeignKey('dataset.dataset_id'),
-        primary_key=True,
-        ondelete='CASCADE'
+        ForeignKey('dataset.dataset_id', ondelete='CASCADE'),
+        primary_key=True
     )
 
     dataset: Mapped["DatasetModel"] = relationship(back_populates="dataset_entries")
 
     supporting_topic_entity_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('topic_entity_tag.topic_entity_tag_id'),
-        ondelete="SET NULL"
+        ForeignKey('topic_entity_tag.topic_entity_tag_id', ondelete="SET NULL")
     )
 
     supporting_topic_entity_tag: Mapped["TopicEntityTagModel"] = relationship(back_populates="dataset_entries")
 
     supporting_workflow_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('workflow_tag.reference_workflow_tag_id'),
-        ondelete="SET NULL"
+        ForeignKey('workflow_tag.reference_workflow_tag_id', ondelete="SET NULL")
     )
 
     supporting_workflow_tag: Mapped["WorkflowTagModel"] = relationship(back_populates="dataset_entries")
@@ -85,7 +82,7 @@ class DatasetEntry(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint('dataset_id', 'reference_id', 'entity', name='unique_dataset_entry')
+        UniqueConstraint('dataset_id', 'reference_id', 'entity', name='unique_dataset_entry'),
     )
 
 
@@ -152,9 +149,9 @@ class DatasetModel(AuditedModel, Base):
         default=False
     )
 
-    dataset_entries: Mapped[List["DatasetEntry"]] = relationship()
+    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship()
 
     __table_args__ = (
-        UniqueConstraint('mod_id', 'data_type_topic', 'dataset_type', 'version', name='unique_dataset')
+        UniqueConstraint('mod_id', 'data_type', 'dataset_type', 'version', name='unique_dataset'),
     )
 

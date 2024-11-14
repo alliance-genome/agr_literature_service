@@ -11,7 +11,6 @@ from sqlalchemy.orm import relationship, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
-from agr_literature_service.api.models.dataset_model import DatasetTopicEntityTag
 
 enable_versioning()
 
@@ -166,7 +165,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     # Add relationship to Dataset
-    dataset_entries: Mapped[List["DatasetTopicEntityTag"]] = relationship(back_populates="dataset_entries")
+    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_topic_entity_tag")
 
     def __str__(self):
         return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \

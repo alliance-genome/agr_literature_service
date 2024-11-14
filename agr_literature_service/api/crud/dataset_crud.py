@@ -5,9 +5,9 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModModel
-from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntry
+from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntryModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
-    DatasetSchemaDownload, DatasetSchemaUpdate
+    DatasetSchemaDownload, DatasetSchemaUpdate, DatasetSchemaShow
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
@@ -23,7 +23,7 @@ def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type
     return dataset
 
 
-def create_dataset(db: Session, dataset: DatasetSchemaPost) -> str:
+def create_dataset(db: Session, dataset: DatasetSchemaPost) -> DatasetSchemaShow:
     mod = db.query(ModModel).filter(ModModel.abbreviation == dataset.mod_abbreviation).first()
     if not mod:
         raise HTTPException(status_code=404, detail=f"Mod with abbreviation {dataset.mod_abbreviation} not found")
@@ -50,7 +50,19 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> str:
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create dataset. Reason: {str(e)}")
-    return "created"
+    return DatasetSchemaShow(
+        dataset_id=db_dataset.dataset_id,
+        mod_abbreviation=db_dataset.mod.abbreviation,
+        data_type=db_dataset.data_type,
+        dataset_type=db_dataset.dataset_type,
+        version=db_dataset.version,
+        title=db_dataset.title,
+        description=db_dataset.description,
+        created_by=db_dataset.created_by,
+        updated_by=db_dataset.updated_by,
+        date_created=str(db_dataset.date_created),
+        date_updated=str(db_dataset.date_updated)
+    )
 
 
 def delete_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str, version: int):
@@ -63,7 +75,7 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
                      dataset_type: str, version: int) -> DatasetSchemaDownload:
     dataset = get_dataset(db, mod_abbreviation, data_type, dataset_type, version)
     # Return agrkb ids or entity curies based on the dataset type
-    dataset_entry: DatasetEntry
+    dataset_entry: DatasetEntryModel
     if dataset_type == "document":
         data_training = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
                          for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"}
@@ -111,7 +123,7 @@ def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type: str, dat
                           dataset_type=dataset_type, version=version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
-    new_dataset_entry = DatasetEntry(
+    new_dataset_entry = DatasetEntryModel(
         dataset_id=dataset.dataset_id,
         supporting_topic_entity_tag_id=supporting_topic_entity_tag_id,
         supporting_workflow_tag_id=supporting_workflow_tag_id,
@@ -130,10 +142,10 @@ def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type: str
                           dataset_type=dataset_type, version=version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
-    dataset_entry = db.query(DatasetEntry).filter(
-        DatasetEntry.dataset_id == dataset.dataset_id,
-        DatasetEntry.reference_id == reference_id,
-        DatasetEntry.entity == entity
+    dataset_entry = db.query(DatasetEntryModel).filter(
+        DatasetEntryModel.dataset_id == dataset.dataset_id,
+        DatasetEntryModel.reference_id == reference_id,
+        DatasetEntryModel.entity == entity
     ).first()
     if dataset_entry is None:
         raise HTTPException(status_code=404, detail="Dataset-Topic Entity Tag association not found")
