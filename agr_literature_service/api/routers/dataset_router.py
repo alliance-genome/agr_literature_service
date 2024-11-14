@@ -7,7 +7,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import dataset_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, DatasetSchemaDownload, \
-    DatasetSchemaUpdate, DatasetSchemaShow
+    DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost, DatasetEntrySchemaDelete
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -67,30 +67,15 @@ def download_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, v
 
 @router.post("/data_entry/",
              status_code=status.HTTP_201_CREATED)
-def add_entry_to_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
-                         reference_id: int, entity: str,
-                         supporting_topic_entity_tag_id: int = None, supporting_workflow_tag_id: int = None,
+def add_entry_to_dataset(request: DatasetEntrySchemaPost,
                          user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    dataset_crud.add_entry_to_dataset(db, mod_abbreviation=mod_abbreviation,
-                                      data_type=data_type,
-                                      dataset_type=dataset_type,
-                                      version=version,
-                                      reference_id=reference_id,
-                                      entity=entity,
-                                      supporting_topic_entity_tag_id=supporting_topic_entity_tag_id,
-                                      supporting_workflow_tag_id=supporting_workflow_tag_id)
+    dataset_crud.add_entry_to_dataset(db, request)
 
 
 @router.delete("/dataset_entry/",
                status_code=status.HTTP_202_ACCEPTED)
-def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_type: str,
-                              version: int, reference_id: int, entity: str, user: OktaUser = db_user,
-                              db: Session = db_session):
+def delete_entry_from_dataset(request: DatasetEntrySchemaDelete,
+                              user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    dataset_crud.delete_entry_from_dataset(db, mod_abbreviation=mod_abbreviation,
-                                           data_type=data_type,
-                                           dataset_type=dataset_type,
-                                           version=version,
-                                           reference_id=reference_id,
-                                           entity=entity)
+    dataset_crud.delete_entry_from_dataset(db, request=request)

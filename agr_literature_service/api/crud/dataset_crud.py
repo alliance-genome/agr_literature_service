@@ -4,10 +4,11 @@ from typing import Optional
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntryModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
-    DatasetSchemaDownload, DatasetSchemaUpdate, DatasetSchemaShow
+    DatasetSchemaDownload, DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost, DatasetEntrySchemaDelete
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
@@ -115,21 +116,24 @@ def check_either_tet_or_workflow_tag_id_provided(topic_entity_tag_id, workflow_t
                             detail="Exactly one of topic_entity_tag_id or workflow_tag_id must be provided")
 
 
-def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
-                         version: int, reference_id: int, entity: str = None,
-                         supporting_topic_entity_tag_id: int = None, supporting_workflow_tag_id: int = None,
+def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost,
                          set_type: str = "training"):
-    check_either_tet_or_workflow_tag_id_provided(supporting_topic_entity_tag_id, supporting_workflow_tag_id)
-    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
-                          dataset_type=dataset_type, version=version)
+    check_either_tet_or_workflow_tag_id_provided(request.supporting_topic_entity_tag_id,
+                                                 request.supporting_workflow_tag_id)
+    dataset = get_dataset(db,
+                          mod_abbreviation=request.mod_abbreviation,
+                          data_type=request.data_type,
+                          dataset_type=request.dataset_type,
+                          version=request.version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
+    reference = get_reference(db, curie_or_reference_id=request.reference_curie)
     new_dataset_entry = DatasetEntryModel(
         dataset_id=dataset.dataset_id,
-        supporting_topic_entity_tag_id=supporting_topic_entity_tag_id,
-        supporting_workflow_tag_id=supporting_workflow_tag_id,
-        reference_id=reference_id,
-        entity=entity,
+        supporting_topic_entity_tag_id=request.supporting_topic_entity_tag_id,
+        supporting_workflow_tag_id=request.supporting_workflow_tag_id,
+        reference_id=reference.reference_id,
+        entity=request.entity,
         set_type=set_type
     )
     db.add(new_dataset_entry)
@@ -137,16 +141,16 @@ def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type: str, dat
     db.refresh(dataset)
 
 
-def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
-                              reference_id: int, entity: str = None):
-    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
-                          dataset_type=dataset_type, version=version)
+def delete_entry_from_dataset(db: Session, request: DatasetEntrySchemaDelete):
+    dataset = get_dataset(db, mod_abbreviation=request.mod_abbreviation, data_type=request.data_type,
+                          dataset_type=request.dataset_type, version=request.version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
+    reference = get_reference(db, curie_or_reference_id=request.reference_curie)
     dataset_entry = db.query(DatasetEntryModel).filter(
         DatasetEntryModel.dataset_id == dataset.dataset_id,
-        DatasetEntryModel.reference_id == reference_id,
-        DatasetEntryModel.entity == entity
+        DatasetEntryModel.reference_id == reference.reference_id,
+        DatasetEntryModel.entity == request.entity
     ).first()
     if dataset_entry is None:
         raise HTTPException(status_code=404, detail="Dataset-Topic Entity Tag association not found")

@@ -68,7 +68,7 @@ class TestDataset:
     def test_add_dataset_entry(self, db, auth_headers, test_dataset):  # noqa
         with TestClient(app) as client:
             # Assuming we have a topic entity tag with id 1
-            response = client.post(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
+            response = client.post(url=f"/datasets/",
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 

@@ -18,7 +18,7 @@ class DatasetSchemaPost(DatasetSchemaBase):
 
 class DatasetSchemaShow(DatasetSchemaPost):
     dataset_id: int
-    version: Union[int, None]
+    version: int
 
 
 class DatasetSchemaDownload(DatasetSchemaPost):
@@ -38,3 +38,17 @@ class DatasetSchemaUpdate(BaseModel):
     class Config:
         orm_mode = True
         extra = "forbid"
+
+
+class DatasetEntrySchemaPost(DatasetSchemaBase):
+    version: int
+    reference_curie: str
+    entity: Optional[str] = None
+    supporting_topic_entity_tag_id: Optional[int] = None
+    supporting_workflow_tag_id: Optional[int] = None
+
+
+class DatasetEntrySchemaDelete(DatasetSchemaBase):
+    version: int
+    reference_curie: str
+    entity: Optional[str] = None
