@@ -24,13 +24,15 @@ class DatasetEntryModel(Base):
     dataset: Mapped["DatasetModel"] = relationship(back_populates="dataset_entries")
 
     supporting_topic_entity_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('topic_entity_tag.topic_entity_tag_id', ondelete="SET NULL")
+        ForeignKey('topic_entity_tag.topic_entity_tag_id', ondelete="SET NULL"),
+        nullable=True
     )
 
     supporting_topic_entity_tag: Mapped["TopicEntityTagModel"] = relationship(back_populates="dataset_entries")
 
     supporting_workflow_tag_id: Mapped[int] = mapped_column(
-        ForeignKey('workflow_tag.reference_workflow_tag_id', ondelete="SET NULL")
+        ForeignKey('workflow_tag.reference_workflow_tag_id', ondelete="SET NULL"),
+        nullable=True
     )
 
     supporting_workflow_tag: Mapped["WorkflowTagModel"] = relationship(back_populates="dataset_entries")

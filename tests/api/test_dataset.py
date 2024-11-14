@@ -1,4 +1,5 @@
 from collections import namedtuple
+from typing import Type
 
 import pytest
 from starlette.testclient import TestClient
@@ -9,6 +10,9 @@ from agr_literature_service.api.models import DatasetModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod # noqa
+from .test_topic_entity_tag import test_topic_entity_tag # noqa
+from .test_reference import test_reference # noqa
+from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
 TestDatasetData = namedtuple('TestDatasetData', ['response', 'mod_abbreviation', 'data_type',
                                                  'dataset_type', 'version'])
@@ -65,16 +69,30 @@ class TestDataset:
             assert dataset['dataset_type'] == test_dataset_type
             assert dataset['description'] == "This is a test dataset"
 
-    def test_add_dataset_entry(self, db, auth_headers, test_dataset):  # noqa
+    def test_add_dataset_entry(self, db, auth_headers, test_dataset, test_topic_entity_tag):  # noqa
         with TestClient(app) as client:
-            # Assuming we have a topic entity tag with id 1
-            response = client.post(url=f"/datasets/",
-                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            dataset_entry_data = {
+                "mod_abbreviation": test_dataset.mod_abbreviation,
+                "data_type": test_dataset.data_type,
+                "dataset_type": test_dataset.dataset_type,
+                "version": test_dataset.version,
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "entity": None,
+                "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
+            }
+            response = client.post(url=f"/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
+                                              f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
+                                              f"{test_dataset.version}/").json()
+
 
             # Verify the addition in the database
-            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
-            assert any(tag.id == 1 for tag in dataset.topic_entity_tags)
+            dataset: Type[DatasetModel] = db.query(DatasetModel).filter(
+                DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
+            assert len(dataset.dataset_entries) > 0
+
 
     def test_remove_dataset_entry(self, db, auth_headers, test_dataset):  # noqa
         with TestClient(app) as client:
