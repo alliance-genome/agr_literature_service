@@ -10,11 +10,11 @@ from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost,
     DatasetSchemaDownload, DatasetSchemaUpdate
 
 
-def get_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
                 version: int = None) -> Optional[DatasetModel]:
     dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
         DatasetModel.mod.has(abbreviation=mod_abbreviation),
-        DatasetModel.data_type_topic == data_type_topic,
+        DatasetModel.data_type_topic == data_type,
         DatasetModel.dataset_type == dataset_type,
         DatasetModel.version == version,
     ).first()
@@ -53,15 +53,15 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> str:
     return "created"
 
 
-def delete_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int):
-    dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type, version)
+def delete_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str, version: int):
+    dataset = get_dataset(db, mod_abbreviation, data_type, dataset_type, version)
     db.delete(dataset)
     db.commit()
 
 
-def download_dataset(db: Session, mod_abbreviation: str, data_type_topic: str,
+def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
                      dataset_type: str, version: int) -> DatasetSchemaDownload:
-    dataset = get_dataset(db, mod_abbreviation, data_type_topic, dataset_type, version)
+    dataset = get_dataset(db, mod_abbreviation, data_type, dataset_type, version)
     # Return agrkb ids or entity curies based on the dataset type
     dataset_entry: DatasetEntry
     if dataset_type == "document":
@@ -102,14 +102,15 @@ def check_either_tet_or_workflow_tag_id_provided(topic_entity_tag_id, workflow_t
                             detail="Exactly one of topic_entity_tag_id or workflow_tag_id must be provided")
 
 
-def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str,
+def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
                          version: int, reference_id: int, entity: str = None,
                          supporting_topic_entity_tag_id: int = None, supporting_workflow_tag_id: int = None,
                          set_type: str = "training"):
     check_either_tet_or_workflow_tag_id_provided(supporting_topic_entity_tag_id, supporting_workflow_tag_id)
-    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                           dataset_type=dataset_type, version=version)
-    
+    if dataset.frozen:
+        raise HTTPException(status_code=403, detail="Dataset is frozen")
     new_dataset_entry = DatasetEntry(
         dataset_id=dataset.dataset_id,
         supporting_topic_entity_tag_id=supporting_topic_entity_tag_id,
@@ -123,10 +124,12 @@ def add_entry_to_dataset(db: Session, mod_abbreviation: str, data_type_topic: st
     db.refresh(dataset)
 
 
-def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int,
+def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                               reference_id: int, entity: str = None):
-    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                           dataset_type=dataset_type, version=version)
+    if dataset.frozen:
+        raise HTTPException(status_code=403, detail="Dataset is frozen")
     dataset_entry = db.query(DatasetEntry).filter(
         DatasetEntry.dataset_id == dataset.dataset_id,
         DatasetEntry.reference_id == reference_id,
@@ -138,9 +141,9 @@ def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type_topi
     db.commit()
 
 
-def patch_dataset(db: Session, mod_abbreviation: str, data_type_topic: str, dataset_type: str, version: int,
+def patch_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                   dataset_update: DatasetSchemaUpdate):
-    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type_topic=data_type_topic,
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                           dataset_type=dataset_type, version=version)
     for key, value in dataset_update.dict(exclude_unset=True).items():
         setattr(dataset, key, value)
