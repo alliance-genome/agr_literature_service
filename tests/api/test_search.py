@@ -64,7 +64,7 @@ def initialize_elasticsearch():
             {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
         ],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196","mod_abbreviation": "FB"}],
+        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["review"],
         "language" : "English",
         "date_created": "1636139454923830"
