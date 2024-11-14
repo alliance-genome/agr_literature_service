@@ -2,12 +2,10 @@ from collections import defaultdict
 from typing import Optional
 
 from fastapi import HTTPException
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import ModModel, WorkflowTagModel
+from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntry
-from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
     DatasetSchemaDownload, DatasetSchemaUpdate
 
