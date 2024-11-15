@@ -12,7 +12,7 @@ from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost,
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
-                version: int = None) -> Optional[DatasetModel]:
+                version: int = None) -> DatasetModel:
     dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
         DatasetModel.mod.has(abbreviation=mod_abbreviation),
         DatasetModel.data_type == data_type,
@@ -75,27 +75,35 @@ def delete_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_t
 def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
                      dataset_type: str, version: int) -> DatasetSchemaDownload:
     dataset = get_dataset(db, mod_abbreviation, data_type, dataset_type, version)
-    # Return agrkb ids or entity curies based on the dataset type
-    dataset_entry: DatasetEntryModel
-    data_training: Union[Dict[str, int], Dict[str, List[str]]]
-    data_testing: Union[Dict[str, int], Dict[str, List[str]]]
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    data_training: Dict
+    data_testing: Dict
     if dataset_type == "document":
-        data_training = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
-                         for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"}
-        data_testing = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
-                        for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "testing"}
+        document_data_training: Dict[str, int] = {
+            str(dataset_entry.reference.curie): 1 if dataset_entry.positive else 0
+            for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"
+        }
+        document_data_testing: Dict[str, int] = {
+            str(dataset_entry.reference.curie): 1 if dataset_entry.positive else 0
+            for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "testing"
+        }
+        data_training = document_data_training
+        data_testing = document_data_testing
     elif dataset_type == "entity":
-        data_training = defaultdict(list)  # type: Dict[str, List[str]]
-        data_testing = defaultdict(list)  # type: Dict[str, List[str]]
+        entity_data_training: Dict[str, List[str]] = defaultdict(list)
+        entity_data_testing: Dict[str, List[str]] = defaultdict(list)
         for dataset_entry in dataset.dataset_entries:
             if dataset_entry.set_type == "training":
-                data_training[dataset_entry.reference.curie].append(
-                    dataset_entry.entity)
+                entity_data_training[str(dataset_entry.reference.curie)].append(str(dataset_entry.entity))
             else:
-                data_testing[dataset_entry.reference.curie].append(
-                    dataset_entry.entity)
+                entity_data_testing[str(dataset_entry.reference.curie)].append(str(dataset_entry.entity))
+        data_training = entity_data_training
+        data_testing = entity_data_testing
     else:
         raise ValueError("Invalid dataset type")
+
     return DatasetSchemaDownload(
         dataset_id=dataset.dataset_id,
         title=dataset.title,
