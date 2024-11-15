@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Dict, List, Union
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -77,14 +77,16 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
     dataset = get_dataset(db, mod_abbreviation, data_type, dataset_type, version)
     # Return agrkb ids or entity curies based on the dataset type
     dataset_entry: DatasetEntryModel
+    data_training: Union[Dict[str, int], Dict[str, List[str]]]
+    data_testing: Union[Dict[str, int], Dict[str, List[str]]]
     if dataset_type == "document":
         data_training = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
                          for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"}
         data_testing = {dataset_entry.reference.curie: 1 if dataset_entry.positive else 0
                         for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "testing"}
     elif dataset_type == "entity":
-        data_training = defaultdict(list)
-        data_testing = defaultdict(list)
+        data_training = defaultdict(list)  # type: Dict[str, List[str]]
+        data_testing = defaultdict(list)  # type: Dict[str, List[str]]
         for dataset_entry in dataset.dataset_entries:
             if dataset_entry.set_type == "training":
                 data_training[dataset_entry.reference.curie].append(
