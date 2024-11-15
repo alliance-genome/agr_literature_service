@@ -82,11 +82,11 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
     data_testing: Dict
     if dataset_type == "document":
         document_data_training: Dict[str, int] = {
-            str(dataset_entry.reference.curie): 1 if dataset_entry.positive else 0
+            str(dataset_entry.reference_curie): 1 if dataset_entry.positive else 0
             for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"
         }
         document_data_testing: Dict[str, int] = {
-            str(dataset_entry.reference.curie): 1 if dataset_entry.positive else 0
+            str(dataset_entry.reference_curie): 1 if dataset_entry.positive else 0
             for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "testing"
         }
         data_training = document_data_training
@@ -96,9 +96,9 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
         entity_data_testing: Dict[str, List[str]] = defaultdict(list)
         for dataset_entry in dataset.dataset_entries:
             if dataset_entry.set_type == "training":
-                entity_data_training[str(dataset_entry.reference.curie)].append(str(dataset_entry.entity))
+                entity_data_training[str(dataset_entry.reference_curie)].append(str(dataset_entry.entity))
             else:
-                entity_data_testing[str(dataset_entry.reference.curie)].append(str(dataset_entry.entity))
+                entity_data_testing[str(dataset_entry.reference_curie)].append(str(dataset_entry.entity))
         data_training = entity_data_training
         data_testing = entity_data_testing
     else:
@@ -137,12 +137,13 @@ def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost,
                           version=request.version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
-    reference = get_reference(db, curie_or_reference_id=request.reference_curie)
+    # check if reference curie is valid
+    get_reference(db, curie_or_reference_id=request.reference_curie)
     new_dataset_entry = DatasetEntryModel(
         dataset_id=dataset.dataset_id,
         supporting_topic_entity_tag_id=request.supporting_topic_entity_tag_id,
         supporting_workflow_tag_id=request.supporting_workflow_tag_id,
-        reference_id=reference.reference_id,
+        reference_curie=request.reference_curie,
         entity=request.entity,
         set_type=set_type
     )
@@ -157,10 +158,9 @@ def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type: str
                           dataset_type=dataset_type, version=version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
-    reference = get_reference(db, curie_or_reference_id=reference_curie)
     dataset_entry_query = db.query(DatasetEntryModel).filter(
         DatasetEntryModel.dataset_id == dataset.dataset_id,
-        DatasetEntryModel.reference_id == reference.reference_id,
+        DatasetEntryModel.reference_curie == reference_curie,
     )
     if entity is not None:
         dataset_entry_query.filter(DatasetEntryModel.entity == entity)

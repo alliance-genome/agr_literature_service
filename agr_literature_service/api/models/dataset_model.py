@@ -37,13 +37,10 @@ class DatasetEntryModel(Base):
 
     supporting_workflow_tag: Mapped["WorkflowTagModel"] = relationship(back_populates="dataset_entries")
 
-    reference_id: Mapped[int] = mapped_column(
-        ForeignKey('reference.reference_id')
+    reference_curie = Column(
+        String(),
+        nullable=False
     )
-
-    # TODO: update reference ids when merging references
-
-    reference: Mapped["ReferenceModel"] = relationship()
 
     entity = Column(
         String(),
@@ -84,7 +81,7 @@ class DatasetEntryModel(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint('dataset_id', 'reference_id', 'entity', name='unique_dataset_entry'),
+        UniqueConstraint('dataset_id', 'reference_curie', 'entity', name='unique_dataset_entry'),
     )
 
 
