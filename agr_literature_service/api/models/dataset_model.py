@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
 from sqlalchemy.orm import relationship, mapped_column, Mapped
@@ -69,14 +69,14 @@ class DatasetEntryModel(Base):
         default=None
     )
 
-    positive = Column(
+    positive: Mapped[Optional[bool]] = Column(
         Boolean(),
         nullable=False,
         default=True,
         server_default='true'
     )
 
-    set_type = Column(
+    set_type: Mapped[str] = Column(
         Enum('training', 'testing', name='set_type_enum'),
         nullable=False,
         default='training',
@@ -139,13 +139,13 @@ class DatasetModel(AuditedModel, Base):
         nullable=False
     )
 
-    frozen = Column(
+    frozen: Mapped[bool] = Column(
         Boolean(),
         nullable=False,
         default=False
     )
 
-    production = Column(
+    production: Mapped[bool] = Column(
         Boolean(),
         nullable=False,
         default=False
