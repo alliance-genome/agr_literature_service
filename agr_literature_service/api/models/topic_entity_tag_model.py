@@ -165,7 +165,7 @@ class TopicEntityTagModel(AuditedModel, Base):
     )
 
     # Add relationship to Dataset
-    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_topic_entity_tag")
+    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_topic_entity_tag")  # noqa
 
     def __str__(self):
         return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \

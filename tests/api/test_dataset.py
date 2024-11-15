@@ -86,8 +86,6 @@ class TestDataset:
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
                                               f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
                                               f"{test_dataset.version}/").json()
-
-
             # Verify the addition in the database
             dataset: Type[DatasetModel] = db.query(DatasetModel).filter(
                 DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
@@ -170,7 +168,3 @@ class TestDataset:
             # Verify the deletion in the database
             dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).first()
             assert dataset is None
-
-
-if __name__ == "__main__":
-    pytest.main()

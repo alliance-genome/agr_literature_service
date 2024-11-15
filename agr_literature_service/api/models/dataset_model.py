@@ -156,4 +156,3 @@ class DatasetModel(AuditedModel, Base):
     __table_args__ = (
         UniqueConstraint('mod_id', 'data_type', 'dataset_type', 'version', name='unique_dataset'),
     )
-
