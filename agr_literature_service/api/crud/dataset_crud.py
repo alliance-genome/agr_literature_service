@@ -8,7 +8,7 @@ from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntryModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
-    DatasetSchemaDownload, DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost, DatasetEntrySchemaDelete
+    DatasetSchemaDownload, DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,

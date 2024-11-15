@@ -1,6 +1,4 @@
-from typing import Optional
-
-from fastapi import APIRouter, Depends, Security, Path
+from fastapi import APIRouter, Depends, Security
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from starlette import status
@@ -62,7 +60,7 @@ def patch_dataset(request: DatasetSchemaUpdate, mod_abbreviation: str, data_type
 @router.get("/download/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
             response_model=DatasetSchemaDownload)
 def download_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
-                     db: Session = Depends(get_db)):
+                     db: Session = db_session):
     db_dataset = dataset_crud.download_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                                dataset_type=dataset_type, version=version)
     return db_dataset
@@ -88,8 +86,8 @@ def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_typ
 
 @router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/",
                status_code=status.HTTP_202_ACCEPTED)
-def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
-                              reference_curie: str,
-                              user: OktaUser = db_user, db: Session = db_session):
+def delete_entry_from_dataset_no_entity(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
+                                        reference_curie: str,
+                                        user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
     dataset_crud.delete_entry_from_dataset(db, mod_abbreviation, data_type, dataset_type, version, reference_curie)
