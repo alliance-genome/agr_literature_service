@@ -1,11 +1,11 @@
 from typing import Dict, List, Optional
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum, Index, text
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
-from agr_literature_service.api.models import TopicEntityTagModel, ReferenceModel
+from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.api.models.audited_model import AuditedModel
 
