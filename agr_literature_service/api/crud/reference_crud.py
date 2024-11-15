@@ -628,7 +628,11 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
             ReferenceRelationModel.reference_id_to == new_reference_id
         )
     ).all()
-    if len(set([(min(rel[0], rel[1]), max(rel[0], rel[1])) for rel in all_ref_relations])) < len(all_ref_relations):
+    all_ref_relations_with_new_ids = [(new_reference_id if rel[0] == old_reference_id else rel[0],
+                                       new_reference_id if rel[1] == old_reference_id else rel[1]) for rel in
+                                      all_ref_relations]
+    if len(set([(min(rel[0], rel[1]), max(rel[0], rel[1])) for rel in all_ref_relations_with_new_ids])) < len(
+            all_ref_relations):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Cannot merge these two references as they have duplicate reference relations")
     try:
