@@ -69,14 +69,14 @@ class DatasetEntryModel(Base):
         default=None
     )
 
-    positive: Mapped[Optional[bool]] = Column(
-        Boolean(),
+    positive: Mapped[Optional[bool]] = mapped_column(
+        Boolean,
         nullable=False,
         default=True,
         server_default='true'
     )
 
-    set_type: Mapped[str] = Column(
+    set_type: Mapped[str] = mapped_column(
         Enum('training', 'testing', name='set_type_enum'),
         nullable=False,
         default='training',
@@ -139,14 +139,14 @@ class DatasetModel(AuditedModel, Base):
         nullable=False
     )
 
-    frozen: Mapped[bool] = Column(
-        Boolean(),
+    frozen: Mapped[bool] = mapped_column(
+        Boolean,
         nullable=False,
         default=False
     )
 
-    production: Mapped[bool] = Column(
-        Boolean(),
+    production: Mapped[bool] = mapped_column(
+        Boolean,
         nullable=False,
         default=False
     )
