@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum, Index, text
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -16,9 +16,13 @@ enable_versioning()
 class DatasetEntryModel(Base):
     __tablename__ = 'dataset_entry'
 
+    dataset_entry_id: Mapped[int] = mapped_column(
+        primary_key=True,
+        autoincrement=True
+    )
+
     dataset_id: Mapped[int] = mapped_column(
-        ForeignKey('dataset.dataset_id', ondelete='CASCADE'),
-        primary_key=True
+        ForeignKey('dataset.dataset_id', ondelete='CASCADE')
     )
 
     dataset: Mapped["DatasetModel"] = relationship(back_populates="dataset_entries")
