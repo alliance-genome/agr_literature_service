@@ -90,7 +90,7 @@ class TestDataset:
             dataset: Type[DatasetModel] = db.query(DatasetModel).filter(
                 DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
             dataset_entry: DatasetEntryModel = dataset.dataset_entries[0]
-            assert dataset_entry.reference.curie == test_topic_entity_tag.related_ref_curie
+            assert dataset_entry.reference_curie == test_topic_entity_tag.related_ref_curie
 
 
     def test_remove_dataset_entry(self, db, auth_headers, test_dataset, test_topic_entity_tag):  # noqa
