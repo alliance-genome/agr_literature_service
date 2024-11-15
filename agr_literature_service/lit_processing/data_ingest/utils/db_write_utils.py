@@ -1011,10 +1011,10 @@ def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from,
     # check to see if any newly added ones matches this entry
     rows = db_session.query(ReferenceRelationModel).filter(
         or_(
-            (ReferenceRelationModel.reference_id_from == reference_id_from) & (
-                    ReferenceRelationModel.reference_id_to == reference_id_to),
-            (ReferenceRelationModel.reference_id_from == reference_id_to) & (
-                    ReferenceRelationModel.reference_id_to == reference_id_from)
+            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
+                 ReferenceRelationModel.reference_id_to == reference_id_to),
+            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
+                 ReferenceRelationModel.reference_id_to == reference_id_from)
         )
     ).all()
     if len(rows) > 0:
