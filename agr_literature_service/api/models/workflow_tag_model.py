@@ -60,7 +60,7 @@ class WorkflowTagModel(AuditedModel, Base):
         foreign_keys="WorkflowTagModel.mod_id"
     )
 
-    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_workflow_tag")  # noqa
+    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_workflow_tag")  # noqa # type: ignore
 
     def __str__(self):
         """
