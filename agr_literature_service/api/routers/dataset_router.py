@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Security
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Security, Path
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from starlette import status
@@ -7,7 +9,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import dataset_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, DatasetSchemaDownload, \
-    DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost, DatasetEntrySchemaDelete
+    DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -42,18 +44,19 @@ def show_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, versi
 def delete_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                    user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return dataset_crud.delete_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
-                                       dataset_type=dataset_type, version=version)
+    dataset_crud.delete_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
+                                dataset_type=dataset_type, version=version)
 
 
-@router.patch("/",
+@router.patch("/{mod_abbreviation}/{data_type}/{dataset_type}/{version}",
               status_code=status.HTTP_202_ACCEPTED,
               response_model=str)
-def patch_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
-                  dataset_update: DatasetSchemaUpdate, user: OktaUser = db_user, db: Session = db_session):
+def patch_dataset(request: DatasetSchemaUpdate, mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
+                  user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return dataset_crud.patch_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
-                                      dataset_type=dataset_type, version=version, dataset_update=dataset_update)
+    dataset_crud.patch_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
+                               dataset_type=dataset_type, version=version, dataset_update=request)
+    return "updated"
 
 
 @router.get("/download/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
@@ -73,9 +76,20 @@ def add_entry_to_dataset(request: DatasetEntrySchemaPost,
     dataset_crud.add_entry_to_dataset(db, request)
 
 
-@router.delete("/dataset_entry/",
+@router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/{entity}/",
                status_code=status.HTTP_202_ACCEPTED)
-def delete_entry_from_dataset(request: DatasetEntrySchemaDelete,
+def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
+                              reference_curie: str, entity: str,
                               user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    dataset_crud.delete_entry_from_dataset(db, request=request)
+    dataset_crud.delete_entry_from_dataset(db, mod_abbreviation, data_type, dataset_type, version, reference_curie,
+                                           entity)
+
+
+@router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/",
+               status_code=status.HTTP_202_ACCEPTED)
+def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
+                              reference_curie: str,
+                              user: OktaUser = db_user, db: Session = db_session):
+    set_global_user_from_okta(db, user)
+    dataset_crud.delete_entry_from_dataset(db, mod_abbreviation, data_type, dataset_type, version, reference_curie)

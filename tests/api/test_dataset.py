@@ -95,20 +95,31 @@ class TestDataset:
             assert dataset_entry.reference.curie == test_topic_entity_tag.related_ref_curie
 
 
-    def test_remove_dataset_entry(self, db, auth_headers, test_dataset):  # noqa
+    def test_remove_dataset_entry(self, db, auth_headers, test_dataset, test_topic_entity_tag):  # noqa
         with TestClient(app) as client:
-            # First, add a topic entity tag
-            client.post(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
-                        headers=auth_headers)
-
-            # Now remove it
-            response = client.delete(url=f"/datasets/topic_entity_tag/TEST/REFERENCE/SAMPLE/?topic_entity_tag_id=1",
-                                     headers=auth_headers)
+            dataset_entry_data = {
+                "mod_abbreviation": test_dataset.mod_abbreviation,
+                "data_type": test_dataset.data_type,
+                "dataset_type": test_dataset.dataset_type,
+                "version": test_dataset.version,
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "entity": None,
+                "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
+            }
+            dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
+                                              f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
+                                              f"{test_dataset.version}/").json()
+            response = client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            response = client.delete(url=f"/datasets/data_entry/{test_dataset.mod_abbreviation}/"
+                                         f"{test_dataset.data_type}/"
+                                         f"{test_dataset.dataset_type}/{test_dataset.version}/"
+                                         f"{test_topic_entity_tag.related_ref_curie}/", headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 
             # Verify the removal in the database
-            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
-            assert all(tag.id != 1 for tag in dataset.topic_entity_tags)
+            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
+            assert len(dataset.dataset_entries) == 0
 
     def test_download_dataset(self, test_mod, test_dataset):  # noqa
         with TestClient(app) as client:
@@ -131,26 +142,33 @@ class TestDataset:
     def test_update_dataset(self, db, auth_headers, test_dataset):  # noqa
         with TestClient(app) as client:
             updated_dataset = {
-                "data_type_topic": "NEW_TOPIC",
-                "dataset_type": "entity"
+                "title": "Updated title",
+                "description": "Updated description"
             }
-            response = client.patch(url=f"/datasets/TEST/REFERENCE/SAMPLE/",
+            response = client.patch(url=f"/datasets/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
+                                        f"{test_dataset.dataset_type}/{test_dataset.version}",
                                     json=updated_dataset, headers=auth_headers)
-            assert response.status_code == status.HTTP_200_OK
+            assert response.status_code == status.HTTP_202_ACCEPTED
             assert response.json() == "updated"
+            dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
+                                              f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
+                                              f"{test_dataset.version}/").json()
 
             # Verify the update in the database
-            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).one()
-            assert dataset.dataset_title == "Updated Test Dataset"
-            assert dataset.dataset_release_version == "1.1"
+            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
+            assert dataset.title == "Updated title"
 
     def test_delete_dataset(self, db, auth_headers, test_dataset):  # noqa
         with TestClient(app) as client:
-            response = client.delete(url=f"/datasets/TEST/REFERENCE/SAMPLE/", headers=auth_headers)
+            dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
+                                              f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
+                                              f"{test_dataset.version}/").json()
+            response = client.delete(url=f"/datasets/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
+                                         f"{test_dataset.dataset_type}/{test_dataset.version}/", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
 
             # Verify the deletion in the database
-            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == test_dataset.dataset_id).first()
+            dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).first()
             assert dataset is None
 
 

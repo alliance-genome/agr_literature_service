@@ -141,20 +141,24 @@ def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost,
     db.refresh(dataset)
 
 
-def delete_entry_from_dataset(db: Session, request: DatasetEntrySchemaDelete):
-    dataset = get_dataset(db, mod_abbreviation=request.mod_abbreviation, data_type=request.data_type,
-                          dataset_type=request.dataset_type, version=request.version)
+def delete_entry_from_dataset(db: Session, mod_abbreviation: str, data_type: str,
+                              dataset_type: str, version: int, reference_curie: str, entity: str = None):
+    dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
+                          dataset_type=dataset_type, version=version)
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
-    reference = get_reference(db, curie_or_reference_id=request.reference_curie)
-    dataset_entry = db.query(DatasetEntryModel).filter(
+    reference = get_reference(db, curie_or_reference_id=reference_curie)
+    dataset_entry_query = db.query(DatasetEntryModel).filter(
         DatasetEntryModel.dataset_id == dataset.dataset_id,
         DatasetEntryModel.reference_id == reference.reference_id,
-        DatasetEntryModel.entity == request.entity
-    ).first()
-    if dataset_entry is None:
-        raise HTTPException(status_code=404, detail="Dataset-Topic Entity Tag association not found")
-    db.delete(dataset_entry)
+    )
+    if entity is not None:
+        dataset_entry_query.filter(DatasetEntryModel.entity == entity)
+    dataset_entries = dataset_entry_query.all()
+    if dataset_entries is None:
+        raise HTTPException(status_code=404, detail="Dataset entry not found")
+    for dataset_entry in dataset_entries:
+        db.delete(dataset_entry)
     db.commit()
 
 
