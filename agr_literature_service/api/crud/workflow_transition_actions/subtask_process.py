@@ -4,20 +4,23 @@ from agr_literature_service.api.models import (
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+from typing import Dict
 
-jobs_types = {'reference classification': {'main': 'ATP:0000165',
-                                           'in_progress': 'ATP:0000178',
-                                           'complete': 'ATP:0000169',
-                                           'failed': 'ATP:0000189',
-                                           'needed': 'ATP:0000166'},
-              'entity extraction': {'main': 'ATP:00001672',
-                                    'in_progress': 'ATP:0000190',
-                                    'complete': 'ATP:0000174',
-                                    'failed': 'ATP:0000187',
-                                    'needed': 'ATP:0000173'}}
+jobs_types: Dict[str, Dict[str, str] | Dict[str, str]] = {
+    'reference classification': {
+        'main': 'ATP:0000165',
+        'in_progress': 'ATP:0000178',
+        'complete': 'ATP:0000169',
+        'failed': 'ATP:0000189',
+        'needed': 'ATP:0000166'},
+    'entity extraction': {'main': 'ATP:00001672',
+                          'in_progress': 'ATP:0000190',
+                          'complete': 'ATP:0000174',
+                          'failed': 'ATP:0000187',
+                          'needed': 'ATP:0000173'}}
 
 
-def check_type(checktype):
+def check_type(checktype: str):
     if checktype not in jobs_types.keys():
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=f"Method sub_task_in_progress with first arg {checktype} not in known list")
@@ -60,11 +63,11 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     from agr_literature_service.api.crud.workflow_tag_crud import (
         get_workflow_tags_from_process
     )
-    checktype: str = args[0]
+    checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
     check_main_needed = False
-    if main_status_obj.workflow_tag_id == jobs_types[check_type]['failed']:
+    if main_status_obj.workflow_tag_id == str(jobs_types[checktype]['failed']):
         return  # already set
     elif main_status_obj.workflow_tag_id == jobs_types[checktype]['needed']:
         check_main_needed = True
