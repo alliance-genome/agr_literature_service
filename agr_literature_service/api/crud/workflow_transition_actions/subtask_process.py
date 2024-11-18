@@ -27,7 +27,7 @@ def get_current_status_obj(db: Session, job_type, reference_id):
     global jobs_types
     cur = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_id == reference_id,
-               WorkflowTagModel.workflow_tag_id in (jobs_types[job_type].values())).first()
+               WorkflowTagModel.workflow_tag_id.in_((jobs_types[job_type].values()))).first()
     return cur
 
 
