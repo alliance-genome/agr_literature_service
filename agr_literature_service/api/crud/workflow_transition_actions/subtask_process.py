@@ -23,11 +23,11 @@ def check_type(checktype):
                             detail=f"Method sub_task_in_progress with first arg {checktype} not in known list")
 
 
-def get_current_status_obj(db: Session, job_type: str, reference_id: int) -> WorkflowTagModel:
+def get_current_status_obj(db: Session, job_type, reference_id):
     global jobs_types
-    cur = db.query(WorkflowTagModel).filter(
-        WorkflowTagModel.reference_id == reference_id,
-        WorkflowTagModel.workflow_tag_id in (jobs_types[job_type].values())).first()
+    cur = db.query(WorkflowTagModel).\
+        filter(WorkflowTagModel.reference_id == reference_id,
+               WorkflowTagModel.workflow_tag_id in (jobs_types[job_type].values())).first()
     return cur
 
 
@@ -39,7 +39,7 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
     global jobs_types
     checktype = args[0]
     check_type(checktype)
-    main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
+    main_status_obj = get_current_status_obj(db, checktype, int(current_workflow_tag_db_obj.reference_id))
     if main_status_obj.workflow_tag_id == jobs_types[checktype]['in_progress']:
         return  # already set
     elif main_status_obj.workflow_tag_id == jobs_types[checktype]['failed']:
@@ -60,7 +60,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     from agr_literature_service.api.crud.workflow_tag_crud import (
         get_workflow_tags_from_process
     )
-    checktype = args[0]
+    checktype: str = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
     check_main_needed = False
