@@ -1,9 +1,7 @@
 from agr_literature_service.api.models import (
     WorkflowTagModel
 )
-from agr_literature_service.api.crud.workflow_tag_crud import (
-    get_workflow_tags_from_process
-)
+
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 
@@ -59,6 +57,9 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
 
 
 def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
+    from agr_literature_service.api.crud.workflow_tag_crud import (
+        get_workflow_tags_from_process
+    )
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
