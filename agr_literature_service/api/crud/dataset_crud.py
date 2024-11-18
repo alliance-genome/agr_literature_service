@@ -12,7 +12,7 @@ from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost,
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
-                version: int = None) -> DatasetModel:
+                version: int) -> DatasetModel:
     dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
         DatasetModel.mod.has(abbreviation=mod_abbreviation),
         DatasetModel.data_type == data_type,
