@@ -124,13 +124,13 @@ def workflow_automation_init(db):  # noqa
         ["ATP:needed", "ATP:task2_needed", None, "task2_job"],
         ["ATP:needed", "ATP:task3_needed", None, "task3_job"],
 
-        ["ATP:task1_needed", "ATP:task1_in_progress", ["subtask_in_progress::reference classification"], "on_start"],
-        ["ATP:task1_in_progress", "ATP:task1_successful", ["subtask_complete::reference classification"], "on_success"],
-        ["ATP:task1_in_progress", "ATP:task1_failed", ["subtask_failed::reference classification"], "on_failed"],
+        ["ATP:task1_needed", "ATP:task1_in_progress", ["sub_task_in_progress::reference classification"], "on_start"],
+        ["ATP:task1_in_progress", "ATP:task1_successful", ["sub_task_complete::reference classification"], "on_success"],
+        ["ATP:task1_in_progress", "ATP:task1_failed", ["sub_task_failed::reference classification"], "on_failed"],
 
-        ["ATP:task2_needed", "ATP:task2_in_progress", ["subtask_in_progress::reference classification"], "on_start"],
-        ["ATP:task2_in_progress", "ATP:task2_successful", ["subtask_complete::reference classification"], "on_success"],
-        ["ATP:task2_in_progress", "ATP:task2_failed", ["subtask_failed::reference classification"], "on_failed"]
+        ["ATP:task2_needed", "ATP:task2_in_progress", ["sub_task_in_progress::reference classification"], "on_start"],
+        ["ATP:task2_in_progress", "ATP:task2_successful", ["sub_task_complete::reference classification"], "on_success"],
+        ["ATP:task2_in_progress", "ATP:task2_failed", ["sub_task_failed::reference classification"], "on_failed"]
     ]
     mods = db.query(ModModel).all()
     for mod in mods:
