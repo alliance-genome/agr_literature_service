@@ -115,6 +115,7 @@ def workflow_automation_init(db):  # noqa
          "ATP:fileuploadcomplete",
          ["proceed_on_value::category::thesis::ATP:task1_needed",
           "proceed_on_value::category::thesis::ATP:task2_needed",
+          "proceed_on_value::category::thesis::ATP:main_needed",
           "proceed_on_value::reference_type::Experimental::ATP:NEW",
           "proceed_on_value::category::failure::ATP:task3_needed"],
          'on_success'],
@@ -122,13 +123,14 @@ def workflow_automation_init(db):  # noqa
         ["ATP:needed", "ATP:task1_needed", None, "task1_job"],
         ["ATP:needed", "ATP:task2_needed", None, "task2_job"],
         ["ATP:needed", "ATP:task3_needed", None, "task3_job"],
-        ["ATP:task1_needed", "ATP:task1_in_progress", None, "on_start"],
-        ["ATP:task1_in_progress", "ATP:task1_successful", None, "on_success"],
-        ["ATP:task1_in_progress", "ATP:task1_failed", None, "on_failed"],
 
-        ["ATP:task2_needed", "ATP:task2_in_progress", None, "on_start"],
-        ["ATP:task2_in_progress", "ATP:task2_successful", None, "on_success"],
-        ["ATP:task2_in_progress", "ATP:task2_failed", None, "on_failed"]
+        ["ATP:task1_needed", "ATP:task1_in_progress", ["subtask_in_progress::reference classification"], "on_start"],
+        ["ATP:task1_in_progress", "ATP:task1_successful", ["subtask_complete::reference classification"], "on_success"],
+        ["ATP:task1_in_progress", "ATP:task1_failed", ["subtask_failed::reference classification"], "on_failed"],
+
+        ["ATP:task2_needed", "ATP:task2_in_progress", ["subtask_in_progress::reference classification"], "on_start"],
+        ["ATP:task2_in_progress", "ATP:task2_successful", ["subtask_complete::reference classification"], "on_success"],
+        ["ATP:task2_in_progress", "ATP:task2_failed", ["subtask_failed::reference classification"], "on_failed"]
     ]
     mods = db.query(ModModel).all()
     for mod in mods:
@@ -156,13 +158,6 @@ class TestWorkflowTagAutomation:
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         workflow_automation_init(db)
         print(f"BOB1: {mod}")
-
-        # sworkflow_tag_crud.transition_to_workflow_status(
-        #    db,
-        #    curie_or_reference_id=reference.curie,
-        #    mod_abbreviation=mod.abbreviation,
-        #    new_workflow_tag_atp_id="ATP:0000141",
-        #    transition_type='automated')
 
         with TestClient(app) as client:
             # Set initial workflow tag to "ATP:0000141" , hard coded so allowed
@@ -228,7 +223,7 @@ class TestWorkflowTagAutomation:
             # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
             wft = {}
-            for atp in ["ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
+            for atp in ["ATP:main_needed", "ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
                 print(f"atp = {atp}")
                 wft[atp] = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
@@ -266,7 +261,7 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-            for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
+            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 test_id = db.query(WorkflowTagModel). \
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
@@ -284,7 +279,7 @@ class TestWorkflowTagAutomation:
 
             # When we know the hierarchy we can add main back in testing
             # for atp in ["ATP:task1_successful", "ATP:task2_successful", "ATP:main_successful"]:
-            for atp in ["ATP:task1_successful", "ATP:task2_successful"]:
+            for atp in ["ATP:main_successful", "ATP:task1_successful", "ATP:task2_successful"]:
                 test_id = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
@@ -292,6 +287,7 @@ class TestWorkflowTagAutomation:
                 print(f"atp test {atp}")
                 assert test_id
 
+            assert 1 == 0
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
