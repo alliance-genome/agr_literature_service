@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint, Boolean, Enum
 from sqlalchemy.orm import relationship, mapped_column, Mapped
@@ -152,7 +152,12 @@ class DatasetModel(AuditedModel, Base):
         default=False
     )
 
-    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship()
+    dataset_entries = relationship(
+        "DatasetEntryModel",
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     __table_args__ = (
         UniqueConstraint('mod_id', 'data_type', 'dataset_type', 'version', name='unique_dataset'),

@@ -44,6 +44,8 @@ class DatasetEntrySchemaPost(DatasetSchemaBase):
     version: int
     reference_curie: str
     entity: Optional[str] = None
+    positive: Optional[bool] = True
+    set_type: Optional[str] = "training"
     supporting_topic_entity_tag_id: Optional[int] = None
     supporting_workflow_tag_id: Optional[int] = None
 

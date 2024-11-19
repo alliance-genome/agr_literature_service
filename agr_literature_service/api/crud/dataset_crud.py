@@ -126,8 +126,7 @@ def check_either_tet_or_workflow_tag_id_provided(topic_entity_tag_id, workflow_t
                             detail="Exactly one of topic_entity_tag_id or workflow_tag_id must be provided")
 
 
-def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost,
-                         set_type: str = "training"):
+def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost):
     check_either_tet_or_workflow_tag_id_provided(request.supporting_topic_entity_tag_id,
                                                  request.supporting_workflow_tag_id)
     dataset = get_dataset(db,
@@ -145,7 +144,8 @@ def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost,
         supporting_workflow_tag_id=request.supporting_workflow_tag_id,
         reference_curie=request.reference_curie,
         entity=request.entity,
-        set_type=set_type
+        set_type=request.set_type,
+        positive=request.positive
     )
     db.add(new_dataset_entry)
     db.commit()
