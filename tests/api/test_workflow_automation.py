@@ -288,6 +288,7 @@ class TestWorkflowTagAutomation:
                 assert test_id
 
             assert 1 == 0
+
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
@@ -317,6 +318,9 @@ class TestWorkflowTagAutomation:
             # set task1 to success BUT task2 to failure
             response = client.post(url=f"/workflow_tag/job/success/{atp_to_ref_wft_id['ATP:task1_in_progress']}",
                                    headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
 
             response = client.post(url=f"/workflow_tag/job/failed/{atp_to_ref_wft_id['ATP:task2_in_progress']}",
