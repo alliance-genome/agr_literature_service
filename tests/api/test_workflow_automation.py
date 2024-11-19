@@ -3,7 +3,7 @@
 # coded in the transition table we can add fake ATP values here to make it more
 # readable.
 #
-# So we are going to mimic "ATP:main_needed" which has 3 subtasks "ATP:task1_needed",
+# So we are going to mimic "ATP:0000166" which has 3 subtasks "ATP:task1_needed",
 # "ATP:task2_needed" and "ATP:task3_needed".
 # For testing, we will have task3 fail the condition for being set.
 # This is covered by the actions and will be
@@ -11,7 +11,7 @@
 # proceed_on_value::category::thesis::ATP:task2_needed,
 # proceed_on_value::category::failure::ATP:task3_needed"
 #
-# At this point we want to check that "ATP:main_needed" is no longer there.
+# At this point we want to check that "ATP:0000166" is no longer there.
 # "ATP:main_in_progress" should now be set.
 # "ATP:task1_needed", "ATP:task2_needed" should be set but not "ATP:task3_needed".
 #
@@ -75,17 +75,19 @@ def get_process_mock(workflow_tag_atp_id: str):
     elif workflow_tag_atp_id == 'ATP:fileuploadfailed':
         return 'ATP:fileupload'
     elif workflow_tag_atp_id == 'ATP:task2_failed':
-        return 'ATP:task2_needed'
+        return 'ATP:0000189'  # main failed
+    elif workflow_tag_atp_id == 'ATP:task1_failed':
+        return 'ATP:0000189'  # main failed
     elif workflow_tag_atp_id == 'ATP:fileupload':
         return ['ATP:ont1']
     elif workflow_tag_atp_id == 'ATP:task2_in_progress':
-        return 'ATP:main_in_progress'
+        return 'ATP:0000178'  # main in progress
     elif workflow_tag_atp_id == 'ATP:task2_complete':
-        return 'ATP:main_complete'
+        return 'ATP:0000169'  # main complete
     elif workflow_tag_atp_id == 'ATP:task1_in_progress':
-        return 'ATP:main_in_progress'
+        return 'ATP:0000178'  # main in progress
     elif workflow_tag_atp_id == 'ATP:task1_complete':
-        return 'ATP:main_complete'
+        return 'ATP:0000169'  # main complete
     elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']:
         return 'ATP:0000165'
     else:
@@ -102,8 +104,6 @@ def get_descendants_mock(name):
         return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
     elif name == 'ATP:0000140':
         return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
-    elif name == 'ATP:0000165':
-        return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
     elif name == 'ATP:0000161':
         return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
     elif name == 'ATP:fileupload':
@@ -390,7 +390,7 @@ class TestWorkflowTagAutomation:
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": "BadMod",
-                "new_workflow_tag_atp_id": "ATP:main_needed"
+                "new_workflow_tag_atp_id": "ATP:0000166"
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
@@ -401,7 +401,7 @@ class TestWorkflowTagAutomation:
         transition_req = {
             "curie_or_reference_id": "MadeUpCurie",
             "mod_abbreviation": mod.abbreviation,
-            "new_workflow_tag_atp_id": "ATP:main_needed"
+            "new_workflow_tag_atp_id": "ATP:0000166"
         }
         response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                headers=auth_headers)
