@@ -28,6 +28,7 @@ reference classification (ATP:0000165)
 """
 
 
+
 def get_data(name_to_atp):
     """
     mod can only be 'ALL', the actual mod abbreviation or 'NOT_' + mod abbreviation
@@ -46,18 +47,21 @@ def get_data(name_to_atp):
             'mod': 'ALL',
             'from': f'{entry} classification needed',
             'to': f'{entry} classification in progress',
-            'condition': 'on_start'}
+            'condition': 'on_start',
+            'actions': 'sub_task_in_progress:reference classification'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
             'from': f'{entry} classification in progress',
             'to': f'{entry} classification failed',
-            'condition': 'on_failed'}
+            'condition': 'on_failed',
+            'actions': 'sub_task_failed:reference classification'}
         test_data.append(item)
         item = {
             'mod': 'ALL',
             'from': f'{entry} classification in progress',
             'to': f'{entry} classification complete',
-            'condition': 'on_success'}
+            'condition': 'on_success',
+            'actions': 'sub_task_complete:reference classification'}
         test_data.append(item)
     return test_data
