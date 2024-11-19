@@ -78,6 +78,14 @@ def get_process_mock(workflow_tag_atp_id: str):
         return 'ATP:task2_needed'
     elif workflow_tag_atp_id == 'ATP:fileupload':
         return ['ATP:ont1']
+    elif workflow_tag_atp_id == 'ATP:task2_in_progress':
+        return 'ATP:main_in_progress'
+    elif workflow_tag_atp_id == 'ATP:task2_complete':
+        return 'ATP:main_complete'
+    elif workflow_tag_atp_id == 'ATP:task1_in_progress':
+        return 'ATP:main_in_progress'
+    elif workflow_tag_atp_id == 'ATP:task1_complete':
+        return 'ATP:main_complete'
     else:
         print("returning NOTHING!!")
         return []
@@ -98,6 +106,13 @@ def get_descendants_mock(name):
         return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
     elif name == 'ATP:fileupload':
         return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
+    elif name == 'ATP:main_in_progress':
+        return ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress']
+    elif name == 'ATP:main_failed':
+        return ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed']
+    elif name == 'ATP:main_complete':
+        return ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
+
     else:
         print("returning NOTHING!!")
         return []

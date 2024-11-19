@@ -66,6 +66,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
+    print(f"Current status obj is {main_status_obj}")
     check_main_needed = False
     if main_status_obj.workflow_tag_id == str(jobs_types[checktype]['failed']):
         return  # already set
