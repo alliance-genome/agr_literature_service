@@ -152,7 +152,12 @@ class DatasetModel(AuditedModel, Base):
         default=False
     )
 
-    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship()
+    dataset_entries = relationship(
+        "DatasetEntryModel",
+        back_populates="dataset",
+        cascade="all, delete-orphan",
+        passive_deletes=True
+    )
 
     __table_args__ = (
         UniqueConstraint('mod_id', 'data_type', 'dataset_type', 'version', name='unique_dataset'),
