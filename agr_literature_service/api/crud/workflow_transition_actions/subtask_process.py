@@ -37,7 +37,7 @@ def get_current_status_obj(db: Session, job_type, reference_id):
             filter(WorkflowTagModel.reference_id == reference_id).all()
         print("BOB: But for this reference and any atp is:-")
         for b in bob:
-            print(f"BOB:\t{b}")
+            print(f"BOB:\t{b.workflow_tag_id}\t{b.mod_id}")
         return None
     return cur
 
