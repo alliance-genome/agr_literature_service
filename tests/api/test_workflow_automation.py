@@ -86,6 +86,8 @@ def get_process_mock(workflow_tag_atp_id: str):
         return 'ATP:main_in_progress'
     elif workflow_tag_atp_id == 'ATP:task1_complete':
         return 'ATP:main_complete'
+    elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']:
+        return 'ATP:0000165'
     else:
         print("returning NOTHING!!")
         return []
@@ -106,13 +108,16 @@ def get_descendants_mock(name):
         return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
     elif name == 'ATP:fileupload':
         return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
-    elif name == 'ATP:main_in_progress':
+    elif name == 'ATP:0000165':  # top of class
+        return ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']
+    elif name == 'ATP:0000166':  # needed
+        return ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed']
+    elif name == 'ATP:0000178':  # in progress
         return ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress']
-    elif name == 'ATP:main_failed':
+    elif name == 'ATP:0000189':  # failed
         return ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed']
-    elif name == 'ATP:main_complete':
+    elif name == 'ATP:0000169':  # complete
         return ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
-
     else:
         print("returning NOTHING!!")
         return []
@@ -130,7 +135,7 @@ def workflow_automation_init(db):  # noqa
          "ATP:fileuploadcomplete",
          ["proceed_on_value::category::thesis::ATP:task1_needed",
           "proceed_on_value::category::thesis::ATP:task2_needed",
-          "proceed_on_value::category::thesis::ATP:main_needed",
+          "proceed_on_value::category::thesis::ATP:0000166",
           "proceed_on_value::reference_type::Experimental::ATP:NEW",
           "proceed_on_value::category::failure::ATP:task3_needed"],
          'on_success'],
@@ -235,10 +240,10 @@ class TestWorkflowTagAutomation:
             print(response.text)
             print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
-            # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
+            # So we should have "ATP:0000166", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
             wft = {}
-            for atp in ["ATP:main_needed", "ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
+            for atp in ["ATP:0000166", "ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
                 print(f"atp = {atp}")
                 wft[atp] = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
