@@ -21,4 +21,4 @@ def process_action(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
                                 detail=f"Problem running method {method} which raises exception {e}. {checks}")
     else:
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                            detail="Method {method} not supported")
+                            detail=f"Method '{method}' not supported")
