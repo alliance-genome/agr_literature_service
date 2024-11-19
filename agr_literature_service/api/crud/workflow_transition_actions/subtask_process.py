@@ -28,6 +28,7 @@ def check_type(checktype: str):
 
 def get_current_status_obj(db: Session, job_type, reference_id):
     global jobs_types
+    print(f"BOB: {job_type}:: Checking {jobs_types[job_type].values()}")
     cur = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_id == reference_id,
                WorkflowTagModel.workflow_tag_id.in_((jobs_types[job_type].values()))).first()
