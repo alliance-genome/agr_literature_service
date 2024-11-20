@@ -618,6 +618,23 @@ def merge_references(db: Session,
 
 
 def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie, new_curie):
+    all_ref_relations = db.query(
+        ReferenceRelationModel.reference_id_from,
+        ReferenceRelationModel.reference_id_to).filter(
+        or_(
+            ReferenceRelationModel.reference_id_from == old_reference_id,
+            ReferenceRelationModel.reference_id_to == old_reference_id,
+            ReferenceRelationModel.reference_id_from == new_reference_id,
+            ReferenceRelationModel.reference_id_to == new_reference_id
+        )
+    ).all()
+    all_ref_relations_with_new_ids = [(new_reference_id if rel[0] == old_reference_id else rel[0],
+                                       new_reference_id if rel[1] == old_reference_id else rel[1]) for rel in
+                                      all_ref_relations]
+    if len(set([(min(rel[0], rel[1]), max(rel[0], rel[1])) for rel in all_ref_relations_with_new_ids])) < len(
+            all_ref_relations):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="Cannot merge these two references as they have duplicate reference relations")
     try:
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_from=old_reference_id).all():
             y = db.query(ReferenceRelationModel).filter_by(reference_id_from=new_reference_id,

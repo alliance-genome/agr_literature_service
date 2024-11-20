@@ -3,10 +3,10 @@ topic_entity_tag_model.py
 ==================
 """
 
-from typing import Dict
+from typing import Dict, List
 
 from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -163,6 +163,9 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=True,
         unique=False
     )
+
+    # Add relationship to Dataset
+    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_topic_entity_tag")  # type: ignore  # noqa
 
     def __str__(self):
         return f"id:{self.topic_entity_tag_id}\ttopic:{self.topic}" \
