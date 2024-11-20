@@ -281,7 +281,7 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
+            for atp in ["ATP:0000178", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 test_id = db.query(WorkflowTagModel). \
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
@@ -299,7 +299,7 @@ class TestWorkflowTagAutomation:
 
             # When we know the hierarchy we can add main back in testing
             # for atp in ["ATP:task1_successful", "ATP:task2_successful", "ATP:main_successful"]:
-            for atp in ["ATP:main_successful", "ATP:task1_successful", "ATP:task2_successful"]:
+            for atp in ["ATP:0000169", "ATP:task1_successful", "ATP:task2_successful"]:
                 test_id = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
@@ -322,7 +322,7 @@ class TestWorkflowTagAutomation:
 
             # Set initial workflow tag to "ATP:XXXX_in_progress"
             atp_to_ref_wft_id = {}
-            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
+            for atp in ["ATP:0000178", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 new_wft = {"reference_curie": reference.curie,
                            "mod_abbreviation": mod.abbreviation,
                            "workflow_tag_id": atp,
@@ -397,7 +397,7 @@ class TestWorkflowTagAutomation:
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json().get("detail") == 'Mod abbreviation BadMod does not exist'
 
-        # Bad mod abbreviation
+        # Bad curie
         transition_req = {
             "curie_or_reference_id": "MadeUpCurie",
             "mod_abbreviation": mod.abbreviation,
@@ -415,5 +415,8 @@ class TestWorkflowTagAutomation:
         }
         response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                headers=auth_headers)
+        print(response.content)
+        print(response.text)
+        print(response.status_code)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
