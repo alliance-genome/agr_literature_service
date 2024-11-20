@@ -12,11 +12,11 @@ def process_action(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
     args = action.split("::")
     method = args.pop(0)
     if method in ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS:
-        try:
-            ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS[method](db, current_workflow_tag_db_obj, args)
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                                detail=f"Problem running method {method} which raises exception {e}.")
+        # try:
+        ADMISSIBLE_WORKFLOW_TRANSITION_ACTION_FUNCTIONS[method](db, current_workflow_tag_db_obj, args)
+        # except Exception as e:
+        #    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        #                        detail=f"Problem running method {method} which raises exception {e}.")
     else:
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=f"Method '{method}' not supported")
