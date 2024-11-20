@@ -102,7 +102,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     if not check_main_needed:
         return
     not_complete_list = get_workflow_tags_from_process(jobs_types[checktype]['needed'])
-    if not_complete_list:
+    if not not_complete_list:
         print(f"ERROR: No workflow tags needed for {checktype} 'needed'")
         not_complete_list = []
     print(f"not_complete_list = {not_complete_list}")
