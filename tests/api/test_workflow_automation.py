@@ -56,23 +56,10 @@ from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 test_reference2 = test_reference
 
 
-def get_tags_mock(workflow_tag_atp_id: str):
-    print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
-    if workflow_tag_atp_id == 'ATP:fileupload':
-        return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
-    elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000189', 'ATP:0000169', 'ATP:0000178']:
-        return ['ATP:0000165']
-    elif workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
-        return 'ATP:fileupload'
-    else:
-        print(f"** GTM: No parent {workflow_tag_atp_id}")
-    return None
-
-
 # TestWFTData = namedtuple('TestWFTData', ['response'])
 def get_parents_mock(workflow_tag_atp_id: str):
     # MUST start with ATP:0000003 for this to work
-    print(f"***** BOB1: Mocking get_parents name = {workflow_tag_atp_id}")
+    print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
     if workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
         return 'ATP:fileupload'
     elif workflow_tag_atp_id == 'ATP:fileuploadinprogress':
@@ -104,7 +91,7 @@ def get_parents_mock(workflow_tag_atp_id: str):
 
 def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
-    print(f"***** BOB2:  Mocking get_ancestors name = {name}")
+    print(f"***** Mocking descendents name = {name}")
     if name == 'ATP:0000177':
         return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
     elif name == 'ATP:0000172':
@@ -420,7 +407,7 @@ class TestWorkflowTagAutomation:
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": mod.abbreviation,
-                "new_workflow_tag_atp_id": "ATP:task2_failed"
+                "new_workflow_tag_atp_id": "ATP:fileuploadcomplete"
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
@@ -428,4 +415,4 @@ class TestWorkflowTagAutomation:
             print(response.text)
             print(response.status_code)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-            assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
+            assert response.json().get("detail") == 'Transition to ATP:fileuploadcomplete not allowed as not initial state.'

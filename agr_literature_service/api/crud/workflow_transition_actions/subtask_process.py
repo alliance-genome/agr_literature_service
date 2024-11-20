@@ -52,7 +52,7 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, int(current_workflow_tag_db_obj.reference_id))
     if not main_status_obj:
-        mess = "Error: main in progress. Could not find main_status_obj for {checktype} in DB"
+        mess = f"Error: main in progress. Could not find main_status_obj for {checktype} in DB"
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=mess)
     if main_status_obj.workflow_tag_id == jobs_types[checktype]['in_progress']:
