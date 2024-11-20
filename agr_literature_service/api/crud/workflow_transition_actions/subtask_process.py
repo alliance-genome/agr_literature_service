@@ -75,6 +75,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     from agr_literature_service.api.crud.workflow_tag_crud import (
         get_workflow_tags_from_process
     )
+    global jobs_types
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
@@ -101,22 +102,12 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     # if not then set main to complete.
     if not check_main_needed:
         return
-    not_complete_list = get_workflow_tags_from_process(jobs_types[checktype]['needed'])
-    if not not_complete_list:
-        print(f"ERROR: No workflow tags needed for {checktype} 'needed'")
-        not_complete_list = []
-    print(f"not_complete_list = {not_complete_list}")
-    not_complete_list.append(get_workflow_tags_from_process(jobs_types[checktype]['in_progress']))
-    if not not_complete_list:
-        cur = None
-    elif len(not_complete_list) == 1:
-        cur = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
-            WorkflowTagModel.workflow_tag_id == not_complete_list[0]).all()
-    else:
-        cur = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
-            WorkflowTagModel.workflow_tag_id.in_(not_complete_list)).all()
+    not_complete_list = [jobs_types[checktype]['needed'],
+                         jobs_types[checktype]['in_progress']]
+
+    cur = db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
+        WorkflowTagModel.workflow_tag_id.in_(not_complete_list)).all()
     if not cur:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['complete']
 
