@@ -28,17 +28,9 @@ def check_type(checktype: str):
 
 def get_current_status_obj(db: Session, job_type, reference_id):
     global jobs_types
-    print(f"BOB: {job_type}:: Checking {jobs_types[job_type].values()}")
     cur = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_id == reference_id,
                WorkflowTagModel.workflow_tag_id.in_((jobs_types[job_type].values()))).one_or_none()
-    if not cur:
-        bob = db.query(WorkflowTagModel).\
-            filter(WorkflowTagModel.reference_id == reference_id).all()
-        print("BOB: But for this reference and any atp is:-")
-        for b in bob:
-            print(f"BOB:\t{b.workflow_tag_id}\t{b.mod_id}")
-        return None
     return cur
 
 
@@ -78,7 +70,6 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
-    print(f"Current status obj is {main_status_obj}")
     check_main_needed = False
     if not main_status_obj:
         mess = "Error: main in complete. Could not find main_status_obj for {checktype} in DB"
@@ -102,11 +93,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     if not check_main_needed:
         return
     not_complete_list = get_workflow_tags_from_process(jobs_types[checktype]['needed'])
-    if not not_complete_list:
-        print(f"ERROR: No workflow tags needed for {checktype} 'needed'")
-        not_complete_list = []
     not_complete_list.extend(get_workflow_tags_from_process(jobs_types[checktype]['in_progress']))
-    print(f"not_complete_list = {not_complete_list}")
     if not not_complete_list:
         cur = None
     elif len(not_complete_list) == 1:
