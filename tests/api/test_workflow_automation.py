@@ -176,7 +176,7 @@ def workflow_automation_init(db):  # noqa
 
 class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_tags_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_process_mock)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
