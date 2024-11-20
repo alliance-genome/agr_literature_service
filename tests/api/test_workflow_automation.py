@@ -62,6 +62,8 @@ def get_tags_mock(workflow_tag_atp_id: str):
         return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
     elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000189', 'ATP:0000169', 'ATP:0000178']:
         return ['ATP:0000165']
+    elif workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
+        return 'ATP:fileupload'
     else:
         print(f"** GTM: No parent {workflow_tag_atp_id}")
     return None
