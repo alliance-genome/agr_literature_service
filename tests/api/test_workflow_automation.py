@@ -317,7 +317,8 @@ class TestWorkflowTagAutomation:
                 print(f"atp test {atp}")
                 assert test_id
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
