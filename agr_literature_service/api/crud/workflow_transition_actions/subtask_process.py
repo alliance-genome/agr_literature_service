@@ -105,6 +105,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     if not_complete_list:
         print(f"ERROR: No workflow tags needed for {checktype} 'needed'")
         not_complete_list = []
+    print(f"not_complete_list = {not_complete_list}")
     not_complete_list.append(get_workflow_tags_from_process(jobs_types[checktype]['in_progress']))
     cur = db.query(WorkflowTagModel).filter(
         WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
