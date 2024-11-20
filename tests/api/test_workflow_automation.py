@@ -63,6 +63,7 @@ def get_tags_mock(workflow_tag_atp_id: str):
     elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000189', 'ATP:0000169', 'ATP:0000178']:
         return ['ATP:0000165']
 
+
 # TestWFTData = namedtuple('TestWFTData', ['response'])
 def get_process_mock(workflow_tag_atp_id: str):
     # MUST start with ATP:0000003 for this to work
@@ -296,6 +297,9 @@ class TestWorkflowTagAutomation:
                 print(f"ref = {wft[old_atp].reference_workflow_tag_id}")
                 response = client.post(url=f"/workflow_tag/job/success/{wft[old_atp].reference_workflow_tag_id}",
                                        headers=auth_headers)
+                print(response.content)
+                print(response.text)
+                print(response.status_code)
                 assert response.status_code == status.HTTP_200_OK
 
             # When we know the hierarchy we can add main back in testing
