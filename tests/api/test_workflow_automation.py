@@ -60,12 +60,13 @@ def get_tags_mock(workflow_tag_atp_id: str):
     print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
     if workflow_tag_atp_id == 'ATP:fileupload':
         return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
-
+    elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000189', 'ATP:0000169', 'ATP:0000178']:
+        return ['ATP:0000165']
 
 # TestWFTData = namedtuple('TestWFTData', ['response'])
 def get_process_mock(workflow_tag_atp_id: str):
     # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_ancestors name = {workflow_tag_atp_id}")
+    print(f"***** BOB1: Mocking get_ancestors name = {workflow_tag_atp_id}")
     if workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
         return 'ATP:fileupload'
     elif workflow_tag_atp_id == 'ATP:fileuploadinprogress':
@@ -97,7 +98,7 @@ def get_process_mock(workflow_tag_atp_id: str):
 
 def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_ancestors name = {name}")
+    print(f"***** BOB2:  Mocking get_ancestors name = {name}")
     if name == 'ATP:0000177':
         return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
     elif name == 'ATP:0000172':
