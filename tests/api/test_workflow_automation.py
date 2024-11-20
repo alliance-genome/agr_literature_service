@@ -173,9 +173,9 @@ def workflow_automation_init(db):  # noqa
 
 
 class TestWorkflowTagAutomation:
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_tags_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_tags_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_process_mock)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -315,7 +315,6 @@ class TestWorkflowTagAutomation:
                 print(f"atp test {atp}")
                 assert test_id
 
-            assert 1 == 0
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
