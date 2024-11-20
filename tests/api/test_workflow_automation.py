@@ -406,26 +406,26 @@ class TestWorkflowTagAutomation:
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json().get("detail") == 'Mod abbreviation BadMod does not exist'
 
-        # Bad curie
-        transition_req = {
-            "curie_or_reference_id": "MadeUpCurie",
-            "mod_abbreviation": mod.abbreviation,
-            "new_workflow_tag_atp_id": "ATP:0000166"
-        }
-        response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
-                               headers=auth_headers)
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+            # Bad curie
+            transition_req = {
+                "curie_or_reference_id": "MadeUpCurie",
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000166"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
-        # Now do transition NOT in the transition table.
-        transition_req = {
-            "curie_or_reference_id": test_reference.new_ref_curie,
-            "mod_abbreviation": mod.abbreviation,
-            "new_workflow_tag_atp_id": "ATP:task2_failed"
-        }
-        response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
-                               headers=auth_headers)
-        print(response.content)
-        print(response.text)
-        print(response.status_code)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
+            # Now do transition NOT in the transition table.
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:task2_failed"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.status_code)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
