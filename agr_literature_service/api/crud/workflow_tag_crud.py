@@ -1,5 +1,8 @@
 """
 workflow_tag_crud.py
+
+See docs/source/workflow_automation.rst for detailed description on transitioning
+between workflow tags.
 ===========================
 """
 import cachetools.func
