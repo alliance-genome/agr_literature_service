@@ -94,6 +94,8 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
         return
     not_complete_list = get_workflow_tags_from_process(jobs_types[checktype]['needed'])
     not_complete_list.extend(get_workflow_tags_from_process(jobs_types[checktype]['in_progress']))
+    not_complete_list.extend(get_workflow_tags_from_process(jobs_types[checktype]['failed']))
+
     if not not_complete_list:
         cur = None
     elif len(not_complete_list) == 1:
