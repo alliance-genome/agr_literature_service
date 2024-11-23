@@ -1,11 +1,12 @@
 import logging
-
-
-from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+from datetime import datetime, timedelta
 
-from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
+from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel,\
+    ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, \
+    CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
 
 logger = logging.getLogger(__name__)
 
@@ -141,3 +142,83 @@ def get_referencefile_mod(referencefile_id, db: Session):
         ReferencefileModSchemaShow(
             referencefile_id=rfm.referencefile_id, referencefile_mod_id=rfm.referencefile_mod_id,
             mod_abbreviation=mod_id_to_mod.get(rfm.mod_id, '')) for rfm in referencefile_mod]
+
+
+def get_mod_curators(db: Session, mod_abbreviation):
+
+    sql_query = text("""
+    SELECT u.id, u.email
+    FROM users u
+    INNER JOIN mod_corpus_association mca ON mca.updated_by = u.id
+    INNER JOIN mod m ON mca.mod_id = m.mod_id
+    WHERE mca.corpus = TRUE
+    AND m.abbreviation = :mod_abbreviation
+    AND u.email is NOT NULL
+    """)
+
+    result = db.execute(sql_query, {'mod_abbreviation': mod_abbreviation})
+    return {row[1]: row[0] for row in result}
+
+
+def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, curator_okta_id, day):
+
+    now = datetime.now().date()
+    start_date = now - timedelta(days=day)
+    end_date = now + timedelta(days=1)  # to cover timezone issue
+
+    sql_query = """
+    SELECT DISTINCT mcav.reference_id, mcav.date_updated
+    FROM mod_corpus_association_version mcav
+    INNER JOIN mod m ON m.mod_id = mcav.mod_id
+    WHERE m.abbreviation = :mod_abbreviation
+      AND (mcav.corpus = TRUE or mcav.corpus = FALSE)
+      AND mcav.corpus_mod = TRUE
+      AND mcav.operation_type IN (0, 1)
+      AND mcav.date_updated >= :start_date
+      AND mcav.date_updated < :end_date
+    """
+
+    params = {
+        "mod_abbreviation": mod_abbreviation,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+
+    if curator_okta_id is not None:
+        sql_query += " AND mcav.updated_by = :curator_okta_id"
+        params["curator_okta_id"] = curator_okta_id
+
+    sql_query += " ORDER BY mcav.date_updated DESC"
+
+    if count is not None:
+        sql_query += " LIMIT :result_limit"
+        params["result_limit"] = count
+
+    sql_query = text(sql_query)
+    rows = db.execute(sql_query, params)
+    reference_ids = [row[0] for row in rows]
+    return reference_ids
+
+
+def show_recently_sorted(db: Session, mod_abbreviation, count, curator, day):
+
+    email_to_okta_id_mapping = get_mod_curators(db, mod_abbreviation)
+
+    reference_ids = get_recently_sorted_reference_ids(db, mod_abbreviation, count, curator, day)
+
+    references_query = (
+        db.query(ReferenceModel)
+        .join(ReferenceModel.mod_corpus_association)
+        .filter(ModCorpusAssociationModel.corpus.in_([True, False]))
+        .join(ModCorpusAssociationModel.mod)
+        .filter(ModModel.abbreviation == mod_abbreviation)
+        .outerjoin(ReferenceModel.copyright_license)
+        .filter(ReferenceModel.reference_id.in_(reference_ids))
+        .order_by(ModCorpusAssociationModel.date_updated)
+    )
+    references = references_query.all()
+    data = show_sort_result(references, mod_abbreviation, db)
+    return {
+        "curator_data": email_to_okta_id_mapping,
+        "data": data
+    }
