@@ -145,17 +145,16 @@ def get_referencefile_mod(referencefile_id, db: Session):
 
 
 def get_mod_curators(db: Session, mod_abbreviation):
-
-    sql_query = text("""
-    SELECT u.id, u.email
-    FROM users u
-    INNER JOIN mod_corpus_association mca ON mca.updated_by = u.id
-    INNER JOIN mod m ON mca.mod_id = m.mod_id
-    WHERE mca.corpus = TRUE
-    AND m.abbreviation = :mod_abbreviation
-    AND u.email is NOT NULL
-    """)
-
+    sql_query_str = """
+        SELECT u.id, u.email
+        FROM users u
+        INNER JOIN mod_corpus_association mca ON mca.updated_by = u.id
+        INNER JOIN mod m ON mca.mod_id = m.mod_id
+        WHERE mca.corpus = TRUE
+        AND m.abbreviation = :mod_abbreviation
+        AND u.email is NOT NULL
+    """
+    sql_query = text(sql_query_str)
     result = db.execute(sql_query, {'mod_abbreviation': mod_abbreviation})
     return {row[1]: row[0] for row in result}
 
@@ -166,16 +165,16 @@ def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, cura
     start_date = now - timedelta(days=day)
     end_date = now + timedelta(days=1)  # to cover timezone issue
 
-    sql_query = """
-    SELECT DISTINCT mcav.reference_id, mcav.date_updated
-    FROM mod_corpus_association_version mcav
-    INNER JOIN mod m ON m.mod_id = mcav.mod_id
-    WHERE m.abbreviation = :mod_abbreviation
-      AND (mcav.corpus = TRUE or mcav.corpus = FALSE)
-      AND mcav.corpus_mod = TRUE
-      AND mcav.operation_type IN (0, 1)
-      AND mcav.date_updated >= :start_date
-      AND mcav.date_updated < :end_date
+    sql_query_str = """
+        SELECT DISTINCT mcav.reference_id, mcav.date_updated
+        FROM mod_corpus_association_version mcav
+        INNER JOIN mod m ON m.mod_id = mcav.mod_id
+        WHERE m.abbreviation = :mod_abbreviation
+          AND (mcav.corpus = TRUE or mcav.corpus = FALSE)
+          AND mcav.corpus_mod = TRUE
+          AND mcav.operation_type IN (0, 1)
+          AND mcav.date_updated >= :start_date
+          AND mcav.date_updated < :end_date
     """
 
     params = {
@@ -185,16 +184,16 @@ def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, cura
     }
 
     if curator_okta_id is not None:
-        sql_query += " AND mcav.updated_by = :curator_okta_id"
+        sql_query_str += " AND mcav.updated_by = :curator_okta_id"
         params["curator_okta_id"] = curator_okta_id
 
-    sql_query += " ORDER BY mcav.date_updated DESC"
+    sql_query_str += " ORDER BY mcav.date_updated DESC"
 
     if count is not None:
-        sql_query += " LIMIT :result_limit"
+        sql_query_str += " LIMIT :result_limit"
         params["result_limit"] = count
 
-    sql_query = text(sql_query)
+    sql_query = text(sql_query_str)
     rows = db.execute(sql_query, params)
     reference_ids = [row[0] for row in rows]
     return reference_ids
