@@ -30,3 +30,9 @@ def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_
             response_model=List[ReferenceSchemaNeedReviewShow])
 def show_prepublication_pipeline(mod_abbreviation: str, count: int = None, db: Session = db_session):
     return sort_crud.show_prepublication_pipeline(mod_abbreviation, count, db)
+
+
+@router.get('/recently_sorted',
+            status_code=200)
+def show_recently_sorted(mod_abbreviation: str, count: int = None, db: Session = db_session, curator: str = None, day: int = 7):
+    return sort_crud.show_recently_sorted(db, mod_abbreviation, count, curator, day)
