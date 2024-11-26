@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 file_upload_process_atp_id = "ATP:0000140"
 file_uploaded_tag_atp_id = "ATP:0000134"
 file_upload_in_progress_tag_atp_id = "ATP:0000139"
+file_needed_tag_atp_id = "ATP:0000141"
 text_conversion_process_atp_id = "ATP:0000161"
 
 
@@ -128,6 +129,36 @@ def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchem
     return reference_files
 
 
+def check_file_upload_status_change(referencefile, request):
+
+    request_file_class = request.get("file_class", referencefile.file_class)
+    request_publication_status = request.get("file_publication_status", referencefile.file_publication_status)
+    request_pdf_type = request.get("pdf_type", referencefile.pdf_type)
+
+    if (
+        referencefile.file_class == 'main'
+        and referencefile.file_publication_status == 'final'
+        and referencefile.pdf_type == 'pdf'
+    ) and (
+        request_file_class != 'main'
+        or request_publication_status != 'final'
+        or request_pdf_type != 'pdf'
+    ):
+        return True
+
+    if (
+        request_file_class == 'main'
+        and request_publication_status == 'final'
+        and request_pdf_type == 'pdf'
+    ) and (
+        referencefile.file_class != 'main'
+        or referencefile.file_publication_status != 'final'
+        or referencefile.pdf_type != 'pdf'
+    ):
+        return True
+    return False
+
+
 def patch(db: Session, referencefile_id: int, request):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
     if "display_name" in request or "file_extension" in request or "reference_curie" in request:
@@ -148,8 +179,15 @@ def patch(db: Session, referencefile_id: int, request):
                                 detail=f"Reference with curie {request.reference_curie} is not available")
         request["reference_id"] = res[0]
         del request["reference_curie"]
+    change_status = check_file_upload_status_change(referencefile, request)
     for field, value in request.items():
         setattr(referencefile, field, value)
+    if change_status:
+        transition_WFT_for_uploaded_file(db, referencefile.reference.curie, None,
+                                         request.get("file_class", referencefile.file_class),
+                                         request.get("pdf_type", referencefile.pdf_type),
+                                         request.get("file_publication_status", referencefile.file_publication_status),
+                                         True)
     db.commit()
     return {"message": messageEnum.updated}
 
@@ -330,7 +368,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                                      metadata["file_publication_status"])
 
 
-def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, pdf_type, file_publication_status):
+def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, pdf_type, file_publication_status, change_file_status=False):
     logger.info("Transition WFT for uploaded file")
     if file_class == 'main' and pdf_type == 'pdf' and file_publication_status == 'final':
         wft_tag_atp_id = file_uploaded_tag_atp_id
@@ -348,12 +386,30 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod_abbreviation}
-
     for mod in mods:
         try:
             curr_tag_atp_id = get_current_workflow_status(db, reference_curie,
                                                           file_upload_process_atp_id, mod)
-            if curr_tag_atp_id is None or (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+            if change_file_status is False:
+                # for new file upload
+                if curr_tag_atp_id is None or (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+                    transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
+            else:
+                # this should not happen, but just in case
+                if curr_tag_atp_id and curr_tag_atp_id == wft_tag_atp_id:
+                    continue
+                """
+                for changing existsing file status: from uploaded => in progress
+                OR from in progress to uploaded
+                """
+                if curr_tag_atp_id and curr_tag_atp_id == file_uploaded_tag_atp_id:
+                    """
+                    transition to 'file needed' first, then transition to 'file upload in progress'
+                    transition from 'files uploaded' to 'file upload in progress' is not in the
+                    transition table
+                    """
+                    ## got "Error in get_db" in "Transition sanity check" when calling the following
+                    transition_to_workflow_status(db, reference_curie, mod, file_needed_tag_atp_id)
                 transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
         except Exception as e:
             db.rollback()
