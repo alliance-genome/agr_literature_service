@@ -398,18 +398,17 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
                 # this should not happen, but just in case
                 if curr_tag_atp_id and curr_tag_atp_id == wft_tag_atp_id:
                     continue
-                """
-                for changing existsing file status: from uploaded => in progress
-                OR from in progress to uploaded
-                """
+                # for changing existsing file status: from uploaded => in progress
+                # OR from in progress to uploaded
                 if curr_tag_atp_id and curr_tag_atp_id == file_uploaded_tag_atp_id:
                     """
-                    transition to 'file needed' first, then transition to 'file upload in progress'
-                    transition from 'files uploaded' to 'file upload in progress' is not in the
-                    transition table
-                    """
+                    # transition to 'file needed' first, then transition to 'file upload in progress'
+                    # transition from 'files uploaded' to 'file upload in progress' is not in the
+                    # transition table
                     ## got "Error in get_db" in "Transition sanity check" when calling the following
                     transition_to_workflow_status(db, reference_curie, mod, file_needed_tag_atp_id)
+                    """
+                    cleanup_wft_tet_tags_for_deleted_main_pdf(db, ref.reference_id, {mod}, mod)
                 transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
         except Exception as e:
             db.rollback()
