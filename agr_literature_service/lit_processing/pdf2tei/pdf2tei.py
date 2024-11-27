@@ -71,5 +71,6 @@ def main():
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
                              f"Status code: {response.status_code}")
 
+
 if __name__ == '__main__':
     main()
