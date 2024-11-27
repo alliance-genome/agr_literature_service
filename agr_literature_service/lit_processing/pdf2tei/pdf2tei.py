@@ -43,12 +43,12 @@ def main():
         if ref_file_id_to_convert:
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == ref_file_id_to_convert).one()
-            # TODO: job starts here - set to in_progress once we have the new ATP node
             file_content = download_file(db=db, referencefile_id=ref_file_id_to_convert,
                                          mod_access=OktaAccess.ALL_ACCESS, use_in_api=False)
             response = convert_pdf_with_grobid(file_content)
             # Check the response
             if response.status_code == 200:
+                job_change_atp_code(db, reference_workflow_tag_id, "on_start")
                 logger.info(f"referencefile with ID {str(ref_file_id_to_convert)} successfully processed by GROBID.")
                 metadata = {
                     "reference_curie": reference_curie,
@@ -70,8 +70,6 @@ def main():
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
                              f"Status code: {response.status_code}")
-                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-
 
 if __name__ == '__main__':
     main()
