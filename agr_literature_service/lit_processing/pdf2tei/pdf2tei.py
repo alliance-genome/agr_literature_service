@@ -48,7 +48,6 @@ def main():
             response = convert_pdf_with_grobid(file_content)
             # Check the response
             if response.status_code == 200:
-                job_change_atp_code(db, reference_workflow_tag_id, "on_start")
                 logger.info(f"referencefile with ID {str(ref_file_id_to_convert)} successfully processed by GROBID.")
                 metadata = {
                     "reference_curie": reference_curie,
