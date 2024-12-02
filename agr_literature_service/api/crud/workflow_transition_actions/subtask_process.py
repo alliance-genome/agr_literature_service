@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
 from typing import Dict
 
+# List jobs that are available with their immediate branches.
 jobs_types: Dict[str, Dict[str, str] | Dict[str, str]] = {
     'reference classification': {
         'main': 'ATP:0000165',
@@ -13,20 +14,26 @@ jobs_types: Dict[str, Dict[str, str] | Dict[str, str]] = {
         'complete': 'ATP:0000169',
         'failed': 'ATP:0000189',
         'needed': 'ATP:0000166'},
-    'entity extraction': {'main': 'ATP:00001672',
-                          'in_progress': 'ATP:0000190',
-                          'complete': 'ATP:0000174',
-                          'failed': 'ATP:0000187',
-                          'needed': 'ATP:0000173'}}
+    'entity extraction': {
+        'main': 'ATP:00001672',
+        'in_progress': 'ATP:0000190',
+        'complete': 'ATP:0000174',
+        'failed': 'ATP:0000187',
+        'needed': 'ATP:0000173'}
+}
 
 
 def check_type(checktype: str):
+    """ Check the type is valid, i.e. has a key in the jobs_types dict """
     if checktype not in jobs_types.keys():
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=f"Method sub_task_in_progress with first arg {checktype} not in known list")
 
 
-def get_current_status_obj(db: Session, job_type, reference_id):
+def get_current_status_obj(db: Session, job_type: str, reference_id: int):
+    """ Get the current status of the "main" job.
+        So for this job type look for the overall status.
+        """
     global jobs_types
     cur = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_id == reference_id,
@@ -36,10 +43,14 @@ def get_current_status_obj(db: Session, job_type, reference_id):
 
 def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
     """
+    This is called if the workflow transition actions has 'sub_task_in_progress::XXXXXX' specified.
+    i.e. if it has 'sub_task_in_progress::reference classification'.
+
     args: [0] type of main flow i.e. 'reference classification' or 'entity extraction'
 
     """
     global jobs_types
+
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, int(current_workflow_tag_db_obj.reference_id))
@@ -64,9 +75,19 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
 
 
 def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
+    """
+    This is called if the workflow transition actions has 'sub_task_complete::XXXXXX' specified.
+    i.e. if it has 'sub_task_in_progress::reference classification'.
+
+    args: [0] type of main flow i.e. 'reference classification' or 'entity extraction'
+
+    """
+    # import here else we get a circular import if at the top.
     from agr_literature_service.api.crud.workflow_tag_crud import (
         get_workflow_tags_from_process
     )
+    global jobs_types
+
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
@@ -106,11 +127,24 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
         cur = db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
             WorkflowTagModel.workflow_tag_id.in_(not_complete_list)).all()
+    # current job successful also we have no other subtasks that are failed, needed
+    # or in_progress, so we can set the main one now to complete too.
+    # If there are still subtasks that are not complete then we do not change
+    # the main task's status.
     if not cur:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['complete']
 
 
 def sub_task_failed(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
+    """
+    This is called if the workflow transition actions has 'sub_task_failed::XXXXXX' specified.
+    i.e. if it has 'sub_task_failed::reference classification'.
+
+    args: [0] type of main flow i.e. 'reference classification' or 'entity extraction'
+
+    """
+    global jobs_types
+
     checktype = args[0]
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
