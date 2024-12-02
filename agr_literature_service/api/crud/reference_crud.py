@@ -5,7 +5,6 @@ reference_crud.py
 import logging
 import re
 from collections import defaultdict
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 from os import getcwd
 from datetime import datetime, date, timedelta
@@ -1202,7 +1201,7 @@ def new_references(db: Session, mod_abbreviation, days):
     reference_id_to_reference_relation_data = get_all_reference_relation_data(db)
     resource_id_to_journal = get_journal_by_resource_id(db)
 
-    data = []
+    data: List[Dict[str, Any]] = []
     generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors,
                        reference_id_to_reference_relation_data,
                        reference_id_to_mod_reference_types,
