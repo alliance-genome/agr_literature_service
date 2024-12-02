@@ -26,7 +26,7 @@ def convert_pdf_with_grobid_mock(file_content):
 class TestPdf2TEI:
 
     @staticmethod
-    def upload_initial_main_reference_file(db, client, test_mod, test_reference, auth_headers):
+    def upload_initial_main_reference_file(db, client, test_mod, test_reference, auth_headers): # noqa
         mod_response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}")
         mod_abbreviation = mod_response.json()["abbreviation"]
         new_mca = {
