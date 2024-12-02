@@ -5,9 +5,9 @@ reference_crud.py
 import logging
 import re
 from collections import defaultdict
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 from os import getcwd
+from datetime import datetime, date, timedelta
 
 from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
@@ -52,6 +52,13 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
     get_current_workflow_status
+from agr_literature_service.lit_processing.utils.db_read_utils import \
+    get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
+    get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
+    get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
+    get_journal_by_resource_id
+from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
+    get_meta_data, get_reference_col_names, generate_json_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
@@ -1136,3 +1143,72 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
+
+
+def get_recently_sorted_references(db: Session, mod_abbreviation, days):
+
+    datestamp = str(date.today()).replace("-", "")
+    metaData = get_meta_data(mod_abbreviation, datestamp)
+
+    now = datetime.now().date()
+    start_date = now - timedelta(days=days)
+    end_date = now + timedelta(days=1)  # to cover timezone issue
+
+    refColNmList = ", ".join(get_reference_col_names())
+
+    sql_query = text(
+        f"SELECT {refColNmList} "
+        "FROM reference "
+        "WHERE reference_id IN ("
+        "    SELECT reference_id "
+        "    FROM mod_corpus_association "
+        "    WHERE mod_id = ("
+        "        SELECT mod_id "
+        "        FROM mod "
+        "        WHERE abbreviation = :mod_abbreviation"
+        "    ) "
+        "    AND corpus = :corpus "
+        "    AND date_updated >= :start_date "
+        "    AND date_updated < :end_date"
+        ") "
+        "ORDER BY reference_id"
+    )
+
+    rows = db.execute(sql_query, {
+        "mod_abbreviation": mod_abbreviation,
+        "corpus": True,
+        "start_date": start_date,
+        "end_date": end_date
+    }).fetchall()
+
+    if len(rows) == 0:
+        return {
+            "metaData": metaData,
+            "data": []
+        }
+
+    reference_id_list = []
+    for x in rows:
+        reference_id_list.append(x[0])
+
+    ref_ids = ", ".join([str(x) for x in reference_id_list])
+
+    reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(db, ref_ids)
+    reference_id_to_authors = get_author_data_for_ref_ids(db, ref_ids)
+    reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(db, ref_ids)
+    reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db, ref_ids)
+    reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
+    reference_id_to_reference_relation_data = get_all_reference_relation_data(db)
+    resource_id_to_journal = get_journal_by_resource_id(db)
+
+    data: List[Dict[str, Any]] = []
+    generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors,
+                       reference_id_to_reference_relation_data,
+                       reference_id_to_mod_reference_types,
+                       reference_id_to_mesh_terms,
+                       reference_id_to_mod_corpus_data,
+                       resource_id_to_journal, data)
+    return {
+        "metaData": metaData,
+        "data": data
+    }
