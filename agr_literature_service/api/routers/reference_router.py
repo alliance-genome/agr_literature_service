@@ -271,11 +271,11 @@ def add_to_corpus(mod_abbreviation: str,
     return reference_crud.add_to_corpus(db, mod_abbreviation, reference_curie)
 
 
-@router.get('/new_references/{mod_abbreviation}',
+@router.get('/get_recently_sorted_references/{mod_abbreviation}',
             status_code=status.HTTP_200_OK)
-def new_references(mod_abbreviation: str,
-                   days: int = 7,
-                   db: Session = db_session):
-    references = reference_crud.new_references(db, mod_abbreviation, days)
+def get_recently_sorted_references(mod_abbreviation: str,
+                                   days: int = 7,
+                                   db: Session = db_session):
+    references = reference_crud.get_recently_sorted_references(db, mod_abbreviation, days)
 
     return references

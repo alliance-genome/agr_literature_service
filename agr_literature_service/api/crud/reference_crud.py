@@ -1145,7 +1145,7 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
                             detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
 
 
-def new_references(db: Session, mod_abbreviation, days):
+def get_recently_sorted_references(db: Session, mod_abbreviation, days):
 
     datestamp = str(date.today()).replace("-", "")
     metaData = get_meta_data(mod_abbreviation, datestamp)
