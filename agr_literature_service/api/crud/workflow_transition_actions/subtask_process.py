@@ -30,7 +30,7 @@ def check_type(checktype: str):
                             detail=f"Method sub_task_in_progress with first arg {checktype} not in known list")
 
 
-def get_current_status_obj(db: Session, job_type: str, reference_id: int):
+def get_current_status_obj(db: Session, job_type: str, reference_id):
     """ Get the current status of the "main" job.
         So for this job type look for the overall status.
         """
