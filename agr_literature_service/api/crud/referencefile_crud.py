@@ -129,11 +129,13 @@ def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchem
     return reference_files
 
 
-def check_file_upload_status_change(referencefile, request):
+def check_file_upload_status_change(db, referencefile, request):
 
     request_file_class = request.get("file_class", referencefile.file_class)
     request_publication_status = request.get("file_publication_status", referencefile.file_publication_status)
     request_pdf_type = request.get("pdf_type", referencefile.pdf_type)
+    change_if_already_converted = request.get("change_if_already_converted", False)
+    mod_abbreviation = request.get("mod_abbreviation")
 
     if (
         referencefile.file_class == 'main'
@@ -144,6 +146,14 @@ def check_file_upload_status_change(referencefile, request):
         or request_publication_status != 'final'
         or request_pdf_type != 'pdf'
     ):
+        if not change_if_already_converted and mod_abbreviation:
+            workflow_tag_atp_id = get_current_workflow_status(db,
+                                                              referencefile.reference_curie,
+                                                              text_conversion_process_atp_id,
+                                                              mod_abbreviation)
+            if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail="File already converted to text, use UI if you really need to change the file status.")
         return True
 
     if (
@@ -179,7 +189,7 @@ def patch(db: Session, referencefile_id: int, request):
                                 detail=f"Reference with curie {request.reference_curie} is not available")
         request["reference_id"] = res[0]
         del request["reference_curie"]
-    change_status = check_file_upload_status_change(referencefile, request)
+    change_status = check_file_upload_status_change(db, referencefile, request)
     for field, value in request.items():
         setattr(referencefile, field, value)
     if change_status:
