@@ -269,3 +269,13 @@ def add_to_corpus(mod_abbreviation: str,
 
     set_global_user_from_okta(db, user)
     return reference_crud.add_to_corpus(db, mod_abbreviation, reference_curie)
+
+
+@router.get('/get_recently_sorted_references/{mod_abbreviation}',
+            status_code=status.HTTP_200_OK)
+def get_recently_sorted_references(mod_abbreviation: str,
+                                   days: int = 7,
+                                   db: Session = db_session):
+    references = reference_crud.get_recently_sorted_references(db, mod_abbreviation, days)
+
+    return references
