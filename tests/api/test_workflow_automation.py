@@ -3,7 +3,7 @@
 # coded in the transition table we can add fake ATP values here to make it more
 # readable.
 #
-# So we are going to mimic "ATP:main_needed" which has 3 subtasks "ATP:task1_needed",
+# So we are going to mimic "ATP:0000166" which has 3 subtasks "ATP:task1_needed",
 # "ATP:task2_needed" and "ATP:task3_needed".
 # For testing, we will have task3 fail the condition for being set.
 # This is covered by the actions and will be
@@ -11,7 +11,7 @@
 # proceed_on_value::category::thesis::ATP:task2_needed,
 # proceed_on_value::category::failure::ATP:task3_needed"
 #
-# At this point we want to check that "ATP:main_needed" is no longer there.
+# At this point we want to check that "ATP:0000166" is no longer there.
 # "ATP:main_in_progress" should now be set.
 # "ATP:task1_needed", "ATP:task2_needed" should be set but not "ATP:task3_needed".
 #
@@ -56,16 +56,10 @@ from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 test_reference2 = test_reference
 
 
-def get_tags_mock(workflow_tag_atp_id: str):
-    print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
-    if workflow_tag_atp_id == 'ATP:fileupload':
-        return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
-
-
 # TestWFTData = namedtuple('TestWFTData', ['response'])
-def get_process_mock(workflow_tag_atp_id: str):
+def get_parents_mock(workflow_tag_atp_id: str):
     # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_ancestors name = {workflow_tag_atp_id}")
+    print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
     if workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
         return 'ATP:fileupload'
     elif workflow_tag_atp_id == 'ATP:fileuploadinprogress':
@@ -75,9 +69,21 @@ def get_process_mock(workflow_tag_atp_id: str):
     elif workflow_tag_atp_id == 'ATP:fileuploadfailed':
         return 'ATP:fileupload'
     elif workflow_tag_atp_id == 'ATP:task2_failed':
-        return 'ATP:task2_needed'
+        return 'ATP:0000189'  # main failed
+    elif workflow_tag_atp_id == 'ATP:task1_failed':
+        return 'ATP:0000189'  # main failed
     elif workflow_tag_atp_id == 'ATP:fileupload':
         return ['ATP:ont1']
+    elif workflow_tag_atp_id == 'ATP:task2_in_progress':
+        return 'ATP:0000178'  # main in progress
+    elif workflow_tag_atp_id == 'ATP:task2_complete':
+        return 'ATP:0000169'  # main complete
+    elif workflow_tag_atp_id == 'ATP:task1_in_progress':
+        return 'ATP:0000178'  # main in progress
+    elif workflow_tag_atp_id == 'ATP:task1_complete':
+        return 'ATP:0000169'  # main complete
+    elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']:
+        return 'ATP:0000165'
     else:
         print("returning NOTHING!!")
         return []
@@ -85,19 +91,27 @@ def get_process_mock(workflow_tag_atp_id: str):
 
 def get_descendants_mock(name):
     # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_ancestors name = {name}")
+    print(f"***** Mocking descendents name = {name}")
     if name == 'ATP:0000177':
         return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
     elif name == 'ATP:0000172':
         return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
     elif name == 'ATP:0000140':
         return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
-    elif name == 'ATP:0000165':
-        return ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166']
     elif name == 'ATP:0000161':
         return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
     elif name == 'ATP:fileupload':
         return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
+    elif name == 'ATP:0000165':  # top of class
+        return ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']
+    elif name == 'ATP:0000166':  # needed
+        return ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed']
+    elif name == 'ATP:0000178':  # in progress
+        return ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress']
+    elif name == 'ATP:0000189':  # failed
+        return ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed']
+    elif name == 'ATP:0000169':  # complete
+        return ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
     else:
         print("returning NOTHING!!")
         return []
@@ -115,6 +129,7 @@ def workflow_automation_init(db):  # noqa
          "ATP:fileuploadcomplete",
          ["proceed_on_value::category::thesis::ATP:task1_needed",
           "proceed_on_value::category::thesis::ATP:task2_needed",
+          "proceed_on_value::category::thesis::ATP:0000166",
           "proceed_on_value::reference_type::Experimental::ATP:NEW",
           "proceed_on_value::category::failure::ATP:task3_needed"],
          'on_success'],
@@ -122,13 +137,14 @@ def workflow_automation_init(db):  # noqa
         ["ATP:needed", "ATP:task1_needed", None, "task1_job"],
         ["ATP:needed", "ATP:task2_needed", None, "task2_job"],
         ["ATP:needed", "ATP:task3_needed", None, "task3_job"],
-        ["ATP:task1_needed", "ATP:task1_in_progress", None, "on_start"],
-        ["ATP:task1_in_progress", "ATP:task1_successful", None, "on_success"],
-        ["ATP:task1_in_progress", "ATP:task1_failed", None, "on_failed"],
 
-        ["ATP:task2_needed", "ATP:task2_in_progress", None, "on_start"],
-        ["ATP:task2_in_progress", "ATP:task2_successful", None, "on_success"],
-        ["ATP:task2_in_progress", "ATP:task2_failed", None, "on_failed"]
+        ["ATP:task1_needed", "ATP:task1_in_progress", ["sub_task_in_progress::reference classification"], "on_start"],
+        ["ATP:task1_in_progress", "ATP:task1_successful", ["sub_task_complete::reference classification"], "on_success"],
+        ["ATP:task1_in_progress", "ATP:task1_failed", ["sub_task_failed::reference classification"], "on_failed"],
+
+        ["ATP:task2_needed", "ATP:task2_in_progress", ["sub_task_in_progress::reference classification"], "on_start"],
+        ["ATP:task2_in_progress", "ATP:task2_successful", ["sub_task_complete::reference classification"], "on_success"],
+        ["ATP:task2_in_progress", "ATP:task2_failed", ["sub_task_failed::reference classification"], "on_failed"]
     ]
     mods = db.query(ModModel).all()
     for mod in mods:
@@ -146,9 +162,9 @@ def workflow_automation_init(db):  # noqa
 
 
 class TestWorkflowTagAutomation:
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_tags_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -156,13 +172,6 @@ class TestWorkflowTagAutomation:
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         workflow_automation_init(db)
         print(f"BOB1: {mod}")
-
-        # sworkflow_tag_crud.transition_to_workflow_status(
-        #    db,
-        #    curie_or_reference_id=reference.curie,
-        #    mod_abbreviation=mod.abbreviation,
-        #    new_workflow_tag_atp_id="ATP:0000141",
-        #    transition_type='automated')
 
         with TestClient(app) as client:
             # Set initial workflow tag to "ATP:0000141" , hard coded so allowed
@@ -225,10 +234,10 @@ class TestWorkflowTagAutomation:
             print(response.text)
             print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
-            # So we should have "ATP:main_needed", "ATP:task1_needed"," ATP:task2_needed"
+            # So we should have "ATP:0000166", "ATP:task1_needed"," ATP:task2_needed"
             # all set for this mod and reference
             wft = {}
-            for atp in ["ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
+            for atp in ["ATP:0000166", "ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
                 print(f"atp = {atp}")
                 wft[atp] = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
@@ -266,7 +275,7 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-            for atp in ["ATP:task1_in_progress", "ATP:task2_in_progress"]:
+            for atp in ["ATP:0000178", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 test_id = db.query(WorkflowTagModel). \
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
@@ -280,11 +289,14 @@ class TestWorkflowTagAutomation:
                 print(f"ref = {wft[old_atp].reference_workflow_tag_id}")
                 response = client.post(url=f"/workflow_tag/job/success/{wft[old_atp].reference_workflow_tag_id}",
                                        headers=auth_headers)
+                print(response.content)
+                print(response.text)
+                print(response.status_code)
                 assert response.status_code == status.HTTP_200_OK
 
             # When we know the hierarchy we can add main back in testing
             # for atp in ["ATP:task1_successful", "ATP:task2_successful", "ATP:main_successful"]:
-            for atp in ["ATP:task1_successful", "ATP:task2_successful"]:
+            for atp in ["ATP:0000169", "ATP:task1_successful", "ATP:task2_successful"]:
                 test_id = db.query(WorkflowTagModel).\
                     filter(WorkflowTagModel.workflow_tag_id == atp,
                            WorkflowTagModel.reference_id == reference.reference_id,
@@ -292,8 +304,9 @@ class TestWorkflowTagAutomation:
                 print(f"atp test {atp}")
                 assert test_id
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         with TestClient(app) as client:
@@ -305,7 +318,7 @@ class TestWorkflowTagAutomation:
 
             # Set initial workflow tag to "ATP:XXXX_in_progress"
             atp_to_ref_wft_id = {}
-            for atp in ["ATP:main_in_progress", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
+            for atp in ["ATP:0000178", "ATP:task1_in_progress", "ATP:task2_in_progress"]:
                 new_wft = {"reference_curie": reference.curie,
                            "mod_abbreviation": mod.abbreviation,
                            "workflow_tag_id": atp,
@@ -321,6 +334,9 @@ class TestWorkflowTagAutomation:
             # set task1 to success BUT task2 to failure
             response = client.post(url=f"/workflow_tag/job/success/{atp_to_ref_wft_id['ATP:task1_in_progress']}",
                                    headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.status_code)
             assert response.status_code == status.HTTP_200_OK
 
             response = client.post(url=f"/workflow_tag/job/failed/{atp_to_ref_wft_id['ATP:task2_in_progress']}",
@@ -347,7 +363,7 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_process_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_bad_transitions")
@@ -370,30 +386,33 @@ class TestWorkflowTagAutomation:
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": "BadMod",
-                "new_workflow_tag_atp_id": "ATP:main_needed"
+                "new_workflow_tag_atp_id": "ATP:0000166"
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
             assert response.json().get("detail") == 'Mod abbreviation BadMod does not exist'
 
-        # Bad mod abbreviation
-        transition_req = {
-            "curie_or_reference_id": "MadeUpCurie",
-            "mod_abbreviation": mod.abbreviation,
-            "new_workflow_tag_atp_id": "ATP:main_needed"
-        }
-        response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
-                               headers=auth_headers)
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+            # Bad curie
+            transition_req = {
+                "curie_or_reference_id": "MadeUpCurie",
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000166"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
-        # Now do transition NOT in the transition table.
-        transition_req = {
-            "curie_or_reference_id": test_reference.new_ref_curie,
-            "mod_abbreviation": mod.abbreviation,
-            "new_workflow_tag_atp_id": "ATP:task2_failed"
-        }
-        response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
-                               headers=auth_headers)
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        assert response.json().get("detail") == 'Transition to ATP:task2_failed not allowed as not initial state.'
+            # Now do transition NOT in the transition table.
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:fileuploadcomplete"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            print(response.content)
+            print(response.text)
+            print(response.status_code)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.json().get("detail") == 'Transition to ATP:fileuploadcomplete not allowed as not initial state.'
