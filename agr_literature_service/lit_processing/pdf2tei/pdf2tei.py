@@ -32,8 +32,6 @@ def main():
     for job in jobs:
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
-        # set to in progress WF tag as soon as the PDF => TEI starts
-        job_change_atp_code(db, reference_workflow_tag_id, "on_start")
         mod_id = job['mod_id']
         reference_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == ref_id).one().curie
         mod_abbreviation = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_id).one().abbreviation
@@ -43,7 +41,6 @@ def main():
         if ref_file_id_to_convert:
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == ref_file_id_to_convert).one()
-            # TODO: job starts here - set to in_progress once we have the new ATP node
             file_content = download_file(db=db, referencefile_id=ref_file_id_to_convert,
                                          mod_access=OktaAccess.ALL_ACCESS, use_in_api=False)
             response = convert_pdf_with_grobid(file_content)
@@ -70,7 +67,6 @@ def main():
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
                              f"Status code: {response.status_code}")
-                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
 
 
 if __name__ == '__main__':
