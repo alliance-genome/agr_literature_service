@@ -103,8 +103,7 @@ class TestPdf2TEI:
            load_workflow_parent_children_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
            convert_pdf_with_grobid_mock)
-    @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.transition_to_workflow_status")
-    def test_pdf2tei(self, mock_transition_to_workflow_status, db, auth_headers, test_reference, test_mod): # noqa
+    def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
         with TestClient(app) as client:
             mod_abbreviation = self.upload_initial_main_reference_file(db, client, test_mod, test_reference,
                                                                        auth_headers)
