@@ -43,6 +43,7 @@ class ReferencefileSchemaUpdate(BaseModel):
     file_extension: Optional[str]
     pdf_type: Optional[str]
     is_annotation: Optional[bool]
+    change_if_already_converted: Optional[bool]
 
     class Config:
         extra = "forbid"

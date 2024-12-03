@@ -766,7 +766,7 @@ def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: 
     return None
 
 
-def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_id: str, mod_abbreviation: str):
+def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_id: str, mod_abbreviation: str, change_file_status=False):
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
     if ref is None:
@@ -783,6 +783,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
     all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
     all_workflow_tags = all_text_conversion_wft + all_ref_classification_wft + all_entity_extraction_wft
+
     try:
         sql_query = text("""
         DELETE FROM workflow_tag
@@ -799,6 +800,9 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"An error occurred when resetting text conversion/ref classication/entity extraction for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+
+    if change_file_status is True:
+        return
 
     try:
         sql_query = text("""

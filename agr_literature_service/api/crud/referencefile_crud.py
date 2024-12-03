@@ -135,7 +135,6 @@ def check_file_upload_status_change(db, referencefile, request):
     request_publication_status = request.get("file_publication_status", referencefile.file_publication_status)
     request_pdf_type = request.get("pdf_type", referencefile.pdf_type)
     change_if_already_converted = request.get("change_if_already_converted", False)
-    mod_abbreviation = request.get("mod_abbreviation")
 
     if (
         referencefile.file_class == 'main'
@@ -146,14 +145,16 @@ def check_file_upload_status_change(db, referencefile, request):
         or request_publication_status != 'final'
         or request_pdf_type != 'pdf'
     ):
-        if not change_if_already_converted and mod_abbreviation:
-            workflow_tag_atp_id = get_current_workflow_status(db,
-                                                              referencefile.reference_curie,
-                                                              text_conversion_process_atp_id,
-                                                              mod_abbreviation)
-            if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail="File already converted to text, use UI if you really need to change the file status.")
+        if not change_if_already_converted:
+            for referenceMod in referencefile.referencefile_mods:
+                if referenceMod.mod_id:
+                    workflow_tag_atp_id = get_current_workflow_status(db,
+                                                                      referencefile.reference.curie,
+                                                                      text_conversion_process_atp_id,
+                                                                      referenceMod.mod.abbreviation)
+                    if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
+                        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                            detail=f"File already converted to text for {referenceMod.mod.abbreviation}, use UI if you really need to change the file status.")
         return True
 
     if (
@@ -190,14 +191,14 @@ def patch(db: Session, referencefile_id: int, request):
         request["reference_id"] = res[0]
         del request["reference_curie"]
     change_status = check_file_upload_status_change(db, referencefile, request)
-    for field, value in request.items():
-        setattr(referencefile, field, value)
     if change_status:
         transition_WFT_for_uploaded_file(db, referencefile.reference.curie, None,
                                          request.get("file_class", referencefile.file_class),
                                          request.get("pdf_type", referencefile.pdf_type),
                                          request.get("file_publication_status", referencefile.file_publication_status),
                                          True)
+    for field, value in request.items():
+        setattr(referencefile, field, value)
     db.commit()
     return {"message": messageEnum.updated}
 
@@ -228,7 +229,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
                                                   OKTA_ACCESS_MOD_ABBR[mod_access])
 
 
-def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mods, access_level):
+def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mods, access_level, change_file_status=False):
 
     mods = set()
     if access_level != 'all_access':
@@ -245,13 +246,13 @@ def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mod
         """)
         rows = db.execute(sql_query, {'reference_id': reference_id}).fetchall()
         mods.update(row[0] for row in rows)
-
     for mod_abbreviation in mods:
-        reset_workflow_tags_after_deleting_main_pdf(db, str(reference_id), mod_abbreviation)
-        manual_tet_count = delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
-        if manual_tet_count > 0:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags.")
+        reset_workflow_tags_after_deleting_main_pdf(db, str(reference_id), mod_abbreviation, change_file_status)
+        if change_file_status is False:
+            manual_tet_count = delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
+            if manual_tet_count > 0:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail="Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags.")
 
 
 def merge_referencefiles(db: Session,
@@ -408,17 +409,8 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
                 # this should not happen, but just in case
                 if curr_tag_atp_id and curr_tag_atp_id == wft_tag_atp_id:
                     continue
-                # for changing existsing file status: from uploaded => in progress
-                # OR from in progress to uploaded
                 if curr_tag_atp_id and curr_tag_atp_id == file_uploaded_tag_atp_id:
-                    """
-                    # transition to 'file needed' first, then transition to 'file upload in progress'
-                    # transition from 'files uploaded' to 'file upload in progress' is not in the
-                    # transition table
-                    ## got "Error in get_db" in "Transition sanity check" when calling the following
-                    transition_to_workflow_status(db, reference_curie, mod, file_needed_tag_atp_id)
-                    """
-                    cleanup_wft_tet_tags_for_deleted_main_pdf(db, ref.reference_id, {mod}, mod)
+                    cleanup_wft_tet_tags_for_deleted_main_pdf(db, ref.reference_id, {mod}, mod, change_file_status)
                 transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
         except Exception as e:
             db.rollback()
