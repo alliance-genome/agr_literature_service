@@ -1,5 +1,7 @@
 """
 workflow_transition_model.py
+
+See docs/source/workflow_automation.rst for detailed description.
 ==================
 """
 
