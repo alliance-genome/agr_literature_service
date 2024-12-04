@@ -47,7 +47,7 @@ def create(db: Session, cross_reference) -> int:
         else:
             error_details = f"Error details: {str(e)}"
         if "duplicate key value violates unique constraint" in error_details and "idx_curie" in error_details:
-            return error_details
+            return -1
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -169,12 +169,16 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     for _count in range(5):
         new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
         create_status = create(db, new_mod_curie)
-        if str(create_status).isdigit():  # valid status found
+        if create_status > 0:  # valid status found
             return create_status
     # If no valid status is returned after 5 attempts
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
-        detail=f"Cannot add cross-reference after 5 attempts. {create_status}"
+        detail=(
+            "Failed to add the cross-reference after 5 attempts. Another "
+            "curator might be generating the MOD CURIE simultaneously. Please "
+            "reload the page and try again."
+        )
     )
 
 
