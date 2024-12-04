@@ -166,7 +166,7 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     To make sure the function works correctly when multiple users are simultaneously
     adding papers and generating MOD IDs.
     """
-    for i in range(5):
+    for _count in range(5):
         new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
         create_status = create(db, new_mod_curie)
         if str(create_status).isdigit():  # valid status found
