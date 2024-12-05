@@ -106,7 +106,7 @@ def add_transitions(db_session: Session, filename: str, debug: bool = False):  #
                     print(f"DEBUG: delete {mod_abbr} {transition['from']}")
                 query = f"""delete FROM workflow_transition
                             WHERE mod_id = {mod_ids[mod_abbr]} AND
-                                  (transition_to = '{trans_from}' or 
+                                  (transition_to = '{trans_from}' or
                                    transition_from = '{trans_from}')"""
                 db_session.execute(text(query))
                 continue

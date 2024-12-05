@@ -93,7 +93,7 @@ def get_data(name_to_atp):
         }
         transition_data.append(item)
     # we want to remove some too if they exist:
-    for entry in ('entity', 'allele','antibody', 'gene',
+    for entry in ('entity', 'allele', 'antibody', 'gene',
                   'species', 'strain', 'transgenic allele'):
         for result in ("needed", "complete", "in progress", 'failed'):
             item = {
