@@ -53,12 +53,21 @@ def create(db: Session, cross_reference, mod_abbreviation=None) -> int:
         ):
             return -1
 
+        if (
+            mod_abbreviation and mod_abbreviation in ['WB', 'SGD']
+            and 'constraint "idx_curie_prefix_ref_no_cgc"' in error_details
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Another curator has added this paper to the {mod_abbreviation} corpus. "
+                    "Please reload the page and try again."
+                )
+            )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Cannot add cross-reference with CURIE {cross_reference_data['curie']}. "
-                f"{error_details}. This may be due to another curator working on the same paper. "
-                "Please reload the page and try again. Thank you."
+                f"Cannot add cross-reference with CURIE {cross_reference_data['curie']}. Error: {error_details}"
             )
         )
     return int(db_obj.cross_reference_id)
@@ -180,9 +189,9 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail=(
-            "Failed to add the cross-reference after 5 attempts. Another "
-            "curator might be generating the MOD CURIE simultaneously. Please "
-            "reload the page and try again."
+            "Failed to add the MOD curie after 5 attempts. Another curator "
+            "might be generating the MOD CURIE simultaneously. Please reload "
+            "the page and try again."
         )
     )
 
