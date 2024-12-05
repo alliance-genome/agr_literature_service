@@ -6,7 +6,7 @@ import logging
 from fastapi import HTTPException
 from urllib.error import HTTPError
 from starlette import status
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ModModel, WorkflowTransitionModel
@@ -101,6 +101,15 @@ def add_transitions(db_session: Session, filename: str, debug: bool = False):  #
             except KeyError:
                 print(f"ERROR: {transition['from']} is not found in name_to_atp")
                 exit(-1)
+            if 'delete' in transition:
+                if debug:
+                    print(f"DEBUG: delete {mod_abbr} {transition['from']}")
+                query = f"""delete FROM workflow_transition
+                            WHERE mod_id = {mod_ids[mod_abbr]} AND
+                                  (transition_to = '{trans_from}' or 
+                                   transition_from = '{trans_from}')"""
+                db_session.execute(text(query))
+                continue
             try:
                 trans_to = name_to_atp[transition['to']]
             except KeyError:
