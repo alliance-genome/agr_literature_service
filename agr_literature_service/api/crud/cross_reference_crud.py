@@ -32,7 +32,7 @@ def get_cross_reference(db: Session, curie_or_id: str) -> CrossReferenceModel:
     return cross_reference
 
 
-def create(db: Session, cross_reference) -> int:
+def create(db: Session, cross_reference, mod_abbreviation=None) -> int:
     cross_reference_data = jsonable_encoder(cross_reference)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
@@ -46,8 +46,13 @@ def create(db: Session, cross_reference) -> int:
             error_details = f"Error details: {str(orig_args[0])}"
         else:
             error_details = f"Error details: {str(e)}"
-        if "duplicate key value violates unique constraint" in error_details and "idx_curie" in error_details:
+        if (
+            mod_abbreviation and mod_abbreviation in ['WB', 'SGD']
+            and "duplicate key value violates unique constraint" in error_details
+            and "idx_curie" in error_details
+        ):
             return -1
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
@@ -168,7 +173,7 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     """
     for _count in range(5):
         new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
-        create_status = create(db, new_mod_curie)
+        create_status = create(db, new_mod_curie, mod_abbreviation)
         if create_status > 0:  # valid status found
             return create_status
     # If no valid status is returned after 5 attempts
