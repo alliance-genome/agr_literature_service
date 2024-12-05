@@ -1,5 +1,5 @@
 import logging
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from datetime import datetime, timedelta
 
@@ -7,8 +7,50 @@ from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, 
     ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, \
     CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
+from agr_literature_service.api.crud.topic_entity_tag_utils import ExpiringCache
 
 logger = logging.getLogger(__name__)
+
+claimed_mca_ids_cache = ExpiringCache(expiration_time=86400)  # expire in 24hrs
+
+
+def release_claimed_papers(curator):
+    if curator in claimed_mca_ids_cache.cache:
+        del claimed_mca_ids_cache.cache[curator]
+
+
+def assign_papers_to_curator(db: Session, curator, mod_abbreviation):
+    recent_ids_query = db.query(
+        ModCorpusAssociationModel.mod_corpus_association_id
+    ).join(
+        ModCorpusAssociationModel.mod
+    ).filter(
+        ModCorpusAssociationModel.corpus == None,  # noqa
+        ModModel.abbreviation == mod_abbreviation
+    ).order_by(
+        ModCorpusAssociationModel.date_updated.desc()
+    ).limit(20)
+
+    mca_ids_set = {row[0] for row in recent_ids_query.all()}
+    claimed_mca_ids_cache.set(curator, mca_ids_set)
+
+
+def get_all_claimed_mca_ids():
+    all_mca_ids = []
+    for curator in claimed_mca_ids_cache.cache.keys():
+        mca_ids_set = claimed_mca_ids_cache.get(curator)
+        if mca_ids_set:
+            all_mca_ids.extend(mca_ids_set)
+    return all_mca_ids
+
+
+def map_mca_id_to_curator():
+    mca_id_to_curator = {}
+    for curator in claimed_mca_ids_cache.cache.keys():
+        mca_ids_set = claimed_mca_ids_cache.get(curator)
+        for mca_id in mca_ids_set:
+            mca_id_to_curator[mca_id] = curator
+    return mca_id_to_curator
 
 
 def convert_xref_curie_to_url(curie, resource_descriptor_default_urls):
@@ -18,24 +60,64 @@ def convert_xref_curie_to_url(curie, resource_descriptor_default_urls):
     return None
 
 
-def show_need_review(mod_abbreviation, count, db: Session):
-    references_query = db.query(
+def show_need_review(mod_abbreviation, count, db: Session, curator, action):
+
+    if curator and action:
+        if action == 'unclaim':
+            release_claimed_papers(curator)
+        elif action == 'claim':
+            assign_papers_to_curator(db, curator, mod_abbreviation)
+
+    all_claimed_mca_ids = get_all_claimed_mca_ids()
+
+    claimed_papers = query_claimed_papers(db, all_claimed_mca_ids).all() if all_claimed_mca_ids else []
+
+    mca_ids = [-1] if len(all_claimed_mca_ids) == 0 else all_claimed_mca_ids
+    recent_papers = query_most_recent_papers(db, mod_abbreviation, mca_ids, count).all()
+
+    combined_references = claimed_papers + recent_papers
+
+    return show_sort_result(combined_references, mod_abbreviation, db)
+
+
+def query_claimed_papers(db: Session, all_claimed_mca_ids):
+
+    claimed_papers_query = db.query(
         ReferenceModel
+    ).options(
+        joinedload(ReferenceModel.copyright_license)
     ).join(
         ReferenceModel.mod_corpus_association
     ).filter(
-        ModCorpusAssociationModel.corpus == None # noqa
+        ModCorpusAssociationModel.mod_corpus_association_id.in_(all_claimed_mca_ids)
+    ).order_by(
+        ReferenceModel.curie.desc()
+    )
+
+    return claimed_papers_query
+
+
+def query_most_recent_papers(db: Session, mod_abbreviation, all_claimed_mca_ids, count):
+
+    recent_papers_query = db.query(
+        ReferenceModel
+    ).options(
+        joinedload(ReferenceModel.copyright_license)
+    ).join(
+        ReferenceModel.mod_corpus_association
+    ).filter(
+        ModCorpusAssociationModel.corpus == None  # noqa
+    ).filter(
+        ModCorpusAssociationModel.mod_corpus_association_id.notin_(all_claimed_mca_ids)
     ).join(
         ModCorpusAssociationModel.mod
     ).filter(
         ModModel.abbreviation == mod_abbreviation
-    ).outerjoin(
-        ReferenceModel.copyright_license
     ).order_by(
         ReferenceModel.curie.desc()
     ).limit(count)
-    references = references_query.all()
-    return show_sort_result(references, mod_abbreviation, db)
+
+    return recent_papers_query
 
 
 def show_sort_result(references, mod_abbreviation, db):
@@ -45,6 +127,7 @@ def show_sort_result(references, mod_abbreviation, db):
         for resource_descriptor_default_url in resource_descriptor_default_urls}
 
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
+    mca_id_to_curator_mapping = map_mca_id_to_curator()
 
     return [
         ReferenceSchemaNeedReviewShow(
@@ -64,6 +147,9 @@ def show_sort_result(references, mod_abbreviation, db):
                                            mca.mod.abbreviation == mod_abbreviation][0],
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
+            claimed_by=mca_id_to_curator_mapping.get(
+                [mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
+                 mca.mod.abbreviation == mod_abbreviation][0], None),
             prepublication_pipeline=reference.prepublication_pipeline,
             resource_title=reference.resource.title if reference.resource else "",
             referencefiles=[ReferencefileSchemaRelated(
