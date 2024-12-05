@@ -177,3 +177,4 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_description: Optional[str] = None
     copyright_license_open_access: Optional[str] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]]
+    claimed_by: Optional[str] = None
