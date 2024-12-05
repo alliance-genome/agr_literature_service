@@ -22,6 +22,7 @@ def get_data(name_to_atp):
             'actions': []
         },
         # then overwrite for WB and ZFIN with conditions
+        # 'catalytic activity', 'disease', 'expression', 'physical interaction', 'RNAi'
         {
             'mod': "WB",
             'from': "text conversion needed",
@@ -30,8 +31,9 @@ def get_data(name_to_atp):
             'actions': [f"{ref_type}::Experimental::{name_to_atp['catalytic activity classification needed']}",
                         f"{ref_type}::Experimental::{name_to_atp['disease classification needed']}",
                         f"{ref_type}::Experimental::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::Experimental::{name_to_atp['interaction classification needed']}",
-                        f"{ref_type}::Experimental::{name_to_atp['reference classification needed']}"]
+                        f"{ref_type}::Experimental::{name_to_atp['physical interaction classification needed']}",
+                        f"{ref_type}::Experimental::{name_to_atp['reference classification needed']}",
+                        f"{ref_type}::Experimental::{name_to_atp['RNAi classification needed']}"]
         },
         {
             'mod': "WB",
@@ -41,74 +43,51 @@ def get_data(name_to_atp):
             'actions': [f"{ref_type}::Experimental::{name_to_atp['catalytic activity classification needed']}",
                         f"{ref_type}::Experimental::{name_to_atp['disease classification needed']}",
                         f"{ref_type}::Experimental::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::Experimental::{name_to_atp['interaction classification needed']}",
-                        f"{ref_type}::Experimental::{name_to_atp['reference classification needed']}"]
+                        f"{ref_type}::Experimental::{name_to_atp['physical interaction classification needed']}",
+                        f"{ref_type}::Experimental::{name_to_atp['reference classification needed']}",
+                        f"{ref_type}::Experimental::{name_to_atp['RNAi classification needed']}"]
         },
         {
             'mod': "ZFIN",
             'from': "text conversion needed",
             'to': "file converted to text",
             'condition': 'on_success',
-            'actions': [f"{ref_type}::Journal::{name_to_atp['catalytic activity classification needed']}",
-                        f"{ref_type}::Journal::{name_to_atp['disease classification needed']}",
-                        f"{ref_type}::Journal::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::Journal::{name_to_atp['interaction classification needed']}"
-                        f"{ref_type}::Journal::{name_to_atp['reference classification needed']}"]
+            'actions': []
         },
         {
             'mod': "ZFIN",
             'from': "text conversion in progress",
             'to': "file converted to text",
             'condition': 'on_success',
-            'actions': [f"{ref_type}::Journal::{name_to_atp['catalytic activity classification needed']}",
-                        f"{ref_type}::Journal::{name_to_atp['disease classification needed']}",
-                        f"{ref_type}::Journal::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::Journal::{name_to_atp['interaction classification needed']}"
-                        f"{ref_type}::Journal::{name_to_atp['reference classification needed']}"]
+            'actions': []
         },
         {
             'mod': "FB",
             'from': "text conversion needed",
             'to': "file converted to text",
             'condition': 'on_success',
-            'actions': [f"{ref_type}::paper::{name_to_atp['catalytic activity classification needed']}",
-                        f"{ref_type}::paper::{name_to_atp['disease classification needed']}",
-                        f"{ref_type}::paper::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::paper::{name_to_atp['interaction classification needed']}"
-                        f"{ref_type}::paper::{name_to_atp['reference classification needed']}"]
+            'actions': []
         },
         {
             'mod': "FB",
             'from': "text conversion in progress",
             'to': "file converted to text",
             'condition': 'on_success',
-            'actions': [f"{ref_type}::paper::{name_to_atp['catalytic activity classification needed']}",
-                        f"{ref_type}::paper::{name_to_atp['disease classification needed']}",
-                        f"{ref_type}::paper::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::paper::{name_to_atp['interaction classification needed']}"
-                        f"{ref_type}::paper::{name_to_atp['reference classification needed']}"]
+            'actions': []
         },
         {
             'mod': "SGD",
             'from': "text conversion needed",
             'to': "file converted to text",
             'condition': 'on_success',
-            'actions': [f"{ref_type}::Journal Article::{name_to_atp['catalytic activity classification needed']}",
-                        f"{ref_type}::Journal Article::{name_to_atp['disease classification needed']}",
-                        f"{ref_type}::Journal Article::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::Journal Article::{name_to_atp['interaction classification needed']}"
-                        f"{ref_type}::Journal Article::{name_to_atp['reference classification needed']}"]
+            'actions': []
         },
         {
             'mod': "SGD",
             'from': "text conversion in progress",
             'to': "file converted to text",
             'condition': 'on_success',
-            'actions': [f"{ref_type}::Journal Article::{name_to_atp['catalytic activity classification needed']}",
-                        f"{ref_type}::Journal Article::{name_to_atp['disease classification needed']}",
-                        f"{ref_type}::Journal Article::{name_to_atp['expression classification needed']}",
-                        f"{ref_type}::Journal Article::{name_to_atp['interaction classification needed']}"
-                        f"{ref_type}::Journal Article::{name_to_atp['reference classification needed']}"]
+            'actions': []
         }
     ]
     return test_data

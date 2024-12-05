@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from urllib.error import HTTPError
 
 from starlette import status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine, \
     create_postgres_session
@@ -30,20 +31,25 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpForm
 # parser.add_argument('-h', '--help', help='run and see', default=False, type=bool, required=False)
 parser.add_argument('-c', '--comma_seperated', help='comma seperated output', type=bool, default=False, required=False)
 parser.add_argument('-m', '--mod_abbr', help='list transition for a specific mod', type=str, required=False, default="")
+parser.add_argument('-d', '--debug', help='print bebug messages', type=bool, required=False, default=False)
 args = parser.parse_args()
 
 
-def load_mod_abbr(db):
+def load_mod_abbr(db, debug):
     global mod_ids, mod_abbrs
     try:
-        mod_results = db.execute("select abbreviation, mod_id from mod")
+        mod_results = db.execute(text("select abbreviation, mod_id from mod"))
         mods = mod_results.fetchall()
-        for mod in mods:
-            if mod["abbreviation"] != 'GO':
-                mod_ids[mod["abbreviation"]] = mod["mod_id"]
-                mod_abbrs[mod["mod_id"]] = mod["abbreviation"]
+        if debug:
+            print(f"DEBUG: mods {mods}")
+        for mod_abbr, mod_id in mods:
+            if debug:
+                print(f"DEBUG: mod abbr {mod_abbr}")
+            if mod_abbr != 'GO':
+                mod_ids[mod_abbr] = mod_id
+                mod_abbrs[mod_id] = mod_abbr
     except Exception as e:
-        print('Error: ' + str(type(e)))
+        print('load_mod_abbr Error: ' + str(type(e)))
 
 
 def get_name_to_atp_and_children(token, curie='ATP:0000177'):
@@ -77,21 +83,24 @@ def get_name_to_atp_and_children(token, curie='ATP:0000177'):
                             detail="Error from A-team API")
 
 
-def print_transitions(db: Session, comma_format, mod_only: str):  # noqa
+def print_transitions(db: Session, comma_format, mod_only: str, debug: bool):  # noqa
     global atp_to_name
     global mod_abbrs
 
     try:
         query = r"""
-        select mod_id, transition_from, transition_to, requirements, transition_type, actions, condition
+        select mod_id as mod_id, transition_from, transition_to, requirements, transition_type, actions, condition
           from workflow_transition"""
         if mod_only:
             query += f" where mod_id = '{mod_ids[mod_only]}'"
-        trans_results = db.execute(query)
-        trans = trans_results.fetchall()
+        trans = db.execute(text(query)).mappings().fetchall()
         start = '{'
         end = '}'
+        if debug:
+            print(f"DEBUG: trans {trans}")
         for tran in trans:
+            if debug:
+                print(f"DEBUG: tran: {tran}")
             if comma_format:
                 print(f"'{mod_abbrs[tran['mod_id']]}', '{atp_to_name[tran['transition_from']]}', '{atp_to_name[tran['transition_to']]}', ",
                       f"'{tran['requirements']}', '{tran['actions']}', '{tran['condition']}'")
@@ -119,5 +128,5 @@ if __name__ == "__main__":
     db_connection = engine.connect()
     db_session: Session = create_postgres_session(False)
 
-    load_mod_abbr(db_session)
-    print_transitions(db_session, args.comma_seperated, args.mod_abbr)
+    load_mod_abbr(db_session, args.debug)
+    print_transitions(db_session, args.comma_seperated, args.mod_abbr, args.debug)
