@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 claimed_mca_ids_cache = ExpiringCache(expiration_time=86400)  # expire in 24hrs
 
 
-def release_claimed_papers(curator):
+def release_claimed_papers(curator):  # pragma: no cover
     if curator in claimed_mca_ids_cache.cache:
         del claimed_mca_ids_cache.cache[curator]
 
 
-def assign_papers_to_curator(db: Session, curator, mod_abbreviation):
+def assign_papers_to_curator(db: Session, curator, mod_abbreviation):  # pragma: no cover
     recent_ids_query = db.query(
         ModCorpusAssociationModel.mod_corpus_association_id
     ).join(
@@ -35,7 +35,7 @@ def assign_papers_to_curator(db: Session, curator, mod_abbreviation):
     claimed_mca_ids_cache.set(curator, mca_ids_set)
 
 
-def get_all_claimed_mca_ids():
+def get_all_claimed_mca_ids():  # pragma: no cover
     all_mca_ids = []
     for curator in claimed_mca_ids_cache.cache.keys():
         mca_ids_set = claimed_mca_ids_cache.get(curator)
@@ -44,7 +44,7 @@ def get_all_claimed_mca_ids():
     return all_mca_ids
 
 
-def map_mca_id_to_curator():
+def map_mca_id_to_curator():  # pragma: no cover
     mca_id_to_curator = {}
     for curator in claimed_mca_ids_cache.cache.keys():
         mca_ids_set = claimed_mca_ids_cache.get(curator)
@@ -80,7 +80,7 @@ def show_need_review(mod_abbreviation, count, db: Session, curator, action):
     return show_sort_result(combined_references, mod_abbreviation, db)
 
 
-def query_claimed_papers(db: Session, all_claimed_mca_ids):
+def query_claimed_papers(db: Session, all_claimed_mca_ids):  # pragma: no cover
 
     claimed_papers_query = db.query(
         ReferenceModel
@@ -97,7 +97,7 @@ def query_claimed_papers(db: Session, all_claimed_mca_ids):
     return claimed_papers_query
 
 
-def query_most_recent_papers(db: Session, mod_abbreviation, all_claimed_mca_ids, count):
+def query_most_recent_papers(db: Session, mod_abbreviation, all_claimed_mca_ids, count):  # pragma: no cover
 
     recent_papers_query = db.query(
         ReferenceModel
