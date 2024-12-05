@@ -35,32 +35,44 @@ def get_data(name_to_atp):
     """
     test_data = []
     # for each XXX activity add transitions needed for job control
-    for entry in ('catalytic activity', 'disease', 'expression', 'interaction'):
+    for entry in ('catalytic activity', 'disease', 'expression', 'physical interaction', 'RNAi'):
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': 'reference classification needed',
             'to': f'{entry} classification needed',
             'condition': f'{entry}_classification_job'}
         test_data.append(item)
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': f'{entry} classification needed',
             'to': f'{entry} classification in progress',
             'condition': 'on_start',
-            'actions': 'sub_task_in_progress::reference classification'}
+            'actions': ['sub_task_in_progress::reference classification']}
         test_data.append(item)
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': f'{entry} classification in progress',
             'to': f'{entry} classification failed',
             'condition': 'on_failed',
-            'actions': 'sub_task_failed::reference classification'}
+            'actions': ['sub_task_failed::reference classification']}
         test_data.append(item)
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': f'{entry} classification in progress',
             'to': f'{entry} classification complete',
             'condition': 'on_success',
-            'actions': 'sub_task_complete::reference classification'}
+            'actions': ['sub_task_complete::reference classification']}
         test_data.append(item)
+
+    # we want to remove some too if they exist:
+    for entry in ('reference', 'catalytic activity', 'disease',
+                  'expression', 'genetic interaction', 'physical interaction'):
+        for result in ("needed", "complete", "in progress", 'failed'):
+            item = {
+                'mod': 'NOT_WB',
+                'from': f'{entry} classification {result}',
+                'to': 'ALL',
+                'delete': True}
+            test_data.append(item)
+
     return test_data
