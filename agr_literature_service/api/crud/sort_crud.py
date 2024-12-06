@@ -2,6 +2,7 @@ import logging
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text
 from datetime import datetime, timedelta
+from fastapi import HTTPException, status
 
 from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel,\
     ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
@@ -20,18 +21,26 @@ def release_claimed_papers(curator):  # pragma: no cover
 
 
 def assign_papers_to_curator(db: Session, curator, mod_abbreviation):  # pragma: no cover
+    all_claimed_mca_ids = get_all_claimed_mca_ids()
+    if curator in claimed_mca_ids_cache.cache:
+        all_claimed_mca_ids -= claimed_mca_ids_cache.get(curator)
+
     recent_ids_query = db.query(
         ModCorpusAssociationModel.mod_corpus_association_id
     ).join(
         ModCorpusAssociationModel.mod
     ).filter(
         ModCorpusAssociationModel.corpus == None,  # noqa
-        ModModel.abbreviation == mod_abbreviation
+        ModModel.abbreviation == mod_abbreviation,
+        ~ModCorpusAssociationModel.mod_corpus_association_id.in_(all_claimed_mca_ids)
     ).order_by(
         ModCorpusAssociationModel.date_updated.desc()
     ).limit(20)
 
     mca_ids_set = {row[0] for row in recent_ids_query.all()}
+    if not mca_ids_set:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="No available unclaimed papers to assign for you")
     claimed_mca_ids_cache.set(curator, mca_ids_set)
 
 
