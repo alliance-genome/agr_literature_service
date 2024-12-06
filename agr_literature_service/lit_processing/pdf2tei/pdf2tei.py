@@ -60,8 +60,8 @@ def main():
                 }
                 root = etree.fromstring(response.content)  # Check for empty elements that indicate failure
                 title = root.xpath('//tei:title[@level="a"]', namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
-                if (response.content == "[NO_BLOCKS] PDF parsing resulted in empty content" or title is None or
-                        title[0].text is None):
+                if (response.content == "[NO_BLOCKS] PDF parsing resulted in empty content" or title is None
+                        or title[0].text is None):
                     job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                 else:
                     file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
