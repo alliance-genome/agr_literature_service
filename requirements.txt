@@ -52,3 +52,4 @@ bs4==0.0.1                   # No update needed.
 elasticsearch==7.13.4        # No update needed.
 retry==0.9.2                 # No update needed.
 cachetools==5.3.1            # Updated for better performance.
+lxml==4.9.4

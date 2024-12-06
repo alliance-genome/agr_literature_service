@@ -6,6 +6,7 @@ import requests
 from fastapi import UploadFile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from lxml import etree
 
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
@@ -57,7 +58,10 @@ def main():
                     "is_annotation": None,
                     "mod_abbreviation": mod_abbreviation
                 }
-                if response.content == "[NO_BLOCKS] PDF parsing resulted in empty content":
+                root = etree.fromstring(response.content)  # Check for empty elements that indicate failure
+                title = root.xpath('//tei:title[@level="a"]', namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
+                if (response.content == "[NO_BLOCKS] PDF parsing resulted in empty content" or title is None or
+                        title[0].text is None):
                     job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                 else:
                     file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
