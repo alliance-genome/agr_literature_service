@@ -6,20 +6,17 @@ cross_reference_model.py
 
 from typing import Dict
 
-# from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
-#    Sequence
-# from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index,\
-    and_
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, Sequence
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.database.versioning import enable_versioning
 
-
 enable_versioning()
 
+# Define the PostgreSQL sequence for SGD IDs
+sgd_id_seq = Sequence('sgd_id_seq', start=100000001, increment=1)
 
 class CrossReferenceModel(Base, AuditedModel):
     __tablename__ = "cross_reference"
