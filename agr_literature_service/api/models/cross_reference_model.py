@@ -18,6 +18,7 @@ enable_versioning()
 # Define the PostgreSQL sequence for SGD IDs
 sgd_id_seq = Sequence('sgd_id_seq', start=100000001, increment=1)
 
+
 class CrossReferenceModel(Base, AuditedModel):
     __tablename__ = "cross_reference"
     __versioned__: Dict = {}

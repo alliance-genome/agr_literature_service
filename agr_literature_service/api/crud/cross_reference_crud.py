@@ -7,13 +7,18 @@ from typing import List, Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, subqueryload
 
 from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
                                                                 create_obj)
-from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel, ResourceDescriptorModel)
+from agr_literature_service.api.models import (
+    CrossReferenceModel,
+    ReferenceModel,
+    ResourceDescriptorModel
+)
+# from agr_literature_service.api.models.cross_reference_model import sgd_id_seq
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -36,6 +41,7 @@ def create(db: Session, cross_reference, mod_abbreviation=None) -> int:
     cross_reference_data = jsonable_encoder(cross_reference)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
+
     try:
         db.add(db_obj)
         db.commit()
@@ -48,17 +54,19 @@ def create(db: Session, cross_reference, mod_abbreviation=None) -> int:
             error_details = f"Error details: {str(e)}"
         if (
             mod_abbreviation and mod_abbreviation in ['WB', 'SGD']
-            and "duplicate key value violates unique constraint" in error_details
-            and "idx_curie" in error_details
+            and 'constraint "idx_curie_prefix_ref_no_cgc"' in error_details
         ):
-            return -1
-
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Another curator has added this paper to the {mod_abbreviation} corpus. "
+                    "Please reload the page and try again."
+                )
+            )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=(
-                f"Cannot add cross-reference with CURIE {cross_reference_data['curie']}. "
-                f"{error_details}. This may be due to another curator working on the same paper. "
-                "Please reload the page and try again. Thank you."
+                f"Cannot add cross-reference with CURIE {cross_reference_data['curie']}. Error: {error_details}"
             )
         )
     return int(db_obj.cross_reference_id)
@@ -162,29 +170,12 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
         return
     env_state = os.environ.get("ENV_STATE", "")
     if env_state == "prod":
-        ## do not create MOD IDs for prod at the momemt
         return
     if mod_abbreviation not in ['WB', 'SGD']:
         return
-    create_status = None
-    """
-    To make sure the function works correctly when multiple users are simultaneously
-    adding papers and generating MOD IDs.
-    """
-    for _count in range(5):
-        new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
-        create_status = create(db, new_mod_curie, mod_abbreviation)
-        if create_status > 0:  # valid status found
-            return create_status
-    # If no valid status is returned after 5 attempts
-    raise HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail=(
-            "Failed to add the cross-reference after 5 attempts. Another "
-            "curator might be generating the MOD CURIE simultaneously. Please "
-            "reload the page and try again."
-        )
-    )
+
+    new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
+    create(db, new_mod_curie, mod_abbreviation)
 
 
 def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
@@ -209,14 +200,9 @@ def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
         return new_wbpaper_xref
 
     if mod_abbreviation == 'SGD':
-        new_sgdid_number = 100000001
-        cross_reference = db.query(CrossReferenceModel.curie).filter(
-            and_(CrossReferenceModel.curie.startswith("SGD:S100"),
-                 CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
-            CrossReferenceModel.curie.desc()).first()
-        if cross_reference:
-            new_sgdid_number = int(cross_reference.curie[5:]) + 1
-        new_sgdid = f"SGD:S{new_sgdid_number}"
+        row = db.execute(text("SELECT nextval('sgd_id_seq')")).fetchone()
+        sgdid_number = row[0]
+        new_sgdid = f"SGD:S{sgdid_number}"
         new_xref = {
             "curie": new_sgdid,
             "pages": [
