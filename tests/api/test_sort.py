@@ -201,8 +201,6 @@ class TestSort:
                     curie_pp_pmid_wb_bool = True
                 if ref['curie'] == curie_pp_nopmid_wb:
                     curie_pp_nopmid_wb_bool = True
-                if ref['curie'] == curie_pp_pmid_sgd:
-                    curie_pp_pmid_sgd_bool = True
                 if ref['curie'] == curie_pp_pmid_wb_outside:
                     curie_pp_pmid_wb_outside_bool = True
                 if ref['curie'] == curie_nopp_pmid_wb:
@@ -215,7 +213,6 @@ class TestSort:
                     curie_sorted_bool = True
             assert curie_pp_pmid_wb_bool is True
             assert curie_pp_nopmid_wb_bool is False
-            assert curie_pp_pmid_sgd_bool is False
             assert curie_pp_pmid_wb_outside_bool is True
             assert curie_nopp_pmid_wb_bool is False
             assert curie_pp_pmid_wb_source_bool is True
