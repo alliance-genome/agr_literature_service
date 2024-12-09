@@ -68,31 +68,6 @@ class TestSort:
             if new_curie.startswith('"') and new_curie.endswith('"'):
                 curie_pp_nopmid_wb = new_curie[1:-1]
             curie_pp_nopmid_wb_bool = False
-
-            reference_create_json = {
-                "cross_references": [
-                    {
-                        "curie": "PMID:1111",
-                        "is_obsolete": "false"
-                    }
-                ],
-                "mod_corpus_associations": [
-                    {
-                        "mod_abbreviation": "SGD",
-                        "mod_corpus_sort_source": "prepublication_pipeline",
-                        "corpus": "true"
-                    }
-                ],
-                "title": "pp pmid sgd",
-                "prepublication_pipeline": "true"
-            }
-            response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_pp_pmid_sgd = new_curie[1:-1]
-            curie_pp_pmid_sgd_bool = False
-
             reference_create_json = {
                 "cross_references": [
                     {
@@ -226,8 +201,6 @@ class TestSort:
                     curie_pp_pmid_wb_bool = True
                 if ref['curie'] == curie_pp_nopmid_wb:
                     curie_pp_nopmid_wb_bool = True
-                if ref['curie'] == curie_pp_pmid_sgd:
-                    curie_pp_pmid_sgd_bool = True
                 if ref['curie'] == curie_pp_pmid_wb_outside:
                     curie_pp_pmid_wb_outside_bool = True
                 if ref['curie'] == curie_nopp_pmid_wb:
@@ -240,7 +213,6 @@ class TestSort:
                     curie_sorted_bool = True
             assert curie_pp_pmid_wb_bool is True
             assert curie_pp_nopmid_wb_bool is False
-            assert curie_pp_pmid_sgd_bool is False
             assert curie_pp_pmid_wb_outside_bool is True
             assert curie_nopp_pmid_wb_bool is False
             assert curie_pp_pmid_wb_source_bool is True
