@@ -68,9 +68,12 @@ def main():
                                                                           filename=ref_file_obj.display_name),
                                 upload_if_already_converted=True)
                     job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+            elif response.status_code == 500:
+                logger.error(f"Cannot convert referencefile with ID {str(ref_file_id_to_convert)}: {response.text}")
+                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
-                             f"Status code: {response.status_code}")
+                             f"Will retry in the future. Status code: {response.status_code}")
 
 
 if __name__ == '__main__':
