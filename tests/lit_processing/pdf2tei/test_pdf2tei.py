@@ -16,10 +16,78 @@ from ...fixtures import load_workflow_parent_children_mock
 from ...fixtures import db  # noqa
 
 
+sample_tei_content = b'''<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+    <teiHeader>
+        <fileDesc>
+            <titleStmt>
+                <title level="a" type="main">Sample Title</title>
+            </titleStmt>
+            <publicationStmt>
+                <publisher>Sample Publisher</publisher>
+                <availability status="free">
+                    <licence>Sample License</licence>
+                </availability>
+            </publicationStmt>
+            <sourceDesc>
+                <biblStruct>
+                    <analytic>
+                        <author>
+                            <persName>Sample Author</persName>
+                        </author>
+                        <title level="a" type="main">Sample Analytic Title</title>
+                    </analytic>
+                    <monogr>
+                        <imprint>
+                            <date when="2024"/>
+                        </imprint>
+                    </monogr>
+                    <idno type="MD5">1234567890ABCDEF1234567890ABCDEF</idno>
+                </biblStruct>
+            </sourceDesc>
+        </fileDesc>
+        <encodingDesc>
+            <appInfo>
+                <application version="0.8.0" ident="GROBID" when="2024-12-06T20:05+0000">
+                    <desc>GROBID - A machine learning software for extracting information from scholarly documents</desc>
+                    <ref target="https://github.com/kermitt2/grobid"/>
+                </application>
+            </appInfo>
+        </encodingDesc>
+        <profileDesc>
+            <abstract>Sample abstract content.</abstract>
+        </profileDesc>
+    </teiHeader>
+    <text>
+        <body>
+            <p>Sample body content.</p>
+        </body>
+        <back>
+            <div type="references">
+                <listBibl>
+                    <biblStruct>
+                        <monogr>
+                            <title>Sample Reference Title</title>
+                            <author>
+                                <persName>Sample Reference Author</persName>
+                            </author>
+                            <imprint>
+                                <date when="2024"/>
+                            </imprint>
+                        </monogr>
+                    </biblStruct>
+                </listBibl>
+            </div>
+        </back>
+    </text>
+</TEI>
+'''
+
+
 def convert_pdf_with_grobid_mock(file_content):
     mock_response = Mock()
     mock_response.status_code = 200
-    mock_response.content = b"Mocked TEI content"
+    mock_response.content = sample_tei_content
     return mock_response
 
 
@@ -112,7 +180,7 @@ class TestPdf2TEI:
             assert len(all_ref_files) == 1
             file_response = client.get(url=f"/reference/referencefile/download_file/{all_ref_files[0].referencefile_id}",
                                        headers=auth_headers)
-            assert file_response.content == b"Mocked TEI content"
+            assert file_response.content == sample_tei_content
             response = client.get(url=f"/workflow_tag/get_current_workflow_status/{test_reference.new_ref_curie}/"
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000163"
@@ -126,7 +194,7 @@ class TestPdf2TEI:
             mod_abbreviation = self.upload_initial_main_reference_file(db, client, test_mod, test_reference,
                                                                        auth_headers)
             mock_response = Mock()
-            mock_response.status_code = 500
+            mock_response.status_code = 503
             mock_convert_pdf_with_grobid.return_value = mock_response
 
             # Run the conversion
