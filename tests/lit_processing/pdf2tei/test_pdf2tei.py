@@ -194,7 +194,7 @@ class TestPdf2TEI:
             mod_abbreviation = self.upload_initial_main_reference_file(db, client, test_mod, test_reference,
                                                                        auth_headers)
             mock_response = Mock()
-            mock_response.status_code = 500
+            mock_response.status_code = 503
             mock_convert_pdf_with_grobid.return_value = mock_response
 
             # Run the conversion
