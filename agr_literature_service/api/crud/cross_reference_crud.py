@@ -201,16 +201,18 @@ def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
 
     if mod_abbreviation == 'SGD':
         row = db.execute(text("SELECT nextval('sgd_id_seq')")).fetchone()
-        sgdid_number = row[0]
-        new_sgdid = f"SGD:S{sgdid_number}"
-        new_xref = {
-            "curie": new_sgdid,
-            "pages": [
-                "reference"
-            ],
-            "reference_curie": ref_curie
-        }
-        return new_xref
+        if row:
+            sgdid_number = row[0]
+            new_sgdid = f"SGD:S{sgdid_number}"
+            new_xref = {
+                "curie": new_sgdid,
+                "pages": [
+                    "reference"
+                ],
+                "reference_curie": ref_curie
+            }
+            return new_xref
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot create a new SGDID")
 
 
 def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):
