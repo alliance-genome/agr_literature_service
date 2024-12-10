@@ -665,9 +665,6 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         x_dict = dict(x)
         data.append({
             "mod_abbreviation": x_dict['abbreviation'],
-            "date_option": date_option,
-            "date_range_start": date_range_start,
-            "date_range_end": date_range_end,
             "workflow_tag_id": x_dict['workflow_tag_id'],
             "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
             "tag_count": x_dict['tag_count']
