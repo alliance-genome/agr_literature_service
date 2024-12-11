@@ -111,7 +111,7 @@ def send_report_to_slack(mod, rows_to_report, debug=True):
 
 def get_mod_abbreviations(db_session, debug):
     mod_abbreviations = {}
-    sql = text(f"SELECT mod_id, mod_abbreviation FROM mod")
+    sql = text("SELECT mod_id, mod_abbreviation FROM mod")
     rows = db_session.execute(sql).fetchall()
     for row in rows:
         mod_abbreviations[row[0]] = row[1]
@@ -148,10 +148,10 @@ def check_wft_in_progress(debug=True):
 
         for wft in wfts:
             # So this reference failed or is on progress so check when it was 'started'
-            sql =  text(f"SELECT COUNT(1) FROM workflow_tag_version "
-                        f"  WHERE reference_id = wft['reference_id'] AND"
-                        f"        workflow_tag_id = phase['start of progress'] AND"
-                        f"        date_created > {start_date}")
+            sql = text(f"SELECT COUNT(1) FROM workflow_tag_version "
+                       f"  WHERE reference_id = wft['reference_id'] AND"
+                       f"        workflow_tag_id = phase['start of progress'] AND"
+                       f"        date_created > {start_date}")
             count = db_session.execute(sql).fetchall()
             if debug:
                 print(f"SQL:{sql}\tcount:{count}")
@@ -179,6 +179,7 @@ def check_wft_in_progress(debug=True):
         if mod_id not in mod_abbr:
             mod_abbr = get_mod_abbreviations(db_session)
             send_report_to_slack(mod_abbr[mod_id], slack_messages[mod_id])
+
 
 if __name__ == "__main__":
     check_wft_in_progress(debug=args.debug)
