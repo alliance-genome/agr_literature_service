@@ -87,8 +87,10 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpForm
 parser.add_argument('-d', '--debug', help='run in debug mode, just print', type=bool, required=False, default=False)
 args = parser.parse_args()
 
+
 def get_date_weeks_ago(weeks):
     return date.today() - timedelta(weeks=weeks)
+
 
 def send_report_to_slack(mod, rows_to_report, debug=True):
 
@@ -106,6 +108,7 @@ def send_report_to_slack(mod, rows_to_report, debug=True):
     email_message = "<p>The log file is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
     send_report(email_subject, email_message)
 
+
 def get_mod_abbreviations(db_session, debug):
     mod_abbreviations = {}
     sql = text(f"SELECT mod_id, mod_abbreviation FROM mod")
@@ -116,9 +119,10 @@ def get_mod_abbreviations(db_session, debug):
             print(f"Mods abbreviation: {row[0]} {row[1]}")
     return mod_abbreviations
 
+
 def check_wft_in_progress(debug=True):
     db_session = create_postgres_session(False)
-    in_progress = [{'current wft': ['ATP:0000198','ATP:0000164'],  # failed or in progress
+    in_progress = [{'current wft': ['ATP:0000198', 'ATP:0000164'],  # failed or in progress
                     'start of progress': 'ATP0000134',             # file uploaded, sets start of process
                     'set to failed': 'ATP:0000164',                # what to do on failed
                     'set to try again': 'ATP:0000162',             # what to set to if okay to try again
@@ -159,7 +163,7 @@ def check_wft_in_progress(debug=True):
                         slack_messages[wft.mod_id].append(f"Setting {wft['reference_id']} to needed from {wft.workflow_tag_id}")
                         wft.workflow_tag_id = phase['set to start again']
                 else:
-                     print(f"Setting to try again for {wft}")
+                    print(f"Setting to try again for {wft}")
             else:      # need to set to failed
                 if not debug:
                     if phase['slack message']:
