@@ -18,6 +18,8 @@ from agr_literature_service.api.models import (
     ReferenceModel,
     ResourceDescriptorModel
 )
+
+
 # from agr_literature_service.api.models.cross_reference_model import sgd_id_seq
 
 
@@ -148,9 +150,28 @@ def format_cross_reference_data(db: Session, cross_reference_object: CrossRefere
     return cross_reference_data
 
 
+def custom_jsonable_encoder(obj, exclude_fields=None):
+    """ Custom jsonable_encoder that excludes specified fields.
+
+    Args:
+        obj (any): The object to encode.
+        exclude_fields (set): A set of field names to exclude.
+
+    Returns:
+        dict: The encoded object.
+    """
+    if exclude_fields is None:
+        exclude_fields = set()
+    encoded_obj = {}
+    for attr, value in obj.__dict__.items():
+        if not attr.startswith('_sa_') and attr not in exclude_fields:
+            encoded_obj[attr] = jsonable_encoder(value)
+    return encoded_obj
+
+
 def show(db: Session, curie_or_cross_reference_id: str) -> dict:
     cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
-    cross_reference_data = jsonable_encoder(cross_reference)
+    cross_reference_data = custom_jsonable_encoder(cross_reference, exclude_fields={"cross_references"})
     db_prefix = cross_reference.curie.split(":")[0]
     resource_descriptor = db.query(ResourceDescriptorModel).filter(
         ResourceDescriptorModel.db_prefix == db_prefix).first()
