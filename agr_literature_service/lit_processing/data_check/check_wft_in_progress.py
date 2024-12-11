@@ -90,7 +90,6 @@ args = parser.parse_args()
 def get_date_weeks_ago(weeks):
     return date.today() - timedelta(weeks=weeks)
 
-
 def send_report_to_slack(mod, rows_to_report, debug=True):
 
     email_subject = f"Report on stuck {mod} Papers in workflows"
@@ -107,7 +106,6 @@ def send_report_to_slack(mod, rows_to_report, debug=True):
     email_message = "<p>The log file is available at " + "<a href=" + log_url + ">" + log_url + "</a><p>"
     send_report(email_subject, email_message)
 
-
 def get_mod_abbreviations(db_session, debug):
     mod_abbreviations = {}
     sql = text(f"SELECT mod_id, mod_abbreviation FROM mod")
@@ -117,7 +115,6 @@ def get_mod_abbreviations(db_session, debug):
         if debug:
             print(f"Mods abbreviation: {row[0]} {row[1]}")
     return mod_abbreviations
-
 
 def check_wft_in_progress(debug=True):
     db_session = create_postgres_session(False)
