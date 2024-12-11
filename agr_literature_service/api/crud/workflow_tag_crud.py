@@ -627,7 +627,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
-    if date_range_start is not None and date_range_end is not None:
+    if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
         if date_option == 'default' or date_option is None:
             where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
