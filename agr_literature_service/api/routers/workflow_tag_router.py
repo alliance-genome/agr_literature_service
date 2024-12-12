@@ -124,9 +124,14 @@ def get_current_workflow_status(curie_or_reference_id: str,
             status_code=200)
 def counters(mod_abbreviation: str = None,
              workflow_process_atp_id: str = None,
+             date_option: str = None,
+             date_range_start: str = None,
+             date_range_end: str = None,
              db: Session = db_session):
     return workflow_tag_crud.counters(db=db, mod_abbreviation=mod_abbreviation,
-                                      workflow_process_atp_id=workflow_process_atp_id)
+                                      workflow_process_atp_id=workflow_process_atp_id,
+                                      date_option=date_option, date_range_start=date_range_start,
+                                      date_range_end=date_range_end)
 
 
 @router.get('/by_mod/{mod_abbreviation}',

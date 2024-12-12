@@ -605,8 +605,8 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
     return history
 
 
-def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None):  # pragma: no cover
-
+def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,
+             date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
     all_WF_tags_for_process = None
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
@@ -630,14 +630,49 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
+    if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+        if date_option == 'default' or date_option is None:
+            where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+        elif date_option == 'reference_created':
+            where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+        elif date_option == 'reference_published':
+            where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+        elif date_option == 'inside_corpus':
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+            if mod_abbreviation:
+                where_clauses.append("m_inner.abbreviation = :mod_abbreviation")
+
     where = ""
     if where_clauses:
         where = "WHERE " + " AND ".join(where_clauses)
 
-    query = f"""
+    query = """
     SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
     FROM mod m
     JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+    """
+
+    if date_option != 'default' and date_option is not None:
+        query += "JOIN reference r ON wt.reference_id = r.reference_id"
+
+    if date_option == 'inside_corpus':
+        query += """
+        JOIN
+            mod_corpus_association mca ON r.reference_id = mca.reference_id
+                AND mca.corpus = TRUE
+                AND mca.date_updated BETWEEN :start_date AND :end_date
+        JOIN
+            mod m_inner ON mca.mod_id = m_inner.mod_id
+        """
+
+    query += f"""
     {where}
     GROUP BY m.abbreviation, wt.workflow_tag_id
     ORDER BY m.abbreviation, wt.workflow_tag_id
