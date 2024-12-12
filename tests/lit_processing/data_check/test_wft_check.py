@@ -43,6 +43,6 @@ class TestWorkflowTagCheck:
             assert wft2.workflow_tag_id == "ATP:0000139"
 
             # run the check which should set the wft to 'needed'
-            check_wft_in_progress()
+            check_wft_in_progress(debug=False)
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
