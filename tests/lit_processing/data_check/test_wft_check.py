@@ -9,6 +9,7 @@ from ...fixtures import db  # noqa
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.data_check.check_wft_in_progress import check_wft_in_progress
 
+
 class TestWorkflowTagCheck:
 
 
