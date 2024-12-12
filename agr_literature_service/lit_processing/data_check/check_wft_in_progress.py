@@ -83,10 +83,6 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
-parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('-d', '--debug', help='run in debug mode, just print', type=bool, required=False, default=False)
-args = parser.parse_args()
-
 
 def get_date_weeks_ago(weeks):
     return date.today() - timedelta(weeks=weeks)
@@ -182,4 +178,8 @@ def check_wft_in_progress(debug=True):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-d', '--debug', help='run in debug mode, just print', type=bool, required=False, default=False)
+    args = parser.parse_args()
+
     check_wft_in_progress(debug=args.debug)
