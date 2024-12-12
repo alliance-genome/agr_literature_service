@@ -170,16 +170,11 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
         email_message = email_message + "<table></tbody>" + rows + "</tbody></table>"
 
     # missing_papers_in_mod, agr_to_title, log_path
+    log_file = mod + "_papers_marked_as_out_corpus.log"
+    missing_papers_in_mod_log_file = log_path + log_file
     if len(missing_papers_in_mod) > 0:
-
-        log_file = mod + "_papers_marked_as_out_corpus.log"
-
-        missing_papers_in_mod_log_file = log_path + log_file
-
         fw = open(missing_papers_in_mod_log_file, "w")
-
         fw.write("ARG_curie\tPMID\tMOD_ID\tTitle\n")
-
         email_message = email_message + "<p><p><b>Following paper(s) have been marked as out of corpus since they are not in the current " + mod + " DQM file</b><p>"
 
         rows = ''
@@ -212,15 +207,17 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
         else:
             log_path = log_path + log_file
             email_message = email_message + "<p>The full list of newly marked out of corpus papers is available at " + log_path
+    else:
+        with open(missing_papers_in_mod_log_file, 'w') as _:
+            pass  # no content is written; the file remains empty
 
     # for PMIDs that are in both MOD false positive list and MOD current dqm reference file
+    log_file = mod + "_clashed_PMIDs.log"
+    clashed_pmid_log_file = log_path + log_file
     if len(clashed_pmids) > 0:
-        log_file = mod + "_clashed_PMIDs.log"
-        clashed_pmid_log_file = log_path + log_file
-        fw = open(clashed_pmid_log_file, "w")
-        fw.write("The PMIDs that are in both MOD false positive list and in current MOD DQM reference file:\n")
-        fw.write("\n".join(clashed_pmids) + "\n")
-        fw.close()
+        with open(clashed_pmid_log_file, "w") as fw:
+            fw.write("The PMIDs that are in both MOD false positive list and in current MOD DQM reference file:\n")
+            fw.write("\n".join(clashed_pmids) + "\n")
         email_message = email_message + "<p><p><b>" + str(len(clashed_pmids)) + " PMID(s) that are in both " + mod + " false positive list and in " + mod + " current DQM submission</b><p>"
         if log_url:
             log_url = log_url + log_file
@@ -228,6 +225,9 @@ def send_dqm_loading_report(mod, rows_to_report, missing_papers_in_mod, agr_to_t
         else:
             log_path = log_path + log_file
             email_message = email_message + "<p>The clashed PMID list is available at " + log_path
+    else:
+        with open(clashed_pmid_log_file, 'w') as _:
+            pass
 
     i = 0
     for curie in curie_to_reftypesConflict:
