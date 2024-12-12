@@ -643,6 +643,9 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
+        # elif date_option == 'inside_corpus':
+        #     where_clauses.append("mca.corpus = true")
+        #     where_clauses.append("mca.date_updated BETWEEN :start_date AND :end_date")
 
     where = ""
     if where_clauses:
@@ -657,6 +660,16 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     GROUP BY m.abbreviation, wt.workflow_tag_id
     ORDER BY m.abbreviation, wt.workflow_tag_id
     """
+
+    # need this join but it makes the query too slow and times out with 504 error
+    # JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+
+    # Shuai figured out it could use this join instead
+#     JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
+#         AND mca.corpus = TRUE
+#         AND mca.date_updated BETWEEN '2024-01-01' AND '2025-01-01'
+#     JOIN mod m_inner ON mca.mod_id = m_inner.mod_id
+#         AND m_inner.abbreviation = :mod_abbreviation
 
     try:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
