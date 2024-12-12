@@ -11,6 +11,7 @@ from agr_literature_service.lit_processing.data_check.check_wft_in_progress impo
 
 class TestWorkflowTagCheck:
 
+
     def test_wft_check(self, db, auth_headers, test_reference, test_mod): # noqa
         print("***** Adding a test check what ever *****")
         with TestClient(app) as client:
@@ -32,15 +33,15 @@ class TestWorkflowTagCheck:
 
             # transition to 'in progress'
             # Transition table not loaded so change the values directly!
-            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000162").one()
-            wft.workflow_tag_id = "ATP:0000139"
+            wft1 = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000162").one()
+            wft1.workflow_tag_id = "ATP:0000139"
             db.commit()
 
             # sanity check, make sure wft is not 139
-            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000139").one()
-            assert wft.workflow_tag_id == "ATP:0000139"
+            wft2 = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
+            assert wft2.workflow_tag_id == "ATP:0000139"
 
             # run the check which should set the wft to 'needed'
             check_wft_in_progress()
-            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000162").one()
+            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
