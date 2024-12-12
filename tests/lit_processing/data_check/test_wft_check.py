@@ -3,7 +3,7 @@ from fastapi import status
 from starlette.testclient import TestClient
 from agr_literature_service.api.main import app
 from tests.api.fixtures import auth_headers # noqa
-from tests.api.test_mod import test_mod
+from tests.api.test_mod import test_mod # noqa
 from tests.api. test_reference import test_reference  # noqa
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.data_check.check_wft_in_progress import check_wft_in_progress
