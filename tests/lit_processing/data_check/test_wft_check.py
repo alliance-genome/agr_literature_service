@@ -3,9 +3,11 @@ from fastapi import status
 from starlette.testclient import TestClient
 from agr_literature_service.api.main import app
 from tests.api.fixtures import auth_headers # noqa
-from tests.api.test_mod import test_mod, test_reference # noqa
+from tests.api.test_mod import test_mod
+from tests.api. test_reference import test_reference  # noqa
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.data_check.check_wft_in_progress import check_wft_in_progress
+
 
 @pytest.fixture
 def test_wft_check(db, auth_headers, test_reference, test_mod): # noqa
@@ -41,4 +43,3 @@ def test_wft_check(db, auth_headers, test_reference, test_mod): # noqa
         check_wft_in_progress()
         wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000162").one()
         assert wft.workflow_tag_id == "ATP:0000162"
-
