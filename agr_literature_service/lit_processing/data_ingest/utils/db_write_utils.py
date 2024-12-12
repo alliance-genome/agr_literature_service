@@ -1008,12 +1008,17 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
 
 
 def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
-
-    ## check to see if any newly added ones matches this entry
-    rows = db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
+    # check to see if any newly added ones matches this entry
+    rows = db_session.query(ReferenceRelationModel).filter(
+        or_(
+            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
+                 ReferenceRelationModel.reference_id_to == reference_id_to),
+            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
+                 ReferenceRelationModel.reference_id_to == reference_id_from)
+        )
+    ).all()
     if len(rows) > 0:
         return
-
     data = {"reference_id_from": reference_id_from,
             "reference_id_to": reference_id_to,
             "reference_relation_type": type}

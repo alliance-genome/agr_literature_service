@@ -23,7 +23,8 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status, is_file_upload_blocked
+    transition_to_workflow_status, is_file_upload_blocked, reset_workflow_tags_after_deleting_main_pdf
+from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
     ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
@@ -39,6 +40,7 @@ logger = logging.getLogger(__name__)
 file_upload_process_atp_id = "ATP:0000140"
 file_uploaded_tag_atp_id = "ATP:0000134"
 file_upload_in_progress_tag_atp_id = "ATP:0000139"
+file_needed_tag_atp_id = "ATP:0000141"
 text_conversion_process_atp_id = "ATP:0000161"
 
 
@@ -49,7 +51,7 @@ def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
                                               load_referencefiles=True)
     main_pdf_referencefiles = [referencefile for referencefile in reference.referencefiles if
                                referencefile.file_class == "main" and referencefile.file_publication_status == "final"
-                               and referencefile.pdf_type == "pdf" and referencefile.file_extension == "pdf"]
+                               and referencefile.pdf_type == 'pdf']
     if mod_abbreviation is not None:
         for main_pdf_ref_file in main_pdf_referencefiles:
             for ref_file_mod in main_pdf_ref_file.referencefile_mods:
@@ -127,6 +129,47 @@ def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchem
     return reference_files
 
 
+def check_file_upload_status_change(db, referencefile, request):
+
+    request_file_class = request.get("file_class", referencefile.file_class)
+    request_publication_status = request.get("file_publication_status", referencefile.file_publication_status)
+    request_pdf_type = request.get("pdf_type", referencefile.pdf_type)
+    change_if_already_converted = request.get("change_if_already_converted", False)
+
+    if (
+        referencefile.file_class == 'main'
+        and referencefile.file_publication_status == 'final'
+        and referencefile.pdf_type == 'pdf'
+    ) and (
+        request_file_class != 'main'
+        or request_publication_status != 'final'
+        or request_pdf_type != 'pdf'
+    ):
+        if not change_if_already_converted:
+            for referenceMod in referencefile.referencefile_mods:
+                if referenceMod.mod_id:
+                    workflow_tag_atp_id = get_current_workflow_status(db,
+                                                                      referencefile.reference.curie,
+                                                                      text_conversion_process_atp_id,
+                                                                      referenceMod.mod.abbreviation)
+                    if workflow_tag_atp_id == "ATP:0000163":  # file converted to text
+                        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                            detail=f"File already converted to text for {referenceMod.mod.abbreviation}, use UI if you really need to change the file status.")
+        return True
+
+    if (
+        request_file_class == 'main'
+        and request_publication_status == 'final'
+        and request_pdf_type == 'pdf'
+    ) and (
+        referencefile.file_class != 'main'
+        or referencefile.file_publication_status != 'final'
+        or referencefile.pdf_type != 'pdf'
+    ):
+        return True
+    return False
+
+
 def patch(db: Session, referencefile_id: int, request):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
     if "display_name" in request or "file_extension" in request or "reference_curie" in request:
@@ -147,6 +190,13 @@ def patch(db: Session, referencefile_id: int, request):
                                 detail=f"Reference with curie {request.reference_curie} is not available")
         request["reference_id"] = res[0]
         del request["reference_curie"]
+    change_status = check_file_upload_status_change(db, referencefile, request)
+    if change_status:
+        transition_WFT_for_uploaded_file(db, referencefile.reference.curie, None,
+                                         request.get("file_class", referencefile.file_class),
+                                         request.get("pdf_type", referencefile.pdf_type),
+                                         request.get("file_publication_status", referencefile.file_publication_status),
+                                         True)
     for field, value in request.items():
         setattr(referencefile, field, value)
     db.commit()
@@ -155,12 +205,54 @@ def patch(db: Session, referencefile_id: int, request):
 
 def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
+    reference_id = referencefile.reference_id
+    file_class = referencefile.file_class
+    file_publication_status = referencefile.file_publication_status
+    pdf_type = referencefile.pdf_type
+    all_mods = set()
     if mod_access == OktaAccess.ALL_ACCESS:
         remove_from_s3_and_db(db, referencefile)
     elif mod_access != OktaAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:
-            if referencefile_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]:
-                destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
+            if referencefile_mod.mod_id is None:
+                all_mods.add('PMC')
+            else:
+                all_mods.add(referencefile_mod.mod.abbreviation)
+                if referencefile_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]:
+                    destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="You are not signed in. Please sign in to delete a file.")
+
+    if file_class == 'main' and file_publication_status == 'final' and pdf_type == 'pdf':
+        cleanup_wft_tet_tags_for_deleted_main_pdf(db, reference_id, all_mods,
+                                                  OKTA_ACCESS_MOD_ABBR[mod_access])
+
+
+def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mods, access_level, change_file_status=False):
+
+    mods = set()
+    if access_level != 'all_access':
+        mods.add(access_level)
+    elif len(all_mods) > 0 and 'PMC' not in all_mods:
+        mods = all_mods
+    else:
+        sql_query = text("""
+        SELECT m.abbreviation
+        FROM mod_corpus_association mca
+        JOIN mod m ON mca.mod_id = m.mod_id
+        WHERE mca.reference_id = :reference_id
+        AND mca.corpus = TRUE
+        """)
+        rows = db.execute(sql_query, {'reference_id': reference_id}).fetchall()
+        mods.update(row[0] for row in rows)
+    for mod_abbreviation in mods:
+        reset_workflow_tags_after_deleting_main_pdf(db, str(reference_id), mod_abbreviation, change_file_status)
+        if change_file_status is False:
+            manual_tet_count = delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
+            if manual_tet_count > 0:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail="Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags.")
 
 
 def merge_referencefiles(db: Session,
@@ -230,7 +322,19 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
-    if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["file_extension"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
+    if (
+        metadata["file_class"] == 'main'
+        and metadata["file_publication_status"] == 'final'
+        and metadata["file_extension"] == 'pdf'
+        and metadata.get("pdf_type") in (None, '')
+    ):
+        metadata["pdf_type"] = 'pdf'
+
+    if metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final' and metadata['file_extension'] == 'pdf':
+        if 'pdf_type' not in metadata or metadata["pdf_type"] == '':
+            metadata["pdf_type"] = 'pdf'
+
+    if not upload_if_already_converted and metadata["mod_abbreviation"] and metadata["pdf_type"] == 'pdf' and metadata['file_class'] == 'main' and metadata['file_publication_status'] == 'final':
         workflow_tag_atp_id = get_current_workflow_status(db,
                                                           metadata["reference_curie"],
                                                           text_conversion_process_atp_id,
@@ -271,13 +375,13 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     cleanup_old_pdf_file(db, metadata["reference_curie"], mod_abbreviation)
     transition_WFT_for_uploaded_file(db, metadata["reference_curie"], mod_abbreviation,
-                                     metadata["file_class"], metadata["file_extension"],
+                                     metadata["file_class"], metadata["pdf_type"],
                                      metadata["file_publication_status"])
 
 
-def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, file_extension, file_publication_status):
+def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, pdf_type, file_publication_status, change_file_status=False):
     logger.info("Transition WFT for uploaded file")
-    if file_class == 'main' and file_extension == 'pdf' and file_publication_status == 'final':
+    if file_class == 'main' and pdf_type == 'pdf' and file_publication_status == 'final':
         wft_tag_atp_id = file_uploaded_tag_atp_id
     else:
         wft_tag_atp_id = file_upload_in_progress_tag_atp_id
@@ -293,12 +397,20 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
         mods = {x['abbreviation'] for x in rows}
     else:
         mods = {mod_abbreviation}
-
     for mod in mods:
         try:
             curr_tag_atp_id = get_current_workflow_status(db, reference_curie,
                                                           file_upload_process_atp_id, mod)
-            if curr_tag_atp_id is None or (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+            if change_file_status is False:
+                # for new file upload
+                if curr_tag_atp_id is None or (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+                    transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
+            else:
+                # this should not happen, but just in case
+                if curr_tag_atp_id and curr_tag_atp_id == wft_tag_atp_id:
+                    continue
+                if curr_tag_atp_id and curr_tag_atp_id == file_uploaded_tag_atp_id:
+                    cleanup_wft_tet_tags_for_deleted_main_pdf(db, ref.reference_id, {mod}, mod, change_file_status)
                 transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
         except Exception as e:
             db.rollback()
@@ -311,7 +423,7 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
     ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one_or_none()
     if ref:
         reffiles = db.query(ReferencefileModel).filter_by(
-            reference_id=ref.reference_id, file_class='main', file_extension='pdf', pdf_type='pdf').order_by(
+            reference_id=ref.reference_id, file_class='main', pdf_type='pdf', file_publication_status='final').order_by(
                 ReferencefileModel.file_publication_status, ReferencefileModel.date_updated.desc()).all()
 
         if len(reffiles) >= 2:
@@ -359,6 +471,16 @@ def create_metadata(db: Session, request: ReferencefileSchemaPost):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Mod with abbreviation {request.mod_abbreviation} does not exist")
     del request_dict["mod_abbreviation"]
+
+    # if it is a main PDF, set the pdf_type = 'pdf' if it is NULL
+    if (
+        request_dict["file_class"] == 'main'
+        and request_dict["file_publication_status"] == 'final'
+        and request_dict["file_extension"] == 'pdf'
+        and request_dict.get("pdf_type") in (None, '')
+    ):
+        request_dict["pdf_type"] = 'pdf'
+
     new_ref_file_obj = ReferencefileModel(**request_dict)
     db.add(new_ref_file_obj)
     db.commit()

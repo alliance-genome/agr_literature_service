@@ -63,7 +63,7 @@ def get_data(name_to_atp):
 
     for entry in ('entity', 'allele', 'antibody', 'gene', 'species', 'strain', 'transgenic allele'):
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': 'reference classification complete',
             'to': f'{entry} extraction needed',
             'condition': f'{entry}_extraction_job',
@@ -72,24 +72,34 @@ def get_data(name_to_atp):
         }
         transition_data.append(item)
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': f'{entry} extraction needed',
             'to': f'{entry} extraction in progress',
             'condition': 'on_start'
         }
         transition_data.append(item)
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': f'{entry} extraction in progress',
             'to': f'{entry} extraction failed',
             'condition': 'on_failed'
         }
         transition_data.append(item)
         item = {
-            'mod': 'ALL',
+            'mod': 'WB',
             'from': f'{entry} extraction in progress',
             'to': f'{entry} extraction complete',
             'condition': 'on_success'
         }
         transition_data.append(item)
+    # we want to remove some too if they exist:
+    for entry in ('entity', 'allele', 'antibody', 'gene',
+                  'species', 'strain', 'transgenic allele'):
+        for result in ("needed", "complete", "in progress", 'failed'):
+            item = {
+                'mod': 'NOT_WB',
+                'from': f'{entry} extraction {result}',
+                'to': 'ALL',
+                'delete': True}
+            transition_data.append(item)
     return transition_data

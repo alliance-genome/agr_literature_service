@@ -6,6 +6,7 @@ import requests
 from fastapi import UploadFile
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from lxml import etree
 
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
@@ -32,8 +33,6 @@ def main():
     for job in jobs:
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
-        # set to in progress WF tag as soon as the PDF => TEI starts
-        job_change_atp_code(db, reference_workflow_tag_id, "on_start")
         mod_id = job['mod_id']
         reference_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == ref_id).one().curie
         mod_abbreviation = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_id).one().abbreviation
@@ -43,7 +42,6 @@ def main():
         if ref_file_id_to_convert:
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == ref_file_id_to_convert).one()
-            # TODO: job starts here - set to in_progress once we have the new ATP node
             file_content = download_file(db=db, referencefile_id=ref_file_id_to_convert,
                                          mod_access=OktaAccess.ALL_ACCESS, use_in_api=False)
             response = convert_pdf_with_grobid(file_content)
@@ -60,17 +58,22 @@ def main():
                     "is_annotation": None,
                     "mod_abbreviation": mod_abbreviation
                 }
-                if response.content == "[NO_BLOCKS] PDF parsing resulted in empty content":
+                root = etree.fromstring(response.content)  # Check for empty elements that indicate failure
+                title = root.xpath('//tei:title[@level="a"]', namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
+                if (response.content == "[NO_BLOCKS] PDF parsing resulted in empty content" or title is None
+                        or title[0].text is None):
                     job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                 else:
                     file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
                                                                           filename=ref_file_obj.display_name),
                                 upload_if_already_converted=True)
                     job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+            elif response.status_code == 500:
+                logger.error(f"Cannot convert referencefile with ID {str(ref_file_id_to_convert)}: {response.text}")
+                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
-                             f"Status code: {response.status_code}")
-                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
+                             f"Will retry in the future. Status code: {response.status_code}")
 
 
 if __name__ == '__main__':

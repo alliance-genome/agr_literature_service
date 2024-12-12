@@ -3,11 +3,11 @@ workflow_tag_model.py
 ==================
 """
 
-from typing import Dict
+from typing import Dict, List
 
 from sqlalchemy import (Column, ForeignKey, Integer,
                         String)
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -59,6 +59,8 @@ class WorkflowTagModel(AuditedModel, Base):
         "ModModel",
         foreign_keys="WorkflowTagModel.mod_id"
     )
+
+    dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_workflow_tag")  # type: ignore  # noqa
 
     def __str__(self):
         """

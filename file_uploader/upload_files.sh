@@ -40,7 +40,7 @@ upload_file () {
   # Check if the response contains a "detail" field with specific phrases
   detail_message=$(echo "$response" | jq -r '.detail // empty')
 
-  if [[ "${detail_message}" == *"is currently in progress"* && "${detail_message}" == *"process is complete before uploading any files"* ]]; then
+  if [[ ("${detail_message}" == *"is currently in progress"* && "${detail_message}" == *"process is complete before uploading any files"*) || "${detail_message}" == *"Curated topic and entity tags or automated tags generated from your MOD"* ]]; then
     echo "INFO: ${detail_message}"
     return
   fi

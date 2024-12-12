@@ -7,13 +7,20 @@ from typing import List, Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, subqueryload
 
 from agr_literature_service.api.crud.reference_resource import (add_reference_resource,
                                                                 create_obj)
-from agr_literature_service.api.models import (CrossReferenceModel, ReferenceModel, ResourceDescriptorModel)
+from agr_literature_service.api.models import (
+    CrossReferenceModel,
+    ReferenceModel,
+    ResourceDescriptorModel
+)
+
+
+# from agr_literature_service.api.models.cross_reference_model import sgd_id_seq
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -32,10 +39,11 @@ def get_cross_reference(db: Session, curie_or_id: str) -> CrossReferenceModel:
     return cross_reference
 
 
-def create(db: Session, cross_reference) -> int:
+def create(db: Session, cross_reference, mod_abbreviation=None) -> int:
     cross_reference_data = jsonable_encoder(cross_reference)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
+
     try:
         db.add(db_obj)
         db.commit()
@@ -46,9 +54,22 @@ def create(db: Session, cross_reference) -> int:
             error_details = f"Error details: {str(orig_args[0])}"
         else:
             error_details = f"Error details: {str(e)}"
+        if (
+            mod_abbreviation and mod_abbreviation in ['WB', 'SGD']
+            and 'constraint "idx_curie_prefix_ref_no_cgc"' in error_details
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Another curator has added this paper to the {mod_abbreviation} corpus. "
+                    "Please reload the page and try again."
+                )
+            )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot add cross reference with curie {cross_reference_data['curie']}. {error_details}"
+            detail=(
+                f"Cannot add cross-reference with CURIE {cross_reference_data['curie']}. Error: {error_details}"
+            )
         )
     return int(db_obj.cross_reference_id)
 
@@ -129,9 +150,28 @@ def format_cross_reference_data(db: Session, cross_reference_object: CrossRefere
     return cross_reference_data
 
 
+def custom_jsonable_encoder(obj, exclude_fields=None):
+    """ Custom jsonable_encoder that excludes specified fields.
+
+    Args:
+        obj (any): The object to encode.
+        exclude_fields (set): A set of field names to exclude.
+
+    Returns:
+        dict: The encoded object.
+    """
+    if exclude_fields is None:
+        exclude_fields = set()
+    encoded_obj = {}
+    for attr, value in obj.__dict__.items():
+        if not attr.startswith('_sa_') and attr not in exclude_fields:
+            encoded_obj[attr] = jsonable_encoder(value)
+    return encoded_obj
+
+
 def show(db: Session, curie_or_cross_reference_id: str) -> dict:
     cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
-    cross_reference_data = jsonable_encoder(cross_reference)
+    cross_reference_data = custom_jsonable_encoder(cross_reference, exclude_fields={"cross_references"})
     db_prefix = cross_reference.curie.split(":")[0]
     resource_descriptor = db.query(ResourceDescriptorModel).filter(
         ResourceDescriptorModel.db_prefix == db_prefix).first()
@@ -147,46 +187,53 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
              CrossReferenceModel.is_obsolete.is_(False),
              CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
         CrossReferenceModel.is_obsolete).first()
-    if not cross_reference:
-        env_state = os.environ.get("ENV_STATE", "")
-        if env_state == "prod":
-            ## do not create MOD IDs for prod at the momemt
-            return
-        if mod_abbreviation == 'WB':
-            new_wbpaper_number = 1
-            cross_reference = db.query(CrossReferenceModel.curie).filter(
-                and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),
-                     CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
-                CrossReferenceModel.curie.desc()).first()
-            if cross_reference:
-                new_wbpaper_number = int(cross_reference.curie[11:]) + 1
-            new_wbpaper_string = str(new_wbpaper_number).zfill(8)
-            new_wbpaper_curie = f"WB:WBPaper{new_wbpaper_string}"
-            new_wbpaper_xref = {
-                "curie": new_wbpaper_curie,
-                "pages": [
-                    "reference"
-                ],
-                "reference_curie": reference_obj.curie
-            }
-            create(db, new_wbpaper_xref)
-        elif mod_abbreviation == 'SGD':
-            new_sgdid_number = 100000001
-            cross_reference = db.query(CrossReferenceModel.curie).filter(
-                and_(CrossReferenceModel.curie.startswith("SGD:S100"),
-                     CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
-                CrossReferenceModel.curie.desc()).first()
-            if cross_reference:
-                new_sgdid_number = int(cross_reference.curie[5:]) + 1
-            new_sgdid = f"SGD:S{new_sgdid_number}"
+    if cross_reference:
+        return
+    env_state = os.environ.get("ENV_STATE", "")
+    if env_state == "prod":
+        return
+    if mod_abbreviation not in ['WB', 'SGD']:
+        return
+
+    new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
+    create(db, new_mod_curie, mod_abbreviation)
+
+
+def generate_new_mod_curie(db: Session, mod_abbreviation, ref_curie):
+
+    if mod_abbreviation == 'WB':
+        new_wbpaper_number = 1
+        cross_reference = db.query(CrossReferenceModel.curie).filter(
+            and_(CrossReferenceModel.curie.startswith("WB:WBPaper0"),
+                 CrossReferenceModel.curie_prefix == mod_abbreviation)).order_by(
+            CrossReferenceModel.curie.desc()).first()
+        if cross_reference:
+            new_wbpaper_number = int(cross_reference.curie[11:]) + 1
+        new_wbpaper_string = str(new_wbpaper_number).zfill(8)
+        new_wbpaper_curie = f"WB:WBPaper{new_wbpaper_string}"
+        new_wbpaper_xref = {
+            "curie": new_wbpaper_curie,
+            "pages": [
+                "reference"
+            ],
+            "reference_curie": ref_curie
+        }
+        return new_wbpaper_xref
+
+    if mod_abbreviation == 'SGD':
+        row = db.execute(text("SELECT nextval('sgd_id_seq')")).fetchone()
+        if row:
+            sgdid_number = row[0]
+            new_sgdid = f"SGD:S{sgdid_number}"
             new_xref = {
                 "curie": new_sgdid,
                 "pages": [
                     "reference"
                 ],
-                "reference_curie": reference_obj.curie
+                "reference_curie": ref_curie
             }
-            create(db, new_xref)
+            return new_xref
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Cannot create a new SGDID")
 
 
 def set_mod_curie_to_invalid(db, reference_id, mod_abbreviation):

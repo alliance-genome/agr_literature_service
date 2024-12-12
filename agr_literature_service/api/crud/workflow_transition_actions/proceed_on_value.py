@@ -45,13 +45,13 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                 continue
     else:  # Problem currently ONLY category and reference_type allowed
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                            detail="Method {method} not supported")
+                            detail=f"Method {checktype} not supported")
 
     if call_process:
         # sanity check, should start with ATP
         if not new_atp.startswith("ATP:"):
             raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                                detail="Method proceed_on_value with second arg {new_atp} must start with ATP:")
+                                detail=f"Method proceed_on_value with second arg {new_atp} must start with ATP:")
         #  Add new wft for this ref and mod
         wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
                                mod=current_workflow_tag_db_obj.mod,

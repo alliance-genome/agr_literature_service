@@ -4,6 +4,7 @@ import logging
 from datetime import datetime
 # from os import getcwd
 
+
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
 
@@ -219,6 +220,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "field": "authors.name.keyword",
                     "size": facets_limits.get("authors.name.keyword", 10)
                 }
+            },
+            "workflow_tags.workflow_tag_id.keyword": {
+                "terms": {
+                    "field": "workflow_tags.workflow_tag_id.keyword",
+                    "min_doc_count": 0,
+                    "size": facets_limits.get("workflow_tags.workflow_tag_id.keyword", 10)
+                }
             }
         },
         "from": from_entry,
@@ -355,7 +363,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         }
         es_body["query"]["bool"]["must"].append(author_filter_query)
-
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res)
     return formatted_results
@@ -373,9 +380,10 @@ def process_search_results(res):  # pragma: no cover
         "date_created": ref["_source"]["date_created"],
         "abstract": ref["_source"]["abstract"],
         "cross_references": ref["_source"]["cross_references"],
-        "authors": ref["_source"]["authors"],
+        "workflow_tags": ref["_source"]["workflow_tags"],
         "mod_reference_types": ref["_source"]["mod_reference_types"],
         "language": ref["fields"]["language.keyword"],
+        "authors": ref["_source"]["authors"],
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
@@ -393,6 +401,7 @@ def process_search_results(res):  # pragma: no cover
 
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
+    add_curie_to_name_values(res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {}))
 
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
@@ -551,16 +560,14 @@ def add_curie_to_name_values(aggregations):
     curie_keys = [
         bucket["key"] for bucket in aggregations.get("buckets", [])
     ]
-
     curie_to_name_map = get_map_ateam_curies_to_names(
         curies_category="atpterm",
-        curies=[curie_key for curie_key in curie_keys if curie_key.startswith("atp:")]
+        curies=[curie_key for curie_key in curie_keys if curie_key.startswith("atp:") or  curie_key.startswith("ATP:")]
     )
     curie_to_name_map.update(get_map_ateam_curies_to_names(
         curies_category="ecoterm",
         curies=[curie_key for curie_key in curie_keys if curie_key.startswith("eco:")]
     ))
-
     # iterate over the buckets and add names
     for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")

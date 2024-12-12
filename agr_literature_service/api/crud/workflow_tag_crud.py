@@ -1,5 +1,8 @@
 """
 workflow_tag_crud.py
+
+See docs/source/workflow_automation.rst for detailed description on transitioning
+between workflow tags.
 ===========================
 """
 import cachetools.func
@@ -779,3 +782,74 @@ def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: 
         if rows:
             return job_type
     return None
+
+
+def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_id: str, mod_abbreviation: str, change_file_status=False):
+
+    ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
+    reference_id = ref.reference_id
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
+    mod_id = mod.mod_id
+
+    all_text_conversion_wft = get_workflow_tags_from_process("ATP:0000161")
+    all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
+    all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
+    all_workflow_tags = all_text_conversion_wft + all_ref_classification_wft + all_entity_extraction_wft
+
+    try:
+        sql_query = text("""
+        DELETE FROM workflow_tag
+        WHERE reference_id = :reference_id
+        AND mod_id = :mod_id
+        AND workflow_tag_id IN :all_workflow_tags
+        """)
+        db.execute(sql_query, {
+            'reference_id': reference_id,
+            'mod_id': mod_id,
+            'all_workflow_tags': tuple(all_workflow_tags)
+        })
+        db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"An error occurred when resetting text conversion/ref classication/entity extraction for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+
+    if change_file_status is True:
+        return
+
+    try:
+        sql_query = text("""
+        SELECT count(*) FROM referencefile rf, referencefile_mod rfm
+        WHERE rf.reference_id = :reference_id
+        AND rf.referencefile_id = rfm.referencefile_id
+        AND (rfm.mod_id = :mod_id or rfm.mod_id is NULL)
+        """)
+        rows = db.execute(sql_query, {
+            'reference_id': reference_id,
+            'mod_id': mod_id
+        }).fetchall()
+        # files uploaded
+        curr_atp_id = 'ATP:0000134'
+        # to ATP:0000139 (file upload in progress) or ATP:0000141 (file needed)
+        new_atp_id = 'ATP:0000139' if len(rows) else 'ATP:0000141'
+        sql_query = text("""
+        UPDATE workflow_tag
+        SET workflow_tag_id = :new_atp_id
+        WHERE reference_id = :reference_id
+        AND mod_id = :mod_id
+        AND workflow_tag_id = :curr_atp_id
+        """)
+        db.execute(sql_query, {
+            'new_atp_id': new_atp_id,
+            'reference_id': reference_id,
+            'mod_id': mod_id,
+            'curr_atp_id': curr_atp_id
+        })
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")

@@ -10,9 +10,11 @@ from cachetools import TTLCache
 from cachetools.func import ttl_cache
 from fastapi import HTTPException
 from fastapi_okta.okta_utils import get_authentication_token
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette import status
 
+from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
 
@@ -517,3 +519,110 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
             # when there is no entity attached to the paper
             # currently 2% review papers without an entity attached
             topic_entity_tag_data['topic'] = root_topic_atp
+
+
+def delete_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation: str):
+    """
+    for deleting manually added topic entity tags and automated ones imported from mods
+    ATP:0000035 => assertion by author
+    ATP:0000036 => assertion by professional curator / curator assertion
+    """
+
+    ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
+    reference_id = ref.reference_id
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
+    mod_id = mod.mod_id
+    try:
+        sql_query = text("""
+            DELETE FROM topic_entity_tag
+            WHERE reference_id = :reference_id
+            AND topic_entity_tag_source_id IN (
+                SELECT topic_entity_tag_source_id
+                FROM topic_entity_tag_source
+                WHERE secondary_data_provider_id = :mod_id
+                AND (
+                   (source_method = 'abc_literature_system' AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')) OR
+                   (source_method != 'abc_literature_system' AND source_evidence_assertion NOT IN ('ATP:0000035', 'ATP:0000036'))
+                )
+            )
+        """)
+
+        db.execute(sql_query, {
+            'reference_id': reference_id,
+            'mod_id': mod_id
+        })
+        db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"An error occurred when deleting manual tets: {e}")
+
+
+def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbreviation: str):
+    """
+    ATP:0000035 => assertion by author
+    ATP:0000036 => assertion by professional curator / curator assertion
+    """
+
+    ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
+    reference_id = ref.reference_id
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
+    mod_id = mod.mod_id
+    try:
+        sql_query = text("""
+        DELETE FROM topic_entity_tag
+        WHERE reference_id = :reference_id
+        AND EXISTS (
+            SELECT 1
+            FROM topic_entity_tag_source
+            WHERE topic_entity_tag_source_id = topic_entity_tag.topic_entity_tag_source_id
+            AND secondary_data_provider_id = :mod_id
+            AND source_method = 'abc_literature_system'
+        )
+        AND NOT EXISTS (
+            SELECT 1
+            FROM topic_entity_tag_source
+            WHERE topic_entity_tag_source_id = topic_entity_tag.topic_entity_tag_source_id
+            AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')
+        )
+        """)
+        db.execute(sql_query, {
+            'reference_id': reference_id,
+            'mod_id': mod_id
+        })
+        db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"An error occurred when deleting non-manual tets: {e}")
+
+    sql_query = text("""
+        SELECT * FROM topic_entity_tag
+        WHERE reference_id = :reference_id
+        AND topic_entity_tag_source_id in (
+            SELECT topic_entity_tag_source_id
+            FROM topic_entity_tag_source
+            WHERE secondary_data_provider_id = :mod_id
+            AND (
+               (source_method = 'abc_literature_system' AND source_evidence_assertion IN ('ATP:0000035', 'ATP:0000036')) OR
+               (source_method != 'abc_literature_system' AND source_evidence_assertion NOT IN ('ATP:0000035', 'ATP:0000036'))
+            )
+        )
+    """)
+
+    rows = db.execute(sql_query, {
+        'reference_id': reference_id,
+        'mod_id': mod_id
+    }).fetchall()
+
+    return len(rows)
