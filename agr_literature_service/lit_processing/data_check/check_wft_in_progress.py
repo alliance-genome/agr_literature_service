@@ -141,12 +141,12 @@ def check_wft_in_progress(db_session, debug=True):
         #    for row in rows:
         #        print(f"row:{row}")
 
-        wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['current wft']),
+        wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['start of progress']),
                                                          WorkflowTagModel.date_updated > start_date).all()
 
         for wft in wfts:
             # So this reference failed or is on progress so check when it was 'started'
-            #sql = text(f"SELECT COUNT(1) FROM workflow_tag "
+            # sql = text(f"SELECT COUNT(1) FROM workflow_tag "
             #           f"  WHERE reference_id = {wft.reference_id} AND"
             #           f"        workflow_tag_id = '{phase['start of progress']}' AND"
             #           f"        date_created > '{start_date}'")
