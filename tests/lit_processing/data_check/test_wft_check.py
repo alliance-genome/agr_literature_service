@@ -48,6 +48,10 @@ class TestWorkflowTagCheck:
             # transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
             # for tran in transactions:
             #     print(tran)
+            # debug uncomment if needed
+            wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
+            for wft in wfts:
+               print(f"1) Before check: {wft}")
 
             # run the check which should set the wft to 'needed'
             check_wft_in_progress(db, debug=True)
@@ -59,9 +63,9 @@ class TestWorkflowTagCheck:
             #     print(tran)
 
             # debug uncomment if needed
-            # wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
-            # for wft in wfts:
-            #    print(wft)
+            wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
+            for wft in wfts:
+               print("2) Post check: {wft}")
 
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
