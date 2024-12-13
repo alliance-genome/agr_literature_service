@@ -96,4 +96,3 @@ class TestWorkflowTagCheck:
                 print(f"3) Before check: {wft}")
 
             check_wft_in_progress(db, debug=True)
-
