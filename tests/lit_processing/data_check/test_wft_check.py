@@ -65,7 +65,7 @@ class TestWorkflowTagCheck:
             # debug uncomment if needed
             wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
             for wft in wfts:
-               print("2) Post check: {wft}")
+               print(f"2) Post check: {wft}")
 
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
@@ -78,7 +78,7 @@ class TestWorkflowTagCheck:
             # Need to edit the version table!!!
             sql = f"""update workflow_tag
                          set date_created = '2023-11-01'
-                         where reference_workflow_tag_id = '{start_wft.reference_workflow_tag_id}' """
+                         where reference_workflow_tag_id = {start_wft.reference_workflow_tag_id} """
             db.execute(text(sql))
             db.commit()
 
