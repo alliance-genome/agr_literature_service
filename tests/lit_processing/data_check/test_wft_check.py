@@ -54,13 +54,7 @@ class TestWorkflowTagCheck:
                 print(f"1) Before check: {wft}")
 
             # run the check which should set the wft to 'needed'
-            # check_wft_in_progress(db, debug=True)
             check_wft_in_progress(db, debug=False)
-
-            # debug, uncomment if needed
-            # transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
-            # for tran in transactions:
-            #     print(tran)
 
             # debug uncomment if needed
             wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
@@ -75,6 +69,7 @@ class TestWorkflowTagCheck:
             db.commit()
 
             # set "initial state" > 6 weeks ago and run again
+            # so that it set it to failed as tried to many times.
             # Need to edit the version table!!!
             sql = f"""update workflow_tag
                          set date_created = '2023-11-01'
@@ -82,17 +77,12 @@ class TestWorkflowTagCheck:
             db.execute(text(sql))
             db.commit()
 
-            # debug, uncomment if needed
+            # sanity check, uncomment if needed
             start_wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000134").one()
             print(f"NEW start date: {start_wft} {start_wft.date_created}")
-            transactions = client.get(url=f"/workflow_tag/{start_wft.reference_workflow_tag_id}/versions").json()
-            for tran in transactions:
-                print(tran)
-            for version in start_wft.versions:
-                print(version.changeset)
 
-            wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
-            for wft in wfts:
-                print(f"3) Before check: {wft}")
+            check_wft_in_progress(db, debug=False)
 
-            check_wft_in_progress(db, debug=True)
+            # in progress should now be failed.
+            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
+            assert wft.workflow_tag_id == "ATP:0000164"
