@@ -53,6 +53,10 @@ class TestWorkflowTagCheck:
             for tran in transactions:
                 print(tran)
 
+            wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
+            for wft in wfts:
+                print(wft)
+
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
 
