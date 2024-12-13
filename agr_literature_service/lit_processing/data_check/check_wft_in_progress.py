@@ -152,7 +152,7 @@ def check_wft_in_progress(db_session, debug=True):
             #           f"        date_created > '{start_date}'")
             orig_wft = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == phase['start of progress'],
                                                                  WorkflowTagModel.reference_id == wft.reference_id,
-                                                                 WorkflowTagModel.date_created <= start_date).first()
+                                                                 WorkflowTagModel.date_created >= start_date).first()
 
             print(f"orign with time stamp check:{orig_wft}")
             if orig_wft:  # need to set back to try again
