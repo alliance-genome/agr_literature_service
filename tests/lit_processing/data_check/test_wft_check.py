@@ -42,7 +42,7 @@ class TestWorkflowTagCheck:
             wft2 = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft2.workflow_tag_id == "ATP:0000139"
 
-            transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions").json()
+            transactions = client.get(url=f"/workflow_tag/{wft2.reference_id}/versions").json()
             for tran in transactions:
                 print(tran)
 
