@@ -82,7 +82,12 @@ class TestWorkflowTagCheck:
             transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
             for tran in transactions:
                 print(tran)
+            for version in wft2.versions:
+                print(version)
+
+
             check_wft_in_progress(db, debug=False)
+
 
             # should now be set to failed (164)
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
