@@ -545,6 +545,16 @@ def show(db: Session, reference_workflow_tag_id: int):
     else:
         workflow_tag_data["mod_abbreviation"] = ""
     del workflow_tag_data["mod_id"]
+    ## add email address for updated_by
+    sql_query_str = """
+        SELECT email
+        FROM users
+        WHERE id = :okta_id
+    """
+    sql_query = text(sql_query_str)
+    result = db.execute(sql_query, {'okta_id': workflow_tag_data["updated_by"]})
+    row = result.fetchone()
+    workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"] if row is None else row[0]
 
     return workflow_tag_data
 

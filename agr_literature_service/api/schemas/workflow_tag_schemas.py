@@ -19,6 +19,7 @@ class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
     reference_workflow_tag_id: Optional[int]
     workflow_tag_id: str
     mod_abbreviation: Optional[str]
+    updated_by_email: str
 
 
 # used by workflow_tag_crud
