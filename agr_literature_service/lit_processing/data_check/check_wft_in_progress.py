@@ -152,8 +152,8 @@ def check_wft_in_progress(db_session, debug=True):
                        f"        date_created > '{start_date}'")
             count = db_session.execute(sql).fetchall()
             if debug:
-                print(f"SQL:{sql}\tcount:{count}")
-            if count[0]:  # need to set back to try again
+                print(f"SQL:{sql}\tcount:{count[0][0]}")
+            if count[0][0]:  # need to set back to try again
                 if not debug:
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
