@@ -51,7 +51,7 @@ class TestWorkflowTagCheck:
             # debug uncomment if needed
             wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
             for wft in wfts:
-               print(f"1) Before check: {wft}")
+                print(f"1) Before check: {wft}")
 
             # run the check which should set the wft to 'needed'
             check_wft_in_progress(db, debug=True)
