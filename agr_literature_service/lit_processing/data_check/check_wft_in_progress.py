@@ -91,13 +91,10 @@ def get_date_weeks_ago(weeks):
 def send_report_to_slack(mod, rows_to_report):
 
     email_subject = f"Report on stuck {mod} Papers in workflows"
-
-    file_path = path.join(environ['LOG_PATH'], 'data_check/')
-    print(f"file path: {file_path}")
+    base_dir = environ.get("LOG_PATH", "./")
+    file_path = path.join(base_dir, 'data_check/')
     log_url = environ['LOG_URL'] + "data_check/"
-    print(f"log_url: {log_url}")
     log_file = file_path + f"{mod}_check_workflow_problems.log"
-    print(f"log file: {log_file}")
 
     with open(log_file, "w") as fw:
         for row in rows_to_report:
