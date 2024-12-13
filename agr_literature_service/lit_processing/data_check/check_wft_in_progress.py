@@ -88,7 +88,7 @@ def get_date_weeks_ago(weeks):
     return date.today() - timedelta(weeks=weeks)
 
 
-def send_report_to_slack(mod, rows_to_report, debug=True):
+def send_report_to_slack(mod, rows_to_report):
 
     email_subject = f"Report on stuck {mod} Papers in workflows"
 
@@ -169,11 +169,12 @@ def check_wft_in_progress(db_session, debug=True):
                     wft.workflow_tag_id = phase['set to failed']
                 else:
                     print(f"Setting to failed for {wft}")
+    db_session.commit()
 
     mod_abbr = {}
     for mod_id in slack_messages.keys():
         if mod_id not in mod_abbr:
-            mod_abbr = get_mod_abbreviations(db_session)
+            mod_abbr = get_mod_abbreviations(db_session, debug)
             send_report_to_slack(mod_abbr[mod_id], slack_messages[mod_id])
 
 
@@ -181,5 +182,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-d', '--debug', help='run in debug mode, just print', type=bool, required=False, default=False)
     args = parser.parse_args()
-    db_session = create_postgres_session(False)
-    check_wft_in_progress(db_session, debug=args.debug)
+    db = create_postgres_session(False)
+    check_wft_in_progress(db, debug=args.debug)
