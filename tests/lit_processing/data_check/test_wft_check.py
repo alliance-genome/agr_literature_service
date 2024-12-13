@@ -80,11 +80,11 @@ class TestWorkflowTagCheck:
             db.execute(text(sql))
             db.commit()
             # debug, uncomment if needed
-            transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
+            transactions = client.get(url=f"/workflow_tag/{start_wft.reference_workflow_tag_id}/versions").json()
             for tran in transactions:
                 print(tran)
-            for version in wft2.versions:
-                print(version)
+            for version in start_wft.versions:
+                print(version.changeset)
 
             check_wft_in_progress(db, debug=False)
 
