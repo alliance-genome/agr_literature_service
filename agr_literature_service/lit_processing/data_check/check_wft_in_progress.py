@@ -146,7 +146,7 @@ def check_wft_in_progress(db_session, debug=True):
 
         for wft in wfts:
             # So this reference failed or is on progress so check when it was 'started'
-            sql = text(f"SELECT COUNT(1) FROM workflow_tag_version "
+            sql = text(f"SELECT COUNT(1) FROM workflow_tag "
                        f"  WHERE reference_id = {wft.reference_id} AND"
                        f"        workflow_tag_id = '{phase['start of progress']}' AND"
                        f"        date_created > '{start_date}'")

@@ -72,11 +72,9 @@ class TestWorkflowTagCheck:
 
             # set "initial state" > 6 weeks ago and run again
             # Need to edit the version table!!!
-            sql = f"""update workflow_tag_version
+            sql = f"""update workflow_tag
                          set date_created = '2023-11-01'
-                         where workflow_tag_id = '{start_wft.workflow_tag_id}' and
-                               reference_id = {wft1.reference_id} and
-                               operation_type = 0 """
+                         where reference_workflow_tag_id = '{start_wft.reference_workflow_tag_id}' """
             db.execute(text(sql))
             db.commit()
             # debug, uncomment if needed
