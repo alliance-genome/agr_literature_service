@@ -107,7 +107,7 @@ def send_report_to_slack(mod, rows_to_report):
 
 def get_mod_abbreviations(db_session, debug):
     mod_abbreviations = {}
-    sql = text("SELECT mod_id, mod_abbreviation FROM mod")
+    sql = text("SELECT mod_id, abbreviation FROM mod")
     rows = db_session.execute(sql).fetchall()
     for row in rows:
         mod_abbreviations[row[0]] = row[1]
