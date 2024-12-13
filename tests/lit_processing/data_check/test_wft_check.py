@@ -26,7 +26,6 @@ class TestWorkflowTagCheck:
             assert response.status_code == status.HTTP_201_CREATED
             start_wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000134").one()
 
-
             # Add "text_conversion needed"
             new_wt = {"reference_curie": test_reference.new_ref_curie,
                       "mod_abbreviation": test_mod.new_mod_abbreviation,
@@ -75,7 +74,7 @@ class TestWorkflowTagCheck:
             # Need to edit the version table!!!
             sql = f"""update workflow_tag_version
                          set date_created = '2023-11-01'
-                         where workflow_tag_id = '{start_wft}' and
+                         where workflow_tag_id = '{start_wft.workflow_tag_id}' and
                                reference_id = {wft1.reference_id} and
                                operation_type = 0 """
             db.execute(text(sql))
@@ -87,9 +86,7 @@ class TestWorkflowTagCheck:
             for version in wft2.versions:
                 print(version)
 
-
             check_wft_in_progress(db, debug=False)
-
 
             # should now be set to failed (164)
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
