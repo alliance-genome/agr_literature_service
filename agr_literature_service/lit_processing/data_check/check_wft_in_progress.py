@@ -130,16 +130,16 @@ def check_wft_in_progress(db_session, debug=True):
     slack_messages = {}
     for phase in in_progress:
         start_date = get_date_weeks_ago(phase['time limit in weeks'])
-        print(start_date)
         # get those that failed or in progress
-        if debug:  # Try via sql too as backup and testing, REMOVE later
-            wft_str = "'" + "', '".join(phase['current wft']) + "'"
-            sql = text(f"select reference_id, reference_workflow_tag_id"
-                       f" from workflow_tag where workflow_tag_id in ({wft_str}) and date_updated >= '{start_date}' ")
-            print(sql)
-            rows = db_session.execute(sql).fetchall()
-            for row in rows:
-                print(f"row:{row}")
+        # dbugging code, uncomment if needed
+        # if debug:  # Try via sql too as backup and testing, REMOVE later
+        #    wft_str = "'" + "', '".join(phase['current wft']) + "'"
+        #    sql = text(f"select reference_id, reference_workflow_tag_id"
+        #               f" from workflow_tag where workflow_tag_id in ({wft_str}) and date_updated >= '{start_date}' ")
+        #    print(sql)
+        #    rows = db_session.execute(sql).fetchall()
+        #    for row in rows:
+        #        print(f"row:{row}")
 
         wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['current wft']),
                                                          WorkflowTagModel.date_updated > start_date).all()
@@ -150,7 +150,6 @@ def check_wft_in_progress(db_session, debug=True):
                        f"  WHERE reference_id = {wft.reference_id} AND"
                        f"        workflow_tag_id = '{phase['start of progress']}' AND"
                        f"        date_created > '{start_date}'")
-            print(sql)
             count = db_session.execute(sql).fetchall()
             if debug:
                 print(f"SQL:{sql}\tcount:{count}")

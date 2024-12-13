@@ -1,6 +1,7 @@
 import pytest  # noqa
 from fastapi import status
 from starlette.testclient import TestClient
+from sqlalchemy import text
 from agr_literature_service.api.main import app
 from ...api.fixtures import auth_headers  # noqa
 from ...api.test_mod import test_mod  # noqa
@@ -42,21 +43,24 @@ class TestWorkflowTagCheck:
             wft2 = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft2.workflow_tag_id == "ATP:0000198"
 
-            transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
-            for tran in transactions:
-                print(tran)
+            # debug, uncomment if needed
+            # transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
+            # for tran in transactions:
+            #     print(tran)
 
             # run the check which should set the wft to 'needed'
             check_wft_in_progress(db, debug=True)
             check_wft_in_progress(db, debug=False)
 
-            transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
-            for tran in transactions:
-                print(tran)
+            # debug, uncomment if needed
+            # transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
+            # for tran in transactions:
+            #     print(tran)
 
-            wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
-            for wft in wfts:
-                print(wft)
+            # debug uncomment if needed
+            # wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
+            # for wft in wfts:
+            #    print(wft)
 
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
@@ -64,5 +68,18 @@ class TestWorkflowTagCheck:
             # set back to in progress
             wft.workflow_tag_id = "ATP:0000139"
             db.commit()
+
             # set "initial state" > 6 weeks ago and run again
             # Need to edit the version table!!!
+            sql = f"""update workflow_tag_version 
+                         set date_created = '2023-11-01' 
+                         where workflow_tag_id = 'ATP:0000134' and
+                               reference_id = {wft1.reference_id} and
+                               operation_type = 0 """
+            db.execute(text(sql))
+
+            check_wft_in_progress(db, debug=False)
+
+            # should now be set to failed (164)
+            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
+            assert wft.workflow_tag_id == "ATP:0000164"
