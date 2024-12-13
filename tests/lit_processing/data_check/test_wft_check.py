@@ -77,7 +77,10 @@ class TestWorkflowTagCheck:
                          where reference_workflow_tag_id = '{start_wft.reference_workflow_tag_id}' """
             db.execute(text(sql))
             db.commit()
+
             # debug, uncomment if needed
+            start_wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000134").one()
+            print(f"NEW start date: {start_wft}")
             transactions = client.get(url=f"/workflow_tag/{start_wft.reference_workflow_tag_id}/versions").json()
             for tran in transactions:
                 print(tran)
