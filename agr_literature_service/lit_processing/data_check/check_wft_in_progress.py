@@ -92,6 +92,8 @@ def send_report_to_slack(mod, rows_to_report):
 
     email_subject = f"Report on stuck {mod} Papers in workflows"
     base_dir = environ.get("LOG_PATH", "./")
+    if not base_dir:
+        base_dir = './'
     file_path = path.join(base_dir, 'data_check/')
     log_url = environ['LOG_URL'] + "data_check/"
     log_file = file_path + f"{mod}_check_workflow_problems.log"
