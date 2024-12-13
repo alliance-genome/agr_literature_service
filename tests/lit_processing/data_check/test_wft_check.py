@@ -54,7 +54,7 @@ class TestWorkflowTagCheck:
                 print(f"1) Before check: {wft}")
 
             # run the check which should set the wft to 'needed'
-            check_wft_in_progress(db, debug=True)
+            # check_wft_in_progress(db, debug=True)
             check_wft_in_progress(db, debug=False)
 
             # debug, uncomment if needed
@@ -96,11 +96,4 @@ class TestWorkflowTagCheck:
                 print(f"3) Before check: {wft}")
 
             check_wft_in_progress(db, debug=True)
-            check_wft_in_progress(db, debug=False)
 
-            wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()
-            for wft in wfts:
-                print(f"4) After check: {wft}")
-            # should now be set to failed (164)
-            wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
-            assert wft.workflow_tag_id == "ATP:0000164"

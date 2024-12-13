@@ -130,31 +130,15 @@ def check_wft_in_progress(db_session, debug=True):
     slack_messages = {}
     for phase in in_progress:
         start_date = get_date_weeks_ago(phase['time limit in weeks'])
-        # get those that failed or in progress
-        # dbugging code, uncomment if needed
-        # if debug:  # Try via sql too as backup and testing, REMOVE later
-        #    wft_str = "'" + "', '".join(phase['current wft']) + "'"
-        #    sql = text(f"select reference_id, reference_workflow_tag_id"
-        #               f" from workflow_tag where workflow_tag_id in ({wft_str}) and date_updated >= '{start_date}' ")
-        #    print(sql)
-        #    rows = db_session.execute(sql).fetchall()
-        #    for row in rows:
-        #        print(f"row:{row}")
 
         wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['current wft']),
                                                          WorkflowTagModel.date_updated > start_date).all()
 
         for wft in wfts:
-            # So this reference failed or is on progress so check when it was 'started'
-            # sql = text(f"SELECT COUNT(1) FROM workflow_tag "
-            #           f"  WHERE reference_id = {wft.reference_id} AND"
-            #           f"        workflow_tag_id = '{phase['start of progress']}' AND"
-            #           f"        date_created > '{start_date}'")
             orig_wft = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == phase['start of progress'],
                                                                  WorkflowTagModel.reference_id == wft.reference_id,
                                                                  WorkflowTagModel.date_created >= start_date).first()
 
-            print(f"orign with time stamp check:{orig_wft}")
             if orig_wft:  # need to set back to try again
                 if not debug:
                     if phase['slack message']:
