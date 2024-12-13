@@ -157,7 +157,7 @@ def check_wft_in_progress(db_session, debug=True):
                         if wft.mod_id not in slack_messages:
                             slack_messages[wft.mod_id] = []
                         slack_messages[wft.mod_id].append(f"Setting {wft['reference_id']} to needed from {wft.workflow_tag_id}")
-                        wft.workflow_tag_id = phase['set to start again']
+                    wft.workflow_tag_id = phase['set to start again']
                 else:
                     print(f"Setting to try again for {wft}")
             else:      # need to set to failed
