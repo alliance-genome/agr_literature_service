@@ -71,7 +71,7 @@ class TestWorkflowTagCheck:
             assert wft.workflow_tag_id == "ATP:0000162"
 
             # set back to in progress
-            wft.workflow_tag_id = "ATP:0000139"
+            wft.workflow_tag_id = "ATP:0000198"
             db.commit()
 
             # set "initial state" > 6 weeks ago and run again
@@ -95,6 +95,7 @@ class TestWorkflowTagCheck:
             for wft in wfts:
                 print(f"3) Before check: {wft}")
 
+            check_wft_in_progress(db, debug=True)
             check_wft_in_progress(db, debug=False)
 
             wfts = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_id == wft2.reference_id).all()

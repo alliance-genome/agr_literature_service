@@ -120,12 +120,12 @@ def get_mod_abbreviations(db_session, debug):
 
 
 def check_wft_in_progress(db_session, debug=True):
-    in_progress = [{'current wft': ['ATP:0000198', 'ATP:0000164'],  # failed or in progress
+    in_progress = [{'current wft': ['ATP:0000198', 'ATP:0000164'],  # in progress or failed
                     'start of progress': 'ATP:0000134',             # file uploaded, sets start of process
-                    'set to failed': 'ATP:0000164',                # what to do on failed
-                    'set to try again': 'ATP:0000162',             # what to set to if okay to try again
-                    'time limit in weeks': 6,                      # if older than this, ignore
-                    'slack message': True                          # if true notify slack
+                    'set to failed': 'ATP:0000164',                 # what to do on failed
+                    'set to try again': 'ATP:0000162',              # what to set to if okay to try again
+                    'time limit in weeks': 6,                       # if older than this, ignore
+                    'slack message': True                           # if true notify slack
                     }]
     slack_messages = {}
     for phase in in_progress:
