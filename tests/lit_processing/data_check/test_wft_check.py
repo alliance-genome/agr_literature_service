@@ -35,12 +35,12 @@ class TestWorkflowTagCheck:
             # transition to 'in progress'
             # Transition table not loaded so change the values directly!
             wft1 = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000162").one()
-            wft1.workflow_tag_id = "ATP:0000139"
+            wft1.workflow_tag_id = "ATP:0000198)"
             db.commit()
 
-            # sanity check, make sure wft is not 139
+            # sanity check, make sure wft is 198
             wft2 = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
-            assert wft2.workflow_tag_id == "ATP:0000139"
+            assert wft2.workflow_tag_id == "ATP:0000198)"
 
             transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
             for tran in transactions:
