@@ -71,13 +71,17 @@ class TestWorkflowTagCheck:
 
             # set "initial state" > 6 weeks ago and run again
             # Need to edit the version table!!!
-            sql = f"""update workflow_tag_version 
-                         set date_created = '2023-11-01' 
+            sql = f"""update workflow_tag_version
+                         set date_created = '2023-11-01'
                          where workflow_tag_id = 'ATP:0000134' and
                                reference_id = {wft1.reference_id} and
                                operation_type = 0 """
             db.execute(text(sql))
-
+            db.commit()
+            # debug, uncomment if needed
+            transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
+            for tran in transactions:
+                print(tran)
             check_wft_in_progress(db, debug=False)
 
             # should now be set to failed (164)
