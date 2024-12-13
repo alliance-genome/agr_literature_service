@@ -146,13 +146,16 @@ def check_wft_in_progress(db_session, debug=True):
 
         for wft in wfts:
             # So this reference failed or is on progress so check when it was 'started'
-            sql = text(f"SELECT COUNT(1) FROM workflow_tag "
-                       f"  WHERE reference_id = {wft.reference_id} AND"
-                       f"        workflow_tag_id = '{phase['start of progress']}' AND"
-                       f"        date_created > '{start_date}'")
-            count = db_session.execute(sql).fetchall()
-            print(f"SQL:{sql}\tcount:{count[0][0]}")
-            if count[0][0]:  # need to set back to try again
+            #sql = text(f"SELECT COUNT(1) FROM workflow_tag "
+            #           f"  WHERE reference_id = {wft.reference_id} AND"
+            #           f"        workflow_tag_id = '{phase['start of progress']}' AND"
+            #           f"        date_created > '{start_date}'")
+            orig_wft = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == phase['current wft'],
+                                                                 WorkflowTagModel.reference_id == wft.reference_id,
+                                                                 WorkflowTagModel.date_updated >= start_date).first()
+
+            print(f"orign with time stamp check:{orig_wft}")
+            if orig_wft:  # need to set back to try again
                 if not debug:
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
