@@ -116,8 +116,7 @@ def get_mod_abbreviations(db_session, debug):
     return mod_abbreviations
 
 
-def check_wft_in_progress(debug=True):
-    db_session = create_postgres_session(False)
+def check_wft_in_progress(db_session, debug=True):
     in_progress = [{'current wft': ['ATP:0000198', 'ATP:0000164'],  # failed or in progress
                     'start of progress': 'ATP0000134',             # file uploaded, sets start of process
                     'set to failed': 'ATP:0000164',                # what to do on failed
@@ -181,5 +180,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('-d', '--debug', help='run in debug mode, just print', type=bool, required=False, default=False)
     args = parser.parse_args()
-
-    check_wft_in_progress(debug=args.debug)
+    db_session = create_postgres_session(False)
+    check_wft_in_progress(db_session, debug=args.debug)

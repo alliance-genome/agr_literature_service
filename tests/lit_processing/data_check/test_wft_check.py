@@ -47,7 +47,7 @@ class TestWorkflowTagCheck:
                 print(tran)
 
             # run the check which should set the wft to 'needed'
-            check_wft_in_progress(debug=False)
+            check_wft_in_progress(db, debug=False)
 
             transactions = client.get(url=f"/workflow_tag/{wft2.reference_workflow_tag_id}/versions").json()
             for tran in transactions:
