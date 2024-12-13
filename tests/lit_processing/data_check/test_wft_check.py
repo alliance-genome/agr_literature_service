@@ -42,7 +42,17 @@ class TestWorkflowTagCheck:
             wft2 = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft2.workflow_tag_id == "ATP:0000139"
 
+            transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions").json()
+            for tran in transactions:
+                print(tran)
+
             # run the check which should set the wft to 'needed'
             check_wft_in_progress(debug=False)
             wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.reference_workflow_tag_id == wft1.reference_workflow_tag_id).one()
             assert wft.workflow_tag_id == "ATP:0000162"
+
+            # set back to in progress
+            wft.workflow_tag_id = "ATP:0000139"
+            db.commit()
+            # set "initial state" > 6 weeks ago and run again
+            # Need to edit the version table!!!
