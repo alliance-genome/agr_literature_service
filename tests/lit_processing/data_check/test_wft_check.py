@@ -80,7 +80,7 @@ class TestWorkflowTagCheck:
 
             # debug, uncomment if needed
             start_wft = db.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == "ATP:0000134").one()
-            print(f"NEW start date: {start_wft}")
+            print(f"NEW start date: {start_wft} {start_wft.date_created}")
             transactions = client.get(url=f"/workflow_tag/{start_wft.reference_workflow_tag_id}/versions").json()
             for tran in transactions:
                 print(tran)
