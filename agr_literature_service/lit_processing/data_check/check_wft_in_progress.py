@@ -140,19 +140,17 @@ def check_wft_in_progress(db_session, debug=True):
                                   r.reference_id = wft.reference_id AND
                                   wft.workflow_tag_id = '{phase['start of progress']}' AND
                                   wft.date_created >= '{start_date}'""")
-            # reference = db_session.query(ReferenceModel).join(WorkflowTagModel).filter(
-            #    WorkflowTagModel.workflow_tag_id == phase['start of progress'],
-            #    WorkflowTagModel.reference_id == wft.reference_id,
-            #    WorkflowTagModel.date_created >= start_date).first()
-            print(sql)
+            if debug:
+                print(sql)
             reference = db_session.execute(sql).first()
-            print(reference)
+            if debug:
+                print(reference)
             if reference:  # need to set back to try again
                 if not debug:
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
                             slack_messages[wft.mod_id] = []
-                        slack_messages[wft.mod_id].append(f"Setting {reference} to needed from {wft.workflow_tag_id}")
+                        slack_messages[wft.mod_id].append(f"Setting {reference} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
                     wft.workflow_tag_id = phase['set to try again']
                 else:
                     print(f"Setting to try again for {wft}")
@@ -161,7 +159,7 @@ def check_wft_in_progress(db_session, debug=True):
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
                             slack_messages[wft.mod_id] = []
-                        slack_messages[wft.mod_id].append(f"Setting {reference} to failed from {wft.workflow_tag_id}")
+                        slack_messages[wft.mod_id].append(f"Setting {reference} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
                     wft.workflow_tag_id = phase['set to failed']
                 else:
                     print(f"Setting to failed for {wft}")
