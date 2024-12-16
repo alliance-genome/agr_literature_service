@@ -67,4 +67,4 @@ class WorkflowTagModel(AuditedModel, Base):
         Overwrite the default output.
         """
         return f"ID: {self.reference_workflow_tag_id} "\
-            f"mod: {self.mod.abbreviation}, ref: {self.reference_id}, workflow_tag: {self.workflow_tag_id}"
+            f"mod: {self.mod.abbreviation}, ref: {self.reference_id}, workflow_tag: {self.workflow_tag_id} date_created: {self.date_created}"
