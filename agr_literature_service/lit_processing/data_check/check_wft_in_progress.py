@@ -80,7 +80,7 @@ from datetime import date, timedelta
 import argparse
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
-from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
+from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 
@@ -135,7 +135,7 @@ def check_wft_in_progress(db_session, debug=True):
                                                          WorkflowTagModel.date_updated > start_date).all()
 
         for wft in wfts:
-            sql = text(f"""SELECT r.curie FROM reference r, workkflowtag wft 
+            sql = text(f"""SELECT r.curie FROM reference r, workkflowtag wft
                             WHERE r.reference_id = wft.reference_id AND
                                   wft.workflow_tag_id == '{phase['start of progress']}' AND
                                   wft.date_created >= '{start_date}'""")
