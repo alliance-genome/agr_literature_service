@@ -140,7 +140,7 @@ def check_wft_in_progress(db_session, debug=True):
                  WorkflowTagModel.reference_id == wft.reference_id,
                  WorkflowTagModel.date_created >= start_date).first()
 
-            if orig_wft:  # need to set back to try again
+            if reference:  # need to set back to try again
                 if not debug:
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
