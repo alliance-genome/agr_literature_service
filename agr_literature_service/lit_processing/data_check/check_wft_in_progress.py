@@ -80,7 +80,7 @@ from datetime import date, timedelta
 import argparse
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
-from agr_literature_service.api.models import WorkflowTagModel
+from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 
@@ -135,16 +135,17 @@ def check_wft_in_progress(db_session, debug=True):
                                                          WorkflowTagModel.date_updated > start_date).all()
 
         for wft in wfts:
-            orig_wft = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id == phase['start of progress'],
-                                                                 WorkflowTagModel.reference_id == wft.reference_id,
-                                                                 WorkflowTagModel.date_created >= start_date).first()
+            reference: ReferenceModel = db_session.query(ReferenceModel).join(WorkflowTagModel).filter\
+                (WorkflowTagModel.workflow_tag_id == phase['start of progress'],
+                 WorkflowTagModel.reference_id == wft.reference_id,
+                 WorkflowTagModel.date_created >= start_date).first()
 
             if orig_wft:  # need to set back to try again
                 if not debug:
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
                             slack_messages[wft.mod_id] = []
-                        slack_messages[wft.mod_id].append(f"Setting {wft.reference_id} to needed from {wft.workflow_tag_id}")
+                        slack_messages[wft.mod_id].append(f"Setting {reference.curie} to needed from {wft.workflow_tag_id}")
                     wft.workflow_tag_id = phase['set to try again']
                 else:
                     print(f"Setting to try again for {wft}")
@@ -153,7 +154,7 @@ def check_wft_in_progress(db_session, debug=True):
                     if phase['slack message']:
                         if wft.mod_id not in slack_messages:
                             slack_messages[wft.mod_id] = []
-                        slack_messages[wft.mod_id].append(f"Setting {wft.reference_id} to failed from {wft.workflow_tag_id}")
+                        slack_messages[wft.mod_id].append(f"Setting {reference.curie} to failed from {wft.workflow_tag_id}")
                     wft.workflow_tag_id = phase['set to failed']
                 else:
                     print(f"Setting to failed for {wft}")
