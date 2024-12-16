@@ -29,7 +29,8 @@ class Author:
         elif isinstance(field, int):
             return field
         else:
-            raise Exception("Unsupported field type")
+            return field
+            # raise Exception("Unsupported field type")
         return normalized_field
 
     def get_normalized_author(self, set_lowercase: bool = False):
