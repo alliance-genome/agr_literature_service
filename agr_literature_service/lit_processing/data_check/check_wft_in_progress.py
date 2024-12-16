@@ -135,10 +135,10 @@ def check_wft_in_progress(db_session, debug=True):
                                                          WorkflowTagModel.date_updated > start_date).all()
 
         for wft in wfts:
-            reference: ReferenceModel = db_session.query(ReferenceModel).join(WorkflowTagModel).filter\
-                (WorkflowTagModel.workflow_tag_id == phase['start of progress'],
-                 WorkflowTagModel.reference_id == wft.reference_id,
-                 WorkflowTagModel.date_created >= start_date).first()
+            reference = db_session.query(ReferenceModel).join(WorkflowTagModel).filter(
+                WorkflowTagModel.workflow_tag_id == phase['start of progress'],
+                WorkflowTagModel.reference_id == wft.reference_id,
+                WorkflowTagModel.date_created >= start_date).first()
 
             if reference:  # need to set back to try again
                 if not debug:
