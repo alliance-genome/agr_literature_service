@@ -136,7 +136,8 @@ def check_wft_in_progress(db_session, debug=True):
 
         for wft in wfts:
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                            WHERE r.reference_id = wft.reference_id AND
+                            WHERE r.reference_id = {wft.reference_id} AND
+                                  r.reference_id = wft.reference_id AND
                                   wft.workflow_tag_id == '{phase['start of progress']}' AND
                                   wft.date_created >= '{start_date}'""")
             # reference = db_session.query(ReferenceModel).join(WorkflowTagModel).filter(
