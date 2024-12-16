@@ -634,6 +634,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     params = {}
     if mod_abbreviation:
         where_clauses.append("m.abbreviation = :mod_abbreviation")
+        where_clauses.append("m_inner.abbreviation = :mod_abbreviation")
         params["mod_abbreviation"] = mod_abbreviation
 
     if all_WF_tags_for_process:
@@ -660,8 +661,6 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         elif date_option == 'inside_corpus':
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
-            if mod_abbreviation:
-                where_clauses.append("m_inner.abbreviation = :mod_abbreviation")
 
     where = ""
     if where_clauses:
@@ -671,20 +670,20 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
     FROM mod m
     JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+    JOIN reference r ON wt.reference_id = r.reference_id
+    JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
+        AND mca.corpus = TRUE
     """
-
-    if date_option != 'default' and date_option is not None:
-        query += "JOIN reference r ON wt.reference_id = r.reference_id"
 
     if date_option == 'inside_corpus':
         query += """
-        JOIN
-            mod_corpus_association mca ON r.reference_id = mca.reference_id
-                AND mca.corpus = TRUE
-                AND mca.date_updated BETWEEN :start_date AND :end_date
-        JOIN
-            mod m_inner ON mca.mod_id = m_inner.mod_id
+            AND mca.date_updated BETWEEN :start_date AND :end_date
         """
+
+    query += """
+    JOIN
+        mod m_inner ON mca.mod_id = m_inner.mod_id
+    """
 
     query += f"""
     {where}
