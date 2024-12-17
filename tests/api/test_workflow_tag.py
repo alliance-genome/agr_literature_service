@@ -197,3 +197,65 @@ class TestWorkflowTag:
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
+    def test_workflow_tag_counters(self, db, test_workflow_tag, auth_headers):
+        with TestClient(app) as client:
+            add_to_corpus_data = {
+                "mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
+                "reference_curie": test_workflow_tag.related_ref_curie,
+                "mod_corpus_sort_source": "manual_creation",
+                "corpus": True
+            }
+            response = client.post(url="/reference/mod_corpus_association/", json=add_to_corpus_data,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            # Create additional workflow tags for testing
+            new_wt1 = {
+                "reference_curie": test_workflow_tag.related_ref_curie,
+                "mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
+                "workflow_tag_id": "ATP:0000139",
+            }
+            client.post(url="/workflow_tag/", json=new_wt1, headers=auth_headers)
+
+            # Test the counters endpoint
+            response = client.get(url="/workflow_tag/counters/", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+
+            counters = response.json()
+            assert isinstance(counters, list)
+            assert any(counter_elem["workflow_tag_id"] == "ATP:0000139" for counter_elem in counters)
+            assert any(counter_elem["workflow_tag_id"] == "ont1" for counter_elem in counters)
+            # Check that the counts are correct
+            for counter_elem in counters:
+                if counter_elem["workflow_tag_id"] == "ATP:0000139":
+                    assert counter_elem["tag_count"] == 1
+                elif counter_elem["workflow_tag_id"] == "ATP:0000141":
+                    assert counter_elem["tag_count"] == 1
+                elif counter_elem["workflow_tag_id"] == "ont1":
+                    assert counter_elem["tag_count"] == 1
+
+            # Test with specific mod_abbreviation
+            response = client.get(
+                url=f"/workflow_tag/counters/?mod_abbreviation={test_workflow_tag.related_mod_abbreviation}",
+                headers=auth_headers
+            )
+            assert response.status_code == status.HTTP_200_OK
+
+            mod_counters = response.json()
+            assert isinstance(mod_counters, list)
+            assert mod_counters == counters  # Should be the same as all tags are for this mod
+
+            # Test with non-existent mod_abbreviation
+            response = client.get(
+                url="/workflow_tag/counters/?mod_abbreviation=non_existent_mod",
+                headers=auth_headers
+            )
+            assert response.status_code == status.HTTP_200_OK
+
+            empty_counters = response.json()
+            assert isinstance(empty_counters, list)
+            assert len(empty_counters) == 0  # Should be an empty dictionary
+
