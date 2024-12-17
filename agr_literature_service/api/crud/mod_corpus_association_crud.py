@@ -71,7 +71,6 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
                                        workflow_tag_id=manual_indexing_needed_tag_atp_id)
             db.add(wft_obj)
             db.commit()
-
     return int(db_obj.mod_corpus_association_id)
 
 
