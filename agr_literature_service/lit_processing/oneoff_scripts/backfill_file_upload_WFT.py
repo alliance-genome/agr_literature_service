@@ -5,7 +5,8 @@ from sqlalchemy import text, bindparam
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_workflow_tags_from_process
 from agr_literature_service.api.user import set_global_user_id
 
 logging.basicConfig(format='%(message)s')
@@ -29,8 +30,73 @@ def start_backfill_fileupload_workflowTag(mod):
                      {"mod": mod}).fetchone()
     mod_id = int(row[0])
 
-    logger.info(f"Backfilling/updating file upload workflow tags for {mod}:")
-    check_and_backfill_workflowTags(db, mod_id, mod)
+    # logger.info(f"Backfilling/updating file upload workflow tags for {mod}:")
+    # check_and_backfill_workflowTags(db, mod_id, mod)
+
+    logger.info(f"Cleaning up text conversion WFT etc for papers without a main PDF for {mod}:")
+    cleanup_text_conversion_and_other_workflow_tags(db, mod_id, mod)
+
+
+def cleanup_text_conversion_and_other_workflow_tags(db, mod_id, mod):
+
+    logger.info(f"Retrieving papers with a main pdf for {mod}:")
+    reference_ids_with_main_pdf = get_references_with_main_pdf(db, mod_id, mod)
+
+    all_text_related_workflow_tags = get_all_text_conversion_classification_extraction_wfts(db)
+
+    sql_query_str = """
+        SELECT reference_id, workflow_tag_id
+        FROM   workflow_tag
+        WHERE  mod_id = :mod_id
+        AND    workflow_tag_id IN :all_text_related_workflow_tags
+    """
+    sql_query = text(sql_query_str)
+    rows = db.execute(sql_query, {
+        'mod_id': mod_id,
+        'all_text_related_workflow_tags': tuple(all_text_related_workflow_tags)
+    })
+
+    for row in rows:
+        reference_id = row[0]
+        workflow_tag_id = row[1]
+        if reference_id not in reference_ids_with_main_pdf:
+            logger.info(f"{mod} {reference_id} {workflow_tag_id}: Removing unwanted WFT")
+            sql_query = text("""
+            DELETE FROM workflow_tag
+            WHERE reference_id = :reference_id
+            AND mod_id = :mod_id
+            AND workflow_tag_id = :workflow_tag_id
+            """)
+            db.execute(sql_query, {
+                'reference_id': reference_id,
+                'mod_id': mod_id,
+                'workflow_tag_id': workflow_tag_id
+            })
+            db.commit()
+
+
+def get_all_text_conversion_classification_extraction_wfts(db):
+
+    all_text_conversion_wft = get_workflow_tags_from_process("ATP:0000161")
+    all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
+    all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
+    return all_text_conversion_wft + all_ref_classification_wft + all_entity_extraction_wft
+
+
+def get_references_with_main_pdf(db, mod_id, mod):
+
+    sql_query_str = """
+        SELECT reference_id
+        FROM   workflow_tag
+        WHERE  mod_id = :mod_id
+        AND    workflow_tag_id = :workflow_tag_id
+    """
+    sql_query = text(sql_query_str)
+    rows = db.execute(sql_query, {
+        'mod_id': mod_id,
+        'workflow_tag_id': file_uploaded_tag_atp_id
+    })
+    return {row[0] for row in rows}
 
 
 def check_and_backfill_workflowTags(db, mod_id, mod):
