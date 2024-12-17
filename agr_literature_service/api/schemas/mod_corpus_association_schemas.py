@@ -54,6 +54,7 @@ class ModCorpusAssociationSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     corpus: Optional[bool] = None
+    index_in_progress: Optional[bool] = None
 
     class Config():
         orm_mode = True
