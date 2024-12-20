@@ -1,4 +1,5 @@
 from collections import namedtuple
+from datetime import datetime, timedelta
 
 import pytest
 from sqlalchemy import and_
@@ -197,3 +198,102 @@ class TestWorkflowTag:
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=wrong_transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
+    def test_workflow_tag_counters(self, db, test_workflow_tag, auth_headers): # noqa
+        with TestClient(app) as client:
+            # Create additional references and MODs
+            mods = ['WB', 'WB', 'FB']
+            references = [
+                {'curie': 'AGRKB:101', 'title': 'Test Reference 1'},
+                {'curie': 'AGRKB:102', 'title': 'Test Reference 2'},
+                {'curie': 'AGRKB:103', 'title': 'Test Reference 3'}
+            ]
+
+            # Add references to the database
+            for ref in references:
+                db_ref = ReferenceModel(**ref)
+                db.add(db_ref)
+            db.commit()
+
+            # Add MODs to the database if they don't exist
+            for mod in mods:
+                if not db.query(ModModel).filter(ModModel.abbreviation == mod).first():
+                    db_mod = ModModel(abbreviation=mod, short_name=mod, full_name=mod)
+                    db.add(db_mod)
+            db.commit()
+
+            # Add references to MOD corpus and create workflow tags
+            for i, (mod, ref) in enumerate(zip(mods, references)):
+                add_to_corpus_data = {
+                    "mod_abbreviation": mod,
+                    "reference_curie": ref['curie'],
+                    "mod_corpus_sort_source": "manual_creation",
+                    "corpus": True
+                }
+                response = client.post(url="/reference/mod_corpus_association/", json=add_to_corpus_data,
+                                       headers=auth_headers)
+                assert response.status_code == status.HTTP_201_CREATED
+
+                # Create workflow tags with different dates
+                new_wt = {
+                    "reference_curie": ref['curie'],
+                    "mod_abbreviation": mod,
+                    "workflow_tag_id": "ATP:0000168",
+                    "date_updated": (datetime.now() - timedelta(days=i)).isoformat()
+                }
+                response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
+                assert response.status_code == status.HTTP_201_CREATED
+
+            # Add the original test_workflow_tag to its MOD corpus
+            add_to_corpus_data = {
+                "mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
+                "reference_curie": test_workflow_tag.related_ref_curie,
+                "mod_corpus_sort_source": "manual_creation",
+                "corpus": True
+            }
+            response = client.post(url="/reference/mod_corpus_association/", json=add_to_corpus_data,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            today = datetime.today()
+            today_date = today.date().isoformat()
+            one_week_ago = today - timedelta(days=7)
+            one_week_ago_date = one_week_ago.date().isoformat()
+            # Test the counters endpoint with different parameters
+            test_cases = [
+                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 8},
+                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 4},
+                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 8},
+            ]
+
+            for case in test_cases:
+                response = client.get(url=case["url"], headers=auth_headers)
+                assert response.status_code == status.HTTP_200_OK
+
+                counters = response.json()
+                assert isinstance(counters, list)
+                total_tag_count = sum(counter["tag_count"] for counter in counters)
+                assert total_tag_count == case["expected_total_tag_id_count"], f"Expected {case['expected_total_tag_id_count']} counters for {case['url']}, but got {total_tag_count}"
+
+            # Test with non-existent mod_abbreviation
+            response = client.get(
+                url="/workflow_tag/counters/?mod_abbreviation=non_existent_mod",
+                headers=auth_headers
+            )
+            assert response.status_code == status.HTTP_200_OK
+
+            empty_counters = response.json()
+            assert isinstance(empty_counters, list)
+            assert len(empty_counters) == 0  # Should be an empty list
+            # Test with non-existent mod_abbreviation
+            response = client.get(
+                url="/workflow_tag/counters/?mod_abbreviation=non_existent_mod",
+                headers=auth_headers
+            )
+            assert response.status_code == status.HTTP_200_OK
+
+            empty_counters = response.json()
+            assert isinstance(empty_counters, list)
+            assert len(empty_counters) == 0  # Should be an empty dictionary
