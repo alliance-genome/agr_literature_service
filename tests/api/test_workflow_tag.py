@@ -256,14 +256,16 @@ class TestWorkflowTag:
             response = client.post(url="/reference/mod_corpus_association/", json=add_to_corpus_data,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-    
+
+            today = datetime.today()
+            today_date = today.date().isoformat()
+            one_week_ago = today - timedelta(days=7)
+            one_week_ago_date = one_week_ago.date().isoformat()
             # Test the counters endpoint with different parameters
             test_cases = [
-                {"url": "/workflow_tag/counters/", "expected_count": 4},
-                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_count": 1},
-                {"url": "/workflow_tag/counters/?date_option=today", "expected_count": 1},
-                {"url": "/workflow_tag/counters/?date_option=last_week", "expected_count": 4},
-                {"url": f"/workflow_tag/counters/?date_range_start={datetime.now().date().isoformat()}&date_range_end={datetime.now().date().isoformat()}", "expected_count": 1},
+                {"url": "/workflow_tag/counters/", "expected_total_tag_id_count": 8},
+                {"url": f"/workflow_tag/counters/?mod_abbreviation={mods[0]}", "expected_total_tag_id_count": 4},
+                {"url": f"/workflow_tag/counters/?date_option=inside_corpus&date_range_start={one_week_ago_date}&date_range_end={today_date}", "expected_total_tag_id_count": 8},
             ]
     
             for case in test_cases:
@@ -272,7 +274,8 @@ class TestWorkflowTag:
     
                 counters = response.json()
                 assert isinstance(counters, list)
-                assert len(counters) == case["expected_count"], f"Expected {case['expected_count']} counters for {case['url']}, but got {len(counters)}"
+                total_tag_count = sum(counter["tag_count"] for counter in counters)
+                assert total_tag_count == case["expected_total_tag_id_count"], f"Expected {case['expected_total_tag_id_count']} counters for {case['url']}, but got {total_tag_count}"
     
             # Test with non-existent mod_abbreviation
             response = client.get(
@@ -284,17 +287,6 @@ class TestWorkflowTag:
             empty_counters = response.json()
             assert isinstance(empty_counters, list)
             assert len(empty_counters) == 0  # Should be an empty list
-            # Test with specific mod_abbreviation
-            response = client.get(
-                url=f"/workflow_tag/counters/?mod_abbreviation={test_workflow_tag.related_mod_abbreviation}",
-                headers=auth_headers
-            )
-            assert response.status_code == status.HTTP_200_OK
-
-            mod_counters = response.json()
-            assert isinstance(mod_counters, list)
-            assert mod_counters == counters  # Should be the same as all tags are for this mod
-
             # Test with non-existent mod_abbreviation
             response = client.get(
                 url="/workflow_tag/counters/?mod_abbreviation=non_existent_mod",
