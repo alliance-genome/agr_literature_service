@@ -32,9 +32,11 @@ def main():
     limit = 1000
     offset = 0
     all_jobs = []
+    logger.info("Started loading all text conversion jobs.")
     while jobs := get_jobs(db, "text_convert_job", limit, offset):
         all_jobs.extend(jobs)
         offset += limit
+        logger.info(f"Loaded batch of {str(len(jobs))} jobs.")
     logger.info("Finished loading all text conversion jobs.")
     for job in all_jobs:
         ref_id = job['reference_id']
