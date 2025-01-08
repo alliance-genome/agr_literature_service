@@ -29,8 +29,14 @@ def main():
     engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
     new_session = sessionmaker(bind=engine, autoflush=True)
     db = new_session()
-    jobs = get_jobs(db, "text_convert_job")
-    for job in jobs:
+    limit = 1000
+    offset = 0
+    all_jobs = []
+    while jobs := get_jobs(db, "text_convert_job", limit, offset):
+        all_jobs.extend(jobs)
+        offset += limit
+    logger.info("Finished loading all text conversion jobs.")
+    for job in all_jobs:
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
