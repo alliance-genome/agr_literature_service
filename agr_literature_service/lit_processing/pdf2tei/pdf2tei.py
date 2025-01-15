@@ -11,7 +11,7 @@ from lxml import etree
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel
+from agr_literature_service.api.models import ModModel, ReferencefileModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 
 logger = logging.getLogger(__name__)
