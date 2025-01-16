@@ -126,7 +126,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
     if offset < 0:
         offset = 0
     jobs = []
-    wft_list = (db.query(WorkflowTagModel, WorkflowTransitionModel)
+    wft_list = (db.query(WorkflowTagModel, WorkflowTransitionModel, ReferenceModel)
                 .filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
                         WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str))
@@ -139,8 +139,8 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 new_job['job_name'] = condition
                 new_job['workflow_tag_id'] = wft[0].workflow_tag_id
                 new_job['reference_id'] = wft[0].reference_id
+                new_job['reference_curie'] = wft[2].curie
                 new_job['reference_workflow_tag_id'] = wft[0].reference_workflow_tag_id
-                # new_job['reference'] = wft[0].reference
                 new_job['mod_id'] = wft[0].mod_id
                 jobs.append(new_job)
     return jobs

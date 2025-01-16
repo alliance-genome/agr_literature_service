@@ -11,7 +11,7 @@ from lxml import etree
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel
+from agr_literature_service.api.models import ModModel, ReferencefileModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def main():
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
-        reference_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == ref_id).one().curie
+        reference_curie = job['reference_curie']
         mod_abbreviation = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_id).one().abbreviation
         ref_file_id_to_convert = get_main_pdf_referencefile_id(db=db, curie_or_reference_id=ref_id,
                                                                mod_abbreviation=mod_abbreviation)
