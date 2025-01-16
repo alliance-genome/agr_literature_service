@@ -144,3 +144,12 @@ def get_reference_workflow_tags(mod_abbreviation: str,
     return workflow_tag_crud.get_reference_workflow_tags_by_mod(db, mod_abbreviation,
                                                                 workflow_tag_id,
                                                                 startDate, endDate)
+
+@router.get('/report/{workflow_tag_id}/{mod_abbreviation}',
+            status_code=200)
+def get_report_workflow_tags(mod_abbreviation: str,
+                             workflow_tag_id: str,
+                             # startDate: str = None,
+                             # endDate: str = None,
+                             db: Session = db_session):
+    return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)

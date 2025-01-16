@@ -13,6 +13,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
 from typing import Union, Optional
+from fastapi_okta.okta_utils import get_authentication_token
+import urllib.request
+import json
+from urllib.error import HTTPError
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
@@ -117,6 +121,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                     We may have different jobs running on different systems so this
                     allows more flexibility.
     :param limit: maximum number of jobs to return. Maximum allowed value is 1000
+    :param offset: offset for returning values
 
     we need to join the workflow_transition table and workflow_tag table via transition_to and workflow_tag_id
     and condition contains the string defined in job_str.
@@ -886,3 +891,58 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+
+
+def get_name_to_atp_and_children(token, name_to_atp, atp_to_name, curie):
+    """
+    Add data to atp_to_name and name_to_atp dictionaries.
+    From the top curie given go down all children and store the data.
+    """
+    # name_to_atp = {}
+    # atp_to_name = {}
+
+    ateam_api = f"https://beta-curation.alliancegenome.org/api/atpterm/{curie}/children"
+    try:
+        request = urllib.request.Request(url=ateam_api)
+        request.add_header("Authorization", f"Bearer {token}")
+        request.add_header("Content-type", "application/json")
+        request.add_header("Accept", "application/json")
+    except Exception as e:
+        logger.error(f"Exception setting up request:get_nme_to_atp: {e}")
+        return []
+    try:
+        with urllib.request.urlopen(request) as response:
+            resp = response.read().decode("utf8")
+            resp_obj = json.loads(resp)
+            for bob in resp_obj:
+                for jane in resp_obj[bob]:
+                    name_to_atp[jane['name']] = jane['curie']
+                    atp_to_name[jane['curie']] = jane['name']
+                    get_name_to_atp_and_children(token, name_to_atp, atp_to_name, curie=jane['curie'])
+    except HTTPError:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Error from A-team API")
+    return name_to_atp, atp_to_name
+
+
+def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
+    auth_token = get_authentication_token()
+    if not auth_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    name_to_atp = {}
+    atp_to_name = {}
+    get_name_to_atp_and_children(auth_token, name_to_atp, atp_to_name, workflow_parent)
+    print(name_to_atp)
+    print(atp_to_name)
+    bob = "'" + "', '".join(name_to_atp.values()) + "'"
+    print(bob)
+    sql_query = text(f"""
+    select workflow_tag_id, mod_id, count(1) as count
+       from workflow_tag
+         where workflow_tag_id in ({bob})
+             group by workflow_tag_id, mod_id;
+    """)
+    rows = db.execute(sql_query).fetchall()
+    for (atp, mod_id, count) in rows:
+        print(atp_to_name[atp], mod_id, count)
+    return
