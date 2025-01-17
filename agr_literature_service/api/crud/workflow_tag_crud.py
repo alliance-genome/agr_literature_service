@@ -283,7 +283,6 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                                   new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     mod, process_atp_id, reference = transition_sanity_check(db, transition_type, mod_abbreviation,
                                                              curie_or_reference_id, new_workflow_tag_atp_id)
-    current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
@@ -925,24 +924,122 @@ def get_name_to_atp_and_children(token, name_to_atp, atp_to_name, curie):
     return name_to_atp, atp_to_name
 
 
+def get_field_and_status(atp):
+    parts = atp.split()
+    if parts[-1] in ('complete', 'failed', 'needed'):
+        field_type = " ".join(parts[:-1])
+        field_status = parts[-1]
+    elif parts[-1] == 'progress':
+        field_type = " ".join(parts[:-2])
+        field_status = "in progress"
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="{name} does not end in list of approved statuses")
+    return field_type, field_status
+
 def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
+    # Do not like hard coding here BUT no choice, no easy way to get the top level
+    # overall stats list as hierarchy does not allow this programmatically.
+    overall_paper_status = {'ATP:0000165':
+                                {'ATP:0000169': 'reference classification complete',
+                                 'ATP:0000189': 'reference classification failed',
+                                 'ATP:0000178': 'reference classification in progress',
+                                 'ATP:0000166': 'reference classification needed'}
+                            }
+
     auth_token = get_authentication_token()
     if not auth_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Authorization token missing")
+
+    # get list of ALL ATPs under this parent
     name_to_atp = {}
     atp_to_name = {}
     get_name_to_atp_and_children(auth_token, name_to_atp, atp_to_name, workflow_parent)
-    print(name_to_atp)
-    print(atp_to_name)
-    bob = "'" + "', '".join(name_to_atp.values()) + "'"
-    print(bob)
+    # print(name_to_atp)
+    # print(atp_to_name)
+
+    # remove overall paper statuses from general overall ATPs
+    for atp in overall_paper_status[workflow_parent].keys():
+        del atp_to_name[atp]
+        del name_to_atp[overall_paper_status[workflow_parent][atp]]
+
+    try:
+        mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one()
+    except NoResultFound:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail = "{mod_abbreviation} mod abbreviation NOT found")
+
+
+    # get overall paper statuses
+    atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
+    # print(f"OVERALL: {atp_list}")
     sql_query = text(f"""
-    select workflow_tag_id, mod_id, count(1) as count
+    select workflow_tag_id, count(1) as count
        from workflow_tag
-         where workflow_tag_id in ({bob})
-             group by workflow_tag_id, mod_id;
+         where workflow_tag_id in ({atp_list}) and
+               mod_id = {mod.mod_id}
+             group by workflow_tag_id;
+    """)
+    overall_total = 0
+    overall_dict = {}
+    rows = db.execute(sql_query).fetchall()
+    for (atp, count) in rows:
+        # print(f"OVERALL: {atp}: {count}")
+        overall_total += count
+    for (atp, count) in rows:
+        # print(f"OVERALL: {atp}: {count}")
+        perc = (count / overall_total) * 100
+        (field_type, field_status) = get_field_and_status(overall_paper_status[workflow_parent][atp])
+        overall_dict[field_status] = [count, round(perc, 2)]
+
+    # now get the counts for all the rest
+    type_hash = {}
+    type_total = {}
+    status_total = {}
+    atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
+    # print(atp_list)
+    sql_query = text(f"""
+    select workflow_tag_id, count(1) as count
+       from workflow_tag
+         where workflow_tag_id in ({atp_list}) and
+               mod_id = {mod.mod_id}
+             group by workflow_tag_id;
     """)
     rows = db.execute(sql_query).fetchall()
-    for (atp, mod_id, count) in rows:
-        print(atp_to_name[atp], mod_id, count)
-    return
+    for (atp, count) in rows:
+        name = atp_to_name[atp]
+        # print(name, count)
+        (field_type, field_status) = get_field_and_status(name)
+        if field_status not in status_total:
+            status_total[field_status] = 0
+        if field_type not in type_hash:
+            type_hash[field_type] = {}
+            type_total[field_type] = 0
+
+        type_hash[field_type][field_status] = count
+        type_total[field_type] += count
+        status_total[field_status] += count
+
+    # print(f"starting parent is {workflow_parent}")
+    output = []
+    headers = ["      ", "overall"]
+    for field in type_hash.keys():
+        headers.append(field)
+    output.append(headers)
+    for current_status in ('complete', 'in progress', 'failed', 'needed'):
+        row = [current_status]
+        try:
+            row.append(overall_dict[current_status])
+        except KeyError:
+            row.append([0, 0.00])
+        for field in type_hash.keys():
+            try:
+                perc = (type_hash[field][current_status] / type_total[field]) * 100
+                row.append([type_hash[field][current_status], round(perc, 2)])
+            except KeyError:
+                row.append([0, 0.00])
+        output.append(row)
+    # for row in output:
+    #    print(row)
+    return output
