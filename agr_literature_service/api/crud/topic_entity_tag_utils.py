@@ -1,21 +1,19 @@
-import json
 import logging
-import urllib.request
 from os import environ
 from typing import Dict, List
-from urllib.error import HTTPError
-
 import requests
 from cachetools import TTLCache
 from cachetools.func import ttl_cache
 from fastapi import HTTPException
-from fastapi_okta.okta_utils import get_authentication_token
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from starlette import status
 
 from agr_literature_service.api.crud.reference_utils import get_reference
-from agr_literature_service.api.models import TopicEntityTagSourceModel, ReferenceModel, ModModel, TopicEntityTagModel
+from agr_literature_service.api.crud.topic_entity_id_mapping_utils import \
+    map_curies_to_names, search_atp_ontology, search_ancestors_or_descendants
+from agr_literature_service.api.models import TopicEntityTagSourceModel, \
+    ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
 
 logger = logging.getLogger(__name__)
@@ -117,95 +115,29 @@ def get_sorted_column_values(reference_id: int, db: Session, column_name: str, d
                 entity_type_to_entities[result.entity_type].append(result.entity)
             else:
                 entity_type_to_entities[result.entity_type] = [result.entity]
-        curie_name_map = _get_map_ateam_entity_curies_to_names(entity_type_to_entities)
+        curie_name_map = _get_map_abc_entity_curies_to_names(db, entity_type_to_entities)
     else:
         curies = db.query(getattr(TopicEntityTagModel, column_name)).filter(
             TopicEntityTagModel.reference_id == reference_id).distinct()
-        category = "ncbitaxonterm" if column_name == "species" else "atpterm"
-        curie_name_map = get_map_ateam_curies_to_names(category,
-                                                       [curie[0] for curie in curies if curie[0]])
+        category = "atpterm" if column_name != "species" else "species"
+        curie_name_map = map_curies_to_names(category, [curie[0] for curie in curies if curie[0]])
 
     return [curie for name, curie in sorted([(value, key) for key, value in curie_name_map.items()],
                                             key=lambda x: x[0], reverse=desc)]
 
 
-def _get_map_ateam_entity_curies_to_names(entity_type_to_entities):
+def _get_map_abc_entity_curies_to_names(db, entity_type_to_entities):
 
-    entity_types = [entity_type for entity_type in entity_type_to_entities.keys() if entity_type is not None]
-
-    entity_type_curie_name_map = get_map_ateam_curies_to_names("atpterm",
-                                                               entity_types)
     entity_curie_to_name_map = {}
     for entity_type in entity_type_to_entities:
-        if entity_type is None:
-            # entity_curie_to_name_map[entity_type] = entity_type_to_entitie[entity_type][0]
-            continue
         entity_curies = entity_type_to_entities[entity_type]
-        category = entity_type_curie_name_map[entity_type].replace(" ", "")
-        # if "complex" in category:
-        #    category = "complex"
-        # elif "pathway" in category
-        #    category = "pathway"
-        if "allele" in category:
-            category = "allele"
-        curie_to_name_map = get_map_ateam_curies_to_names(category, entity_curies)
+        curie_to_name_map = map_curies_to_names(entity_type, entity_curies)
         entity_curie_to_name_map.update(curie_to_name_map)
 
     """
     {'SGD:S000001085': 'DOG2', 'SGD:S000001086': 'DOG1', 'SGD:S000001855': 'ACT1', 'SGD:S000002592': 'ATC1', 'WB:WBGene00003001': 'lin-12', 'ZFIN:ZDB-GENE-000607-29': 'id:ibd5038', 'ZFIN:ZDB-GENE-000816-1': 'fgfr3', 'ZFIN:ZDB-GENE-980526-255': 'fgfr1a', 'ZFIN:ZDB-GENE-980526-488': 'fgfr4', 'ZFIN:ZDB-GENE-990415-72': 'fgf8a', 'ZFIN:ZDB-GENE-991228-4': 'etv5b'}
     """
     return entity_curie_to_name_map
-
-
-def _get_map_ateam_construct_ids_to_symbols(curies_category, curies, maxret):
-    # curies = list(set(curies))
-    ateam_api_base_url = environ.get('ATEAM_API_URL')
-    ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
-    chunked_values = [curies[i:i + maxret] for i in range(0, len(curies), maxret)]
-    return_dict = {}
-    for chunk in chunked_values:
-        request_body = {
-            "searchFilters": {
-                "modEntityIdFilters": {
-                    "modEntityId": {
-                        "queryString": " ".join(chunk),
-                        "tokenOperator": "OR",
-                        "useKeywordFields": False,
-                        "queryType": "matchQuery"
-                    }
-                }
-            }
-        }
-        token = get_authentication_token()
-        try:
-            request_data_encoded = json.dumps(request_body)
-            request_data_encoded_str = str(request_data_encoded)
-            request = urllib.request.Request(url=ateam_api, data=request_data_encoded_str.encode('utf-8'))
-            request.add_header("Authorization", f"Bearer {token}")
-            request.add_header("Content-type", "application/json")
-            request.add_header("Accept", "application/json")
-        except Exception as e:
-            logger.error(f"Exception setting up request:get_map_ateam_curies_to_names: {e}")
-            continue
-        try:
-            with urllib.request.urlopen(request) as response:
-                resp = response.read().decode("utf8")
-                resp_obj = json.loads(resp)
-                for res in resp_obj["results"]:
-                    unique_ids = [unique_id for unique_id in res['uniqueId'].split('|') if unique_id not in res['modEntityId']]
-                    if unique_ids:
-                        unique_id_selected = unique_ids[0]
-                    else:
-                        unique_id_selected = res['modEntityId']
-                    return_dict[res['modEntityId']] = unique_id_selected
-                    id_to_name_cache.set(res['modEntityId'], unique_id_selected)
-        except HTTPError as e:
-            logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
-            continue
-        except Exception as e:
-            logger.error(f"Exception running request:get_map_ateam_curies_to_names: {e}")
-            continue
-    return return_dict
 
 
 def _get_map_sgd_curies_to_names(curies_category, curies):  # pragma: no cover
@@ -244,111 +176,16 @@ def _get_map_wb_curies_to_names(curies_category, curies):
     return id_to_name_mapping
 
 
-def get_map_entity_curies_to_names(entity_id_validation, curies_category, curies):
+def get_map_entity_curies_to_names(db, entity_id_validation, curies_category, curies):
     curie_to_name_mapping = {}
     if entity_id_validation == "alliance":
-        curie_to_name_mapping.update(get_map_ateam_curies_to_names(curies_category=curies_category,
-                                                                   curies=curies))
+        curie_to_name_mapping.update(map_curies_to_names(curies_category, curies))
     elif entity_id_validation.lower() == "wb":
         curie_to_name_mapping.update(_get_map_wb_curies_to_names(curies_category=curies_category, curies=curies))
     elif entity_id_validation.lower() == "sgd":
         curies_category = curies_category.replace("protein containing ", "")
         curie_to_name_mapping.update(_get_map_sgd_curies_to_names(curies_category=curies_category, curies=curies))
     return curie_to_name_mapping
-
-
-def get_map_ateam_curies_to_names(curies_category, curies, maxret=1000):
-
-    if "allele" in curies_category:
-        curies_category = "allele"
-
-    curies_not_in_cache = [curie for curie in set(curies) if id_to_name_cache.get(curie) is None]
-    if len(curies_not_in_cache) == 0:
-        return {curie: id_to_name_cache.get(curie) for curie in set(curies)}
-
-    if curies_category == 'transgenicconstruct':
-        curies_category = 'construct'
-        return _get_map_ateam_construct_ids_to_symbols(curies_category, curies_not_in_cache, maxret)
-
-    subtype = None
-    if curies_category in ["AGMs", "AffectedGenomeModel", "affected genome model",
-                           "strain", "genotype", "fish"]:
-        if curies_category in ["strain", "genotype", "fish"]:
-            subtype = curies_category
-        curies_category = "agm"
-
-    return_dict = {}
-    keyword_name = "curie" if curies_category in ["atpterm", "ncbitaxonterm", "ecoterm"] else "modEntityId"
-    ateam_api_base_url = environ.get('ATEAM_API_URL')
-    ateam_api = f'{ateam_api_base_url}/{curies_category}/search?limit={maxret}&page=0'
-    chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]
-
-    for chunk in chunked_values:
-        request_body = {
-            "searchFilters": {
-                "nameFilters": {
-                    keyword_name: {
-                        "queryString": " ".join(chunk),
-                        "tokenOperator": "OR",
-                        "useKeywordFields": False,
-                        "queryType": "matchQuery"
-                    }
-                }
-            }
-        }
-        if subtype:
-            request_body["searchFilters"]["subtypeFilters"] = {
-                "subtype.name": {
-                    "queryString": subtype,
-                    "tokenOperator": "OR"
-                }
-            }
-        token = get_authentication_token()
-        try:
-            request_data_encoded = json.dumps(request_body).encode('utf-8')
-            request = urllib.request.Request(url=ateam_api, data=request_data_encoded)
-            request.add_header("Authorization", f"Bearer {token}")
-            request.add_header("Content-type", "application/json")
-            request.add_header("Accept", "application/json")
-            with urllib.request.urlopen(request) as response:
-                resp = response.read().decode("utf8")
-                resp_obj = json.loads(resp)
-
-                # process the API response and collect mappings
-                new_mappings = {}
-                if curies_category == "agm":
-                    new_mappings = {
-                        entity[keyword_name]: entity.get("name") for entity in resp_obj.get("results", [])
-                    }
-                else:
-                    new_mappings = {
-                        entity[keyword_name]: entity.get("name") or entity.get(curies_category + "Symbol", {}).get("displayText", entity[keyword_name])
-                        for entity in resp_obj.get("results", [])
-                    }
-
-                # update return dictionary and cache
-                for curie, name in new_mappings.items():
-                    id_to_name_cache.set(curie, name)
-                    return_dict[curie] = name
-
-                return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
-
-        except HTTPError as e:
-
-            logger.error(f"HTTPError:get_map_ateam_curies_to_names: {e}")
-
-            return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
-
-        except Exception as e:
-
-            logger.error(f"Exception in get_map_ateam_curies_to_names: {e}")
-
-            return_dict = fallback_id_to_name_mapping(curies_category, chunk, return_dict)
-
-    # add already cached curies to return_dict
-    for curie in set(curies) - set(curies_not_in_cache):
-        return_dict[curie] = id_to_name_cache.get(curie)
-    return return_dict
 
 
 def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
@@ -378,41 +215,14 @@ def check_atp_ids_validity(curies, maxret=1000):
         return (set(curies), {curie: valid_id_to_name_cache.get(curie) for curie in set(curies)})
 
     valid_curies = {curie for curie in curies if valid_id_to_name_cache.get(curie) is not None}
+    atp_data = search_atp_ontology()
     atp_to_name = {}
-    ateam_api_base_url = environ.get('ATEAM_API_URL')
-    ateam_api = f'{ateam_api_base_url}/atpterm/search?limit={maxret}&page=0'
-    chunked_values = [curies_not_in_cache[i:i + maxret] for i in range(0, len(curies_not_in_cache), maxret)]
-    for chunk in chunked_values:
-        request_body = {
-            "searchFilters": {
-                "nameFilters": {
-                    "curie_keyword": {
-                        "queryString": " ".join(chunk),
-                        "tokenOperator": "OR"
-                    }
-                }
-            }
-        }
-        token = get_authentication_token()
-        try:
-            request_data_encoded = json.dumps(request_body).encode('utf-8')
-            request = urllib.request.Request(url=ateam_api, data=request_data_encoded)
-            request.add_header("Authorization", f"Bearer {token}")
-            request.add_header("Content-type", "application/json")
-            request.add_header("Accept", "application/json")
-            with urllib.request.urlopen(request) as response:
-                resp = response.read().decode("utf8")
-                resp_obj = json.loads(resp)
-                for entry in resp_obj.get("results", []):
-                    atp_to_name[entry["curie"]] = entry["name"]
-                    if entry["obsolete"] is False:
-                        valid_curies.add(entry["curie"])
-                        valid_id_to_name_cache.set(entry["curie"], entry["name"])
-        except HTTPError as e:
-            logger.error(f"HTTPError: in search_ateam: {e}")
-        except Exception as e:
-            logger.error(f"Exception: in search_ateam: {e}")
-
+    for entry in atp_data:
+        if entry["curie"] in curies_not_in_cache:
+            atp_to_name[entry["curie"]] = entry["name"]
+            if entry["obsolete"] is False:
+                valid_curies.add(entry["curie"])
+                valid_id_to_name_cache.set(entry["curie"], entry["name"])
     return (valid_curies, atp_to_name)
 
 
@@ -429,16 +239,6 @@ def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str 
 
     Returns:
     - list[str]: A list of ontology nodes that are ancestors or descendants of the given ontology node.
-
-    Note:
-    - This method uses the `get_authentication_token` function from the `okta_utils` module to fetch the authentication
-    token.
-    - It also relies on the `ATEAM_API_URL` environment variable to determine the base URL for the A-Team API.
-    - The method will make an HTTP request to the A-Team API using the provided ontology node and relation type.
-    - If successful, it will parse the response and extract the ontology node CURIEs from the `entities` field of the
-    response JSON.
-    - The extracted CURIEs will be returned as a list.
-    - In case of any error, an empty list will be returned.
 
     Example Usage:
     ```python
@@ -458,25 +258,7 @@ def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str 
     """
     if ancestors_or_descendants not in ['ancestors', 'descendants']:
         return []
-    token = get_authentication_token()
-    ateam_api_base_url = environ.get('ATEAM_API_URL', "https://beta-curation.alliancegenome.org/api")
-    ateam_api = f'{ateam_api_base_url}/atpterm/{onto_node}/{ancestors_or_descendants}'
-    try:
-        request = urllib.request.Request(url=ateam_api)
-        request.add_header("Authorization", f"Bearer {token}")
-        request.add_header("Content-type", "application/json")
-        request.add_header("Accept", "application/json")
-    except Exception as e:
-        logger.error(f"Exception setting up request:get_ancestors_or_descendants: {e}")
-        return []
-    try:
-        with urllib.request.urlopen(request) as response:
-            resp = response.read().decode("utf8")
-            resp_obj = json.loads(resp)
-            return [entity["curie"] for entity in resp_obj["entities"]] if "entities" in resp_obj else []
-    except HTTPError:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error from A-team API")
+    return search_ancestors_or_descendants(onto_node, ancestors_or_descendants)
 
 
 def get_ancestors(onto_node: str):
