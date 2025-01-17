@@ -19,7 +19,7 @@ from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransiti
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
     get_reference_id_from_curie_or_id  # get_ancestors,
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
@@ -126,7 +126,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
     if offset < 0:
         offset = 0
     jobs = []
-    wft_list = (db.query(WorkflowTagModel, WorkflowTransitionModel, ReferenceModel)
+    wft_list = (db.query(WorkflowTagModel, WorkflowTransitionModel)
                 .filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
                         WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str))
@@ -139,8 +139,8 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 new_job['job_name'] = condition
                 new_job['workflow_tag_id'] = wft[0].workflow_tag_id
                 new_job['reference_id'] = wft[0].reference_id
-                new_job['reference_curie'] = wft[2].curie
                 new_job['reference_workflow_tag_id'] = wft[0].reference_workflow_tag_id
+                # new_job['reference'] = wft[0].reference
                 new_job['mod_id'] = wft[0].mod_id
                 jobs.append(new_job)
     return jobs
@@ -363,8 +363,8 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     if not all_workflow_tags_for_process or not reference_id:
         return []
 
-    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm",
-                                                      curies=all_workflow_tags_for_process)
+    atp_curie_to_name = map_curies_to_names(db, category="atpterm", curies=all_workflow_tags_for_process)
+
     sql_query = """
     SELECT distinct m.abbreviation, wft.workflow_tag_id, wft.updated_by,
            wft.date_updated::date AS date_updated, u.email
@@ -628,7 +628,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     else:
         rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
-    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
+    atp_curie_to_name = map_curies_to_names(db, category="atpterm", curies=atp_curies)
 
     where_clauses = []
     params = {}
