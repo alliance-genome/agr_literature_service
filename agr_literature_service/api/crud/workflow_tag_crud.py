@@ -363,7 +363,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     if not all_workflow_tags_for_process or not reference_id:
         return []
 
-    atp_curie_to_name = map_curies_to_names(db, category="atpterm", curies=all_workflow_tags_for_process)
+    atp_curie_to_name = map_curies_to_names(category="atpterm", curies=all_workflow_tags_for_process)
 
     sql_query = """
     SELECT distinct m.abbreviation, wft.workflow_tag_id, wft.updated_by,
@@ -628,7 +628,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     else:
         rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
-    atp_curie_to_name = map_curies_to_names(db, category="atpterm", curies=atp_curies)
+    atp_curie_to_name = map_curies_to_names(category="atpterm", curies=atp_curies)
 
     where_clauses = []
     params = {}
