@@ -17,6 +17,8 @@ from fastapi_okta.okta_utils import get_authentication_token
 import urllib.request
 import json
 from urllib.error import HTTPError
+from typing import List, Dict
+from typing import Any
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
@@ -937,15 +939,17 @@ def get_field_and_status(atp):
                             detail="{name} does not end in list of approved statuses")
     return field_type, field_status
 
+
 def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
     # Do not like hard coding here BUT no choice, no easy way to get the top level
     # overall stats list as hierarchy does not allow this programmatically.
     overall_paper_status = {
-        'ATP:0000165':
-             {'ATP:0000169': 'reference classification complete',
-              'ATP:0000189': 'reference classification failed',
-              'ATP:0000178': 'reference classification in progress',
-              'ATP:0000166': 'reference classification needed'}
+        'ATP:0000165': {
+            'ATP:0000169': 'reference classification complete',
+            'ATP:0000189': 'reference classification failed',
+            'ATP:0000178': 'reference classification in progress',
+            'ATP:0000166': 'reference classification needed'
+        }
     }
 
     auth_token = get_authentication_token()
@@ -954,8 +958,8 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
                             detail="Authorization token missing")
 
     # get list of ALL ATPs under this parent
-    name_to_atp = {}
-    atp_to_name = {}
+    name_to_atp: Dict = {}
+    atp_to_name: Dict = {}
     get_name_to_atp_and_children(auth_token, name_to_atp, atp_to_name, workflow_parent)
     # print(name_to_atp)
     # print(atp_to_name)
@@ -994,9 +998,9 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
         overall_dict[field_status] = [count, round(perc, 2)]
 
     # now get the counts for all the rest
-    type_hash = {}
-    type_total = {}
-    status_total = {}
+    type_hash: Dict = {}
+    type_total: Dict = {}
+    status_total: Dict = {}
     atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
     # print(atp_list)
     sql_query = text(f"""
@@ -1028,7 +1032,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
         headers.append(field)
     output.append(headers)
     for current_status in ('complete', 'in progress', 'failed', 'needed'):
-        row = [current_status]
+        row: List[Any] = [current_status]
         try:
             row.append(overall_dict[current_status])
         except KeyError:
