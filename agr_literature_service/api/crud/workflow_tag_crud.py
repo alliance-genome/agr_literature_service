@@ -940,12 +940,13 @@ def get_field_and_status(atp):
 def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
     # Do not like hard coding here BUT no choice, no easy way to get the top level
     # overall stats list as hierarchy does not allow this programmatically.
-    overall_paper_status = {'ATP:0000165':
-                                {'ATP:0000169': 'reference classification complete',
-                                 'ATP:0000189': 'reference classification failed',
-                                 'ATP:0000178': 'reference classification in progress',
-                                 'ATP:0000166': 'reference classification needed'}
-                            }
+    overall_paper_status = {
+        'ATP:0000165':
+             {'ATP:0000169': 'reference classification complete',
+              'ATP:0000189': 'reference classification failed',
+              'ATP:0000178': 'reference classification in progress',
+              'ATP:0000166': 'reference classification needed'}
+    }
 
     auth_token = get_authentication_token()
     if not auth_token:
@@ -968,8 +969,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
         mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one()
     except NoResultFound:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail = "{mod_abbreviation} mod abbreviation NOT found")
-
+                            detail="{mod_abbreviation} mod abbreviation NOT found")
 
     # get overall paper statuses
     atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
@@ -984,7 +984,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     overall_total = 0
     overall_dict = {}
     rows = db.execute(sql_query).fetchall()
-    for (atp, count) in rows:
+    for (_, count) in rows:
         # print(f"OVERALL: {atp}: {count}")
         overall_total += count
     for (atp, count) in rows:

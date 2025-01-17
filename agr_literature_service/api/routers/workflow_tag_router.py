@@ -145,6 +145,7 @@ def get_reference_workflow_tags(mod_abbreviation: str,
                                                                 workflow_tag_id,
                                                                 startDate, endDate)
 
+
 @router.get('/report/{workflow_tag_id}/{mod_abbreviation}',
             status_code=200)
 def get_report_workflow_tags(mod_abbreviation: str,
