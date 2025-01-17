@@ -17,19 +17,20 @@ from sqlalchemy import case, and_, create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
 
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
-    get_map_ateam_curies_to_names, check_and_set_sgd_display_tag, check_and_set_species, \
-    add_audited_object_users_if_not_exist, get_ancestors, get_descendants, \
-    check_atp_ids_validity, get_map_entity_curies_to_names, id_to_name_cache
+    check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
+    get_ancestors, get_descendants, check_atp_ids_validity, get_map_entity_curies_to_names, \
+    id_to_name_cache
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
-from agr_literature_service.api.models.audited_model import get_default_user_value, disable_set_updated_by_onupdate, \
-    disable_set_date_updated_onupdate
+from agr_literature_service.api.models.audited_model import get_default_user_value, \
+    disable_set_updated_by_onupdate, disable_set_date_updated_onupdate
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
@@ -780,18 +781,16 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
                 source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
             else:
                 all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
-    entity_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=list(all_atp_terms))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ecoterm",
-                                                              curies=list(source_eco_codes)))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(curies_category="ncbitaxonterm",
-                                                              curies=list(tag_species)))
+    entity_curie_to_name = map_curies_to_names(category="atpterm", curies=list(all_atp_terms))
+    entity_curie_to_name.update(map_curies_to_names(category="ecoterm",
+                                                    curies=list(source_eco_codes)))
+    entity_curie_to_name.update(map_curies_to_names(category="species",
+                                                    curies=list(tag_species)))
     for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
         for entity_type, curies in entity_type_curies_dict.items():
-            entity_type_name = entity_curie_to_name[entity_type].replace("species", "ncbitaxonterm")
-            if "construct" in entity_type_name:
-                entity_type_name = "transgenicconstruct"
+            entity_type_name = entity_curie_to_name[entity_type]
             entity_curie_to_name.update(get_map_entity_curies_to_names(
-                entity_id_validation=entity_id_validation,
+                db, entity_id_validation=entity_id_validation,
                 curies_category=entity_type_name,
                 curies=list(curies)))
     for curie_without_name in (all_entity_curies | all_atp_terms) - set(entity_curie_to_name.keys()):
