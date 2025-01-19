@@ -229,6 +229,32 @@ def search_topic(topic):
     return JSONResponse(content=json_data)
 
 
+def search_atp_descendants(ancestor_curie):
+    db = create_ateam_db_session()
+    sql_query = text("""
+    SELECT ot.curie, ot.name
+    FROM ontologyterm ot
+    JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+    JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+    WHERE ot.ontologytermtype = 'ATPTerm'
+    AND ot.obsolete = false
+    AND ancestor.curie = :ancestor_curie
+    """)
+    rows = db.execute(sql_query, {
+        'ancestor_curie': ancestor_curie
+    }).fetchall()
+    data = [
+        {
+            "curie": row[0],
+            "name": row[1]
+        }
+        for row in (rows or [])
+    ]
+    db.close()
+    json_data = jsonable_encoder(data)
+    return JSONResponse(content=json_data)
+
+
 def search_species(species):
     """Search for species in the NCBITaxonTerm ontology, matching either a curie or name."""
     db = create_ateam_db_session()
