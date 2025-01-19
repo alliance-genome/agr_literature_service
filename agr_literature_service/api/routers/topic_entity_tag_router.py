@@ -217,6 +217,12 @@ def search_topic(topic: str):
     return ateam_db_helpers.search_topic(topic)
 
 
+@router.get('/search_descendants/{ancestor_curie}',
+            status_code=200)
+def search_descendants(ancestor_curie: str):
+    return ateam_db_helpers.search_atp_descendants(ancestor_curie)
+
+
 @router.get('/search_species/{species}',
             status_code=200)
 def search_species(species: str):
