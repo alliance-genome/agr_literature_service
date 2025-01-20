@@ -3,6 +3,7 @@ import datetime
 
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
+from unittest.mock import patch
 
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
