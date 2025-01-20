@@ -31,6 +31,13 @@ from .fixtures import auth_headers # noqa
 #########################################################################
 
 
+@pytest.fixture(scope="module", autouse=True)
+def patch_get_map_ateam_curies_to_names():
+    with patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names") as mock_func:
+        mock_func.return_value = {'ATP:0000196': 'antibody extraction complete'}
+        yield
+
+
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
     print("***** Initializing Elasticsearch Data *****")
