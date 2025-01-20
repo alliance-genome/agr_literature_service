@@ -3,6 +3,7 @@ from datetime import datetime
 
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
+from unittest.mock import patch
 
 from fastapi import status
 from agr_literature_service.api.config import config
@@ -12,6 +13,10 @@ from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from .fixtures import auth_headers # noqa
+
+get_map_ateam_curies_to_names_mock_return_value = {
+    'ATP:0000196': 'antibody extraction complete'
+}
 
 
 @pytest.fixture(scope='module')
@@ -132,7 +137,10 @@ def initialize_elasticsearch():
 class TestSearch:
 
     def test_search_references_return_facets_only(self, initialize_elasticsearch, auth_headers): # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_names:
+            mock_get_map_ateam_curies_to_names.return_value = get_map_ateam_curies_to_names_mock_return_value
             facets_values = {
                 "pubmed_types.keyword": (["Journal Article", "Review"])
             }
