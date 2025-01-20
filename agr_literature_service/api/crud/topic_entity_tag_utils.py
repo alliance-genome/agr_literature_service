@@ -188,6 +188,10 @@ def get_map_entity_curies_to_names(db, entity_id_validation, curies_category, cu
     return curie_to_name_mapping
 
 
+def get_map_ateam_curies_to_names(category, curies):
+    return map_curies_to_names(category, curies)
+
+
 def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
 
     sgd_curies = []

@@ -11,7 +11,7 @@ from agr_literature_service.api.config import config
 from fastapi import HTTPException, status
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 
 logger = logging.getLogger(__name__)
 
@@ -561,11 +561,11 @@ def add_curie_to_name_values(aggregations):
     curie_keys = [
         bucket["key"] for bucket in aggregations.get("buckets", [])
     ]
-    curie_to_name_map = map_curies_to_names(
+    curie_to_name_map = get_map_ateam_curies_to_names(
         category="atpterm",
         curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ATP:")]
     )
-    curie_to_name_map.update(map_curies_to_names(
+    curie_to_name_map.update(get_map_ateam_curies_to_names(
         category="ecoterm",
         curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ECO:")]
     ))
