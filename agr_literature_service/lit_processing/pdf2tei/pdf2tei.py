@@ -33,10 +33,16 @@ def main():
     offset = 0
     all_jobs = []
     logger.info("Started loading all text conversion jobs.")
+    seen_wf_tag_ids = set()
     while jobs := get_jobs(db, "text_convert_job", limit, offset):
-        all_jobs.extend(jobs)
+        for job in jobs:
+            if job["reference_workflow_tag_id"] in seen_wf_tag_ids:
+                logger.warning("Duplicate job found. Skipping.")
+            else:
+                all_jobs.append(job)
+                seen_wf_tag_ids.add(job["reference_workflow_tag_id"])
         offset += limit
-        logger.info(f"Loaded batch of {str(len(jobs))} jobs.")
+        logger.info(f"Loaded batch of {str(len(jobs))} jobs. Total jobs loaded: {str(len(all_jobs))}")
     logger.info("Finished loading all text conversion jobs.")
     for job in all_jobs:
         ref_id = job['reference_id']
