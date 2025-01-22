@@ -2,7 +2,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from os import environ
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -21,7 +21,7 @@ def create_ateam_db_session():
     SERVER = environ.get('PERSISTENT_STORE_DB_HOST', 'localhost')
     PORT = environ.get('PERSISTENT_STORE_DB_PORT', '5432')
     DB = environ.get('PERSISTENT_STORE_DB_NAME', 'unknown')
-    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
+    engine_var = f'postgresql://{USER}:{PASSWORD}@{SERVER}:{PORT}/{DB}'
     engine = create_engine(engine_var)
     SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = SessionClass()
@@ -64,7 +64,7 @@ def classify_entity_list(entity_list):
     # Example: if entity_list is "MGI:1234|ACT1|SGD:S00001"
     # then "MGI:1234" and "SGD:S00001" go into entity_curie_list,
     # while "ACT1" goes into entity_name_list.
-    for entity in entity_list.replace("+", " ").split("|"):
+    for entity in entity_list.split("|"):
         is_mod_curie = False
         for curie_prefix in curie_prefix_list:
             if entity.startswith(curie_prefix + ":"):
@@ -86,11 +86,6 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
     sql_query = None
 
     if entity_type == 'gene':
-        """
-        gene symbol: ACT1
-        systematic name: YFL039C
-        genomic feature: CEN1
-        """
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, sa.obsolete, sa.displaytext
         FROM biologicalentity be
@@ -103,10 +98,9 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         )
         AND UPPER(sa.displaytext) IN :entity_name_list
         AND ot.curie = :taxon
-        """)
+        """).bindparams(bindparam("entity_name_list", expanding=True))
 
     elif entity_type == 'allele':
-        # For 'allele' and 'transgenic allele'
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, sa.obsolete, sa.displaytext
         FROM biologicalentity be
@@ -115,9 +109,10 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         WHERE sa.slotannotationtype = 'AlleleSymbolSlotAnnotation'
         AND UPPER(sa.displaytext) IN :entity_name_list
         AND ot.curie = :taxon
-        """)
+        """).bindparams(bindparam("entity_name_list", expanding=True))
 
     elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
+        print("query=", entity_name_list)
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, be.obsolete, agm.name
         FROM biologicalentity be
@@ -125,7 +120,7 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         JOIN ontologyterm ot ON be.taxon_id = ot.id
         WHERE UPPER(agm.name) IN :entity_name_list
         AND ot.curie = :taxon
-        """)
+        """).bindparams(bindparam("entity_name_list", expanding=True))
 
     elif entity_type == 'construct':
         sql_query = text("""
@@ -137,7 +132,7 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
             'ConstructSymbolSlotAnnotation'
         )
         AND UPPER(sa.displaytext) IN :entity_name_list
-        """)
+        """).bindparams(bindparam("entity_name_list", expanding=True))
 
     elif entity_type == 'species':
         sql_query = text("""
@@ -145,13 +140,13 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         FROM ontologyterm
         WHERE name IN :entity_name_list
         OR curie IN :entity_name_list
-        """)
+        """).bindparams(bindparam("entity_name_list", expanding=True))
 
     else:
         # Entity type not supported
         return None
 
-    rows = db.execute(sql_query, {'entity_name_list': tuple(entity_name_list), 'taxon': taxon}).fetchall()
+    rows = db.execute(sql_query, {'entity_name_list': entity_name_list, 'taxon': taxon}).fetchall()
     return rows
 
 
@@ -169,15 +164,16 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
         FROM biologicalentity be, {entity_table_name} ent_tbl
         WHERE be.id = ent_tbl.id
         AND UPPER(be.primaryexternalid) IN :entity_curie_list
-        """)
+        """).bindparams(bindparam("entity_curie_list", expanding=True))
 
     elif entity_type == 'construct':
+        print("construct curie: entity_curie_list=", entity_curie_list)
         sql_query = text("""
         SELECT DISTINCT r.primaryexternalid, r.obsolete, r.primaryexternalid
         FROM reagent r, construct c
         WHERE r.id = c.id
         AND UPPER(r.primaryexternalid) IN :entity_curie_list
-        """)
+        """).bindparams(bindparam("entity_curie_list", expanding=True))
 
     elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
         sql_query = text("""
@@ -185,13 +181,13 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
         FROM biologicalentity be, affectedgenomicmodel agm
         WHERE be.id = agm.id
         AND UPPER(be.primaryexternalid) IN :entity_curie_list
-        """)
+        """).bindparams(bindparam("entity_curie_list", expanding=True))
 
     else:
         # Entity type not supported
         return None
 
-    rows = db.execute(sql_query, {'entity_curie_list': tuple(entity_curie_list)}).fetchall()
+    rows = db.execute(sql_query, {'entity_curie_list': entity_curie_list}).fetchall()
     return rows
 
 
@@ -361,13 +357,14 @@ def map_curies_to_names(category, curies):
     """
     db = create_ateam_db_session()
     if not curies:
+        db.close()
         return {}
 
     # If category is an ATP:xxxx ID, look up its name first
     if category.startswith('ATP:'):
         category_label = map_atp_id_to_name(db, category)
         if category_label is None:
-            # If we can't find a label for the ATP category, just return identity mapping.
+            db.close()
             return {curie: curie for curie in curies}
         category = category_label
 
@@ -381,7 +378,7 @@ def map_curies_to_names(category, curies):
         JOIN slotannotation sa ON be.id = sa.singlegene_id
         WHERE be.primaryexternalid IN :curies
         AND sa.slotannotationtype = 'GeneSymbolSlotAnnotation'
-        """)
+        """).bindparams(bindparam("curies", expanding=True))
 
     elif 'allele' in category:
         sql_query = text("""
@@ -390,7 +387,7 @@ def map_curies_to_names(category, curies):
         JOIN slotannotation sa ON be.id = sa.singleallele_id
         WHERE be.primaryexternalid IN :curies
         AND sa.slotannotationtype = 'AlleleSymbolSlotAnnotation'
-        """)
+        """).bindparams(bindparam("curies", expanding=True))
 
     elif category in ['affected genome model', 'strain', 'genotype', 'fish']:
         sql_query = text("""
@@ -398,7 +395,7 @@ def map_curies_to_names(category, curies):
         FROM biologicalentity be
         JOIN affectedgenomicmodel agm ON be.id = agm.id
         WHERE be.primaryexternalid IN :curies
-        """)
+        """).bindparams(bindparam("curies", expanding=True))
 
     elif 'construct' in category:
         sql_query = text("""
@@ -407,16 +404,16 @@ def map_curies_to_names(category, curies):
         JOIN slotannotation sa ON r.id = sa.singleconstruct_id
         WHERE r.primaryexternalid IN :curies
         AND sa.slotannotationtype = 'ConstructSymbolSlotAnnotation'
-        """)
+        """).bindparams(bindparam("curies", expanding=True))
 
     elif category in ['species', 'atpterm', 'ecoterm']:
-        # Do an uppercase match
+        # Do an uppercase match for ontology terms
         curies = [curie.upper() for curie in curies]
         sql_query = text("""
         SELECT curie, name
         FROM ontologyterm
         WHERE UPPER(curie) IN :curies
-        """)
+        """).bindparams(bindparam("curies", expanding=True))
 
     else:
         # If the category doesn't match a known table/relationship,
@@ -424,7 +421,7 @@ def map_curies_to_names(category, curies):
         db.close()
         return {curie: curie for curie in curies}
 
-    rows = db.execute(sql_query, {'curies': tuple(curies)}).fetchall()
+    rows = db.execute(sql_query, {'curies': curies}).fetchall()
     curie_to_name_map = {row[0]: row[1] for row in rows}
     db.close()
     return curie_to_name_map
