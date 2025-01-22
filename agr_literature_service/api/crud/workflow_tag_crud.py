@@ -705,6 +705,95 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
             "tag_count": x_dict['tag_count']
         })
+    # append the total if mod_abbreviation is None
+    if not mod_abbreviation:
+        data_total=counters_total(db, workflow_process_atp_id, date_option, date_range_start, date_range_end)
+        data.extend(data_total)
+    for dicts in data:
+        print(dicts)
+    return data
+
+# help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
+def counters_total(db: Session,  workflow_process_atp_id: str = None,
+             date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
+    all_WF_tags_for_process = None
+    if workflow_process_atp_id:
+        all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+        if all_WF_tags_for_process is None:
+            message = f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available"
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=message)
+        atp_curies = all_WF_tags_for_process
+    else:
+        rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
+        atp_curies = [x[0] for x in rows]
+    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
+
+    where_clauses = []
+    params = {}
+
+
+    if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+        #if isinstance(date_range_end, str):
+        #    date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
+        #    new_timestamp = date_range_end_date + timedelta(days=1)
+        #    date_range_end = new_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        if date_option == 'default' or date_option is None:
+            where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+        elif date_option == 'reference_created':
+            where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+        elif date_option == 'reference_published':
+            where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+        elif date_option == 'inside_corpus':
+            params["start_date"] = date_range_start
+            params["end_date"] = date_range_end
+
+    data=[]
+    # loop all workflow_tag to get total number for each tag, this will remove duplicate among different mods
+    if all_WF_tags_for_process:
+        for WF_tags in all_WF_tags_for_process:
+            where_clauses.append("wt.workflow_tag_id = :WF_tags")
+            params["WF_tags"] = WF_tags
+
+            where = ""
+            if where_clauses:
+                where = "WHERE " + " AND ".join(where_clauses)
+
+            query = """
+            SELECT   COUNT(distinct(wt.reference_id)) AS ref_count
+            FROM workflow_tag wt
+            JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
+                AND mca.corpus = TRUE
+            """
+
+            if date_option == 'inside_corpus':
+                query += """
+                    AND mca.date_updated BETWEEN :start_date AND :end_date
+                """
+
+            query += f"""
+            {where}
+            """
+
+            try:
+                rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+            for x in rows:
+                x_dict = dict(x)
+                data.append({
+                    "mod_abbreviation": 'Total',
+                    "workflow_tag_id": WF_tags,
+                    "workflow_tag_name": atp_curie_to_name[WF_tags],
+                    "tag_count": x_dict['ref_count']
+                })
     return data
 
 
