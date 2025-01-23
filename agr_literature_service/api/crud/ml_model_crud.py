@@ -98,72 +98,45 @@ def cleanup(file_path):
     os.remove(file_path)
 
 
-def download_model(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int):
+def get_mod(db: Session, mod_abbreviation: str):
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     if not mod:
         raise HTTPException(status_code=404, detail="Mod not found")
-    model = db.query(MLModel).filter(
+    return mod
+
+
+def get_model(db: Session, task_type: str, mod_id: int, topic: str, version_num: int = None):
+    query = db.query(MLModel).filter(
         MLModel.task_type == task_type,
-        MLModel.mod_id == mod.mod_id,
-        MLModel.topic == topic,
-        MLModel.version_num == version_num
-    ).first()
+        MLModel.mod_id == mod_id,
+        MLModel.topic == topic
+    )
+    if version_num is not None and version_num > 0:
+        query = query.filter(MLModel.version_num == version_num)
+    else:
+        query = query.order_by(MLModel.version_num.desc())
+    model = query.first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
+    return model
+
+
+def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
+    mod = get_mod(db, mod_abbreviation)
+    model = get_model(db, task_type, mod.mod_id, topic, version_num)
+    return MLModelSchemaShow.from_orm(model)
+
+
+def download_model(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
+    mod = get_mod(db, mod_abbreviation)
+    model = get_model(db, task_type, mod.mod_id, topic, version_num)
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
-    object_key = f"{folder}/{str(version_num)}.gz"
-    file_name_gzipped = f"{str(version_num)}.gz"
-    file_name = f"{str(version_num)}.{model.file_extension}"
+    object_key = f"{folder}/{str(model.version_num)}.gz"
+    file_name_gzipped = f"{str(model.version_num)}.gz"
+    file_name = f"{str(model.version_num)}.{model.file_extension}"
     download_file_from_s3(file_name_gzipped, bucketname="agr-literature", s3_file_location=object_key)
     with gzip.open(file_name_gzipped, 'rb') as f_in, open(file_name, 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
     os.remove(file_name_gzipped)
     return FileResponse(path=file_name, filename=file_name, media_type="application/octet-stream",
                         background=BackgroundTask(cleanup, file_name))
-
-
-def download_model_latest(db: Session, task_type: str, mod_abbreviation: str, topic: str):
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-    if not mod:
-        raise HTTPException(status_code=404, detail="Mod not found")
-    model = db.query(MLModel).filter(
-        MLModel.task_type == task_type,
-        MLModel.mod_id == mod.mod_id,
-        MLModel.topic == topic
-    ).order_by(MLModel.version_num.desc()).first()
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found")
-    folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
-    object_key = f"{folder}/{str(model.version_num)}.gz"
-
-    s3_client.download_file('agr-literature', object_key, f"/tmp/{str(model.version_num)}.gz")
-    return f"/tmp/{str(model.version_num)}.gz"
-
-
-def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int):
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-    if not mod:
-        raise HTTPException(status_code=404, detail="Mod not found")
-    model = db.query(MLModel).filter(
-        MLModel.task_type == task_type,
-        MLModel.mod_id == mod.mod_id,
-        MLModel.topic == topic,
-        MLModel.version_num == version_num
-    ).first()
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found")
-    return MLModelSchemaShow.from_orm(model)
-
-
-def get_latest_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str):
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-    if not mod:
-        raise HTTPException(status_code=404, detail="Mod not found")
-    model = db.query(MLModel).filter(
-        MLModel.task_type == task_type,
-        MLModel.mod_id == mod.mod_id,
-        MLModel.topic == topic
-    ).order_by(MLModel.version_num.desc()).first()
-    if not model:
-        raise HTTPException(status_code=404, detail="Model not found")
-    return MLModelSchemaShow.from_orm(model)
