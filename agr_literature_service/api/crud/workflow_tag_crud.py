@@ -707,15 +707,16 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         })
     # append the total if mod_abbreviation is None
     if not mod_abbreviation:
-        data_total=counters_total(db, workflow_process_atp_id, date_option, date_range_start, date_range_end)
+        data_total = counters_total(db, workflow_process_atp_id, date_option, date_range_start, date_range_end)
         data.extend(data_total)
     for dicts in data:
         print(dicts)
     return data
 
+
 # help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
-def counters_total(db: Session,  workflow_process_atp_id: str = None,
-             date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
+def counters_total(db: Session, workflow_process_atp_id: str = None,
+                   date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
     all_WF_tags_for_process = None
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
@@ -732,9 +733,8 @@ def counters_total(db: Session,  workflow_process_atp_id: str = None,
     where_clauses = []
     params = {}
 
-
     if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
-        #if isinstance(date_range_end, str):
+        # if isinstance(date_range_end, str): # already format in counters function
         #    date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
         #    new_timestamp = date_range_end_date + timedelta(days=1)
         #    date_range_end = new_timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -754,7 +754,7 @@ def counters_total(db: Session,  workflow_process_atp_id: str = None,
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
 
-    data=[]
+    data = []
     # loop all workflow_tag to get total number for each tag, this will remove duplicate among different mods
     if all_WF_tags_for_process:
         for WF_tags in all_WF_tags_for_process:
@@ -768,7 +768,8 @@ def counters_total(db: Session,  workflow_process_atp_id: str = None,
             query = """
             SELECT   COUNT(distinct(wt.reference_id)) AS ref_count
             FROM workflow_tag wt
-            JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
+            JOIN reference r ON wt.reference_id = r.reference_id
+            JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
                 AND mca.corpus = TRUE
             """
 
@@ -789,7 +790,7 @@ def counters_total(db: Session,  workflow_process_atp_id: str = None,
             for x in rows:
                 x_dict = dict(x)
                 data.append({
-                    "mod_abbreviation": 'Total',
+                    "mod_abbreviation": 'All',
                     "workflow_tag_id": WF_tags,
                     "workflow_tag_name": atp_curie_to_name[WF_tags],
                     "tag_count": x_dict['ref_count']
