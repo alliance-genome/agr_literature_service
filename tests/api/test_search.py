@@ -3,6 +3,7 @@ from datetime import datetime
 
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
+from unittest.mock import patch
 
 from fastapi import status
 from agr_literature_service.api.config import config
@@ -12,6 +13,13 @@ from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from .fixtures import auth_headers # noqa
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_get_map_ateam_curies_to_names():
+    with patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names") as mock_func:
+        mock_func.return_value = {'ATP:0000196': 'antibody extraction complete'}
+        yield
 
 
 @pytest.fixture(scope='module')
