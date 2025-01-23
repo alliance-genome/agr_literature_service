@@ -68,7 +68,6 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
     env_state = os.environ.get("ENV_STATE", "")
     extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
     folder = get_ml_model_s3_folder(request.task_type, request.mod_abbreviation, request.topic)
-    content_encoding = file.headers.get("Content-Encoding")
     temp_file_name = f"{str(request.version_num)}.gz"
     with gzip.open(temp_file_name, 'wb') as f_out:
         shutil.copyfileobj(file.file, f_out)
