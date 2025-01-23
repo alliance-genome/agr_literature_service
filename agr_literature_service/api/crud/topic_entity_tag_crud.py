@@ -105,6 +105,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     # return topic_entity_tag_id
 
 
+def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie):
+
+    reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
+    update_manual_indexing_workflow_tag(db, mod_abbreviation, reference_id, "ATP:0000275")
+
+
 def update_manual_indexing_workflow_tag(db: Session, mod_abbreviation, reference_id, index_wft):
 
     if index_wft is None:

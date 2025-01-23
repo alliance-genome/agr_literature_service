@@ -227,3 +227,13 @@ def search_descendants(ancestor_curie: str):
             status_code=200)
 def search_species(species: str):
     return ateam_db_helpers.search_species(species)
+
+
+@router.post('/set_no_tet_status/{mod_abbreviation}/{reference_curie}',
+             status_code=200)
+def set_no_tet_status(mod_abbreviation: str,
+                      reference_curie: str,
+                      db: Session = db_session):
+    return topic_entity_tag_crud.set_indexing_status_for_no_tet_data(db,
+                                                                     mod_abbreviation,
+                                                                     reference_curie)
