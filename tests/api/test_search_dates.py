@@ -3,6 +3,7 @@ import datetime
 
 from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
+from unittest.mock import patch
 
 from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
@@ -29,6 +30,13 @@ from .fixtures import auth_headers # noqa
 # Need to check date SE before PS and SS after PE for NO results.
 # lets call these case 5 (before) and 6 (after).
 #########################################################################
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_get_map_ateam_curies_to_names():
+    with patch("agr_literature_service.api.crud.search_crud.get_map_ateam_curies_to_names") as mock_func:
+        mock_func.return_value = {'ATP:0000196': 'antibody extraction complete'}
+        yield
 
 
 @pytest.fixture(scope='module')

@@ -3,7 +3,7 @@ from sqlalchemy import text
 from os import environ, path
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logging.basicConfig(format='%(message)s')
@@ -22,7 +22,7 @@ def check_data():
 
     logger.info(f"Total {len(all_distinct_curies)} unique species are in topic_entity_tag table.")
 
-    valid_curies = get_map_ateam_curies_to_names("ncbitaxonterm", all_distinct_curies)
+    valid_curies = map_curies_to_names("species", all_distinct_curies)
     obsolete_disappeared_curies = set(all_distinct_curies) - set(valid_curies)
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} NCBITaxon ID(s) are obsolete or disappeared from A-team ATP table")
 

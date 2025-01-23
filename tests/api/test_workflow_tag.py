@@ -23,6 +23,10 @@ TestWTData = namedtuple('TestWTData', ['response', 'new_wt_id', 'related_ref_cur
                                        'related_mod_abbreviation'])
 
 
+def get_descendants_mock(parent):
+    return []
+
+
 @pytest.fixture
 def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
     print("***** Adding a test workflow tag *****")
@@ -144,6 +148,7 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     def test_transition_to_workflow_status_and_get_current_workflow_status(self, db, test_mod, test_reference,  # noqa
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -202,7 +207,13 @@ class TestWorkflowTag:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
     def test_workflow_tag_counters(self, db, test_workflow_tag, auth_headers): # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map_ateam_curies_to_names:
+            mock_get_map_ateam_curies_to_names.return_value = {
+                'ATP:0000141': 'file needed', 'ont1': 'test',
+                'ATP:0000168': 'catalytic activity classification complete'
+            }
             # Create additional references and MODs
             mods = ['WB', 'WB', 'FB']
             references = [
