@@ -30,11 +30,8 @@ def get_ml_model_s3_folder(task_type: str, mod_abbreviation: str, topic: str):
 
 
 def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
-    mod = db.query(ModModel).filter(ModModel.abbreviation == request.mod_abbreviation).first()
-    if not mod:
-        raise HTTPException(status_code=404, detail=f"Mod with abbreviation {request.mod_abbreviation} not found")
-
-    if request.version_num <= 0 or request.version_num is None:
+    mod = get_mod(db, request.mod_abbreviation)
+    if request.version_num is None or request.version_num <= 0:
         latest_version_num = db.query(MLModel.version_num).filter(
             MLModel.task_type == request.task_type,
             MLModel.mod_id == mod.mod_id,
