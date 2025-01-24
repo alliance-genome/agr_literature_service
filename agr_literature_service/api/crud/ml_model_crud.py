@@ -75,20 +75,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         upload_file_to_bucket(s3_client=s3_client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
                               object_name=str(request.version_num) + ".gz", ExtraArgs=extra_args)
     os.remove(temp_file_name)
-    new_model_data = {
-        "task_type": new_model.task_type,
-        "mod_abbreviation": mod.abbreviation,
-        "topic": new_model.topic,
-        "version_num": new_model.version_num,
-        "file_extension": new_model.file_extension,
-        "model_type": new_model.model_type,
-        "precision": new_model.precision,
-        "recall": new_model.recall,
-        "f1_score": new_model.f1_score,
-        "parameters": new_model.parameters,
-        "dataset_id": new_model.dataset_id
-    }
-    MLModelSchemaShow(**new_model_data)
+    return get_model_schema_from_orm(new_model)
 
 
 def destroy(db: Session, ml_model_id: int):
@@ -130,10 +117,28 @@ def get_model(db: Session, task_type: str, mod_id: int, topic: str, version_num:
     return model
 
 
+def get_model_schema_from_orm(model: MLModel):
+    model_data = {
+        "task_type": model.task_type,
+        "mod_abbreviation": model.mod.abbreviation,
+        "topic": model.topic,
+        "version_num": model.version_num,
+        "file_extension": model.file_extension,
+        "model_type": model.model_type,
+        "precision": model.precision,
+        "recall": model.recall,
+        "f1_score": model.f1_score,
+        "parameters": model.parameters,
+        "dataset_id": model.dataset_id,
+        "ml_model_id": model.ml_model_id
+    }
+    return MLModelSchemaShow(**model_data)
+
+
 def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
-    return MLModelSchemaShow.from_orm(model)
+    return get_model_schema_from_orm(model)
 
 
 def download_model(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):

@@ -23,7 +23,10 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
 
-@router.post("/upload", status_code=status.HTTP_201_CREATED)
+@router.post("/upload",
+             status_code=status.HTTP_201_CREATED,
+             response_model=MLModelSchemaShow
+             )
 def upload_model(
         task_type: str = None,
         mod_abbreviation: str = None,

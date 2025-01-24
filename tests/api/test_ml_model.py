@@ -66,10 +66,10 @@ class TestMLModel:
     def test_create_model(self, db, test_ml_model, test_mod):  # noqa
         assert test_ml_model["ml_model_id"]
         # check db for model
-        model = db.query(MLModel).filter(MLModel.task_type == "document_classification").one()
-        assert model.mod_abbreviation == test_mod.new_mod_abbreviation
-        assert model.topic == "ATP:0000061"
-        assert model.version_num == 1
+        ml_model = db.query(MLModel).filter(MLModel.task_type == "document_classification").one()
+        assert ml_model.mod.abbreviation == test_mod.new_mod_abbreviation
+        assert ml_model.topic == "ATP:0000061"
+        assert ml_model.version_num == 1
 
     def test_get_model_metadata(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:
