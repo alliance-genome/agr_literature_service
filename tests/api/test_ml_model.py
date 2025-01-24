@@ -69,6 +69,12 @@ class TestMLModel:
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
+            response = client.get(
+                url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000062")
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+            response = client.get(
+                url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000062")
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_upload_model(self, db, test_ml_model, test_mod):  # noqa
         assert test_ml_model["ml_model_id"]
