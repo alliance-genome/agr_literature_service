@@ -81,7 +81,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
 def destroy(db: Session, ml_model_id: int):
     model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
     if model:
-        folder = get_ml_model_s3_folder(model.task_type, model.mod.mod_abbreviation, model.topic)
+        folder = get_ml_model_s3_folder(model.task_type, model.mod.abbreviation, model.topic)
         object_key = f"{folder}/{str(model.version_num)}.gz"
         # Delete the file from S3
         s3_client.delete_object(Bucket='agr-literature', Key=object_key)

@@ -79,7 +79,7 @@ class TestMLModel:
 
     def test_get_latest_model_metadata(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/latest")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
 
