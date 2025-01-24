@@ -54,6 +54,7 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
             )
         os.remove(tmp_file_path)
         yield response.json()
+        client.delete(url=f"/ml_model/{response.json()['ml_model_id']}", headers=auth_headers)
 
 
 class TestMLModel:
