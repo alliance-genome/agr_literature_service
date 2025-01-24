@@ -15,7 +15,7 @@ class MLModelSchemaBase(BaseModel):
     recall: float
     f1_score: float
     parameters: str
-    dataset_id: int
+    dataset_id: Union[int, None]
 
 
 class MLModelSchemaPost(MLModelSchemaBase):
