@@ -15,11 +15,11 @@ from datetime import datetime, timedelta
 from typing import Union, Optional
 
 from agr_literature_service.api.crud.reference_utils import get_reference
-from agr_literature_service.api.models import WorkflowTagModel, WorkflowTransitionModel, ModModel, ReferenceModel
+from agr_literature_service.api.models import WorkflowTagModel, \
+    WorkflowTransitionModel, ModModel, ReferenceModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
-    get_reference_id_from_curie_or_id  # get_ancestors,
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
+    get_reference_id_from_curie_or_id, get_map_ateam_curies_to_names  # get_ancestors,
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
@@ -126,22 +126,30 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
     if offset < 0:
         offset = 0
     jobs = []
-    wft_list = (db.query(WorkflowTagModel, WorkflowTransitionModel, ReferenceModel)
-                .filter(WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to,
-                        WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
+    wft_list = (db.query(WorkflowTagModel.workflow_tag_id,
+                         WorkflowTagModel.reference_id,
+                         WorkflowTagModel.reference_workflow_tag_id,
+                         WorkflowTagModel.mod_id,
+                         WorkflowTransitionModel.condition,
+                         ReferenceModel.curie)
+                .join(WorkflowTransitionModel,
+                      WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to)
+                .join(ReferenceModel,
+                      WorkflowTagModel.reference_id == ReferenceModel.reference_id)
+                .filter(WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str))
                 .order_by(WorkflowTagModel.date_updated.desc()).limit(limit).offset(offset).all())
     for wft in wft_list:
-        conditions = wft[1].condition.split(',')
+        conditions = wft.condition.split(',')
         for condition in conditions:
             if job_str in condition:
                 new_job = {}
                 new_job['job_name'] = condition
-                new_job['workflow_tag_id'] = wft[0].workflow_tag_id
-                new_job['reference_id'] = wft[0].reference_id
-                new_job['reference_curie'] = wft[2].curie
-                new_job['reference_workflow_tag_id'] = wft[0].reference_workflow_tag_id
-                new_job['mod_id'] = wft[0].mod_id
+                new_job['workflow_tag_id'] = wft.workflow_tag_id
+                new_job['reference_id'] = wft.reference_id
+                new_job['reference_curie'] = wft.curie
+                new_job['reference_workflow_tag_id'] = wft.reference_workflow_tag_id
+                new_job['mod_id'] = wft.mod_id
                 jobs.append(new_job)
     return jobs
 
@@ -363,8 +371,8 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     if not all_workflow_tags_for_process or not reference_id:
         return []
 
-    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm",
-                                                      curies=all_workflow_tags_for_process)
+    atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_workflow_tags_for_process)
+
     sql_query = """
     SELECT distinct m.abbreviation, wft.workflow_tag_id, wft.updated_by,
            wft.date_updated::date AS date_updated, u.email

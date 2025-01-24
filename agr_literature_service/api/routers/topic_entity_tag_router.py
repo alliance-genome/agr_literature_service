@@ -7,15 +7,13 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud, \
-    topic_entity_tag_utils
+    ateam_db_helpers, topic_entity_tag_utils
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
-from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, \
-    TopicEntityTagSchemaPost, ResponseMessageSchema
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import \
-    TopicEntityTagSchemaRelated, TopicEntityTagSourceSchemaUpdate, \
-    TopicEntityTagSchemaUpdate, TopicEntityTagSourceSchemaShow, \
-    TopicEntityTagSourceSchemaCreate
+from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
+    TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
+    TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -203,3 +201,39 @@ def delete_manual_tags(reference_curie,
     set_global_user_from_okta(db, user)
     topic_entity_tag_utils.delete_manual_tets(db, reference_curie, mod_abbreviation)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get('/entity_validation/{taxon}/{entity_type}/{entity_list}',
+            status_code=200)
+def entity_validation(taxon: str,
+                      entity_type: str,
+                      entity_list: str):
+    return ateam_db_helpers.map_entity_to_curie(entity_type, entity_list, taxon)
+
+
+@router.get('/search_topic/{topic}',
+            status_code=200)
+def search_topic(topic: str):
+    return ateam_db_helpers.search_topic(topic)
+
+
+@router.get('/search_descendants/{ancestor_curie}',
+            status_code=200)
+def search_descendants(ancestor_curie: str):
+    return ateam_db_helpers.search_atp_descendants(ancestor_curie)
+
+
+@router.get('/search_species/{species}',
+            status_code=200)
+def search_species(species: str):
+    return ateam_db_helpers.search_species(species)
+
+
+@router.post('/set_no_tet_status/{mod_abbreviation}/{reference_curie}',
+             status_code=200)
+def set_no_tet_status(mod_abbreviation: str,
+                      reference_curie: str,
+                      db: Session = db_session):
+    return topic_entity_tag_crud.set_indexing_status_for_no_tet_data(db,
+                                                                     mod_abbreviation,
+                                                                     reference_curie)
