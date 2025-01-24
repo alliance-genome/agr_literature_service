@@ -730,8 +730,9 @@ def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curies:
     #    atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
-    where_clauses = []
-    params = {}
+    # Base where_clauses and params (for date filters)
+    base_where_clauses = []
+    base_params = {}
 
     if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
         # if isinstance(date_range_end, str): # already format in counters function
@@ -739,25 +740,26 @@ def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curies:
         #    new_timestamp = date_range_end_date + timedelta(days=1)
         #    date_range_end = new_timestamp.strftime("%Y-%m-%d %H:%M:%S")
         if date_option == 'default' or date_option is None:
-            where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
-            params["start_date"] = date_range_start
-            params["end_date"] = date_range_end
+            base_where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
         elif date_option == 'reference_created':
-            where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
-            params["start_date"] = date_range_start
-            params["end_date"] = date_range_end
+            base_where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
         elif date_option == 'reference_published':
-            where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
-            params["start_date"] = date_range_start
-            params["end_date"] = date_range_end
+            base_where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
         elif date_option == 'inside_corpus':
-            params["start_date"] = date_range_start
-            params["end_date"] = date_range_end
+            # For 'inside_corpus', we only add the date filter to mca.date_updated
+            # in the final query. No direct where clause needed here, just storing params.
+            pass
+        base_params["start_date"] = date_range_start
+        base_params["end_date"] = date_range_end
 
     data = []
     # loop all workflow_tag to get total number for each tag, this will remove duplicate among different mods
     if all_WF_tags_for_process:
         for WF_tags in all_WF_tags_for_process:
+            # Make a copy of the base lists and dicts so that each iteration is “clean”
+            where_clauses = list(base_where_clauses)
+            params = dict(base_params)
+            # Add the condition for the single tag in this iteration
             where_clauses.append("wt.workflow_tag_id = :WF_tags")
             params["WF_tags"] = WF_tags
 
