@@ -14,12 +14,15 @@ from .test_mod import test_mod  # noqa
 from ..fixtures import db  # noqa
 
 
+model_file_test_content = b"This is a test joblib file."
+
+
 @pytest.fixture
 def test_ml_model(db, auth_headers, test_mod):  # noqa
     print("***** Adding a test ML model *****")
     with TestClient(app) as client:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".joblib") as tmp_file:
-            tmp_file.write(b"This is a test joblib file.")
+            tmp_file.write(model_file_test_content)
             tmp_file_path = tmp_file.name
 
         with open(tmp_file_path, "rb") as file:
@@ -89,6 +92,7 @@ class TestMLModel:
             response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1")
             assert response.status_code == status.HTTP_200_OK
             assert response.headers["content-type"] == "application/octet-stream"
+            assert response.content == model_file_test_content
 
     def test_download_latest_model_file(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:
