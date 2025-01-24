@@ -4,14 +4,14 @@ import os
 import tempfile
 
 import pytest
-from starlette.testclient import TestClient
 from fastapi import status
+from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import MLModel
-from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod  # noqa
+from ..fixtures import db  # noqa
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ class TestMLModel:
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_model(self, db, test_ml_model, test_mod):  # noqa
+    def test_upload_model(self, db, test_ml_model, test_mod):  # noqa
         assert test_ml_model["ml_model_id"]
         # check db for model
         ml_model = db.query(MLModel).filter(MLModel.task_type == "document_classification").one()
@@ -83,13 +83,13 @@ class TestMLModel:
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
 
-    def test_download_model(self, test_ml_model, test_mod):  # noqa
+    def test_download_model_file(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1")
             assert response.status_code == status.HTTP_200_OK
             assert response.headers["content-type"] == "application/octet-stream"
 
-    def test_download_latest_model(self, test_ml_model, test_mod):  # noqa
+    def test_download_latest_model_file(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
             assert response.status_code == status.HTTP_200_OK

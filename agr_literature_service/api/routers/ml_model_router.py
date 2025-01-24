@@ -114,9 +114,9 @@ def get_model_metadata(task_type: str,
 @router.get('/download/{task_type}/{mod_abbreviation}/{topic}',
             response_model=MLModelSchemaShow,
             status_code=200)
-def download_model(task_type: str,
-                   mod_abbreviation: str,
-                   topic: str,
-                   version_num: int = None,
-                   db: Session = db_session):
-    return ml_model_crud.download_model(db, task_type, mod_abbreviation, topic, version_num)
+def download_model_file(task_type: str,
+                        mod_abbreviation: str,
+                        topic: str,
+                        version_num: int = None,
+                        db: Session = db_session):
+    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version_num)
