@@ -707,7 +707,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         })
     # append the total if mod_abbreviation is None
     if not mod_abbreviation:
-        data_total = counters_total(db, workflow_process_atp_id, date_option, date_range_start, date_range_end)
+        data_total = counters_total(db, all_WF_tags_for_process, atp_curies, date_option, date_range_start, date_range_end)
         data.extend(data_total)
     for dicts in data:
         print(dicts)
@@ -715,19 +715,19 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
 
 
 # help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
-def counters_total(db: Session, workflow_process_atp_id: str = None,
+def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curies: []=None,
                    date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
-    all_WF_tags_for_process = None
-    if workflow_process_atp_id:
-        all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
-        if all_WF_tags_for_process is None:
-            message = f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available"
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=message)
-        atp_curies = all_WF_tags_for_process
-    else:
-        rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
-        atp_curies = [x[0] for x in rows]
+    #all_WF_tags_for_process = None
+    #if workflow_process_atp_id:
+    #    all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
+    #    if all_WF_tags_for_process is None:
+    #        message = f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available"
+    #        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+    #                            detail=message)
+    #    atp_curies = all_WF_tags_for_process
+    #else:
+    #    rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
+    #    atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
     where_clauses = []
@@ -781,7 +781,9 @@ def counters_total(db: Session, workflow_process_atp_id: str = None,
             query += f"""
             {where}
             """
-
+            print(query)
+            print(f"WF_tags:{WF_tags}")
+            print(f",".join(params))
             try:
                 rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
             except Exception as e:
