@@ -26,14 +26,11 @@ from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
 from agr_literature_service.api.crud.referencefile_crud import create_metadata
 
-
 logger = logging.getLogger(__name__)
-
 
 CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
     {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
      'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
-
 
 TestReferenceData = namedtuple('TestReferenceData', ['response', 'new_ref_curie'])
 
@@ -211,7 +208,10 @@ class TestReference:
            load_workflow_parent_children_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
+                mock_check_atp_ids_validity:
+            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -481,10 +481,10 @@ class TestReference:
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
                 mock_check_atp_ids_validity, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
             mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
-            mock_get_map_ateam_curies_to_name.return_value = {
+            mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
@@ -625,10 +625,10 @@ class TestReference:
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
                 mock_check_atp_ids_validity, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_map_ateam_curies_to_names") as \
-                mock_get_map_ateam_curies_to_name:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
             mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
-            mock_get_map_ateam_curies_to_name.return_value = {
+            mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
@@ -740,6 +740,8 @@ class TestReference:
                                       'year|\n' \
                                       'abstract|3\n'
 
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
     def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
         with TestClient(app) as client:
             with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
