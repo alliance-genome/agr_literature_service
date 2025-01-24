@@ -203,7 +203,8 @@ def delete_manual_tags(reference_curie,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get('/entity_validation/{taxon}/{entity_type}/{entity_list}',
+# Use :path so entity_list can include slashes.
+@router.get('/entity_validation/{taxon}/{entity_type}/{entity_list:path}',
             status_code=200)
 def entity_validation(taxon: str,
                       entity_type: str,
