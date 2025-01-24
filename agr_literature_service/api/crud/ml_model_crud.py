@@ -40,6 +40,8 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
 
         if latest_version_num is None:
             latest_version_num = 0
+        else:
+            latest_version_num = latest_version_num[0]
         request.version_num = latest_version_num + 1
 
     # Save metadata to the database

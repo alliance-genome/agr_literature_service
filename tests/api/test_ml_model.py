@@ -30,7 +30,7 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                 "task_type": "document_classification",
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "topic": "ATP:0000061",
-                "version_num": 1,
+                "version_num": None,
                 "file_extension": "joblib",
                 "model_type": "MLP",
                 "precision": 0.9,
@@ -60,6 +60,9 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
         client.delete(url=f"/ml_model/{response.json()['ml_model_id']}", headers=auth_headers)
 
 
+test_ml_model2 = test_ml_model
+
+
 class TestMLModel:
 
     def test_get_bad_model(self, test_mod):  # noqa
@@ -81,13 +84,14 @@ class TestMLModel:
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
 
-    def test_get_latest_model_metadata(self, test_ml_model, test_mod):  # noqa
+    def test_get_latest_model_metadata(self, test_ml_model, test_ml_model2, test_mod):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
+            assert response.json()["version_num"] == 2
 
-    def test_download_model_file(self, test_ml_model, test_mod):  # noqa
+    def test_download_model_file(self, test_ml_model, test_ml_model2, test_mod):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1")
             assert response.status_code == status.HTTP_200_OK
