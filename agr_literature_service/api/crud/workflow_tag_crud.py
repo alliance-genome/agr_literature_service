@@ -628,7 +628,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     else:
         rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
-    atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
+    atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=atp_curies)
 
     where_clauses = []
     params = {}
@@ -667,29 +667,29 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where = "WHERE " + " AND ".join(where_clauses)
 
     query = """
-    SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
-    FROM mod m
-    JOIN workflow_tag wt ON m.mod_id = wt.mod_id
-    JOIN reference r ON wt.reference_id = r.reference_id
-    JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
-        AND mca.corpus = TRUE
-    """
+        SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
+        FROM mod m
+        JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+        JOIN reference r ON wt.reference_id = r.reference_id
+        JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
+            AND mca.corpus = TRUE
+        """
 
     if date_option == 'inside_corpus':
         query += """
-            AND mca.date_updated BETWEEN :start_date AND :end_date
-        """
+                AND mca.date_updated BETWEEN :start_date AND :end_date
+            """
 
     query += """
-    JOIN
-        mod m_inner ON mca.mod_id = m_inner.mod_id
-    """
+        JOIN
+            mod m_inner ON mca.mod_id = m_inner.mod_id
+        """
 
     query += f"""
-    {where}
-    GROUP BY m.abbreviation, wt.workflow_tag_id
-    ORDER BY m.abbreviation, wt.workflow_tag_id
-    """
+        {where}
+        GROUP BY m.abbreviation, wt.workflow_tag_id
+        ORDER BY m.abbreviation, wt.workflow_tag_id
+        """
 
     try:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
@@ -706,11 +706,11 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "tag_count": x_dict['tag_count']
         })
     # append the total if mod_abbreviation is None
-    if not mod_abbreviation:
-        data_total = counters_total(db, all_WF_tags_for_process, atp_curies, date_option, date_range_start, date_range_end)
-        data.extend(data_total)
-    for dicts in data:
-        print(dicts)
+    #if not mod_abbreviation:
+    #    data_total = counters_total(db, all_WF_tags_for_process, atp_curies, date_option, date_range_start, date_range_end)
+    #    data.extend(data_total)
+    #for dicts in data:
+    #    print(dicts)
     return data
 
 
@@ -784,11 +784,12 @@ def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curies:
             {where}
             """
             print(query)
-            print(f"WF_tags:{WF_tags}")
-            print(f",".join(params))
+            for key, value in params.items():
+                print(key, value)
             try:
                 rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
             except Exception as e:
+                print("error at counter_total")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
             for x in rows:
