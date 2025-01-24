@@ -58,7 +58,7 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
 
 class TestMLModel:
 
-    def test_get_bad_model(self, test_mod):
+    def test_get_bad_model(self, test_mod):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/-1")
             assert response.status_code == status.HTTP_404_NOT_FOUND
