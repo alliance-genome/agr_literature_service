@@ -75,7 +75,20 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         upload_file_to_bucket(s3_client=s3_client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
                               object_name=str(request.version_num) + ".gz", ExtraArgs=extra_args)
     os.remove(temp_file_name)
-    return MLModelSchemaShow.from_orm(new_model)
+    new_model_data = {
+        "task_type": new_model.task_type,
+        "mod_abbreviation": mod.abbreviation,
+        "topic": new_model.topic,
+        "version_num": new_model.version_num,
+        "file_extension": new_model.file_extension,
+        "model_type": new_model.model_type,
+        "precision": new_model.precision,
+        "recall": new_model.recall,
+        "f1_score": new_model.f1_score,
+        "parameters": new_model.parameters,
+        "dataset_id": new_model.dataset_id
+    }
+    MLModelSchemaShow(**new_model_data)
 
 
 def destroy(db: Session, ml_model_id: int):
