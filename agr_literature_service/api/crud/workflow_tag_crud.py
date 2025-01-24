@@ -714,29 +714,15 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "tag_count": x_dict['tag_count']
         })
     # append the total if mod_abbreviation is None
-    #if not mod_abbreviation:
-    #    data_total = counters_total(db, all_WF_tags_for_process, atp_curie_to_name, date_option, date_range_start, date_range_end)
-    #    data.extend(data_total)
-    #for dicts in data:
-    #    print(dicts)
+    if not mod_abbreviation:
+        data_total = counters_total(db, all_WF_tags_for_process, atp_curie_to_name, date_option, date_range_start, date_range_end)
+        data.extend(data_total)
     return data
 
 
 # help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
 def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curie_to_name: {} = None,
                    date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
-    #all_WF_tags_for_process = None
-    #if workflow_process_atp_id:
-    #    all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
-    #    if all_WF_tags_for_process is None:
-    #        message = f"WorkflowTag with the workflow_process_atp_id: {workflow_process_atp_id} is not available"
-    #        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-    #                            detail=message)
-    #    atp_curies = all_WF_tags_for_process
-    #else:
-    #    rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
-    #    atp_curies = [x[0] for x in rows]
-    #atp_curie_to_name = get_map_ateam_curies_to_names(curies_category="atpterm", curies=atp_curies)
 
     # Base where_clauses and params (for date filters)
     base_where_clauses = []
@@ -791,13 +777,10 @@ def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curie_t
             query += f"""
             {where}
             """
-            print(query)
-            for key, value in params.items():
-                print(key, value)
+
             try:
                 rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
             except Exception as e:
-                print("error at counter_total")
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
             for x in rows:
