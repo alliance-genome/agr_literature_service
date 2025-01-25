@@ -715,14 +715,14 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         })
     # append the total if mod_abbreviation is None
     if not mod_abbreviation:
-        data_total = counters_total(db, all_WF_tags_for_process, atp_curie_to_name, date_option, date_range_start, date_range_end)
+        data_total = _counters_total(db, all_WF_tags_for_process, atp_curie_to_name, date_option, date_range_start, date_range_end)
         data.extend(data_total)
     return data
 
 
 # help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
-def counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curie_to_name: {} = None,
-                   date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
+def _counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curie_to_name: {} = None,
+                    date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
 
     # Base where_clauses and params (for date filters)
     base_where_clauses = []
