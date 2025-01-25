@@ -12,7 +12,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -675,29 +675,29 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where = "WHERE " + " AND ".join(where_clauses)
 
     query = """
-    SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
-    FROM mod m
-    JOIN workflow_tag wt ON m.mod_id = wt.mod_id
-    JOIN reference r ON wt.reference_id = r.reference_id
-    JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
-        AND mca.corpus = TRUE
-    """
+        SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
+        FROM mod m
+        JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+        JOIN reference r ON wt.reference_id = r.reference_id
+        JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
+            AND mca.corpus = TRUE
+        """
 
     if date_option == 'inside_corpus':
         query += """
-            AND mca.date_updated BETWEEN :start_date AND :end_date
-        """
+                AND mca.date_updated BETWEEN :start_date AND :end_date
+            """
 
     query += """
-    JOIN
-        mod m_inner ON mca.mod_id = m_inner.mod_id
-    """
+        JOIN
+            mod m_inner ON mca.mod_id = m_inner.mod_id
+        """
 
     query += f"""
-    {where}
-    GROUP BY m.abbreviation, wt.workflow_tag_id
-    ORDER BY m.abbreviation, wt.workflow_tag_id
-    """
+        {where}
+        GROUP BY m.abbreviation, wt.workflow_tag_id
+        ORDER BY m.abbreviation, wt.workflow_tag_id
+        """
 
     try:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
@@ -713,6 +713,84 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
             "tag_count": x_dict['tag_count']
         })
+    # append the total if mod_abbreviation is None
+    if not mod_abbreviation:
+        data_total = _counters_total(db, atp_curie_to_name, all_WF_tags_for_process, date_option, date_range_start, date_range_end)
+        data.extend(data_total)
+    return data
+
+
+# help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
+def _counters_total(db: Session, atp_curie_to_name: Dict[str, str], all_WF_tags_for_process: str = None,
+                    date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
+
+    # Base where_clauses and params (for date filters)
+    base_where_clauses = []
+    base_params = {}
+
+    if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+        # if isinstance(date_range_end, str): # already format in counters function
+        #    date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
+        #    new_timestamp = date_range_end_date + timedelta(days=1)
+        #    date_range_end = new_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        if date_option == 'default' or date_option is None:
+            base_where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
+        elif date_option == 'reference_created':
+            base_where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
+        elif date_option == 'reference_published':
+            base_where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
+        elif date_option == 'inside_corpus':
+            # For 'inside_corpus', we only add the date filter to mca.date_updated
+            # in the final query. No direct where clause needed here, just storing params.
+            pass
+        base_params["start_date"] = date_range_start
+        base_params["end_date"] = date_range_end
+
+    data = []
+    # loop all workflow_tag to get total number for each tag, this will remove duplicate among different mods
+    if all_WF_tags_for_process:
+        for WF_tags in all_WF_tags_for_process:
+            # Make a copy of the base lists and dicts so that each iteration is “clean”
+            where_clauses = list(base_where_clauses)
+            params = dict(base_params)
+            # Add the condition for the single tag in this iteration
+            where_clauses.append("wt.workflow_tag_id = :WF_tags")
+            params["WF_tags"] = WF_tags
+
+            where = ""
+            if where_clauses:
+                where = "WHERE " + " AND ".join(where_clauses)
+
+            query = """
+            SELECT   COUNT(distinct(wt.reference_id)) AS ref_count
+            FROM workflow_tag wt
+            JOIN reference r ON wt.reference_id = r.reference_id
+            JOIN mod_corpus_association mca ON r.reference_id = mca.reference_id
+                AND mca.corpus = TRUE
+            """
+
+            if date_option == 'inside_corpus':
+                query += """
+                    AND mca.date_updated BETWEEN :start_date AND :end_date
+                """
+
+            query += f"""
+            {where}
+            """
+
+            try:
+                rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+            for x in rows:
+                x_dict = dict(x)
+                data.append({
+                    "mod_abbreviation": 'All',
+                    "workflow_tag_id": WF_tags,
+                    "workflow_tag_name": atp_curie_to_name[WF_tags],
+                    "tag_count": x_dict['ref_count']
+                })
     return data
 
 
