@@ -12,7 +12,7 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -715,13 +715,13 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         })
     # append the total if mod_abbreviation is None
     if not mod_abbreviation:
-        data_total = _counters_total(db, all_WF_tags_for_process, atp_curie_to_name, date_option, date_range_start, date_range_end)
+        data_total = _counters_total(db, atp_curie_to_name, all_WF_tags_for_process, date_option, date_range_start, date_range_end)
         data.extend(data_total)
     return data
 
 
 # help function to retrieve total number of record for child of workflow_process_apt_id if mod_abbreviation is None for counters function
-def _counters_total(db: Session, all_WF_tags_for_process: str = None, atp_curie_to_name: {} = None,
+def _counters_total(db: Session, atp_curie_to_name: Dict[str, str], all_WF_tags_for_process: str = None,
                     date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
 
     # Base where_clauses and params (for date filters)
