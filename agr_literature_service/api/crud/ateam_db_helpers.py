@@ -432,6 +432,7 @@ def map_curies_to_names(category, curies):
     db.close()
     return curie_to_name_map
 
+
 def get_name_to_atp_and_children(curie):
     """
     Add data to atp_to_name and name_to_atp dictionaries.

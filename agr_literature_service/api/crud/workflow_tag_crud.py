@@ -14,8 +14,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
 from typing import Union, Optional
 from fastapi_okta.okta_utils import get_authentication_token
-from typing import List, Dict
-from typing import Any
+from typing import Dict
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
