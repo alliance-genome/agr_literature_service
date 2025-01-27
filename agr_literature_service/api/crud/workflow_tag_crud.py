@@ -933,11 +933,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
                             detail="Authorization token missing")
 
     # get list of ALL ATPs under this parent
-    print("BOB: Query a team for atp data")
     name_to_atp, atp_to_name = get_name_to_atp_and_children(workflow_parent)
-    print("BOB: POST Query a team for atp data")
-    # print(name_to_atp)
-    # print(atp_to_name)
 
     # remove overall paper statuses from general overall ATPs
     for atp in overall_paper_status[workflow_parent].keys():
@@ -952,7 +948,6 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
 
     # get overall paper statuses
     atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
-    print(f"OVERALL: {atp_list}")
     sql_query = text(f"""
     select workflow_tag_id, count(1) as count
        from workflow_tag
@@ -988,8 +983,10 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     rows = db.execute(sql_query).fetchall()
     for (atp, count) in rows:
         name = atp_to_name[atp]
-        # print(name, count)
+
         (field_type, field_status) = get_field_and_status(name)
+        if field_type.endswith(' classification'):
+            field_type, _ = field_type.split(' classification')
         if field_status not in status_total:
             status_total[field_status] = 0
         if field_type not in type_hash:
@@ -1000,37 +997,27 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
         type_total[field_type] += count
         status_total[field_status] += count
 
-    # print(f"starting parent is {workflow_parent}")
-    output = []
     headers = ["status", "overall"]
     for field in type_hash.keys():
         headers.append(field)
-    output.append(headers)
 
     out_records = []
     for current_status in ('complete', 'in progress', 'failed', 'needed'):
         out_rec = {}
         out_rec['status'] = current_status
-        row: List[Any] = [current_status]
         try:
-            row.append(overall_dict[current_status])
-            out_rec['overall'] = overall_dict[current_status]
+            out_rec['overall_num'] = overall_dict[current_status][0]
+            out_rec['overall_perc'] = overall_dict[current_status][1]
         except KeyError:
-            row.append([0, 0.00])
-            out_rec['overall'] = [0, 0.00]
+            out_rec['overall_num'] = 0
+            out_rec['overall_perc'] = 0.00
         for field in type_hash.keys():
             try:
                 perc = (type_hash[field][current_status] / type_total[field]) * 100
-                row.append([type_hash[field][current_status], round(perc, 2)])
-                out_rec[field] = [type_hash[field][current_status], round(perc, 2)]
+                out_rec[f"{field}_num"] = type_hash[field][current_status]
+                out_rec[f"{field}_perc"] = round(perc, 2)
             except KeyError:
-                row.append([0, 0.00])
-                out_rec[field] = [0, 0.00]
-        output.append(row)
+                out_rec[f"{field}_num"] = 0
+                out_rec[f"{field}_perc"] = 0.00
         out_records.append(out_rec)
-    print(f"{mod_abbreviation} - {workflow_parent} results")
-    for row in output:
-        print(row)
-    for row in out_records:
-        print(row)
-    return output, out_records, headers
+    return out_records, headers
