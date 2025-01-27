@@ -12,7 +12,6 @@ from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from fastapi_okta.okta_utils import get_authentication_token
 from typing import Union, Optional, Dict
 
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -1001,11 +1000,6 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
             'ATP:0000166': 'reference classification needed'
         }
     }
-
-    auth_token = get_authentication_token()
-    if not auth_token:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Authorization token missing")
 
     # get list of ALL ATPs under this parent
     name_to_atp, atp_to_name = get_name_to_atp_and_children(workflow_parent)
