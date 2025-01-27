@@ -141,16 +141,18 @@ def get_reference_workflow_tags(mod_abbreviation: str,
                                 startDate: str = None,
                                 endDate: str = None,
                                 db: Session = db_session):
-    return workflow_tag_crud.get_reference_workflow_tags_by_mod(db, mod_abbreviation,
+    return workflow_tag_crud.get_reference_workflow_tags_by_mod(db,
                                                                 workflow_tag_id,
+                                                                mod_abbreviation,
                                                                 startDate, endDate)
 
 
-@router.get('/report/{workflow_tag_id}/{mod_abbreviation}',
+@router.get('/reports/{workflow_tag_id}/{mod_abbreviation}',
             status_code=200)
 def get_report_workflow_tags(mod_abbreviation: str,
                              workflow_tag_id: str,
                              # startDate: str = None,
                              # endDate: str = None,
                              db: Session = db_session):
+    print(f"BOB: router mod {mod_abbreviation} tag {workflow_tag_id}")
     return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)

@@ -431,3 +431,53 @@ def map_curies_to_names(category, curies):
     curie_to_name_map = {row[0]: row[1] for row in rows}
     db.close()
     return curie_to_name_map
+
+def get_name_to_atp_and_children(curie):
+    """
+    Add data to atp_to_name and name_to_atp dictionaries.
+    From the top curie given go down all children and store the data.
+    """
+    # To minimise db calls grab all atp data and then process
+    db = create_ateam_db_session()
+    print("BOB: get data form a team")
+    sql_query = text("""
+    SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
+      FROM ontologyterm o
+      LEFT JOIN ontologyterm_isa_parent_children opc ON o.id = opc.isaparents_id
+         WHERE o.ontologytermtype = 'ATPTerm'
+    """)
+    rows = db.execute(sql_query).fetchall()
+    curie_to_id = {}
+    id_to_curie = {}
+    full_name_to_atp = {}  # list of all atp, which include extras
+    full_atp_to_name = {}
+    children = {}
+    for row in rows:
+        if row.obsolete:
+            continue
+        print(f"BOB: row data: {row}")
+        curie_to_id[row.curie] = row.id
+        id_to_curie[row.id] = row.curie
+        full_name_to_atp[row.name] = row.curie
+        full_atp_to_name[row.curie] = row.name
+        if row.id in children:
+            children[row.id].append(row.child)
+        else:
+            children[row.id] = [row.child]
+    db.close()
+    print("BOB: process data form ateam")
+    # Now filter down to the ones we want.
+    name_to_atp = {}
+    atp_to_name = {}
+    id_list = [curie_to_id[curie]]
+    while len(id_list):
+        atp_id = id_list.pop()
+        if not atp_id:
+            continue
+        if atp_id in children and children[atp_id] is not None:
+            id_list.extend(children[atp_id])
+        # print(f"BOB: id: {atp_id} list: {id_list}")
+        atp_curie = id_to_curie[atp_id]
+        name_to_atp[full_atp_to_name[atp_curie]] = atp_curie
+        atp_to_name[atp_curie] = full_atp_to_name[atp_curie]
+    return name_to_atp, atp_to_name

@@ -14,9 +14,6 @@ from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
 from typing import Union, Optional
 from fastapi_okta.okta_utils import get_authentication_token
-import urllib.request
-import json
-from urllib.error import HTTPError
 from typing import List, Dict
 from typing import Any
 
@@ -31,6 +28,7 @@ from agr_literature_service.api.crud.workflow_transition_requirements import *  
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_and_children
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -902,38 +900,6 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
                             detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
 
 
-def get_name_to_atp_and_children(token, name_to_atp, atp_to_name, curie):
-    """
-    Add data to atp_to_name and name_to_atp dictionaries.
-    From the top curie given go down all children and store the data.
-    """
-    # name_to_atp = {}
-    # atp_to_name = {}
-
-    ateam_api = f"https://beta-curation.alliancegenome.org/api/atpterm/{curie}/children"
-    try:
-        request = urllib.request.Request(url=ateam_api)
-        request.add_header("Authorization", f"Bearer {token}")
-        request.add_header("Content-type", "application/json")
-        request.add_header("Accept", "application/json")
-    except Exception as e:
-        logger.error(f"Exception setting up request:get_nme_to_atp: {e}")
-        return []
-    try:
-        with urllib.request.urlopen(request) as response:
-            resp = response.read().decode("utf8")
-            resp_obj = json.loads(resp)
-            for bob in resp_obj:
-                for jane in resp_obj[bob]:
-                    name_to_atp[jane['name']] = jane['curie']
-                    atp_to_name[jane['curie']] = jane['name']
-                    get_name_to_atp_and_children(token, name_to_atp, atp_to_name, curie=jane['curie'])
-    except HTTPError:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail="Error from A-team API")
-    return name_to_atp, atp_to_name
-
-
 def get_field_and_status(atp):
     parts = atp.split()
     if parts[-1] in ('complete', 'failed', 'needed'):
@@ -951,6 +917,7 @@ def get_field_and_status(atp):
 def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
     # Do not like hard coding here BUT no choice, no easy way to get the top level
     # overall stats list as hierarchy does not allow this programmatically.
+    print(f"BOB: rwt  mod:{mod_abbreviation} wft:{workflow_parent}")
     overall_paper_status = {
         'ATP:0000165': {
             'ATP:0000169': 'reference classification complete',
@@ -966,9 +933,9 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
                             detail="Authorization token missing")
 
     # get list of ALL ATPs under this parent
-    name_to_atp: Dict = {}
-    atp_to_name: Dict = {}
-    get_name_to_atp_and_children(auth_token, name_to_atp, atp_to_name, workflow_parent)
+    print("BOB: Query a team for atp data")
+    name_to_atp, atp_to_name = get_name_to_atp_and_children(workflow_parent)
+    print("BOB: POST Query a team for atp data")
     # print(name_to_atp)
     # print(atp_to_name)
 
@@ -985,7 +952,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
 
     # get overall paper statuses
     atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
-    # print(f"OVERALL: {atp_list}")
+    print(f"OVERALL: {atp_list}")
     sql_query = text(f"""
     select workflow_tag_id, count(1) as count
        from workflow_tag
@@ -1035,23 +1002,35 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
 
     # print(f"starting parent is {workflow_parent}")
     output = []
-    headers = ["      ", "overall"]
+    headers = ["status", "overall"]
     for field in type_hash.keys():
         headers.append(field)
     output.append(headers)
+
+    out_records = []
     for current_status in ('complete', 'in progress', 'failed', 'needed'):
+        out_rec = {}
+        out_rec['status'] = current_status
         row: List[Any] = [current_status]
         try:
             row.append(overall_dict[current_status])
+            out_rec['overall'] = overall_dict[current_status]
         except KeyError:
             row.append([0, 0.00])
+            out_rec['overall'] = [0, 0.00]
         for field in type_hash.keys():
             try:
                 perc = (type_hash[field][current_status] / type_total[field]) * 100
                 row.append([type_hash[field][current_status], round(perc, 2)])
+                out_rec[field] = [type_hash[field][current_status], round(perc, 2)]
             except KeyError:
                 row.append([0, 0.00])
+                out_rec[field] = [0, 0.00]
         output.append(row)
-    # for row in output:
-    #    print(row)
-    return output
+        out_records.append(out_rec)
+    print(f"{mod_abbreviation} - {workflow_parent} results")
+    for row in output:
+        print(row)
+    for row in out_records:
+        print(row)
+    return output, out_records, headers
