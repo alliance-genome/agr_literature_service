@@ -916,7 +916,6 @@ def get_field_and_status(atp):
 def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
     # Do not like hard coding here BUT no choice, no easy way to get the top level
     # overall stats list as hierarchy does not allow this programmatically.
-    print(f"BOB: rwt  mod:{mod_abbreviation} wft:{workflow_parent}")
     overall_paper_status = {
         'ATP:0000165': {
             'ATP:0000169': 'reference classification complete',
@@ -1005,18 +1004,18 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
         out_rec = {}
         out_rec['status'] = current_status
         try:
-            out_rec['overall_num'] = overall_dict[current_status][0]
-            out_rec['overall_perc'] = overall_dict[current_status][1]
+            out_rec['overall_num'] = str(overall_dict[current_status][0])
+            out_rec['overall_perc'] = str(overall_dict[current_status][1])
         except KeyError:
-            out_rec['overall_num'] = 0
-            out_rec['overall_perc'] = 0.00
+            out_rec['overall_num'] = "0"
+            out_rec['overall_perc'] = "0.00"
         for field in type_hash.keys():
             try:
                 perc = (type_hash[field][current_status] / type_total[field]) * 100
-                out_rec[f"{field}_num"] = type_hash[field][current_status]
-                out_rec[f"{field}_perc"] = round(perc, 2)
+                out_rec[f"{field}_num"] = str(type_hash[field][current_status])
+                out_rec[f"{field}_perc"] = str(round(perc, 2))
             except KeyError:
-                out_rec[f"{field}_num"] = 0
-                out_rec[f"{field}_perc"] = 0.00
+                out_rec[f"{field}_num"] = "0"
+                out_rec[f"{field}_perc"] = "0.00"
         out_records.append(out_rec)
     return out_records, headers

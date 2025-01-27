@@ -440,7 +440,6 @@ def get_name_to_atp_and_children(curie):
     """
     # To minimise db calls grab all atp data and then process
     db = create_ateam_db_session()
-    print("BOB: get data form a team")
     sql_query = text("""
     SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
       FROM ontologyterm o
@@ -456,7 +455,6 @@ def get_name_to_atp_and_children(curie):
     for row in rows:
         if row.obsolete:
             continue
-        print(f"BOB: row data: {row}")
         curie_to_id[row.curie] = row.id
         id_to_curie[row.id] = row.curie
         full_name_to_atp[row.name] = row.curie
@@ -466,7 +464,7 @@ def get_name_to_atp_and_children(curie):
         else:
             children[row.id] = [row.child]
     db.close()
-    print("BOB: process data form ateam")
+
     # Now filter down to the ones we want.
     name_to_atp = {}
     atp_to_name = {}
@@ -477,7 +475,6 @@ def get_name_to_atp_and_children(curie):
             continue
         if atp_id in children and children[atp_id] is not None:
             id_list.extend(children[atp_id])
-        # print(f"BOB: id: {atp_id} list: {id_list}")
         atp_curie = id_to_curie[atp_id]
         name_to_atp[full_atp_to_name[atp_curie]] = atp_curie
         atp_to_name[atp_curie] = full_atp_to_name[atp_curie]

@@ -154,5 +154,4 @@ def get_report_workflow_tags(mod_abbreviation: str,
                              # startDate: str = None,
                              # endDate: str = None,
                              db: Session = db_session):
-    print(f"BOB: router mod {mod_abbreviation} tag {workflow_tag_id}")
     return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)
