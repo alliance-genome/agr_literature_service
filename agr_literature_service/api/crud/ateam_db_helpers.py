@@ -64,7 +64,7 @@ def classify_entity_list(entity_list):
     # Example: if entity_list is "MGI:1234|ACT1|SGD:S00001"
     # then "MGI:1234" and "SGD:S00001" go into entity_curie_list,
     # while "ACT1" goes into entity_name_list.
-    for entity in entity_list.replace("+", " ").split("|"):
+    for entity in entity_list.split("|"):
         is_mod_curie = False
         for curie_prefix in curie_prefix_list:
             if entity.startswith(curie_prefix + ":"):
@@ -126,7 +126,7 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         WHERE UPPER(agm.name) IN :entity_name_list
         AND ot.curie = :taxon
         """)
-
+        # print("entity_name_list=", entity_name_list)
     elif entity_type == 'construct':
         sql_query = text("""
         SELECT DISTINCT r.primaryexternalid, sa.obsolete, sa.displaytext
