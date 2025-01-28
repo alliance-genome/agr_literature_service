@@ -25,6 +25,7 @@ from agr_literature_service.api.crud.workflow_transition_requirements import *  
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_and_children
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -117,6 +118,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                     We may have different jobs running on different systems so this
                     allows more flexibility.
     :param limit: maximum number of jobs to return. Maximum allowed value is 1000
+    :param offset: offset for returning values
 
     we need to join the workflow_transition table and workflow_tag table via transition_to and workflow_tag_id
     and condition contains the string defined in job_str.
@@ -286,7 +288,6 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                                   new_workflow_tag_atp_id: str, transition_type: str = "automated"):
     mod, process_atp_id, reference = transition_sanity_check(db, transition_type, mod_abbreviation,
                                                              curie_or_reference_id, new_workflow_tag_atp_id)
-    current_workflow_tag_db_obj: Union[WorkflowTagModel, None] = None
     transition: Union[WorkflowTransitionModel, None] = None
     if process_atp_id in process_atp_multiple_allowed:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod,
@@ -972,3 +973,120 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"An error occurred when resetting file upload workflow tag for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+
+
+def get_field_and_status(atp):
+    parts = atp.split()
+    if parts[-1] in ('complete', 'failed', 'needed'):
+        field_type = " ".join(parts[:-1])
+        field_status = parts[-1]
+    elif parts[-1] == 'progress':
+        field_type = " ".join(parts[:-2])
+        field_status = "in progress"
+    else:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="{name} does not end in list of approved statuses")
+    return field_type, field_status
+
+
+def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
+    # Do not like hard coding here BUT no choice, no easy way to get the top level
+    # overall stats list as hierarchy does not allow this programmatically.
+    overall_paper_status = {
+        'ATP:0000165': {
+            'ATP:0000169': 'reference classification complete',
+            'ATP:0000189': 'reference classification failed',
+            'ATP:0000178': 'reference classification in progress',
+            'ATP:0000166': 'reference classification needed'
+        }
+    }
+
+    # get list of ALL ATPs under this parent
+    name_to_atp, atp_to_name = get_name_to_atp_and_children(workflow_parent)
+
+    # remove overall paper statuses from general overall ATPs
+    for atp in overall_paper_status[workflow_parent].keys():
+        del atp_to_name[atp]
+        del name_to_atp[overall_paper_status[workflow_parent][atp]]
+
+    try:
+        mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one()
+    except NoResultFound:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="{mod_abbreviation} mod abbreviation NOT found")
+
+    # get overall paper statuses
+    atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
+    sql_query = text(f"""
+    select workflow_tag_id, count(1) as count
+       from workflow_tag
+         where workflow_tag_id in ({atp_list}) and
+               mod_id = {mod.mod_id}
+             group by workflow_tag_id;
+    """)
+    overall_total = 0
+    overall_dict = {}
+    rows = db.execute(sql_query).fetchall()
+    for (_, count) in rows:
+        # print(f"OVERALL: {atp}: {count}")
+        overall_total += count
+    for (atp, count) in rows:
+        # print(f"OVERALL: {atp}: {count}")
+        perc = (count / overall_total) * 100
+        (field_type, field_status) = get_field_and_status(overall_paper_status[workflow_parent][atp])
+        overall_dict[field_status] = [count, round(perc, 2)]
+
+    # now get the counts for all the rest
+    type_hash: Dict = {}
+    type_total: Dict = {}
+    status_total: Dict = {}
+    atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
+    # print(atp_list)
+    sql_query = text(f"""
+    select workflow_tag_id, count(1) as count
+       from workflow_tag
+         where workflow_tag_id in ({atp_list}) and
+               mod_id = {mod.mod_id}
+             group by workflow_tag_id;
+    """)
+    rows = db.execute(sql_query).fetchall()
+    for (atp, count) in rows:
+        name = atp_to_name[atp]
+
+        (field_type, field_status) = get_field_and_status(name)
+        if field_type.endswith(' classification'):
+            field_type, _ = field_type.split(' classification')
+        if field_status not in status_total:
+            status_total[field_status] = 0
+        if field_type not in type_hash:
+            type_hash[field_type] = {}
+            type_total[field_type] = 0
+
+        type_hash[field_type][field_status] = count
+        type_total[field_type] += count
+        status_total[field_status] += count
+
+    headers = ["status", "overall"]
+    for field in type_hash.keys():
+        headers.append(field)
+
+    out_records = []
+    for current_status in ('complete', 'in progress', 'failed', 'needed'):
+        out_rec = {}
+        out_rec['status'] = current_status
+        try:
+            out_rec['overall_num'] = str(overall_dict[current_status][0])
+            out_rec['overall_perc'] = str(overall_dict[current_status][1])
+        except KeyError:
+            out_rec['overall_num'] = "0"
+            out_rec['overall_perc'] = "0.00"
+        for field in type_hash.keys():
+            try:
+                perc = (type_hash[field][current_status] / type_total[field]) * 100
+                out_rec[f"{field}_num"] = str(type_hash[field][current_status])
+                out_rec[f"{field}_perc"] = str(round(perc, 2))
+            except KeyError:
+                out_rec[f"{field}_num"] = "0"
+                out_rec[f"{field}_perc"] = "0.00"
+        out_records.append(out_rec)
+    return out_records, headers
