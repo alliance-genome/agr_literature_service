@@ -1,3 +1,4 @@
+from collections import defaultdict
 from sqlalchemy import or_, text
 from fastapi.encoders import jsonable_encoder
 from typing import Dict, Tuple, Union, List, Any, TypedDict
@@ -449,29 +450,51 @@ def get_journal_by_resource_id(db_session: Session):
 
 def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
 
-    reference_id_to_mod_corpus_data: Dict[int, List[Dict[str, Any]]] = {}
+    reference_id_to_mod_corpus_data: Dict[int, List[Dict[str, Any]]] = defaultdict(list)
 
-    rs = db_session.execute(text(
-        "SELECT mca.reference_id, mca.mod_corpus_association_id, m.abbreviation, mca.corpus, mca.mod_corpus_sort_source, mca.date_created, mca.date_updated FROM mod_corpus_association mca, mod m WHERE m.mod_id = mca.mod_id and mca.reference_id IN (" + ref_ids + ")"))
+    query = text("""
+        SELECT
+            mca.reference_id,
+            mca.mod_corpus_association_id,
+            m.abbreviation,
+            mca.corpus,
+            mca.mod_corpus_sort_source,
+            mca.date_created,
+            mca.date_updated,
+            mca.created_by,
+            mca.updated_by,
+            u.email
+        FROM
+            mod_corpus_association mca
+        JOIN
+            mod m ON m.mod_id = mca.mod_id
+        JOIN
+            users u ON u.id = mca.updated_by
+        WHERE
+            mca.reference_id IN :ref_id_list
+    """)
 
-    rows = rs.fetchall()
+    ref_id_list = [int(ref_id.strip()) for ref_id in ref_ids.split(',') if ref_id.strip().isdigit()]
+    result = db_session.execute(query, {"ref_id_list": tuple(ref_id_list)})
 
-    for x in rows:
-        data = []
-        reference_id = x[0]
-        if reference_id in reference_id_to_mod_corpus_data:
-            data = reference_id_to_mod_corpus_data[reference_id]
-        data.append({
-            "mod_corpus_association_id": x[1],
-            "mod_abbreviation": x[2],
-            "corpus": x[3],
-            "mod_corpus_sort_source": remove_surrogates(x[4]),
-            "date_created": str(x[5]),
-            "date_updated": str(x[6])
-        })
-        reference_id_to_mod_corpus_data[reference_id] = data
+    rows = result.fetchall()
 
-    return reference_id_to_mod_corpus_data
+    for row in rows:
+        reference_id = row.reference_id
+        data_entry = {
+            "mod_corpus_association_id": row.mod_corpus_association_id,
+            "mod_abbreviation": row.abbreviation,
+            "corpus": row.corpus,
+            "mod_corpus_sort_source": remove_surrogates(row.mod_corpus_sort_source),
+            "date_created": row.date_created.isoformat() if row.date_created else None,
+            "date_updated": row.date_updated.isoformat() if row.date_updated else None,
+            "created_by": row.created_by,
+            "updated_by": row.updated_by,
+            "updated_by_email": row.email
+        }
+        reference_id_to_mod_corpus_data[reference_id].append(data_entry)
+
+    return dict(reference_id_to_mod_corpus_data)
 
 
 def get_cross_reference_data_for_ref_ids(db_session: Session, ref_ids):
