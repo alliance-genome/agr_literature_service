@@ -17,7 +17,6 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
-manual_indexing_in_progress_tag_atp_id = "ATP:0000276"
 
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
@@ -143,8 +142,8 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                                                "ATP:0000140",
                                                mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
-                if mod_abbreviation == 'SGD':
-                    wft_id = manual_indexing_in_progress_tag_atp_id if mod_corpus_association_data.get('index_in_progress') else manual_indexing_needed_tag_atp_id
+                if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
+                    wft_id = mod_corpus_association_data['index_wft_id']
                     wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
                                                mod_id=mod_corpus_association_db_obj.mod_id,
                                                workflow_tag_id=wft_id)
