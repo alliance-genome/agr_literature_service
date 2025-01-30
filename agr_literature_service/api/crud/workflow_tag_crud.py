@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
 from typing import Union, Optional, Dict
-import time  # Just for debugging and getting timings.
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -627,7 +626,6 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
 
 def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,
              date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
-    start_time = time.time()
     all_WF_tags_for_process = None
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
@@ -702,8 +700,6 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-
-    start_time = time.time()
     data = []
     for x in rows:
         x_dict = dict(x)
