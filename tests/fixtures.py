@@ -95,7 +95,7 @@ def load_sanitized_references(populate_test_mod_reference_types):
     yield None
 
 
-def load_workflow_parent_children_mock():
+def load_workflow_parent_children_mock(root_node='ATP:0000177'):
     workflow_children = {
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
