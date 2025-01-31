@@ -119,7 +119,7 @@ def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants
         'ATP:0000163': 'ATP:0000161',
         'ATP:0000162': 'ATP:0000161'
     }
-    return workflow_parent[ontology_node]
+    return [workflow_parent[ontology_node]]
 
 
 def load_workflow_parent_children_mock(root_node='ATP:0000177'):
