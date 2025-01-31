@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
