@@ -59,7 +59,9 @@ def patch_dataset(request: DatasetSchemaUpdate, mod_abbreviation: str, data_type
 
 @router.get("/download/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
             response_model=DatasetSchemaDownload)
-def download_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
+@router.get("/download/{mod_abbreviation}/{data_type}/{dataset_type}/",
+            response_model=DatasetSchemaDownload)
+def download_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int = None,
                      db: Session = db_session):
     db_dataset = dataset_crud.download_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                                dataset_type=dataset_type, version=version)

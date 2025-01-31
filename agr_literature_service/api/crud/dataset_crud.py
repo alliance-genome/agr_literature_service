@@ -13,12 +13,17 @@ from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost,
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
                 version: int) -> DatasetModel:
-    dataset = db.query(DatasetModel).join(DatasetModel.mod).filter(
+
+    dataset_query = db.query(DatasetModel).join(DatasetModel.mod).filter(
         DatasetModel.mod.has(abbreviation=mod_abbreviation),
         DatasetModel.data_type == data_type,
-        DatasetModel.dataset_type == dataset_type,
-        DatasetModel.version == version,
-    ).first()
+        DatasetModel.dataset_type == dataset_type
+    )
+    if version is not None and version > 0:
+        dataset_query = dataset_query.filter(DatasetModel.version == version)
+    else:
+        dataset_query = dataset_query.order_by(DatasetModel.version.desc())
+    dataset = dataset_query.first()
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
     return dataset
