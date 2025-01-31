@@ -78,7 +78,7 @@ def delete_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_t
 
 
 def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
-                     dataset_type: str, version: int) -> DatasetSchemaDownload:
+                     dataset_type: str, version: int = None) -> DatasetSchemaDownload:
     dataset = get_dataset(db, mod_abbreviation, data_type, dataset_type, version)
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
