@@ -6,7 +6,7 @@ from fastapi import status
 from agr_literature_service.api.main import app
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from .test_mod_corpus_association import test_mca # noqa
-from ..fixtures import load_workflow_parent_children_mock
+from ..fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
 from ..fixtures import db # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -23,6 +23,8 @@ class TestSort:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
     def test_sort_prepublication_pipeline(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             populate_test_mods()
@@ -221,6 +223,8 @@ class TestSort:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
     def test_sort_prepublication_pipeline_simple(self, db, auth_headers):  # noqa
         with TestClient(app) as client:
             populate_test_mods()
