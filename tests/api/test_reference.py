@@ -16,7 +16,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
-from ..fixtures import load_workflow_parent_children_mock
+from ..fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
@@ -181,6 +181,8 @@ class TestReference:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
     def test_reference_mca_wb(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             populate_test_mods()
@@ -206,6 +208,8 @@ class TestReference:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
@@ -742,6 +746,8 @@ class TestReference:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
     def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
         with TestClient(app) as client:
             with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
