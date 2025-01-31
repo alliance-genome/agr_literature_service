@@ -25,7 +25,7 @@ from agr_literature_service.api.crud.workflow_transition_requirements import *  
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_and_children
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_and_children, search_ancestors_or_descendants
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -53,12 +53,13 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
 
 
 def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
+    if parent_or_children == "parent":
+        return search_ancestors_or_descendants(atp_name, 'parent')[0]
     workflow_children, workflow_parent = load_workflow_parent_children(root_node=atp_name)
-    workflow_to_check = workflow_children if parent_or_children == "children" else workflow_parent
-    if atp_name not in workflow_to_check:
+    if atp_name not in workflow_children:
         logger.error(f"Could not find {parent_or_children} for {atp_name}")
         return None
-    return workflow_to_check[atp_name]
+    return workflow_children[atp_name]
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
