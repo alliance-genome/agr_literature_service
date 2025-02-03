@@ -1,6 +1,7 @@
 import logging
 import time
 import requests
+from sqlalchemy import text
 from os import environ
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -25,11 +26,16 @@ infile = "data/pmc_oa_files_uploaded.txt"
 batch_size = 20
 
 
-def identify_main_pdfs():
+def identify_main_pdfs(identify_all=False):
 
-    logger.info("Reading PMCID list from pmc_oa_files_uploaded.txt...")
-
-    pmcid_set = get_pmcid_for_recent_downloaded_pmc_packages()
+    if identify_all:
+        logger.info("Reading PMCID list that are missing main PDFs from the database...")
+        db_session = create_postgres_session(False)
+        pmcid_set = get_pmcids_without_main_pdf(db_session)
+        db_session.close()
+    else:
+        logger.info("Reading PMCID list from pmc_oa_files_uploaded.txt...")
+        pmcid_set = get_pmcid_for_recent_downloaded_pmc_packages()
 
     logger.info("Searching PMC for PDF full texts...")
 
@@ -70,6 +76,27 @@ def identify_main_pdfs():
                             add_file_uploaded_workflow(db_session, str(x.reference_id), logger=logger)
                             cleanup_old_pdf_file(db_session, ref.curie, 'all_access')
     db_session.close()
+
+
+def get_pmcids_without_main_pdf(db_session):
+
+    pmcid_set = set()
+
+    rows = db_session.execute(text("SELECT distinct cr.curie "
+                                   "FROM cross_reference cr, referencefile rf, referencefile_mod rfm "
+                                   "WHERE cr.curie_prefix = 'PMCID' "
+                                   "AND cr.reference_id = rf.reference_id "
+                                   "AND rf.file_class = 'supplement' "
+                                   "AND rf.referencefile_id = rfm.referencefile_id "
+                                   "AND rfm.mod_id is NULL "
+                                   "AND NOT EXISTS ( "
+                                   "SELECT 1 "
+                                   "FROM referencefile "
+                                   "WHERE reference_id = rf.reference_id "
+                                   "AND file_class = 'main')")).fetchall()
+    for x in rows:
+        pmcid_set.add(x[0].replace("PMCID:", ''))
+    return pmcid_set
 
 
 def get_pmcid_for_recent_downloaded_pmc_packages():
@@ -113,4 +140,4 @@ def search_pmc_and_extract_pdf_file_names(pmcids, pmcid_to_pdf_name):
 
 if __name__ == "__main__":
 
-    identify_main_pdfs()
+    identify_main_pdfs(True)
