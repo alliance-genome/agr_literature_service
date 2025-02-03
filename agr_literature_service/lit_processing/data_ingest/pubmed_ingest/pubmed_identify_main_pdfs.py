@@ -92,18 +92,23 @@ def search_pmc_and_extract_pdf_file_names(pmcids, pmcid_to_pdf_name):
 
     response = requests.get(url)
     content = str(response.content)
-    if ">PDF" in str(content):
-        records = content.split('>PDF')
-        records.pop()
-        for record in records:
-            url = record.split(' ')[-1].replace("href=", "").replace('"', '')
-            if url.startswith('/pmc/articles/PMC'):
-                pdf_filename = url.split('/')[-1]
-                pmcid = url.split('/')[3]
-                pmcid_to_pdf_name[pmcid] = pdf_filename
-                logger.info(pmcid + ": PDF name=" + pdf_filename)
-    else:
-        logger.info("No PDF file found for " + url)
+    if ">PDF" not in content:
+        return
+    records = content.split('>PDF')
+    records.pop()
+    for record in records:
+        for line in record.split("\n"):
+            if "pmc.ncbi.nlm.nih.gov/articles/PMC" in line and '.pdf' in line:
+                for item in line.split(" "):
+                    if "pmc.ncbi.nlm.nih.gov/articles/PMC" in item and '.pdf' in item:
+                        # href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3248519/pdf/pnas.201114118.pdf"
+                        fulltext_url = item.replace("href=", '').replace('"', '')
+                        url_pieces = fulltext_url.split('/')
+                        pmcid = url_pieces[-3]
+                        pdf_name = url_pieces[-1]
+                        logger.info(f"fulltext_url={fulltext_url}, pmcid={pmcid}, pdf_name={pdf_name}")
+                        if pmcid.startswith('PMC') and pdf_name.endswith('.pdf'):
+                            pmcid_to_pdf_name[pmcid] = pdf_name
 
 
 if __name__ == "__main__":
