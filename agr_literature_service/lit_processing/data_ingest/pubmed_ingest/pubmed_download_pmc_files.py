@@ -61,7 +61,7 @@ def download_pmc_files(mapping_file):  # pragma: no cover
 
     logger.info("Identifying main PDF files in the database...")
 
-    identify_main_pdfs()
+    identify_main_pdfs(True)
 
 
 def upload_suppl_files_to_s3():  # pragma: no cover
