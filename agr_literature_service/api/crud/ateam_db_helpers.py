@@ -35,7 +35,7 @@ def create_ateam_db_session():
     try:
         SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
         session = SessionClass()
-        load_name_to_atp_and_relationships()
+        session.load_name_to_atp_and_relationships()
         return session
     except Exception as e:
         for line in traceback.format_stack():
