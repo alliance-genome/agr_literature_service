@@ -23,7 +23,7 @@ class TestSort:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_name_to_atp_and_relationships_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_sort_prepublication_pipeline(self, db, auth_headers): # noqa
         with TestClient(app) as client:
@@ -223,7 +223,7 @@ class TestSort:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
            load_name_to_atp_and_relationships_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_sort_prepublication_pipeline_simple(self, db, auth_headers):  # noqa
         with TestClient(app) as client:

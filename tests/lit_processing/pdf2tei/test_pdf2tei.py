@@ -171,7 +171,7 @@ class TestPdf2TEI:
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
            convert_pdf_with_grobid_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
         with TestClient(app) as client:
@@ -190,7 +190,7 @@ class TestPdf2TEI:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_pdf2tei_failed_conversion(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
