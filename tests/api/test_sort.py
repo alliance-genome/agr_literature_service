@@ -21,7 +21,7 @@ class TestSort:
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationship",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
@@ -221,7 +221,7 @@ class TestSort:
             assert curie_pp_pmid_wb_2_bool is True
             assert curie_sorted_bool is False
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)

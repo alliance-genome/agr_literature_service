@@ -135,7 +135,7 @@ class TestWorkflowTag:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+    @patch("agr_literature_service.api.crud.ateam_db_helper.load_name_to_atp_and_relationship",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
@@ -206,7 +206,7 @@ class TestWorkflowTag:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
