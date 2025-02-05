@@ -7,6 +7,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import traceback
 
 # List of valid prefix identifiers for curies
 curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
@@ -31,9 +32,14 @@ def create_ateam_db_session():
     DB = environ.get('PERSISTENT_STORE_DB_NAME', 'unknown')
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
     engine = create_engine(engine_var)
-    SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    session = SessionClass()
-    return session
+    try:
+        SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+        session = SessionClass()
+        return session
+    except Exception as e:
+        for line in traceback.format_stack():
+            print(line.strip())
+        raise HTTPException(405,f"Error: {e}")
 
 
 def map_entity_to_curie(entity_type, entity_list, taxon):

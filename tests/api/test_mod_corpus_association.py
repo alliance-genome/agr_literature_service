@@ -144,8 +144,9 @@ class TestModCorpusAssociation:
             xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
             assert xref.curie == 'WB:WBPaper00000001'
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
-           load_name_to_atp_and_relationships_mock)
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
     def test_mca_modid_wb_obsolete_xref(self, db, test_reference, auth_headers): # noqa
         # allow creating of xref via mca if xref already has mod + reference but is_obsolete
         with TestClient(app) as client:
