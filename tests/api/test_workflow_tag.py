@@ -147,7 +147,7 @@ class TestWorkflowTag:
         assert 'ATP:0000140' in children
         assert 'ATP:0000165' in children
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
@@ -169,7 +169,6 @@ class TestWorkflowTag:
         db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000141'))
         db.commit()
         with TestClient(app) as client:
-            load_workflow_parent_children()
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": test_mod.new_mod_abbreviation,

@@ -29,26 +29,23 @@ CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
-        with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-             mock_check_atp_ids_validity:
-            new_tet = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_id_validation": "alliance",
-                "entity_published_as": "test",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                "negated": False,
-                "novel_topic_data": True,
-                "note": "test note",
-                "created_by": "WBPerson1",
-                "date_created": "2020-01-01"
-            }
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
-            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-            yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
+        new_tet = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "entity_published_as": "test",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "novel_topic_data": True,
+            "note": "test note",
+            "created_by": "WBPerson1",
+            "date_created": "2020-01-01"
+        }
+        response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+        yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
 
 
 class TestTopicEntityTag:
@@ -59,47 +56,41 @@ class TestTopicEntityTag:
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                 mock_check_atp_ids_validity:
-                new_tet = {
-                    "reference_curie": test_topic_entity_tag.related_ref_curie,
-                    "topic": "ATP:0000122",
-                    "entity_type": "ATP:0000005",
-                    "entity": "WB:WBGene00003001",
-                    "entity_id_validation": "alliance",
-                    "entity_published_as": "test",
-                    "species": "NCBITaxon:6239",
-                    "topic_entity_tag_source_id": -1,
-                    "negated": False,
-                    "novel_topic_data": False,
-                    "note": "test note",
-                    "created_by": "WBPerson1",
-                    "date_created": "2020-01-01"
-                }
-                mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
-                response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-                assert response.status_code == status.HTTP_404_NOT_FOUND
+            new_tet = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": -1,
+                "negated": False,
+                "novel_topic_data": False,
+                "note": "test note",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
+            }
+            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_empty_string(self, test_topic_entity_tag, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                 mock_check_atp_ids_validity:
-                new_tet = {
-                    "reference_curie": test_topic_entity_tag.related_ref_curie,
-                    "topic": "ATP:0000122",
-                    "entity_type": "",
-                    "entity": "WB:WBGene00003001",
-                    "entity_id_validation": "alliance",
-                    "species": "NCBITaxon:6239",
-                    "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                    "negated": False,
-                    "novel_topic_data": True,
-                    "note": "test note",
-                    "created_by": "WBPerson1"
-                }
-                mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
-                response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-                assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            new_tet = {
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "novel_topic_data": True,
+                "note": "test note",
+                "created_by": "WBPerson1"
+            }
+            response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_show(self, test_topic_entity_tag): # noqa
         with TestClient(app) as client:
@@ -153,9 +144,7 @@ class TestTopicEntityTag:
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
-                mock_get_curie_to_name_from_all_tets, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity:
+                mock_get_curie_to_name_from_all_tets:
             reference_data = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -189,7 +178,6 @@ class TestTopicEntityTag:
                     }
                 ]
             }
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             new_ref_req = client.post(url="/reference/", json=reference_data, headers=auth_headers)
             assert new_ref_req.status_code == status.HTTP_201_CREATED
             new_curie = new_ref_req.json()

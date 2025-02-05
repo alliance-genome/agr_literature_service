@@ -154,7 +154,22 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000163': 'ATP:0000161',
         'ATP:0000162': 'ATP:0000161'
     }
-    set_globals({}, {}, workflow_children, workflow_parent)
+    atp_to_name = {
+        'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+        'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+        'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+    }
+    name_to_atp = {
+        'phenotype': 'ATP:0000009',
+        'RNAi phenotype': 'ATP:0000082',
+        'ATP:0000122': 'ATP:0000122',
+        'overexpression phenotype': 'ATP:0000084',
+        'genetic phenotype': 'ATP:0000079',
+        'gene': 'ATP:0000005',
+        'lin-12': 'WB:WBGene00003001',
+        'Caenorhabditis elegans': 'NCBITaxon:6239'
+    }
+    set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 
 def load_workflow_parent_children_mock(root_node='ATP:0000177'):

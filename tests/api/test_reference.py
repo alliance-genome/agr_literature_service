@@ -212,10 +212,7 @@ class TestReference:
            search_ancestors_or_descendants_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
-        with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+        with TestClient(app) as client:
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -483,11 +480,8 @@ class TestReference:
 
     def test_merge_with_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
                 mock_get_curie_to_name_from_all_tets:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
