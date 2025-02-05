@@ -5,7 +5,6 @@ See docs/source/workflow_automation.rst for detailed description on transitionin
 between workflow tags.
 ===========================
 """
-import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, text
@@ -18,8 +17,9 @@ from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
     WorkflowTransitionModel, ModModel, ReferenceModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
-    get_reference_id_from_curie_or_id, get_map_ateam_curies_to_names  # get_ancestors,
+from agr_literature_service.api.crud.topic_entity_tag_utils import (
+    get_reference_id_from_curie_or_id,
+    get_map_ateam_curies_to_names)
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
@@ -28,8 +28,7 @@ from agr_literature_service.api.crud.workflow_transition_actions.process_action 
 from agr_literature_service.api.crud.ateam_db_helpers import (
     get_name_to_atp_for_all_children,
     atp_get_children,
-    atp_get_parent,
-    search_ancestors_or_descendants)
+    atp_get_parent)
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks

@@ -11,8 +11,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
 from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
-    get_workflow_tags_from_process,
-    load_workflow_parent_children)
+    get_workflow_tags_from_process)
 from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
