@@ -32,14 +32,13 @@ def create_ateam_db_session():
     DB = environ.get('PERSISTENT_STORE_DB_NAME', 'unknown')
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
     engine = create_engine(engine_var)
-    try:
-        SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-        session = SessionClass()
-        session.load_name_to_atp_and_relationships()
-        return session
-    except Exception as e:
-        for line in traceback.format_stack():
-            print(line.strip())
+    for line in traceback.format_stack():
+        print(line.strip())
+
+    SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    session = SessionClass()
+    return session
+
 
 
 def map_entity_to_curie(entity_type, entity_list, taxon):
