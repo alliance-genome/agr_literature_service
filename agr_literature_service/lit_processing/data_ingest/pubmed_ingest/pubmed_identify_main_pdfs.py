@@ -1,6 +1,7 @@
 import logging
 import time
 import requests
+from sqlalchemy import text
 from os import environ
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -25,11 +26,16 @@ infile = "data/pmc_oa_files_uploaded.txt"
 batch_size = 20
 
 
-def identify_main_pdfs():
+def identify_main_pdfs(identify_all=False):
 
-    logger.info("Reading PMCID list from pmc_oa_files_uploaded.txt...")
-
-    pmcid_set = get_pmcid_for_recent_downloaded_pmc_packages()
+    if identify_all:
+        logger.info("Reading PMCID list that are missing main PDFs from the database...")
+        db_session = create_postgres_session(False)
+        pmcid_set = get_pmcids_without_main_pdf(db_session)
+        db_session.close()
+    else:
+        logger.info("Reading PMCID list from pmc_oa_files_uploaded.txt...")
+        pmcid_set = get_pmcid_for_recent_downloaded_pmc_packages()
 
     logger.info("Searching PMC for PDF full texts...")
 
@@ -72,6 +78,27 @@ def identify_main_pdfs():
     db_session.close()
 
 
+def get_pmcids_without_main_pdf(db_session):
+
+    pmcid_set = set()
+
+    rows = db_session.execute(text("SELECT distinct cr.curie "
+                                   "FROM cross_reference cr, referencefile rf, referencefile_mod rfm "
+                                   "WHERE cr.curie_prefix = 'PMCID' "
+                                   "AND cr.reference_id = rf.reference_id "
+                                   "AND rf.file_class = 'supplement' "
+                                   "AND rf.referencefile_id = rfm.referencefile_id "
+                                   "AND rfm.mod_id is NULL "
+                                   "AND NOT EXISTS ( "
+                                   "SELECT 1 "
+                                   "FROM referencefile "
+                                   "WHERE reference_id = rf.reference_id "
+                                   "AND file_class = 'main')")).fetchall()
+    for x in rows:
+        pmcid_set.add(x[0].replace("PMCID:", ''))
+    return pmcid_set
+
+
 def get_pmcid_for_recent_downloaded_pmc_packages():
 
     pmcid_set = set()
@@ -92,20 +119,25 @@ def search_pmc_and_extract_pdf_file_names(pmcids, pmcid_to_pdf_name):
 
     response = requests.get(url)
     content = str(response.content)
-    if ">PDF" in str(content):
-        records = content.split('>PDF')
-        records.pop()
-        for record in records:
-            url = record.split(' ')[-1].replace("href=", "").replace('"', '')
-            if url.startswith('/pmc/articles/PMC'):
-                pdf_filename = url.split('/')[-1]
-                pmcid = url.split('/')[3]
-                pmcid_to_pdf_name[pmcid] = pdf_filename
-                logger.info(pmcid + ": PDF name=" + pdf_filename)
-    else:
-        logger.info("No PDF file found for " + url)
+    if ">PDF" not in content:
+        return
+    records = content.split('>PDF')
+    records.pop()
+    for record in records:
+        for line in record.split("\n"):
+            if "pmc.ncbi.nlm.nih.gov/articles/PMC" in line and '.pdf' in line:
+                for item in line.split(" "):
+                    if "pmc.ncbi.nlm.nih.gov/articles/PMC" in item and '.pdf' in item:
+                        # href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3248519/pdf/pnas.201114118.pdf"
+                        fulltext_url = item.replace("href=", '').replace('"', '')
+                        url_pieces = fulltext_url.split('/')
+                        pmcid = url_pieces[-3]
+                        pdf_name = url_pieces[-1]
+                        logger.info(f"fulltext_url={fulltext_url}, pmcid={pmcid}, pdf_name={pdf_name}")
+                        if pmcid.startswith('PMC') and pdf_name.endswith('.pdf'):
+                            pmcid_to_pdf_name[pmcid] = pdf_name
 
 
 if __name__ == "__main__":
 
-    identify_main_pdfs()
+    identify_main_pdfs(True)
