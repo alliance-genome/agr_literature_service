@@ -40,7 +40,6 @@ def create_ateam_db_session():
     except Exception as e:
         for line in traceback.format_stack():
             print(line.strip())
-        raise HTTPException(405, f"Error: {e}")
 
 
 def map_entity_to_curie(entity_type, entity_list, taxon):
