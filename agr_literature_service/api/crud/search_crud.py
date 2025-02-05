@@ -173,6 +173,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "should": [{"term": {"workflow_tags.workflow_tag_id.keyword": id_}} for id_ in ids]
             }
         }
+        workflow_tags_subcategories_agg["filters"]["filters"][subcat]["aggs"] = {
+            "terms": {
+                "terms": {
+                    "field": "workflow_tags.workflow_tag_id.keyword",
+                    "size": 100,
+                    "include": ids  # restrict to only these values
+                }
+            }
+        }
         
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
@@ -446,10 +455,10 @@ def process_search_results(res):  # pragma: no cover
 
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
-    # add_curie_to_name_values(res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {}))
-    add_curie_to_name_values(res['aggregations'].get("workflow_tags_subcategories", {}))
 
-    # print("res['aggregations']['workflow_tags_subcategories'] = ", res['aggregations']['workflow_tags_subcategories'])
+    for subcat_data in workflow_subcats.values():
+        if "buckets" in subcat_data.get("terms", {}):
+            add_curie_to_name_values(subcat_data["terms"])
     
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
