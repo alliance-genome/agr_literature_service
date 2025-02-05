@@ -35,11 +35,12 @@ def create_ateam_db_session():
     try:
         SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
         session = SessionClass()
+        load_name_to_atp_and_relationships()
         return session
     except Exception as e:
         for line in traceback.format_stack():
             print(line.strip())
-        raise HTTPException(405,f"Error: {e}")
+        raise HTTPException(405, f"Error: {e}")
 
 
 def map_entity_to_curie(entity_type, entity_list, taxon):

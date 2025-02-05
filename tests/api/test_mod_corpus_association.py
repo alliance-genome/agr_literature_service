@@ -144,7 +144,6 @@ class TestModCorpusAssociation:
             xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
             assert xref.curie == 'WB:WBPaper00000001'
 
-
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_mca_modid_wb_obsolete_xref(self, db, test_reference, auth_headers): # noqa
