@@ -147,7 +147,7 @@ class TestWorkflowTag:
         assert 'ATP:0000140' in children
         assert 'ATP:0000165' in children
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships_mock",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
