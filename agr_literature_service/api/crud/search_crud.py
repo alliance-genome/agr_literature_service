@@ -173,6 +173,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "should": [{"term": {"workflow_tags.workflow_tag_id.keyword": id_}} for id_ in ids]
             }
         }
+        """
         workflow_tags_subcategories_agg["filters"]["filters"][subcat]["aggs"] = {
             "terms": {
                 "terms": {
@@ -182,7 +183,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             }
         }
-        
+        """
+    
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -410,6 +412,22 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
 def process_search_results(res):  # pragma: no cover
 
+    atp_ids = {
+        "file_workflow": [
+            "ATP:0000135", "ATP:0000141", "ATP:0000139", "ATP:0000134",
+            "ATP:0000163", "ATP:0000164", "ATP:0000198", "ATP:0000162"
+        ],
+        "manual_indexing": [
+            "ATP:0000275", "ATP:0000276", "ATP:0000274"
+        ],
+        "reference_classification": [
+            "ATP:0000169", "ATP:0000189", "ATP:0000178", "ATP:0000166"
+        ],
+        "entity_extraction": [
+            "ATP:0000174", "ATP:0000187", "ATP:0000190", "ATP:0000173"
+        ]
+    }
+
     hits = [{
         "curie": ref["_source"]["curie"],
         "citation": ref["_source"]["citation"],
@@ -445,17 +463,21 @@ def process_search_results(res):  # pragma: no cover
         for subcat, bucket in res["aggregations"]["workflow_tags_subcategories"]["buckets"].items():
             # only include the subcategory if its doc_count is nonzero.
             if bucket["doc_count"] > 0:
+                # Get the nested terms (if any)
+                nested = bucket.get("terms", {})
+                nested_buckets = nested.get("buckets", [])
+                # Filter the buckets to include only allowed ATP IDs for this subcategory.
+                allowed = atp_ids.get(subcat, [])
+                filtered_buckets = [term for term in nested_buckets if term["key"] in allowed]
                 workflow_subcats[subcat] = {
                     "doc_count": bucket["doc_count"],
-                    "terms": bucket.get("terms", {})
+                    "terms": {"buckets": filtered_buckets}
                 }
-
-    # add the subcategories into the final aggregations
     res['aggregations']['workflow_tags_subcategories'] = workflow_subcats
-
+    
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
-
+    
     for subcat_data in workflow_subcats.values():
         if "buckets" in subcat_data.get("terms", {}):
             add_curie_to_name_values(subcat_data["terms"])
@@ -614,19 +636,29 @@ def ensure_structure(es_body):
 
 def add_curie_to_name_values(aggregations):
 
-    curie_keys = [
-        bucket["key"] for bucket in aggregations.get("buckets", [])
-    ]
+    buckets = aggregations.get("buckets", aggregations)
+    if not buckets:
+        return
+
+    curie_keys = [bucket["key"] for bucket in buckets]
+    logger.debug("Curie keys: %s", curie_keys)
+    
+    atp_curies = [ck.upper() for ck in curie_keys if ck.upper().startswith("ATP:")]
+    eco_curies = [ck.upper() for ck in curie_keys if ck.upper().startswith("ECO:")]
+    logger.debug("ATP curies: %s", atp_curies)
+    logger.debug("ECO curies: %s", eco_curies)
+
     curie_to_name_map = get_map_ateam_curies_to_names(
         category="atpterm",
-        curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ATP:")]
+        curies=atp_curies
     )
     curie_to_name_map.update(get_map_ateam_curies_to_names(
         category="ecoterm",
-        curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ECO:")]
+        curies=eco_curies
     ))
+    logger.debug("Mapping returned: %s", curie_to_name_map)
 
-    # iterate over the buckets and add names
-    for bucket in aggregations.get("buckets", []):
-        curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
+    for bucket in buckets:
+        key_upper = bucket["key"].upper()
+        curie_name = curie_to_name_map.get(key_upper, bucket["key"])
         bucket["name"] = curie_name
