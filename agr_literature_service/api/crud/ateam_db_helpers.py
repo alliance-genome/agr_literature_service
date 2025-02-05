@@ -465,7 +465,7 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
     db = create_ateam_db_session()
     # Load atp data
     id_to_curie = {}
-    sql_query = text(f"""
+    sql_query = text("""
     SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
       FROM ontologyterm o
       LEFT JOIN ontologyterm_isa_parent_children opc ON o.id = opc.isaparents_id
@@ -512,6 +512,7 @@ def atp_get_parent(child_id):
         return atp_to_parent[child_id]
     else:
         return None
+
 
 def atp_get_children(parent_id):
     global atp_to_children

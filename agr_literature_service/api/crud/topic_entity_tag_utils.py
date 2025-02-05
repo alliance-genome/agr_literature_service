@@ -212,24 +212,6 @@ def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
     return id_name_mapping
 
 
-def check_atp_ids_validity(curies, maxret=1000):
-
-    curies_not_in_cache = [curie for curie in set(curies) if valid_id_to_name_cache.get(curie) is None]
-    if len(curies_not_in_cache) == 0:
-        return (set(curies), {curie: valid_id_to_name_cache.get(curie) for curie in set(curies)})
-
-    valid_curies = {curie for curie in curies if valid_id_to_name_cache.get(curie) is not None}
-    atp_data = search_atp_ontology()
-    atp_to_name = {}
-    for entry in atp_data:
-        if entry["curie"] in curies_not_in_cache:
-            atp_to_name[entry["curie"]] = entry["name"]
-            if entry["obsolete"] is False:
-                valid_curies.add(entry["curie"])
-                valid_id_to_name_cache.set(entry["curie"], entry["name"])
-    return (valid_curies, atp_to_name)
-
-
 @ttl_cache(maxsize=128, ttl=60 * 60)
 def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
     """
