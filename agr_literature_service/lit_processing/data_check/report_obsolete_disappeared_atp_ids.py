@@ -3,8 +3,9 @@ from sqlalchemy import text
 from os import environ, path
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.crud.topic_entity_tag_utils import check_atp_ids_validity
+#from agr_literature_service.api.crud.topic_entity_tag_utils import check_atp_ids_validity
 from agr_literature_service.lit_processing.utils.report_utils import send_report
+from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -26,8 +27,8 @@ def check_data():
 
     logger.info(f"Total {len(all_distinct_curies)} unique ATP IDs are in topic_entity_tag table.")
 
-    (valid_curies, atp_to_name) = check_atp_ids_validity(all_distinct_curies)
-    obsolete_disappeared_curies = set(all_distinct_curies) - valid_curies
+    obsolete_disappeared_curies = set(atp_return_invalid_ids(all_distinct_curies))
+    # obsolete_disappeared_curies = set(all_distinct_curies) - valid_curies
 
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} ATP ID(s) are obsolete or disappeared from A-team ATP table")
 

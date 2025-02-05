@@ -25,7 +25,11 @@ from agr_literature_service.api.crud.workflow_transition_requirements import *  
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_and_children, search_ancestors_or_descendants
+from agr_literature_service.api.crud.ateam_db_helpers import (
+    get_name_to_atp_for_all_children,
+    atp_get_children,
+    atp_get_parent,
+    search_ancestors_or_descendants)
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -63,11 +67,13 @@ def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
-    return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
+    return atp_get_parent(workflow_tag_atp_id)
+    # return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
-    return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
+    return atp_get_children(workflow_process_atp_id)
+    # return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
 def workflow_tag_add(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
@@ -262,7 +268,8 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
                             detail=f"Mod abbreviation {mod_abbreviation} does not exist")
 
     # Get the parent/process and see if it allows multiple values
-    process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    # process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    process_atp_id = atp_get_parent(new_workflow_tag_atp_id)
     if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
@@ -1004,8 +1011,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     }
 
     # get list of ALL ATPs under this parent
-    name_to_atp, atp_to_name = get_name_to_atp_and_children(workflow_parent)
-
+    name_to_atp, atp_to_name = get_name_to_atp_for_all_children(workflow_parent)
     # remove overall paper statuses from general overall ATPs
     for atp in overall_paper_status[workflow_parent].keys():
         del atp_to_name[atp]

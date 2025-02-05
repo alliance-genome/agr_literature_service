@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
-    get_ancestors, get_descendants, check_atp_ids_validity, get_map_entity_curies_to_names, \
+    get_ancestors, get_descendants, get_map_entity_curies_to_names, \
     id_to_name_cache, get_map_ateam_curies_to_names
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
@@ -36,7 +36,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
-
+from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +73,10 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
     if 'display_tag' in topic_entity_tag_data:
         atp_ids.append(topic_entity_tag_data['display_tag'])
-    atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
-    (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
-    invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
+    # atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
+    # (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
+    # invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
+    invalid_atp_ids = atp_return_invalid_ids(atp_ids)
     if len(invalid_atp_ids) > 0:
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

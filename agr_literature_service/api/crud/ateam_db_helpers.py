@@ -13,6 +13,13 @@ curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
 # Topic tag for ATP ontology
 topic_category_atp = "ATP:0000002"
 
+# Store these to save lookups.
+# NEED TO add function to reload these.
+atp_to_name = {}
+name_to_atp = {}
+atp_to_parent = {}
+atp_to_children = {}
+
 
 def create_ateam_db_session():
     """Create and return a SQLAlchemy session connected to the A-team database."""
@@ -214,7 +221,9 @@ def search_topic(topic):
     ORDER BY LENGTH(ot.name)
     LIMIT 10
     """)
-
+    print(f"BOB: topic_category_atp: {topic_category_atp}")
+    print(f"BOB: Searching {search_query}")
+    print(f"BOB: search_sql: {sql_query}")
     rows = db.execute(sql_query, {
         'search_query': search_query,
         'topic_category_atp': topic_category_atp
@@ -229,10 +238,14 @@ def search_topic(topic):
     ]
     db.close()
     json_data = jsonable_encoder(data)
+    print(f"BOB: output {json_data}")
+    # OR ?
+
     return JSONResponse(content=json_data)
 
 
 def search_atp_descendants(ancestor_curie):
+    atp_get_children_as_dict(ancestor_curie)
     db = create_ateam_db_session()
     sql_query = text("""
     SELECT ot.curie, ot.name
@@ -311,7 +324,7 @@ def map_atp_id_to_name(db: Session, atp_id):
     return None
 
 
-def search_atp_ontology():
+def OLD_search_atp_ontology():
     """Return all ATPTerms from the ontologyterm table."""
     db = create_ateam_db_session()
     sql_query = text("""
@@ -331,8 +344,13 @@ def search_atp_ontology():
 
 def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
     """Return a list of ancestor or descendant curies for the given ontology_node."""
-    db = create_ateam_db_session()
+    # ATPs are already cached, so use that if applicable.
+    if ontology_node.startwith("ATP:"):
+        if ancestors_or_descendants == 'descendants':
+            return atp_get_children(ontology_node)
+        return atp_get_parent(ontology_node)
 
+    db = create_ateam_db_session()
     if ancestors_or_descendants == 'descendants':
         sql_query = text("""
         SELECT ot.curie
@@ -362,13 +380,14 @@ def map_curies_to_names(category, curies):
     Given a category (gene, allele, etc.) and a list of curies,
     return a dictionary mapping each curie to its preferred display name.
     """
-    db = create_ateam_db_session()
+
     if not curies:
         return {}
 
     # If category is an ATP:xxxx ID, look up its name first
     if category.startswith('ATP:'):
-        category_label = map_atp_id_to_name(db, category)
+        # category_label = map_atp_id_to_name(db, category)
+        category_label = atp_get_name(category)
         if category_label is None:
             # If we can't find a label for the ATP category, just return identity mapping.
             return {curie: curie for curie in curies}
@@ -376,7 +395,10 @@ def map_curies_to_names(category, curies):
 
     category = category.lower()
     sql_query = None
+    if category in 'atpterm':
+        return atp_to_name_subset(curies)
 
+    db = create_ateam_db_session()
     if category == 'gene':
         sql_query = text("""
         SELECT be.primaryexternalid, sa.displaytext
@@ -412,7 +434,7 @@ def map_curies_to_names(category, curies):
         AND sa.slotannotationtype = 'ConstructSymbolSlotAnnotation'
         """)
 
-    elif category in ['species', 'atpterm', 'ecoterm']:
+    elif category in ['species', 'ecoterm']:
         # Do an uppercase match
         curies = [curie.upper() for curie in curies]
         sql_query = text("""
@@ -433,49 +455,130 @@ def map_curies_to_names(category, curies):
     return curie_to_name_map
 
 
-def get_name_to_atp_and_children(curie):
+def load_name_to_atp_and_relationships(termtype='ATPTerm'):
     """
     Add data to atp_to_name and name_to_atp dictionaries.
     From the top curie given go down all children and store the data.
     """
-    # To minimise db calls grab all atp data and then process
+    global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
+
     db = create_ateam_db_session()
-    sql_query = text("""
+    # Load atp data
+    id_to_curie = {}
+    sql_query = text(f"""
     SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
       FROM ontologyterm o
       LEFT JOIN ontologyterm_isa_parent_children opc ON o.id = opc.isaparents_id
          WHERE o.ontologytermtype = 'ATPTerm'
     """)
     rows = db.execute(sql_query).fetchall()
-    curie_to_id = {}
-    id_to_curie = {}
-    full_name_to_atp = {}  # list of all atp, which include extras
-    full_atp_to_name = {}
-    children = {}
+    db.close()
+
+    # need ALL id_to_curies loaded before we do child/parents
     for row in rows:
         if row.obsolete:
             continue
-        curie_to_id[row.curie] = row.id
         id_to_curie[row.id] = row.curie
-        full_name_to_atp[row.name] = row.curie
-        full_atp_to_name[row.curie] = row.name
-        if row.id in children:
-            children[row.id].append(row.child)
-        else:
-            children[row.id] = [row.child]
-    db.close()
+        name_to_atp[row.name] = row.curie
+        atp_to_name[row.curie] = row.name
 
-    # Now filter down to the ones we want.
-    name_to_atp = {}
-    atp_to_name = {}
-    id_list = [curie_to_id[curie]]
-    while len(id_list):
-        atp_id = id_list.pop()
-        if not atp_id:
+    # Load the relationships
+    # hopefully the results are cached.
+    for row in rows:
+        if row.obsolete:
             continue
-        if atp_id in children and children[atp_id] is not None:
-            id_list.extend(children[atp_id])
-        atp_curie = id_to_curie[atp_id]
-        name_to_atp[full_atp_to_name[atp_curie]] = atp_curie
-        atp_to_name[atp_curie] = full_atp_to_name[atp_curie]
-    return name_to_atp, atp_to_name
+        if row.child:
+            child_curie = id_to_curie[row.child]
+        else:
+            child_curie = None
+        parent_curie = id_to_curie[row.id]
+        if parent_curie in atp_to_children:
+            atp_to_children[parent_curie].append(child_curie)
+        else:
+            atp_to_children[parent_curie] = [child_curie]
+        if child_curie and child_curie in atp_to_parent:
+            atp_to_parent[child_curie].append(parent_curie)
+        else:
+            atp_to_parent[child_curie] = [parent_curie]
+    print("ATPs successfully loaded")
+    return
+
+
+def atp_get_parent(child_id):
+    global atp_to_parent
+    if not atp_to_parent:
+        load_name_to_atp_and_relationships()
+    if child_id in atp_to_parent:
+        return atp_to_parent[child_id]
+    else:
+        return None
+
+def atp_get_children(parent_id):
+    global atp_to_children
+    if not atp_to_children:
+        load_name_to_atp_and_relationships()
+    if parent_id in atp_to_children:
+        return atp_to_children[parent_id]
+    else:
+        return []
+
+
+def atp_get_children_as_dict(parent_id):
+    global atp_to_name
+    children = atp_get_children(parent_id)
+    result = []
+    for atp_id in children:
+        result.append({'curie': atp_id, 'name': atp_to_name[atp_id]})
+    return result
+
+
+def atp_to_name_subset(curies: list):
+    global atp_to_name
+    if not atp_to_name:
+        load_name_to_atp_and_relationships()
+    subset = {}
+    for curie in curies:
+        subset[curie] = atp_to_name[curie]
+    return subset
+
+
+def get_name_to_atp_for_all_children(workflow_parent):
+    """
+    Get ALL descendents for an ATP.
+    as a dictionary of name to atp curies and
+    curies to names..
+    """
+    global atp_to_name, atp_to_children
+    if not atp_to_name:
+        load_name_to_atp_and_relationships()
+    subset_name_to_atp = {}
+    subset_atp_to_name = {}
+    list_ids = atp_to_children[workflow_parent]
+    while len(list_ids) > 0:
+        curie = list_ids.pop()
+        if not curie:
+            continue
+        subset_atp_to_name[curie] = atp_to_name[curie]
+        subset_name_to_atp[atp_to_name[curie]] = curie
+        list_ids.extend(atp_to_children[curie])
+    return subset_name_to_atp, subset_atp_to_name
+
+
+def atp_get_name(atp_id):
+    global atp_to_name
+    if not atp_to_name:
+        load_name_to_atp_and_relationships()
+    if atp_id in atp_to_name:
+        return atp_to_name[atp_id]
+    return None
+
+
+def atp_return_invalid_ids(atp_ids: list):
+    global atp_to_name
+    if not atp_to_name:
+        load_name_to_atp_and_relationships()
+    invalid_atps = []
+    for atp_id in atp_ids:
+        if atp_id not in atp_to_name:
+            invalid_atps.append(atp_id)
+    return invalid_atps

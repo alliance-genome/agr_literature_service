@@ -11,7 +11,7 @@ from starlette import status
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.crud.ateam_db_helpers import \
-    map_curies_to_names, search_atp_ontology, search_ancestors_or_descendants
+    map_curies_to_names, search_ancestors_or_descendants
 from agr_literature_service.api.models import TopicEntityTagSourceModel, \
     ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
