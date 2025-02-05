@@ -16,7 +16,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
-from ..fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
+from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
@@ -179,8 +179,8 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_reference_mca_wb(self, db, auth_headers): # noqa
@@ -206,8 +206,8 @@ class TestReference:
             xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj.reference_id).one()
             assert xref.curie == 'WB:WBPaper00000001'
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
@@ -744,8 +744,8 @@ class TestReference:
                                       'year|\n' \
                                       'abstract|3\n'
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_name_to_atp_and_relationships_mock",
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa

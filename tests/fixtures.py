@@ -18,7 +18,7 @@ from os import environ, path
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.api.config import config
-
+from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 
 def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
@@ -120,6 +120,39 @@ def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants
         'ATP:0000162': 'ATP:0000161'
     }
     return [workflow_parent[ontology_node]]
+
+def load_name_to_atp_and_relationships_mock():
+    workflow_children = {
+        'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
+        'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
+        'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
+        'ATP:0000165': ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166'],
+        'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
+    }
+    workflow_parent = {
+        'ATP:0000172': 'ATP:0000177',
+        'ATP:0000140': 'ATP:0000177',
+        'ATP:0000165': 'ATP:0000177',
+        'ATP:0000161': 'ATP:0000177',
+        'ATP:0000175': 'ATP:0000172',
+        'ATP:0000174': 'ATP:0000172',
+        'ATP:0000173': 'ATP:0000172',
+        'ATP:0000178': 'ATP:0000172',
+        'ATP:0000141': 'ATP:0000140',
+        'ATP:0000135': 'ATP:0000140',
+        'ATP:0000139': 'ATP:0000140',
+        'ATP:0000134': 'ATP:0000140',
+        'ATP:0000168': 'ATP:0000165',
+        'ATP:0000167': 'ATP:0000165',
+        'ATP:0000170': 'ATP:0000165',
+        'ATP:0000171': 'ATP:0000165',
+        'ATP:0000169': 'ATP:0000165',
+        'ATP:0000166': 'ATP:0000165',
+        'ATP:0000164': 'ATP:0000161',
+        'ATP:0000163': 'ATP:0000161',
+        'ATP:0000162': 'ATP:0000161'
+    }
+    set_globals({},{}, workflow_children, workflow_parent)
 
 
 def load_workflow_parent_children_mock(root_node='ATP:0000177'):

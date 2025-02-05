@@ -13,7 +13,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process,
     load_workflow_parent_children)
-from ..fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
+from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -137,7 +137,7 @@ class TestWorkflowTag:
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
@@ -149,7 +149,7 @@ class TestWorkflowTag:
         assert 'ATP:0000165' in children
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
@@ -209,7 +209,7 @@ class TestWorkflowTag:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_workflow_tag_counters(self, db, test_workflow_tag, auth_headers): # noqa

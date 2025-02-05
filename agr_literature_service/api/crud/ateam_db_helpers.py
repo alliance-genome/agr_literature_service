@@ -309,7 +309,7 @@ def search_species(species):
     return JSONResponse(content=json_data)
 
 
-def map_atp_id_to_name(db: Session, atp_id):
+def OLD_map_atp_id_to_name(db: Session, atp_id):
     """
     Given an ATPTerm curie (e.g. "ATP:0001234"), return the corresponding name.
     """
@@ -454,6 +454,14 @@ def map_curies_to_names(category, curies):
     curie_to_name_map = {row[0]: row[1] for row in rows}
     db.close()
     return curie_to_name_map
+
+
+def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
+    global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
+    atp_to_name = atp_to_name_init
+    name_to_atp = name_to_atp_init
+    atp_to_children = atp_to_children_init
+    atp_to_parent = atp_to_parent_init
 
 
 def load_name_to_atp_and_relationships(termtype='ATPTerm'):

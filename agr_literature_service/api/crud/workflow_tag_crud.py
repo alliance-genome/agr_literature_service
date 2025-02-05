@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 @cachetools.func.ttl_cache(ttl=24 * 60 * 60)
-def load_workflow_parent_children(root_node='ATP:0000177'):
+def OLD_load_workflow_parent_children(root_node='ATP:0000177'):
     workflow_children = {}
     workflow_parent = {}
     nodes_to_process = [root_node]
@@ -56,7 +56,7 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
     return workflow_children, workflow_parent
 
 
-def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
+def OLD_get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     if parent_or_children == "parent":
         return search_ancestors_or_descendants(atp_name, 'parent')[0]
     workflow_children, workflow_parent = load_workflow_parent_children(root_node=atp_name)
