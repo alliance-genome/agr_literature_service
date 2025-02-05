@@ -139,6 +139,41 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if page is None:
         page = 1
 
+    atp_ids = {
+        "file_workflow": [
+            "ATP:0000135", "ATP:0000141", "ATP:0000139", "ATP:0000134",
+            "ATP:0000163", "ATP:0000164", "ATP:0000198", "ATP:0000162"
+        ],
+        "manual_indexing": [
+            "ATP:0000275", "ATP:0000276", "ATP:0000274"
+        ],
+        "reference_classification": [
+            "ATP:0000169", "ATP:0000189", "ATP:0000178", "ATP:0000166"
+        ],
+        "entity_extraction": [
+            "ATP:0000174", "ATP:0000187", "ATP:0000190", "ATP:0000173"
+        ]
+    }
+    workflow_tags_subcategories_agg = {
+        "filters": {
+            "filters": {}
+        },
+        "aggs": {
+            "terms": {
+                "terms": {
+                    "field": "workflow_tags.workflow_tag_id.keyword",
+                    "size": 100
+                }
+            }
+        }
+    }
+    for subcat, ids in atp_ids.items():
+        workflow_tags_subcategories_agg["filters"]["filters"][subcat] = {
+            "bool": {
+                "should": [{"term": {"workflow_tags.workflow_tag_id.keyword": id_}} for id_ in ids]
+            }
+        }
+        
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -222,13 +257,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits.get("authors.name.keyword", 10)
                 }
             },
-            "workflow_tags.workflow_tag_id.keyword": {
-                "terms": {
-                    "field": "workflow_tags.workflow_tag_id.keyword",
-                    "min_doc_count": 0,
-                    "size": facets_limits.get("workflow_tags.workflow_tag_id.keyword", 10)
-                }
-            }
+            # aggregation for workflow subcategories
+            "workflow_tags_subcategories": workflow_tags_subcategories_agg
         },
         "from": from_entry,
         "size": size_result_count,
@@ -400,10 +430,27 @@ def process_search_results(res):  # pragma: no cover
     res['aggregations'].pop('source_method_aggregation', None)
     res['aggregations'].pop('source_evidence_assertion_aggregation', None)
 
+    # process the new workflow subcategories aggregation.
+    workflow_subcats = {}
+    if "workflow_tags_subcategories" in res["aggregations"]:
+        for subcat, bucket in res["aggregations"]["workflow_tags_subcategories"]["buckets"].items():
+            # only include the subcategory if its doc_count is nonzero.
+            if bucket["doc_count"] > 0:
+                workflow_subcats[subcat] = {
+                    "doc_count": bucket["doc_count"],
+                    "terms": bucket.get("terms", {})
+                }
+
+    # add the subcategories into the final aggregations
+    res['aggregations']['workflow_tags_subcategories'] = workflow_subcats
+
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
-    add_curie_to_name_values(res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {}))
+    # add_curie_to_name_values(res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {}))
+    add_curie_to_name_values(res['aggregations'].get("workflow_tags_subcategories", {}))
 
+    # print("res['aggregations']['workflow_tags_subcategories'] = ", res['aggregations']['workflow_tags_subcategories'])
+    
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
