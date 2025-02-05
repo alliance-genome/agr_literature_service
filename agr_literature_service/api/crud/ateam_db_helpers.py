@@ -2,6 +2,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from os import environ
+from typing import Dict
 from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
@@ -17,8 +18,8 @@ topic_category_atp = "ATP:0000002"
 # NEED TO add function to reload these.
 atp_to_name = {}
 name_to_atp = {}
-atp_to_parent = {}
-atp_to_children = {}
+atp_to_parent: Dict[str, list] = {}
+atp_to_children : Dict[str, list] = {}
 
 
 def create_ateam_db_session():
