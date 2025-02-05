@@ -41,31 +41,6 @@ text_conversion_in_progress_atp_id = "ATP:0000198"
 logger = logging.getLogger(__name__)
 
 
-@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
-def OLD_load_workflow_parent_children(root_node='ATP:0000177'):
-    workflow_children = {}
-    workflow_parent = {}
-    nodes_to_process = [root_node]
-    while nodes_to_process:
-        parent = nodes_to_process.pop()
-        children = get_descendants(parent)
-        workflow_children[parent] = children
-        for child in children:
-            workflow_parent[child] = parent
-            nodes_to_process.append(child)
-    return workflow_children, workflow_parent
-
-
-def OLD_get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
-    if parent_or_children == "parent":
-        return search_ancestors_or_descendants(atp_name, 'parent')[0]
-    workflow_children, workflow_parent = load_workflow_parent_children(root_node=atp_name)
-    if atp_name not in workflow_children:
-        logger.error(f"Could not find {parent_or_children} for {atp_name}")
-        return None
-    return workflow_children[atp_name]
-
-
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
     return atp_get_parent(workflow_tag_atp_id)
     # return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")

@@ -20,6 +20,7 @@ from agr_literature_service.lit_processing.tests.mod_populate_load import popula
 from agr_literature_service.api.config import config
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 
+
 def delete_all_table_content(engine, db_session):
     if environ.get('TEST_CLEANUP') == "true":
         print("***** Deleting test data from all tables *****")
@@ -121,6 +122,7 @@ def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants
     }
     return [workflow_parent[ontology_node]]
 
+
 def load_name_to_atp_and_relationships_mock():
     workflow_children = {
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
@@ -152,7 +154,7 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000163': 'ATP:0000161',
         'ATP:0000162': 'ATP:0000161'
     }
-    set_globals({},{}, workflow_children, workflow_parent)
+    set_globals({}, {}, workflow_children, workflow_parent)
 
 
 def load_workflow_parent_children_mock(root_node='ATP:0000177'):
