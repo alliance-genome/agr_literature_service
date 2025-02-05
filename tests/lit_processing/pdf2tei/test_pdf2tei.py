@@ -167,7 +167,7 @@ class TestPdf2TEI:
         assert response.status_code == status.HTTP_201_CREATED
         return mod_abbreviation
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships_mock",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
            convert_pdf_with_grobid_mock)
@@ -187,7 +187,7 @@ class TestPdf2TEI:
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000163"
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships_mock",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",

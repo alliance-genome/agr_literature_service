@@ -179,7 +179,7 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships_mock",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     def test_reference_mca_wb(self, db, auth_headers): # noqa
         with TestClient(app) as client:
@@ -204,7 +204,7 @@ class TestReference:
             xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj.reference_id).one()
             assert xref.curie == 'WB:WBPaper00000001'
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships_mock",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
@@ -736,7 +736,7 @@ class TestReference:
                                       'year|\n' \
                                       'abstract|3\n'
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships_mock",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)

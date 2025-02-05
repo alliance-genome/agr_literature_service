@@ -40,7 +40,6 @@ def create_ateam_db_session():
     return session
 
 
-
 def map_entity_to_curie(entity_type, entity_list, taxon):
     """Map an entity list (gene, allele, etc.) to their curies, taking into account names and taxon."""
     db = create_ateam_db_session()
