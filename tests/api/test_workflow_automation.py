@@ -52,7 +52,7 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 # from .test_workflow_tag import test_workflow_tag
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
-from agr_literature_service.api.crud.ateam_db_helpers import set_globals
+from agr_literature_service.api.crud.ateam_db_helpers import set_globals, atp_get_name
 
 test_reference2 = test_reference
 
@@ -453,6 +453,8 @@ class TestWorkflowTagAutomation:
                 "mod_abbreviation": mod.abbreviation,
                 "new_workflow_tag_atp_id": "ATP:0000166"
             }
+            # test mock load
+            assert 'ATP: 0000166' == atp_get_name('ATP: 0000166')
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -465,7 +467,7 @@ class TestWorkflowTagAutomation:
             }
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
-            print(response.content)
+            print(f"tbt: {response.content}")
             print(response.text)
             print(response.status_code)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
