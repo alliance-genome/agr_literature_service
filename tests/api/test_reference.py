@@ -16,7 +16,7 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
-from ..fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
+from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
 from ..fixtures import db, populate_test_mod_reference_types # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
@@ -179,10 +179,8 @@ class TestReference:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     def test_reference_mca_wb(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             populate_test_mods()
@@ -206,16 +204,13 @@ class TestReference:
             xref = db.query(CrossReferenceModel).filter_by(reference_id=reference_obj.reference_id).one()
             assert xref.curie == 'WB:WBPaper00000001'
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_reference_large(self, db, auth_headers, populate_test_mod_reference_types, test_mod, # noqa
                              test_topic_entity_tag_source): # noqa
-        with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+        with TestClient(app) as client:
             full_xml = {
                 "category": "research_article",
                 "abstract": "The Hippo (Hpo) pathway is a conserved tumor suppressor pathway",
@@ -483,11 +478,8 @@ class TestReference:
 
     def test_merge_with_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
                 mock_get_curie_to_name_from_all_tets:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
@@ -627,11 +619,8 @@ class TestReference:
     @pytest.mark.webtest
     def test_merge_with_a_lot_of_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers):  # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
                 mock_get_curie_to_name_from_all_tets:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
             mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
@@ -744,97 +733,94 @@ class TestReference:
                                       'year|\n' \
                                       'abstract|3\n'
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
         with TestClient(app) as client:
-            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                 mock_check_atp_ids_validity:
-                mock_check_atp_ids_validity.return_value = ({'ATP:0000142', 'ATP:0000123', 'NCBITaxon:6239'}, {})
-                new_referencefile_main_1 = {
-                    "display_name": "Bob1",
-                    "reference_curie": test_reference.new_ref_curie,
-                    "file_class": "main",
-                    "file_publication_status": "final",
-                    "file_extension": "pdf",
-                    "pdf_type": "pdf",
-                    "md5sum": "1234567890",
-                    "mod_abbreviation": test_mod.new_mod_abbreviation
-                }
-                new_referencefile_main_2 = {
-                    "display_name": "Bob2",
-                    "reference_curie": test_reference.new_ref_curie,
-                    "file_class": "main",
-                    "file_publication_status": "final",
-                    "file_extension": "pdf",
-                    "pdf_type": "pdf",
-                    "md5sum": "1234567891",
-                }
-                new_referencefile_sup_1 = {
-                    "display_name": "Sup1",
-                    "reference_curie": test_reference.new_ref_curie,
-                    "file_class": "supplement",
-                    "file_publication_status": "final",
-                    "file_extension": "pdf",
-                    "pdf_type": "pdf",
-                    "md5sum": "1234567892"
-                }
-                create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
-                reffile_id_main_2 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_2))
-                reffile_id_sup_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_sup_1))
+            new_referencefile_main_1 = {
+                "display_name": "Bob1",
+                "reference_curie": test_reference.new_ref_curie,
+                "file_class": "main",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "md5sum": "1234567890",
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            new_referencefile_main_2 = {
+                "display_name": "Bob2",
+                "reference_curie": test_reference.new_ref_curie,
+                "file_class": "main",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "md5sum": "1234567891",
+            }
+            new_referencefile_sup_1 = {
+                "display_name": "Sup1",
+                "reference_curie": test_reference.new_ref_curie,
+                "file_class": "supplement",
+                "file_publication_status": "final",
+                "file_extension": "pdf",
+                "pdf_type": "pdf",
+                "md5sum": "1234567892"
+            }
+            create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_1))
+            reffile_id_main_2 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_main_2))
+            reffile_id_sup_1 = create_metadata(db, ReferencefileSchemaPost(**new_referencefile_sup_1))
 
-                new_mca = {
-                    "mod_abbreviation": test_mod.new_mod_abbreviation,
-                    "reference_curie": test_reference.new_ref_curie,
-                    "mod_corpus_sort_source": 'mod_pubmed_search',
-                    "corpus": True
-                }
-                client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
+            new_mca = {
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "reference_curie": test_reference.new_ref_curie,
+                "mod_corpus_sort_source": 'mod_pubmed_search',
+                "corpus": True
+            }
+            client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
 
-                new_referencefile_mod = {
-                    "referencefile_id": reffile_id_main_2,
-                    "mod_abbreviation": test_mod.new_mod_abbreviation
-                }
-                client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+            new_referencefile_mod = {
+                "referencefile_id": reffile_id_main_2,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
 
-                new_referencefile_mod = {
-                    "referencefile_id": reffile_id_sup_1,
-                    "mod_abbreviation": test_mod.new_mod_abbreviation
-                }
-                new_tet = {
-                    "reference_curie": test_reference.new_ref_curie,
-                    "topic": "ATP:0000142",
-                    "entity_type": "ATP:0000123",
-                    "entity": "NCBITaxon:6239",
-                    "entity_id_validation": "alliance",
-                    "entity_published_as": "test",
-                    "species": "NCBITaxon:6239",
-                    "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                    "negated": False,
-                    "novel_topic_data": True,
-                    "note": "test note",
-                    "created_by": "WBPerson1",
-                    "date_created": "2020-01-01"
-                }
-                client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-                client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+            new_referencefile_mod = {
+                "referencefile_id": reffile_id_sup_1,
+                "mod_abbreviation": test_mod.new_mod_abbreviation
+            }
+            new_tet = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000142",
+                "entity_type": "ATP:0000123",
+                "entity": "NCBITaxon:6239",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "novel_topic_data": True,
+                "note": "test note",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
+            }
+            client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
 
-                result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
-                                    headers=auth_headers)
-                assert result.status_code == status.HTTP_200_OK
-                assert len(result.json()) > 0
+            result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
+                                headers=auth_headers)
+            assert result.status_code == status.HTTP_200_OK
+            assert len(result.json()) > 0
 
-                result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
-                                        f"species=NCBITaxon%3A6239", headers=auth_headers)
-                assert result.status_code == status.HTTP_200_OK
-                assert len(result.json()) > 0
+            result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
+                                    f"species=NCBITaxon%3A6239", headers=auth_headers)
+            assert result.status_code == status.HTTP_200_OK
+            assert len(result.json()) > 0
 
-                result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
-                                        f"species=NCBITaxon%3A10090", headers=auth_headers)
-                assert result.status_code == status.HTTP_200_OK
-                assert len(result.json()) == 0
+            result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
+                                    f"species=NCBITaxon%3A10090", headers=auth_headers)
+            assert result.status_code == status.HTTP_200_OK
+            assert len(result.json()) == 0
 
     def test_reference_licenses(self, auth_headers, test_reference, test_copyright_license): # noqa
         print(test_copyright_license)
