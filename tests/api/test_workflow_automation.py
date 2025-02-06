@@ -52,9 +52,67 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 # from .test_workflow_tag import test_workflow_tag
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
+from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 
 test_reference2 = test_reference
 
+
+
+def mock_load_name_to_atp_and_relationships():
+    workflow_children = {
+        'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
+        'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
+        'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
+        'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162'],
+        'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
+        'ATP:0000165': ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169'],
+        'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
+        'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
+        'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
+        'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
+    }
+    workflow_parent = {
+        'ATP:0000141': ['ATP:fileupload'],
+        'ATP:fileuploadinprogress': ['ATP:fileupload'],
+        'ATP:fileuploadcomplete': ['ATP:fileupload'],
+        'ATP:fileuploadfailed': ['ATP:fileupload'],
+        'ATP:task2_failed': ['ATP:0000189'],
+        'ATP:task1_failed': ['ATP:0000189'],
+        'ATP:fileupload': ['ATP:ont1'],
+        'ATP:task2_in_progress': ['ATP:0000178'],
+        'ATP:task2_complete': ['ATP:0000169'],
+        'ATP:task1_in_progress': ['ATP:0000178'],
+        'ATP:task1_complete': ['ATP:0000169'],
+        'ATP:0000166': ['ATP:0000165'],
+        'ATP:0000178': ['ATP:0000165'],
+        'ATP:0000189': ['ATP:0000165'],
+        'ATP:0000169': ['ATP:0000165']
+    }
+    atp_to_name = {}
+    name_to_atp = {}
+    for atp in workflow_children.keys():
+        atp_to_name[atp] = atp
+        name_to_atp[atp] = atp
+        for atp2 in workflow_children[atp]:
+            name_to_atp[atp2] = atp2
+            atp_to_name[atp2] = atp2
+
+    atp_to_name = {
+        'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+        'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+        'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+    }
+    name_to_atp = {
+        'phenotype': 'ATP:0000009',
+        'RNAi phenotype': 'ATP:0000082',
+        'ATP:0000122': 'ATP:0000122',
+        'overexpression phenotype': 'ATP:0000084',
+        'genetic phenotype': 'ATP:0000079',
+        'gene': 'ATP:0000005',
+        'lin-12': 'WB:WBGene00003001',
+        'Caenorhabditis elegans': 'NCBITaxon:6239'
+    }
+    set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 # TestWFTData = namedtuple('TestWFTData', ['response'])
 def get_parents_mock(workflow_tag_atp_id: str):
@@ -165,6 +223,8 @@ class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
     # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           mock_load_name_to_atp_and_relationships)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -307,6 +367,8 @@ class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
     # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           mock_load_name_to_atp_and_relationships)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         with TestClient(app) as client:
@@ -365,6 +427,8 @@ class TestWorkflowTagAutomation:
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
     @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           mock_load_name_to_atp_and_relationships)
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_bad_transitions")
         with TestClient(app) as client:
