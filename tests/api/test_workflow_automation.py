@@ -427,6 +427,7 @@ class TestWorkflowTagAutomation:
             assert response.status_code == status.HTTP_200_OK
             print(f"tbt get name: {response.content}")
             print(response.text)
+            assert response.text == 'ATP:0000166'
             print(response.status_code)
 
             populate_test_mods()
