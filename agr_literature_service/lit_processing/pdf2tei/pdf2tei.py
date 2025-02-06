@@ -11,7 +11,7 @@ from lxml import etree
 from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_referencefile_id, download_file, file_upload
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
-from agr_literature_service.api.models import ModModel, ReferencefileModel
+from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 
 logger = logging.getLogger(__name__)
@@ -45,7 +45,9 @@ def main():
         logger.info(f"Loaded batch of {str(len(jobs))} jobs. Total jobs loaded: {str(len(all_jobs))}")
     logger.info("Finished loading all text conversion jobs.")
     mod_abbreviation_from_mod_id = {}
+    objects_with_errors = []
     for job in all_jobs:
+        add_to_error_list = True
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
@@ -86,6 +88,7 @@ def main():
                     file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
                                                                           filename=ref_file_obj.display_name),
                                 upload_if_already_converted=True)
+                    add_to_error_list = False
                     job_change_atp_code(db, reference_workflow_tag_id, "on_success")
             elif response.status_code == 500:
                 logger.error(f"Cannot convert referencefile with ID {str(ref_file_id_to_convert)}: {response.text}")
@@ -93,6 +96,23 @@ def main():
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
                              f"Will retry in the future. Status code: {response.status_code}")
+            if add_to_error_list:
+                mod_cross_ref = db.query(CrossReferenceModel).join(
+                    ReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id
+                ).filter(
+                    ReferenceModel.curie == reference_curie,
+                    CrossReferenceModel.curie_prefix == mod_abbreviation
+                ).one()
+                error_object  = {
+                    "reference_curie": reference_curie,
+                    "display_name": ref_file_obj.display_name,
+                    "file_extension": "tei",
+                    "mod_cross_ref": mod_cross_ref.curie
+                }
+                objects_with_errors.append(error_object)
+    for error_object in objects_with_errors:
+        print(error_object)
+
 
 
 if __name__ == '__main__':
