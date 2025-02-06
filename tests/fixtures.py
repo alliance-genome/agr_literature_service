@@ -129,7 +129,13 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
         'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
         'ATP:0000165': ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166'],
-        'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
+        'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162'],
+
+        'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
+        'ATP:0000166':  ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
+        'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
+        'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
+        'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
     }
     workflow_parent = {
         'ATP:0000172': 'ATP:0000177',
