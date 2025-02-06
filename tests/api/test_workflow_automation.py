@@ -163,6 +163,7 @@ def get_descendants_mock(name):
 def workflow_automation_init(db):  # noqa
     print("workflow_automation_init")
     populate_test_mods()
+    mock_load_name_to_atp_and_relationships()
     test_data = [
         # [transition_from, transition_to, actions, condition]
         # ATP:0000141 is file upload needed and hard coded in
