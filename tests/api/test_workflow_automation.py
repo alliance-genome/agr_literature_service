@@ -425,6 +425,14 @@ class TestWorkflowTagAutomation:
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
             workflow_automation_init(db)
 
+            # test mock load
+            assert 'ATP:0000166' == atp_get_name('ATP:0000166')
+            response = client.get(url="/workflow_tag/ATP:0000166", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            print(f"tbt get name: {response.content}")
+            print(response.text)
+            print(response.status_code)
+
             # Bad new workflow ?
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
@@ -453,12 +461,12 @@ class TestWorkflowTagAutomation:
                 "mod_abbreviation": mod.abbreviation,
                 "new_workflow_tag_atp_id": "ATP:0000166"
             }
-            # test mock load
-            assert 'ATP:0000166' == atp_get_name('ATP:0000166')
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
-
+            print(f"tbt get name: {response.content}")
+            print(response.text)
+            print(response.status_code)
             # Now do transition NOT in the transition table.
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
