@@ -219,3 +219,29 @@ class TestPdf2TEI:
             response = client.get(url=f"/workflow_tag/get_current_workflow_status/{test_reference.new_ref_curie}/"
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000162"  # This should be the status after a failed conversion
+
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+           load_workflow_parent_children_mock)
+    @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
+    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
+    def test_pdf2tei_failed_conversion_500(self, mock_convert_pdf_with_grobid,
+                                       db, auth_headers, test_reference, test_mod):  # noqa
+        with TestClient(app) as client:
+            mod_abbreviation = self.upload_initial_main_reference_file(db, client, test_mod, test_reference,
+                                                                       auth_headers)
+            mock_response = Mock()
+            mock_response.status_code = 500
+            mock_convert_pdf_with_grobid.return_value = mock_response
+
+            # Run the conversion
+            convert_pdf_to_tei()
+
+            # Verify that no new TEI file was created
+            all_ref_files = db.query(ReferencefileModel).filter(ReferencefileModel.file_class == "tei").all()
+            assert len(all_ref_files) == 0  # No TEI file should be created on failed conversion
+
+            # Check if the workflow status was left unchanged
+            response = client.get(url=f"/workflow_tag/get_current_workflow_status/{test_reference.new_ref_curie}/"
+                                      f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
+            assert response.json() == "ATP:0000164"  # file to text conversion failed after 500 error
