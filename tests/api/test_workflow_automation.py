@@ -57,8 +57,8 @@ from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 test_reference2 = test_reference
 
 
-
 def mock_load_name_to_atp_and_relationships():
+    print("*** mock_load_name_to_atp_and_relationships ***")
     workflow_children = {
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
@@ -97,21 +97,6 @@ def mock_load_name_to_atp_and_relationships():
             name_to_atp[atp2] = atp2
             atp_to_name[atp2] = atp2
 
-    atp_to_name = {
-        'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
-        'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
-        'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
-    }
-    name_to_atp = {
-        'phenotype': 'ATP:0000009',
-        'RNAi phenotype': 'ATP:0000082',
-        'ATP:0000122': 'ATP:0000122',
-        'overexpression phenotype': 'ATP:0000084',
-        'genetic phenotype': 'ATP:0000079',
-        'gene': 'ATP:0000005',
-        'lin-12': 'WB:WBGene00003001',
-        'Caenorhabditis elegans': 'NCBITaxon:6239'
-    }
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 # TestWFTData = namedtuple('TestWFTData', ['response'])
@@ -220,9 +205,9 @@ def workflow_automation_init(db):  # noqa
 
 
 class TestWorkflowTagAutomation:
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
     # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
@@ -364,9 +349,9 @@ class TestWorkflowTagAutomation:
                 print(f"atp test {atp}")
                 assert test_id
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
     # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
@@ -425,8 +410,8 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
-    @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
+    # @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
