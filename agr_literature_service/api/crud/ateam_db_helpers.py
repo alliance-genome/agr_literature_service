@@ -464,6 +464,7 @@ def map_curies_to_names(category, curies):
 
 def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
     global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
+    print(f"Setting global values {atp_to_name.keys()}")
     atp_to_name = atp_to_name_init
     name_to_atp = name_to_atp_init
     atp_to_children = atp_to_children_init
@@ -480,6 +481,7 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
     db = create_ateam_db_session()
     # Load atp data
     id_to_curie = {}
+    print(f"****** Loading {termtype} terms *******")
     sql_query = text("""
     SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
       FROM ontologyterm o

@@ -140,7 +140,7 @@ class TestWorkflowTag:
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        # load_workflow_parent_children()
+        load_name_to_atp_and_relationships_mock()
         assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
         children = get_workflow_tags_from_process('ATP:0000177')
         assert 'ATP:0000172' in children
