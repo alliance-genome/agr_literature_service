@@ -454,7 +454,7 @@ class TestWorkflowTagAutomation:
                 "new_workflow_tag_atp_id": "ATP:0000166"
             }
             # test mock load
-            assert 'ATP: 0000166' == atp_get_name('ATP: 0000166')
+            assert 'ATP:0000166' == atp_get_name('ATP:0000166')
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
