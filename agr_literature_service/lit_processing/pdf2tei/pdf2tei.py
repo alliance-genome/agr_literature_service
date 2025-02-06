@@ -49,7 +49,7 @@ def main():
     mod_abbreviation_from_mod_id = {}
     objects_with_errors = []
     for job in all_jobs:
-        add_to_error_list = True
+        add_to_error_list = False
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
@@ -85,15 +85,16 @@ def main():
                 title = root.xpath('//tei:title[@level="a"]', namespaces={'tei': 'http://www.tei-c.org/ns/1.0'})
                 if (response.content == "[NO_BLOCKS] PDF parsing resulted in empty content" or title is None
                         or title[0].text is None):
+                    add_to_error_list = True
                     job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                 else:
                     file_upload(db=db, metadata=metadata, file=UploadFile(file=BytesIO(response.content),
                                                                           filename=ref_file_obj.display_name),
                                 upload_if_already_converted=True)
-                    add_to_error_list = False
                     job_change_atp_code(db, reference_workflow_tag_id, "on_success")
             elif response.status_code == 500:
                 logger.error(f"Cannot convert referencefile with ID {str(ref_file_id_to_convert)}: {response.text}")
+                add_to_error_list = True
                 job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
             else:
                 logger.error(f"Failed to process referencefile with ID {ref_file_id_to_convert}. "
@@ -108,7 +109,7 @@ def main():
                 error_object = {
                     "reference_curie": reference_curie,
                     "display_name": ref_file_obj.display_name,
-                    "file_extension": "tei",
+                    "file_extension": ref_file_obj.file_extension,
                     "mod_abbreviation": mod_abbreviation,
                     "mod_cross_ref": mod_cross_ref.curie
                 }
