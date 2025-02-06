@@ -21,7 +21,7 @@ class TestSort:
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationship",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
            search_ancestors_or_descendants_mock)

@@ -299,10 +299,7 @@ class TestTopicEntityTag:
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source_1 = {
                 "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
@@ -408,10 +405,7 @@ class TestTopicEntityTag:
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             author_source = {
                 "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
@@ -511,10 +505,7 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as \
                 mock_get_descendants, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
-                mock_get_curie_to_name_from_all_tets, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.check_atp_ids_validity") as \
-                mock_check_atp_ids_validity:
-            mock_check_atp_ids_validity.return_value = CHECK_VALID_ATP_IDS_RETURN
+                mock_get_curie_to_name_from_all_tets:
             author_source = {
                 "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
