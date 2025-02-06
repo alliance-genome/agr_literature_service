@@ -35,7 +35,9 @@ def get_db():
         yield db
     except Exception as e:
         db.rollback()
-        print(f"Error in get_db: {db.engine}:  {e}")
+        engine_from_session = db.get_bind()
+        database_name = engine_from_session.url.database
+        print(f"Error in get_db: {database_name}:  {e}")
         raise
     finally:
         db.close()
