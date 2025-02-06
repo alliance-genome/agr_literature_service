@@ -105,6 +105,13 @@ class TestPdf2TEI:
         }
         client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
 
+        new_cross_ref = {
+            "curie": "0015_AtDB:123456",
+            "reference_curie": test_reference.new_ref_curie,
+            "pages": ["reference"]
+        }
+        response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
+
         transitions_to_add = [
             ["ATP:0000141", "ATP:0000134", ["referencefiles_present"],
              ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"],
