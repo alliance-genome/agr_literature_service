@@ -44,12 +44,17 @@ def main():
         offset += limit
         logger.info(f"Loaded batch of {str(len(jobs))} jobs. Total jobs loaded: {str(len(all_jobs))}")
     logger.info("Finished loading all text conversion jobs.")
+    mod_abbreviation_from_mod_id = {}
     for job in all_jobs:
         ref_id = job['reference_id']
         reference_workflow_tag_id = job['reference_workflow_tag_id']
         mod_id = job['mod_id']
         reference_curie = job['reference_curie']
-        mod_abbreviation = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_id).one().abbreviation
+        if mod_id not in mod_abbreviation_from_mod_id:
+            mod_abbreviation = db.query(ModModel.abbreviation).filter(ModModel.mod_id == mod_id).one().abbreviation
+            mod_abbreviation_from_mod_id[mod_id] = mod_abbreviation
+        else:
+            mod_abbreviation = mod_abbreviation_from_mod_id[mod_id]
         ref_file_id_to_convert = get_main_pdf_referencefile_id(db=db, curie_or_reference_id=ref_id,
                                                                mod_abbreviation=mod_abbreviation)
         logger.info(f"processing reference {reference_curie}")
