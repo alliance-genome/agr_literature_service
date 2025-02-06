@@ -31,8 +31,15 @@ def create_ateam_db_session():
     PORT = environ.get('PERSISTENT_STORE_DB_PORT', '5432')
     DB = environ.get('PERSISTENT_STORE_DB_NAME', 'unknown')
     print(f"BOOOOOOOOB: user: {USER}")
+    lines = []
     for line in traceback.format_stack():
+        lines.append(line)
         print(line.strip())
+    x = 0
+    if (x):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"AHHHHHHHHHHHHH {lines}")
+
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
     engine = create_engine(engine_var)
 

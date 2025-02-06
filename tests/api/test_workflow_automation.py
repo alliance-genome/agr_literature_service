@@ -464,7 +464,7 @@ class TestWorkflowTagAutomation:
             response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
-            print(f"tbt get name: {response.content}")
+            print(f"tbt transition to wfs: {response.content}")
             print(response.text)
             print(response.status_code)
             # Now do transition NOT in the transition table.
