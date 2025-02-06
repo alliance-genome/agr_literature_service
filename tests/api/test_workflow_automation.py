@@ -364,7 +364,7 @@ class TestWorkflowTagAutomation:
                 assert test_id is None
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
+    @patch("agr_literature_service.api.crud.topic_entity_utils.get_descendants", get_descendants_mock)
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_bad_transitions")
         with TestClient(app) as client:
