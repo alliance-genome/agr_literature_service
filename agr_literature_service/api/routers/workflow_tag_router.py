@@ -159,4 +159,4 @@ def get_report_workflow_tags(mod_abbreviation: str,
 
 @router.get('/get_name/{workflow_tag_id}', status_code=200)
 def get_name(workflow_tag_id: str):
-    return atp_get_name(workflow_tag_id)
+    return atp_get_name('ATP:0000166')

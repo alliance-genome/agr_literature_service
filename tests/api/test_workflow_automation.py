@@ -427,7 +427,7 @@ class TestWorkflowTagAutomation:
 
             # test mock load
             assert 'ATP:0000166' == atp_get_name('ATP:0000166')
-            response = client.get(url="/workflow_tag/ATP:0000166", headers=auth_headers)
+            response = client.get(url="/workflow_tag/get_name/ATP:0000166", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             print(f"tbt get name: {response.content}")
             print(response.text)
