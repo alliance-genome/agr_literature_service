@@ -13,6 +13,8 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_chan
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess
+from agr_literature_service.lit_processing.utils.report_utils import send_report
+
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +109,17 @@ def main():
                     "reference_curie": reference_curie,
                     "display_name": ref_file_obj.display_name,
                     "file_extension": "tei",
+                    "mod_abbreviation": mod_abbreviation,
                     "mod_cross_ref": mod_cross_ref.curie
                 }
                 objects_with_errors.append(error_object)
+    error_message = ''
     for error_object in objects_with_errors:
-        print(error_object)
+        error_message += f"{error_object['mod_abbreviation']}\t{error_object['mod_cross_ref']}\t"
+        error_message += f"{error_object['reference_curie']}\t{error_object['display_name']}.{error_object['file_extension']}\n"
+    if error_message != '':
+        subject = "pdf2tei conversion errors"
+        send_report(subject, error_message)
 
 
 
