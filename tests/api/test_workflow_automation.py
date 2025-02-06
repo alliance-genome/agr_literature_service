@@ -162,7 +162,6 @@ def get_descendants_mock(name):
 
 def workflow_automation_init(db):  # noqa
     print("workflow_automation_init")
-    populate_test_mods()
     mock_load_name_to_atp_and_relationships()
     test_data = [
         # [transition_from, transition_to, actions, condition]
@@ -220,6 +219,7 @@ class TestWorkflowTagAutomation:
         print(f"BOB1: {mod}")
 
         with TestClient(app) as client:
+            populate_test_mods()
             # Set initial workflow tag to "ATP:0000141" , hard coded so allowed
             print(f"BOB2: {reference}")
             ref_type = ReferencetypeModel(label="Experimental")
@@ -358,6 +358,7 @@ class TestWorkflowTagAutomation:
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         with TestClient(app) as client:
+            populate_test_mods()
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
             # reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
             workflow_automation_init(db)
@@ -418,6 +419,7 @@ class TestWorkflowTagAutomation:
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_bad_transitions")
         with TestClient(app) as client:
+            populate_test_mods()
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
             workflow_automation_init(db)
 
