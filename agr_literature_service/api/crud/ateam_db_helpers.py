@@ -478,7 +478,11 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
     """
     global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
 
-    db = create_ateam_db_session()
+    try:
+        db = create_ateam_db_session()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Exception {e} Setting connection of ateam db")
     # Load atp data
     id_to_curie = {}
     print(f"****** Loading {termtype} terms *******")
@@ -488,7 +492,11 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
       LEFT JOIN ontologyterm_isa_parent_children opc ON o.id = opc.isaparents_id
          WHERE o.ontologytermtype = 'ATPTerm'
     """)
-    rows = db.execute(sql_query).fetchall()
+    try:
+        rows = db.execute(sql_query).fetchall()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Exception {e} Doing query of ateam db")
     db.close()
 
     # need ALL id_to_curies loaded before we do child/parents
@@ -585,7 +593,10 @@ def get_name_to_atp_for_all_children(workflow_parent):
 def atp_get_name(atp_id):
     global atp_to_name
     if not atp_to_name:
-        load_name_to_atp_and_relationships()
+        try:
+            load_name_to_atp_and_relationships()
+        except Exception as e:
+             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{e}")
     if atp_id in atp_to_name:
         return atp_to_name[atp_id]
     return None
