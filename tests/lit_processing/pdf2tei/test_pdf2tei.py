@@ -114,7 +114,7 @@ class TestPdf2TEI:
 
         transitions_to_add = [
             ["ATP:0000141", "ATP:0000134", ["referencefiles_present"],
-            ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"],
+             ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"],
             ["ATP:0000134", "ATP:0000162", [], [], 'text_convert_job'],
             ["ATP:0000162", "ATP:0000163", [], [], 'on_success'],
             ["ATP:0000162", "ATP:0000164", [], [], 'on_failed']

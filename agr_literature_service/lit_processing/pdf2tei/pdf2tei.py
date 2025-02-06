@@ -105,7 +105,7 @@ def main():
                     ReferenceModel.curie == reference_curie,
                     CrossReferenceModel.curie_prefix == mod_abbreviation
                 ).one()
-                error_object  = {
+                error_object = {
                     "reference_curie": reference_curie,
                     "display_name": ref_file_obj.display_name,
                     "file_extension": "tei",
@@ -120,7 +120,6 @@ def main():
     if error_message != '':
         subject = "pdf2tei conversion errors"
         send_report(subject, error_message)
-
 
 
 if __name__ == '__main__':
