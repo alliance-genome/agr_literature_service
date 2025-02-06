@@ -193,8 +193,8 @@ class TestTopicEntityTag:
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
             mock_get_ancestors.return_value = []
             mock_get_descendants.return_value = []
             author_source_1 = {
@@ -250,8 +250,8 @@ class TestTopicEntityTag:
 
     def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
             mock_get_ancestors.return_value = []
             mock_get_descendants.return_value = []
             curator_source = {
@@ -298,8 +298,8 @@ class TestTopicEntityTag:
 
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
             author_source_1 = {
                 "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
@@ -404,8 +404,8 @@ class TestTopicEntityTag:
     def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
             author_source = {
                 "source_evidence_assertion": "manual",
                 "source_method": "ACKnowledge",
