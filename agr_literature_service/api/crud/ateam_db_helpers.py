@@ -30,10 +30,12 @@ def create_ateam_db_session():
     SERVER = environ.get('PERSISTENT_STORE_DB_HOST', 'localhost')
     PORT = environ.get('PERSISTENT_STORE_DB_PORT', '5432')
     DB = environ.get('PERSISTENT_STORE_DB_NAME', 'unknown')
-    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
-    engine = create_engine(engine_var)
+    print(f"BOOOOOOOOB: user: {USER}")
     for line in traceback.format_stack():
         print(line.strip())
+    engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
+    engine = create_engine(engine_var)
+
 
     SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = SessionClass()
