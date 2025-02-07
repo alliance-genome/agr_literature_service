@@ -93,7 +93,13 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
         mock_load_name_to_atp_and_relationships()
-        assert 'ATP:0000122' == atp_get_name('ATP:0000122')
+        response = client.get(url="/workflow_tag/get_name/ATP:0000122", headers=auth_headers)
+        assert response.status_code == status.HTTP_200_OK
+        print(f"ttet create get name: {response.content}")
+        print(response.text)
+        print(response.json())
+        assert response.text == 'ATP:0000122'
+        print(response.status_code)
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
             "topic": "ATP:0000122",
