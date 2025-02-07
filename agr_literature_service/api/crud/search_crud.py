@@ -454,7 +454,6 @@ def process_search_results(res):  # pragma: no cover
                 {
                     "key": bucket["key"],
                     "doc_count": bucket["doc_count"],
-                    "docs_count": {"doc_count": bucket["doc_count"]},  # matching the `topics` structure
                     "name": bucket.get("name", bucket["key"])
                 }
                 for bucket in buckets
