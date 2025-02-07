@@ -91,7 +91,7 @@ def mock_load_name_to_atp_and_relationships():
 
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
     print("***** Adding a test tag *****")
-    # mock_load_name_to_atp_and_relationships()
+    mock_load_name_to_atp_and_relationships()
     with TestClient(app) as client:
         response = client.get(url="/workflow_tag/get_name/ATP:0000122", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
