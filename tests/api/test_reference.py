@@ -617,6 +617,8 @@ class TestReference:
                 raise e
 
     @pytest.mark.webtest
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     def test_merge_with_a_lot_of_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \

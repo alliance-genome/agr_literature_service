@@ -11,7 +11,6 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
 from fastapi_okta.okta_utils import get_authentication_token
 from ..fixtures import db # noqa
-from ..fixtures import load_name_to_atp_and_relationships_mock
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -21,10 +20,6 @@ from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 test_reference2 = test_reference
 
 TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_curie'])
-
-CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
-    {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
-     'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
 
 def mock_load_name_to_atp_and_relationships():
     workflow_children = {
@@ -41,32 +36,37 @@ def mock_load_name_to_atp_and_relationships():
         'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
     }
     workflow_parent = {
-        'ATP:0000172': 'ATP:0000177',
-        'ATP:0000140': 'ATP:0000177',
-        'ATP:0000165': 'ATP:0000177',
-        'ATP:0000161': 'ATP:0000177',
-        'ATP:0000175': 'ATP:0000172',
-        'ATP:0000174': 'ATP:0000172',
-        'ATP:0000173': 'ATP:0000172',
-        'ATP:0000178': 'ATP:0000172',
-        'ATP:0000141': 'ATP:0000140',
-        'ATP:0000135': 'ATP:0000140',
-        'ATP:0000139': 'ATP:0000140',
-        'ATP:0000134': 'ATP:0000140',
-        'ATP:0000168': 'ATP:0000165',
-        'ATP:0000167': 'ATP:0000165',
-        'ATP:0000170': 'ATP:0000165',
-        'ATP:0000171': 'ATP:0000165',
-        'ATP:0000169': 'ATP:0000165',
-        'ATP:0000166': 'ATP:0000165',
-        'ATP:0000164': 'ATP:0000161',
-        'ATP:0000163': 'ATP:0000161',
-        'ATP:0000162': 'ATP:0000161'
+        'ATP:0000172': ['ATP:0000177'],
+        'ATP:0000140': ['ATP:0000177'],
+        'ATP:0000165': ['ATP:0000177'],
+        'ATP:0000161': ['ATP:0000177'],
+        'ATP:0000175': ['ATP:0000172'],
+        'ATP:0000174': ['ATP:0000172'],
+        'ATP:0000173': ['ATP:0000172'],
+        'ATP:0000178': ['ATP:0000172'],
+        'ATP:0000141': ['ATP:0000140'],
+        'ATP:0000135': ['ATP:0000140'],
+        'ATP:0000139': ['ATP:0000140'],
+        'ATP:0000134': ['ATP:0000140'],
+        'ATP:0000168': ['ATP:0000165'],
+        'ATP:0000167': ['ATP:0000165'],
+        'ATP:0000170': ['ATP:0000165'],
+        'ATP:0000171': ['ATP:0000165'],
+        'ATP:0000169': ['ATP:0000165'],
+        'ATP:0000166': ['ATP:0000165'],
+        'ATP:0000164': ['ATP:0000161'],
+        'ATP:0000163': ['ATP:0000161'],
+        'ATP:0000162': ['ATP:0000161']
     }
     atp_to_name = {
-        'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
-        'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
-        'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+        'ATP:0000009': 'phenotype',
+        'ATP:0000082': 'RNAi phenotype',
+        'ATP:0000122': 'ATP:0000122',
+        'ATP:0000084': 'overexpression phenotype',
+        'ATP:0000079': 'genetic phenotype',
+        'ATP:0000005': 'gene',
+        'WB:WBGene00003001': 'lin-12',
+        'NCBITaxon:6239': 'Caenorhabditis elegans'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -108,7 +108,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "date_created": "2020-01-01"
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-        print(response)
+        print(f"TTTT: {response}")
         print(response.json)
         yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
 
