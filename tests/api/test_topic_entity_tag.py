@@ -88,10 +88,12 @@ def mock_load_name_to_atp_and_relationships():
 
 
 @pytest.fixture
+@patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+       mock_load_name_to_atp_and_relationships)
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
-        mock_load_name_to_atp_and_relationships()
+        # mock_load_name_to_atp_and_relationships()
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
             "topic": "ATP:0000122",
