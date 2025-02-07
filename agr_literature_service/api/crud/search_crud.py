@@ -458,7 +458,6 @@ def process_search_results(res):  # pragma: no cover
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
     res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
-    res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
 
     # print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
     
