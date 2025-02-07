@@ -231,7 +231,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "terms": {
                     "field": "workflow_tags.workflow_tag_id.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("workflow_tags.workflow_tag_id.keyword", 10)
+                    "size": 100
                 }
             }
         },
@@ -438,6 +438,8 @@ def process_search_results(res):  # pragma: no cover
 
     # convert to the required format (like 'topics')
     for category, buckets in grouped_workflow_tags.items():
+        filtered_buckets = [b for b in buckets if b["doc_count"] > 0]
+        sorted_buckets = sorted(filtered_buckets, key=lambda x: x["doc_count"], reverse=True)
         res['aggregations'][category] = {
             "doc_count_error_upper_bound": 0,
             "sum_other_doc_count": 0,
@@ -447,7 +449,7 @@ def process_search_results(res):  # pragma: no cover
                     "doc_count": bucket["doc_count"],
                     "name": bucket.get("name", bucket["key"])
                 }
-                for bucket in buckets
+                for bucket in sorted_buckets
             ]
         }
 
