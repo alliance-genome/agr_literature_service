@@ -58,7 +58,7 @@ test_reference2 = test_reference
 
 
 def mock_load_name_to_atp_and_relationships():
-    print("*** mock_load_name_to_atp_and_relationships ***")
+    print("*** LOCAL mock_load_name_to_atp_and_relationships ***")
     workflow_children = {
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],

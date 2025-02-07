@@ -124,6 +124,7 @@ def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants
 
 
 def load_name_to_atp_and_relationships_mock():
+    print("### GLOBAL load_name_to_atp_and_relationships_mock ###")
     workflow_children = {
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
@@ -175,6 +176,12 @@ def load_name_to_atp_and_relationships_mock():
         'lin-12': 'WB:WBGene00003001',
         'Caenorhabditis elegans': 'NCBITaxon:6239'
     }
+    for atp in workflow_children.keys():
+        atp_to_name[atp] = atp
+        name_to_atp[atp] = atp
+        for atp2 in workflow_children[atp]:
+            name_to_atp[atp2] = atp2
+            atp_to_name[atp2] = atp2
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 
