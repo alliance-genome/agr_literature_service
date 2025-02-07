@@ -12,8 +12,13 @@ from fastapi import HTTPException, status
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
-
+from agr_literature_service.api.crud.workflow_tag_crud import get_parent_or_children
 logger = logging.getLogger(__name__)
+
+file_workflow_root_ids = ["ATP:0000140", "ATP:0000161"]
+reference_classification_root_ids = ["ATP:0000165"]
+entity_extraction_root_ids = ["ATP:0000172"]
+manual_indexing_root_ids = ["ATP:0000273"]
 
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
@@ -139,52 +144,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if page is None:
         page = 1
 
-    atp_ids = {
-        "file_workflow": [
-            "ATP:0000135", "ATP:0000141", "ATP:0000139", "ATP:0000134",
-            "ATP:0000163", "ATP:0000164", "ATP:0000198", "ATP:0000162"
-        ],
-        "manual_indexing": [
-            "ATP:0000275", "ATP:0000276", "ATP:0000274"
-        ],
-        "reference_classification": [
-            "ATP:0000169", "ATP:0000189", "ATP:0000178", "ATP:0000166"
-        ],
-        "entity_extraction": [
-            "ATP:0000174", "ATP:0000187", "ATP:0000190", "ATP:0000173"
-        ]
-    }
-    workflow_tags_subcategories_agg = {
-        "filters": {
-            "filters": {}
-        },
-        "aggs": {
-            "terms": {
-                "terms": {
-                    "field": "workflow_tags.workflow_tag_id.keyword",
-                    "size": 100
-                }
-            }
-        }
-    }
-    for subcat, ids in atp_ids.items():
-        workflow_tags_subcategories_agg["filters"]["filters"][subcat] = {
-            "bool": {
-                "should": [{"term": {"workflow_tags.workflow_tag_id.keyword": id_}} for id_ in ids]
-            }
-        }
-        """
-        workflow_tags_subcategories_agg["filters"]["filters"][subcat]["aggs"] = {
-            "terms": {
-                "terms": {
-                    "field": "workflow_tags.workflow_tag_id.keyword",
-                    "size": 100,
-                    "include": ids  # restrict to only these values
-                }
-            }
-        }
-        """
-    
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -268,8 +227,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits.get("authors.name.keyword", 10)
                 }
             },
-            # aggregation for workflow subcategories
-            "workflow_tags_subcategories": workflow_tags_subcategories_agg
+            "workflow_tags.workflow_tag_id.keyword": {
+                "terms": {
+                    "field": "workflow_tags.workflow_tag_id.keyword",
+                    "min_doc_count": 0,
+                    "size": facets_limits.get("workflow_tags.workflow_tag_id.keyword", 10)
+                }
+            }
         },
         "from": from_entry,
         "size": size_result_count,
@@ -412,22 +376,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
 def process_search_results(res):  # pragma: no cover
 
-    atp_ids = {
-        "file_workflow": [
-            "ATP:0000135", "ATP:0000141", "ATP:0000139", "ATP:0000134",
-            "ATP:0000163", "ATP:0000164", "ATP:0000198", "ATP:0000162"
-        ],
-        "manual_indexing": [
-            "ATP:0000275", "ATP:0000276", "ATP:0000274"
-        ],
-        "reference_classification": [
-            "ATP:0000169", "ATP:0000189", "ATP:0000178", "ATP:0000166"
-        ],
-        "entity_extraction": [
-            "ATP:0000174", "ATP:0000187", "ATP:0000190", "ATP:0000173"
-        ]
-    }
-
     hits = [{
         "curie": ref["_source"]["curie"],
         "citation": ref["_source"]["citation"],
@@ -457,35 +405,54 @@ def process_search_results(res):  # pragma: no cover
     res['aggregations'].pop('source_method_aggregation', None)
     res['aggregations'].pop('source_evidence_assertion_aggregation', None)
 
-    # process the new workflow subcategories aggregation.
-    workflow_subcats = {}
-    if "workflow_tags_subcategories" in res["aggregations"]:
-        for subcat, bucket in res["aggregations"]["workflow_tags_subcategories"]["buckets"].items():
-            # only include the subcategory if its doc_count is nonzero.
-            if bucket["doc_count"] > 0:
-                # Get the nested terms (if any)
-                nested = bucket.get("terms", {})
-                nested_buckets = nested.get("buckets", [])
-                # Filter the buckets to include only allowed ATP IDs for this subcategory.
-                allowed = atp_ids.get(subcat, [])
-                filtered_buckets = [term for term in nested_buckets if term["key"] in allowed]
-                workflow_subcats[subcat] = {
-                    "doc_count": bucket["doc_count"],
-                    "terms": {"buckets": filtered_buckets}
-                }
-    res['aggregations']['workflow_tags_subcategories'] = workflow_subcats
-    
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
+    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})
+    add_curie_to_name_values(workflow_tags_agg)
+
+    atp_ids = {
+        "file_workflow": get_atp_ids(file_workflow_root_ids),
+        "reference_classification": get_atp_ids(reference_classification_root_ids),
+        "entity_extraction": get_atp_ids(entity_extraction_root_ids),
+        "manual_indexing": get_atp_ids(manual_indexing_root_ids)
+    }
     
-    for subcat_data in workflow_subcats.values():
-        if "buckets" in subcat_data.get("terms", {}):
-            add_curie_to_name_values(subcat_data["terms"])
     
+    bucket_lookup = {bucket["key"].upper(): bucket for bucket in workflow_tags_agg.get("buckets", [])}
+    grouped_workflow_tags = {category: [] for category in atp_ids}
+    for category, id_list in atp_ids.items():
+        for expected_id in id_list:
+            expected_upper = expected_id.upper()
+            if expected_upper in bucket_lookup:
+                grouped_workflow_tags[category].append(bucket_lookup[expected_upper])
+
+    # convert to the required format (like 'topics')
+    for category, buckets in grouped_workflow_tags.items():
+        res['aggregations'][category] = {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+                {
+                    "key": bucket["key"],
+                    "doc_count": bucket["doc_count"],
+                    "docs_count": {"doc_count": bucket["doc_count"]},  # matching the `topics` structure
+                    "name": bucket.get("name", bucket["key"])
+                }
+                for bucket in buckets
+            ]
+        }
+
+    # Remove the old "workflow_tags" aggregation key.
+    res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
+            
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
     res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
+    res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
+
+    print("res['aggregations']['topics']=", res['aggregations']['topics'])
+    print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
     
     return {
         "hits": hits,
@@ -636,29 +603,26 @@ def ensure_structure(es_body):
 
 def add_curie_to_name_values(aggregations):
 
-    buckets = aggregations.get("buckets", aggregations)
-    if not buckets:
-        return
-
-    curie_keys = [bucket["key"] for bucket in buckets]
-    logger.debug("Curie keys: %s", curie_keys)
-    
-    atp_curies = [ck.upper() for ck in curie_keys if ck.upper().startswith("ATP:")]
-    eco_curies = [ck.upper() for ck in curie_keys if ck.upper().startswith("ECO:")]
-    logger.debug("ATP curies: %s", atp_curies)
-    logger.debug("ECO curies: %s", eco_curies)
-
+    curie_keys = [
+        bucket["key"] for bucket in aggregations.get("buckets", [])
+    ]
     curie_to_name_map = get_map_ateam_curies_to_names(
         category="atpterm",
-        curies=atp_curies
+        curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ATP:")]
     )
     curie_to_name_map.update(get_map_ateam_curies_to_names(
         category="ecoterm",
-        curies=eco_curies
+        curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ECO:")]
     ))
-    logger.debug("Mapping returned: %s", curie_to_name_map)
 
-    for bucket in buckets:
-        key_upper = bucket["key"].upper()
-        curie_name = curie_to_name_map.get(key_upper, bucket["key"])
+    # iterate over the buckets and add names
+    for bucket in aggregations.get("buckets", []):
+        curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
         bucket["name"] = curie_name
+
+
+def get_atp_ids(root_atp_ids):
+    return [child for root_atp_id in root_atp_ids for child in get_parent_or_children(root_atp_id, "children")]
+
+    
+
