@@ -337,16 +337,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             })
 
     WORKFLOW_FACETS = ["file_workflow", "manual_indexing", "entity_extraction", "reference_classification"]
-    """
-    if facets_values:
-        for facet_field, facet_list_values in facets_values.items():
-            if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-                es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
-            for facet_value in facet_list_values:
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
-    """
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
@@ -426,7 +416,8 @@ def process_search_results(res):  # pragma: no cover
 
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
-    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})
+
+    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})    
     add_curie_to_name_values(workflow_tags_agg)
 
     atp_ids = {
@@ -460,7 +451,7 @@ def process_search_results(res):  # pragma: no cover
             ]
         }
 
-    # Remove the old "workflow_tags" aggregation key.
+    # remove the old "workflow_tags" aggregation key.
     res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
             
     res['aggregations']['topics'] = topics
@@ -469,8 +460,7 @@ def process_search_results(res):  # pragma: no cover
     res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
     res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
 
-    print("res['aggregations']['topics']=", res['aggregations']['topics'])
-    print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
+    # print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
     
     return {
         "hits": hits,
