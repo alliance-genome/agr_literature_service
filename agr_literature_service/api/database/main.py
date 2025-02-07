@@ -36,12 +36,6 @@ def get_db():
         yield db
     except Exception as e:
         db.rollback()
-        engine_from_session = db.get_bind()
-        database_name = engine_from_session.url.database
-        lines = []
-        for line in traceback.format_stack():
-            lines.append(line)
-            print(line.strip())
         print(f"Error in get_db: {database_name}:  {e}\n{lines}")
         raise
     finally:
