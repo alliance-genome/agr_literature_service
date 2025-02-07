@@ -359,7 +359,7 @@ def OLD_search_atp_ontology():
 def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
     """Return a list of ancestor or descendant curies for the given ontology_node."""
     # ATPs are already cached, so use that if applicable.
-    if ontology_node.startwith("ATP:"):
+    if ontology_node.startswith("ATP:"):
         if ancestors_or_descendants == 'descendants':
             return atp_get_children(ontology_node)
         return atp_get_parent(ontology_node)
