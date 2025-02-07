@@ -41,7 +41,10 @@ logger = logging.getLogger(__name__)
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
-    return atp_get_parent(workflow_tag_atp_id)
+    parents =  atp_get_parent(workflow_tag_atp_id)
+    if parents:
+        return parents[[0]]
+    return None
     # return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
 
 
@@ -247,7 +250,7 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
     if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
-    return mod, process_atp_id, reference
+    return mod, process_atp_id[0], reference
 
 
 def check_requirements(reference, mod, transition):
