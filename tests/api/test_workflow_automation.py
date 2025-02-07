@@ -27,8 +27,6 @@
 #
 # from collections import namedtuple
 
-# import pytest
-# from sqlalchemy import and_
 from starlette.testclient import TestClient
 from fastapi import status
 from unittest.mock import patch
@@ -42,15 +40,11 @@ from agr_literature_service.api.models import (
     ModReferencetypeAssociationModel,
     ReferencetypeModel
 )
-# from agr_literature_service.api.crud.workflow_tag_crud import (
-# get_workflow_process_from_tag,
-# get_workflow_tags_from_process)
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
-# from .test_workflow_tag import test_workflow_tag
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals, atp_get_name
 
@@ -98,66 +92,6 @@ def mock_load_name_to_atp_and_relationships():
             atp_to_name[atp2] = atp2
 
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
-
-# TestWFTData = namedtuple('TestWFTData', ['response'])
-def get_parents_mock(workflow_tag_atp_id: str):
-    # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking get_parents name = {workflow_tag_atp_id}")
-    if workflow_tag_atp_id == 'ATP:0000141':  # file upload needed
-        return 'ATP:fileupload'
-    elif workflow_tag_atp_id == 'ATP:fileuploadinprogress':
-        return 'ATP:fileupload'
-    elif workflow_tag_atp_id == 'ATP:fileuploadcomplete':
-        return 'ATP:fileupload'
-    elif workflow_tag_atp_id == 'ATP:fileuploadfailed':
-        return 'ATP:fileupload'
-    elif workflow_tag_atp_id == 'ATP:task2_failed':
-        return 'ATP:0000189'  # main failed
-    elif workflow_tag_atp_id == 'ATP:task1_failed':
-        return 'ATP:0000189'  # main failed
-    elif workflow_tag_atp_id == 'ATP:fileupload':
-        return ['ATP:ont1']
-    elif workflow_tag_atp_id == 'ATP:task2_in_progress':
-        return 'ATP:0000178'  # main in progress
-    elif workflow_tag_atp_id == 'ATP:task2_complete':
-        return 'ATP:0000169'  # main complete
-    elif workflow_tag_atp_id == 'ATP:task1_in_progress':
-        return 'ATP:0000178'  # main in progress
-    elif workflow_tag_atp_id == 'ATP:task1_complete':
-        return 'ATP:0000169'  # main complete
-    elif workflow_tag_atp_id in ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']:
-        return 'ATP:0000165'
-    else:
-        print("returning NOTHING!!")
-        return []
-
-
-def get_descendants_mock(name):
-    # MUST start with ATP:0000003 for this to work
-    print(f"***** Mocking descendents name = {name}")
-    if name == 'ATP:0000177':
-        return ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161']
-    elif name == 'ATP:0000172':
-        return ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178']
-    elif name == 'ATP:0000140':
-        return ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134']
-    elif name == 'ATP:0000161':
-        return ['ATP:0000164', 'ATP:0000163', 'ATP:0000162']
-    elif name == 'ATP:fileupload':
-        return ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed']
-    elif name == 'ATP:0000165':  # top of class
-        return ['ATP:0000166', 'ATP:0000178', 'ATP:0000189', 'ATP:0000169']
-    elif name == 'ATP:0000166':  # needed
-        return ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed']
-    elif name == 'ATP:0000178':  # in progress
-        return ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress']
-    elif name == 'ATP:0000189':  # failed
-        return ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed']
-    elif name == 'ATP:0000169':  # complete
-        return ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
-    else:
-        print("returning NOTHING!!")
-        return []
 
 
 def workflow_automation_init(db):  # noqa

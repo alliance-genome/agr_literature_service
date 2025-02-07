@@ -78,6 +78,12 @@ def mock_load_name_to_atp_and_relationships():
         'lin-12': 'WB:WBGene00003001',
         'Caenorhabditis elegans': 'NCBITaxon:6239'
     }
+    for atp in workflow_children.keys():
+        atp_to_name[atp] = atp
+        name_to_atp[atp] = atp
+        for atp2 in workflow_children[atp]:
+            name_to_atp[atp2] = atp2
+            atp_to_name[atp2] = atp2
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 
