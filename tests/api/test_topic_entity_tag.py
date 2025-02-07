@@ -93,6 +93,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
     print("***** Adding a test tag *****")
     with TestClient(app) as client:
         mock_load_name_to_atp_and_relationships()
+        assert 'ATP:0000122' == atp_get_name('ATP:0000122')
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
             "topic": "ATP:0000122",
@@ -110,7 +111,8 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
         print(f"TTTT: {response}")
-        print(response.json)
+        print(response.text)
+        print(response.json())
         yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
 
 
