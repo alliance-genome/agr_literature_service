@@ -71,7 +71,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
-    if 'display_tag' in topic_entity_tag_data:
+    if 'display_tag' in topic_entity_tag_data and topic_entity_tag_data['display_tag'] is not None:
         atp_ids.append(topic_entity_tag_data['display_tag'])
     # atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
     # (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
