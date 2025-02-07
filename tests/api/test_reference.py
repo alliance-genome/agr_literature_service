@@ -600,18 +600,17 @@ class TestReference:
                 ]
             }
             try:
-                with db.begin():
-                    response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
-                    assert response1.status_code == 201
-                    response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
-                    assert response2.status_code == 201
+                response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
+                assert response1.status_code == 201
+                response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
+                assert response2.status_code == 201
 
-                    response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
-                                                 headers=auth_headers)
-                    assert response_merge.status_code == status.HTTP_201_CREATED
-                    tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
-                    assert len(tets) == 3
-                    assert tets[0]["note"] == "another note | test note"
+                response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+                                             headers=auth_headers)
+                assert response_merge.status_code == status.HTTP_201_CREATED
+                tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
+                assert len(tets) == 3
+                assert tets[0]["note"] == "another note | test note"
             except Exception as e:
                 print(f"Error during test: {e}")
                 raise e
