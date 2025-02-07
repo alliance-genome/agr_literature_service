@@ -10,6 +10,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from agr_literature_service.api.triggers.triggers import add_sql_triggers_functions
+import traceback
 
 metadata = MetaData()
 
@@ -37,7 +38,11 @@ def get_db():
         db.rollback()
         engine_from_session = db.get_bind()
         database_name = engine_from_session.url.database
-        print(f"Error in get_db: {database_name}:  {e}")
+        lines = []
+        for line in traceback.format_stack():
+            lines.append(line)
+            print(line.strip())
+        print(f"Error in get_db: {database_name}:  {e}\n{lines}")
         raise
     finally:
         db.close()
