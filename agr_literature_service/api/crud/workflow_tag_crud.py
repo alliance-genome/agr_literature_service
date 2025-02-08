@@ -51,6 +51,16 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
             nodes_to_process.append(child)
     return workflow_children, workflow_parent
 
+def get_workflow_tag_diagram(db:Session):
+    try:
+        query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to;"""
+        rs = db.execute(query)
+        rows = rs.fetchall()
+        data = jsonable_encoder(rows)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Cant search WF transition tag diagram.")
+    return data
 
 def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     if parent_or_children == "parent":
