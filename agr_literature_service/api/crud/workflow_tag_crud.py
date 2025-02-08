@@ -51,10 +51,10 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
             nodes_to_process.append(child)
     return workflow_children, workflow_parent
 
-def get_workflow_tag_diagram(db:Session):
+def get_workflow_tag_diagram(mod : str, db:Session):
     try:
         query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to;"""
-        rs = db.execute(query)
+        rs = db.execute(text(query))
         rows = rs.fetchall()
         data = jsonable_encoder(rows)
     except Exception:
