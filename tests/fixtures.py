@@ -98,29 +98,30 @@ def load_sanitized_references(populate_test_mod_reference_types):
 
 def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants):
     workflow_parent = {
-        'ATP:0000172': 'ATP:0000177',
-        'ATP:0000140': 'ATP:0000177',
-        'ATP:0000165': 'ATP:0000177',
-        'ATP:0000161': 'ATP:0000177',
-        'ATP:0000175': 'ATP:0000172',
-        'ATP:0000174': 'ATP:0000172',
-        'ATP:0000173': 'ATP:0000172',
-        'ATP:0000178': 'ATP:0000172',
-        'ATP:0000141': 'ATP:0000140',
-        'ATP:0000135': 'ATP:0000140',
-        'ATP:0000139': 'ATP:0000140',
-        'ATP:0000134': 'ATP:0000140',
-        'ATP:0000168': 'ATP:0000165',
-        'ATP:0000167': 'ATP:0000165',
-        'ATP:0000170': 'ATP:0000165',
-        'ATP:0000171': 'ATP:0000165',
-        'ATP:0000169': 'ATP:0000165',
-        'ATP:0000166': 'ATP:0000165',
-        'ATP:0000164': 'ATP:0000161',
-        'ATP:0000163': 'ATP:0000161',
-        'ATP:0000162': 'ATP:0000161'
+        'ATP:0000172': ['ATP:0000177'],
+        'ATP:0000140': ['ATP:0000177'],
+        'ATP:0000165': ['ATP:0000177'],
+        'ATP:0000161': ['ATP:0000177'],
+        'ATP:0000175': ['ATP:0000172'],
+        'ATP:0000174': ['ATP:0000172'],
+        'ATP:0000173': ['ATP:0000172'],
+        'ATP:0000178': ['ATP:0000172'],
+        'ATP:0000141': ['ATP:0000140'],
+        'ATP:0000142': ['ATP:0000140'],
+        'ATP:0000135': ['ATP:0000140'],
+        'ATP:0000139': ['ATP:0000140'],
+        'ATP:0000134': ['ATP:0000140'],
+        'ATP:0000168': ['ATP:0000165'],
+        'ATP:0000167': ['ATP:0000165'],
+        'ATP:0000170': ['ATP:0000165'],
+        'ATP:0000171': ['ATP:0000165'],
+        'ATP:0000169': ['ATP:0000165'],
+        'ATP:0000166': ['ATP:0000165'],
+        'ATP:0000164': ['ATP:0000161'],
+        'ATP:0000163': ['ATP:0000161'],
+        'ATP:0000162': ['ATP:0000161']
     }
-    return [workflow_parent[ontology_node]]
+    return workflow_parent[ontology_node]
 
 
 def load_name_to_atp_and_relationships_mock():
@@ -128,7 +129,7 @@ def load_name_to_atp_and_relationships_mock():
     workflow_children = {
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
-        'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
+        'ATP:0000140': ['ATP:0000141', 'ATP:0000142', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
         'ATP:0000165': ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166'],
         'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162'],
 
@@ -168,6 +169,7 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000084': 'overexpression phenotype',
         'ATP:0000079': 'genetic phenotype',
         'ATP:0000005': 'gene',
+        'ATP:0000123': 'not sure',
         'WB:WBGene00003001': 'lin-12',
         'NCBITaxon:6239': 'Caenorhabditis elegans'
     }
@@ -179,7 +181,8 @@ def load_name_to_atp_and_relationships_mock():
         'genetic phenotype': 'ATP:0000079',
         'gene': 'ATP:0000005',
         'lin-12': 'WB:WBGene00003001',
-        'Caenorhabditis elegans': 'NCBITaxon:6239'
+        'Caenorhabditis elegans': 'NCBITaxon:6239',
+        'not sure': 'ATP:0000123'
     }
     for atp in workflow_children.keys():
         atp_to_name[atp] = atp

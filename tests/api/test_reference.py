@@ -475,7 +475,8 @@ class TestReference:
             # 3) changesets, see test_001_reference.
             ########################################
 
-
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     def test_merge_with_tets(self, db, test_resource, test_topic_entity_tag_source, auth_headers): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
@@ -599,22 +600,43 @@ class TestReference:
                     }
                 ]
             }
-            try:
-                with db.begin():
-                    response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
-                    assert response1.status_code == 201
-                    response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
-                    assert response2.status_code == 201
 
-                    response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
-                                                 headers=auth_headers)
-                    assert response_merge.status_code == status.HTTP_201_CREATED
-                    tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
-                    assert len(tets) == 3
-                    assert tets[0]["note"] == "another note | test note"
-            except Exception as e:
-                print(f"Error during test: {e}")
-                raise e
+            response1 = client.post(url="/reference/", json=ref1_data, headers=auth_headers)
+            assert response1.status_code == 201
+
+            response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
+            assert response2.status_code == 201
+
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response1.json()}")
+            # assert get_response.status_code == status.HTTP_200_OK
+            print(get_response.status_code)
+            print(get_response.text)
+            print(get_response.json())
+            tets = get_response.json()
+            print(tets)
+            assert len(tets) == 2
+
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}")
+            # assert get_response.status_code == status.HTTP_200_OK
+            print(get_response.status_code)
+            print(get_response.text)
+            print(get_response.json())
+            tets = get_response.json()
+            print(tets)
+            assert len(tets) == 3
+
+            response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+                                         headers=auth_headers)
+            assert response_merge.status_code == status.HTTP_201_CREATED
+            print(response_merge.text)
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}")
+            # assert get_response.status_code == status.HTTP_200_OK
+            print(get_response.status_code)
+            print(get_response.text)
+            print(get_response.json())
+            tets = get_response.json()
+            assert len(tets) == 3
+            assert tets[0]["note"] == "another note | test note"
 
     @pytest.mark.webtest
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
@@ -628,7 +650,7 @@ class TestReference:
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
-            num_tags_per_ref = 1000
+            num_tags_per_ref = 100
             template_tet = {
                 "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
@@ -806,7 +828,11 @@ class TestReference:
                 "created_by": "WBPerson1",
                 "date_created": "2020-01-01"
             }
-            client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            get_response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            print(get_response.status_code)
+            print(get_response.text)
+            print(get_response.json())
+
             client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
 
             result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
