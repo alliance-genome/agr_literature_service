@@ -143,7 +143,7 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000068': ['ATP:0000071'],
 
         'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
-        'ATP:0000166':  ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
+        'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
         'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
         'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
