@@ -127,6 +127,10 @@ def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants
 def load_name_to_atp_and_relationships_mock():
     print("### GLOBAL load_name_to_atp_and_relationships_mock ###")
     workflow_children = {
+        'ATP:0000079': ["ATP:0000001", "ATP:0000002", "ATP:0000009"],
+        'ATP:0000009': ['ATP:0000068', 'ATP:0000071'],
+        'ATP:00001234': ['ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'],
+        'ATP:00001235': ['ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068'],
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
         'ATP:0000140': ['ATP:0000141', 'ATP:0000142', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
@@ -140,6 +144,11 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
     }
     workflow_parent = {
+        'ATP:0000009': ['ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
+                        'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033',
+                        'ATP:0000034', 'ATP:0000100'],
+        'ATP:0000084': ['ATP:0000009'],
+        'ATP:0000079': ["ATP:0000001", "ATP:0000002", "ATP:0000009"],
         'ATP:0000172': ['ATP:0000177'],
         'ATP:0000140': ['ATP:0000177'],
         'ATP:0000165': ['ATP:0000177'],

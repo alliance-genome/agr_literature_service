@@ -543,7 +543,8 @@ def atp_get_parent(child_id):
     if child_id in atp_to_parent:
         return atp_to_parent[child_id]
     else:
-        return None
+        print(f"COULD NOT find parent for {child_id}")
+        return []
 
 
 def atp_get_children(parent_id):
@@ -553,6 +554,7 @@ def atp_get_children(parent_id):
     if parent_id in atp_to_children:
         return atp_to_children[parent_id]
     else:
+        print(f"COULD NOT find children for {parent_id}")
         return []
 
 

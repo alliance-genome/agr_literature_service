@@ -23,6 +23,7 @@ TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_
 
 def mock_load_name_to_atp_and_relationships():
     workflow_children = {
+        'ATP:0000009': ['ATP:0000068', 'ATP:0000071'],
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
         'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
@@ -36,6 +37,10 @@ def mock_load_name_to_atp_and_relationships():
         'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
     }
     workflow_parent = {
+        'ATP:0000009': ['ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
+                        'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033',
+                        'ATP:0000034', 'ATP:0000100'],
+        'ATP:0000084': ['ATP:0000009'],
         'ATP:0000172': ['ATP:0000177'],
         'ATP:0000140': ['ATP:0000177'],
         'ATP:0000165': ['ATP:0000177'],
@@ -266,11 +271,8 @@ class TestTopicEntityTag:
             assert len(response.json()) > 0
 
     def test_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
-        with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
-            mock_get_ancestors.return_value = []
-            mock_get_descendants.return_value = []
+        mock_load_name_to_atp_and_relationships()
+        with TestClient(app) as client:
             author_source_1 = {
                 "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
@@ -371,9 +373,8 @@ class TestTopicEntityTag:
 
 
     def test_validate_generic_specific(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db): # noqa
-        with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+        mock_load_name_to_atp_and_relationships()
+        with TestClient(app) as client:
             author_source_1 = {
                 "source_evidence_assertion": "community curation",
                 "source_method": "acknowledge",
@@ -430,24 +431,19 @@ class TestTopicEntityTag:
             }
 
             # add the new tags
-            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
-            mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079',
-                                                 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
-                                                 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087',
-                                                 'ATP:0000100'}
             more_generic_tag_id = client.post(url="/topic_entity_tag/", json=more_generic_tag,
                                               headers=auth_headers).json()["topic_entity_tag_id"]
-            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
-            mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
+            # mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
+            # mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
                                                headers=auth_headers).json()["topic_entity_tag_id"]
-            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068',
-                                               'ATP:0000071'}
-            mock_get_descendants.return_value = {'ATP:0000071'}
+            #mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068',
+            #                                   'ATP:0000071'}
+            #mock_get_descendants.return_value = {'ATP:0000071'}
             more_specific_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_specific_tag_2,
                                                  headers=auth_headers).json()["topic_entity_tag_id"]
-            mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068'}
-            mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
+            #mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068'}
+            #mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
             more_generic_tag_id_2 = client.post(url="/topic_entity_tag/", json=more_generic_tag_2,
                                                 headers=auth_headers).json()["topic_entity_tag_id"]
 
