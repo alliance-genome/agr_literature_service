@@ -32,7 +32,11 @@ def create_dataset(request: DatasetSchemaPost, user: OktaUser = db_user, db: Ses
 @router.get("/metadata/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
             status_code=status.HTTP_200_OK,
             response_model=DatasetSchemaShow)
-def show_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int, db: Session = db_session):
+@router.get("/metadata/{mod_abbreviation}/{data_type}/{dataset_type}/",
+            status_code=status.HTTP_200_OK,
+            response_model=DatasetSchemaShow)
+def show_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int = None,
+                 db: Session = db_session):
     return dataset_crud.show_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                      dataset_type=dataset_type, version=version)
 
