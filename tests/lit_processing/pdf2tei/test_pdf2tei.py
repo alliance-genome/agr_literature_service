@@ -218,7 +218,7 @@ class TestPdf2TEI:
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000162"  # This should be the status after a failed conversion
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
     # @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
