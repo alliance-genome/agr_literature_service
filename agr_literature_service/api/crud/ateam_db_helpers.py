@@ -15,8 +15,8 @@ curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
 topic_category_atp = "ATP:0000002"
 
 # Store these to save lookups.
-atp_to_name = {}
-name_to_atp = {}
+atp_to_name: Dict[str, str] = {}
+name_to_atp: Dict[str, str] = {}
 atp_to_parent: Dict[str, list] = {}
 atp_to_children : Dict[str, list] = {}
 
@@ -348,7 +348,6 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
         return get_all_ancestors(ontology_node)
 
     db = create_ateam_db_session()
-    print("*** NOTE: If here then sql below only gets direct parents or children ***")
     if ancestors_or_descendants == 'descendants':
         sql_query = text("""
         SELECT ot.curie
