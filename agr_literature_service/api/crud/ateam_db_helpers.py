@@ -300,40 +300,6 @@ def search_species(species):
     return JSONResponse(content=json_data)
 
 
-def OLD_map_atp_id_to_name(db: Session, atp_id):
-    """
-    Given an ATPTerm curie (e.g. "ATP:0001234"), return the corresponding name.
-    """
-    sql_query = text("""
-    SELECT name
-    FROM ontologyterm
-    WHERE ontologytermtype = 'ATPTerm'
-    AND curie = :atp_id
-    """)
-    row = db.execute(sql_query, {'atp_id': atp_id}).fetchone()
-    if row:
-        return row[0]
-    return None
-
-
-def OLD_search_atp_ontology():
-    """Return all ATPTerms from the ontologyterm table."""
-    db = create_ateam_db_session()
-    sql_query = text("""
-    SELECT curie, name, obsolete
-    FROM ontologyterm
-    WHERE ontologytermtype = 'ATPTerm'
-    """)
-    rows = db.execute(sql_query).fetchall()
-
-    result = [
-        {"curie": row.curie, "name": row.name, "obsolete": row.obsolete}
-        for row in rows
-    ]
-    db.close()
-    return result
-
-
 def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
     """Return a list of ancestor or descendant curies for the given ontology_node."""
     # ATPs are already cached, so use that if applicable.
