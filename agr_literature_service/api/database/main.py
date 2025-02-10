@@ -10,6 +10,7 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 from agr_literature_service.api.triggers.triggers import add_sql_triggers_functions
+import traceback
 
 metadata = MetaData()
 
@@ -35,7 +36,7 @@ def get_db():
         yield db
     except Exception as e:
         db.rollback()
-        print("Error in get_db: " + str(e))
+        print(f"Error in get_db:")
         raise
     finally:
         db.close()

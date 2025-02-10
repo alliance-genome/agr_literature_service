@@ -75,7 +75,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     """
 
     logger.debug("creating reference")
-    logger.debug(reference)
+    # logger.debug(reference)
     add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags", "mod_reference_types"]
     list_fields = ["authors", "tags", "mesh_terms", "cross_references"]
     remap = {
@@ -243,7 +243,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     """
 
     reference_data = jsonable_encoder(reference_update)
-    logger.debug("reference_data = {}".format(reference_data))
+    # logger.debug("reference_data = {}".format(reference_data))
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference_db_obj = db.query(ReferenceModel).filter(or_(
         ReferenceModel.curie == curie_or_reference_id,
@@ -485,7 +485,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_relations_data["from_references"].append(reference_relation_data)
 
     reference_data["reference_relations"] = reference_relations_data
-    logger.debug("returning {}".format(reference_data))
+    # logger.debug("returning {}".format(reference_data))
     return reference_data
 
 
