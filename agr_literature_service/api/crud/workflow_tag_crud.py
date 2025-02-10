@@ -56,12 +56,10 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         #query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to"""
         query = text(f"""SELECT * FROM workflow_transition""")
         rs = db.execute(query).fetchall()
-        #rows = rs.fetchall()
-        #data = jsonable_encoder(rows)
-        data = rs
-    except Exception:
+        data = jsonable_encoder(rs)
+    except Exception as ex:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Cant search WF transition tag diagram.")
+                            detail=f"""Cant search WF transition tag diagram. {ex}""")
     return data
 
 def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
