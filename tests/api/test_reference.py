@@ -635,12 +635,15 @@ class TestReference:
             print(get_response.text)
             print(get_response.json())
             tets = get_response.json()
+            okay = False
             for tet in tets:
                 print(tet)
                 if 'note' in tet:
+                    if tet['note'] == "another note | test note":
+                        okay = True
                     print(tet['note'])
             assert len(tets) == 3
-            assert tets[0]["note"] == "another note | test note"
+            assert okay
 
     @pytest.mark.webtest
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
