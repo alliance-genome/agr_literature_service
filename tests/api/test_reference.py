@@ -766,8 +766,6 @@ class TestReference:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
     def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
         with TestClient(app) as client:
             new_referencefile_main_1 = {
