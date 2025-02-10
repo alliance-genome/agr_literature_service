@@ -219,10 +219,10 @@ class TestPdf2TEI:
             assert response.json() == "ATP:0000162"  # This should be the status after a failed conversion
 
     @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    #        search_ancestors_or_descendants_mock)
     def test_pdf2tei_failed_conversion_500(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:
