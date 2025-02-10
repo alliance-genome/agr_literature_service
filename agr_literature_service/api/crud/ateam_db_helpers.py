@@ -7,7 +7,6 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import traceback
 
 # List of valid prefix identifiers for curies
 curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
@@ -16,7 +15,6 @@ curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
 topic_category_atp = "ATP:0000002"
 
 # Store these to save lookups.
-# NEED TO add function to reload these.
 atp_to_name = {}
 name_to_atp = {}
 atp_to_parent: Dict[str, list] = {}
@@ -30,15 +28,6 @@ def create_ateam_db_session():
     SERVER = environ.get('PERSISTENT_STORE_DB_HOST', 'localhost')
     PORT = environ.get('PERSISTENT_STORE_DB_PORT', '5432')
     DB = environ.get('PERSISTENT_STORE_DB_NAME', 'unknown')
-    print(f"BOOOOOOOOB: user: {USER}")
-    lines = []
-    for line in traceback.format_stack():
-        lines.append(line)
-        print(line.strip())
-    x = 0
-    if (x):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"AHHHHHHHHHHHHH {lines}")
 
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
     engine = create_engine(engine_var)
@@ -96,15 +85,13 @@ def classify_entity_list(entity_list):
         else:
             entity_name_list.append(entity.upper())
 
-    return (entity_name_list, entity_curie_list)
+    return entity_name_list, entity_curie_list
 
 
 def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
     """Look up entities in the DB by name (gene symbol, allele symbol, etc.), restricted by taxon."""
     if len(entity_name_list) == 0:
         return []
-
-    sql_query = None
 
     if entity_type == 'gene':
         """
@@ -183,8 +170,6 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
     """Look up entities in the DB by their curies (MGI:4439460, SGD:S000063664, etc.)."""
     if len(entity_curie_list) == 0:
         return []
-
-    sql_query = None
 
     if entity_type in ['gene', 'allele']:
         entity_table_name = entity_type
@@ -288,7 +273,6 @@ def search_atp_descendants(ancestor_curie):
 def search_species(species):
     """Search for species in the NCBITaxonTerm ontology, matching either a curie or name."""
     db = create_ateam_db_session()
-    search_query = None
 
     if species.upper().startswith("NCBITAXON"):
         search_query = f"{species.upper()}%"
@@ -409,7 +393,6 @@ def map_curies_to_names(category, curies):
         category = category_label
 
     category = category.lower()
-    sql_query = None
     if category in 'atpterm':
         return atp_to_name_subset(curies)
 
