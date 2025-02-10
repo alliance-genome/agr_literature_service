@@ -56,7 +56,8 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         #query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to"""
         query = text(f"""SELECT * FROM workflow_transition""")
         rs = db.execute(query).fetchall()
-        data = jsonable_encoder(rs)
+        ##data = jsonable_encoder(rs)
+        data = "yes"
     except Exception as ex:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"""Cant search WF transition tag diagram. {ex}""")
