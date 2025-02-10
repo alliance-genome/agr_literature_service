@@ -58,7 +58,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         rs = db.execute(text(query))
         #rows = rs.fetchall()
         #data = jsonable_encoder(rows)
-        data = rs
+        data = db
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Cant search WF transition tag diagram.")
