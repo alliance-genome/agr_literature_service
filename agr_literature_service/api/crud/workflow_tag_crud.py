@@ -56,9 +56,8 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         #query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to"""
         query = f"""SELECT * FROM workflow_transition"""
         rs = db.execute(text(query))
-        #rows = rs.fetchall()
-        #data = jsonable_encoder(rows)
-        data = db
+        rows = rs.fetchall()
+        data = jsonable_encoder(rows)
     except Exception:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Cant search WF transition tag diagram.")
@@ -166,7 +165,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 new_job['reference_workflow_tag_id'] = wft.reference_workflow_tag_id
                 new_job['mod_id'] = wft.mod_id
                 jobs.append(new_job)
-    return db ##test test test test
+    return jobs
 
 
 def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, orig_wft):
