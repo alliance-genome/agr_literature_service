@@ -166,7 +166,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 new_job['reference_workflow_tag_id'] = wft.reference_workflow_tag_id
                 new_job['mod_id'] = wft.mod_id
                 jobs.append(new_job)
-    return jobs
+    return db ##test test test test
 
 
 def job_condition_on_start_process(db: Session, workflow_tag: WorkflowTagModel, orig_wft):
