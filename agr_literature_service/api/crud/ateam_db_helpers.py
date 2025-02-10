@@ -361,10 +361,11 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
     # ATPs are already cached, so use that if applicable.
     if ontology_node.startswith("ATP:"):
         if ancestors_or_descendants == 'descendants':
-            return atp_get_children(ontology_node)
-        return atp_get_parent(ontology_node)
+            return get_all_descendents(ontology_node)
+        return get_all_ancestors(ontology_node)
 
     db = create_ateam_db_session()
+    print("*** NOTE: If here then sql below only gets direct parents or children ***")
     if ancestors_or_descendants == 'descendants':
         sql_query = text("""
         SELECT ot.curie
@@ -577,6 +578,26 @@ def atp_to_name_subset(curies: list):
     return subset
 
 
+def get_all_descendents(curie: str):
+    try:
+        return get_name_to_atp_for_all_children(curie)[1].keys()
+    except IndexError:
+        return []
+
+
+def get_all_ancestors(curie: str):
+    global atp_to_parent
+    parent_list = []
+    not_seen = [curie]
+    while len(not_seen) > 0:
+        p = not_seen.pop(0)
+        if p in atp_to_parent:
+            parents = atp_to_parent[p]
+            parent_list.append(parents[0])
+            not_seen.append(parents[0])
+    return parent_list
+
+
 def get_name_to_atp_for_all_children(workflow_parent):
     """
     Get ALL descendents for an ATP.
@@ -588,14 +609,18 @@ def get_name_to_atp_for_all_children(workflow_parent):
         load_name_to_atp_and_relationships()
     subset_name_to_atp = {}
     subset_atp_to_name = {}
-    list_ids = atp_to_children[workflow_parent]
+    if workflow_parent in atp_to_children:
+        list_ids = atp_to_children[workflow_parent]
+    else:
+        return []
     while len(list_ids) > 0:
         curie = list_ids.pop()
         if not curie:
             continue
         subset_atp_to_name[curie] = atp_to_name[curie]
         subset_name_to_atp[atp_to_name[curie]] = curie
-        list_ids.extend(atp_to_children[curie])
+        if curie in atp_to_children:
+            list_ids.extend(atp_to_children[curie])
     return subset_name_to_atp, subset_atp_to_name
 
 

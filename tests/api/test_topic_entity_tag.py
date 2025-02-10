@@ -15,7 +15,11 @@ from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
-from agr_literature_service.api.crud.ateam_db_helpers import set_globals
+from agr_literature_service.api.crud.ateam_db_helpers import (
+    set_globals,
+    get_all_descendents,
+    get_all_ancestors
+)
 
 test_reference2 = test_reference
 
@@ -23,12 +27,19 @@ TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_
 
 def mock_load_name_to_atp_and_relationships():
     workflow_children = {
-        'ATP:0000009': ['ATP:0000068', 'ATP:0000071'],
+        'ATP:0000009': ['ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033'],
+        'ATP:0000079': ['ATP:0000082', 'ATP:0000083', 'ATP:0000084'],
+        'ATP:0000085': ['ATP:0000034', 'ATP:0000100'],
         'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
         'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
         'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
         'ATP:0000165': ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166'],
         'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162'],
+
+        'ATP:0000001': ['ATP:0000002'],
+        'ATP:0000002': ['ATP:0000015'],
+        'ATP:0000015': ['ATP:0000068', 'ATP:0000069', 'ATP:0000070'],
+        'ATP:0000068': ['ATP:0000071'],
 
         'ATP:fileupload': ['ATP:0000141', 'ATP:fileuploadinprogress', 'ATP:fileuploadcomplete', 'ATP:fileuploadfailed'],
         'ATP:0000166':  ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
@@ -36,11 +47,11 @@ def mock_load_name_to_atp_and_relationships():
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
         'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
     }
-    workflow_parent = {
-        'ATP:0000009': ['ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
-                        'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033',
-                        'ATP:0000034', 'ATP:0000100'],
-        'ATP:0000084': ['ATP:0000009'],
+    workflow_parent = {  # probably can remove this covered later
+        'ATP:0000009': ['ATP:0000002'],
+        'ATP:0000002': ['ATP:0000001'],
+        'ATP:0000084': ['ATP:0000079'],
+        'ATP:0000079': ['ATP:0000009'],
         'ATP:0000172': ['ATP:0000177'],
         'ATP:0000140': ['ATP:0000177'],
         'ATP:0000165': ['ATP:0000177'],
@@ -87,6 +98,7 @@ def mock_load_name_to_atp_and_relationships():
         atp_to_name[atp] = atp
         name_to_atp[atp] = atp
         for atp2 in workflow_children[atp]:
+            workflow_parent[atp2] = [atp]
             name_to_atp[atp2] = atp2
             atp_to_name[atp2] = atp2
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
@@ -435,6 +447,8 @@ class TestTopicEntityTag:
                                               headers=auth_headers).json()["topic_entity_tag_id"]
             # mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
             # mock_get_descendants.return_value = {'ATP:0000068', 'ATP:0000071'}
+            print(f"descendents {get_all_descendents('ATP:0000009')}")
+            print(f"ancestors: {get_all_ancestors('ATP:0000009')}")
             more_specific_tag_id = client.post(url="/topic_entity_tag/", json=more_specific_tag,
                                                headers=auth_headers).json()["topic_entity_tag_id"]
             #mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000015', 'ATP:0000068',
@@ -792,6 +806,7 @@ class TestTopicEntityTag:
 
     @pytest.mark.webtest
     def test_get_ancestors(self, auth_headers):  # noqa
+        mock_load_name_to_atp_and_relationships()
         onto_node = "ATP:0000079"
         ancestors = get_ancestors(onto_node)
         expected_ancestors = {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
@@ -799,6 +814,7 @@ class TestTopicEntityTag:
 
     @pytest.mark.webtest
     def test_get_descendants(self, auth_headers):  # noqa
+        mock_load_name_to_atp_and_relationships()
         onto_node = "ATP:0000009"
         descendants = get_descendants(onto_node)
         expected_descendants = {'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
@@ -808,6 +824,7 @@ class TestTopicEntityTag:
 
     @pytest.mark.webtest
     def test_get_ancestors_non_existent(self, auth_headers):  # noqa
+        mock_load_name_to_atp_and_relationships()
         onto_node = "ATP:000007"
         ancestors = get_ancestors(onto_node)
         assert len(ancestors) == 0
