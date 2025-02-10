@@ -123,8 +123,7 @@ def workflow_automation_init(db):  # noqa
         ["ATP:task2_in_progress", "ATP:task2_failed", ["sub_task_failed::reference classification"], "on_failed"]
     ]
     mods = db.query(ModModel).all()
-    for mod in mods:
-        print(f"BOB: {mod.mod_id}, {mod.abbreviation}")
+
     for data in test_data:
         for mod in mods:
             # print(data)
@@ -149,7 +148,6 @@ class TestWorkflowTagAutomation:
         # workflow_automation_init(db, mod.mod_id)
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         workflow_automation_init(db)
-        print(f"BOB1: {mod}")
 
         with TestClient(app) as client:
             mock_load_name_to_atp_and_relationships()

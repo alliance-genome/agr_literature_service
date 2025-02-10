@@ -219,9 +219,6 @@ def search_topic(topic):
     ORDER BY LENGTH(ot.name)
     LIMIT 10
     """)
-    print(f"BOB: topic_category_atp: {topic_category_atp}")
-    print(f"BOB: Searching {search_query}")
-    print(f"BOB: search_sql: {sql_query}")
     rows = db.execute(sql_query, {
         'search_query': search_query,
         'topic_category_atp': topic_category_atp
@@ -236,8 +233,6 @@ def search_topic(topic):
     ]
     db.close()
     json_data = jsonable_encoder(data)
-    print(f"BOB: output {json_data}")
-    # OR ?
 
     return JSONResponse(content=json_data)
 
