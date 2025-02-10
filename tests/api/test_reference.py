@@ -764,9 +764,9 @@ class TestReference:
                                       'year|\n' \
                                       'abstract|3\n'
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
-           load_name_to_atp_and_relationships_mock)
+
     def test_get_textpresso_reference_list(self, test_reference, auth_headers, test_mod, test_topic_entity_tag_source, db):  # noqa
+        load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             new_referencefile_main_1 = {
                 "display_name": "Bob1",
@@ -834,9 +834,9 @@ class TestReference:
                 "date_created": "2020-01-01"
             }
             get_response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-            print(get_response.status_code)
-            print(get_response.text)
-            print(get_response.json())
+            print(f"new tet: {get_response.status_code}")
+            print(f"new tet: {get_response.text}")
+            print(f"new tet: {get_response.json()}")
 
             result = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
             assert result.status_code == status.HTTP_201_CREATED
