@@ -635,6 +635,10 @@ class TestReference:
             print(get_response.text)
             print(get_response.json())
             tets = get_response.json()
+            for tet in tets:
+                print(tet)
+                if 'note' in tet:
+                    print(tet['note'])
             assert len(tets) == 3
             assert tets[0]["note"] == "another note | test note"
 
@@ -833,11 +837,18 @@ class TestReference:
             print(get_response.text)
             print(get_response.json())
 
-            client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+            result = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
+            assert result.status_code == status.HTTP_201_CREATED
+            print(result.status_code)
+            print(result.text)
+            print(result.json())
 
             result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}",
                                 headers=auth_headers)
             assert result.status_code == status.HTTP_200_OK
+            print(result.status_code)
+            print(result.text)
+            print(result.json())
             assert len(result.json()) > 0
 
             result = client.get(url=f"/reference/get_textpresso_reference_list/{test_mod.new_mod_abbreviation}?"
