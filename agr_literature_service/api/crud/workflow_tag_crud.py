@@ -54,8 +54,8 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
 def get_workflow_tag_diagram(mod: str, db: Session):
     try:
         #query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to"""
-        query = f"""SELECT * FROM workflow_transition"""
-        #rs = db.execute(text(query))
+        query = text(f"""SELECT * FROM workflow_transition""")
+        rs = db.execute(query).fetchall()
         #rows = rs.fetchall()
         #data = jsonable_encoder(rows)
         data = query
