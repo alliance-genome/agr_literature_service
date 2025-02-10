@@ -32,7 +32,6 @@ def create_ateam_db_session():
     engine_var = 'postgresql://' + USER + ":" + PASSWORD + '@' + SERVER + ':' + PORT + '/' + DB
     engine = create_engine(engine_var)
 
-
     SessionClass = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = SessionClass()
     return session
@@ -613,7 +612,7 @@ def atp_get_name(atp_id):
         try:
             load_name_to_atp_and_relationships()
         except Exception as e:
-             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{e}")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{e}")
     if atp_id in atp_to_name:
         return atp_to_name[atp_id]
     return None

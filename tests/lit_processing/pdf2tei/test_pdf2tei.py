@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.pdf2tei.pdf2tei import main as conver
 from ...api.fixtures import auth_headers  # noqa
 from ...api.test_mod import test_mod  # noqa
 from ...api.test_reference import test_reference  # noqa
-from ...fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
+from ...fixtures import load_name_to_atp_and_relationships_mock
 from ...fixtures import db  # noqa
 
 
@@ -190,8 +190,6 @@ class TestPdf2TEI:
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    #@patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
-    #       search_ancestors_or_descendants_mock)
     def test_pdf2tei_failed_conversion(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:

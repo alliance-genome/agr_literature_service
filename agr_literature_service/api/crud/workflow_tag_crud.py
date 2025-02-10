@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
-    parents =  atp_get_parent(workflow_tag_atp_id)
+    parents = atp_get_parent(workflow_tag_atp_id)
     if parents:
         return parents[0]
     return None
