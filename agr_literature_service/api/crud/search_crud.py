@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
-from agr_literature_service.api.crud.workflow_tag_crud import get_parent_or_children
+from agr_literature_service.api.crud.workflow_tag_crud import atp_get_children
 logger = logging.getLogger(__name__)
 
 file_workflow_root_ids = ["ATP:0000140", "ATP:0000161"]
@@ -631,7 +631,7 @@ def add_curie_to_name_values(aggregations):
 
 
 def get_atp_ids(root_atp_ids):
-    return [child for root_atp_id in root_atp_ids for child in get_parent_or_children(root_atp_id, "children")]
+    return [child for root_atp_id in root_atp_ids for child in atp_get_children(root_atp_id)]
 
     
 
