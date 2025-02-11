@@ -12,8 +12,13 @@ from fastapi import HTTPException, status
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
-
+from agr_literature_service.api.crud.workflow_tag_crud import get_parent_or_children
 logger = logging.getLogger(__name__)
+
+file_workflow_root_ids = ["ATP:0000140", "ATP:0000161"]
+reference_classification_root_ids = ["ATP:0000165"]
+entity_extraction_root_ids = ["ATP:0000172"]
+manual_indexing_root_ids = ["ATP:0000273"]
 
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
@@ -226,7 +231,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "terms": {
                     "field": "workflow_tags.workflow_tag_id.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("workflow_tags.workflow_tag_id.keyword", 10)
+                    "size": 100
                 }
             }
         },
@@ -329,15 +334,24 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "wildcard": {
                     "cross_references.curie.keyword": "*" + query
                 }
-            })    
+            })
+
+    WORKFLOW_FACETS = ["file_workflow", "manual_indexing", "entity_extraction", "reference_classification"]
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-            es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
-            for facet_value in facet_list_values:
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
-                es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
+            if facet_field in WORKFLOW_FACETS:
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+                    "terms": {f"workflow_tags.workflow_tag_id.keyword": facet_list_values}
+                })
+            else:
+                # Standard facet application
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
+                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
+
     if negated_facets_values:
         for facet_field, facet_list_values in negated_facets_values.items():
             if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
@@ -402,12 +416,52 @@ def process_search_results(res):  # pragma: no cover
 
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
-    add_curie_to_name_values(res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {}))
 
+    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})    
+    add_curie_to_name_values(workflow_tags_agg)
+
+    atp_ids = {
+        "file_workflow": get_atp_ids(file_workflow_root_ids),
+        "reference_classification": get_atp_ids(reference_classification_root_ids),
+        "entity_extraction": get_atp_ids(entity_extraction_root_ids),
+        "manual_indexing": get_atp_ids(manual_indexing_root_ids)
+    }
+    
+    
+    bucket_lookup = {bucket["key"].upper(): bucket for bucket in workflow_tags_agg.get("buckets", [])}
+    grouped_workflow_tags = {category: [] for category in atp_ids}
+    for category, id_list in atp_ids.items():
+        for expected_id in id_list:
+            expected_upper = expected_id.upper()
+            if expected_upper in bucket_lookup:
+                grouped_workflow_tags[category].append(bucket_lookup[expected_upper])
+
+    # convert to the required format (like 'topics')
+    for category, buckets in grouped_workflow_tags.items():
+        filtered_buckets = [b for b in buckets if b["doc_count"] > 0]
+        sorted_buckets = sorted(filtered_buckets, key=lambda x: x["doc_count"], reverse=True)
+        res['aggregations'][category] = {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+                {
+                    "key": bucket["key"],
+                    "doc_count": bucket["doc_count"],
+                    "name": bucket.get("name", bucket["key"])
+                }
+                for bucket in sorted_buckets
+            ]
+        }
+
+    # remove the old "workflow_tags" aggregation key.
+    res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
+            
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
     res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
+
+    # print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
     
     return {
         "hits": hits,
@@ -574,3 +628,10 @@ def add_curie_to_name_values(aggregations):
     for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
         bucket["name"] = curie_name
+
+
+def get_atp_ids(root_atp_ids):
+    return [child for root_atp_id in root_atp_ids for child in get_parent_or_children(root_atp_id, "children")]
+
+    
+
