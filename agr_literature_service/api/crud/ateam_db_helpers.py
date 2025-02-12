@@ -7,6 +7,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+import cachetools.func
 
 # List of valid prefix identifiers for curies
 curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
@@ -520,6 +521,7 @@ def atp_to_name_subset(curies: list):
     return subset
 
 
+@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
 def atp_get_all_descendents(curie: str):
     try:
         return get_name_to_atp_for_all_children(curie)[1].keys()

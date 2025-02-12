@@ -27,8 +27,8 @@ from agr_literature_service.api.crud.workflow_transition_requirements import (
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
 from agr_literature_service.api.crud.ateam_db_helpers import (
     get_name_to_atp_for_all_children,
-    atp_get_children,
-    atp_get_parent)
+    atp_get_all_descendents,
+    atp_get_all_ancestors)
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
-    parents = atp_get_parent(workflow_tag_atp_id)
+    parents = atp_get_all_ancestors(workflow_tag_atp_id)
     if parents:
         return parents[0]
     return None
@@ -49,7 +49,7 @@ def get_workflow_process_from_tag(workflow_tag_atp_id: str):
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
-    return atp_get_children(workflow_process_atp_id)
+    return atp_get_all_descendents(workflow_process_atp_id)
     # return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
