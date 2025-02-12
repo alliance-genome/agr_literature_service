@@ -305,8 +305,8 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
     # ATPs are already cached, so use that if applicable.
     if ontology_node.startswith("ATP:"):
         if ancestors_or_descendants == 'descendants':
-            return get_all_descendents(ontology_node)
-        return get_all_ancestors(ontology_node)
+            return atp_get_all_descendents(ontology_node)
+        return atp_get_all_ancestors(ontology_node)
 
     db = create_ateam_db_session()
     if ancestors_or_descendants == 'descendants':
@@ -520,14 +520,14 @@ def atp_to_name_subset(curies: list):
     return subset
 
 
-def get_all_descendents(curie: str):
+def atp_get_all_descendents(curie: str):
     try:
         return get_name_to_atp_for_all_children(curie)[1].keys()
     except IndexError:
         return []
 
 
-def get_all_ancestors(curie: str):
+def atp_get_all_ancestors(curie: str):
     global atp_to_parent
     parent_list = []
     not_seen = [curie]
