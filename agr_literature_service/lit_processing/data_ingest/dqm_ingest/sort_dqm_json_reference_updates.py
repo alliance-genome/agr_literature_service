@@ -979,7 +979,7 @@ if __name__ == "__main__":
     dqm_path = args['file'] if args['file'] else "dqm_data"
     mods = [args['mod']] if args['mod'] else get_mod_abbreviations()
     for mod in mods:
-        if mod == 'SGD' and env_state == 'build':
+        if mod == 'SGD':
             continue
         try:
             sort_dqm_references(dqm_path, mod, args['all'])
