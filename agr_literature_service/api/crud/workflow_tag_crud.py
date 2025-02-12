@@ -28,7 +28,9 @@ from agr_literature_service.api.crud.workflow_transition_actions.process_action 
 from agr_literature_service.api.crud.ateam_db_helpers import (
     get_name_to_atp_for_all_children,
     atp_get_all_descendents,
-    atp_get_all_ancestors)
+    atp_get_all_ancestors,
+    atp_get_parent
+)
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
