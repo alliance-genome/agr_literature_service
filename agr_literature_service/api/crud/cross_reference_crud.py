@@ -190,9 +190,9 @@ def check_xref_and_generate_mod_id(db: Session, reference_obj: ReferenceModel, m
     if cross_reference:
         return
     env_state = os.environ.get("ENV_STATE", "")
-    if env_state == "prod":
-        return
     if mod_abbreviation not in ['WB', 'SGD']:
+        return
+    if env_state == "prod" and mod_abbreviation == 'WB':
         return
 
     new_mod_curie = generate_new_mod_curie(db, mod_abbreviation, reference_obj.curie)
