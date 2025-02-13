@@ -544,7 +544,6 @@ def get_name_to_atp_for_all_children(workflow_parent):
 
     if not atp_to_name:
         load_name_to_atp_and_relationships()
-    file_upload_process_atp_id = "ATP:0000140"
 
     subset_name_to_atp = {}
     subset_atp_to_name = {}
