@@ -7,7 +7,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import cachetools.func
+# import cachetools.func
 
 # List of valid prefix identifiers for curies
 curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
@@ -415,11 +415,13 @@ def map_curies_to_names(category, curies):
 
 def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
     global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
-    print(f"Setting global values {atp_to_name.keys()}")
-    atp_to_name = atp_to_name_init
-    name_to_atp = name_to_atp_init
-    atp_to_children = atp_to_children_init
-    atp_to_parent = atp_to_parent_init
+    print(f"Setting global values {list(atp_to_children_init.keys())}")
+    for key in atp_to_children_init.keys():
+        print(f"\t{key}: {atp_to_children_init[key]}")
+    atp_to_name = atp_to_name_init.copy()
+    name_to_atp = name_to_atp_init.copy()
+    atp_to_children = atp_to_children_init.copy()
+    atp_to_parent = atp_to_parent_init.copy()
 
 
 def load_name_to_atp_and_relationships(termtype='ATPTerm'):
@@ -481,7 +483,6 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
 
 
 def atp_get_parent(child_id):
-    global atp_to_parent
     if not atp_to_parent:
         load_name_to_atp_and_relationships()
     if child_id in atp_to_parent:
@@ -492,7 +493,6 @@ def atp_get_parent(child_id):
 
 
 def atp_get_children(parent_id):
-    global atp_to_children
     if not atp_to_children:
         load_name_to_atp_and_relationships()
     if parent_id in atp_to_children:
@@ -503,7 +503,6 @@ def atp_get_children(parent_id):
 
 
 def atp_get_children_as_dict(parent_id):
-    global atp_to_name
     children = atp_get_children(parent_id)
     result = []
     for atp_id in children:
@@ -512,7 +511,6 @@ def atp_get_children_as_dict(parent_id):
 
 
 def atp_to_name_subset(curies: list):
-    global atp_to_name
     if not atp_to_name:
         load_name_to_atp_and_relationships()
     subset = {}
@@ -521,16 +519,15 @@ def atp_to_name_subset(curies: list):
     return subset
 
 
-@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
-def atp_get_all_descendents(curie: str):
+#@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
+def atp_get_all_descendents(curie: str) -> list:
     try:
-        return get_name_to_atp_for_all_children(curie)[1].keys()
+        return list(get_name_to_atp_for_all_children(curie)[1].keys())
     except IndexError:
         return []
 
 
 def atp_get_all_ancestors(curie: str):
-    global atp_to_parent
     parent_list = []
     not_seen = [curie]
     while len(not_seen) > 0:
@@ -548,28 +545,43 @@ def get_name_to_atp_for_all_children(workflow_parent):
     as a dictionary of name to atp curies and
     curies to names..
     """
-    global atp_to_name, atp_to_children
+    # global atp_to_name, atp_to_children
+
+
     if not atp_to_name:
+        print("TESTING: atp_to_name is empty")
         load_name_to_atp_and_relationships()
+    file_upload_process_atp_id = "ATP:0000140"
+
     subset_name_to_atp = {}
     subset_atp_to_name = {}
+    list_ids = []
     if workflow_parent in atp_to_children:
-        list_ids = atp_to_children[workflow_parent]
+        # NOTE:
+        # list_ids = atp_get_children(workflow_parent)
+        # Gives address and not contents!!! ??? AND FAILS
+        list_ids.extend(atp_get_children(workflow_parent))
     else:
         return []
+
     while len(list_ids) > 0:
+        print(f"BOB5: get_name_to_atp_for_all_children parent for {file_upload_process_atp_id} -> {atp_get_parent(file_upload_process_atp_id)}")
+        print(f"BOB5: get_name_to_atp_for_all_children children for {file_upload_process_atp_id} -> {atp_get_children(file_upload_process_atp_id)}")
+
         curie = list_ids.pop()
+        print(f"BOB6: get_name_to_atp_for_all_children parent for {file_upload_process_atp_id} -> {atp_get_parent(file_upload_process_atp_id)}")
+        print(f"BOB6: get_name_to_atp_for_all_children children for {file_upload_process_atp_id} -> {atp_get_children(file_upload_process_atp_id)}")
+
         if not curie:
             continue
         subset_atp_to_name[curie] = atp_to_name[curie]
         subset_name_to_atp[atp_to_name[curie]] = curie
         if curie in atp_to_children:
-            list_ids.extend(atp_to_children[curie])
+            list_ids.extend(atp_get_children(curie))
     return subset_name_to_atp, subset_atp_to_name
 
 
 def atp_get_name(atp_id):
-    global atp_to_name
     if not atp_to_name:
         try:
             load_name_to_atp_and_relationships()
@@ -581,7 +593,6 @@ def atp_get_name(atp_id):
 
 
 def atp_return_invalid_ids(atp_ids: list):
-    global atp_to_name
     if not atp_to_name:
         load_name_to_atp_and_relationships()
     invalid_atps = []
