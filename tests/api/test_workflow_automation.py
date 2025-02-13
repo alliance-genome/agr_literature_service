@@ -72,7 +72,7 @@ def mock_load_name_to_atp_and_relationships():
         atp_to_name[atp] = atp
         name_to_atp[atp] = atp
         for atp2 in workflow_children[atp]:
-            workflow_parent[atp2] = [atp]
+            workflow_parent[atp2] = atp
             name_to_atp[atp2] = atp2
             atp_to_name[atp2] = atp2
 

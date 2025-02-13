@@ -137,11 +137,13 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #        search_ancestors_or_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
         load_name_to_atp_and_relationships_mock()
-        assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
+        parents = get_workflow_process_from_tag('ATP:0000164')
+        assert 'ATP:0000161' in parents
+        assert 'ATP:0000177' in parents
         children = get_workflow_tags_from_process('ATP:0000177')
         assert 'ATP:0000172' in children
         assert 'ATP:0000140' in children
@@ -149,9 +151,9 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    # @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #       search_ancestors_or_descendants_mock)
     def test_transition_to_workflow_status_and_get_current_workflow_status(self, db, test_mod, test_reference,  # noqa
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -208,8 +210,8 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #       search_ancestors_or_descendants_mock)
     def test_workflow_tag_counters(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \

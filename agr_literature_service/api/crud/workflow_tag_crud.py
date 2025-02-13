@@ -45,9 +45,7 @@ logger = logging.getLogger(__name__)
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
     parents = atp_get_all_ancestors(workflow_tag_atp_id)
     if parents:
-        return parents[0]
-    return None
-    # return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
+        return parents
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
@@ -252,7 +250,7 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
     if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
-    return mod, process_atp_id[0], reference
+    return mod, process_atp_id, reference
 
 
 def check_requirements(reference, mod, transition):
@@ -1028,7 +1026,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     type_total: Dict = {}
     status_total: Dict = {}
     atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
-    # print(atp_list)
+
     sql_query = text(f"""
     select workflow_tag_id, count(1) as count
        from workflow_tag

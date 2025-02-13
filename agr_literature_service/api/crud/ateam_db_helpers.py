@@ -8,6 +8,9 @@ from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 import cachetools.func
+import logging
+
+logger = logging.getLogger(__name__)
 
 # List of valid prefix identifiers for curies
 curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
@@ -18,7 +21,7 @@ topic_category_atp = "ATP:0000002"
 # Store these to save lookups.
 atp_to_name: Dict[str, str] = {}
 name_to_atp: Dict[str, str] = {}
-atp_to_parent: Dict[str, list] = {}
+atp_to_parent: Dict[str, str] = {}
 atp_to_children : Dict[str, list] = {}
 
 
@@ -345,7 +348,6 @@ def map_curies_to_names(category, curies):
 
     # If category is an ATP:xxxx ID, look up its name first
     if category.startswith('ATP:'):
-        # category_label = map_atp_id_to_name(db, category)
         category_label = atp_get_name(category)
         if category_label is None:
             # If we can't find a label for the ATP category, just return identity mapping.
@@ -415,9 +417,7 @@ def map_curies_to_names(category, curies):
 
 def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to_parent_init):
     global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
-    print(f"Setting global values {list(atp_to_children_init.keys())}")
-    for key in atp_to_children_init.keys():
-        print(f"\t{key}: {atp_to_children_init[key]}")
+
     atp_to_name = atp_to_name_init.copy()
     name_to_atp = name_to_atp_init.copy()
     atp_to_children = atp_to_children_init.copy()
@@ -438,7 +438,6 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
                             detail=f"Exception {e} Setting connection of ateam db")
     # Load atp data
     id_to_curie = {}
-    print(f"****** Loading {termtype} terms *******")
     sql_query = text("""
     SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
       FROM ontologyterm o
@@ -470,15 +469,13 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
         else:
             child_curie = None
         parent_curie = id_to_curie[row.id]
-        if parent_curie in atp_to_children:
+        if child_curie and parent_curie in atp_to_children:
             atp_to_children[parent_curie].append(child_curie)
         else:
             atp_to_children[parent_curie] = [child_curie]
-        if child_curie and child_curie in atp_to_parent:
-            atp_to_parent[child_curie].append(parent_curie)
-        else:
-            atp_to_parent[child_curie] = [parent_curie]
-    print("ATPs successfully loaded")
+        if child_curie:
+            atp_to_parent[child_curie] = parent_curie
+    logger.debug("ATP global vars successfully loaded")
     return
 
 
@@ -488,7 +485,6 @@ def atp_get_parent(child_id):
     if child_id in atp_to_parent:
         return atp_to_parent[child_id]
     else:
-        print(f"COULD NOT find parent for {child_id}")
         return []
 
 
@@ -498,7 +494,6 @@ def atp_get_children(parent_id):
     if parent_id in atp_to_children:
         return atp_to_children[parent_id]
     else:
-        print(f"COULD NOT find children for {parent_id}")
         return []
 
 
@@ -533,9 +528,9 @@ def atp_get_all_ancestors(curie: str):
     while len(not_seen) > 0:
         p = not_seen.pop(0)
         if p in atp_to_parent:
-            parents = atp_to_parent[p]
-            parent_list.append(parents[0])
-            not_seen.append(parents[0])
+            parent = atp_to_parent[p]
+            parent_list.append(parent)
+            not_seen.append(parent)
     return parent_list
 
 
@@ -548,7 +543,6 @@ def get_name_to_atp_for_all_children(workflow_parent):
     # global atp_to_name, atp_to_children
 
     if not atp_to_name:
-        print("TESTING: atp_to_name is empty")
         load_name_to_atp_and_relationships()
     file_upload_process_atp_id = "ATP:0000140"
 
@@ -558,18 +552,13 @@ def get_name_to_atp_for_all_children(workflow_parent):
     if workflow_parent in atp_to_children:
         # NOTE:
         # list_ids = atp_get_children(workflow_parent)
-        # Gives address and not contents!!! ??? AND FAILS
+        # Gives address and not contents!
         list_ids.extend(atp_get_children(workflow_parent))
     else:
         return []
 
     while len(list_ids) > 0:
-        print(f"BOB5: get_name_to_atp_for_all_children parent for {file_upload_process_atp_id} -> {atp_get_parent(file_upload_process_atp_id)}")
-        print(f"BOB5: get_name_to_atp_for_all_children children for {file_upload_process_atp_id} -> {atp_get_children(file_upload_process_atp_id)}")
-
         curie = list_ids.pop()
-        print(f"BOB6: get_name_to_atp_for_all_children parent for {file_upload_process_atp_id} -> {atp_get_parent(file_upload_process_atp_id)}")
-        print(f"BOB6: get_name_to_atp_for_all_children children for {file_upload_process_atp_id} -> {atp_get_children(file_upload_process_atp_id)}")
 
         if not curie:
             continue

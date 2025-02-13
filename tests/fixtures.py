@@ -158,7 +158,10 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000005': 'gene',
         'ATP:0000123': 'not sure',
         'WB:WBGene00003001': 'lin-12',
-        'NCBITaxon:6239': 'Caenorhabditis elegans'
+        'NCBITaxon:6239': 'Caenorhabditis elegans',
+        'ATP:0000141': 'file needed',
+        'ont1': 'test',
+        'ATP:0000168': 'catalytic activity classification complete'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -173,10 +176,14 @@ def load_name_to_atp_and_relationships_mock():
     }
     workflow_parent = {}
     for atp in workflow_children.keys():
-        atp_to_name[atp] = atp
-        name_to_atp[atp] = atp
+        if atp not in atp_to_name:
+            atp_to_name[atp] = atp
+        if atp not in name_to_atp:
+            name_to_atp[atp] = atp
         for atp2 in workflow_children[atp]:
-            workflow_parent[atp2] = [atp]
-            name_to_atp[atp2] = atp2
-            atp_to_name[atp2] = atp2
+            workflow_parent[atp2] = atp
+            if atp2 not in name_to_atp:
+                name_to_atp[atp2] = atp2
+            if atp2 not in atp_to_name:
+                atp_to_name[atp2] = atp2
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
