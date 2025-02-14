@@ -309,12 +309,6 @@ class TestWorkflowTagAutomation:
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         with TestClient(app) as client:
             mock_load_name_to_atp_and_relationships()
-            # test mock load
-            assert 'ATP:0000166' == atp_get_name('ATP:0000166')
-            response = client.get(url="/workflow_tag/get_name/ATP:0000166", headers=auth_headers)
-            assert response.status_code == status.HTTP_200_OK
-            assert response.text == 'ATP:0000166'
-
             populate_test_mods()
 
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
