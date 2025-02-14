@@ -166,16 +166,16 @@ def get_pmids_from_exclude_list(mod=None):
     if mod is None:
         exclude_pmid_file = path.join(data_path, "pmids_to_excude.txt")
     else:
+        # 'SGD': 'SGD_false_positive_pmids.txt'
         mod_false_positive_file = {
             'FB': 'FB_false_positive_pmids.txt',
             'WB': 'WB_false_positive_pmids.txt',
-            'SGD': 'SGD_false_positive_pmids.txt',
             'XB': 'XB_false_positive_pmids.txt',
             'ZFIN': 'ZFIN_false_positive_pmids.txt'
         }
+        # "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt"
         mod_to_fp_pmids_url = {
             "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt",
-            "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt",
             "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
             "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
         }
