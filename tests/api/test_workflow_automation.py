@@ -46,7 +46,7 @@ from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
-from agr_literature_service.api.crud.ateam_db_helpers import set_globals, atp_get_name
+from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 
 test_reference2 = test_reference
 
