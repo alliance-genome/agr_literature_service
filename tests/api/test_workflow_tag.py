@@ -28,7 +28,6 @@ def get_descendants_mock(parent):
 
 @pytest.fixture
 def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
-    print("***** Adding a test workflow tag *****")
     with TestClient(app) as client:
         new_wt = {"reference_curie": test_reference.new_ref_curie,
                   "mod_abbreviation": test_mod.new_mod_abbreviation,

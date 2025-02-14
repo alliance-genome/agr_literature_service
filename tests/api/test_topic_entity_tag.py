@@ -24,16 +24,8 @@ TestTETData = namedtuple('TestTETData', ['response', 'new_tet_id', 'related_ref_
 @pytest.fixture
 
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
-    print("***** Adding a test tag *****")
     load_name_to_atp_and_relationships_mock()
     with TestClient(app) as client:
-        response = client.get(url="/workflow_tag/get_name/ATP:0000122", headers=auth_headers)
-        assert response.status_code == status.HTTP_200_OK
-        print(f"ttet create get name: {response.content}")
-        print(response.text)
-        print(response.json())
-        # assert response.text == 'ATP:0000122'
-        print(response.status_code)
         new_tet = {
             "reference_curie": test_reference.new_ref_curie,
             "topic": "ATP:0000122",
@@ -50,9 +42,6 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "date_created": "2020-01-01"
         }
         response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-        print(f"TTTT: {response}")
-        print(response.text)
-        print(response.json())
         yield TestTETData(response, response.json()['topic_entity_tag_id'], test_reference.new_ref_curie)
 
 
