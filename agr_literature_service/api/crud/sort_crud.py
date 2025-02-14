@@ -145,17 +145,24 @@ def get_referencefile_mod(referencefile_id, db: Session):
 
 
 def get_mod_curators(db: Session, mod_abbreviation):
+
+    one_month_ago = datetime.now() - timedelta(days=30)
+
     sql_query_str = """
         SELECT u.id, u.email
         FROM users u
         INNER JOIN mod_corpus_association mca ON mca.updated_by = u.id
         INNER JOIN mod m ON mca.mod_id = m.mod_id
-        WHERE mca.corpus = TRUE
+        WHERE mca.corpus IS NOT NULL
         AND m.abbreviation = :mod_abbreviation
         AND u.email is NOT NULL
+        AND mca.date_updated >= :one_month_ago
     """
     sql_query = text(sql_query_str)
-    result = db.execute(sql_query, {'mod_abbreviation': mod_abbreviation})
+    result = db.execute(sql_query, {
+        'mod_abbreviation': mod_abbreviation,
+        'one_month_ago': one_month_ago
+    })
     return {row[1]: row[0] for row in result}
 
 
