@@ -1145,14 +1145,18 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
                             detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
 
 
-def get_recently_sorted_references(db: Session, mod_abbreviation, days):
-
+def get_date_range(days):
     datestamp = str(date.today()).replace("-", "")
-    metaData = get_meta_data(mod_abbreviation, datestamp)
-
     now = datetime.now().date()
     start_date = now - timedelta(days=days)
     end_date = now + timedelta(days=1)  # to cover timezone issue
+    return datestamp, start_date, end_date
+
+
+def get_recently_sorted_references(db: Session, mod_abbreviation, days):
+
+    datestamp, start_date, end_date = get_date_range(days)
+    metaData = get_meta_data(mod_abbreviation, datestamp)
 
     refColNmList = ", ".join(get_reference_col_names())
 
@@ -1208,6 +1212,45 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days):
                        reference_id_to_mesh_terms,
                        reference_id_to_mod_corpus_data,
                        resource_id_to_journal, data)
+    return {
+        "metaData": metaData,
+        "data": data
+    }
+
+
+def get_recently_deleted_references(db: Session, mod_abbreviation, days):
+
+    datestamp, start_date, end_date = get_date_range(days)
+    metaData = get_meta_data(mod_abbreviation, datestamp)
+
+    sql_query = text(
+        "SELECT cr.curie, u.email, u.id "
+        "FROM cross_reference cr, mod_corpus_association mca, mod m, users u "
+        "WHERE cr.curie_prefix = 'PMID' "
+        "AND cr.reference_id = mca.reference_id "
+        "AND mca.corpus = :corpus "
+        "AND mca.date_updated >= :start_date "
+        "AND mca.date_updated < :end_date "
+        "AND mca.mod_id = m.mod_id "
+        "AND m.abbreviation = :mod_abbreviation "
+        "AND mca.updated_by = u.id"
+    )
+
+    rows = db.execute(sql_query, {
+        "corpus": False,
+        "start_date": start_date,
+        "end_date": end_date,
+        "mod_abbreviation": mod_abbreviation
+    }).fetchall()
+
+    data = []
+    for x in rows:
+        data.append({
+            "pmid": x[0],
+            "updated_by_email": x[1],
+            "updated_by_okta_id": x[2]
+        })
+
     return {
         "metaData": metaData,
         "data": data
