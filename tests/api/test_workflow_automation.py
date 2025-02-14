@@ -111,7 +111,6 @@ def workflow_automation_init(db):  # noqa
 
     for data in test_data:
         for mod in mods:
-            # print(data)
             db.add(WorkflowTransitionModel(mod_id=mod.mod_id,
                                            transition_from=data[0],
                                            transition_to=data[1],
@@ -135,14 +134,8 @@ class TestWorkflowTagAutomation:
             populate_test_mods()
             response = client.get(url="/workflow_tag/get_name/ATP:fileupload", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
-            print(f"TTA get name: {response.content}")
-            print(response.text)
-            print(response.json())
-            # assert response.text == 'ATP:0000166'
-            print(response.status_code)
 
             # Set initial workflow tag to "ATP:0000141" , hard coded so allowed
-            print(f"BOB2: {reference}")
             ref_type = ReferencetypeModel(label="Experimental")
             db.add(ref_type)
             db.commit()
@@ -155,7 +148,7 @@ class TestWorkflowTagAutomation:
                 "reference_type": "Experimental",
                 "mod_abbreviation": mod.abbreviation
             }
-            response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
+            client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
 
             transition_req = {
                 "curie_or_reference_id": reference.curie,
@@ -246,9 +239,6 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id
 
-    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
-    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process", get_descendants_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
     def test_transition_work_failed(self, db, auth_headers, test_mod, test_reference):  # noqa
@@ -256,7 +246,6 @@ class TestWorkflowTagAutomation:
             populate_test_mods()
             mock_load_name_to_atp_and_relationships()
             mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-            # reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
             workflow_automation_init(db)
 
             reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
@@ -302,8 +291,6 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
 
-    # @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_process_from_tag", get_parents_mock)
-    # @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
