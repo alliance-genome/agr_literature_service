@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.pdf2tei.pdf2tei import main as conver
 from ...api.fixtures import auth_headers  # noqa
 from ...api.test_mod import test_mod  # noqa
 from ...api.test_reference import test_reference  # noqa
-from ...fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
+from ...fixtures import load_name_to_atp_and_relationships_mock
 from ...fixtures import db  # noqa
 
 
@@ -83,6 +83,8 @@ sample_tei_content = b'''<?xml version="1.0" encoding="UTF-8"?>
 </TEI>
 '''
 
+file_upload_process_atp_id = "ATP:0000140"
+
 
 def convert_pdf_with_grobid_mock(file_content):
     mock_response = Mock()
@@ -113,8 +115,7 @@ class TestPdf2TEI:
         response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
 
         transitions_to_add = [
-            ["ATP:0000141", "ATP:0000134", ["referencefiles_present"],
-             ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"],
+            ["ATP:0000141", "ATP:0000134", ["referencefiles_present"], ["proceed_on_value::category::thesis::ATP:0000162"], "on_success"],
             ["ATP:0000134", "ATP:0000162", [], [], 'text_convert_job'],
             ["ATP:0000162", "ATP:0000163", [], [], 'on_success'],
             ["ATP:0000162", "ATP:0000164", [], [], 'on_failed']
@@ -172,16 +173,16 @@ class TestPdf2TEI:
         }
         response = client.post(url="/reference/referencefile/file_upload/", files=files, headers=mod_auth_headers)
         assert response.status_code == status.HTTP_201_CREATED
+
         return mod_abbreviation
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
            convert_pdf_with_grobid_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #       search_ancestors_or_descendants_mock)
     def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
         with TestClient(app) as client:
+            load_name_to_atp_and_relationships_mock()
             mod_abbreviation = self.upload_initial_main_reference_file(db, client, test_mod, test_reference,
                                                                        auth_headers)
             convert_pdf_to_tei()
@@ -194,14 +195,11 @@ class TestPdf2TEI:
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000163"
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
     def test_pdf2tei_failed_conversion(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:
+            load_name_to_atp_and_relationships_mock()
             mod_abbreviation = self.upload_initial_main_reference_file(db, client, test_mod, test_reference,
                                                                        auth_headers)
             mock_response = Mock()
@@ -220,11 +218,11 @@ class TestPdf2TEI:
                                       f"{mod_abbreviation}/ATP:0000161", headers=auth_headers)
             assert response.json() == "ATP:0000162"  # This should be the status after a failed conversion
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    # @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
+    #        search_ancestors_or_descendants_mock)
     def test_pdf2tei_failed_conversion_500(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:

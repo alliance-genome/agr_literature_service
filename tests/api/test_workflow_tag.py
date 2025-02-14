@@ -11,9 +11,8 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
 from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
-    get_workflow_tags_from_process,
-    load_workflow_parent_children)
-from ..fixtures import load_workflow_parent_children_mock, search_ancestors_or_descendants_mock
+    get_workflow_tags_from_process)
+from ..fixtures import load_name_to_atp_and_relationships_mock
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -29,7 +28,6 @@ def get_descendants_mock(parent):
 
 @pytest.fixture
 def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
-    print("***** Adding a test workflow tag *****")
     with TestClient(app) as client:
         new_wt = {"reference_curie": test_reference.new_ref_curie,
                   "mod_abbreviation": test_mod.new_mod_abbreviation,
@@ -136,23 +134,25 @@ class TestWorkflowTag:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #        search_ancestors_or_descendants_mock)
     def test_parent_child_dict(self, test_workflow_tag, auth_headers): # noqa
-        # load_workflow_parent_children()
-        assert get_workflow_process_from_tag('ATP:0000164') == 'ATP:0000161'
+        load_name_to_atp_and_relationships_mock()
+        parents = get_workflow_process_from_tag('ATP:0000164')
+        assert 'ATP:0000161' in parents
+        assert 'ATP:0000177' in parents
         children = get_workflow_tags_from_process('ATP:0000177')
         assert 'ATP:0000172' in children
         assert 'ATP:0000140' in children
         assert 'ATP:0000165' in children
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_descendants", get_descendants_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    # @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #       search_ancestors_or_descendants_mock)
     def test_transition_to_workflow_status_and_get_current_workflow_status(self, db, test_mod, test_reference,  # noqa
                                                                            auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -170,7 +170,6 @@ class TestWorkflowTag:
         db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000141'))
         db.commit()
         with TestClient(app) as client:
-            load_workflow_parent_children()
             transition_req = {
                 "curie_or_reference_id": test_reference.new_ref_curie,
                 "mod_abbreviation": test_mod.new_mod_abbreviation,
@@ -208,10 +207,10 @@ class TestWorkflowTag:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.load_workflow_parent_children",
-           load_workflow_parent_children_mock)
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.search_ancestors_or_descendants",
-           search_ancestors_or_descendants_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+    #       search_ancestors_or_descendants_mock)
     def test_workflow_tag_counters(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \

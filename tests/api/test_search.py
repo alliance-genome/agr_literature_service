@@ -22,13 +22,6 @@ def patch_get_map_ateam_curies_to_names():
         yield
 
 
-@pytest.fixture(scope="module", autouse=True)
-def patch_get_parent_or_children():
-    with patch("agr_literature_service.api.crud.search_crud.get_parent_or_children") as mock_func:
-        mock_func.return_value = ["ATP:0000141", "ATP:0000134", "ATP:0000139", "ATP:0000135"]
-        yield
-
-
 @pytest.fixture(scope='module')
 def setup_elasticsearch():
     es = Elasticsearch()
