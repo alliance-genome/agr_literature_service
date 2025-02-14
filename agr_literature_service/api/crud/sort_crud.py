@@ -1,12 +1,12 @@
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime, timedelta
 
 from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel,\
     ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, \
     CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
+from agr_literature_service.api.crud.reference_crud import get_past_to_present_date_range
 
 logger = logging.getLogger(__name__)
 
@@ -145,25 +145,30 @@ def get_referencefile_mod(referencefile_id, db: Session):
 
 
 def get_mod_curators(db: Session, mod_abbreviation):
+
+    _, one_month_ago, _ = get_past_to_present_date_range(30)
+
     sql_query_str = """
         SELECT u.id, u.email
         FROM users u
         INNER JOIN mod_corpus_association mca ON mca.updated_by = u.id
         INNER JOIN mod m ON mca.mod_id = m.mod_id
-        WHERE mca.corpus = TRUE
+        WHERE mca.corpus IS NOT NULL
         AND m.abbreviation = :mod_abbreviation
         AND u.email is NOT NULL
+        AND mca.date_updated >= :one_month_ago
     """
     sql_query = text(sql_query_str)
-    result = db.execute(sql_query, {'mod_abbreviation': mod_abbreviation})
+    result = db.execute(sql_query, {
+        'mod_abbreviation': mod_abbreviation,
+        'one_month_ago': one_month_ago
+    })
     return {row[1]: row[0] for row in result}
 
 
 def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, curator_okta_id, day):
 
-    now = datetime.now().date()
-    start_date = now - timedelta(days=day)
-    end_date = now + timedelta(days=1)  # to cover timezone issue
+    _, start_date, end_date = get_past_to_present_date_range(day)
 
     sql_query_str = """
         SELECT DISTINCT mcav.reference_id, mcav.date_updated
