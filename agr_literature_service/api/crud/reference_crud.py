@@ -1145,18 +1145,18 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
                             detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
 
 
-def get_date_range(days):
-    datestamp = str(date.today()).replace("-", "")
+def get_past_to_present_date_range(num_days_ago: int):
+    current_timestamp = str(date.today()).replace("-", "")
     now = datetime.now().date()
-    start_date = now - timedelta(days=days)
+    start_date = now - timedelta(days=num_days_ago)
     end_date = now + timedelta(days=1)  # to cover timezone issue
-    return datestamp, start_date, end_date
+    return current_timestamp, start_date, end_date
 
 
 def get_recently_sorted_references(db: Session, mod_abbreviation, days):
 
-    datestamp, start_date, end_date = get_date_range(days)
-    metaData = get_meta_data(mod_abbreviation, datestamp)
+    current_timestamp, start_date, end_date = get_past_to_present_date_range(days)
+    metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     refColNmList = ", ".join(get_reference_col_names())
 
@@ -1220,8 +1220,8 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days):
 
 def get_recently_deleted_references(db: Session, mod_abbreviation, days):
 
-    datestamp, start_date, end_date = get_date_range(days)
-    metaData = get_meta_data(mod_abbreviation, datestamp)
+    current_timestamp, start_date, end_date = get_past_to_present_date_range(days)
+    metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     sql_query = text(
         "SELECT cr.curie, u.email, u.id "

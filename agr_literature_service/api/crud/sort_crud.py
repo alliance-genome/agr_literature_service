@@ -1,12 +1,12 @@
 import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from datetime import datetime, timedelta
 
 from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel,\
     ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, \
     CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
+from agr_literature_service.api.crud.reference_crud import get_past_to_present_date_range
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ def get_referencefile_mod(referencefile_id, db: Session):
 
 def get_mod_curators(db: Session, mod_abbreviation):
 
-    one_month_ago = datetime.now() - timedelta(days=30)
+    _, one_month_ago, _ = get_past_to_present_date_range(30)
 
     sql_query_str = """
         SELECT u.id, u.email
@@ -168,9 +168,7 @@ def get_mod_curators(db: Session, mod_abbreviation):
 
 def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, curator_okta_id, day):
 
-    now = datetime.now().date()
-    start_date = now - timedelta(days=day)
-    end_date = now + timedelta(days=1)  # to cover timezone issue
+    _, start_date, end_date = get_past_to_present_date_range(day)
 
     sql_query_str = """
         SELECT DISTINCT mcav.reference_id, mcav.date_updated
