@@ -18,8 +18,8 @@ psycopg2-binary==2.9.8       # Updated for better compatibility with newer Postg
 # Security and Authentication
 passlib==1.7.4               # No update needed.
 bcrypt==3.2.2                # Updated for security.
-python-jose==3.3.0           # Updated for security.
-python-multipart==0.0.6      # Updated for bug fixes.
+python-jose==3.4.0           # Updated for security.
+python-multipart==0.0.18     # Updated for security.
 python-dotenv==1.0.0         # Updated for new features.
 
 # SQLAlchemy Utilities
@@ -42,8 +42,9 @@ sqlalchemy_schemadisplay==2.0.0 # Upgrade for compatibility with SQLAlchemy 2.0.
 git+https://github.com/alliance-genome/agr_fastapi_okta@v1.2#egg=fastapi_okta # Latest version from the repo.
 
 # HTTP and Networking
-requests==2.31.0             # Updated for bug fixes and improvements.
-urllib3==1.26.16             # No update needed.
+requests==2.32.0             # Updated for security
+urllib3==1.26.19               # Updated for security
+# elasticsearch 7.13.4 depends on urllib3<2 and >=1.21.1
 
 # XML Processing
 bs4==0.0.1                   # No update needed.
