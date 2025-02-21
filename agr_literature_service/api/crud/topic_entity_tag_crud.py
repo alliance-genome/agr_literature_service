@@ -24,7 +24,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
-    TopicEntityTagModel, WorkflowTagModel,
+    TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
@@ -89,17 +89,23 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
 
     try:
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
-        # check if mca for mod inside,
-# this is the mod   source.secondary_data_provider.abbreviation
-# need to query mod to get the mod_id TODO
-# then
-# x = db.query(ModCorpusAssociationModel).filter_by(mod_id = mod_id, reference_id = reference_id).one()
-# if x.corpus != True:
-#           if not,
-#             set to inside (true)
-#             set wft for mod and file_needed
-#               x = WorkflowTagModel(reference_id=reference_id, mod_id = mod_id, workflow_tag_id = 'ATP:0000141')
-#               db.add(x)
+        add_wft_141_bool = False
+        mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter_by(mod_id = mod_id, reference_id = reference_id).first()
+        if mod_corpus_association_db_obj is None:
+            add_wft_141_bool = True
+            new_mca = ModCorpusAssociationModel(reference_id=reference_id,
+                                                mod_id=mod_id,
+                                                corpus=True,
+                                                mod_corpus_sort_source='manual_creation')
+            db.add(new_mca)
+        elif mod_corpus_association_db_obj.corpus != True:
+            add_wft_141_bool = True
+            mod_corpus_association_db_obj.corpus = True
+            mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
+            mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
+        if add_wft_141_bool:
+            new_wft = WorkflowTagModel(reference_id=reference_id, mod_id = mod_id, workflow_tag_id = 'ATP:0000141')
+            db.add(new_wft)
 
         db.add(new_db_obj)
         db.commit()
