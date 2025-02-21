@@ -90,7 +90,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     try:
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_wft_141_bool = False
-        mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).first()
+        mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).one_or_none()
         if mod_corpus_association_db_obj is None:
             add_wft_141_bool = True
             new_mca = ModCorpusAssociationModel(reference_id=reference_id,
