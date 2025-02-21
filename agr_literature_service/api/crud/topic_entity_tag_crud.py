@@ -90,7 +90,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     try:
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_wft_141_bool = False
-        mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter_by(mod_id = mod_id, reference_id = reference_id).first()
+        mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).first()
         if mod_corpus_association_db_obj is None:
             add_wft_141_bool = True
             new_mca = ModCorpusAssociationModel(reference_id=reference_id,
@@ -98,13 +98,13 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
                                                 corpus=True,
                                                 mod_corpus_sort_source='manual_creation')
             db.add(new_mca)
-        elif mod_corpus_association_db_obj.corpus != True:
+        elif mod_corpus_association_db_obj.corpus is not True:
             add_wft_141_bool = True
             mod_corpus_association_db_obj.corpus = True
             mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
             mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
         if add_wft_141_bool:
-            new_wft = WorkflowTagModel(reference_id=reference_id, mod_id = mod_id, workflow_tag_id = 'ATP:0000141')
+            new_wft = WorkflowTagModel(reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141')
             db.add(new_wft)
 
         db.add(new_db_obj)
