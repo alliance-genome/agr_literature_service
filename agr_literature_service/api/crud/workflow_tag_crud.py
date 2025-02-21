@@ -629,6 +629,9 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
         FROM mod m
         JOIN workflow_tag wt ON m.mod_id = wt.mod_id
+        JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
+          AND mca.mod_id = m.mod_id
+          AND mca.corpus = TRUE
         """
     if mod_abbreviation:
         where_clauses.append("m.abbreviation = :mod_abbreviation")
@@ -638,7 +641,8 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
-    if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+    # if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+    if date_range_start and date_range_end:
         if isinstance(date_range_end, str):
             date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
             new_timestamp = date_range_end_date + timedelta(days=1)
@@ -662,11 +666,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'inside_corpus':
-            query += """
-                JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
-                AND mca.mod_id = m.mod_id
-                AND mca.corpus = TRUE
-                """
+            # Since the mod_corpus_association join is already included, just filter its date
             where_clauses.append("mca.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
@@ -712,9 +712,12 @@ def _counters_total(db: Session, atp_curie_to_name: Dict[str, str], all_WF_tags_
     query = """
     SELECT   COUNT(distinct(wt.reference_id)) AS ref_count
     FROM workflow_tag wt
+    JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
+      AND mca.corpus = TRUE
     """
 
-    if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+    # if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
+    if date_range_start and date_range_end:
         # if isinstance(date_range_end, str): # already format in counters function
         #    date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
         #    new_timestamp = date_range_end_date + timedelta(days=1)
@@ -1003,11 +1006,14 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     # get overall paper statuses
     atp_list = "'" + "', '".join(overall_paper_status[workflow_parent].keys()) + "'"
     sql_query = text(f"""
-    select workflow_tag_id, count(1) as count
-       from workflow_tag
-         where workflow_tag_id in ({atp_list}) and
-               mod_id = {mod.mod_id}
-             group by workflow_tag_id;
+    SELECT wt.workflow_tag_id, COUNT(1) AS count
+    FROM workflow_tag wt
+    JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
+    WHERE wt.workflow_tag_id IN ({atp_list})
+      AND wt.mod_id = {mod.mod_id}
+      AND mca.mod_id = {mod.mod_id}
+      AND mca.corpus = TRUE
+    GROUP BY wt.workflow_tag_id;
     """)
     overall_total = 0
     overall_dict = {}
@@ -1026,13 +1032,15 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     type_total: Dict = {}
     status_total: Dict = {}
     atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
-
     sql_query = text(f"""
-    select workflow_tag_id, count(1) as count
-       from workflow_tag
-         where workflow_tag_id in ({atp_list}) and
-               mod_id = {mod.mod_id}
-             group by workflow_tag_id;
+    SELECT wt.workflow_tag_id, COUNT(1) AS count
+    FROM workflow_tag wt
+    JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
+    WHERE wt.workflow_tag_id IN ({atp_list})
+      AND wt.mod_id = {mod.mod_id}
+      AND mca.mod_id = {mod.mod_id}
+      AND mca.corpus = TRUE
+    GROUP BY wt.workflow_tag_id;
     """)
     rows = db.execute(sql_query).fetchall()
     for (atp, count) in rows:
