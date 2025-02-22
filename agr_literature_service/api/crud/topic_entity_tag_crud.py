@@ -100,10 +100,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
             db.add(new_mca)
         elif mod_corpus_association_db_obj.corpus is not True:
             add_wft_141_bool = True
-            setattr(mod_corpus_association_db_obj, "corpus", True)
-            setattr(mod_corpus_association_db_obj, "mod_corpus_sort_source", "manual_creation")
-#            mod_corpus_association_db_obj.corpus = True
-#            mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
+            # flake8 doesn't like this
+            setattr(mod_corpus_association_db_obj, "corpus", True)  # noqa: B010
+            setattr(mod_corpus_association_db_obj, "mod_corpus_sort_source", "manual_creation")  # noqa: B010
+            # mypy doesn't like this
+            # mod_corpus_association_db_obj.corpus = True
+            # mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
             mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
         if add_wft_141_bool:
             new_wft = WorkflowTagModel(reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141')
