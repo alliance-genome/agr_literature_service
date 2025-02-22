@@ -4,7 +4,7 @@ mod_corpus_association_model.py
 """
 
 
-from typing import Dict, Optional
+from typing import Dict
 
 from sqlalchemy import Column, ForeignKey, Integer, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
