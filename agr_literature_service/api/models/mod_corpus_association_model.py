@@ -4,7 +4,7 @@ mod_corpus_association_model.py
 """
 
 
-from typing import Dict
+from typing import Dict, Optional
 
 from sqlalchemy import Column, ForeignKey, Integer, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -51,13 +51,13 @@ class ModCorpusAssociationModel(AuditedModel, Base):
         lazy="joined"
     )
 
-    corpus = Column(
+    corpus: Optional[bool] = Column(
         Boolean,
         nullable=True,
         default=None
     )
 
-    mod_corpus_sort_source: Column = Column(
+    mod_corpus_sort_source: ModCorpusSortSourceType = Column(
         Enum(ModCorpusSortSourceType),
         unique=False,
         nullable=False
