@@ -51,13 +51,13 @@ class ModCorpusAssociationModel(AuditedModel, Base):
         lazy="joined"
     )
 
-    corpus: Optional[bool] = Column(
+    corpus = Column(
         Boolean,
         nullable=True,
         default=None
     )
 
-    mod_corpus_sort_source: ModCorpusSortSourceType = Column(
+    mod_corpus_sort_source: Column = Column(
         Enum(ModCorpusSortSourceType),
         unique=False,
         nullable=False
