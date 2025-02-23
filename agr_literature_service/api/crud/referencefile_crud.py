@@ -24,9 +24,10 @@ from agr_literature_service.api.crud.referencefile_mod_utils import create as cr
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
     transition_to_workflow_status, is_file_upload_blocked, reset_workflow_tags_after_deleting_main_pdf
-from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets
-from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, ReferencefileModAssociationModel, \
-    ModModel, CopyrightLicenseModel, CrossReferenceModel
+from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
+    has_manual_tet
+from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, \
+    ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel, CrossReferenceModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
@@ -249,8 +250,9 @@ def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mod
     for mod_abbreviation in mods:
         reset_workflow_tags_after_deleting_main_pdf(db, str(reference_id), mod_abbreviation, change_file_status)
         if change_file_status is False:
-            manual_tet_count = delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
-            if manual_tet_count > 0:
+            delete_non_manual_tets(db, str(reference_id), mod_abbreviation)
+            has_manual_tags = has_manual_tet(db, str(reference_id), mod_abbreviation)
+            if has_manual_tags:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail="Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags.")
 
