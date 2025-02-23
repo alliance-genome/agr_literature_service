@@ -903,28 +903,20 @@ def delete_workflow_tags(db: Session, curie_or_reference_id: str, mod_abbreviati
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
 
-    all_text_conversion_wft = get_workflow_tags_from_process("ATP:0000161")
-    all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
-    all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
-    all_manual_indexing_wft = get_workflow_tags_from_process("ATP:0000293")
-    all_workflow_tags = all_text_conversion_wft + all_ref_classification_wft + all_entity_extraction_wft + all_manual_indexing_wft
-
     try:
         sql_query = text("""
         DELETE FROM workflow_tag
         WHERE reference_id = :reference_id
         AND mod_id = :mod_id
-        AND workflow_tag_id IN :all_workflow_tags
         """)
         db.execute(sql_query, {
             'reference_id': reference_id,
-            'mod_id': mod_id,
-            'all_workflow_tags': tuple(all_workflow_tags)
+            'mod_id': mod_id
         })
         db.commit()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"An error occurred when resetting text conversion/ref classication/entity extraction for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+                            detail=f"An error occurred when deleting WFTs for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
 
 
 def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_id: str, mod_abbreviation: str, change_file_status=False):
