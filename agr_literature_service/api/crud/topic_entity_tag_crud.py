@@ -100,10 +100,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
             db.add(new_mca)
         elif mod_corpus_association_db_obj.corpus is not True:
             add_wft_141_bool = True
-            # flake8 doesn't like this
-            # setattr(mod_corpus_association_db_obj, "corpus", True)  # noqa: B010
-            # setattr(mod_corpus_association_db_obj, "mod_corpus_sort_source", "manual_creation")  # noqa: B010
-            # mypy doesn't like this
             mod_corpus_association_db_obj.corpus = True
             mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
             mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
