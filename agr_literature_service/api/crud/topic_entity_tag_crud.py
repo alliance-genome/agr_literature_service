@@ -90,7 +90,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     try:
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_wft_141_bool = False
-        mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).one_or_none()
+        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).one_or_none()
         if mod_corpus_association_db_obj is None:
             add_wft_141_bool = True
             new_mca = ModCorpusAssociationModel(reference_id=reference_id,
@@ -101,11 +101,11 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         elif mod_corpus_association_db_obj.corpus is not True:
             add_wft_141_bool = True
             # flake8 doesn't like this
-            setattr(mod_corpus_association_db_obj, "corpus", True)  # noqa: B010
-            setattr(mod_corpus_association_db_obj, "mod_corpus_sort_source", "manual_creation")  # noqa: B010
+            # setattr(mod_corpus_association_db_obj, "corpus", True)  # noqa: B010
+            # setattr(mod_corpus_association_db_obj, "mod_corpus_sort_source", "manual_creation")  # noqa: B010
             # mypy doesn't like this
-            # mod_corpus_association_db_obj.corpus = True
-            # mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
+            mod_corpus_association_db_obj.corpus = True
+            mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
             mod_corpus_association_db_obj.dateUpdated = datetime.utcnow()
         if add_wft_141_bool:
             new_wft = WorkflowTagModel(reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141')
