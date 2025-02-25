@@ -13,7 +13,10 @@ from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_
     set_mod_curie_to_invalid
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, WorkflowTagModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, get_current_workflow_status
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_current_workflow_status, delete_workflow_tags
+from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
+    delete_manual_tets, has_manual_tet
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -149,7 +152,15 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                                                workflow_tag_id=wft_id)
                     db.add(wft_obj)
             elif (value is False or value is None) and mod_corpus_association_db_obj.corpus is True:
-                delete_workflow_tag_if_file_needed(db, reference_obj, mod_corpus_association_db_obj.mod)
+                has_manual_tags = has_manual_tet(db, str(mod_corpus_association_db_obj.reference_id),
+                                                 mod_abbreviation)
+                if has_manual_tags and not mod_corpus_association_data.get('force_out'):
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                        detail=f"Curated topic and entity tags or automated tags generated from your MOD are associated with this reference. Please check with the curator who added these tags. mod_corpus_association_id = {mod_corpus_association_db_obj.mod_corpus_association_id}")
+                delete_non_manual_tets(db, str(mod_corpus_association_db_obj.reference_id), mod_abbreviation)
+                if has_manual_tags:
+                    delete_manual_tets(db, str(mod_corpus_association_db_obj.reference_id), mod_abbreviation)
+                delete_workflow_tags(db, str(mod_corpus_association_db_obj.reference_id), mod_abbreviation)
                 set_mod_curie_to_invalid(db, reference_obj.reference_id, mod_corpus_association_db_obj.mod.abbreviation)
             setattr(mod_corpus_association_db_obj, field, value)
         else:
