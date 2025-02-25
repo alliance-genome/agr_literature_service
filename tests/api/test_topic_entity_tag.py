@@ -138,7 +138,7 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_create_mca_creates_workflow(self, db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
+    def test_create_tet_creates_mca_and_workflow(self, db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             assert test_reference.response.status_code == status.HTTP_201_CREATED
