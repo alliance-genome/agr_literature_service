@@ -21,10 +21,10 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
     get_ancestors, get_descendants, get_map_entity_curies_to_names, \
-    id_to_name_cache, get_map_ateam_curies_to_names
+    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
-    TopicEntityTagModel, WorkflowTagModel,
+    TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
@@ -88,10 +88,28 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
+        mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
+        add_wft_141_bool = False
+        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).one_or_none()
+        if mod_corpus_association_db_obj is None:
+            add_wft_141_bool = True
+            new_mca = ModCorpusAssociationModel(reference_id=reference_id,
+                                                mod_id=mod_id,
+                                                corpus=True,
+                                                mod_corpus_sort_source='manual_creation')
+            db.add(new_mca)
+        elif mod_corpus_association_db_obj.corpus is not True:
+            add_wft_141_bool = True
+            mod_corpus_association_db_obj.corpus = True
+            mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
+        if add_wft_141_bool:
+            new_wft = WorkflowTagModel(reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141')
+            db.add(new_wft)
+
         db.add(new_db_obj)
         db.commit()
         db.refresh(new_db_obj)
-        update_manual_indexing_workflow_tag(db, source.secondary_data_provider.abbreviation, reference_id, index_wft)
+        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
             validate_tags(db=db, new_tag_obj=new_db_obj)
         return {
@@ -109,25 +127,25 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie):
 
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
-    update_manual_indexing_workflow_tag(db, mod_abbreviation, reference_id, "ATP:0000275")
+    mod_id = get_mod_id_from_mod_abbreviation(db, mod_abbreviation)
+    update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
 
 
-def update_manual_indexing_workflow_tag(db: Session, mod_abbreviation, reference_id, index_wft):
+def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft):
 
     if index_wft is None:
         return
-    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     all_manual_indexing_wf_tags = get_workflow_tags_from_process("ATP:0000273")
     wft = db.query(WorkflowTagModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_manual_indexing_wf_tags),
             WorkflowTagModel.reference_id == reference_id,
-            WorkflowTagModel.mod_id == mod.mod_id
+            WorkflowTagModel.mod_id == mod_id
         )
     ).one_or_none()
     if wft is None:
         wft_obj = WorkflowTagModel(reference_id=reference_id,
-                                   mod_id=mod.mod_id,
+                                   mod_id=mod_id,
                                    workflow_tag_id=index_wft)
         db.add(wft_obj)
         db.commit()

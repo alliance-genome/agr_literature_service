@@ -138,6 +138,40 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_create_tet_creates_mca_and_workflow(self, db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            assert test_reference.response.status_code == status.HTTP_201_CREATED
+            response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            assert response.status_code == status.HTTP_200_OK
+            res = response.json()
+            assert res['workflow_tags'] == []
+            assert res['mod_corpus_associations'] is None
+            new_tet = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "novel_topic_data": True,
+                "note": "test note",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
+            }
+            client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
+            new_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            assert new_response.status_code == status.HTTP_200_OK
+            res = new_response.json()
+            assert res['workflow_tags'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
+            assert res['workflow_tags'][0]['workflow_tag_id'] == 'ATP:0000141'
+            assert res['mod_corpus_associations'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
+            assert res['mod_corpus_associations'][0]['mod_corpus_sort_source'] == 'manual_creation'
+            assert res['mod_corpus_associations'][0]['corpus'] is True
+
     def test_get_all_reference_tags(self, auth_headers, test_topic_entity_tag_source): # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \

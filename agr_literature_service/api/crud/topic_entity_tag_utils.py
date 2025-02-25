@@ -76,6 +76,11 @@ def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEnt
     return source
 
 
+def get_mod_id_from_mod_abbreviation(db: Session, mod_abbreviation: str):
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    return mod.mod_id
+
+
 def add_audited_object_users_if_not_exist(db: Session, audited_obj: Dict):
     if "created_by" in audited_obj and audited_obj["created_by"]:
         add_user_if_not_exists(db, audited_obj["created_by"])
