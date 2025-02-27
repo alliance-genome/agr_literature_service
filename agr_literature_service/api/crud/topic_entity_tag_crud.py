@@ -88,27 +88,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
-        mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
-        add_wft_141_bool = False
-        mod_corpus_association_db_obj = db.query(ModCorpusAssociationModel).filter_by(mod_id=mod_id, reference_id=reference_id).one_or_none()
-        if mod_corpus_association_db_obj is None:
-            add_wft_141_bool = True
-            new_mca = ModCorpusAssociationModel(reference_id=reference_id,
-                                                mod_id=mod_id,
-                                                corpus=True,
-                                                mod_corpus_sort_source='manual_creation')
-            db.add(new_mca)
-        elif mod_corpus_association_db_obj.corpus is not True:
-            add_wft_141_bool = True
-            mod_corpus_association_db_obj.corpus = True
-            mod_corpus_association_db_obj.mod_corpus_sort_source = "manual_creation"
-        if add_wft_141_bool:
-            new_wft = WorkflowTagModel(reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141')
-            db.add(new_wft)
-
         db.add(new_db_obj)
         db.commit()
         db.refresh(new_db_obj)
+
+        mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
+        add_paper_to_mod_if_not_already(db, reference_id, mod_id)
         update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
             validate_tags(db=db, new_tag_obj=new_db_obj)
@@ -128,6 +113,7 @@ def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference
 
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     mod_id = get_mod_id_from_mod_abbreviation(db, mod_abbreviation)
+    add_paper_to_mod_if_not_already(db, reference_id, mod_id)
     update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
 
 
@@ -153,6 +139,31 @@ def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index
         wft.workflow_tag_id = index_wft
         db.add(wft)
         db.commit()
+
+
+def add_paper_to_mod_if_not_already(db: Session, reference_id, mod_id):
+
+    add_wft_141_bool = False
+    mca_db_obj = db.query(ModCorpusAssociationModel).filter_by(
+        mod_id=mod_id, reference_id=reference_id).one_or_none()
+    if mca_db_obj is None:
+        add_wft_141_bool = True
+        new_mca = ModCorpusAssociationModel(reference_id=reference_id,
+                                            mod_id=mod_id,
+                                            corpus=True,
+                                            mod_corpus_sort_source='manual_creation')
+        db.add(new_mca)
+    elif not mca_db_obj.corpus:
+        add_wft_141_bool = True
+        mca_db_obj.corpus = True
+        mca_db_obj.mod_corpus_sort_source = "manual_creation"
+        db.add(mca_db_obj)
+    if add_wft_141_bool:
+        new_wft = WorkflowTagModel(reference_id=reference_id,
+                                   mod_id=mod_id,
+                                   workflow_tag_id='ATP:0000141')
+        db.add(new_wft)
+    db.commit()
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
