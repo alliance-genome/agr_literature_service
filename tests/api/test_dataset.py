@@ -77,6 +77,7 @@ class TestDataset:
                 "dataset_type": test_dataset.dataset_type,
                 "version": test_dataset.version,
                 "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "classification_value": "class_1",
                 "entity": None,
                 "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
             }

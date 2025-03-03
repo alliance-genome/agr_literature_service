@@ -150,7 +150,7 @@ def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost):
         reference_curie=request.reference_curie,
         entity=request.entity,
         set_type=request.set_type,
-        positive=request.positive
+        classification_value=request.classification_value
     )
     db.add(new_dataset_entry)
     db.commit()
