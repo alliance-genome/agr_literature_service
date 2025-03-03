@@ -469,10 +469,11 @@ def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
         else:
             child_curie = None
         parent_curie = id_to_curie[row.id]
-        if child_curie and parent_curie in atp_to_children:
-            atp_to_children[parent_curie].append(child_curie)
-        else:
-            atp_to_children[parent_curie] = [child_curie]
+        if child_curie:
+            if parent_curie in atp_to_children:
+                atp_to_children[parent_curie].append(child_curie)
+            else:
+                atp_to_children[parent_curie] = [child_curie]
     if start_term:
         parent_list = [start_term]
         while parent_list:
