@@ -424,7 +424,7 @@ def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to
     atp_to_parent = atp_to_parent_init.copy()
 
 
-def load_name_to_atp_and_relationships(termtype='ATPTerm'):
+def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
     """
     Add data to atp_to_name and name_to_atp dictionaries.
     From the top curie given go down all children and store the data.
@@ -460,7 +460,7 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
         atp_to_name[row.curie] = row.name
 
     # Load the relationships
-    # hopefully the results are cached.
+    # Store all first then get the subset required
     for row in rows:
         if row.obsolete:
             continue
@@ -473,8 +473,15 @@ def load_name_to_atp_and_relationships(termtype='ATPTerm'):
             atp_to_children[parent_curie].append(child_curie)
         else:
             atp_to_children[parent_curie] = [child_curie]
-        if child_curie:
-            atp_to_parent[child_curie] = parent_curie
+    if start_term:
+        parent_list = [start_term]
+        while parent_list:
+            parent = parent_list.pop()
+            if parent in atp_to_children:
+                for child in atp_to_children[parent]:
+                    parent_list.append(child)
+                    atp_to_parent[child] = parent
+
     logger.debug("ATP global vars successfully loaded")
     return
 
