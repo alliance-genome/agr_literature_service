@@ -49,6 +49,18 @@ def upgrade():
     op.create_index(op.f('ix_dataset_entry_version_operation_type'), 'dataset_entry_version', ['operation_type'], unique=False)
     op.create_index(op.f('ix_dataset_entry_version_transaction_id'), 'dataset_entry_version', ['transaction_id'], unique=False)
     op.add_column('dataset_entry', sa.Column('classification_value', sa.String(), nullable=True))
+
+    # Copy values from 'positive' to 'classification_value' and convert them
+    op.execute(
+        """
+        UPDATE dataset_entry
+        SET classification_value = CASE
+            WHEN positive = true THEN 'positive'
+            ELSE 'negative'
+        END
+        """
+    )
+
     op.drop_column('dataset_entry', 'positive')
     # ### end Alembic commands ###
 
