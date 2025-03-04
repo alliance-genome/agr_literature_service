@@ -120,8 +120,19 @@ class TestDataset:
             dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
             assert len(dataset.dataset_entries) == 0
 
-    def test_download_dataset(self, test_mod, test_dataset):  # noqa
+    def test_download_dataset(self, test_mod, test_dataset, auth_headers, test_topic_entity_tag):  # noqa
         with TestClient(app) as client:
+            dataset_entry_data = {
+                "mod_abbreviation": test_dataset.mod_abbreviation,
+                "data_type": test_dataset.data_type,
+                "dataset_type": test_dataset.dataset_type,
+                "version": test_dataset.version,
+                "reference_curie": test_topic_entity_tag.related_ref_curie,
+                "classification_value": "class_1",
+                "entity": None,
+                "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
+            }
+            client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
             response = client.get(url=f"/datasets/download/{test_mod.new_mod_abbreviation}/{test_dataset.data_type}/"
                                       f"{test_dataset.dataset_type}/{test_dataset.version}")
             assert response.status_code == status.HTTP_200_OK
@@ -130,7 +141,8 @@ class TestDataset:
             assert dataset['data_type'] == test_atp_id
             assert dataset['dataset_type'] == test_dataset_type
             assert dataset['description'] == "This is a test dataset"
-            assert len(dataset['data_training']) == 0
+            assert len(dataset['data_training']) == 1
+            assert dataset['data_training'][test_topic_entity_tag.related_ref_curie] == "class_1"
             assert len(dataset['data_testing']) == 0
 
     def test_download_dataset_wrong(self):
