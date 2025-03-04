@@ -23,8 +23,8 @@ class DatasetSchemaShow(DatasetSchemaPost):
 
 class DatasetSchemaDownload(DatasetSchemaPost):
     dataset_id: int
-    data_training: Union[Dict[str, int], Dict[str, List[str]]]
-    data_testing: Union[Dict[str, int], Dict[str, List[str]]]
+    data_training: Union[Dict[str, str], Dict[str, List[str]]]
+    data_testing: Union[Dict[str, str], Dict[str, List[str]]]
 
 
 class DatasetSchemaUpdate(BaseModel):
