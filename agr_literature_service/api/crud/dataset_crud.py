@@ -87,11 +87,11 @@ def download_dataset(db: Session, mod_abbreviation: str, data_type: str,
     data_testing: Dict
     if dataset_type == "document":
         document_data_training: Dict[str, int] = {
-            str(dataset_entry.reference_curie): 1 if dataset_entry.positive else 0
+            str(dataset_entry.reference_curie): dataset_entry.classification_value
             for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "training"
         }
         document_data_testing: Dict[str, int] = {
-            str(dataset_entry.reference_curie): 1 if dataset_entry.positive else 0
+            str(dataset_entry.reference_curie): dataset_entry.classification_value
             for dataset_entry in dataset.dataset_entries if dataset_entry.set_type == "testing"
         }
         data_training = document_data_training
