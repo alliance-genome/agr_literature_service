@@ -6,7 +6,7 @@ reference_relation_model.py
 
 from typing import Dict
 
-from sqlalchemy import Column, Enum, ForeignKey, Integer, Index, text
+from sqlalchemy import Column, Enum, ForeignKey, Integer
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
