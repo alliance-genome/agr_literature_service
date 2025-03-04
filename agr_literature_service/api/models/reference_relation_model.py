@@ -18,14 +18,6 @@ enable_versioning()
 
 class ReferenceRelationModel(Base):
     __tablename__ = "reference_relation"
-    __table_args__ = (
-        Index(
-            "idx_unique_reference_relation_pair",
-            text("LEAST(reference_id_from, reference_id_to)"),
-            text("GREATEST(reference_id_from, reference_id_to)"),
-            unique=True,
-        ),
-    )
     __versioned__: Dict = {}
 
     reference_relation_id = Column(
