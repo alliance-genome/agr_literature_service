@@ -21,8 +21,8 @@ def upgrade():
         "idx_unique_reference_relation_pair",
         "reference_relation",
         [
-            text("LEAST(reference_id_from, reference_id_to)"),
-            text("GREATEST(reference_id_from, reference_id_to)")
+            sa.text("LEAST(reference_id_from, reference_id_to)"),
+            sa.text("GREATEST(reference_id_from, reference_id_to)")
         ],
         unique=True,
     )
