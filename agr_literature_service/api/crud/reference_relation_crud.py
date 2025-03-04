@@ -13,6 +13,8 @@ from sqlalchemy import and_, or_
 from agr_literature_service.api.models import (ReferenceRelationModel,
                                                ReferenceModel)
 from agr_literature_service.api.schemas import ReferenceRelationSchemaPost
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    get_reference_relation_rows
 
 
 def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
@@ -45,17 +47,10 @@ def create(db: Session, reference_relation: ReferenceRelationSchemaPost):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} are the same reference")
 
-    db_obj = db.query(ReferenceRelationModel).filter(
-        or_(
-            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
-                 ReferenceRelationModel.reference_id_to == reference_id_to),
-            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
-                 ReferenceRelationModel.reference_id_to == reference_id_from)
-        )
-    ).first()
-    if db_obj:
+    rows = get_reference_relation_rows(db, reference_id_from, reference_id_to)
+    if len(rows) > 0:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                            detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {db_obj.reference_relation_id}")
+                            detail=f"Reference Relation with reference_curie_from  {reference_curie_from} and reference curie_to {reference_curie_to} already exists with id {rows[0].reference_relation_id}")
 
     db_obj = ReferenceRelationModel(reference_relation_type=reference_relation_type,
                                     reference_from=reference_from,

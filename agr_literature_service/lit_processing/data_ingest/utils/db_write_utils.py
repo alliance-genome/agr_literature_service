@@ -1007,8 +1007,7 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
     return (log_path, log_url, not_loaded_pmids)
 
 
-def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
-    # check to see if any newly added ones matches this entry
+def get_reference_relation_rows(db_session: Session, reference_id_from, reference_id_to):  # pragma: no cover
     rows = db_session.query(ReferenceRelationModel).filter(
         or_(
             and_(ReferenceRelationModel.reference_id_from == reference_id_from,
@@ -1017,6 +1016,12 @@ def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from,
                  ReferenceRelationModel.reference_id_to == reference_id_from)
         )
     ).all()
+    return rows
+
+
+def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
+    # check to see if any newly added ones matches this entry
+    rows = get_reference_relation_rows(db_session, reference_id_from, reference_id_to)
     if len(rows) > 0:
         return
     data = {"reference_id_from": reference_id_from,
@@ -1032,15 +1037,7 @@ def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
 def _update_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    all = db_session.query(ReferenceRelationModel).filter(
-        or_(
-            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
-                 ReferenceRelationModel.reference_id_to == reference_id_to),
-            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
-                 ReferenceRelationModel.reference_id_to == reference_id_from)
-        )
-    ).all()
-
+    all = get_reference_relation_rows(db_session, reference_id_from, reference_id_to)
     if len(all) == 0:
         return
 
@@ -1052,15 +1049,7 @@ def _update_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
 def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    rows = db_session.query(ReferenceRelationModel).filter(
-        or_(
-            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
-                 ReferenceRelationModel.reference_id_to == reference_id_to),
-            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
-                 ReferenceRelationModel.reference_id_to == reference_id_from)
-        )
-    ).all()
-
+    rows = get_reference_relation_rows(db_session, reference_id_from, reference_id_to)
     for x in rows:
         try:
             db_session.delete(x)

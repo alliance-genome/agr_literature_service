@@ -624,6 +624,23 @@ def merge_references(db: Session,
     return new_curie
 
 
+def get_reference_relation_row(db, reference_id_1, reference_id_2, relation_type):
+    row = db.query(ReferenceRelationModel).filter(
+        or_(
+            and_(
+                ReferenceRelationModel.reference_id_from == reference_id_1,
+                ReferenceRelationModel.reference_id_to == reference_id_2
+            ),
+            and_(
+                ReferenceRelationModel.reference_id_from == reference_id_2,
+                ReferenceRelationModel.reference_id_to == reference_id_1
+            )
+        ),
+        ReferenceRelationModel.reference_relation_type == relation_type
+    ).one_or_none()
+    return row
+
+
 def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie, new_curie):
     all_ref_relations = db.query(
         ReferenceRelationModel.reference_id_from,
@@ -650,20 +667,7 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                             detail="Cannot merge these two references as they have duplicate reference relations")
     try:
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_from=old_reference_id).all():
-            y = db.query(ReferenceRelationModel).filter(
-                or_(
-                    and_(
-                        ReferenceRelationModel.reference_id_from == new_reference_id,
-                        ReferenceRelationModel.reference_id_to == x.reference_id_to
-                    ),
-                    and_(
-                        ReferenceRelationModel.reference_id_from == x.reference_id_to,
-                        ReferenceRelationModel.reference_id_to == new_reference_id
-                    )
-                ),
-                ReferenceRelationModel.reference_relation_type == x.reference_relation_type
-            ).one_or_none()
-
+            y = get_reference_relation_row(db, new_reference_id, x.reference_id_to, x.reference_relation_type)
             if y is None:
                 if x.reference_id_to != new_reference_id:
                     x.reference_id_from = new_reference_id
@@ -674,20 +678,7 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                 db.delete(x)
 
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_to=old_reference_id).all():
-            y = db.query(ReferenceRelationModel).filter(
-                or_(
-                    and_(
-                        ReferenceRelationModel.reference_id_from == x.reference_id_from,
-                        ReferenceRelationModel.reference_id_to == new_reference_id
-                    ),
-                    and_(
-                        ReferenceRelationModel.reference_id_from == new_reference_id,
-                        ReferenceRelationModel.reference_id_to == x.reference_id_from
-                    )
-                ),
-                ReferenceRelationModel.reference_relation_type == x.reference_relation_type
-            ).one_or_none()
-
+            y = get_reference_relation_row(db, x.reference_id_from, new_reference_id, x.reference_relation_type)
             if y is None:
                 if x.reference_id_from != new_reference_id:
                     x.reference_id_to = new_reference_id
