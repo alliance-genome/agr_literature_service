@@ -1032,7 +1032,14 @@ def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
 def _update_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    all = db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to).all()
+    all = db_session.query(ReferenceRelationModel).filter(
+        or_(
+            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
+                 ReferenceRelationModel.reference_id_to == reference_id_to),
+            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
+                 ReferenceRelationModel.reference_id_to == reference_id_from)
+        )
+    ).all()
 
     if len(all) == 0:
         return
@@ -1045,7 +1052,16 @@ def _update_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
 def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    for x in db_session.query(ReferenceRelationModel).filter_by(reference_id_from=reference_id_from, reference_id_to=reference_id_to, reference_relation_type=type).all():
+    rows = db_session.query(ReferenceRelationModel).filter(
+        or_(
+            and_(ReferenceRelationModel.reference_id_from == reference_id_from,
+                 ReferenceRelationModel.reference_id_to == reference_id_to),
+            and_(ReferenceRelationModel.reference_id_from == reference_id_to,
+                 ReferenceRelationModel.reference_id_to == reference_id_from)
+        )
+    ).all()
+
+    for x in rows:
         try:
             db_session.delete(x)
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
@@ -1129,12 +1145,12 @@ def update_reference_relations(db_session: Session, fw, pmid, reference_id, pmid
     # process new and existing reference relations outside the no_autoflush block
     for key in new_reference_ids_to_reference_relation_type:
         type = new_reference_ids_to_reference_relation_type[key]
+        (reference_id_from, reference_id_to) = key
         # assuming _update_reference_relation and _insert_reference_relation might involve queries
         with db_session.no_autoflush:
             if key in reference_ids_to_reference_relation_type:
                 if reference_ids_to_reference_relation_type[key] == new_reference_ids_to_reference_relation_type[key]:
                     continue
-                (reference_id_from, reference_id_to) = key
                 _update_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
                 update_log['comment_erratum'] = update_log['comment_erratum'] + 1
                 update_log['pmids_updated'].append(pmid)
