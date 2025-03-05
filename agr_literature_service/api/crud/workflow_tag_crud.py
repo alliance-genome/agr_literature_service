@@ -31,7 +31,8 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     atp_get_all_ancestors,
     atp_get_parent,
     get_jobs_to_run,
-    atp_to_name
+    atp_to_name,
+    name_to_atp
 )
 
 process_atp_multiple_allowed = [
@@ -1109,12 +1110,26 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     return out_records, headers
 
 
-def workflow_subset_list(workflow_name, mod_abbreviation):
+def workflow_subset_list(workflow_name, mod_abbreviation, db):
     """
     More for tests and to allow users to see the curies in a workflow.
     Given a workflow name i.e. "reference classification" return the ATP's and names ofr these.
     """
-    curie_list = get_jobs_to_run(workflow_name, mod_abbreviation)
+    # More code injection checks
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
+
+    if workflow_name.startswith('ATP'):
+        try:
+            atp_name = atp_to_name[workflow_name]
+            atp_id = name_to_atp[atp_name]
+        except KeyError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{workflow_name}'")
+    else:
+        atp_name = workflow_name
+
+    curie_list = get_jobs_to_run(atp_name, mod.abbreviation)
     result = {}
     for curie in curie_list:
         result[atp_to_name[curie]] = curie

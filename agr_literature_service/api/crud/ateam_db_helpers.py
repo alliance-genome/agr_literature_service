@@ -426,7 +426,7 @@ def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to
     atp_to_parent = atp_to_parent_init.copy()
 
 
-def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> list[str]:
+def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
     """
     Use the subsets in ontologyterm_subsets table to find the jobs to run.
     """
@@ -442,21 +442,13 @@ def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> list[str]:
         atp_parent_id = name_to_atp[needed_string]
 
     # get list of all possible jobs.
+    jobs_list = [atp_parent_id]
     if name.startswith('ATP:'):
-        try:  # make sure no code injection
-            atp_name = atp_to_name[name]
-            atp_id = name_to_atp[atp_name]
-            jobs_list = [atp_id]
-        except KeyError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{name}'")
+        jobs_list = [atp_parent_id]
     else:
         jobs_list = atp_to_children[atp_parent_id]
-    # More code injection checks
-    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-    if not mod:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
 
-    mod_tag = f'{mod.mod_abbreviation}_tag'
+    mod_tag = f'{mod_abbreviation}_tag'
     # refine these to ones that are in the subset
     sql_query = text(f"""
     SELECT o.curie
