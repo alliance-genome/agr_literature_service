@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
-# from fastapi import HTTPException
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import workflow_tag_crud
@@ -13,9 +12,7 @@ from agr_literature_service.api.schemas import (WorkflowTagSchemaShow,
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
 from agr_literature_service.api.crud.ateam_db_helpers import (
-    atp_get_name,
-    # atp_to_name,
-    # name_to_atp
+    atp_get_name
 )
 
 router = APIRouter(
