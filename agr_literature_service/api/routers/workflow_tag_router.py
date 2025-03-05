@@ -11,7 +11,9 @@ from agr_literature_service.api.schemas import (WorkflowTagSchemaShow,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
-from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
+from agr_literature_service.api.crud.ateam_db_helpers import (
+    atp_get_name
+)
 
 router = APIRouter(
     prefix="/workflow_tag",
@@ -161,3 +163,11 @@ def get_report_workflow_tags(mod_abbreviation: str,
 @router.get('/get_name/{workflow_tag_id}', status_code=200)
 def get_name(workflow_tag_id: str):
     return atp_get_name(workflow_tag_id)
+
+
+@router.get('/subsets/{workflow_name}/{mod_abbreviation}',
+            status_code=200)
+def get_workflow_tags_subset(mod_abbreviation: str,
+                             workflow_name: str,
+                             db: Session = db_session):
+    return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation, db)
