@@ -1119,15 +1119,7 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
 
-    if workflow_name.startswith('ATP'):
-        try:
-            atp_name = atp_to_name[workflow_name]
-        except KeyError:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{workflow_name}'")
-    else:
-        atp_name = workflow_name
-
-    curie_list = get_jobs_to_run(atp_name, mod.abbreviation)
+    curie_list = get_jobs_to_run(workflow_name, mod.abbreviation)
     result = {}
     for curie in curie_list:
         result[atp_to_name[curie]] = curie
