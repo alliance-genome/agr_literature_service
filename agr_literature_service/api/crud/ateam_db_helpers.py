@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from os import environ
 from typing import Dict
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -440,7 +440,6 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
         atp_parent_id = name_to_atp[needed_string]
 
     # get list of all possible jobs.
-    jobs_list = [atp_parent_id]
     if name.startswith('ATP:'):
         jobs_list = [atp_parent_id]
     else:
@@ -448,19 +447,23 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
 
     mod_tag = f'{mod_abbreviation}_tag'
     # refine these to ones that are in the subset
-    sql_query = text(f"""
-    SELECT o.curie
-      FROM ontologyterm o, ontologyterm_subsets
-       s
+
+    sql_query_str = """
+      SELECT o.curie
+      FROM ontologyterm o, ontologyterm_subsets s
       WHERE
          o.id = s.ontologyterm_id AND
-         s.subsets = '{mod_tag}' AND
-         o.curie in ('{"', '".join(jobs_list)}')
-         """)
-    print(sql_query)
+         s.subsets = :mod_tag AND
+         o.curie in :jobs_list
+    """
+    query_params = {}
+    query_params['mod_tag'] = mod_tag
+    query_params['jobs_list'] = tuple(jobs_list)
+
+    # sql_query = text(sql_query_str)
+    print(sql_query_str)
     db = create_ateam_db_session()
-    rows = db.execute(sql_query).fetchall()
-    # Also include the main overall task.
+    rows = db.execute(text(sql_query_str).bindparams(**query_params)).mappings().fetchall()
     results = [atp_parent_id]
     for row in rows:
         results.append(row[0])
