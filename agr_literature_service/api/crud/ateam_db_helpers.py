@@ -424,6 +424,48 @@ def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to
     atp_to_parent = atp_to_parent_init.copy()
 
 
+def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
+    """
+    Use the subsets in ontologyterm_subsets table to find the jobs to run.
+    """
+    if not atp_to_parent:
+        load_name_to_atp_and_relationships()
+    if name.startswith('ATP:'):
+        atp_parent_id = name
+    else:
+        needed_string = f"{name} needed"
+        if needed_string not in name_to_atp:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Exception: Could not find '{needed_string}' in ATP ontology names")
+        atp_parent_id = name_to_atp[needed_string]
+
+    # get list of all possible jobs.
+    if name.startswith('ATP:'):
+        jobs_list = [name]
+    else:
+        jobs_list = atp_to_children[atp_parent_id]
+
+    # refine these to ones that are in the subset
+    sql_query = text(f"""
+    SELECT o.curie 
+      FROM ontologyterm o, ontologyterm_subsets 
+       s 
+      WHERE
+         o.id = s.ontologyterm_id AND
+         s.subsets = '{mod_abbreviation}_tag' AND
+         o.curie in ('{"', '".join(jobs_list)}')
+         """)
+    print(sql_query)
+    db = create_ateam_db_session()
+    rows = db.execute(sql_query).fetchall()
+    # Also include the main overall task.
+    results = [atp_parent_id]
+    for row in rows:
+        results.append(row[0])
+    print(results)
+    return results
+
+
 def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
     """
     Add data to atp_to_name and name_to_atp dictionaries.

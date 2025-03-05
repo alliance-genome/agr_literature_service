@@ -29,8 +29,11 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     get_name_to_atp_for_all_children,
     atp_get_all_descendents,
     atp_get_all_ancestors,
-    atp_get_parent
+    atp_get_parent,
+    get_jobs_to_run,
+    atp_to_name
 )
+
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -1104,3 +1107,15 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
                 out_rec[f"{field}_perc"] = "0.00"
         out_records.append(out_rec)
     return out_records, headers
+
+
+def workflow_subset_list(workflow_name, mod_abbreviation):
+    """
+    More for tests and to allow users to see the curies in a workflow.
+    Given a workflow name i.e. "reference classification" return the ATP's and names ofr these.
+    """
+    curie_list = get_jobs_to_run(workflow_name, mod_abbreviation)
+    result = {}
+    for curie in curie_list:
+        result[atp_to_name[curie]] = curie
+    return result
