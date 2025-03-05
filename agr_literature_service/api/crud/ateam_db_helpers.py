@@ -10,8 +10,6 @@ from sqlalchemy.orm import sessionmaker
 import cachetools.func
 import logging
 
-from agr_literature_service.api.models import ModModel
-
 logger = logging.getLogger(__name__)
 
 # List of valid prefix identifiers for curies
