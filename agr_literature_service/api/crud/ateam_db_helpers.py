@@ -441,7 +441,12 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
 
     # get list of all possible jobs.
     if name.startswith('ATP:'):
-        jobs_list = [name]
+        try:  # make sure no code injection
+            atp_name = atp_to_name[name]
+            atp_id = name_to_atp[atp_name]
+            jobs_list = [atp_id]
+        except KeyError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{name}'")
     else:
         jobs_list = atp_to_children[atp_parent_id]
 
