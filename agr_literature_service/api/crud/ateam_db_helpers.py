@@ -458,7 +458,7 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
     """
     query_params = {}
     query_params['mod_tag'] = mod_tag
-    query_params['jobs_list'] = tuple(jobs_list,)
+    query_params['jobs_list'] = tuple(jobs_list,)  # type: ignore
 
     db = create_ateam_db_session()
     rows = db.execute(text(sql_query_str).bindparams(**query_params)).fetchall()
