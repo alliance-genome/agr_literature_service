@@ -449,7 +449,7 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{name}'")
     else:
         jobs_list = atp_to_children[atp_parent_id]
-
+    mod_tag = f'{mod_abbreviation}_tag'
     # refine these to ones that are in the subset
     sql_query = text(f"""
     SELECT o.curie
@@ -457,7 +457,7 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
        s
       WHERE
          o.id = s.ontologyterm_id AND
-         s.subsets = '{mod_abbreviation}_tag' AND
+         s.subsets = '{mod_tag}' AND
          o.curie in ('{"', '".join(jobs_list)}')
          """)
     print(sql_query)
