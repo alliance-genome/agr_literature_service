@@ -51,7 +51,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_data
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
-    get_current_workflow_status
+    get_current_workflow_status, is_file_upload_blocked
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
@@ -519,6 +519,18 @@ def show_changesets(db: Session, curie_or_reference_id: str):
     return history
 
 
+def check_if_a_job_is_running_for_reference(db, refObj):
+
+    mods = db.query(ModModel).join(ModCorpusAssociationModel). \
+        filter(ModCorpusAssociationModel.reference_id == refObj.reference_id,
+               ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
+    for mod in mods:
+        job_type = is_file_upload_blocked(db, refObj.curie, mod.abbreviation)
+        if job_type:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"The {job_type} for reference {refObj.curie} is currently being processed. Please wait until it is complete before merging the papers.")
+
+
 def merge_references(db: Session,
                      old_curie: str,
                      new_curie: str):
@@ -536,6 +548,9 @@ def merge_references(db: Session,
     logger.info("Merging references started")
     old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
+
+    check_if_a_job_is_running_for_reference(db, old_ref)
+    check_if_a_job_is_running_for_reference(db, new_ref)
 
     if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
         new_ref.prepublication_pipeline = True
