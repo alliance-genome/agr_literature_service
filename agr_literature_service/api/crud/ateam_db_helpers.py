@@ -10,6 +10,8 @@ from sqlalchemy.orm import sessionmaker
 import cachetools.func
 import logging
 
+from agr_literature_service.api.models import ModModel
+
 logger = logging.getLogger(__name__)
 
 # List of valid prefix identifiers for curies
@@ -424,7 +426,7 @@ def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to
     atp_to_parent = atp_to_parent_init.copy()
 
 
-def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
+def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> list[str]:
     """
     Use the subsets in ontologyterm_subsets table to find the jobs to run.
     """
@@ -449,7 +451,12 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{name}'")
     else:
         jobs_list = atp_to_children[atp_parent_id]
-    mod_tag = f'{mod_abbreviation}_tag'
+    # More code injection checks
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
+
+    mod_tag = f'{mod.mod_abbreviation}_tag'
     # refine these to ones that are in the subset
     sql_query = text(f"""
     SELECT o.curie
