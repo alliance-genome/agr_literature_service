@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import workflow_tag_crud
@@ -11,7 +12,11 @@ from agr_literature_service.api.schemas import (WorkflowTagSchemaShow,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
-from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
+from agr_literature_service.api.crud.ateam_db_helpers import (
+    atp_get_name,
+    atp_to_name,
+    name_to_atp
+)
 
 router = APIRouter(
     prefix="/workflow_tag",
@@ -168,4 +173,16 @@ def get_name(workflow_tag_id: str):
 def get_workflow_tags_subset(mod_abbreviation: str,
                              workflow_name: str,
                              db: Session = db_session):
-    return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation, db)
+    if workflow_name.startswith('ATP'):
+        try:
+            atp_name = atp_to_name[workflow_name]
+        except KeyError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{workflow_name}'")
+    else:
+        try:
+            atp_id = name_to_atp[workflow_name]
+            atp_name = atp_to_name[atp_id]
+        except KeyError:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{workflow_name}'")
+
+    return workflow_tag_crud.workflow_subset_list(atp_name, mod_abbreviation, db)

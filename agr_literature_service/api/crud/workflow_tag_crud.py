@@ -31,8 +31,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     atp_get_all_ancestors,
     atp_get_parent,
     get_jobs_to_run,
-    atp_to_name,
-    name_to_atp
+    atp_to_name
 )
 
 process_atp_multiple_allowed = [
@@ -1123,7 +1122,6 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
     if workflow_name.startswith('ATP'):
         try:
             atp_name = atp_to_name[workflow_name]
-            atp_id = name_to_atp[atp_name]
         except KeyError:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown ATP '{workflow_name}'")
     else:
