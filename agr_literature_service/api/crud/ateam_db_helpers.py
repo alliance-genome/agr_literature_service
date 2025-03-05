@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from os import environ
 from typing import Dict
-from sqlalchemy import text, bindparam
+from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -458,16 +458,13 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
     """
     query_params = {}
     query_params['mod_tag'] = mod_tag
-    query_params['jobs_list'] = tuple(jobs_list)
+    query_params['jobs_list'] = tuple(jobs_list,)
 
-    # sql_query = text(sql_query_str)
-    print(sql_query_str)
     db = create_ateam_db_session()
-    rows = db.execute(text(sql_query_str).bindparams(**query_params)).mappings().fetchall()
+    rows = db.execute(text(sql_query_str).bindparams(**query_params)).fetchall()
     results = [atp_parent_id]
     for row in rows:
         results.append(row[0])
-    print(results)
     return results
 
 
