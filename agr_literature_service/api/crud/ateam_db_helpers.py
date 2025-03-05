@@ -447,9 +447,9 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
 
     # refine these to ones that are in the subset
     sql_query = text(f"""
-    SELECT o.curie 
-      FROM ontologyterm o, ontologyterm_subsets 
-       s 
+    SELECT o.curie
+      FROM ontologyterm o, ontologyterm_subsets
+       s
       WHERE
          o.id = s.ontologyterm_id AND
          s.subsets = '{mod_abbreviation}_tag' AND

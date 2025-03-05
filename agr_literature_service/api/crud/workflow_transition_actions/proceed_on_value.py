@@ -6,6 +6,7 @@ from sqlalchemy import text
 from fastapi import HTTPException, status
 from agr_literature_service.api.crud.ateam_db_helpers import get_jobs_to_run
 
+
 def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
     """
     args: [0] should be what to check to see if the ATP should be added.

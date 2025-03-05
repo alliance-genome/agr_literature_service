@@ -164,6 +164,6 @@ def get_name(workflow_tag_id: str):
 
 @router.get('/subsets/{workflow_name}/{mod_abbreviation}',
             status_code=200)
-def get_report_workflow_tags(mod_abbreviation: str,
+def get_workflow_tags_subset(mod_abbreviation: str,
                              workflow_name: str):
     return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation)
