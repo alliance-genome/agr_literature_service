@@ -207,25 +207,42 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
     return rows
 
 
-def search_topic(topic):
+def search_topic(topic, mod_abbr=None):
     """Search ATP ontology for topics that match the given string."""
     db = create_ateam_db_session()
     search_query = f"%{topic.upper()}%"
-    sql_query = text("""
-    SELECT ot.curie, ot.name
-    FROM ontologyterm ot
-    JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-    JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
-    WHERE ot.ontologytermtype = 'ATPTerm'
-    AND UPPER(ot.name) LIKE :search_query
-    AND ot.obsolete = false
-    AND ancestor.curie = :topic_category_atp
-    ORDER BY LENGTH(ot.name)
-    LIMIT 10
-    """)
+    if mod_abbr is not None:
+        sql_query = text("""
+            SELECT ot.curie, ot.name
+            FROM ontologyterm ot
+            JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+            JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+            JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
+            WHERE ot.ontologytermtype = 'ATPTerm'
+            AND UPPER(ot.name) LIKE :search_query
+            AND ot.obsolete = false
+            AND ancestor.curie = :topic_category_atp
+            AND s.subsets = :mod_abbr
+            ORDER BY LENGTH(ot.name)
+            LIMIT 10
+            """)
+    else:
+        sql_query = text("""
+        SELECT ot.curie, ot.name
+        FROM ontologyterm ot
+        JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+        JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+        WHERE ot.ontologytermtype = 'ATPTerm'
+        AND UPPER(ot.name) LIKE :search_query
+        AND ot.obsolete = false
+        AND ancestor.curie = :topic_category_atp
+        ORDER BY LENGTH(ot.name)
+        LIMIT 10
+        """)
     rows = db.execute(sql_query, {
         'search_query': search_query,
-        'topic_category_atp': topic_category_atp
+        'topic_category_atp': topic_category_atp,
+        'mod_abbr': f'{mod_abbr}_tag'
     }).fetchall()
 
     data = [
