@@ -519,7 +519,9 @@ def show_changesets(db: Session, curie_or_reference_id: str):
     return history
 
 
-def check_if_a_job_is_running_for_reference(db, refObj):
+def lock_status(db: Session, ref_curie):
+
+    refObj = get_reference(db=db, curie_or_reference_id=ref_curie)
 
     mods = db.query(ModModel).join(ModCorpusAssociationModel). \
         filter(ModCorpusAssociationModel.reference_id == refObj.reference_id,
@@ -527,8 +529,14 @@ def check_if_a_job_is_running_for_reference(db, refObj):
     for mod in mods:
         job_type = is_file_upload_blocked(db, refObj.curie, mod.abbreviation)
         if job_type:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"The {job_type} for reference {refObj.curie} is currently being processed. Please wait until it is complete before merging the papers.")
+            return {
+                "locked": True,
+                "message": f"The {job_type} for reference {refObj.curie} is currently being processed. Please wait until it is complete before merging the papers."
+            }
+    return {
+        "locked": False,
+        "message": "No lock."
+    }
 
 
 def merge_references(db: Session,
@@ -548,9 +556,6 @@ def merge_references(db: Session,
     logger.info("Merging references started")
     old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
     new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
-
-    check_if_a_job_is_running_for_reference(db, old_ref)
-    check_if_a_job_is_running_for_reference(db, new_ref)
 
     if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
         new_ref.prepublication_pipeline = True
