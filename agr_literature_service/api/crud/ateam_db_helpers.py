@@ -217,7 +217,7 @@ def search_topic(topic, mod_abbr=None):
             FROM ontologyterm ot
             JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
             JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
-            JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id    
+            JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
             WHERE ot.ontologytermtype = 'ATPTerm'
             AND UPPER(ot.name) LIKE :search_query
             AND ot.obsolete = false
