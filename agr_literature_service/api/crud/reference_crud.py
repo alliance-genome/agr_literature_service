@@ -305,7 +305,6 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
 
     :param db:
     :param curie_or_reference_id:
-    :param http_request:
     :return:
     """
     logger.info("Show reference called")

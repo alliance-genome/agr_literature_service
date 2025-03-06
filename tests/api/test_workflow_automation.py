@@ -67,7 +67,7 @@ def mock_load_name_to_atp_and_relationships():
     }
     workflow_parent = {}
     atp_to_name = {}
-    name_to_atp = {}
+    name_to_atp = {"reference classification needed": "ATP:0000166"}
     for atp in workflow_children.keys():
         atp_to_name[atp] = atp
         name_to_atp[atp] = atp
@@ -75,8 +75,18 @@ def mock_load_name_to_atp_and_relationships():
             workflow_parent[atp2] = atp
             name_to_atp[atp2] = atp2
             atp_to_name[atp2] = atp2
-
+    atp_to_name["ATP:0000166"] = "reference classification needed"
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
+
+
+def mock_get_jobs_to_run(name: str, mod_abbreviation: str):
+    results = {'reference classification': ['ATP:0000166',
+                                            'ATP:task1_needed',
+                                            'ATP:task2_needed'],
+               'ATP:task3_needed': ['ATP:task3_needed'],
+               'ATP:NEW': ['ATP:NEW']
+               }
+    return results[name]
 
 
 def workflow_automation_init(db):  # noqa
@@ -88,11 +98,9 @@ def workflow_automation_init(db):  # noqa
         ["ATP:0000141", "ATP:fileuploadinprogress", [], 'on_start'],
         ["ATP:fileuploadinprogress",
          "ATP:fileuploadcomplete",
-         ["proceed_on_value::category::thesis::ATP:task1_needed",
-          "proceed_on_value::category::thesis::ATP:task2_needed",
-          "proceed_on_value::category::thesis::ATP:0000166",
-          "proceed_on_value::reference_type::Experimental::ATP:NEW",
-          "proceed_on_value::category::failure::ATP:task3_needed"],
+         ["proceed_on_value::category::thesis::reference classification",
+          "proceed_on_value::category::failure::ATP:task3_needed",
+          "proceed_on_value::reference_type::Experimental::ATP:NEW"],
          'on_success'],
         ["ATP:fileuploadinprogress", "ATP:fileuploadfailed", [], 'on_failed'],
         ["ATP:needed", "ATP:task1_needed", None, "task1_job"],
@@ -123,6 +131,7 @@ def workflow_automation_init(db):  # noqa
 class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
@@ -293,6 +302,7 @@ class TestWorkflowTagAutomation:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
+
     def test_bad_transitions(self, db, auth_headers, test_mod, test_reference):  # noqa
         with TestClient(app) as client:
             mock_load_name_to_atp_and_relationships()
