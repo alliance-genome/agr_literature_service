@@ -1,9 +1,7 @@
-from typing import Dict
 from agr_literature_service.api.database.base import Base
-from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
-from sqlalchemy import (Column, ForeignKey, Integer, String)
-from sqlalchemy.orm import relationship
+from sqlalchemy import (Column, Integer, String)
+
 
 class WorkflowTagTopicModel(AuditedModel, Base):
     __tablename__ = "workflow_tag_topic"
