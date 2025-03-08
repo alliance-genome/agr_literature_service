@@ -207,25 +207,42 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
     return rows
 
 
-def search_topic(topic):
+def search_topic(topic, mod_abbr=None):
     """Search ATP ontology for topics that match the given string."""
     db = create_ateam_db_session()
     search_query = f"%{topic.upper()}%"
-    sql_query = text("""
-    SELECT ot.curie, ot.name
-    FROM ontologyterm ot
-    JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-    JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
-    WHERE ot.ontologytermtype = 'ATPTerm'
-    AND UPPER(ot.name) LIKE :search_query
-    AND ot.obsolete = false
-    AND ancestor.curie = :topic_category_atp
-    ORDER BY LENGTH(ot.name)
-    LIMIT 10
-    """)
+    if mod_abbr is not None:
+        sql_query = text("""
+            SELECT ot.curie, ot.name
+            FROM ontologyterm ot
+            JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+            JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+            JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
+            WHERE ot.ontologytermtype = 'ATPTerm'
+            AND UPPER(ot.name) LIKE :search_query
+            AND ot.obsolete = false
+            AND ancestor.curie = :topic_category_atp
+            AND s.subsets = :mod_abbr
+            ORDER BY LENGTH(ot.name)
+            LIMIT 10
+            """)
+    else:
+        sql_query = text("""
+        SELECT ot.curie, ot.name
+        FROM ontologyterm ot
+        JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+        JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+        WHERE ot.ontologytermtype = 'ATPTerm'
+        AND UPPER(ot.name) LIKE :search_query
+        AND ot.obsolete = false
+        AND ancestor.curie = :topic_category_atp
+        ORDER BY LENGTH(ot.name)
+        LIMIT 10
+        """)
     rows = db.execute(sql_query, {
         'search_query': search_query,
-        'topic_category_atp': topic_category_atp
+        'topic_category_atp': topic_category_atp,
+        'mod_abbr': f'{mod_abbr}_tag'
     }).fetchall()
 
     data = [
@@ -422,6 +439,50 @@ def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to
     name_to_atp = name_to_atp_init.copy()
     atp_to_children = atp_to_children_init.copy()
     atp_to_parent = atp_to_parent_init.copy()
+
+
+def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
+    """
+    Use the subsets in ontologyterm_subsets table to find the jobs to run.
+    """
+    if not atp_to_parent:
+        load_name_to_atp_and_relationships()
+    if name.startswith('ATP:'):
+        atp_parent_id = name
+    else:
+        needed_string = f"{name} needed"
+        if needed_string not in name_to_atp:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Exception: Could not find '{needed_string}' in ATP ontology names")
+        atp_parent_id = name_to_atp[needed_string]
+
+    # get list of all possible jobs.
+    if name.startswith('ATP:'):
+        jobs_list = [atp_parent_id]
+    else:
+        jobs_list = atp_to_children[atp_parent_id]
+
+    mod_tag = f'{mod_abbreviation}_tag'
+    # refine these to ones that are in the subset
+
+    sql_query_str = """
+      SELECT o.curie
+      FROM ontologyterm o, ontologyterm_subsets s
+      WHERE
+         o.id = s.ontologyterm_id AND
+         s.subsets = :mod_tag AND
+         o.curie in :jobs_list
+    """
+    query_params = {}
+    query_params['mod_tag'] = mod_tag
+    query_params['jobs_list'] = tuple(jobs_list,)  # type: ignore
+
+    db = create_ateam_db_session()
+    rows = db.execute(text(sql_query_str).bindparams(**query_params)).fetchall()
+    results = [atp_parent_id]
+    for row in rows:
+        results.append(row[0])
+    return results
 
 
 def load_name_to_atp_and_relationships(start_term='ATP:0000177'):

@@ -4,6 +4,7 @@ from agr_literature_service.api.models import (
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi import HTTPException, status
+from agr_literature_service.api.crud.ateam_db_helpers import get_jobs_to_run
 
 
 def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
@@ -48,13 +49,10 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                             detail=f"Method {checktype} not supported")
 
     if call_process:
-        # sanity check, should start with ATP
-        if not new_atp.startswith("ATP:"):
-            raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                                detail=f"Method proceed_on_value with second arg {new_atp} must start with ATP:")
-        #  Add new wft for this ref and mod
-        wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
-                               mod=current_workflow_tag_db_obj.mod,
-                               workflow_tag_id=new_atp)
-        db.add(wtm)
+        for atp in get_jobs_to_run(new_atp, current_workflow_tag_db_obj.mod.abbreviation):
+            #  Add new wft for this ref and mod
+            wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
+                                   mod=current_workflow_tag_db_obj.mod,
+                                   workflow_tag_id=atp)
+            db.add(wtm)
         db.commit()
