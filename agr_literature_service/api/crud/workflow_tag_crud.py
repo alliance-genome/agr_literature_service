@@ -15,7 +15,7 @@ from typing import Union, Optional, Dict
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
-    WorkflowTransitionModel, ModModel, ReferenceModel
+    WorkflowTransitionModel, ModModel, ReferenceModel, WorkflowTagTopicModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import (
     get_reference_id_from_curie_or_id,
@@ -120,11 +120,14 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                          WorkflowTagModel.reference_workflow_tag_id,
                          WorkflowTagModel.mod_id,
                          WorkflowTransitionModel.condition,
-                         ReferenceModel.curie)
+                         ReferenceModel.curie,
+                         WorkflowTagTopicModel.topic)
                 .join(WorkflowTransitionModel,
                       WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to)
                 .join(ReferenceModel,
                       WorkflowTagModel.reference_id == ReferenceModel.reference_id)
+                .outerjoin(WorkflowTagTopicModel,
+                      WorkflowTagModel.workflow_tag_id == WorkflowTagTopicModel.workflow_tag)
                 .filter(WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str))
                 .order_by(WorkflowTagModel.date_updated.desc()).limit(limit).offset(offset).all())
@@ -139,6 +142,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 new_job['reference_curie'] = wft.curie
                 new_job['reference_workflow_tag_id'] = wft.reference_workflow_tag_id
                 new_job['mod_id'] = wft.mod_id
+                new_job['topic_id'] = wft.topic
                 jobs.append(new_job)
     return jobs
 
