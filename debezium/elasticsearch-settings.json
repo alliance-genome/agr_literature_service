@@ -498,7 +498,7 @@
 	  "data_provider": {
 	    "type": "keyword",
             "normalizer": "sortNormalizer"
-          }
+          },
           "source_method": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
