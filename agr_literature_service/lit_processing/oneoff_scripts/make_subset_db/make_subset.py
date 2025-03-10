@@ -316,23 +316,23 @@ def add_sequence_data(db_subset_session):
         if max_val:
             print(f"setting max value to {max_val + 1} for {x[2]}")
             com = f"ALTER SEQUENCE {x[2]} RESTART WITH {max_val+1}"
-            db_subset_session.execute(com)
+            db_subset_session.execute(text(com))
         else:
             print(f"setting max value to 0 for {x[2]} as none found")
             com = f"ALTER SEQUENCE {x[2]} RESTART WITH 1"
-            db_subset_session.execute(com)
+            db_subset_session.execute(text(com))
 
 
 def add_alembic(db_orig_session, db_subset_session):
     # Add alembic_version
-    alembic_rows = db_orig_session.execute("SELECT version_num from alembic_version")
+    alembic_rows = db_orig_session.execute(text("SELECT version_num from alembic_version"))
     version = ''
     for alembic_row in alembic_rows:
         version = alembic_row[0]
     if not version:
         print("ERROR: Could not find version_num for alembic_version table")
     else:
-        db_subset_session.execute(f"INSERT into alembic_version (version_num) VALUES ('{version}');")
+        db_subset_session.execute(text(f"INSERT into alembic_version (version_num) VALUES ('{version}');"))
     db_subset_session.commit()
     db_subset_session.close()
 
@@ -340,7 +340,7 @@ def add_alembic(db_orig_session, db_subset_session):
 def trigger_settings(db_session, state="DISABLE"):
     global trigger_list
     for table in trigger_list:
-        db_session.execute(f'ALTER TABLE {table} {state} TRIGGER all;')
+        db_session.execute(text(f'ALTER TABLE {table} {state} TRIGGER all;'))
     db_session.commit()
 
 
@@ -423,7 +423,7 @@ def start():
     okay = True
     tables = ['reference', 'citation']  # add other tables?
     for table_name in tables:
-        count_rows = db_subset_session.execute(f"SELECT count(1) from {table_name}")
+        count_rows = db_subset_session.execute(text(f"SELECT count(1) from {table_name}"))
         count = 0
         for count_row in count_rows:
             count = count_row[0]
@@ -442,7 +442,7 @@ def start():
     add_sequence_data(db_subset_session)
 
     # for what ever reason need this:
-    db_subset_session.execute("REFRESH MATERIALIZED VIEW _view")
+    db_subset_session.execute(text("REFRESH MATERIALIZED VIEW _view"))
     db_subset_session.commit()
     if subset_dump:
         dump_subset()

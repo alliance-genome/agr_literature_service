@@ -23,6 +23,7 @@ from agr_literature_service.api.models.resource_model import ResourceModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel
+from agr_literature_service.api.models.workflow_tag_topic_model import WorkflowTagTopicModel
 from agr_literature_service.api.models.workflow_transition_model import WorkflowTransitionModel
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel
 from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
