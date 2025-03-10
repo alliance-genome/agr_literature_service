@@ -19,7 +19,7 @@ psycopg2-binary==2.9.8       # Updated for better compatibility with newer Postg
 passlib==1.7.4               # No update needed.
 bcrypt==3.2.2                # Updated for security.
 python-jose==3.3.0           # Updated for security.
-python-multipart==0.0.6      # Updated for bug fixes.
+python-multipart>=0.0.18     # updated for security fix/
 python-dotenv==1.0.0         # Updated for new features.
 
 # SQLAlchemy Utilities
