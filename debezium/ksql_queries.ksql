@@ -128,7 +128,7 @@ CREATE TABLE topic_entity_tag_source(
     topic_entity_tag_source_id string PRIMARY KEY,
     source_method string,
     source_evidence_assertion string,
-    data_providerL string
+    data_provider string
   ) WITH (
     KAFKA_TOPIC='abc.public.topic_entity_tag_source',
     VALUE_FORMAT='json',
