@@ -127,7 +127,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 .join(ReferenceModel,
                       WorkflowTagModel.reference_id == ReferenceModel.reference_id)
                 .outerjoin(WorkflowTagTopicModel,
-                      WorkflowTagModel.workflow_tag_id == WorkflowTagTopicModel.workflow_tag)
+                           WorkflowTagModel.workflow_tag_id == WorkflowTagTopicModel.workflow_tag)
                 .filter(WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str))
                 .order_by(WorkflowTagModel.date_updated.desc()).limit(limit).offset(offset).all())
