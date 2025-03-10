@@ -51,7 +51,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_data
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
-    get_current_workflow_status
+    get_current_workflow_status, is_file_upload_blocked
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
@@ -516,6 +516,26 @@ def show_changesets(db: Session, curie_or_reference_id: str):
         )
 
     return history
+
+
+def lock_status(db: Session, ref_curie):
+
+    refObj = get_reference(db=db, curie_or_reference_id=ref_curie)
+
+    mods = db.query(ModModel).join(ModCorpusAssociationModel). \
+        filter(ModCorpusAssociationModel.reference_id == refObj.reference_id,
+               ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
+    for mod in mods:
+        job_type = is_file_upload_blocked(db, refObj.curie, mod.abbreviation)
+        if job_type:
+            return {
+                "locked": True,
+                "message": f"The {job_type} for reference {refObj.curie} is currently being processed. Please wait until it is complete before merging the papers."
+            }
+    return {
+        "locked": False,
+        "message": "No lock."
+    }
 
 
 def merge_references(db: Session,
