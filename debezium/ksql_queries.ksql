@@ -563,11 +563,27 @@ CREATE TABLE reference_workflow_tag(
     KEY_FORMAT='json'
 );
 
+CREATE TABLE reference_workflow_tag_with_mod AS
+  SELECT
+    reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
+    reference_workflow_tag.reference_id,
+    reference_workflow_tag.workflow_tag_id,
+    mod.abbreviation AS mod_abbreviation,
+    reference_workflow_tag.created_by
+  FROM reference_workflow_tag
+  JOIN mod ON reference_workflow_tag.mod_id = mod.mod_id
+  EMIT CHANGES;
+  
 CREATE TABLE reference_workflow_tags AS
-    SELECT reference_workflow_tag.reference_id \"REFERENCE_ID\",
-    collect_list(map('workflow_tag_id':=workflow_tag_id)) \"WORKFLOW_TAGS\"
-    FROM reference_workflow_tag reference_workflow_tag
-    GROUP BY reference_workflow_tag.reference_id
+    SELECT reference_workflow_tag.reference_id AS REFERENCE_ID,
+      collect_list(
+	map(
+	  'workflow_tag_id' := workflow_tag_id,
+	  'mod_abbreviation' := mod_abbreviation
+        )
+      ) AS WORKFLOW_TAGS
+    FROM reference_workflow_tag_with_mod
+    GROUP BY reference_workflow_tag_with_mod.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_joined WITH (
