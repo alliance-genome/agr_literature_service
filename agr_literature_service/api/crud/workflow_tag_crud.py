@@ -659,6 +659,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
+    date_column = "wt.date_updated"  # default
     extract = ""
 
     if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
@@ -670,42 +671,24 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
-            if date_frequency is not None:
-                if date_frequency == 'year':
-                    extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year"
-                elif date_frequency == 'month':
-                    extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(MONTH FROM wt.date_updated) AS month"
-                elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(WEEK FROM wt.date_updated) AS week"
         elif date_option == 'reference_created':
+            date_column = "r.date_created"
             query += """
               JOIN reference r ON wt.reference_id = r.reference_id
               """
             where_clauses.append("r.date_created BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
-            if date_frequency is not None:
-                if date_frequency == 'year':
-                    extract = ", EXTRACT(YEAR FROM r.date_created) AS year"
-                elif date_frequency == 'month':
-                    extract = ", EXTRACT(YEAR FROM r.date_created) AS year, EXTRACT(MONTH FROM r.date_created) AS month"
-                elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM r.date_created) AS year, EXTRACT(WEEK FROM r.date_created) AS week"
         elif date_option == 'reference_published':
+            date_column = "r.date_published_start::DATE"
             query += """
                 JOIN reference r ON wt.reference_id = r.reference_id
                 """
             where_clauses.append("r.date_published_start BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
-            if date_frequency is not None:
-                if date_frequency == 'year':
-                    extract = ", EXTRACT(YEAR FROM r.date_published_start::DATE) AS year"
-                elif date_frequency == 'month':
-                    extract = ", EXTRACT(YEAR FROM r.date_published_start::DATE) AS year, EXTRACT(MONTH FROM r.date_published_start::DATE) AS month"
-                elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM r.date_published_start::DATE) AS year, EXTRACT(WEEK FROM r.date_published_start::DATE) AS week"
         elif date_option == 'inside_corpus':
+            date_column = "mca.date_updated"
             query += """
                 JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
                 AND mca.mod_id = m.mod_id
@@ -714,21 +697,13 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             where_clauses.append("mca.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
-            if date_frequency is not None:
-                if date_frequency == 'year':
-                    extract = ", EXTRACT(YEAR FROM mca.date_updated) AS year"
-                elif date_frequency == 'month':
-                    extract = ", EXTRACT(YEAR FROM mca.date_updated) AS year, EXTRACT(MONTH FROM mca.date_updated) AS month"
-                elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM mca.date_updated) AS year, EXTRACT(WEEK FROM mca.date_updated) AS week"
-    else:
-        if date_frequency is not None:
-            if date_frequency == 'year':
-                extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year"
-            elif date_frequency == 'month':
-                extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(MONTH FROM wt.date_updated) AS month"
-            elif date_frequency == 'week':
-                extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(WEEK FROM wt.date_updated) AS week"
+    if date_frequency is not None:
+        if date_frequency == 'year':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year"
+        elif date_frequency == 'month':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year, EXTRACT(MONTH FROM {date_column}) AS month"
+        elif date_frequency == 'week':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year, EXTRACT(WEEK FROM {date_column}) AS week"
 
     where = ""
     if where_clauses:
@@ -740,28 +715,27 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             GROUP BY m.abbreviation, wt.workflow_tag_id
             ORDER BY m.abbreviation, wt.workflow_tag_id
             """
-    else:
-        if date_frequency == 'year':
-            query += f"""
-                {extract}
-                {where}
-                GROUP BY m.abbreviation, wt.workflow_tag_id, year
-                ORDER BY m.abbreviation, wt.workflow_tag_id, year
-                """
-        elif date_frequency == 'month':
-            query += f"""
-                {extract}
-                {where}
-                GROUP BY m.abbreviation, wt.workflow_tag_id, year, month
-                ORDER BY m.abbreviation, wt.workflow_tag_id, year, month
-                """
-        elif date_frequency == 'week':
-            query += f"""
-                {extract}
-                {where}
-                GROUP BY m.abbreviation, wt.workflow_tag_id, year, week
-                ORDER BY m.abbreviation, wt.workflow_tag_id, year, week
-                """
+    elif date_frequency == 'year':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year
+            """
+    elif date_frequency == 'month':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year, month
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year, month
+            """
+    elif date_frequency == 'week':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year, week
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year, week
+            """
 
     try:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
