@@ -615,6 +615,11 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
 def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,  # noqa: C901
              date_option: str = None, date_range_start: str = None, date_range_end: str = None,
              date_frequency: str = None):  # pragma: no cover
+
+    if date_frequency not in ['year', 'month', 'week', None]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid date_frequency. Use 'year', 'month', 'week'.")
+
     all_WF_tags_for_process = None
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
@@ -633,11 +638,6 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     where_clauses = []
     params = {}
     query = "SELECT m.abbreviation, wt.workflow_tag_id,"
-    time_period_error = False
-    if date_frequency is not None:
-        if date_frequency not in ['year', 'month', 'week']:
-            date_frequency = None
-            time_period_error = True
     if date_frequency is not None:
         if date_frequency == 'year':
             query += """year, """
@@ -676,7 +676,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                 elif date_frequency == 'month':
                     extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(MONTH FROM wt.date_updated) AS month"
                 elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(MONTH FROM wt.date_updated) AS week"
+                    extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(WEEK FROM wt.date_updated) AS week"
         elif date_option == 'reference_created':
             query += """
               JOIN reference r ON wt.reference_id = r.reference_id
@@ -690,7 +690,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                 elif date_frequency == 'month':
                     extract = ", EXTRACT(YEAR FROM r.date_created) AS year, EXTRACT(MONTH FROM r.date_created) AS month"
                 elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM r.date_created) AS year, EXTRACT(MONTH FROM r.date_created) AS week"
+                    extract = ", EXTRACT(YEAR FROM r.date_created) AS year, EXTRACT(WEEK FROM r.date_created) AS week"
         elif date_option == 'reference_published':
             query += """
                 JOIN reference r ON wt.reference_id = r.reference_id
@@ -704,7 +704,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                 elif date_frequency == 'month':
                     extract = ", EXTRACT(YEAR FROM r.date_published_start::DATE) AS year, EXTRACT(MONTH FROM r.date_published_start::DATE) AS month"
                 elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM r.date_published_start::DATE) AS year, EXTRACT(MONTH FROM r.date_published_start::DATE) AS week"
+                    extract = ", EXTRACT(YEAR FROM r.date_published_start::DATE) AS year, EXTRACT(WEEK FROM r.date_published_start::DATE) AS week"
         elif date_option == 'inside_corpus':
             query += """
                 JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
@@ -720,7 +720,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                 elif date_frequency == 'month':
                     extract = ", EXTRACT(YEAR FROM mca.date_updated) AS year, EXTRACT(MONTH FROM mca.date_updated) AS month"
                 elif date_frequency == 'week':
-                    extract = ", EXTRACT(YEAR FROM mca.date_updated) AS year, EXTRACT(MONTH FROM mca.date_updated) AS week"
+                    extract = ", EXTRACT(YEAR FROM mca.date_updated) AS year, EXTRACT(WEEK FROM mca.date_updated) AS week"
     else:
         if date_frequency is not None:
             if date_frequency == 'year':
@@ -728,7 +728,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             elif date_frequency == 'month':
                 extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(MONTH FROM wt.date_updated) AS month"
             elif date_frequency == 'week':
-                extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(MONTH FROM wt.date_updated) AS week"
+                extract = ", EXTRACT(YEAR FROM wt.date_updated) AS year, EXTRACT(WEEK FROM wt.date_updated) AS week"
 
     where = ""
     if where_clauses:
@@ -784,8 +784,6 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
                 time_period = str(int(x_dict['year']))
             if 'week' in x_dict:
                 time_period += " week " + str(int(x_dict['week']))
-        elif time_period_error:
-            time_period = "invalid date frequency, use: year, month, week"
         data.append({
             "mod_abbreviation": x_dict['abbreviation'],
             "workflow_tag_id": x_dict['workflow_tag_id'],
