@@ -41,7 +41,9 @@ CREATE TABLE cross_reference (
     is_obsolete boolean
   ) WITH (
     KAFKA_TOPIC='abc.public.cross_reference',
-    VALUE_FORMAT='json'
+    VALUE_FORMAT='json',
+    KEY_FORMAT='KAFKA',
+    PARTITIONS=2
   );
 
 CREATE TABLE author (
