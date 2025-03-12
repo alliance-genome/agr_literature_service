@@ -190,7 +190,7 @@ CREATE TABLE topic_entity_tag_with_source AS
 
 CREATE TABLE topic_entity_tags AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'novel_topic_data':=cast(novel_topic_data as string), 'data_provider':data_provider, 'source_method':=source_method, 'source_evidence_assertion':=source_evidence_assertion)) \"TOPIC_ENTITY_TAGS\"
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'novel_topic_data':=cast(novel_topic_data as string), 'data_provider':=data_provider, 'source_method':=source_method, 'source_evidence_assertion':=source_evidence_assertion)) \"TOPIC_ENTITY_TAGS\"
     FROM topic_entity_tag_with_source
     GROUP BY reference_id
     EMIT CHANGES;
