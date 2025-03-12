@@ -616,8 +616,14 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
     return history
 
 
-def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,
-             date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
+def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,  # noqa: C901
+             date_option: str = None, date_range_start: str = None, date_range_end: str = None,
+             date_frequency: str = None):  # pragma: no cover
+
+    if date_frequency not in ['year', 'month', 'week', None]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid date_frequency. Use 'year', 'month', 'week'.")
+
     all_WF_tags_for_process = None
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
@@ -630,10 +636,22 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=atp_curies)
+
+    month_abbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
     where_clauses = []
     params = {}
-    query = """
-        SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
+    query = "SELECT m.abbreviation, wt.workflow_tag_id,"
+    if date_frequency is not None:
+        if date_frequency == 'year':
+            query += """year, """
+        elif date_frequency == 'month':
+            query += """year, month, """
+        elif date_frequency == 'week':
+            query += """year, week, """
+
+    query += """
+        COUNT(*) AS tag_count
         FROM mod m
         JOIN workflow_tag wt ON m.mod_id = wt.mod_id
         """
@@ -645,6 +663,9 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
+    date_column = "wt.date_updated"  # default
+    extract = ""
+
     if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
         if isinstance(date_range_end, str):
             date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
@@ -655,6 +676,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'reference_created':
+            date_column = "r.date_created"
             query += """
               JOIN reference r ON wt.reference_id = r.reference_id
               """
@@ -662,6 +684,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'reference_published':
+            date_column = "r.date_published_start::DATE"
             query += """
                 JOIN reference r ON wt.reference_id = r.reference_id
                 """
@@ -669,6 +692,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'inside_corpus':
+            date_column = "mca.date_updated"
             query += """
                 JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
                 AND mca.mod_id = m.mod_id
@@ -677,16 +701,45 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             where_clauses.append("mca.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
+    if date_frequency is not None:
+        if date_frequency == 'year':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year"
+        elif date_frequency == 'month':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year, EXTRACT(MONTH FROM {date_column}) AS month"
+        elif date_frequency == 'week':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year, EXTRACT(WEEK FROM {date_column}) AS week"
 
     where = ""
     if where_clauses:
         where = "WHERE " + " AND ".join(where_clauses)
 
-    query += f"""
-        {where}
-        GROUP BY m.abbreviation, wt.workflow_tag_id
-        ORDER BY m.abbreviation, wt.workflow_tag_id
-        """
+    if date_frequency is None:
+        query += f"""
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id
+            ORDER BY m.abbreviation, wt.workflow_tag_id
+            """
+    elif date_frequency == 'year':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year
+            """
+    elif date_frequency == 'month':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year, month
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year, month
+            """
+    elif date_frequency == 'week':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year, week
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year, week
+            """
 
     try:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
@@ -695,11 +748,26 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     data = []
     for x in rows:
         x_dict = dict(x)
+        time_period = ""
+        if date_frequency == 'year':
+            if 'year' in x_dict:
+                time_period = str(int(x_dict['year']))
+        elif date_frequency == 'month':
+            if 'year' in x_dict:
+                time_period = str(int(x_dict['year']))
+            if 'month' in x_dict:
+                time_period += " " + month_abbreviations[int(x_dict['month']) - 1]
+        elif date_frequency == 'week':
+            if 'year' in x_dict:
+                time_period = str(int(x_dict['year']))
+            if 'week' in x_dict:
+                time_period += " week " + str(int(x_dict['week']))
         data.append({
             "mod_abbreviation": x_dict['abbreviation'],
             "workflow_tag_id": x_dict['workflow_tag_id'],
             "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
-            "tag_count": x_dict['tag_count']
+            "tag_count": x_dict['tag_count'],
+            "time_period": time_period
         })
     # append the total if mod_abbreviation is None
     if not mod_abbreviation:
