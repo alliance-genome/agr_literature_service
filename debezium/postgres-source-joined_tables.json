@@ -11,7 +11,7 @@
     "database.password": "${PSQL_PASSWORD}",
     "database.dbname" : "${PSQL_DATABASE}",
     "database.server.name": "abc",
-    "table.include.list": "public.cross_reference,public.author,public.mod_corpus_association,public.obsolete_reference_curie,public.reference_mod_referencetype,public.topic_entity_tag, public.workflow_tag",
+    "table.include.list": "public.cross_reference,public.author,public.mod_corpus_association,public.obsolete_reference_curie,public.reference_mod_referencetype,public.topic_entity_tag, public.workflow_tag, public.mod",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
     "poll.interval.ms": "100",
