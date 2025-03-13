@@ -575,7 +575,7 @@ CREATE TABLE reference_workflow_tag_with_mod AS
         ON reference_workflow_tag.mod_id = mod.mod_id;
 
 CREATE TABLE reference_workflow_tags AS
-    SELECT reference_workflow_tag.reference_id \"REFERENCE_ID\",
+    SELECT reference_workflow_tag_with_mod.reference_id \"REFERENCE_ID\",
     collect_list(map('workflow_tag_id':=workflow_tag_id, 'mod_abbreviation':= mod_abbreviation)) \"WORKFLOW_TAGS\"
     FROM reference_workflow_tag_with_mod
     GROUP BY reference_workflow_tag_with_mod.reference_id
