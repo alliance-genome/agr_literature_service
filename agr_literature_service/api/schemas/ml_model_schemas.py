@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 
 from pydantic import BaseModel
 
@@ -7,14 +7,14 @@ class MLModelSchemaBase(BaseModel):
 
     task_type: str
     mod_abbreviation: str
-    topic: str
+    topic: Union[str, None]
     version_num: Union[int, None]
     model_type: str
     file_extension: str
-    precision: float
-    recall: float
-    f1_score: float
-    parameters: str
+    precision: Union[float, None]
+    recall: Union[float, None]
+    f1_score: Union[float, None]
+    parameters: Union[str, None]
     dataset_id: Union[int, None]
 
 

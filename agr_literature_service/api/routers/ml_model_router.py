@@ -44,7 +44,7 @@ def upload_model(
         user: OktaUser = db_user,
         db: Session = db_session):
     model_data = None
-    if task_type and mod_abbreviation and topic and version_num:
+    if task_type and mod_abbreviation:
         model_data = {
             "task_type": task_type,
             "mod_abbreviation": mod_abbreviation,
