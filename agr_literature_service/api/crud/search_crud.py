@@ -437,6 +437,9 @@ def process_search_results(res):  # pragma: no cover
     add_curie_to_name_values(source_evidence_assertions)
 
     workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})
+
+    print("HELLO: workflow_tags_agg=", workflow_tags_agg)
+    
     add_curie_to_name_values(workflow_tags_agg)
 
     atp_ids = {
@@ -445,8 +448,7 @@ def process_search_results(res):  # pragma: no cover
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
         "manual_indexing": get_atp_ids(manual_indexing_root_ids)
     }
-    
-    
+        
     bucket_lookup = {bucket["key"].upper(): bucket for bucket in workflow_tags_agg.get("buckets", [])}
     grouped_workflow_tags = {category: [] for category in atp_ids}
     for category, id_list in atp_ids.items():
@@ -456,6 +458,7 @@ def process_search_results(res):  # pragma: no cover
                 grouped_workflow_tags[category].append(bucket_lookup[expected_upper])
 
     # convert to the required format (like 'topics')
+    """
     for category, buckets in grouped_workflow_tags.items():
         filtered_buckets = [b for b in buckets if b["doc_count"] > 0]
         sorted_buckets = sorted(filtered_buckets, key=lambda x: x["doc_count"], reverse=True)
@@ -466,6 +469,30 @@ def process_search_results(res):  # pragma: no cover
                 {
                     "key": bucket["key"],
                     "doc_count": bucket["doc_count"],
+                    "name": bucket.get("name", bucket["key"])
+                }
+                for bucket in sorted_buckets
+            ]
+        }
+    """
+    for category, buckets in grouped_workflow_tags.items():
+        # If a reverse_nested "docs_count" exists, use it; otherwise fallback to bucket["doc_count"].
+        filtered_buckets = [
+            b for b in buckets
+            if b.get("docs_count", {}).get("doc_count", b["doc_count"]) > 0
+        ]
+        sorted_buckets = sorted(
+            filtered_buckets,
+            key=lambda x: x.get("docs_count", {}).get("doc_count", x["doc_count"]),
+            reverse=True
+        )
+        res['aggregations'][category] = {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+                {
+                    "key": bucket["key"],
+                    "doc_count": bucket.get("docs_count", {}).get("doc_count", bucket["doc_count"]),
                     "name": bucket.get("name", bucket["key"])
                 }
                 for bucket in sorted_buckets
