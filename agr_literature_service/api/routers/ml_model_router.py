@@ -100,9 +100,12 @@ def destroy(ml_model_id: int,
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}',
             response_model=MLModelSchemaShow,
             status_code=200)
+@router.get('/metadata/{task_type}/{mod_abbreviation}',
+            response_model=MLModelSchemaShow,
+            status_code=200)
 def get_model_metadata(task_type: str,
                        mod_abbreviation: str,
-                       topic: str,
+                       topic: str = None,
                        version_num: int = None,
                        db: Session = db_session):
     return ml_model_crud.get_model_metadata(db, task_type, mod_abbreviation, topic, version_num)

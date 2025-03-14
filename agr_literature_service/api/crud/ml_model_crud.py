@@ -104,7 +104,7 @@ def get_mod(db: Session, mod_abbreviation: str):
     return mod
 
 
-def get_model(db: Session, task_type: str, mod_id: int, topic: str, version_num: int = None):
+def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version_num: int = None):
     query = db.query(MLModel).filter(
         MLModel.task_type == task_type,
         MLModel.mod_id == mod_id,
@@ -138,7 +138,7 @@ def get_model_schema_from_orm(model: MLModel):
     return MLModelSchemaShow(**model_data)
 
 
-def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
+def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
     return get_model_schema_from_orm(model)
