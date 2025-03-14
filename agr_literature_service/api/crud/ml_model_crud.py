@@ -144,7 +144,7 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
     return get_model_schema_from_orm(model)
 
 
-def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
+def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
