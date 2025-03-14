@@ -342,9 +342,28 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
             if facet_field in WORKFLOW_FACETS:
-                es_body["query"]["bool"]["filter"]["bool"]["must"].append({
-                    "terms": {f"workflow_tags.workflow_tag_id.keyword": facet_list_values}
-                })
+                mod_value = facets_values.get("workflow_tags.mod_abbreviation", None)
+                if isinstance(mod_value, list):
+                    mod_value = mod_value[0]
+                if not mod_value:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Missing workflow_tags.mod_abbreviation filter for workflow tags search"
+                    )
+                nested_query = {
+                    "nested": {
+                        "path": "workflow_tags",
+                        "query": {
+                            "bool": {
+                                "must": [
+                                    {"term": {"workflow_tags.mod_abbreviation.keyword": mod_value}},
+                                    {"terms": {"workflow_tags.workflow_tag_id.keyword": facet_list_values}}
+                                ]
+                            }
+                        }
+                    }
+                }
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
             else:
                 # Standard facet application
                 es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
@@ -401,7 +420,7 @@ def process_search_results(res):  # pragma: no cover
         "authors": ref["_source"]["authors"],
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
-
+    
     # process aggregations
     topics = extract_tet_aggregation_data(res, 'topic_aggregation','topics')
     confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation', 'confidence_levels')
@@ -417,7 +436,7 @@ def process_search_results(res):  # pragma: no cover
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
 
-    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})    
+    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})
     add_curie_to_name_values(workflow_tags_agg)
 
     atp_ids = {
@@ -498,6 +517,13 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
     
 def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
 
+    mod_value = facet_name_values_dict.get("topic_entity_tags.data_provider.keyword")
+    if not mod_value or not isinstance(mod_value, str):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing data_provider filter for topic_entity_tags search"
+        )
+    
     must_conditions = [{"term": {facet_name: facet_values}} for facet_name, facet_values in
                        facet_name_values_dict.items()]
     
