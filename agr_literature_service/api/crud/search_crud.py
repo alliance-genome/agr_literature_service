@@ -4,7 +4,6 @@ import logging
 from datetime import datetime
 # from os import getcwd
 
-
 from elasticsearch import Elasticsearch
 from agr_literature_service.api.config import config
 
@@ -20,108 +19,70 @@ reference_classification_root_ids = ["ATP:0000165"]
 entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
 
-
 def date_str_to_micro_seconds(date_str: str, start: bool):
-    # convert string to Datetime int that is stored in Elastic search
-    # initial strings are in the format:- "2010-10-28T04:00:00.000"
-    # So just grab chars before T and converts to seconds after epoch
-    # then mulitply by 1000000 and convert to int.
+    # convert string to Datetime int that is stored in Elasticsearch.
+    # Initial strings are in the format "2010-10-28T04:00:00.000"
+    # so we grab chars before 'T' and convert to seconds since epoch,
+    # then multiply by 1000000 and convert to int.
     date_time = datetime.fromisoformat(date_str)
     if start:
-        return_date= date_time.replace(hour=0,minute=0)
+        return_date = date_time.replace(hour=0, minute=0)
     else:
         return_date = date_time.replace(hour=23, minute=59)
-
     return int(return_date.timestamp() * 1000000)
-
 
 def search_date_range(es_body,
                       date_pubmed_modified: Optional[List[str]] = None,
                       date_pubmed_arrive: Optional[List[str]] = None,
                       date_published: Optional[List[str]] = None,
                       date_created: Optional[List[str]] = None):
-    # date_pubmed_X is split to just get the date and remove the time element
-    # as elastic search does a tr comparison and if the end date has the time
-    # element stil in it fails even if the date bits match as the string is longer.
+    # Remove time portion so that date comparisons succeed.
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
     if date_pubmed_modified:
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-            {
-                "range": {
-                    "date_last_modified_in_pubmed": {
-                        "gte": date_pubmed_modified[0],
-                        "lte": date_pubmed_modified[1]
-                    }
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+            "range": {
+                "date_last_modified_in_pubmed": {
+                    "gte": date_pubmed_modified[0],
+                    "lte": date_pubmed_modified[1]
                 }
-            })
+            }
+        })
     if date_pubmed_arrive:
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-            {
-                "range": {
-                    "date_arrived_in_pubmed": {
-                        "gte": date_pubmed_arrive[0],
-                        "lte": date_pubmed_arrive[1]
-                    }
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+            "range": {
+                "date_arrived_in_pubmed": {
+                    "gte": date_pubmed_arrive[0],
+                    "lte": date_pubmed_arrive[1]
                 }
-            })
+            }
+        })
     if date_created:
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-            {
-                "range": {
-                    "date_created": {
-                        "gte": date_str_to_micro_seconds(date_created[0],True),
-                        "lte": date_str_to_micro_seconds(date_created[1], False)
-                    }
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+            "range": {
+                "date_created": {
+                    "gte": date_str_to_micro_seconds(date_created[0], True),
+                    "lte": date_str_to_micro_seconds(date_created[1], False)
                 }
-            })
+            }
+        })
     if date_published:
         start = date_published[0]
         end = date_published[1]
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-            {
-                "bool": {
-                    "should": [
-                        {
-                            "range": {
-                                "date_published_end": {
-                                    "gte": start,
-                                    "lte": end
-                                }
-                            }
-                        },
-                        {
-                            "range": {
-                                "date_published_start": {
-                                    "lte": start,
-                                    "gte": end
-                                }
-                            }
-                        },
-                        {
-                            "bool": {
-                                "must": [
-                                    {
-                                        "range": {
-                                            "date_published_start": {
-                                                "lte": start
-                                            }
-                                        }
-                                    },
-                                    {
-                                        "range": {
-                                            "date_published_end": {
-                                                "gte": end
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    ]
-                }
-            })
-
+        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+            "bool": {
+                "should": [
+                    {"range": {"date_published_end": {"gte": start, "lte": end}}},
+                    {"range": {"date_published_start": {"lte": start, "gte": end}}},
+                    {"bool": {
+                        "must": [
+                            {"range": {"date_published_start": {"lte": start}}},
+                            {"range": {"date_published_end": {"gte": end}}}
+                        ]
+                    }}
+                ]
+            }
+        })
 
 # flake8: noqa: C901
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None, negated_facets_values: Dict[str, List[str]] = None,
@@ -144,7 +105,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if page is None:
         page = 1
 
-    from_entry = (page-1) * size_result_count
+    from_entry = (page - 1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
     es_body: Dict[str, Any] = {
@@ -152,9 +113,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             "bool": {
                 "must": [],
                 "should": [],
-                "filter": {
-                    "bool": {}
-                }
+                "filter": {"bool": {}}
             }
         },
         "fields": ["language.keyword"],
@@ -227,11 +186,24 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "size": facets_limits.get("authors.name.keyword", 10)
                 }
             },
-            "workflow_tags.workflow_tag_id.keyword": {
-                "terms": {
-                    "field": "workflow_tags.workflow_tag_id.keyword",
-                    "min_doc_count": 0,
-                    "size": 100
+            # Define workflow_tags as a nested aggregation.
+            "workflow_tags": {
+                "nested": {
+                    "path": "workflow_tags"
+                },
+                "aggs": {
+                    "workflow_tag_ids": {
+                        "terms": {
+                            "field": "workflow_tags.workflow_tag_id.keyword",
+                            "min_doc_count": 0,
+                            "size": 100
+                        },
+                        "aggs": {
+                            "reverse_docs": {
+                                "reverse_nested": {}
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -239,12 +211,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "size": size_result_count,
         "track_total_hits": True,
         "sort": [
-            {
-                "date_published_start": {
-                    "order": sort_by_published_date_order,
-                    "missing": "_last"
-                }
-            }
+            {"date_published_start": {"order": sort_by_published_date_order, "missing": "_last"}}
         ]
     }
     if sort_by_published_date_order not in ["desc", "asc"]:
@@ -265,76 +232,53 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
             "bool": {
-                "should":
-                    [
-                        {
-                            "simple_query_string": {
-                                "fields": [
-                                    "title",
-                                    "keywords",
-                                    "abstract",
-                                    "citation"
-                                ],
-                                "query": query + "*" if partial_match else query,
-                                "analyze_wildcard": "true",
-                                "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
-                            }
-                        },
-                        {
-                            "match": {
-                                "authors.name": {
-                                    "query": query.lower(),
-                                    "analyzer": "authorNameAnalyzer"
-                                }
-                            }
-                        },
-                        {
-                            "wildcard" : {
-                                "curie.keyword": "*" + query
-                            }
-                        },
-                        {
-                            "wildcard": {
-                                "cross_references.curie.keyword": "*" + query
+                "should": [
+                    {
+                        "simple_query_string": {
+                            "fields": ["title", "keywords", "abstract", "citation"],
+                            "query": query + "*" if partial_match else query,
+                            "analyze_wildcard": "true",
+                            "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                        }
+                    },
+                    {
+                        "match": {
+                            "authors.name": {
+                                "query": query.lower(),
+                                "analyzer": "authorNameAnalyzer"
                             }
                         }
-                    ]
+                    },
+                    {"wildcard": {"curie.keyword": "*" + query}},
+                    {"wildcard": {"cross_references.curie.keyword": "*" + query}}
+                ]
             }
         })
-    elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword" or query_fields == "Citation"):
+    elif query and query_fields in ["Title", "Abstract", "Keyword", "Citation"]:
         if query_fields == "Title":
-                es_field = "title"
+            es_field = "title"
         elif query_fields == "Abstract":
-                es_field = "abstract"
-        elif query_fields =="Keyword":
-                es_field = "keywords"
-        elif query_fields =="Citation":
-                es_field = "citation"
-        es_body["query"]["bool"]["must"].append(
-            {
-                "simple_query_string":{
-                    "fields":[
-                        es_field,
-                    ],
-                    "query" : query + "*" if partial_match else query,
-                    "analyze_wildcard": "true",
-                    "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
-                }
-            })
+            es_field = "abstract"
+        elif query_fields == "Keyword":
+            es_field = "keywords"
+        elif query_fields == "Citation":
+            es_field = "citation"
+        es_body["query"]["bool"]["must"].append({
+            "simple_query_string": {
+                "fields": [es_field],
+                "query": query + "*" if partial_match else query,
+                "analyze_wildcard": "true",
+                "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+            }
+        })
     elif query and query_fields == "Curie":
-        es_body["query"]["bool"]["must"].append(
-            {
-                "wildcard" : {
-                    "curie.keyword": "*" + query
-                }
-            })
+        es_body["query"]["bool"]["must"].append({
+            "wildcard": {"curie.keyword": "*" + query}
+        })
     elif query and query_fields == "Xref":
-        es_body["query"]["bool"]["must"].append(
-            {
-                "wildcard": {
-                    "cross_references.curie.keyword": "*" + query
-                }
-            })
+        es_body["query"]["bool"]["must"].append({
+            "wildcard": {"cross_references.curie.keyword": "*" + query}
+        })
 
     WORKFLOW_FACETS = ["file_workflow", "manual_indexing", "entity_extraction", "reference_classification"]
     if facets_values:
@@ -342,6 +286,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
             if facet_field in WORKFLOW_FACETS:
+                # Build a nested query filtering on workflow_tags.mod_abbreviation and the workflow_tag_ids.
                 mod_value = facets_values.get("workflow_tags.mod_abbreviation", None)
                 if isinstance(mod_value, list):
                     mod_value = mod_value[0]
@@ -365,7 +310,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
                 es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
             else:
-                # Standard facet application
+                # Standard facet application.
                 es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
                 for facet_value in facet_list_values:
                     es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
@@ -387,7 +332,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
-        # es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
         author_filter_query = {
             "match": {
                 "authors.name": {
@@ -400,7 +344,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res)
     return formatted_results
-
 
 def process_search_results(res):  # pragma: no cover
 
@@ -420,70 +363,55 @@ def process_search_results(res):  # pragma: no cover
         "authors": ref["_source"]["authors"],
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
-    
-    # process aggregations
-    topics = extract_tet_aggregation_data(res, 'topic_aggregation','topics')
+
+    # Process topic/entity tag aggregations.
+    topics = extract_tet_aggregation_data(res, 'topic_aggregation', 'topics')
     confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation', 'confidence_levels')
     source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation', 'source_methods')
-    source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
-                                                              'source_evidence_assertions')
+    source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation', 'source_evidence_assertions')
 
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
     res['aggregations'].pop('source_method_aggregation', None)
     res['aggregations'].pop('source_evidence_assertion_aggregation', None)
-
+    
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
 
-    workflow_tags_agg = res['aggregations'].get("workflow_tags.workflow_tag_id.keyword", {})
+    # Process workflow tags using the nested aggregation.
+    workflow_tags_nested = res['aggregations'].get("workflow_tags", {})
+    workflow_tag_buckets = workflow_tags_nested.get("workflow_tag_ids", {}).get("buckets", [])
 
-    print("HELLO: workflow_tags_agg=", workflow_tags_agg)
+    print("HELLO: workflow_tags_nested=", workflow_tags_nested)
+    print("HELLO: workflow_tag_buckets=", workflow_tag_buckets)
     
-    add_curie_to_name_values(workflow_tags_agg)
+    # Add curie names to workflow tag buckets.
+    add_curie_to_name_values({"buckets": workflow_tag_buckets})
 
+    print("AFTER - HELLO: workflow_tag_buckets=", workflow_tag_buckets)
     atp_ids = {
         "file_workflow": get_atp_ids(file_workflow_root_ids),
         "reference_classification": get_atp_ids(reference_classification_root_ids),
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
         "manual_indexing": get_atp_ids(manual_indexing_root_ids)
     }
-        
-    bucket_lookup = {bucket["key"].upper(): bucket for bucket in workflow_tags_agg.get("buckets", [])}
+    bucket_lookup = {bucket["key"].upper(): bucket for bucket in workflow_tag_buckets}
     grouped_workflow_tags = {category: [] for category in atp_ids}
     for category, id_list in atp_ids.items():
         for expected_id in id_list:
             expected_upper = expected_id.upper()
             if expected_upper in bucket_lookup:
                 grouped_workflow_tags[category].append(bucket_lookup[expected_upper])
-
-    # convert to the required format (like 'topics')
-    """
+    
+    # Convert grouped workflow tag buckets to final format using reverse_nested count if available.
     for category, buckets in grouped_workflow_tags.items():
-        filtered_buckets = [b for b in buckets if b["doc_count"] > 0]
-        sorted_buckets = sorted(filtered_buckets, key=lambda x: x["doc_count"], reverse=True)
-        res['aggregations'][category] = {
-            "doc_count_error_upper_bound": 0,
-            "sum_other_doc_count": 0,
-            "buckets": [
-                {
-                    "key": bucket["key"],
-                    "doc_count": bucket["doc_count"],
-                    "name": bucket.get("name", bucket["key"])
-                }
-                for bucket in sorted_buckets
-            ]
-        }
-    """
-    for category, buckets in grouped_workflow_tags.items():
-        # If a reverse_nested "docs_count" exists, use it; otherwise fallback to bucket["doc_count"].
         filtered_buckets = [
             b for b in buckets
-            if b.get("docs_count", {}).get("doc_count", b["doc_count"]) > 0
+            if b.get("reverse_docs", {}).get("doc_count", b["doc_count"]) > 0
         ]
         sorted_buckets = sorted(
             filtered_buckets,
-            key=lambda x: x.get("docs_count", {}).get("doc_count", x["doc_count"]),
+            key=lambda x: x.get("reverse_docs", {}).get("doc_count", x["doc_count"]),
             reverse=True
         )
         res['aggregations'][category] = {
@@ -492,45 +420,39 @@ def process_search_results(res):  # pragma: no cover
             "buckets": [
                 {
                     "key": bucket["key"],
-                    "doc_count": bucket.get("docs_count", {}).get("doc_count", bucket["doc_count"]),
+                    "doc_count": bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"]),
                     "name": bucket.get("name", bucket["key"])
                 }
                 for bucket in sorted_buckets
             ]
         }
 
-    # remove the old "workflow_tags" aggregation key.
-    res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
+    # Remove the old workflow_tags aggregation.
+    res['aggregations'].pop("workflow_tags", None)
             
     res['aggregations']['topics'] = topics
     res['aggregations']['confidence_levels'] = confidence_levels
     res['aggregations']['source_methods'] = source_methods
     res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
 
-    # print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
-    
     return {
         "hits": hits,
         "aggregations": res['aggregations'],
         "return_count": res["hits"]["total"]["value"]
     }
 
-
 def remap_highlights(highlights):  # pragma: no cover
-
     remapped = {}
     for key, value in highlights.items():
         new_key = key.replace('authors.name', 'authors')
         remapped[new_key] = value
     return remapped
 
-
 def extract_tet_aggregation_data(res: Dict[str, Any], main_key: str, data_key: str) -> Dict[str, Any]:
     main_agg = res['aggregations'].get(main_key, {})
     if main_agg.get('filter_by_other_tet_values'):
         return main_agg.get('filter_by_other_tet_values', {}).get(data_key, {})
     return main_agg.get(data_key, {})
-
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
@@ -541,19 +463,14 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
                 tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")] = facet_value
     return tet_facet_values
 
-    
 def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
-
     mod_value = facet_name_values_dict.get("topic_entity_tags.data_provider.keyword")
     if not mod_value or not isinstance(mod_value, str):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Missing data_provider filter for topic_entity_tags search"
         )
-    
-    must_conditions = [{"term": {facet_name: facet_values}} for facet_name, facet_values in
-                       facet_name_values_dict.items()]
-    
+    must_conditions = [{"term": {facet_name: facet_values}} for facet_name, facet_values in facet_name_values_dict.items()]
     nested_query = {
         "nested": {
             "path": "topic_entity_tags",
@@ -566,9 +483,7 @@ def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
     }
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
-
 def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):  # pragma: no cover
-
     tet_agg = {
         "nested": {
             "path": path
@@ -592,7 +507,6 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                             "size": size
                         },
                         "aggs": {
-                            # reverse nesting to count documents
                             "docs_count": {
                                 "reverse_nested": {}
                             }
@@ -609,7 +523,6 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                     "size": size
                 },
                 "aggs": {
-                    # reverse nesting to count documents
                     "docs_count": {
                         "reverse_nested": {}
                     }
@@ -618,9 +531,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
         }
     return tet_agg
 
-    
 def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # pragma: no cover
-
     es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
         path="topic_entity_tags",
         tet_facets=tet_facets,
@@ -647,12 +558,10 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # prag
         tet_facets=tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion.keyword",
         term_key="source_evidence_assertions",
-        size=facets_limits.get("source_evidence_assertions", 10) 
+        size=facets_limits.get("source_evidence_assertions", 10)
     )
 
-
 def ensure_structure(es_body):
-
     if "query" not in es_body:
         es_body["query"] = {}
     if "bool" not in es_body["query"]:
@@ -662,12 +571,8 @@ def ensure_structure(es_body):
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
         es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
-
 def add_curie_to_name_values(aggregations):
-
-    curie_keys = [
-        bucket["key"] for bucket in aggregations.get("buckets", [])
-    ]
+    curie_keys = [bucket["key"] for bucket in aggregations.get("buckets", [])]
     curie_to_name_map = get_map_ateam_curies_to_names(
         category="atpterm",
         curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ATP:")]
@@ -676,15 +581,9 @@ def add_curie_to_name_values(aggregations):
         category="ecoterm",
         curies=[curie_key.upper() for curie_key in curie_keys if curie_key.upper().startswith("ECO:")]
     ))
-
-    # iterate over the buckets and add names
     for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
         bucket["name"] = curie_name
 
-
 def get_atp_ids(root_atp_ids):
     return [child for root_atp_id in root_atp_ids for child in atp_get_all_descendents(root_atp_id)]
-
-    
-
