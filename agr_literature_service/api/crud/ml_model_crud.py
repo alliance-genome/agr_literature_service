@@ -147,6 +147,7 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
 def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
+    topic = topic if topic is not None else "None"
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
     object_key = f"{folder}/{str(model.version_num)}.gz"
     file_name_gzipped = f"{str(model.version_num)}.gz"
