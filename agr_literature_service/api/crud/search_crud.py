@@ -240,15 +240,24 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "path": "workflow_tags"
                 },
                 "aggs": {
-                    "workflow_tag_ids": {
+                    "by_mod_abbreviation": {
                         "terms": {
-                            "field": "workflow_tags.workflow_tag_id.keyword",
+                            "field": "workflow_tags.mod_abbreviation",
                             "min_doc_count": 0,
                             "size": 100
                         },
                         "aggs": {
-                            "reverse_docs": {
-                                "reverse_nested": {}
+                            "workflow_tag_ids": {
+                                "terms": {
+                                    "field": "workflow_tags.workflow_tag_id.keyword",
+                                    "min_doc_count": 0,
+                                    "size": 100
+                                },
+                                "aggs": {
+                                    "reverse_docs": {
+                                        "reverse_nested": {}
+                                    }
+                                }
                             }
                         }
                     }
@@ -281,7 +290,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-        return process_search_results(res)
+        return process_search_results(res, wft_mod_abbreviation, tet_data_provider)
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
             "bool": {
@@ -411,11 +420,11 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         }
         es_body["query"]["bool"]["must"].append(author_filter_query)
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-    formatted_results = process_search_results(res)
+    formatted_results = process_search_results(res, wft_mod_abbreviation, tet_data_provider)
     return formatted_results
 
 
-def process_search_results(res):  # pragma: no cover
+def process_search_results(res, wft_mod_abbreviation, tet_data_provider):  # pragma: no cover
 
     hits = [{
         "curie": ref["_source"]["curie"],
@@ -440,7 +449,6 @@ def process_search_results(res):  # pragma: no cover
     source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation', 'source_methods')
     source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
                                                               'source_evidence_assertions')
-
     res['aggregations'].pop('topic_aggregation', None)
     res['aggregations'].pop('confidence_aggregation', None)
     res['aggregations'].pop('source_method_aggregation', None)
@@ -448,16 +456,26 @@ def process_search_results(res):  # pragma: no cover
 
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
+    
+    res['aggregations']['topics'] = topics
+    res['aggregations']['confidence_levels'] = confidence_levels
+    res['aggregations']['source_methods'] = source_methods
+    res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
 
     # Process workflow tags using the nested aggregation.
     workflow_tags_nested = res['aggregations'].get("workflow_tags", {})
-    workflow_tag_buckets = workflow_tags_nested.get("workflow_tag_ids", {}).get("buckets", [])
+    mod_buckets = workflow_tags_nested.get("by_mod_abbreviation", {}).get("buckets", [])
+
+    # Build a mapping of mod abbreviation to its tag buckets.
+    # We use uppercase keys for tags for case-insensitive matching.
+    mod_bucket_lookup = {}
+    for mod_bucket in mod_buckets:
+        mod_key = mod_bucket["key"]  # e.g., 'mgi', 'sgd'
+        tag_buckets = mod_bucket.get("workflow_tag_ids", {}).get("buckets", [])
+        mod_bucket_lookup[mod_key] = {bucket["key"].upper(): bucket for bucket in tag_buckets}
 
     print("HELLO: workflow_tags_nested=", workflow_tags_nested)
-    print("HELLO: workflow_tag_buckets=", workflow_tag_buckets)
-
-    add_curie_to_name_values({"buckets": workflow_tag_buckets})
-
+    
     atp_ids = {
         "file_workflow": get_atp_ids(file_workflow_root_ids),
         "reference_classification": get_atp_ids(reference_classification_root_ids),
@@ -465,18 +483,34 @@ def process_search_results(res):  # pragma: no cover
         "manual_indexing": get_atp_ids(manual_indexing_root_ids)
     }
     
-    bucket_lookup = {bucket["key"].upper(): bucket for bucket in workflow_tag_buckets}
-    grouped_workflow_tags = {category: [] for category in atp_ids}
+    # Aggregate counts for each expected tag across allowed mods.
+    # The result for each category will be a single bucket per term that sums counts from allowed mods.
+    grouped_workflow_tags = {category: {} for category in atp_ids}
     for category, id_list in atp_ids.items():
-        for expected_id in id_list:
-            expected_upper = expected_id.upper()
-            if expected_upper in bucket_lookup:
-                grouped_workflow_tags[category].append(bucket_lookup[expected_upper])
+        for mod, bucket_lookup in mod_bucket_lookup.items():
+            # Only include mods that are in the allowed list.
+            if mod.upper() not in wft_mod_abbreviation:
+                continue
+            for expected_id in id_list:
+                expected_upper = expected_id.upper()
+                if expected_upper in bucket_lookup:
+                    bucket = bucket_lookup[expected_upper]
+                    # Use reverse_nested count if available; otherwise, use the raw doc_count.
+                    count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
+                    # Sum the count for the expected term.
+                    if expected_upper not in grouped_workflow_tags[category]:
+                        grouped_workflow_tags[category][expected_upper] = {
+                            "key": expected_upper,
+                            "doc_count": 0,
+                            "name": bucket.get("name", expected_upper)
+                        }
+                    grouped_workflow_tags[category][expected_upper]["doc_count"] += count
 
-    # Convert grouped workflow tag buckets to final format using reverse_nested count if available.
-    for category, buckets in grouped_workflow_tags.items():
+    # Convert the aggregated counts to the final output format.
+    for category, buckets_dict in grouped_workflow_tags.items():
+        buckets_list = list(buckets_dict.values())
         filtered_buckets = [
-            b for b in buckets
+            b for b in buckets_list
             if b.get("reverse_docs", {}).get("doc_count", b["doc_count"]) > 0
         ]
         sorted_buckets = sorted(
@@ -484,28 +518,17 @@ def process_search_results(res):  # pragma: no cover
             key=lambda x: x.get("reverse_docs", {}).get("doc_count", x["doc_count"]),
             reverse=True
         )
-        res['aggregations'][category] = {
+        aggregated_result = {
             "doc_count_error_upper_bound": 0,
             "sum_other_doc_count": 0,
-            "buckets": [
-                {
-                    "key": bucket["key"],
-                    "doc_count": bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"]),
-                    "name": bucket.get("name", bucket["key"])
-                }
-                for bucket in sorted_buckets
-            ]
+            "buckets": sorted_buckets
         }
+        # Add CURIEs to the bucket names
+        add_curie_to_name_values(aggregated_result)
+        res['aggregations'][category] = aggregated_result
 
     # remove the old "workflow_tags" aggregation key.
     res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
-            
-    res['aggregations']['topics'] = topics
-    res['aggregations']['confidence_levels'] = confidence_levels
-    res['aggregations']['source_methods'] = source_methods
-    res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
-
-    # print("res['aggregations']['file_workflow']=", res['aggregations']['file_workflow'])
     
     return {
         "hits": hits,
