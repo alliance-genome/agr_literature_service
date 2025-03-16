@@ -285,7 +285,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
         tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values,
                                            tet_nested_facets_values.get("apply_to_single_tag", False))
-    apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits)
+    apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_provider)
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
@@ -443,38 +443,111 @@ def process_search_results(res, wft_mod_abbreviation, tet_data_provider):  # pra
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
-    # process aggregations
-    topics = extract_tet_aggregation_data(res, 'topic_aggregation','topics')
-    confidence_levels = extract_tet_aggregation_data(res, 'confidence_aggregation', 'confidence_levels')
-    source_methods = extract_tet_aggregation_data(res, 'source_method_aggregation', 'source_methods')
-    source_evidence_assertions = extract_tet_aggregation_data(res, 'source_evidence_assertion_aggregation',
-                                                              'source_evidence_assertions')
-    res['aggregations'].pop('topic_aggregation', None)
-    res['aggregations'].pop('confidence_aggregation', None)
-    res['aggregations'].pop('source_method_aggregation', None)
-    res['aggregations'].pop('source_evidence_assertion_aggregation', None)
+    # extract topic entity tag aggregations.
+    topic_aggs = process_topic_entity_tags_aggregations(res, tet_data_provider)
+    # extract workflow tags aggregations.
+    workflow_aggs = process_workflow_tags_aggregations(res, wft_mod_abbreviation)
 
+    # merge the processed aggregations into the response.
+    res['aggregations'].update(topic_aggs)
+    res['aggregations'].update(workflow_aggs)
+
+    return {
+        "hits": hits,
+        "aggregations": res['aggregations'],
+        "return_count": res["hits"]["total"]["value"]
+    }
+
+
+def process_topic_entity_tags_aggregations(res, tet_data_provider):
+
+    """
+    process topic entity tag aggregations that were created using the wrapped
+    aggregation (which uses an extra filter so that results come only from allowed
+    data providers). This function processes aggregations for topics, confidence levels,
+    source methods, source evidence assertions, and data_provider.
+    """
+
+    def extract_filtered_agg(res, main_key, data_key):
+        main_agg = res['aggregations'].get(main_key, {})
+        # if aggregation was wrapped in our filter, use the inner agg.
+        if "filtered" in main_agg:
+            main_agg = main_agg["filtered"]
+        if main_agg.get('filter_by_other_tet_values'):
+            return main_agg.get('filter_by_other_tet_values', {}).get(data_key, {})
+        return main_agg.get(data_key, {})
+
+    topics = extract_filtered_agg(res, 'topic_aggregation', 'topics')
+    confidence_levels = extract_filtered_agg(res, 'confidence_aggregation', 'confidence_levels')
+    source_methods = extract_filtered_agg(res, 'source_method_aggregation', 'source_methods')
+    source_evidence_assertions = extract_filtered_agg(res, 'source_evidence_assertion_aggregation',
+                                                      'source_evidence_assertions')
+    data_providers_agg = extract_filtered_agg(res, 'data_provider_aggregation', 'data_providers')
+
+    # process data_provider aggregation: filter by allowed providers and sum counts.
+    allowed_dp = [dp.upper() for dp in tet_data_provider]
+    grouped_data_provider = {}
+    for bucket in data_providers_agg.get("buckets", []):
+        if bucket["key"].upper() in allowed_dp:
+            count = bucket.get("docs_count", {}).get("doc_count", bucket["doc_count"])
+            key_upper = bucket["key"].upper()
+            if key_upper not in grouped_data_provider:
+                grouped_data_provider[key_upper] = {
+                    "key": key_upper,
+                    "doc_count": 0,
+                    "name": bucket.get("name", key_upper)
+                }
+            grouped_data_provider[key_upper]["doc_count"] += count
+
+    grouped_data_provider_list = list(grouped_data_provider.values())
+    sorted_data_provider_buckets = sorted(grouped_data_provider_list, key=lambda x: x["doc_count"], reverse=True)
+    aggregated_data_provider_result = {
+         "doc_count_error_upper_bound": 0,
+         "sum_other_doc_count": 0,
+         "buckets": sorted_data_provider_buckets
+    }
+    add_curie_to_name_values(aggregated_data_provider_result)
+
+    # remove temporary aggregations from the original response.
+    for key in [
+            'topic_aggregation',
+            'confidence_aggregation',
+            'source_method_aggregation',
+            'source_evidence_assertion_aggregation',
+            'data_provider_aggregation'
+        ]:
+        res['aggregations'].pop(key, None)
+    
+    # add name to each ATP ID
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
     
-    res['aggregations']['topics'] = topics
-    res['aggregations']['confidence_levels'] = confidence_levels
-    res['aggregations']['source_methods'] = source_methods
-    res['aggregations']['source_evidence_assertions'] = source_evidence_assertions
+    # build a dictionary of topic entity tag aggregations.
+    topic_aggs = {
+         "topics": topics,
+         "confidence_levels": confidence_levels,
+         "source_methods": source_methods,
+         "source_evidence_assertions": source_evidence_assertions,
+         "data_provider": aggregated_data_provider_result
+    }
+    return topic_aggs
 
-    # Process workflow tags using the nested aggregation.
+
+def process_workflow_tags_aggregations(res, wft_mod_abbreviation):
+
+    """
+    process workflow_tags aggregations by grouping workflow tags by mod_abbreviation,
+    summing counts for allowed mods and then returning a dictionary keyed by workflow
+    tag categories (such as file_workflow, reference_classification, etc.).
+    """
     workflow_tags_nested = res['aggregations'].get("workflow_tags", {})
     mod_buckets = workflow_tags_nested.get("by_mod_abbreviation", {}).get("buckets", [])
-
-    # Build a mapping of mod abbreviation to its tag buckets.
-    # We use uppercase keys for tags for case-insensitive matching.
+    
     mod_bucket_lookup = {}
     for mod_bucket in mod_buckets:
-        mod_key = mod_bucket["key"]  # e.g., 'mgi', 'sgd'
+        mod_key = mod_bucket["key"]
         tag_buckets = mod_bucket.get("workflow_tag_ids", {}).get("buckets", [])
         mod_bucket_lookup[mod_key] = {bucket["key"].upper(): bucket for bucket in tag_buckets}
-
-    print("HELLO: workflow_tags_nested=", workflow_tags_nested)
     
     atp_ids = {
         "file_workflow": get_atp_ids(file_workflow_root_ids),
@@ -483,21 +556,18 @@ def process_search_results(res, wft_mod_abbreviation, tet_data_provider):  # pra
         "manual_indexing": get_atp_ids(manual_indexing_root_ids)
     }
     
-    # Aggregate counts for each expected tag across allowed mods.
-    # The result for each category will be a single bucket per term that sums counts from allowed mods.
     grouped_workflow_tags = {category: {} for category in atp_ids}
     for category, id_list in atp_ids.items():
         for mod, bucket_lookup in mod_bucket_lookup.items():
-            # Only include mods that are in the allowed list.
+            # only process allowed mods.
             if mod.upper() not in wft_mod_abbreviation:
                 continue
             for expected_id in id_list:
                 expected_upper = expected_id.upper()
                 if expected_upper in bucket_lookup:
                     bucket = bucket_lookup[expected_upper]
-                    # Use reverse_nested count if available; otherwise, use the raw doc_count.
+                    # use reverse nested count if available.
                     count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
-                    # Sum the count for the expected term.
                     if expected_upper not in grouped_workflow_tags[category]:
                         grouped_workflow_tags[category][expected_upper] = {
                             "key": expected_upper,
@@ -506,7 +576,8 @@ def process_search_results(res, wft_mod_abbreviation, tet_data_provider):  # pra
                         }
                     grouped_workflow_tags[category][expected_upper]["doc_count"] += count
 
-    # Convert the aggregated counts to the final output format.
+    # build final aggregation results per workflow tag category.
+    final_workflow_aggs = {}
     for category, buckets_dict in grouped_workflow_tags.items():
         buckets_list = list(buckets_dict.values())
         filtered_buckets = [
@@ -523,18 +594,12 @@ def process_search_results(res, wft_mod_abbreviation, tet_data_provider):  # pra
             "sum_other_doc_count": 0,
             "buckets": sorted_buckets
         }
-        # Add CURIEs to the bucket names
         add_curie_to_name_values(aggregated_result)
-        res['aggregations'][category] = aggregated_result
+        final_workflow_aggs[category] = aggregated_result
 
-    # remove the old "workflow_tags" aggregation key.
-    res['aggregations'].pop("workflow_tags.workflow_tag_id.keyword", None)
+    res['aggregations'].pop("workflow_tags", None)
     
-    return {
-        "hits": hits,
-        "aggregations": res['aggregations'],
-        "return_count": res["hits"]["total"]["value"]
-    }
+    return final_workflow_aggs
 
 
 def remap_highlights(highlights):  # pragma: no cover
@@ -544,13 +609,6 @@ def remap_highlights(highlights):  # pragma: no cover
         new_key = key.replace('authors.name', 'authors')
         remapped[new_key] = value
     return remapped
-
-
-def extract_tet_aggregation_data(res: Dict[str, Any], main_key: str, data_key: str) -> Dict[str, Any]:
-    main_agg = res['aggregations'].get(main_key, {})
-    if main_agg.get('filter_by_other_tet_values'):
-        return main_agg.get('filter_by_other_tet_values', {}).get(data_key, {})
-    return main_agg.get(data_key, {})
 
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
@@ -579,6 +637,38 @@ def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
         }
     }
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+
+
+def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_dp, size=10):  # pragma: no cover
+    """
+    build a filtered aggregation that:
+      1. uses the nested path.
+      2. applies any tet_facets filter.
+      3. further restricts the results to papers whose
+         topic_entity_tags.data_provider is in allowed_dp.
+      4. aggregates on the given term_field.
+    """
+
+    # start with the base filtered aggregation.
+    base_agg = create_filtered_aggregation(path, tet_facets, term_field, term_key, size)
+
+    # wrap the base aggregation with an extra filter on data_provider.
+    wrapped_agg = {
+        "nested": {
+            "path": path
+        },
+        "aggs": {
+            "filtered": {
+                "filter": {
+                    "terms": {
+                        f"{path}.data_provider": allowed_dp
+                    }
+                },
+                "aggs": base_agg["aggs"]
+            }
+        }
+    }
+    return wrapped_agg
 
 
 def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10):  # pragma: no cover
@@ -633,35 +723,55 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
     return tet_agg
 
     
-def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits):  # pragma: no cover
+def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_provider):  # pragma: no cover
 
-    es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation(
+    """
+    build aggregations for topic entity tags.
+    we now apply an extra filter so that the aggregations are computed only
+    for topic entity tags whose data_provider is in tet_data_provider.
+    """
+
+    allowed_dp = [dp.upper() for dp in tet_data_provider]
+
+    es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.topic.keyword",
         term_key="topics",
+        allowed_dp=allowed_dp,
         size=facets_limits.get("topics", 10)
     )
-    es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation(
+    es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
+        allowed_dp=allowed_dp,
         size=facets_limits.get("confidence_levels", 10)
     )
-    es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation(
+    es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.source_method.keyword",
         term_key="source_methods",
+        allowed_dp=allowed_dp,
         size=facets_limits.get("source_methods", 10)
     )
-    es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation(
+    es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion.keyword",
         term_key="source_evidence_assertions",
+        allowed_dp=allowed_dp,
         size=facets_limits.get("source_evidence_assertions", 10) 
+    )
+    es_body["aggregations"]["data_provider_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.data_provider",  # since data_provider is a keyword field already
+        term_key="data_providers",
+        allowed_dp=allowed_dp,
+        size=facets_limits.get("data_providers", 10)
     )
 
 
