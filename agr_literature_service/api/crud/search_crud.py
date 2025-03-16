@@ -20,6 +20,8 @@ reference_classification_root_ids = ["ATP:0000165"]
 entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
 
+WORKFLOW_FACETS = ["file_workflow", "manual_indexing", "entity_extraction", "reference_classification"]
+
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
     # convert string to Datetime int that is stored in Elastic search
@@ -137,12 +139,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
-
-    
-    # for testing
-    wft_mod_abbreviation = ['SGD']
-    tet_data_provider = ['SGD']
-
     
     if facets_limits is None:
         facets_limits = {}
@@ -281,16 +277,31 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     ensure_structure(es_body)
 
+    # set tet_data_provider & wft_mod_abbreviation
+    if facets_values is None:
+        facets_values = {}
+    tet_data_provider = list(
+        set(
+            facets_values.get("mods_in_corpus.keyword", []) +
+            facets_values.get("mods_in_needs_review.keyword", []) +
+            facets_values.get("mods_in_corpus_or_needs_review.keyword", [])
+        )
+    )
+    wft_mod_abbreviation = tet_data_provider
+
+    # search papers by TET
     tet_facets = {}
     if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
         tet_facets = add_tet_facets_values(es_body, tet_nested_facets_values,
                                            tet_nested_facets_values.get("apply_to_single_tag", False))
     apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_provider)
+
     if return_facets_only:
         del es_body["query"]
         es_body["size"] = 0
         res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
         return process_search_results(res, wft_mod_abbreviation, tet_data_provider)
+
     if query and (query_fields == "All" or query_fields is None):
         es_body["query"]["bool"]["must"].append({
             "bool": {
@@ -364,8 +375,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "cross_references.curie.keyword": "*" + query
                 }
             })
-
-    WORKFLOW_FACETS = ["file_workflow", "manual_indexing", "entity_extraction", "reference_classification"]
 
     if facets_values:
         for facet_field, facet_list_values in facets_values.items():
@@ -445,6 +454,7 @@ def process_search_results(res, wft_mod_abbreviation, tet_data_provider):  # pra
 
     # extract topic entity tag aggregations.
     topic_aggs = process_topic_entity_tags_aggregations(res, tet_data_provider)
+
     # extract workflow tags aggregations.
     workflow_aggs = process_workflow_tags_aggregations(res, wft_mod_abbreviation)
 
