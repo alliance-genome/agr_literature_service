@@ -46,7 +46,7 @@ def initialize_elasticsearch():
         msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
         pytest.exit(msg)
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
-    
+
     index_settings = {
         "settings": {
             "analysis": {
@@ -106,7 +106,7 @@ def initialize_elasticsearch():
         }
     }
     es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
-        
+
     date1 = '2022-01-01'
     date2 = '2022-03-28'
     date3 = '2022-09-27'
