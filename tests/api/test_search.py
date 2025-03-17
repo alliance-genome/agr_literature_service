@@ -54,6 +54,13 @@ def initialize_elasticsearch():
                     }
                 }
             }
+        },
+        "mappings": {
+            "properties": {
+                "workflow_tags": {
+                    "type": "nested"
+                }
+            }
         }
     }
     es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
