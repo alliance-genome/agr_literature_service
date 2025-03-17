@@ -69,7 +69,8 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
     # Upload model file to S3
     env_state = os.environ.get("ENV_STATE", "")
     extra_args = {'StorageClass': 'GLACIER_IR'} if env_state == "prod" else {'StorageClass': 'STANDARD'}
-    folder = get_ml_model_s3_folder(request.task_type, request.mod_abbreviation, request.topic)
+    topic = request.topic if request.topic is not None else "None"
+    folder = get_ml_model_s3_folder(request.task_type, request.mod_abbreviation, topic)
     temp_file_name = f"{str(request.version_num)}.gz"
     with gzip.open(temp_file_name, 'wb') as f_out:
         shutil.copyfileobj(file.file, f_out)
@@ -103,7 +104,7 @@ def get_mod(db: Session, mod_abbreviation: str):
     return mod
 
 
-def get_model(db: Session, task_type: str, mod_id: int, topic: str, version_num: int = None):
+def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version_num: int = None):
     query = db.query(MLModel).filter(
         MLModel.task_type == task_type,
         MLModel.mod_id == mod_id,
@@ -137,15 +138,16 @@ def get_model_schema_from_orm(model: MLModel):
     return MLModelSchemaShow(**model_data)
 
 
-def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
+def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
     return get_model_schema_from_orm(model)
 
 
-def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str, version_num: int = None):
+def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
+    topic = topic if topic is not None else "None"
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
     object_key = f"{folder}/{str(model.version_num)}.gz"
     file_name_gzipped = f"{str(model.version_num)}.gz"
