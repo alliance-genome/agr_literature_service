@@ -127,6 +127,7 @@ CREATE TABLE reference_mod_referencetype(
 CREATE TABLE topic_entity_tag_source(
     topic_entity_tag_source_id string PRIMARY KEY,
     source_method string,
+    data_provider string,
     source_evidence_assertion string
   ) WITH (
     KAFKA_TOPIC='abc.public.topic_entity_tag_source',
@@ -180,6 +181,7 @@ CREATE TABLE topic_entity_tag_with_source AS
     topic_entity_tag.novel_topic_data,
     topic_entity_tag.entity_id_validation,
     topic_entity_tag_source.source_method,
+    topic_entity_tag_source.data_provider,
     topic_entity_tag_source.source_evidence_assertion
     FROM topic_entity_tag topic_entity_tag
     JOIN topic_entity_tag_source topic_entity_tag_source ON
@@ -188,7 +190,7 @@ CREATE TABLE topic_entity_tag_with_source AS
 
 CREATE TABLE topic_entity_tags AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'novel_topic_data':=cast(novel_topic_data as string), 'source_method':=source_method, 'source_evidence_assertion':=source_evidence_assertion)) \"TOPIC_ENTITY_TAGS\"
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'negated':=cast(negated as string), 'novel_topic_data':=cast(novel_topic_data as string), 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion)) \"TOPIC_ENTITY_TAGS\"
     FROM topic_entity_tag_with_source
     GROUP BY reference_id
     EMIT CHANGES;
@@ -561,11 +563,22 @@ CREATE TABLE reference_workflow_tag(
     KEY_FORMAT='json'
 );
 
+CREATE TABLE reference_workflow_tag_with_mod AS
+    SELECT
+        reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
+        reference_workflow_tag.reference_id,
+        reference_workflow_tag.workflow_tag_id,
+        mod.abbreviation AS mod_abbreviation,
+        reference_workflow_tag.created_by
+    FROM reference_workflow_tag
+    JOIN mod
+        ON reference_workflow_tag.mod_id = mod.mod_id;
+
 CREATE TABLE reference_workflow_tags AS
-    SELECT reference_workflow_tag.reference_id \"REFERENCE_ID\",
-    collect_list(map('workflow_tag_id':=workflow_tag_id)) \"WORKFLOW_TAGS\"
-    FROM reference_workflow_tag reference_workflow_tag
-    GROUP BY reference_workflow_tag.reference_id
+    SELECT reference_workflow_tag_with_mod.reference_id \"REFERENCE_ID\",
+    collect_list(map('workflow_tag_id':=workflow_tag_id, 'mod_abbreviation':= mod_abbreviation)) \"WORKFLOW_TAGS\"
+    FROM reference_workflow_tag_with_mod
+    GROUP BY reference_workflow_tag_with_mod.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_joined WITH (

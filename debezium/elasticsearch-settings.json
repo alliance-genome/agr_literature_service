@@ -417,15 +417,24 @@
       "cross_references.is_obsolete": {
         "type": "boolean"
       },
-      "workflow_tags.workflow_tag_id": {
-        "type": "text",
-        "analyzer": "autocompleteAnalyzer",
-        "search_analyzer": "autocompleteSearchAnalyzer",
-        "fields": {
-          "keyword": {
+      "workflow_tags": {
+        "type": "nested",
+        "properties": {
+          "workflow_tag_id": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "languageNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "mod_abbreviation": {
             "type": "keyword",
-            "normalizer": "languageNormalizer",
-            "ignore_above": 256
+            "normalizer": "sortNormalizer"
           }
         }
       },
@@ -485,6 +494,10 @@
           },
           "novel_entity_data": {
             "type": "boolean"
+          },
+	  "data_provider": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
           },
           "source_method": {
             "type": "text",

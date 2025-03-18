@@ -46,6 +46,67 @@ def initialize_elasticsearch():
         msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
         pytest.exit(msg)
     es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
+
+    index_settings = {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "authorNameAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "whitespace",
+                        "filter": ["asciifolding", "lowercase"]
+                    },
+                    "autocompleteAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase"]
+                    },
+                    "autocompleteSearchAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase"]
+                    }
+                },
+                "normalizer": {
+                    "languageNormalizer": {
+                        "type": "custom",
+                        "filter": ["lowercase"]
+                    },
+                    "sortNormalizer": {
+                        "type": "custom",
+                        "filter": ["lowercase"]
+                    }
+                }
+            }
+        },
+        "mappings": {
+            "properties": {
+                "workflow_tags": {
+                    "type": "nested",
+                    "properties": {
+                        "workflow_tag_id": {
+                            "type": "text",
+                            "analyzer": "autocompleteAnalyzer",
+                            "search_analyzer": "autocompleteSearchAnalyzer",
+                            "fields": {
+                                "keyword": {
+                                    "type": "keyword",
+                                    "normalizer": "languageNormalizer",
+                                    "ignore_above": 256
+                                }
+                            }
+                        },
+                        "mod_abbreviation": {
+                            "type": "keyword",
+                            "normalizer": "sortNormalizer"
+                        }
+                    }
+                }
+            }
+        }
+    }
+    es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
+
     date1 = '2022-01-01'
     date2 = '2022-03-28'
     date3 = '2022-09-27'

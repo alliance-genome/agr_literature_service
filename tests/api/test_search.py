@@ -51,13 +51,58 @@ def initialize_elasticsearch():
                         "type": "custom",
                         "tokenizer": "whitespace",
                         "filter": ["asciifolding", "lowercase"]
+                    },
+                    "autocompleteAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase"]
+                    },
+                    "autocompleteSearchAnalyzer": {
+                        "type": "custom",
+                        "tokenizer": "standard",
+                        "filter": ["lowercase"]
+                    }
+                },
+                "normalizer": {
+                    "languageNormalizer": {
+                        "type": "custom",
+                        "filter": ["lowercase"]
+                    },
+                    "sortNormalizer": {
+                        "type": "custom",
+                        "filter": ["lowercase"]
                     }
                 }
+            }
+        },
+        "mappings": {
+            "properties": {
+                "workflow_tags": {
+                    "type": "nested",
+                    "properties": {
+                        "workflow_tag_id": {
+                            "type": "text",
+                            "analyzer": "autocompleteAnalyzer",
+                            "search_analyzer": "autocompleteSearchAnalyzer",
+                            "fields": {
+                                "keyword": {
+                                    "type": "keyword",
+                                    "normalizer": "languageNormalizer",
+                                    "ignore_above": 256
+                                }
+                            }
+                        },
+                        "mod_abbreviation": {
+                            "type": "keyword",
+                            "normalizer": "sortNormalizer"
+                        }
+                    }
+                }
+                # ... include any other properties needed for your tests
             }
         }
     }
     es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
-
     doc1 = {
         "curie": "AGRKB:101000000000001",
         "citation": "citation1",
@@ -76,7 +121,6 @@ def initialize_elasticsearch():
         "mod_reference_types": ["review"],
         "language" : "English",
         "date_created": "1636139454923830"
-
     }
     doc2 = {
         "curie": "AGRKB:101000000000002",
