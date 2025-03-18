@@ -394,20 +394,38 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []    
             if facet_field in WORKFLOW_FACETS:
-                nested_query = {
-                    "nested": {
-                        "path": "workflow_tags",
-                        "query": {
-                            "bool": {
-                                "must": [
-                                    {"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}},
-                                    {"terms": {"workflow_tags.workflow_tag_id.keyword": facet_list_values}}
-                                ]
+                if len(facet_list_values) > 1:
+                    for tag in facet_list_values:
+                        nested_query = {
+                            "nested": {
+                                "path": "workflow_tags",
+                                "query": {
+                                    "bool": {
+                                        "must": [
+                                            {"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}},
+                                            {"term": {"workflow_tags.workflow_tag_id.keyword": tag}}
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                        es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+                else:
+                    # only one tag provided – use a single nested query.
+                    nested_query = {
+                        "nested": {
+                            "path": "workflow_tags",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}},
+                                        {"term": {"workflow_tags.workflow_tag_id.keyword": facet_list_values[0]}}
+                                    ]
+                                }
                             }
                         }
                     }
-                }
-                es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+                    es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
             else:
                 # Standard facet application
                 es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
