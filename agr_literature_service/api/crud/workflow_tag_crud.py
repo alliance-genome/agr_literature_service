@@ -8,7 +8,7 @@ between workflow tags.
 import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, text
+from sqlalchemy import and_, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
@@ -53,12 +53,13 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
 
 def get_workflow_tag_diagram(mod: str, db: Session):
     try:
-        #query = f"""SELECT transition_to, ARRAY_AGG(transition_from)  FROM workflow_transition GROUP BY transition_to"""
-        query = text(f"""SELECT * FROM workflow_transition""")
-        rs = db.execute(query).fetchall()
-        print(rs[0])
-        data = jsonable_encoder(rs[0])
-        #data = "yes"
+        tags = db.query(WorkflowTransitionModel.transition_from, func.array_agg(WorkflowTransitionModel.transition_to)).group_by(WorkflowTransitionModel.transition_from).all()
+        data = []
+        for tag in tags:
+            result = {}
+            result['tag'] = tag.transition_from
+            result['transitions_to'] = tag[1]
+            data.append(result)
     except Exception as ex:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"""Cant search WF transition tag diagram. {ex}""")
