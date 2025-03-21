@@ -59,9 +59,8 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         tag_ids_to = db.query(WorkflowTransitionModel.transition_to).all()
         ##This needs a full list before mapping
         tag_ids_from = (o.transition_from for o in tags)
-        all_tag_ids = list(set(list(tag_ids_from) + tag_ids_to))
 
-        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_tag_ids)
+        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=tag_ids_from)
         for tag in tags:
             result = {}
             result['tag'] = tag.transition_from
@@ -71,7 +70,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
     except Exception as ex:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"""Cant search WF transition tag diagram. {ex}""")
-    return data
+    return tag_ids_to
 
 def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
     if parent_or_children == "parent":
