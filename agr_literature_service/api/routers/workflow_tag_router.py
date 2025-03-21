@@ -167,7 +167,7 @@ def get_report_workflow_diagram(mod: str,
                                 db: Session = db_session):
     return workflow_tag_crud.get_workflow_tag_diagram(mod, db)
 
-  
+
 @router.get('/get_name/{workflow_tag_id}', status_code=200)
 def get_name(workflow_tag_id: str):
     return atp_get_name(workflow_tag_id)
