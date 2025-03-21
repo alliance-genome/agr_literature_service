@@ -57,9 +57,9 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         data = []
         tag_ids_to = db.query(WorkflowTransitionModel.transition_to).all()
         ##This needs a full list before mapping
-        tag_ids_from = (o.transition_from for o in tags)
+        tag_ids = (o.transition_from for o in tag_ids_to)
 
-        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=tag_ids_from)
+        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=tag_ids)
         for tag in tags:
             result = {}
             result['tag'] = tag.transition_from
