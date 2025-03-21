@@ -213,6 +213,9 @@ services:
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
       - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - /usr/local/bin/docker-compose:/usr/bin/docker-compose
     networks:
       - agr-literature
 
