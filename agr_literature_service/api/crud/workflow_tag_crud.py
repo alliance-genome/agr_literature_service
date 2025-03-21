@@ -53,12 +53,17 @@ def load_workflow_parent_children(root_node='ATP:0000177'):
 
 def get_workflow_tag_diagram(mod: str, db: Session):
     try:
+
         tags = db.query(WorkflowTransitionModel.transition_from, func.array_agg(WorkflowTransitionModel.transition_to)).group_by(WorkflowTransitionModel.transition_from).all()
         data = []
+        ##This needs a full list before mapping
+        all_tag_ids = (o.transition_from for o in tags)
+        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_tag_ids)
         for tag in tags:
             result = {}
             result['tag'] = tag.transition_from
             result['transitions_to'] = tag[1]
+            result['tag_name'] = atp_curie_to_name[tag.transition_from]
             data.append(result)
     except Exception as ex:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
