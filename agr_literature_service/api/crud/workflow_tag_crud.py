@@ -55,7 +55,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
     try:
         tags = db.query(WorkflowTransitionModel.transition_from, func.array_agg(WorkflowTransitionModel.transition_to)).group_by(WorkflowTransitionModel.transition_from).all()
         data = []
-        ##tag_ids_to = db.query(WorkflowTransitionModel.transition_to).all()
+        tag_ids_to = db.query(WorkflowTransitionModel.transition_to).all()
         ##This needs a full list before mapping
         tag_ids_from = (o.transition_from for o in tags)
 
@@ -65,6 +65,10 @@ def get_workflow_tag_diagram(mod: str, db: Session):
             result['tag'] = tag.transition_from
             result['transitions_to'] = tag[1]
             result['tag_name'] = atp_curie_to_name[tag.transition_from]
+            data.append(result)
+        for tag in tag_ids_to:
+            result = {}
+            result['tag'] = tag.transition_to
             data.append(result)
     except Exception as ex:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
