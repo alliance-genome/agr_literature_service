@@ -57,8 +57,8 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         tags = db.query(WorkflowTransitionModel.transition_from, func.array_agg(WorkflowTransitionModel.transition_to)).group_by(WorkflowTransitionModel.transition_from).all()
         data = []
         tags_to = db.query(WorkflowTransitionModel.transition_to)
-        tag_ids = list(o.transition_from  for o in tags)
-        tag_ids.extend(list(o.transition_to  for o in tags_to))
+        tag_ids = list(o.transition_from for o in tags)
+        tag_ids.extend(list(o.transition_to for o in tags_to))
         unique_tags = list(set(tag_ids))
 
         atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=unique_tags)
