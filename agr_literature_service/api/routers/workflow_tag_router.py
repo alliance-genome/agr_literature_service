@@ -179,4 +179,3 @@ def get_workflow_tags_subset(mod_abbreviation: str,
                              workflow_name: str,
                              db: Session = db_session):
     return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation, db)
-

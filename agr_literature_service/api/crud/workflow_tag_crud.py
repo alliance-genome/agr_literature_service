@@ -75,7 +75,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
                             detail=f"""Cant search WF transition tag diagram. {ex}""")
     return data
 
-  
+
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
     parents = atp_get_all_ancestors(workflow_tag_atp_id)
     if parents:
