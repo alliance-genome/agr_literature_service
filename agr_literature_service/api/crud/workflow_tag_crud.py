@@ -74,7 +74,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
         for tag in atp_curie_to_name:
             result = {}
             result['tag'] = tag
-            result['tag_name']= atp_curie_to_name[tag]
+            result['tag_name'] = atp_curie_to_name[tag]
             data.append(result)
 
     except Exception as ex:
