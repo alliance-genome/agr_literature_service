@@ -7,7 +7,7 @@ between workflow tags.
 """
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, text
+from sqlalchemy import and_, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
@@ -43,6 +43,37 @@ entity_extraction_in_progress_atp_id = "ATP:0000190"
 text_conversion_in_progress_atp_id = "ATP:0000198"
 
 logger = logging.getLogger(__name__)
+
+
+def get_workflow_tag_diagram(mod: str, db: Session):
+    try:
+        tags = db.query(WorkflowTransitionModel.transition_from, func.array_agg(WorkflowTransitionModel.transition_to)).group_by(WorkflowTransitionModel.transition_from).all()
+        data = []
+        tags_to = db.query(WorkflowTransitionModel.transition_to)
+        tag_ids = list(o.transition_from for o in tags)
+        tag_ids.extend(list(o.transition_to for o in tags_to))
+        unique_tags = list(set(tag_ids))
+
+        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=unique_tags)
+
+        for tag in tags:
+            result = {}
+            result['tag'] = tag.transition_from
+            result['transitions_to'] = tag[1]
+            result['tag_name'] = atp_curie_to_name[tag.transition_from]
+            del atp_curie_to_name[tag.transition_from]
+            data.append(result)
+
+        for tag in atp_curie_to_name:
+            result = {}
+            result['tag'] = tag
+            result['tag_name'] = atp_curie_to_name[tag]
+            data.append(result)
+
+    except Exception as ex:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"""Cant search WF transition tag diagram. {ex}""")
+    return data
 
 
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
