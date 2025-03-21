@@ -20,11 +20,11 @@ from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
-    get_ancestors, get_descendants, check_atp_ids_validity, get_map_entity_curies_to_names, \
-    id_to_name_cache, get_map_ateam_curies_to_names
+    get_ancestors, get_descendants, get_map_entity_curies_to_names, \
+    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
-    TopicEntityTagModel, WorkflowTagModel,
+    TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
@@ -36,7 +36,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
-
+from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +71,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
-    if 'display_tag' in topic_entity_tag_data:
+    if 'display_tag' in topic_entity_tag_data and topic_entity_tag_data['display_tag'] is not None:
         atp_ids.append(topic_entity_tag_data['display_tag'])
     atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
-    (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
-    invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
+    # (valid_atp_ids, id_to_name) = check_atp_ids_validity(atp_ids_filtered)
+    # invalid_atp_ids = set(atp_ids_filtered) - valid_atp_ids
+    invalid_atp_ids = atp_return_invalid_ids(atp_ids_filtered)
     if len(invalid_atp_ids) > 0:
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -90,7 +91,10 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         db.add(new_db_obj)
         db.commit()
         db.refresh(new_db_obj)
-        update_manual_indexing_workflow_tag(db, source.secondary_data_provider.abbreviation, reference_id, index_wft)
+
+        mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
+        add_paper_to_mod_if_not_already(db, reference_id, mod_id)
+        update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
             validate_tags(db=db, new_tag_obj=new_db_obj)
         return {
@@ -108,25 +112,26 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie):
 
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
-    update_manual_indexing_workflow_tag(db, mod_abbreviation, reference_id, "ATP:0000275")
+    mod_id = get_mod_id_from_mod_abbreviation(db, mod_abbreviation)
+    add_paper_to_mod_if_not_already(db, reference_id, mod_id)
+    update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
 
 
-def update_manual_indexing_workflow_tag(db: Session, mod_abbreviation, reference_id, index_wft):
+def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft):
 
     if index_wft is None:
         return
-    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
     all_manual_indexing_wf_tags = get_workflow_tags_from_process("ATP:0000273")
     wft = db.query(WorkflowTagModel).filter(
         and_(
             WorkflowTagModel.workflow_tag_id.in_(all_manual_indexing_wf_tags),
             WorkflowTagModel.reference_id == reference_id,
-            WorkflowTagModel.mod_id == mod.mod_id
+            WorkflowTagModel.mod_id == mod_id
         )
     ).one_or_none()
     if wft is None:
         wft_obj = WorkflowTagModel(reference_id=reference_id,
-                                   mod_id=mod.mod_id,
+                                   mod_id=mod_id,
                                    workflow_tag_id=index_wft)
         db.add(wft_obj)
         db.commit()
@@ -134,6 +139,31 @@ def update_manual_indexing_workflow_tag(db: Session, mod_abbreviation, reference
         wft.workflow_tag_id = index_wft
         db.add(wft)
         db.commit()
+
+
+def add_paper_to_mod_if_not_already(db: Session, reference_id, mod_id):
+
+    add_wft_141_bool = False
+    mca_db_obj = db.query(ModCorpusAssociationModel).filter_by(
+        mod_id=mod_id, reference_id=reference_id).one_or_none()
+    if mca_db_obj is None:
+        add_wft_141_bool = True
+        new_mca = ModCorpusAssociationModel(reference_id=reference_id,
+                                            mod_id=mod_id,
+                                            corpus=True,
+                                            mod_corpus_sort_source='manual_creation')
+        db.add(new_mca)
+    elif not mca_db_obj.corpus:
+        add_wft_141_bool = True
+        mca_db_obj.corpus = True
+        mca_db_obj.mod_corpus_sort_source = "manual_creation"
+        db.add(mca_db_obj)
+    if add_wft_141_bool:
+        new_wft = WorkflowTagModel(reference_id=reference_id,
+                                   mod_id=mod_id,
+                                   workflow_tag_id='ATP:0000141')
+        db.add(new_wft)
+    db.commit()
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):

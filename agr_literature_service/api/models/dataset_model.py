@@ -15,6 +15,7 @@ enable_versioning()
 # Association table for many-to-many relationship between Dataset and TopicEntityTag
 class DatasetEntryModel(Base):
     __tablename__ = 'dataset_entry'
+    __versioned__: Dict = {}
 
     dataset_entry_id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -70,11 +71,9 @@ class DatasetEntryModel(Base):
         default=None
     )
 
-    positive: Mapped[Optional[bool]] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=True,
-        server_default='true'
+    classification_value: Mapped[Optional[str]] = mapped_column(
+        String,
+        nullable=True
     )
 
     set_type: Mapped[str] = mapped_column(

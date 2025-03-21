@@ -3,9 +3,9 @@ from sqlalchemy import text
 from os import environ, path
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.crud.topic_entity_tag_utils import check_atp_ids_validity
 from agr_literature_service.lit_processing.utils.report_utils import send_report
-
+from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
+from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -26,8 +26,7 @@ def check_data():
 
     logger.info(f"Total {len(all_distinct_curies)} unique ATP IDs are in topic_entity_tag table.")
 
-    (valid_curies, atp_to_name) = check_atp_ids_validity(all_distinct_curies)
-    obsolete_disappeared_curies = set(all_distinct_curies) - valid_curies
+    obsolete_disappeared_curies = set(atp_return_invalid_ids(all_distinct_curies))
 
     logger.info(f"{len(obsolete_disappeared_curies)} out of {len(all_distinct_curies)} ATP ID(s) are obsolete or disappeared from A-team ATP table")
 
@@ -59,10 +58,10 @@ def check_data():
     if mod_to_report:
         for mod in mod_to_report:
             logger.info(f"Sending report for {mod}...")
-            send_report_to_slack(mod, mod_to_report[mod], atp_to_name)
+            send_report_to_slack(mod, mod_to_report[mod])
 
 
-def send_report_to_slack(mod, rows_to_report, atp_to_name):
+def send_report_to_slack(mod, rows_to_report):
 
     email_subject = f"Report on Obsolete or Disappeared ATP IDs for {mod} Papers from the topic_entity_tag Table"
 
@@ -75,8 +74,8 @@ def send_report_to_slack(mod, rows_to_report, atp_to_name):
         html_rows = ""
         for count, row_data in enumerate(rows_to_report, start=1):
             ref_curie, invalid_atp, col_with_invalid_atp, topic, entity_type = row_data
-            topic_name = atp_to_name.get(topic)
-            entity_type_name = atp_to_name.get(entity_type)
+            topic_name = atp_get_name(topic)
+            entity_type_name = atp_get_name(entity_type)
 
             fw.write(f"{ref_curie}\t{topic_name}\t{entity_type_name}\t{invalid_atp}\t{col_with_invalid_atp}\n")
 

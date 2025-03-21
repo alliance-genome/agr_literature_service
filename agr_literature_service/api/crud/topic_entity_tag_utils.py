@@ -11,7 +11,7 @@ from starlette import status
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.crud.ateam_db_helpers import \
-    map_curies_to_names, search_atp_ontology, search_ancestors_or_descendants
+    map_curies_to_names, search_ancestors_or_descendants
 from agr_literature_service.api.models import TopicEntityTagSourceModel, \
     ReferenceModel, ModModel, TopicEntityTagModel
 from agr_literature_service.api.user import add_user_if_not_exists
@@ -74,6 +74,11 @@ def get_source_from_db(db: Session, topic_entity_tag_source_id: int) -> TopicEnt
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     return source
+
+
+def get_mod_id_from_mod_abbreviation(db: Session, mod_abbreviation: str):
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    return mod.mod_id
 
 
 def add_audited_object_users_if_not_exist(db: Session, audited_obj: Dict):
@@ -210,24 +215,6 @@ def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
         if curie not in id_name_mapping:
             id_name_mapping[curie] = curie  # map curie to itself if no result
     return id_name_mapping
-
-
-def check_atp_ids_validity(curies, maxret=1000):
-
-    curies_not_in_cache = [curie for curie in set(curies) if valid_id_to_name_cache.get(curie) is None]
-    if len(curies_not_in_cache) == 0:
-        return (set(curies), {curie: valid_id_to_name_cache.get(curie) for curie in set(curies)})
-
-    valid_curies = {curie for curie in curies if valid_id_to_name_cache.get(curie) is not None}
-    atp_data = search_atp_ontology()
-    atp_to_name = {}
-    for entry in atp_data:
-        if entry["curie"] in curies_not_in_cache:
-            atp_to_name[entry["curie"]] = entry["name"]
-            if entry["obsolete"] is False:
-                valid_curies.add(entry["curie"])
-                valid_id_to_name_cache.set(entry["curie"], entry["name"])
-    return (valid_curies, atp_to_name)
 
 
 @ttl_cache(maxsize=128, ttl=60 * 60)
@@ -392,6 +379,20 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"An error occurred when deleting non-manual tets: {e}")
 
+
+def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: str):
+
+    ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
+    reference_id = ref.reference_id
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
+    mod_id = mod.mod_id
+
     sql_query = text("""
         SELECT * FROM topic_entity_tag
         WHERE reference_id = :reference_id
@@ -405,10 +406,10 @@ def delete_non_manual_tets(db: Session, curie_or_reference_id: str, mod_abbrevia
             )
         )
     """)
-
     rows = db.execute(sql_query, {
         'reference_id': reference_id,
         'mod_id': mod_id
     }).fetchall()
-
-    return len(rows)
+    if len(rows) > 0:
+        return True
+    return False

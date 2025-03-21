@@ -5,7 +5,6 @@ See docs/source/workflow_automation.rst for detailed description on transitionin
 between workflow tags.
 ===========================
 """
-import cachetools.func
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, text, func
@@ -16,16 +15,25 @@ from typing import Union, Optional, Dict
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
-    WorkflowTransitionModel, ModModel, ReferenceModel
+    WorkflowTransitionModel, ModModel, ReferenceModel, WorkflowTagTopicModel
 from agr_literature_service.api.schemas import WorkflowTagSchemaPost
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_descendants, \
-    get_reference_id_from_curie_or_id, get_map_ateam_curies_to_names  # get_ancestors,
+from agr_literature_service.api.crud.topic_entity_tag_utils import (
+    get_reference_id_from_curie_or_id,
+    get_map_ateam_curies_to_names)
 import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_and_children, search_ancestors_or_descendants
+from agr_literature_service.api.crud.ateam_db_helpers import (
+    get_name_to_atp_for_all_children,
+    atp_get_all_descendents,
+    atp_get_all_ancestors,
+    atp_get_parent,
+    get_jobs_to_run,
+    atp_to_name
+)
+
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -35,21 +43,6 @@ entity_extraction_in_progress_atp_id = "ATP:0000190"
 text_conversion_in_progress_atp_id = "ATP:0000198"
 
 logger = logging.getLogger(__name__)
-
-
-@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
-def load_workflow_parent_children(root_node='ATP:0000177'):
-    workflow_children = {}
-    workflow_parent = {}
-    nodes_to_process = [root_node]
-    while nodes_to_process:
-        parent = nodes_to_process.pop()
-        children = get_descendants(parent)
-        workflow_children[parent] = children
-        for child in children:
-            workflow_parent[child] = parent
-            nodes_to_process.append(child)
-    return workflow_children, workflow_parent
 
 
 def get_workflow_tag_diagram(mod: str, db: Session):
@@ -82,23 +75,16 @@ def get_workflow_tag_diagram(mod: str, db: Session):
                             detail=f"""Cant search WF transition tag diagram. {ex}""")
     return data
 
-
-def get_parent_or_children(atp_name: str, parent_or_children: str = "parent"):
-    if parent_or_children == "parent":
-        return search_ancestors_or_descendants(atp_name, 'parent')[0]
-    workflow_children, workflow_parent = load_workflow_parent_children(root_node=atp_name)
-    if atp_name not in workflow_children:
-        logger.error(f"Could not find {parent_or_children} for {atp_name}")
-        return None
-    return workflow_children[atp_name]
-
-
+  
 def get_workflow_process_from_tag(workflow_tag_atp_id: str):
-    return get_parent_or_children(workflow_tag_atp_id, parent_or_children="parent")
+    parents = atp_get_all_ancestors(workflow_tag_atp_id)
+    if parents:
+        return parents
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
-    return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
+    return atp_get_all_descendents(workflow_process_atp_id)
+    # return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
 def workflow_tag_add(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, new_tag: str = None):
@@ -165,11 +151,14 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                          WorkflowTagModel.reference_workflow_tag_id,
                          WorkflowTagModel.mod_id,
                          WorkflowTransitionModel.condition,
-                         ReferenceModel.curie)
+                         ReferenceModel.curie,
+                         WorkflowTagTopicModel.topic)
                 .join(WorkflowTransitionModel,
                       WorkflowTagModel.workflow_tag_id == WorkflowTransitionModel.transition_to)
                 .join(ReferenceModel,
                       WorkflowTagModel.reference_id == ReferenceModel.reference_id)
+                .outerjoin(WorkflowTagTopicModel,
+                           WorkflowTagModel.workflow_tag_id == WorkflowTagTopicModel.workflow_tag)
                 .filter(WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str))
                 .order_by(WorkflowTagModel.date_updated.desc()).limit(limit).offset(offset).all())
@@ -184,6 +173,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
                 new_job['reference_curie'] = wft.curie
                 new_job['reference_workflow_tag_id'] = wft.reference_workflow_tag_id
                 new_job['mod_id'] = wft.mod_id
+                new_job['topic_id'] = wft.topic
                 jobs.append(new_job)
     return jobs
 
@@ -293,7 +283,8 @@ def transition_sanity_check(db, transition_type, mod_abbreviation, curie_or_refe
                             detail=f"Mod abbreviation {mod_abbreviation} does not exist")
 
     # Get the parent/process and see if it allows multiple values
-    process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    # process_atp_id = get_workflow_process_from_tag(workflow_tag_atp_id=new_workflow_tag_atp_id)
+    process_atp_id = atp_get_parent(new_workflow_tag_atp_id)
     if not process_atp_id:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"process_atp_id {new_workflow_tag_atp_id} has NO process.")
@@ -656,8 +647,14 @@ def show_changesets(db: Session, reference_workflow_tag_id: int):
     return history
 
 
-def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,
-             date_option: str = None, date_range_start: str = None, date_range_end: str = None):  # pragma: no cover
+def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id: str = None,  # noqa: C901
+             date_option: str = None, date_range_start: str = None, date_range_end: str = None,
+             date_frequency: str = None):  # pragma: no cover
+
+    if date_frequency not in ['year', 'month', 'week', None]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Invalid date_frequency. Use 'year', 'month', 'week'.")
+
     all_WF_tags_for_process = None
     if workflow_process_atp_id:
         all_WF_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
@@ -670,10 +667,22 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         rows = db.execute(text("SELECT distinct workflow_tag_id FROM workflow_tag")).fetchall()
         atp_curies = [x[0] for x in rows]
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=atp_curies)
+
+    month_abbreviations = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
     where_clauses = []
     params = {}
-    query = """
-        SELECT m.abbreviation, wt.workflow_tag_id, COUNT(*) AS tag_count
+    query = "SELECT m.abbreviation, wt.workflow_tag_id,"
+    if date_frequency is not None:
+        if date_frequency == 'year':
+            query += """year, """
+        elif date_frequency == 'month':
+            query += """year, month, """
+        elif date_frequency == 'week':
+            query += """year, week, """
+
+    query += """
+        COUNT(*) AS tag_count
         FROM mod m
         JOIN workflow_tag wt ON m.mod_id = wt.mod_id
         """
@@ -685,6 +694,9 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         where_clauses.append("wt.workflow_tag_id = ANY(:all_WF_tags_for_process)")
         params["all_WF_tags_for_process"] = all_WF_tags_for_process
 
+    date_column = "wt.date_updated"  # default
+    extract = ""
+
     if date_range_start is not None and date_range_end is not None and date_range_start != "" and date_range_end != "":
         if isinstance(date_range_end, str):
             date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
@@ -695,6 +707,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'reference_created':
+            date_column = "r.date_created"
             query += """
               JOIN reference r ON wt.reference_id = r.reference_id
               """
@@ -702,6 +715,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'reference_published':
+            date_column = "r.date_published_start::DATE"
             query += """
                 JOIN reference r ON wt.reference_id = r.reference_id
                 """
@@ -709,6 +723,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
         elif date_option == 'inside_corpus':
+            date_column = "mca.date_updated"
             query += """
                 JOIN mod_corpus_association mca ON wt.reference_id = mca.reference_id
                 AND mca.mod_id = m.mod_id
@@ -717,16 +732,45 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
             where_clauses.append("mca.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
             params["end_date"] = date_range_end
+    if date_frequency is not None:
+        if date_frequency == 'year':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year"
+        elif date_frequency == 'month':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year, EXTRACT(MONTH FROM {date_column}) AS month"
+        elif date_frequency == 'week':
+            extract = f", EXTRACT(YEAR FROM {date_column}) AS year, EXTRACT(WEEK FROM {date_column}) AS week"
 
     where = ""
     if where_clauses:
         where = "WHERE " + " AND ".join(where_clauses)
 
-    query += f"""
-        {where}
-        GROUP BY m.abbreviation, wt.workflow_tag_id
-        ORDER BY m.abbreviation, wt.workflow_tag_id
-        """
+    if date_frequency is None:
+        query += f"""
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id
+            ORDER BY m.abbreviation, wt.workflow_tag_id
+            """
+    elif date_frequency == 'year':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year
+            """
+    elif date_frequency == 'month':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year, month
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year, month
+            """
+    elif date_frequency == 'week':
+        query += f"""
+            {extract}
+            {where}
+            GROUP BY m.abbreviation, wt.workflow_tag_id, year, week
+            ORDER BY m.abbreviation, wt.workflow_tag_id, year, week
+            """
 
     try:
         rows = db.execute(text(query), params).mappings().fetchall()  # type: ignore
@@ -735,11 +779,26 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
     data = []
     for x in rows:
         x_dict = dict(x)
+        time_period = ""
+        if date_frequency == 'year':
+            if 'year' in x_dict:
+                time_period = str(int(x_dict['year']))
+        elif date_frequency == 'month':
+            if 'year' in x_dict:
+                time_period = str(int(x_dict['year']))
+            if 'month' in x_dict:
+                time_period += " " + month_abbreviations[int(x_dict['month']) - 1]
+        elif date_frequency == 'week':
+            if 'year' in x_dict:
+                time_period = str(int(x_dict['year']))
+            if 'week' in x_dict:
+                time_period += " week " + str(int(x_dict['week']))
         data.append({
             "mod_abbreviation": x_dict['abbreviation'],
             "workflow_tag_id": x_dict['workflow_tag_id'],
             "workflow_tag_name": atp_curie_to_name[x_dict['workflow_tag_id']],
-            "tag_count": x_dict['tag_count']
+            "tag_count": x_dict['tag_count'],
+            "time_period": time_period
         })
     # append the total if mod_abbreviation is None
     if not mod_abbreviation:
@@ -937,6 +996,35 @@ def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: 
     return None
 
 
+def delete_workflow_tags(db: Session, curie_or_reference_id: str, mod_abbreviation: str):
+
+    ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
+    if ref is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The reference curie or id {curie_or_reference_id} is not in the database")
+    reference_id = ref.reference_id
+    mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
+    mod_id = mod.mod_id
+
+    try:
+        sql_query = text("""
+        DELETE FROM workflow_tag
+        WHERE reference_id = :reference_id
+        AND mod_id = :mod_id
+        """)
+        db.execute(sql_query, {
+            'reference_id': reference_id,
+            'mod_id': mod_id
+        })
+        db.commit()
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"An error occurred when deleting WFTs for mod_id = {mod_id} and reference_id = {reference_id}. Error = {e}")
+
+
 def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_id: str, mod_abbreviation: str, change_file_status=False):
 
     ref = get_reference(db=db, curie_or_reference_id=str(curie_or_reference_id))
@@ -1035,8 +1123,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     }
 
     # get list of ALL ATPs under this parent
-    name_to_atp, atp_to_name = get_name_to_atp_and_children(workflow_parent)
-
+    name_to_atp, atp_to_name = get_name_to_atp_for_all_children(workflow_parent)
     # remove overall paper statuses from general overall ATPs
     for atp in overall_paper_status[workflow_parent].keys():
         del atp_to_name[atp]
@@ -1074,7 +1161,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     type_total: Dict = {}
     status_total: Dict = {}
     atp_list = "'" + "', '".join(name_to_atp.values()) + "'"
-    # print(atp_list)
+
     sql_query = text(f"""
     select workflow_tag_id, count(1) as count
        from workflow_tag
@@ -1123,3 +1210,20 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
                 out_rec[f"{field}_perc"] = "0.00"
         out_records.append(out_rec)
     return out_records, headers
+
+
+def workflow_subset_list(workflow_name, mod_abbreviation, db):
+    """
+    More for tests and to allow users to see the curies in a workflow.
+    Given a workflow name i.e. "reference classification" return the ATP's and names ofr these.
+    """
+    # More code injection checks
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
+    if not mod:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
+
+    curie_list = get_jobs_to_run(workflow_name, mod.abbreviation)
+    result = {}
+    for curie in curie_list:
+        result[atp_to_name[curie]] = curie
+    return result

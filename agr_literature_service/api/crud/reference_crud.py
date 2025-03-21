@@ -51,7 +51,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     update_data
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
-    get_current_workflow_status
+    get_current_workflow_status, is_file_upload_blocked
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
@@ -75,7 +75,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     """
 
     logger.debug("creating reference")
-    logger.debug(reference)
+    # logger.debug(reference)
     add_separately_fields = ["mod_corpus_associations", "workflow_tags", "topic_entity_tags", "mod_reference_types"]
     list_fields = ["authors", "tags", "mesh_terms", "cross_references"]
     remap = {
@@ -243,7 +243,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     """
 
     reference_data = jsonable_encoder(reference_update)
-    logger.debug("reference_data = {}".format(reference_data))
+    # logger.debug("reference_data = {}".format(reference_data))
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference_db_obj = db.query(ReferenceModel).filter(or_(
         ReferenceModel.curie == curie_or_reference_id,
@@ -305,7 +305,6 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
 
     :param db:
     :param curie_or_reference_id:
-    :param http_request:
     :return:
     """
     logger.info("Show reference called")
@@ -485,7 +484,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_relations_data["from_references"].append(reference_relation_data)
 
     reference_data["reference_relations"] = reference_relations_data
-    logger.debug("returning {}".format(reference_data))
+    # logger.debug("returning {}".format(reference_data))
     return reference_data
 
 
@@ -517,6 +516,26 @@ def show_changesets(db: Session, curie_or_reference_id: str):
         )
 
     return history
+
+
+def lock_status(db: Session, ref_curie):
+
+    refObj = get_reference(db=db, curie_or_reference_id=ref_curie)
+
+    mods = db.query(ModModel).join(ModCorpusAssociationModel). \
+        filter(ModCorpusAssociationModel.reference_id == refObj.reference_id,
+               ModCorpusAssociationModel.mod_id == ModModel.mod_id).all()
+    for mod in mods:
+        job_type = is_file_upload_blocked(db, refObj.curie, mod.abbreviation)
+        if job_type:
+            return {
+                "locked": True,
+                "message": f"The {job_type} for reference {refObj.curie} is currently being processed. Please wait until it is complete before merging the papers."
+            }
+    return {
+        "locked": False,
+        "message": "No lock."
+    }
 
 
 def merge_references(db: Session,
@@ -624,10 +643,28 @@ def merge_references(db: Session,
     return new_curie
 
 
+def get_reference_relation_row(db, reference_id_1, reference_id_2, relation_type):
+    row = db.query(ReferenceRelationModel).filter(
+        or_(
+            and_(
+                ReferenceRelationModel.reference_id_from == reference_id_1,
+                ReferenceRelationModel.reference_id_to == reference_id_2
+            ),
+            and_(
+                ReferenceRelationModel.reference_id_from == reference_id_2,
+                ReferenceRelationModel.reference_id_to == reference_id_1
+            )
+        ),
+        ReferenceRelationModel.reference_relation_type == relation_type
+    ).one_or_none()
+    return row
+
+
 def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie, new_curie):
     all_ref_relations = db.query(
         ReferenceRelationModel.reference_id_from,
-        ReferenceRelationModel.reference_id_to).filter(
+        ReferenceRelationModel.reference_id_to
+    ).filter(
         or_(
             ReferenceRelationModel.reference_id_from == old_reference_id,
             ReferenceRelationModel.reference_id_to == old_reference_id,
@@ -635,18 +672,21 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
             ReferenceRelationModel.reference_id_to == new_reference_id
         )
     ).all()
-    all_ref_relations_with_new_ids = [(new_reference_id if rel[0] == old_reference_id else rel[0],
-                                       new_reference_id if rel[1] == old_reference_id else rel[1]) for rel in
-                                      all_ref_relations]
+
+    all_ref_relations_with_new_ids = [
+        (
+            new_reference_id if rel[0] == old_reference_id else rel[0],
+            new_reference_id if rel[1] == old_reference_id else rel[1]
+        )
+        for rel in all_ref_relations
+    ]
     if len(set([(min(rel[0], rel[1]), max(rel[0], rel[1])) for rel in all_ref_relations_with_new_ids])) < len(
             all_ref_relations):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Cannot merge these two references as they have duplicate reference relations")
     try:
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_from=old_reference_id).all():
-            y = db.query(ReferenceRelationModel).filter_by(reference_id_from=new_reference_id,
-                                                           reference_id_to=x.reference_id_to,
-                                                           reference_relation_type=x.reference_relation_type).one_or_none()
+            y = get_reference_relation_row(db, new_reference_id, x.reference_id_to, x.reference_relation_type)
             if y is None:
                 if x.reference_id_to != new_reference_id:
                     x.reference_id_from = new_reference_id
@@ -655,10 +695,9 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
                     db.delete(x)
             else:
                 db.delete(x)
+
         for x in db.query(ReferenceRelationModel).filter_by(reference_id_to=old_reference_id).all():
-            y = db.query(ReferenceRelationModel).filter_by(reference_id_from=x.reference_id_from,
-                                                           reference_id_to=new_reference_id,
-                                                           reference_relation_type=x.reference_relation_type).one_or_none()
+            y = get_reference_relation_row(db, x.reference_id_from, new_reference_id, x.reference_relation_type)
             if y is None:
                 if x.reference_id_from != new_reference_id:
                     x.reference_id_to = new_reference_id
@@ -1145,14 +1184,18 @@ def add_to_corpus(db: Session, mod_abbreviation: str, reference_curie: str):  # 
                             detail=f"Error adding {reference_curie} to {mod_abbreviation} corpus: {e}")
 
 
+def get_past_to_present_date_range(num_days_ago: int):
+    current_timestamp = str(date.today()).replace("-", "")
+    now = datetime.now().date()
+    start_date = now - timedelta(days=num_days_ago)
+    end_date = now + timedelta(days=1)  # to cover timezone issue
+    return current_timestamp, start_date, end_date
+
+
 def get_recently_sorted_references(db: Session, mod_abbreviation, days):
 
-    datestamp = str(date.today()).replace("-", "")
-    metaData = get_meta_data(mod_abbreviation, datestamp)
-
-    now = datetime.now().date()
-    start_date = now - timedelta(days=days)
-    end_date = now + timedelta(days=1)  # to cover timezone issue
+    current_timestamp, start_date, end_date = get_past_to_present_date_range(days)
+    metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     refColNmList = ", ".join(get_reference_col_names())
 
@@ -1208,6 +1251,45 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days):
                        reference_id_to_mesh_terms,
                        reference_id_to_mod_corpus_data,
                        resource_id_to_journal, data)
+    return {
+        "metaData": metaData,
+        "data": data
+    }
+
+
+def get_recently_deleted_references(db: Session, mod_abbreviation, days):
+
+    current_timestamp, start_date, end_date = get_past_to_present_date_range(days)
+    metaData = get_meta_data(mod_abbreviation, current_timestamp)
+
+    sql_query = text(
+        "SELECT cr.curie, u.email, u.id "
+        "FROM cross_reference cr, mod_corpus_association mca, mod m, users u "
+        "WHERE cr.curie_prefix = 'PMID' "
+        "AND cr.reference_id = mca.reference_id "
+        "AND mca.corpus = :corpus "
+        "AND mca.date_updated >= :start_date "
+        "AND mca.date_updated < :end_date "
+        "AND mca.mod_id = m.mod_id "
+        "AND m.abbreviation = :mod_abbreviation "
+        "AND mca.updated_by = u.id"
+    )
+
+    rows = db.execute(sql_query, {
+        "corpus": False,
+        "start_date": start_date,
+        "end_date": end_date,
+        "mod_abbreviation": mod_abbreviation
+    }).fetchall()
+
+    data = []
+    for x in rows:
+        data.append({
+            "pmid": x[0],
+            "updated_by_email": x[1],
+            "updated_by_okta_id": x[2]
+        })
+
     return {
         "metaData": metaData,
         "data": data

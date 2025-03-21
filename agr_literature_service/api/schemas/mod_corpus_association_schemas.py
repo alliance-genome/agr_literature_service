@@ -55,6 +55,7 @@ class ModCorpusAssociationSchemaUpdate(BaseModel):
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     corpus: Optional[bool] = None
     index_wft_id: Optional[str] = None
+    force_out: Optional[bool] = None
 
     class Config():
         orm_mode = True

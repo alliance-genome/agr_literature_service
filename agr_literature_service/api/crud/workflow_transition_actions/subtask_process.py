@@ -14,6 +14,12 @@ jobs_types: Dict[str, Dict[str, str] | Dict[str, str]] = {
         'complete': 'ATP:0000169',
         'failed': 'ATP:0000189',
         'needed': 'ATP:0000166'},
+    'curation classification': {
+        'main': 'ATP:0000311',
+        'in_progress': 'ATP:0000314',
+        'complete': 'ATP:0000312',
+        'failed': 'ATP:0000315',
+        'needed': 'ATP:0000313'},
     'entity extraction': {
         'main': 'ATP:00001672',
         'in_progress': 'ATP:0000190',

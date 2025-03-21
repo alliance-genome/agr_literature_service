@@ -23,8 +23,8 @@ class DatasetSchemaShow(DatasetSchemaPost):
 
 class DatasetSchemaDownload(DatasetSchemaPost):
     dataset_id: int
-    data_training: Union[Dict[str, int], Dict[str, List[str]]]
-    data_testing: Union[Dict[str, int], Dict[str, List[str]]]
+    data_training: Union[Dict[str, str], Dict[str, List[str]]]
+    data_testing: Union[Dict[str, str], Dict[str, List[str]]]
 
 
 class DatasetSchemaUpdate(BaseModel):
@@ -44,7 +44,7 @@ class DatasetEntrySchemaPost(DatasetSchemaBase):
     version: int
     reference_curie: str
     entity: Optional[str] = None
-    positive: Optional[bool] = True
+    classification_value: Optional[str] = None
     set_type: Optional[str] = "training"
     supporting_topic_entity_tag_id: Optional[int] = None
     supporting_workflow_tag_id: Optional[int] = None

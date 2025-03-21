@@ -279,3 +279,22 @@ def get_recently_sorted_references(mod_abbreviation: str,
     references = reference_crud.get_recently_sorted_references(db, mod_abbreviation, days)
 
     return references
+
+
+@router.get('/get_recently_deleted_references/{mod_abbreviation}',
+            status_code=status.HTTP_200_OK)
+def get_recently_deleted_references(mod_abbreviation: str,
+                                    days: int = 7,
+                                    db: Session = db_session):
+    references = reference_crud.get_recently_deleted_references(db, mod_abbreviation, days)
+
+    return references
+
+
+@router.get('/lock_status/{referenceCurie}',
+            status_code=status.HTTP_200_OK)
+def lock_status(referenceCurie: str,
+                db: Session = db_session):
+    lock_details = reference_crud.lock_status(db, referenceCurie)
+
+    return lock_details
