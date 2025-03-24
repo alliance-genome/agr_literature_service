@@ -105,7 +105,7 @@ services:
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
-      LOG_PATH: "${LOG_PATH}"
+      LOG_PATH: "/var/log/automated_scripts/"
       LOG_URL: "${LOG_URL}"
       CRONTAB_EMAIL: "${CRONTAB_EMAIL}"
       SENDER_EMAIL: "${SENDER_EMAIL}"
@@ -117,7 +117,7 @@ services:
     networks:
       - agr-literature
     volumes:
-      - agr-logs:/logs
+      - "${LOG_PATH}:/var/log/automated_scripts"
     ports:
       - "${API_PORT}:8080"
 
