@@ -11,8 +11,8 @@ Also test for Ateam api, but more could be added.
 """
 import json
 import urllib.request
-from os import environ
-
+from os import environ, path
+from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from fastapi_okta.okta_utils import get_authentication_token
@@ -65,6 +65,33 @@ def check_database(db: Session):
         res['ref_count'] = f"Unable to query database for number of references: {e}"
 
     return res
+
+
+def check_obsolete_entities():
+
+    log_path = environ.get('LOG_PATH', '.')
+    log_file = path.join(log_path, "QC/obsolete_entity_report.log")
+    date_produced = None
+    data = defaultdict(list)
+
+    with open(log_file, 'r') as f:
+        for line in f:
+            if 'date-produced:' in line:
+                date_produced = line.split('date-produced: ')[1].strip()
+            else:
+                pieces = line.strip().split('\t')
+                if len(pieces) >= 4:
+                    data[pieces[0]].append({
+                        "entity_type": pieces[1],
+                        "entity_status": pieces[2],
+                        "entity_curie": pieces[3],
+                        "entity_name": pieces[4] if len(pieces) > 4 else None
+                    })
+
+    return {
+        "date-produced": date_produced,
+        "obsolete_entities": dict(data)
+    }
 
 
 def show_environments():
