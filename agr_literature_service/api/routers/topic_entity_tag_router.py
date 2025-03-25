@@ -231,11 +231,13 @@ def search_species(species: str):
     return ateam_db_helpers.search_species(species)
 
 
-@router.post('/set_no_tet_status/{mod_abbreviation}/{reference_curie}',
+@router.post('/set_no_tet_status/{mod_abbreviation}/{reference_curie}/{uid}',
              status_code=200)
 def set_no_tet_status(mod_abbreviation: str,
                       reference_curie: str,
+                      uid: str,
                       db: Session = db_session):
     return topic_entity_tag_crud.set_indexing_status_for_no_tet_data(db,
                                                                      mod_abbreviation,
-                                                                     reference_curie)
+                                                                     reference_curie,
+                                                                     uid)
