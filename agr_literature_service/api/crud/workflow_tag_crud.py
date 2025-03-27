@@ -587,6 +587,8 @@ def show(db: Session, reference_workflow_tag_id: int):
     result = db.execute(sql_query, {'okta_id': workflow_tag_data["updated_by"]})
     row = result.fetchone()
     workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"] if row is None else row[0]
+    if not workflow_tag_data["updated_by_email"]:
+        workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"]
 
     return workflow_tag_data
 

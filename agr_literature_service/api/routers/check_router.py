@@ -31,6 +31,12 @@ def check_database(db: Session = db_session):
     return {"db_details": check_crud.check_database(db)}
 
 
+@router.get('/check_obsolete_entities',
+            status_code=200)
+def check_obsolete_entities():
+    return check_crud.check_obsolete_entities()
+
+
 @router.get('/environments',
             response_model=EnvironmentsSchemaShow,
             status_code=200)

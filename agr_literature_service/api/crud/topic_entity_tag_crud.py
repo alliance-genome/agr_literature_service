@@ -109,15 +109,15 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     # return topic_entity_tag_id
 
 
-def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie):
+def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
 
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     mod_id = get_mod_id_from_mod_abbreviation(db, mod_abbreviation)
     add_paper_to_mod_if_not_already(db, reference_id, mod_id)
-    update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275")
+    update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275", uid)
 
 
-def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft):
+def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index_wft, uid=None):
 
     if index_wft is None:
         return
@@ -130,13 +130,22 @@ def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index
         )
     ).one_or_none()
     if wft is None:
-        wft_obj = WorkflowTagModel(reference_id=reference_id,
-                                   mod_id=mod_id,
-                                   workflow_tag_id=index_wft)
+        if uid:
+            wft_obj = WorkflowTagModel(reference_id=reference_id,
+                                       mod_id=mod_id,
+                                       created_by=uid,
+                                       updated_by=uid,
+                                       workflow_tag_id=index_wft)
+        else:
+            wft_obj = WorkflowTagModel(reference_id=reference_id,
+                                       mod_id=mod_id,
+                                       workflow_tag_id=index_wft)
         db.add(wft_obj)
         db.commit()
     elif wft.workflow_tag_id != index_wft:
         wft.workflow_tag_id = index_wft
+        if uid and uid != wft.updated_by:
+            wft.updated_by = uid
         db.add(wft)
         db.commit()
 
