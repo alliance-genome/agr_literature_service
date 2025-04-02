@@ -4,7 +4,7 @@ import re
 import time
 import urllib
 from os import environ, makedirs, path
-# from typing import Set
+from typing import Set
 from datetime import datetime, timedelta
 import requests
 from dotenv import load_dotenv
