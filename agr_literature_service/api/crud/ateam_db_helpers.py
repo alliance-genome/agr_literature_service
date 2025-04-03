@@ -137,7 +137,16 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         WHERE UPPER(agm.name) IN :entity_name_list
         AND ot.curie = :taxon
         """)
-        # print("entity_name_list=", entity_name_list)
+
+    elif 'targeting reagent' in entity_type:
+        sql_query = text("""
+        SELECT DISTINCT be.primaryexternalid, be.obsolete, str.name
+        FROM biologicalentity be
+        JOIN sequencetargetingreagent str ON be.id = str.id
+        JOIN ontologyterm ot ON be.taxon_id = ot.id
+        WHERE UPPER(str.name) IN :entity_name_list
+        AND ot.curie = :taxon
+        """)
     elif entity_type == 'construct':
         sql_query = text("""
         SELECT DISTINCT r.primaryexternalid, sa.obsolete, sa.displaytext
@@ -198,7 +207,13 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
         WHERE be.id = agm.id
         AND UPPER(be.primaryexternalid) IN :entity_curie_list
         """)
-
+    elif 'targeting reagent' in entity_type:
+        sql_query = text("""
+        SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+        FROM biologicalentity be, sequencetargetingreagent str
+        WHERE be.id = str.id
+        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        """)
     else:
         # Entity type not supported
         return None
