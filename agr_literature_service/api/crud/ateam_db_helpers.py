@@ -441,6 +441,7 @@ def set_globals(atp_to_name_init, name_to_atp_init, atp_to_children_init, atp_to
     atp_to_parent = atp_to_parent_init.copy()
 
 
+@cachetools.func.ttl_cache(ttl=12 * 60 * 60)
 def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
     """
     Use the subsets in ontologyterm_subsets table to find the jobs to run.
