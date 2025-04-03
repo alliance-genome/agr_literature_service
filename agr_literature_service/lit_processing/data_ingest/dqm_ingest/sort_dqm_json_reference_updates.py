@@ -556,10 +556,7 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
 
         ## save all new papers (both pubmed and non-pubmed) to a json file
         ## an example json file: lit_processing/dqm_data_updates_new/REFERENCE_SGD.json
-        try:
-            save_new_references_to_file(references_to_create, mod)
-        except Exception as e:
-            logger.info(f"An error occurred when saving new references to file. ERROR={e}")
+        save_new_references_to_file(references_to_create, mod)
 
         ## check all db agrId->modId, check each dqm mod still had modId
         for agr in ref_xref_valid:
@@ -609,23 +606,17 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         # print ("cross_reference_to_add=", len(cross_reference_to_add))
 
         ## add new cross_reference XREF IDs
-        try:
-            add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
-        except Exception as e:
-            logger.info(f"An error occurred when adding cross references. Error={e}")
+        add_cross_references(cross_reference_to_add, agr_list_for_cross_refs_to_add, logger, live_change)
+
         ## update references with md5sum changed
-        try:
-            curie_to_reftypesConflict = update_db_entries(mod, mod_to_mod_id,
-                                                          aggregate_mod_specific_fields_only,
-                                                          fh_mod_report[mod],
-                                                          'mod_specific_fields_only')
-        except Exception as e:
-            logger.info(f"An error occurred when updating mod specific db entries. Error={e}")
-        try:
-            update_db_entries(mod, mod_to_mod_id, aggregate_mod_biblio_all, fh_mod_report[mod],
-                              'mod_biblio_all')
-        except Exception as e:
-            logger.info(f"An error occurred when updating mod biblio db entries. Error={e}")
+        curie_to_reftypesConflict = update_db_entries(mod, mod_to_mod_id,
+                                                      aggregate_mod_specific_fields_only,
+                                                      fh_mod_report[mod],
+                                                      'mod_specific_fields_only')
+
+        update_db_entries(mod, mod_to_mod_id, aggregate_mod_biblio_all, fh_mod_report[mod],
+                          'mod_biblio_all')
+
         output_directory_name = 'process_dqm_update_' + mod
         output_directory_path = base_path + output_directory_name
         if not path.exists(output_directory_path):
@@ -637,29 +628,21 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         # equivalent to python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p
         # create a file of the pmids (stored in output_directory_name + '/inputs/alliance_pmids)
         # from this newly generated json file (eg, dqm_data_updates_new/REFERENCE_SGD.json)
-        try:
-            generate_pmid_data('dqm_data_updates_new/', output_directory_name + '/', mod)
-        except Exception as e:
-            logger.info(f"An error occurred when generating pmid data. Error={e}")
+        generate_pmid_data('dqm_data_updates_new/', output_directory_name + '/', mod)
+
         # read list of new pmids to process from file (alliance_pmids file)
-        try:
-            pmids_wanted = read_pmid_file(output_directory_name + '/inputs/alliance_pmids')
-        except Exception as e:
-            logger.info(f"An error occurred when reading pmid file. Error={e}")
+        pmids_wanted = read_pmid_file(output_directory_name + '/inputs/alliance_pmids')
+
         # download xml from pubmed into base_path pubmed_xml/
         # equivalent to
         # python3 get_pubmed_xml.py -f inputs/alliance_pmids
-        try:
-            download_pubmed_xml(pmids_wanted)
-        except Exception as e:
-            logger.info(f"An error occurred when downloading xml files. Error={e}")
+        download_pubmed_xml(pmids_wanted)
+
         # convert xml from base_path pubmed_xml/ to base_path pubmed_json/
         # equivalent to
         # python3 xml_to_json.py -f inputs/alliance_pmids
-        try:
-            generate_json(pmids_wanted, [], base_dir=base_dir)
-        except Exception as e:
-            logger.info(f"An error occurred when generating json files. Error={e}")
+        generate_json(pmids_wanted, [], base_dir=base_dir)
+
         # if wanting to recursively download reference_relations, which Ceri does not want
         # untested equivalent to
         # python3 process_many_pmids_to_json.py -s -f inputs/alliance_pmids > logs/log_process_many_pmids_to_json_update_create
@@ -670,10 +653,8 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         # PubMed papers in REFERENCE_PUBMED_<mod>_1.json
         # non-Pubmed papers in REFERENCE_PUBMOD_<mod>_1.json
         # equivalent to python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -m all
-        try:
-            aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
-        except Exception as e:
-            logger.info(f"An error occurred when calling aggregate_dqm_with_pubmed. Error={e}")
+        aggregate_dqm_with_pubmed('dqm_data_updates_new/', mod, output_directory_name + '/')
+
         # if wanting to process the pmids from recursive download of reference_relations, which Ceri does not want
         # untested equivalent to
         # python3 parse_pubmed_json_reference.py -f inputs/pubmed_only_pmids > logs/log_parse_pubmed_json_reference_update_create
@@ -682,25 +663,14 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
         bad_date_published = {}
         # load new PubMed papers (REFERENCE_PUBMED_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMED_' + mod + '_1.json'
-        try:
-            find_unparsable_date_published(json_filepath, bad_date_published)
-        except Exception as e:
-            logger.info(f"An error occurred when calling find_unparsable_date_published for PubMed papers. Error={e}")
-        try:
-            post_references(json_filepath, live_change)
-        except Exception as e:
-            logger.info(f"An error occurred when calling post_references for PubMed papers. Error={e}")
+        find_unparsable_date_published(json_filepath, bad_date_published)
+        post_references(json_filepath, live_change)
 
         # load new non PubMed papers (REFERENCE_PUBMOD_<mod>_1.json) into database
         json_filepath = base_path + 'process_dqm_update_' + mod + '/sanitized_reference_json/REFERENCE_PUBMOD_' + mod + '_1.json'
-        try:
-            find_unparsable_date_published(json_filepath, bad_date_published)
-        except Exception as e:
-            logger.info(f"An error occurred when calling find_unparsable_date_published for non PubMed papers. Error={e}")
-        try:
-            post_references(json_filepath, live_change)
-        except Exception as e:
-            logger.info(f"An error occurred when calling post_references for non PubMed papers. Error={e}")
+        find_unparsable_date_published(json_filepath, bad_date_published)
+        post_references(json_filepath, live_change)
+
         # update s3 md5sum only if prod, to test develop copy file from s3 prod to s3 develop
         # https://s3.console.aws.amazon.com/s3/buckets/agr-literature?prefix=develop%2Freference%2Fmetadata%2Fmd5sum%2F&region=us-east-1&showversions=false#
         # env_state = environ.get('ENV_STATE', 'prod')
