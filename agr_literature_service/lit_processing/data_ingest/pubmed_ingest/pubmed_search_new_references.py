@@ -183,14 +183,14 @@ def query_mods(input_mod, reldate):  # noqa: C901
     # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D+NOT+preprint[pt] => return 576
     # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D => return 576
 
-    # example FB URL: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+2024/04/02:2025/04/02[EDAT]+NOT+pubstatusaheadofprint+NOT+preprint[Publication+Type]&retmax=100000000
+    # example FB URL: https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+2024/04/03:2025/04/03[CRDT]+NOT+pubstatusaheadofprint+NOT+preprint[Publication+Type]&retmax=100000000
 
     today = datetime.today()
     one_year_ago = today - timedelta(days=365)
     date_string = f"{one_year_ago.strftime('%Y/%m/%d')}:{today.strftime('%Y/%m/%d')}"
 
     mod_esearch_url = {
-        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+' + date_string + '[EDAT]+NOT+pubstatusaheadofprint+NOT+preprint[Publication+Type]&retmax=100000000',
+        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+' + date_string + '[CRDT]+NOT+pubstatusaheadofprint+NOT+preprint[Publication+Type]&retmax=100000000',
         'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]+NOT+preprint[pt]',
         'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae+NOT+preprint[pt]',
         'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans+NOT+preprint[pt]',
