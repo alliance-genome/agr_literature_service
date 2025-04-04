@@ -16,7 +16,10 @@ class MLModelSchemaBase(BaseModel):
     f1_score: Union[float, None]
     parameters: Union[str, None]
     dataset_id: Union[int, None]
-
+    production: Union[bool, None]
+    negated: Union[bool, None]
+    novel_topic_data: Union[bool, None]
+    species: Union[str, None]
 
 class MLModelSchemaPost(MLModelSchemaBase):
     pass

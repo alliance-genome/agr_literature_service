@@ -56,7 +56,11 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         recall=request.recall,
         f1_score=request.f1_score,
         parameters=request.parameters,
-        dataset_id=request.dataset_id
+        dataset_id=request.dataset_id,
+        production=request.production,
+        species=request.species,
+        novel_topic_data=request.novel_topic_data,
+        negated=request.negated
     )
     try:
         db.add(new_model)
@@ -133,7 +137,11 @@ def get_model_schema_from_orm(model: MLModel):
         "f1_score": model.f1_score,
         "parameters": model.parameters,
         "dataset_id": model.dataset_id,
-        "ml_model_id": model.ml_model_id
+        "ml_model_id": model.ml_model_id,
+        "production": model.production,
+        "species": model.species,
+        "novel_topic_data": model.novel_topic_data,
+        "negated": model.negated
     }
     return MLModelSchemaShow(**model_data)
 
@@ -144,7 +152,8 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
     return get_model_schema_from_orm(model)
 
 
-def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
+def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None, production: bool = None):
+    print(f"need to check {production} too")
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num)
     topic = topic if topic is not None else "None"
