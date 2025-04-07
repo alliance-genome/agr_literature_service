@@ -880,3 +880,7 @@ def show_source_by_name(db: Session, source_evidence_assertion: str, source_meth
     del source_data["secondary_data_provider_id"]
     source_data["secondary_data_provider_abbreviation"] = secondary_data_provider_abbreviation
     return source_data
+
+
+def show_all_source(db: Session):
+    return [jsonable_encoder(source) for source in db.query(TopicEntityTagSourceModel).all()]
