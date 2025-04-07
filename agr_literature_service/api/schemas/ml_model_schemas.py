@@ -21,6 +21,7 @@ class MLModelSchemaBase(BaseModel):
     novel_topic_data: Union[bool, None]
     species: Union[str, None]
 
+
 class MLModelSchemaPost(MLModelSchemaBase):
     pass
 

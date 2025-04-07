@@ -41,7 +41,10 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                               " [500, 500, 500], 'learning_rate': 'constant', 'learning_rate_init': "
                               "0.01378769917615668, 'solver': 'sgd'}",
                 "dataset_id": None,
-                "production": None
+                "production": True,
+                "negated": True,
+                "novel_topic_data": False,
+                "species": None
             }
             model_data_json = json.dumps(new_model)
             files = {
