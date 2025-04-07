@@ -40,7 +40,8 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                               "'beta_2': 0.0010956501293432625, 'epsilon': 0.0016887047887665103, 'hidden_layer_sizes':"
                               " [500, 500, 500], 'learning_rate': 'constant', 'learning_rate_init': "
                               "0.01378769917615668, 'solver': 'sgd'}",
-                "dataset_id": None
+                "dataset_id": None,
+                "production": None
             }
             model_data_json = json.dumps(new_model)
             files = {
