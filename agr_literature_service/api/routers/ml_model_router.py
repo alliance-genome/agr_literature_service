@@ -132,10 +132,25 @@ def get_model_metadata(task_type: str,
 @router.get('/download/{task_type}/{mod_abbreviation}',
             response_model=MLModelSchemaShow,
             status_code=200)
+@router.get('/download/production/{task_type}/{mod_abbreviation}/{production}',
+            response_model=MLModelSchemaShow,
+            status_code=200)
 def download_model_file(task_type: str,
                         mod_abbreviation: str,
                         topic: str = None,
                         version_num: int = None,
-                        production: bool = None,
+                        production: str = None,
+                        db: Session = db_session):
+    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version_num, production)
+
+
+@router.get('/download/production/{task_type}/{mod_abbreviation}',
+            response_model=MLModelSchemaShow,
+            status_code=200)
+def download_model_file_prod(task_type: str,
+                        mod_abbreviation: str,
+                        topic: str = None,
+                        production= True,
+                        version_num: int = None,
                         db: Session = db_session):
     return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version_num, production)

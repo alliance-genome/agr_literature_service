@@ -108,12 +108,14 @@ def get_mod(db: Session, mod_abbreviation: str):
     return mod
 
 
-def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version_num: int = None):
+def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version_num: int = None , production: bool = None):
     query = db.query(MLModel).filter(
         MLModel.task_type == task_type,
         MLModel.mod_id == mod_id,
         MLModel.topic == topic
     )
+    if production is not None:
+        query = query.filter(MLModel.production == production)
     if version_num is not None and version_num > 0:
         query = query.filter(MLModel.version_num == version_num)
     else:
@@ -155,8 +157,9 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
 def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None, production: bool = None):
     print(f"need to check {production} too")
     mod = get_mod(db, mod_abbreviation)
-    model = get_model(db, task_type, mod.mod_id, topic, version_num)
+    model = get_model(db, task_type, mod.mod_id, topic, version_num, production)
     topic = topic if topic is not None else "None"
+
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
     object_key = f"{folder}/{str(model.version_num)}.gz"
     file_name_gzipped = f"{str(model.version_num)}.gz"
