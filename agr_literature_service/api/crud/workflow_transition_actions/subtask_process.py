@@ -36,13 +36,14 @@ def check_type(checktype: str):
                             detail=f"Method sub_task_in_progress with first arg {checktype} not in known list")
 
 
-def get_current_status_obj(db: Session, job_type: str, reference_id):
+def get_current_status_obj(db: Session, job_type: str, reference_id, mod_id):
     """ Get the current status of the "main" job.
         So for this job type look for the overall status.
         """
     global jobs_types
     cur = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_id == reference_id,
+               WorkflowTagModel.mod_id == mod_id,
                WorkflowTagModel.workflow_tag_id.in_((jobs_types[job_type].values()))).one_or_none()
     return cur
 
@@ -59,7 +60,7 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
 
     checktype = args[0]
     check_type(checktype)
-    main_status_obj = get_current_status_obj(db, checktype, int(current_workflow_tag_db_obj.reference_id))
+    main_status_obj = get_current_status_obj(db, checktype, int(current_workflow_tag_db_obj.reference_id), int(current_workflow_tag_db_obj.mod_id))
     if not main_status_obj:
         mess = f"Error: main in progress. Could not find main_status_obj for {checktype} in DB"
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
@@ -96,7 +97,9 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
 
     checktype = args[0]
     check_type(checktype)
-    main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
+    print(checktype)
+    print(current_workflow_tag_db_obj.reference_id)
+    main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id, int(current_workflow_tag_db_obj.mod_id))
     check_main_needed = False
     if not main_status_obj:
         mess = "Error: main in complete. Could not find main_status_obj for {checktype} in DB"
@@ -153,7 +156,7 @@ def sub_task_failed(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, 
 
     checktype = args[0]
     check_type(checktype)
-    main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id)
+    main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id, int(current_workflow_tag_db_obj.mod_id))
     if not main_status_obj:
         mess = "Error: main in failed. Could not find main_status_obj for {checktype} in DB"
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
