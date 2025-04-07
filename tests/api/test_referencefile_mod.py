@@ -75,10 +75,10 @@ class TestReferencefileMod:
                                            f"{test_referencefile_mod.new_referencefile_mod_id}")
             response_file = client.get(url=f"/reference/referencefile/{response_file_mod.json()['referencefile_id']}")
             response = client.get(url=f"/reference/referencefile/show_all/{response_file.json()['reference_curie']}")
-            ok=False
+            ok = False
             for mod in response.json():
                 if mod["referencefile_mods"][1]["mod_abbreviation"] == "WB":
-                    ok=True
+                    ok = True
             assert ok
 
     def test_add_referencefile_to_mod(self, test_referencefile_mod, auth_headers): # noqa
