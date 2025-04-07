@@ -1,4 +1,5 @@
-FROM python:3.11-bookworm
+#FROM python:3.11-bookworm
+FROM python:3.11-slim
 # Set timezone:
 ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
@@ -11,20 +12,28 @@ COPY ./logging.conf .
 
 ADD crontab /etc/cron.d/automate_scripts_crontab
 
-RUN pip3 install -r requirements.txt  && \
-    apt-get update -y  && \
-    apt-get upgrade -y  && \
-    apt-get install lsb-release -y  && \
-    apt-get install wget -y  && \
-    apt-get clean all  && \
-    sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/postgres.list'  && \
-    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc |  apt-key add -  && \
-    apt update  && \
-    apt install postgresql-client-13 -y && \
-    apt install curl -y && \
-    apt install gettext -y   && \
-    apt install bash -y   && \
-    apt install jq -y
+# Install system dependencies and tools
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    lsb-release \
+    wget \
+    curl \
+    gettext \
+    bash \
+    jq \
+    gnupg \
+    postgresql-client && \
+    apt-get clean
+
+# Set up PostgreSQL repository
+RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/postgres.list' && \
+    wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | tee /etc/apt/trusted.gpg.d/postgresql.asc > /dev/null && \
+    apt-get update -y
+
+# Copy requirements and install Python dependencies
+RUN pip3 install --upgrade pip && \
+    pip3 install -r requirements.txt --no-cache-dir
+
 COPY debezium/* /
 RUN chmod 0644 /etc/cron.d/automate_scripts_crontab
 RUN crontab /etc/cron.d/automate_scripts_crontab

@@ -3,7 +3,9 @@ Pipfile.lock
 htmlcov
 agr_literature_service/lit_processing/data_ingest/tmp/*
 agr_literature_service/lit_processing/tests/tmp/*
+tmp
 *.coverage
 *.coverage.*
 .idea/*
 .vscode/*
+**/*.gz
