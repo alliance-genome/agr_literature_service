@@ -711,26 +711,30 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
 
 
 def find_unparsable_date_published(json_file, bad_date_published):
-
     if path.exists(json_file):
-        json_data = json.load(open(json_file))
+        with open(json_file, 'r') as f:
+            json_data = json.load(f)
         json_new_data = []
         for entry in json_data:
             primaryId = entry.get('primaryId')
             if entry.get('datePublished'):
-                date_range, error_message = parse_date(entry['datePublished'].strip(), False)
-                if date_range is not False:
-                    (datePublishedStart, datePublishedEnd) = date_range
-                    entry['datePublishedStart'] = datePublishedStart
-                    entry['datePublishedEnd'] = datePublishedEnd
-                else:
+                try:
+                    # use extended unpacking to capture extra values (if any) without error.
+                    parsed_result = parse_date(entry['datePublished'].strip(), False)
+                    date_range = parsed_result[0]
+                    if date_range is not False:
+                        datePublishedStart, datePublishedEnd = date_range
+                        entry['datePublishedStart'] = datePublishedStart
+                        entry['datePublishedEnd'] = datePublishedEnd
+                    else:
+                        bad_date_published[primaryId] = entry['datePublished']
+                except Exception:
                     bad_date_published[primaryId] = entry['datePublished']
             else:
                 bad_date_published[primaryId] = 'No datePublished provided'
             json_new_data.append(entry)
-        fw = open(json_file, 'w')
-        fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
-        fw.close()
+        with open(json_file, 'w') as fw:
+            fw.write(json.dumps(json_new_data, indent=4, sort_keys=True))
 
 
 def read_pmid_file(local_path):
@@ -844,7 +848,6 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
             # 'mod_specific_fields_only' or 'mod_biblio_all'
 
             logger.info("processing #%s out of %s entries for %s", j, len(dqm_entries.keys()), processing_flag)
-
             update_mod_corpus_associations(db_session, mod_to_mod_id, db_entry['reference_id'],
                                            db_entry.get('mod_corpus_association', []),
                                            dqm_entry.get('mod_corpus_associations', []),
@@ -872,11 +875,15 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
                 for field_camel in fields_simple_camel:
                     if field_camel == 'datePublished' and dqm_entry.get(field_camel):
                         datePublished = str(dqm_entry[field_camel])
-                        date_range, error_message = parse_date(datePublished.strip(), False)
-                        if date_range is not False:
-                            (datePublishedStart, datePublishedEnd) = date_range
-                            dqm_entry['datePublishedStart'] = str(datePublishedStart)[0:10]
-                            dqm_entry['datePublishedEnd'] = str(datePublishedEnd)[0:10]
+                        try:
+                            parsed_result = parse_date(datePublished.strip(), False)
+                            date_range = parsed_result[0]
+                            if date_range is not False:
+                                datePublishedStart, datePublishedEnd = date_range
+                                dqm_entry['datePublishedStart'] = str(datePublishedStart)[0:10]
+                                dqm_entry['datePublishedEnd'] = str(datePublishedEnd)[0:10]
+                        except Exception as e:
+                            logger.error(f"Error parsing date for {dqm_entry.get('primaryId', 'Unknown')}: {e}")
                     field_snake = field_camel
                     if field_camel in remap_keys:
                         field_snake = remap_keys[field_camel]
@@ -909,12 +916,15 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
 
                 pub_status_changed = "publication status change place holder"
                 pmids_with_pub_status_changed = {}
-                update_authors(db_session, db_entry['reference_id'],
-                               db_entry.get('author', []),
-                               dqm_entry.get('authors', []),
-                               pub_status_changed,
-                               pmids_with_pub_status_changed,
-                               logger)
+                try:
+                    update_authors(db_session, db_entry['reference_id'],
+                                   db_entry.get('author', []),
+                                   dqm_entry.get('authors', []),
+                                   pub_status_changed,
+                                   pmids_with_pub_status_changed,
+                                   logger)
+                except Exception as e:
+                    logger.info(f"An error occurred when calling update_authors: error={e}")
 
                 # if curators want to get reports of how resource change, put this back,
                 # but we're comparing resource titles with dqm resource abbreviations,
