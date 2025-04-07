@@ -46,8 +46,7 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> DatasetSchemaShow
         title=dataset.title,
         description=dataset.description,
         version=new_version,
-        frozen=False,
-        production=False
+        frozen=False
     )
     db.add(db_dataset)
     try:
