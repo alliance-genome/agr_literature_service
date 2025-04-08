@@ -95,6 +95,12 @@ def patch_source(topic_entity_tag_source_id,
     return topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
 
 
+@router.get('/source/all',
+            status_code=200)
+def show_all_source(db: Session = db_session):
+    return topic_entity_tag_crud.show_all_source(db)
+
+
 @router.get('/source/{topic_entity_tag_source_id}',
             response_model=TopicEntityTagSourceSchemaShow,
             status_code=200)
