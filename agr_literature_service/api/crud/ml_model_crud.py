@@ -155,7 +155,6 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
 
 
 def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None, production: bool = None):
-    print(f"need to check {production} too")
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version_num, production)
     topic = topic if topic is not None else "None"

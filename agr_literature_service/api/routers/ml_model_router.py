@@ -147,10 +147,8 @@ def download_model_file(task_type: str,
 @router.get('/download/production/{task_type}/{mod_abbreviation}',
             response_model=MLModelSchemaShow,
             status_code=200)
-def download_model_file_prod(task_type: str,
-                        mod_abbreviation: str,
-                        topic: str = None,
-                        production= True,
-                        version_num: int = None,
-                        db: Session = db_session):
-    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version_num, production)
+def download_model_file_prod_flag(
+        task_type: str,
+        mod_abbreviation: str,
+        db: Session = db_session):
+    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, version_num=None, production=True)
