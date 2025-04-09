@@ -39,7 +39,7 @@ pydot==1.4.2                 # No update needed.
 sqlalchemy_schemadisplay==2.0.0 # Upgrade for compatibility with SQLAlchemy 2.0.x.
 
 # GitHub Dependency
-git+https://github.com/alliance-genome/agr_fastapi_okta@v1.2#egg=fastapi_okta # Latest version from the repo.
+git+https://github.com/alliance-genome/agr_fastapi_okta@v1.3#egg=fastapi_okta # Latest version from the repo.
 
 # HTTP and Networking
 requests==2.31.0             # Updated for bug fixes and improvements.
