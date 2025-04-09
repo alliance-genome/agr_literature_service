@@ -75,8 +75,11 @@ class TestReferencefileMod:
                                            f"{test_referencefile_mod.new_referencefile_mod_id}")
             response_file = client.get(url=f"/reference/referencefile/{response_file_mod.json()['referencefile_id']}")
             response = client.get(url=f"/reference/referencefile/show_all/{response_file.json()['reference_curie']}")
+            print(response)
+            assert response.status_code == status.HTTP_200_OK
             ok = False
             for mod in response.json():
+
                 if mod["referencefile_mods"][1]["mod_abbreviation"] == "WB":
                     ok = True
             assert ok
