@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-python@v4
         name: setup python
         with:
-          python-version: 3.8
+          python-version: 3.11
       - name: AWS credentials configuration
         uses: aws-actions/configure-aws-credentials@v2
         with:
