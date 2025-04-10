@@ -189,8 +189,10 @@ def query_mods(input_mod, reldate):  # noqa: C901
     # one_year_ago = today - timedelta(days=365)
     # date_string = f"{one_year_ago.strftime('%Y/%m/%d')}:{today.strftime('%Y/%m/%d')}"
 
+    # 'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+NOT+pubstatusaheadofprint+NOT+preprint[pt]&retmax=100000000'
+
     mod_esearch_url = {
-        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+NOT+pubstatusaheadofprint+NOT+preprint[pt]&retmax=100000000',
+        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=(drosophil*[ALL]+OR+melanogaster[ALL])+NOT+pubstatusaheadofprint+NOT+preprint[pt]+NOT+"epub+ahead+of+print"[Publication+Type]&retmax=10000000',
         'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]+NOT+preprint[pt]',
         'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae+NOT+preprint[pt]',
         'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans+NOT+preprint[pt]',
