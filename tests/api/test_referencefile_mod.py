@@ -76,6 +76,7 @@ class TestReferencefileMod:
             response_file = client.get(url=f"/reference/referencefile/{response_file_mod.json()['referencefile_id']}")
             response = client.get(url=f"/reference/referencefile/show_all/{response_file.json()['reference_curie']}")
             print(response)
+            print(response.json())
             assert response.status_code == status.HTTP_200_OK
             ok = False
             for mod in response.json():
