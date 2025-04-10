@@ -145,12 +145,6 @@ class DatasetModel(AuditedModel, Base):
         default=False
     )
 
-    production: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=False
-    )
-
     dataset_entries = relationship(
         "DatasetEntryModel",
         back_populates="dataset",
