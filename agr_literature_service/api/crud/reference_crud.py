@@ -1338,7 +1338,7 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
             continue
 
         topic_sources = []
-        topic_added = None
+        oldest_date = None
         has_data = False
         novel_data = False
         no_data = False
@@ -1352,7 +1352,8 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
                 topic_sources.append(topic_source)
             date_str = str(tet.date_created).split(" ")[0]  # "2025-03-05"
             dt = datetime.strptime(date_str, "%Y-%m-%d")
-            topic_added = dt.strftime("%b. ") + str(dt.day) + dt.strftime(", %Y")
+            if oldest_date is None or dt < oldest_date:
+                oldest_date = dt
             if tet.novel_topic_data:
                 novel_data = True
             if tet.negated:
@@ -1360,6 +1361,11 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
             else:
                 has_data = True
         topic_sources.sort()
+        topic_added = (
+            oldest_date.strftime("%b. ") + str(oldest_date.day) + oldest_date.strftime(", %Y")
+            if oldest_date
+            else None
+        )
         data[topic] = {
             "topic_added": topic_added,
             "topic_source": topic_sources,
