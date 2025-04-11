@@ -1362,7 +1362,7 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
         topic_sources.sort()
         data[topic] = {
             "topic_added": topic_added,
-            "topc_source": topic_sources,
+            "topic_source": topic_sources,
             "has_data": has_data,
             "novel_data": novel_data,
             "no_data": no_data
