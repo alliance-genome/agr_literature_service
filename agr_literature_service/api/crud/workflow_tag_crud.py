@@ -129,7 +129,8 @@ def process_transition_actions(db: Session,
         process_action(db, current_workflow_tag_db_obj, action)
 
 
-def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
+def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0,
+             mod_abbr: str = None, reference: str = None, topic: str = None):
     """
     :param db: Session: database session
     :param job_str: string can be just general "job" or job types like "extract_job"
@@ -145,6 +146,8 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0):
         limit = 1000
     if offset < 0:
         offset = 0
+    if reference:
+        pass
     jobs = []
     wft_list = (db.query(WorkflowTagModel.workflow_tag_id,
                          WorkflowTagModel.reference_id,
