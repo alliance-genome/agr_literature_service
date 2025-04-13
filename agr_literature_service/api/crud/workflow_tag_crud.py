@@ -11,7 +11,7 @@ from sqlalchemy import and_, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
-from typing import Union, Optional, Dict
+from typing import Union, Optional, Dict, Any
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -146,8 +146,16 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0,
         limit = 1000
     if offset < 0:
         offset = 0
+
+    filter_spec: Any = (WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
+                        WorkflowTransitionModel.condition.contains(job_str),)
     if reference:
-        pass
+        filter_spec += (ReferenceModel.curie == reference,)
+    if mod_abbr:
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbr).scalar()
+        filter_spec += (WorkflowTagModel.mod_id == mod_id,)
+    if topic:
+        filter_spec += (WorkflowTagTopicModel.topic == topic,)
     jobs = []
     wft_list = (db.query(WorkflowTagModel.workflow_tag_id,
                          WorkflowTagModel.reference_id,
@@ -162,8 +170,7 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0,
                       WorkflowTagModel.reference_id == ReferenceModel.reference_id)
                 .outerjoin(WorkflowTagTopicModel,
                            WorkflowTagModel.workflow_tag_id == WorkflowTagTopicModel.workflow_tag)
-                .filter(WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
-                        WorkflowTransitionModel.condition.contains(job_str))
+                .filter(*filter_spec)
                 .order_by(WorkflowTagModel.date_updated.desc()).limit(limit).offset(offset).all())
     for wft in wft_list:
         conditions = wft.condition.split(',')
