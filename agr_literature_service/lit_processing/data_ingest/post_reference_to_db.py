@@ -76,7 +76,7 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
         try:
             if entry.get('crossReferences') is None:
                 continue
-            if len(entry['modCorpusAssociations']) == 1:
+            if entry.get('modCorpusAssociations') and len(entry['modCorpusAssociations']) == 1:
                 row = entry['modCorpusAssociations'][0]
                 if row.get('modAbbreviation') and \
                    row['modAbbreviation'] == 'FB' and \
