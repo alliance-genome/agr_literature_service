@@ -76,6 +76,12 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
         try:
             if entry.get('crossReferences') is None:
                 continue
+            if entry.get('modCorpusAssociations') and len(entry['modCorpusAssociations']) == 1:
+                row = entry['modCorpusAssociations'][0]
+                if row.get('modAbbreviation') and \
+                   row['modAbbreviation'] == 'FB' and \
+                   entry.get('publicationStatus') == 'aheadofprint':
+                    continue
 
             reference_id, curie = insert_reference(db_session, primaryId, journal_to_resource_id, entry)
             # new_ref_curies.append(curie)
