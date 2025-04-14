@@ -42,7 +42,11 @@ def upload_model(
         file: UploadFile = File(...),  # noqa: B008
         model_data_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
         user: OktaUser = db_user,
-        db: Session = db_session):
+        db: Session = db_session,
+        production: bool = False,
+        negated: bool = True,
+        novel_topic_data: bool = False,
+        species: str = None):
     model_data = None
     if task_type and mod_abbreviation:
         model_data = {
@@ -56,7 +60,11 @@ def upload_model(
             "recall": recall,
             "f1_score": f1_score,
             "parameters": parameters,
-            "dataset_id": dataset_id
+            "dataset_id": dataset_id,
+            "production": production,
+            "negated": negated,
+            "novel_topic_data": novel_topic_data,
+            "species": species
         }
     elif model_data_file is not None:
         try:
@@ -78,7 +86,11 @@ def upload_model(
         recall=model_data["recall"],
         f1_score=model_data["f1_score"],
         parameters=model_data["parameters"],
-        dataset_id=model_data["dataset_id"]
+        dataset_id=model_data["dataset_id"],
+        production=model_data["production"],
+        negated=model_data["negated"],
+        novel_topic_data=model_data["novel_topic_data"],
+        species=model_data["species"]
     )
     set_global_user_from_okta(db, user)
     return ml_model_crud.upload(db, request, file)
@@ -126,3 +138,13 @@ def download_model_file(task_type: str,
                         version_num: int = None,
                         db: Session = db_session):
     return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version_num)
+
+
+@router.get('/download/production/{task_type}/{mod_abbreviation}',
+            response_model=MLModelSchemaShow,
+            status_code=200)
+def download_model_file_prod_flag(
+        task_type: str,
+        mod_abbreviation: str,
+        db: Session = db_session):
+    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, version_num=None, production=True)

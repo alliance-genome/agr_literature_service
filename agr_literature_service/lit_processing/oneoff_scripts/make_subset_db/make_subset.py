@@ -16,7 +16,9 @@ from agr_literature_service.api.models import (
     ModReferencetypeAssociationModel,
     CopyrightLicenseModel,
     TopicEntityTagSourceModel,
-    WorkflowTransitionModel
+    WorkflowTransitionModel,
+    DatasetModel,
+    MLModel
 )
 
 # NOTE: Order is important here.
@@ -29,7 +31,9 @@ data_needed_before_reference = [
     ModReferencetypeAssociationModel,
     CopyrightLicenseModel,
     TopicEntityTagSourceModel,
-    WorkflowTransitionModel
+    WorkflowTransitionModel,
+    DatasetModel,
+    MLModel
 ]
 
 # curies in curie order. Please retain this order to
