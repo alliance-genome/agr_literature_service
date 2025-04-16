@@ -100,7 +100,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id, int(current_workflow_tag_db_obj.mod_id))
     check_main_needed = False
     if not main_status_obj:
-        mess = "Error: main in complete. Could not find main_status_obj for {checktype} in DB"
+        mess = f"Error: main in complete. Could not find main_status_obj for {checktype} in DB"
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=mess)
 
@@ -156,7 +156,7 @@ def sub_task_failed(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, 
     check_type(checktype)
     main_status_obj = get_current_status_obj(db, checktype, current_workflow_tag_db_obj.reference_id, int(current_workflow_tag_db_obj.mod_id))
     if not main_status_obj:
-        mess = "Error: main in failed. Could not find main_status_obj for {checktype} in DB"
+        mess = f"Error: main in failed. Could not find main_status_obj for {checktype} in DB"
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=mess)
 

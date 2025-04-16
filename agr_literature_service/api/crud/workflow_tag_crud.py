@@ -150,7 +150,9 @@ def get_jobs(db: Session, job_str: str, limit: int = 1000, offset: int = 0,
     filter_spec: Any = (WorkflowTagModel.mod_id == WorkflowTransitionModel.mod_id,
                         WorkflowTransitionModel.condition.contains(job_str),)
     if reference:
-        filter_spec += (ReferenceModel.curie == reference,)
+        references = reference.split(',')
+        print(references)
+        filter_spec += (ReferenceModel.curie.in_(references),)
     if mod_abbr:
         mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbr).scalar()
         filter_spec += (WorkflowTagModel.mod_id == mod_id,)
