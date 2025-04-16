@@ -23,6 +23,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpForm
 parser.add_argument('-m', '--mod_abbr', help='list transition for a specific mod', type=str, required=False, default=None)
 args = parser.parse_args()
 
+
 def load_mod_abbr(db, debug):
     global mod_ids, mod_abbrs
     try:
