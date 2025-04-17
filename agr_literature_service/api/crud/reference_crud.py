@@ -1324,29 +1324,36 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
     rows = query.all()
 
     topic_to_data = defaultdict(list)
-    topic_atpids = set()
     for tet, tet_source in rows:
         topic_to_data[tet.topic].append((tet, tet_source))
-        topic_atpids.add(tet.topic)
 
-    topic_to_name = map_curies_to_names('atpterm', list(topic_atpids))
+    topic_to_name = map_curies_to_names('atpterm', list(topic_to_data.keys()))
+
     data = {}
     for topic, topic_rows in topic_to_data.items():
-        topic_sources = set()
-        earliest_dt = None
+        # initialize earliest_dt from the very first row
+        first_tet, _ = topic_rows[0]
+        if isinstance(first_tet.date_created, datetime):
+            earliest_dt = first_tet.date_created
+        else:
+            date_str = str(first_tet.date_created).split()[0]
+            earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
         has_data = novel_data = no_data = False
+        topic_sources = set()
+        source_map = {
+            'ATP:0000035': 'author',
+            'ATP:0000036': 'biocurator'
+        }
         for tet, tet_source in topic_rows:
-            source_map = {
-                'ATP:0000035': 'author',
-                'ATP:0000036': 'biocurator'
-            }
-            topic_sources.add(source_map.get(tet_source.source_evidence_assertion, 'computational'))
+            topic_sources.add(
+                source_map.get(tet_source.source_evidence_assertion, 'computational')
+            )
             if isinstance(tet.date_created, datetime):
                 dt = tet.date_created
             else:
                 date_str = str(tet.date_created).split()[0]  # "2025-03-05"
                 dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if earliest_dt is None or dt < earliest_dt:
+            if dt < earliest_dt:
                 earliest_dt = dt
 
             if tet.novel_topic_data:
@@ -1355,7 +1362,7 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
                 no_data = True
             else:
                 has_data = True
-        topic_added = earliest_dt.strftime("%b. ") + str(earliest_dt.day) + earliest_dt.strftime(", %Y")
+        topic_added = f"{earliest_dt.strftime('%b.')} {earliest_dt.day}, {earliest_dt.year}"
         topic_name = topic_to_name.get(topic, topic)
         data[topic_name] = {
             "topic_added": topic_added,
