@@ -1199,9 +1199,47 @@ def get_past_to_present_date_range(num_days_ago: int):
     return current_timestamp, start_date, end_date
 
 
-def get_recently_sorted_references(db: Session, mod_abbreviation, days):
+def get_recently_sorted_pmids_without_mod_paper_id(db: Session, mod_abbreviation, start_date, end_date):
+
+    sql = text("""
+    SELECT DISTINCT cr.curie
+      FROM cross_reference AS cr
+      JOIN mod_corpus_association AS mca
+        ON mca.reference_id = cr.reference_id
+      JOIN mod AS m
+        ON m.mod_id = mca.mod_id
+       AND m.abbreviation = :mod_abbrev
+      LEFT JOIN cross_reference AS xr
+        ON xr.reference_id = cr.reference_id
+       AND xr.curie_prefix = :curie_prefix
+     WHERE cr.curie_prefix = 'PMID'
+       AND mca.corpus = TRUE
+       AND mca.date_updated >= :start_date
+       AND mca.date_updated <  :end_date
+       AND xr.reference_id IS NULL
+     ORDER BY cr.curie
+    """)
+
+    curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+    params = {
+        "mod_abbrev": mod_abbreviation,
+        "curie_prefix": curie_prefix,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+
+    rows = db.execute(sql, params).fetchall()
+    return [row.curie for row in rows]
+
+
+def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_only=False):
 
     current_timestamp, start_date, end_date = get_past_to_present_date_range(days)
+
+    if pmid_only:
+        return get_recently_sorted_pmids_without_mod_paper_id(db, mod_abbreviation,
+                                                              start_date, end_date)
+
     metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     refColNmList = ", ".join(get_reference_col_names())
