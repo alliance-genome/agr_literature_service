@@ -796,9 +796,16 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         allowed_dp=allowed_dp,
         size=facets_limits.get("source_methods", 10)
     )
+
+    # adding this fix to restore the SEA facet list under group‐filtered searches
+    sea_tet_facets = {
+        k:v for k,v in tet_facets.items()
+        if k != "source_evidence_assertion"
+    }
+
     es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
-        tet_facets=tet_facets,
+        tet_facets=sea_tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion.keyword",
         term_key="source_evidence_assertions",
         allowed_dp=allowed_dp,
@@ -806,7 +813,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
     )
     es_body["aggregations"]["source_evidence_assertion_group_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
-        tet_facets=tet_facets,
+        tet_facets=sea_tet_facets,
         term_field="topic_entity_tags.source_evidence_assertion_group.keyword",
         term_key="source_evidence_assertions",
         allowed_dp=allowed_dp,
