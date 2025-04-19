@@ -501,50 +501,69 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
 
 
 def process_topic_entity_tags_aggregations(res):  # pragma: no cover
-
     """
     process topic entity tag aggregations that were created using the wrapped
     aggregation (which uses an extra filter so that results come only from allowed
     data providers). This function processes aggregations for topics, confidence levels,
-    source methods, & source evidence assertions
+    source methods, & source evidence assertions—merging raw and group assertions.
     """
 
     def extract_filtered_agg(res, main_key, data_key):
-        main_agg = res['aggregations'].get(main_key, {})
-        # if aggregation was wrapped in our filter, use the inner agg.
-        if "filtered" in main_agg:
-            main_agg = main_agg["filtered"]
-        if main_agg.get('filter_by_other_tet_values'):
-            return main_agg.get('filter_by_other_tet_values', {}).get(data_key, {})
-        return main_agg.get(data_key, {})
+        agg = res['aggregations'].get(main_key, {})
+        if "filtered" in agg:
+            agg = agg["filtered"]
+        if "filter_by_other_tet_values" in agg:
+            agg = agg["filter_by_other_tet_values"]
+        return agg.get(data_key, {})
 
-    topics = extract_filtered_agg(res, 'topic_aggregation', 'topics')
-    confidence_levels = extract_filtered_agg(res, 'confidence_aggregation', 'confidence_levels')
-    source_methods = extract_filtered_agg(res, 'source_method_aggregation', 'source_methods')
-    source_evidence_assertions = extract_filtered_agg(res, 'source_evidence_assertion_aggregation',
-                                                      'source_evidence_assertions')
+    topics             = extract_filtered_agg(res, 'topic_aggregation',             'topics')
+    confidence_levels  = extract_filtered_agg(res, 'confidence_aggregation',      'confidence_levels')
+    source_methods     = extract_filtered_agg(res, 'source_method_aggregation',   'source_methods')
 
-    # remove temporary aggregations from the original response.
-    for key in [
-            'topic_aggregation',
-            'confidence_aggregation',
-            'source_method_aggregation',
-            'source_evidence_assertion_aggregation'
-        ]:
-        res['aggregations'].pop(key, None)
-    
-    # add name to each ATP ID
+    raw_sea = extract_filtered_agg(
+        res,
+        'source_evidence_assertion_aggregation',
+        'source_evidence_assertions'
+    )
+    group_sea = extract_filtered_agg(
+        res,
+        'source_evidence_assertion_group_aggregation',
+        'source_evidence_assertions'
+    )
+
+    merged_buckets = {}
+    for b in raw_sea.get('buckets', []):
+        merged_buckets[b['key']] = b
+    for b in group_sea.get('buckets', []):
+        # overwrite or add
+        merged_buckets[b['key']] = b
+
+    source_evidence_assertions = {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": list(merged_buckets.values())
+    }
+
+    # remove all the temporary aggs
+    for k in [
+        'topic_aggregation',
+        'confidence_aggregation',
+        'source_method_aggregation',
+        'source_evidence_assertion_aggregation',
+        'source_evidence_assertion_group_aggregation'
+    ]:
+        res['aggregations'].pop(k, None)
+
+    # add human‐readable names for any ATP/ECO curies
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
-    
-    # build a dictionary of topic entity tag aggregations.
-    topic_aggs = {
-         "topics": topics,
-         "confidence_levels": confidence_levels,
-         "source_methods": source_methods,
-         "source_evidence_assertions": source_evidence_assertions
+
+    return {
+        "topics":                    topics,
+        "confidence_levels":         confidence_levels,
+        "source_methods":            source_methods,
+        "source_evidence_assertions": source_evidence_assertions
     }
-    return topic_aggs
 
 
 def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: no cover
@@ -634,12 +653,18 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
                 tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")] = facet_value
     return tet_facet_values
 
-    
-def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
 
-    must_conditions = [{"term": {facet_name: facet_values}} for facet_name, facet_values in
-                       facet_name_values_dict.items()]
-    
+def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
+    must_conditions = []
+    for facet_name, facet_values in facet_name_values_dict.items():
+        if facet_name == "topic_entity_tags.source_evidence_assertion.keyword":
+            vals = facet_values if isinstance(facet_values, (list, tuple)) else [facet_values]
+            if any(v.upper() in ("ECO:0007669", "ECO:0006155") for v in vals):
+                facet_name = "topic_entity_tags.source_evidence_assertion_group.keyword"
+        must_conditions.append({
+            "term": {facet_name: facet_values}
+        })
+
     nested_query = {
         "nested": {
             "path": "topic_entity_tags",
@@ -778,6 +803,14 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_key="source_evidence_assertions",
         allowed_dp=allowed_dp,
         size=facets_limits.get("source_evidence_assertions", 10) 
+    )
+    es_body["aggregations"]["source_evidence_assertion_group_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.source_evidence_assertion_group.keyword",
+        term_key="source_evidence_assertions",
+        allowed_dp=allowed_dp,
+	size=facets_limits.get("source_evidence_assertions", 10)
     )
 
 
