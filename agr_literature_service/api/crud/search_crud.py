@@ -798,6 +798,13 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
     )
 
     # adding this fix to restore the SEA facet list under group‐filtered searches
+    #
+    # Hits are still filtered by source_evidence_assertion=eco:0007669 or eco:0006155)
+    # Facet counts for SEA will be computed over that hit set, but not further restricted
+    # by the SEA filter itself. So you’ll see:
+    # eco:0008004 & eco:0008021 buckets (the two raw codes),
+    # and the eco:0007669 combined bucket
+
     sea_tet_facets = {
         k:v for k,v in tet_facets.items()
         if k != "source_evidence_assertion"
@@ -850,6 +857,10 @@ def add_curie_to_name_values(aggregations):
     # iterate over the buckets and add names
     for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
+        if bucket["key"].upper() = 'ECO:0006155':
+            curie_name = 'manual assertion'
+        elif bucket["key"].upper() = 'ECO:0007669':
+            curie_name = 'automated assertion'
         bucket["name"] = curie_name
 
 
