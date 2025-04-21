@@ -558,6 +558,42 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
 
+    # reorder the source_evidence_assertions buckets to the exact sequence desired
+    desired_order = [
+        "automated assertion",
+        "machine learning method evidence used in automatic assertion",
+        "string-matching method evidence used in automatic assertion",
+        "manual assertion",
+        "documented statement evidence used in manual assertion by author",
+        "documented statement evidence used in manual assertion by professional biocurator",
+    ]
+    buckets = source_evidence_assertions.get("buckets", [])
+    bucket_map = {b["name"]: b for b in buckets}
+    source_evidence_assertions["buckets"] = [
+        bucket_map[name] for name in desired_order if name in bucket_map
+    ]
+
+    """
+    # ——— KEYWORD‑BASED SORTING ———
+    key_phrases = [
+        'automated assertion',
+        'machine learning',
+        'string-matching',
+        'manual assertion',
+        'author',
+        'biocurator',
+    ]
+    def sort_key(bucket):
+        name = bucket['name'].lower()
+        for idx, phrase in enumerate(key_phrases):
+            if phrase in name:
+                return idx
+        # any bucket without a match goes last
+        return len(key_phrases)
+
+    source_evidence_assertions['buckets'].sort(key=sort_key)
+    """
+
     return {
         "topics":                    topics,
         "confidence_levels":         confidence_levels,
@@ -857,9 +893,9 @@ def add_curie_to_name_values(aggregations):
     # iterate over the buckets and add names
     for bucket in aggregations.get("buckets", []):
         curie_name = curie_to_name_map.get(bucket["key"].upper(), "Unknown")
-        if bucket["key"].upper() = 'ECO:0006155':
+        if bucket["key"].upper() == 'ECO:0006155':
             curie_name = 'manual assertion'
-        elif bucket["key"].upper() = 'ECO:0007669':
+        elif bucket["key"].upper() == 'ECO:0007669':
             curie_name = 'automated assertion'
         bucket["name"] = curie_name
 
