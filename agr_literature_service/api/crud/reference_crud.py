@@ -1229,7 +1229,7 @@ def get_recently_sorted_pmids_without_mod_paper_id(db: Session, mod_abbreviation
     }
 
     rows = db.execute(sql, params).fetchall()
-    return [row.curie.replace('PMID:', '') for row in rows]
+    return [int(row.curie.replace('PMID:', '')) for row in rows]
 
 
 def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_only=False):
