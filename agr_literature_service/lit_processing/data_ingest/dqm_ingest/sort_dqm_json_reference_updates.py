@@ -362,10 +362,12 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
             new_md5 = 'none'
             if mod in new_md5dict and primary_id in new_md5dict[mod] and new_md5dict[mod][primary_id] is not None:
                 new_md5 = new_md5dict[mod][primary_id]
-#             logger.info(f"primaryId {primary_id} old {old_md5}")
-#             logger.info(f"primaryId {primary_id} new {new_md5}")
 
-            if not update_all_papers and old_md5 == new_md5:
+            is_a_new_mod_curie = False
+            mod_curie_prefix, mod_curie_identifier = dbid.split(":")
+            if mod_curie_prefix in xref_ref and mod_curie_identifier not in xref_ref[mod_curie_prefix]:
+                is_a_new_mod_curie = True
+            if not update_all_papers and not is_a_new_mod_curie and old_md5 == new_md5:
                 continue
             if old_md5 == 'none':
                 logger.info(f"primaryId {primary_id} is new for {mod} but could pre-exist for other mod")
