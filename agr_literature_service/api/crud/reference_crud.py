@@ -61,10 +61,11 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_journal_by_resource_id
 from agr_literature_service.api.crud.topic_entity_tag_utils import \
     get_reference_id_from_curie_or_id
-from agr_literature_service.api.crud.workflow_tag_crud import \
-    get_workflow_tags_from_process
+# from agr_literature_service.api.crud.workflow_tag_crud import \
+#    get_workflow_tags_from_process
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     get_meta_data, get_reference_col_names, generate_json_data
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
@@ -1198,9 +1199,47 @@ def get_past_to_present_date_range(num_days_ago: int):
     return current_timestamp, start_date, end_date
 
 
-def get_recently_sorted_references(db: Session, mod_abbreviation, days):
+def get_recently_sorted_pmids_without_mod_paper_id(db: Session, mod_abbreviation, start_date, end_date):
+
+    sql = text("""
+    SELECT DISTINCT cr.curie
+      FROM cross_reference AS cr
+      JOIN mod_corpus_association AS mca
+        ON mca.reference_id = cr.reference_id
+      JOIN mod AS m
+        ON m.mod_id = mca.mod_id
+       AND m.abbreviation = :mod_abbrev
+      LEFT JOIN cross_reference AS xr
+        ON xr.reference_id = cr.reference_id
+       AND xr.curie_prefix = :curie_prefix
+     WHERE cr.curie_prefix = 'PMID'
+       AND mca.corpus = TRUE
+       AND mca.date_updated >= :start_date
+       AND mca.date_updated <  :end_date
+       AND xr.reference_id IS NULL
+     ORDER BY cr.curie
+    """)
+
+    curie_prefix = 'Xenbase' if mod_abbreviation == 'XB' else mod_abbreviation
+    params = {
+        "mod_abbrev": mod_abbreviation,
+        "curie_prefix": curie_prefix,
+        "start_date": start_date,
+        "end_date": end_date
+    }
+
+    rows = db.execute(sql, params).fetchall()
+    return [row.curie for row in rows]
+
+
+def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_only=False):
 
     current_timestamp, start_date, end_date = get_past_to_present_date_range(days)
+
+    if pmid_only:
+        return get_recently_sorted_pmids_without_mod_paper_id(db, mod_abbreviation,
+                                                              start_date, end_date)
+
     metaData = get_meta_data(mod_abbreviation, current_timestamp)
 
     refColNmList = ", ".join(get_reference_col_names())
@@ -1309,66 +1348,63 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"The reference curie {reference_curie} is not in the database.")
 
-    topic_to_root_atp_ids = {
-        "phenotype": "ATP:0000009",
-        "interaction": "ATP:0000015",
-        "pathway": "ATP:0000022",
-        "expression": "ATP:0000010"
-    }
+    query = (
+        db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
+        .join(
+            TopicEntityTagSourceModel,
+            TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+        )
+        .filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagSourceModel.data_provider == mod_abbreviation
+        )
+    )
+    rows = query.all()
+
+    topic_to_data = defaultdict(list)
+    for tet, tet_source in rows:
+        topic_to_data[tet.topic].append((tet, tet_source))
+
+    topic_to_name = map_curies_to_names('atpterm', list(topic_to_data.keys()))
 
     data = {}
-    for topic, root_atp_id in topic_to_root_atp_ids.items():
-        topic_atpid_list = (get_workflow_tags_from_process(root_atp_id) or []) + [root_atp_id]
-        # retrieve tet data for this topic
-        query = (
-            db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
-            .join(
-                TopicEntityTagSourceModel,
-                TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+    for topic, topic_rows in topic_to_data.items():
+        # initialize earliest_dt from the very first row
+        first_tet, _ = topic_rows[0]
+        if isinstance(first_tet.date_created, datetime):
+            earliest_dt = first_tet.date_created
+        else:
+            date_str = str(first_tet.date_created).split()[0]
+            earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
+        has_data = novel_data = no_data = False
+        topic_sources = set()
+        source_map = {
+            'ATP:0000035': 'author',
+            'ATP:0000036': 'biocurator'
+        }
+        for tet, tet_source in topic_rows:
+            topic_sources.add(
+                source_map.get(tet_source.source_evidence_assertion, 'computational')
             )
-            .filter(
-                TopicEntityTagModel.topic.in_(topic_atpid_list),
-                TopicEntityTagModel.reference_id == reference_id,
-                TopicEntityTagSourceModel.data_provider == mod_abbreviation
-            )
-        )
-        rows = query.all()
+            if isinstance(tet.date_created, datetime):
+                dt = tet.date_created
+            else:
+                date_str = str(tet.date_created).split()[0]  # "2025-03-05"
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+            if dt < earliest_dt:
+                earliest_dt = dt
 
-        if len(rows) == 0:
-            continue
-
-        topic_sources = []
-        oldest_date = None
-        has_data = False
-        novel_data = False
-        no_data = False
-        for tet, tet_source in rows:
-            topic_source = 'computational'
-            if tet_source.source_evidence_assertion == 'ATP:0000035':
-                topic_source = 'author'
-            elif tet_source.source_evidence_assertion == 'ATP:0000036':
-                topic_source = 'biocurator'
-            if topic_source not in topic_sources:
-                topic_sources.append(topic_source)
-            date_str = str(tet.date_created).split(" ")[0]  # "2025-03-05"
-            dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if oldest_date is None or dt < oldest_date:
-                oldest_date = dt
             if tet.novel_topic_data:
                 novel_data = True
             if tet.negated:
                 no_data = True
             else:
                 has_data = True
-        topic_sources.sort()
-        topic_added = (
-            oldest_date.strftime("%b. ") + str(oldest_date.day) + oldest_date.strftime(", %Y")
-            if oldest_date
-            else None
-        )
-        data[topic] = {
+        topic_added = f"{earliest_dt.strftime('%b.')} {earliest_dt.day}, {earliest_dt.year}"
+        topic_name = topic_to_name.get(topic, topic)
+        data[topic_name] = {
             "topic_added": topic_added,
-            "topic_source": topic_sources,
+            "topic_source": sorted(topic_sources),
             "has_data": has_data,
             "novel_data": novel_data,
             "no_data": no_data
