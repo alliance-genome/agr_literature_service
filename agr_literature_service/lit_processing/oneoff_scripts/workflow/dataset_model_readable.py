@@ -25,7 +25,8 @@ def print_data(db: Session, mod_abbr):  # noqa
     try:
         query = f"""
         select d.dataset_id as dataset_id, d.title as dataset_title, d.data_type as dataset_type,
-               ml.model_type as model_type, ml.topic as tet_value, w.workflow_tag as wft
+               ml.model_type as model_type, ml.topic as tet_value, w.workflow_tag as wft,
+               ml.species, ml.negated, ml.novel_topic_data, ml.production
           from dataset d, mod m, ml_model ml
           left join workflow_tag_topic w on ml.topic = w.topic
           where d.dataset_id = ml.dataset_id
@@ -51,6 +52,10 @@ def print_data(db: Session, mod_abbr):  # noqa
                'tet_topic': "{atp_get_name(md['tet_value'])}",
                'workflow tag topic start atp': "{md['wft']}",
                'workflow tag topic start name': "{tet_name}",
+               'species':  "{md['species']}",
+               "negated": "{md['negated']}",
+               "novel topic data": "{md['novel_topic_data']}",
+               "production": "{md['production']}"
         {end},""")
     except Exception as e:
         logger.error(e)
