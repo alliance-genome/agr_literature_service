@@ -288,6 +288,10 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
             data_dict['allianceCategory'] = get_alliance_category_from_pubmed_types(data_dict['pubMedType'])
 
             # <CommentsCorrectionsList><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 1999 Dec;5(6):378</RefSource><PMID Version="1">10644162</PMID></CommentsCorrections><CommentsCorrections RefType="CommentIn"><RefSource>Mult Scler. 2000 Aug;6(4):291-2</RefSource><PMID Version="1">10962551</PMID></CommentsCorrections></CommentsCorrectionsList>
+
+            # <CommentsCorrectionsList><CommentsCorrections RefType="CommentOn"><RefSource>Nat Genet. 1997 Mar;15(3):236-46. doi: 10.1038/ng0397-236.</RefSource><PMID Version="1">9054934</PMID></CommentsCorrections></CommentsCorrectionsList>
+
+            """
             comments_corrections_group = re.findall("<CommentsCorrections (.+?)</CommentsCorrections>", xml, re.DOTALL)
             if len(comments_corrections_group) > 0:
                 data_dict['commentsCorrections'] = dict()
@@ -311,6 +315,15 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
                         ref_types_set.add(ref_type)
                         if other_pmid not in pmids and other_pmid not in previous_pmids:
                             new_pmids_set.add(other_pmid)
+            """
+            root = ET.fromstring(xml)
+            data_dict['commentsCorrections'] = {}
+            for cc in root.findall('.//CommentsCorrections'):
+                ref_type = cc.attrib.get('RefType')
+                pmid_el = cc.find('PMID')
+                if ref_type and pmid_el is not None:
+                    data_dict['commentsCorrections'].setdefault(ref_type, []) \
+                                                    .append(pmid_el.text)
 
             # this will need to be restructured to match schema
             authors_group = re.findall("<Author.*?>(.+?)</Author>", xml, re.DOTALL)
