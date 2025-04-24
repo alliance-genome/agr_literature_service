@@ -130,7 +130,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     volume: Optional[str] = None
     plain_language_abstract: Optional[str] = None
     pubmed_abstract_languages: Optional[List[str]] = None
-    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
+    pubmed_publication_status: Optional[PubMedPublicationStatus]
     language: Optional[str] = None
     page_range: Optional[str] = None
     abstract: Optional[str] = None
