@@ -320,7 +320,7 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
             data_dict['commentsCorrections'] = {}
             for cc in root.findall('.//CommentsCorrections'):
                 ref_type = cc.attrib.get('RefType')
-                pmid_el  = cc.find('PMID')
+                pmid_el = cc.find('PMID')
                 if ref_type and pmid_el is not None:
                     data_dict['commentsCorrections'].setdefault(ref_type, []) \
                                                     .append(pmid_el.text)
