@@ -306,7 +306,7 @@ docs = ["sphinx"]
 
 [[package]]
 name = "h11"
-version = "0.13.0"
+version = "0.16.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
 category = "main"
 optional = false
