@@ -65,7 +65,7 @@ def show_sort_result(references, mod_abbreviation, db):
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
             prepublication_pipeline=reference.prepublication_pipeline,
-            pubmed_publication_status=reference.pubmed_publication_status if reference.pubmed_publication_status else "",
+            pubmed_publication_status=reference.pubmed_publication_status if reference.pubmed_publication_status else None,
             resource_title=reference.resource.title if reference.resource else "",
             referencefiles=[ReferencefileSchemaRelated(
                 referencefile_id=rf.referencefile_id, display_name=rf.display_name,
