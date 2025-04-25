@@ -1058,7 +1058,7 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
         except Exception as e:
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
-            
+
 
 def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
