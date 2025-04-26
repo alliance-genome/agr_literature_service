@@ -250,3 +250,55 @@ class TestSort:
             res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
+           search_ancestors_or_descendants_mock)
+    def test_sort_author_pubmed_publication_status(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            populate_test_mods()
+            reference_create_json = {
+                "cross_references": [
+                    {
+                        "curie": "PMID:1113",
+                        "is_obsolete": "false"
+                    }
+                ],
+                "mod_corpus_associations": [
+                    {
+                        "mod_abbreviation": "WB",
+                        "mod_corpus_sort_source": "prepublication_pipeline",
+                        "corpus": "true"
+                    }
+                ],
+                "authors": [
+                    {
+                        "order": 2,
+                        "first_name": "S.",
+                        "last_name": "Wu",
+                        "name": "S. Wu",
+                    },
+                    {
+                        "order": 1,
+                        "first_name": "D.",
+                        "last_name": "Wu",
+                        "name": "D. Wu",
+                    }
+                ],
+                "pubmed_publication_status": "epublish",
+                "title": "pmid_fake",
+                "prepublication_pipeline": "true"
+            }
+            response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
+            assert res.status_code == status.HTTP_200_OK
+            assert len(res.json()) > 0
+            assert res.json()[0]['pubmed_publication_status'] == "epublish"
+            assert len(res.json()[0]['authors']) == 2
+            for author in res.json()[0]['authors']:
+                if author['name'] == 'D. Wu':
+                    assert author['order'] == 1
+                else:
+                    assert author['order'] == 2
