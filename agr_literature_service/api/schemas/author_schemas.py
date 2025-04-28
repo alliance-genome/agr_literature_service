@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -19,7 +19,7 @@ class AuthorSchemaPost(BaseModel):
     resource_curie: Optional[str] = None
     orcid: Optional[str] = None
 
-    @validator('orcid')
+    @field_validator('orcid')
     def check_orcids(cls, v):
         if v and not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')

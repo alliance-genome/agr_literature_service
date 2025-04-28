@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
@@ -21,7 +21,7 @@ class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     is_obsolete: Optional[bool] = None
 
-    @validator('curie')
+    @field_validator('curie')
     def name_must_contain_space(cls, v):
         # if v.count(":") != 1 and not v.startswith("DOI:"):
         if v.count(":") == 0:

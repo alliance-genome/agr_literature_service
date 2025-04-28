@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from agr_literature_service.api.schemas import ReferenceRelationType
 
@@ -10,13 +10,13 @@ class ReferenceRelationSchemaPost(BaseModel):
     reference_curie_to: str
     reference_relation_type: ReferenceRelationType
 
-    @validator('reference_curie_from')
+    @field_validator('reference_curie_from')
     def from_must_be_alliance_reference_curie(cls, v):
         if not v.startswith("AGRKB:101"):
             raise ValueError('must start with AGRKB:101')
         return v
 
-    @validator('reference_curie_to')
+    @field_validator('reference_curie_to')
     def to_must_be_alliance_reference_curie(cls, v):
         if not v.startswith("AGRKB:101"):
             raise ValueError('must start with AGRKB:101')

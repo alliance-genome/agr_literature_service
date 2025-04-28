@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 
 from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                                 AuditedObjectModelSchema, CrossReferenceSchemaRelated,
@@ -74,13 +74,13 @@ class ReferenceSchemaUpdate(BaseModel):
     resource: Optional[str] = None
     prepublication_pipeline: Optional[bool] = False
 
-    @validator('title')
+    @field_validator('title')
     def title_is_some(cls, v: str) -> str:
         if not v:
             raise ValueError('Cannot set title to None or blank string')
         return v
 
-    @validator('category')
+    @field_validator('category')
     def category_is_some(cls, v):
         if not v:
             raise ValueError('Cannot set category to None or blank string')
@@ -96,7 +96,7 @@ class ReferenceSchemaAddPmid(BaseModel):
     mod_mca: str
     mod_curie: Optional[str] = ''
 
-    @validator('mod_curie')
+    @field_validator('mod_curie')
     def mod_curie_is_valid(cls, v):
         if v:
             if v == '':
