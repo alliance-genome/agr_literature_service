@@ -3,7 +3,8 @@ from sqlalchemy.orm import configure_mappers
 from agr_literature_service.api.database.main import (
     create_all_tables,
     create_default_user,
-    create_all_triggers)
+    create_all_triggers,
+    drop_open_db_sessions)
 from agr_literature_service.api.models.author_model import AuthorModel
 from agr_literature_service.api.models.cross_reference_model import CrossReferenceModel
 from agr_literature_service.api.models.editor_model import EditorModel
