@@ -16,7 +16,7 @@ class GlobalConfig(BaseSettings):
     ENV_STATE: EnvStateSchema = Field(..., validation_alias='ENV_STATE')
     HOST: Optional[str] = Field(..., validation_alias='HOST')
     PROD_HOST: Optional[str] = Field(..., validation_alias='HOST')
-    BUCKET_NAME: Optional[str] = Field(..., validation_alias='BUCKET_NAME')
+    BUCKET_NAME: Optional[str] = Field(..., validation_alias='BUCKET_NAME', validate_default=None)
 
     # AWS Creds
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., validation_alias='AWS_SECRET_ACCESS_KEY')
