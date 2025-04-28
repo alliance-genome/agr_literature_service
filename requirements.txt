@@ -14,6 +14,7 @@ async-exit-stack==1.0.1      # No update needed.
 async-generator==1.10        # No update needed.
 asyncpg==0.27.0              # Updated for compatibility.
 psycopg2-binary==2.9.8       # Updated for better compatibility with newer PostgreSQL.
+pydantic
 pydantic-settings
 
 # Security and Authentication
