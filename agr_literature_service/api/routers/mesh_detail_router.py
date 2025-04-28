@@ -48,7 +48,7 @@ async def patch(mesh_detail_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
-    patch = request.dict(exclude_unset=True)
+    patch = request.model_dump(exclude_unset=True)
     return mesh_detail_crud.patch(db, mesh_detail_id, patch)
 
 

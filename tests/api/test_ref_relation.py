@@ -151,6 +151,7 @@ class TestReferenceRelation:
             ref2 = test_reference2.new_ref_curie
             ref3 = test_reference3.new_ref_curie
             ref4 = test_reference4.new_ref_curie
+            print(f"ref1: {type(ref1)}: {ref1}  ref2: {type(ref2)}: {ref2}")
             new_rcc = {"reference_curie_from": ref1,
                        "reference_curie_to": ref2,
                        "reference_relation_type": "CommentOn"
