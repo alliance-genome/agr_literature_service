@@ -65,6 +65,7 @@ def show_sort_result(references, mod_abbreviation, db):
             mod_corpus_association_id=[mca.mod_corpus_association_id for mca in reference.mod_corpus_association if
                                        mca.mod.abbreviation == mod_abbreviation][0],
             prepublication_pipeline=reference.prepublication_pipeline,
+            pubmed_publication_status=reference.pubmed_publication_status if reference.pubmed_publication_status else None,
             resource_title=reference.resource.title if reference.resource else "",
             referencefiles=[ReferencefileSchemaRelated(
                 referencefile_id=rf.referencefile_id, display_name=rf.display_name,
@@ -72,6 +73,9 @@ def show_sort_result(references, mod_abbreviation, db):
                 file_extension=rf.file_extension,
                 md5sum=rf.md5sum, is_annotation=rf.is_annotation,
                 referencefile_mods=get_referencefile_mod(rf.referencefile_id, db)) for rf in reference.referencefiles],
+            authors=[{"order": author.order,
+                      "author_id": author.author_id,
+                      "name": author.name} for author in reference.author],
             workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id,
                             "workflow_tag_id": wft.workflow_tag_id,
                             "mod_abbreviation": mod_id_to_mod.get(wft.mod_id, '')} for wft in reference.workflow_tag])
