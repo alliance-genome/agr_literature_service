@@ -200,7 +200,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
         elif field == "topic_entity_tags":
             if value is not None:
                 for obj in value:
-                    obj_data = obj.dict(exclude_unset=True)
+                    obj_data = obj.model_dump(exclude_unset=True)
                     obj_data["reference_curie"] = curie
                     obj_data["force_insertion"] = True
                     try:

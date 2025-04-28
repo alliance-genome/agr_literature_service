@@ -243,7 +243,7 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
-    patch_data_dict = patch_data.dict(exclude_unset=True)
+    patch_data_dict = patch_data.model_dump(exclude_unset=True)
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
@@ -536,7 +536,7 @@ def destroy_source(db: Session, topic_entity_tag_source_id: int):
 
 def patch_source(db: Session, topic_entity_tag_source_id: int, source_patch: TopicEntityTagSourceSchemaUpdate):
     source = get_source_from_db(db, topic_entity_tag_source_id)
-    source_patch_data = source_patch.dict(exclude_unset=True)
+    source_patch_data = source_patch.model_dump(exclude_unset=True)
     add_audited_object_users_if_not_exist(db, source_patch_data)
     for key, value in source_patch_data.items():
         setattr(source, key, value)
