@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import ConfigDict, BaseModel, field_validator
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -20,19 +20,15 @@ class EditorSchemaPost(BaseModel):
         if v and not v.startswith('ORCID:'):
             raise ValueError('Orcid ID must start with "ORCID: {v}')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-        schema_extra = {
-            "example": {
-                "order": 1,
-                "name": "string",
-                "first_name": "string",
-                "last_name": "string",
-                "orcid": "ORCID:string"
-            }
+    model_config = ConfigDict(from_attributes=True, extra="forbid", json_schema_extra={
+        "example": {
+            "order": 1,
+            "name": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "orcid": "ORCID:string"
         }
+    })
 
 
 class EditorSchemaShow(AuditedObjectModelSchema):
@@ -48,7 +44,4 @@ class EditorSchemaShow(AuditedObjectModelSchema):
 class EditorSchemaCreate(EditorSchemaPost):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

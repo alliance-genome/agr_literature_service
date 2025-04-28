@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from agr_literature_service.api.schemas import ModCorpusSortSourceType, AuditedObjectModelSchema
 
 
@@ -8,27 +8,18 @@ class ModCorpusAssociationSchemaCreate(BaseModel):
     mod_abbreviation: str
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     corpus: Optional[bool] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ModCorpusAssociationSchemaShowID(BaseModel):
     mod_abbreviation: str
     reference_curie: str
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
     reference_curie: str
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ModCorpusAssociationSchemaShow(AuditedObjectModelSchema):
@@ -44,10 +35,7 @@ class ModCorpusAssociationSchemaRelated(AuditedObjectModelSchema):
     mod_corpus_sort_source: Optional[ModCorpusSortSourceType] = None
     mod_abbreviation: str
     corpus: Optional[bool] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ModCorpusAssociationSchemaUpdate(BaseModel):
@@ -56,7 +44,4 @@ class ModCorpusAssociationSchemaUpdate(BaseModel):
     corpus: Optional[bool] = None
     index_wft_id: Optional[str] = None
     force_out: Optional[bool] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

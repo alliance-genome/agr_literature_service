@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict
-from pydantic import BaseModel, field_validator
+from pydantic import ConfigDict, BaseModel, field_validator
 
 from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaShow,
                                                 AuditedObjectModelSchema, CrossReferenceSchemaRelated,
@@ -46,10 +46,7 @@ class ReferenceSchemaPost(BaseModel):
     prepublication_pipeline: Optional[bool] = False
     workflow_tags: Optional[List[WorkflowTagSchemaCreate]] = None
     topic_entity_tags: Optional[List[TopicEntityTagSchemaCreate]] = None
-
-    class Config:
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ReferenceSchemaUpdate(BaseModel):
@@ -85,10 +82,7 @@ class ReferenceSchemaUpdate(BaseModel):
         if not v:
             raise ValueError('Cannot set category to None or blank string')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ReferenceSchemaAddPmid(BaseModel):
@@ -167,13 +161,13 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     category: Optional[str] = None
     abstract: Optional[str] = None
     mod_corpus_association_id: int
-    mod_corpus_association_corpus: Optional[bool]
-    prepublication_pipeline: Optional[bool]
+    mod_corpus_association_corpus: Optional[bool] = None
+    prepublication_pipeline: Optional[bool] = None
     resource_title: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaShow]]
+    cross_references: Optional[List[CrossReferenceSchemaShow]] = None
     workflow_tags: Optional[List] = []
     copyright_license_name: Optional[str] = None
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
     copyright_license_open_access: Optional[str] = None
-    referencefiles: Optional[List[ReferencefileSchemaRelated]]
+    referencefiles: Optional[List[ReferencefileSchemaRelated]] = None

@@ -1,16 +1,13 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import ConfigDict, BaseModel, field_validator
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class CrossReferencePageSchemaShow(BaseModel):
     name: Optional[str] = None
     url: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
@@ -27,18 +24,14 @@ class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
         if v.count(":") == 0:
             raise ValueError('must contain a single colon')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-        schema_extra = {
-            "example": {
-                "curie": "MOD:curie",
-                "pages": [
-                    "reference"
-                ]
-            }
+    model_config = ConfigDict(from_attributes=True, extra="forbid", json_schema_extra={
+        "example": {
+            "curie": "MOD:curie",
+            "pages": [
+                "reference"
+            ]
         }
+    })
 
 
 class CrossReferenceSchemaCreate(BaseModel):
@@ -50,19 +43,15 @@ class CrossReferenceSchemaCreate(BaseModel):
 class CrossReferenceSchemaPost(CrossReferenceSchemaCreate):
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
-
-    class Config():
-        orm_mod = True
-        extra = "forbid"
-        schema_extra = {
-            "example": {
-                "curie": "MOD:curie",
-                "pages": [
-                    "reference"
-                ],
-                "reference_curie": "AGRKB:101"
-            }
+    model_config = ConfigDict(orm_mod=True, extra="forbid", json_schema_extra={
+        "example": {
+            "curie": "MOD:curie",
+            "pages": [
+                "reference"
+            ],
+            "reference_curie": "AGRKB:101"
         }
+    })
 
 
 class CrossReferenceSchemaShow(AuditedObjectModelSchema):
@@ -82,7 +71,4 @@ class CrossReferenceSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
     curie: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

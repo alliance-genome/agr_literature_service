@@ -1,8 +1,9 @@
 from typing import Optional, List, Union, Dict
 
-from pydantic import BaseModel, constr
+from pydantic import StringConstraints, ConfigDict, BaseModel
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
+from typing_extensions import Annotated
 
 
 class DatasetSchemaBase(AuditedObjectModelSchema):
@@ -28,16 +29,13 @@ class DatasetSchemaDownload(DatasetSchemaPost):
 
 
 class DatasetSchemaUpdate(BaseModel):
-    title: Optional[constr(min_length=1)]  # type: ignore
-    description: Optional[constr(min_length=1)]  # type: ignore
-    date_created: Optional[constr(min_length=1)]  # type: ignore
-    date_updated: Optional[constr(min_length=1)]  # type: ignore
-    created_by: Optional[constr(min_length=1)]  # type: ignore
-    updated_by: Optional[constr(min_length=1)]  # type: ignore
-
-    class Config:
-        orm_mode = True
-        extra = "forbid"
+    title: Optional[Annotated[str, StringConstraints(min_length=1)]] = None  # type: ignore
+    description: Optional[Annotated[str, StringConstraints(min_length=1)]] = None  # type: ignore
+    date_created: Optional[Annotated[str, StringConstraints(min_length=1)]] = None  # type: ignore
+    date_updated: Optional[Annotated[str, StringConstraints(min_length=1)]] = None  # type: ignore
+    created_by: Optional[Annotated[str, StringConstraints(min_length=1)]] = None  # type: ignore
+    updated_by: Optional[Annotated[str, StringConstraints(min_length=1)]] = None  # type: ignore
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class DatasetEntrySchemaPost(DatasetSchemaBase):

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 
 class CopyrightLicenseSchemaPost(BaseModel):
@@ -6,7 +6,4 @@ class CopyrightLicenseSchemaPost(BaseModel):
     url: str
     description: str
     open_access: bool
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

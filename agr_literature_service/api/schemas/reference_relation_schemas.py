@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import ConfigDict, BaseModel, field_validator
 
 from agr_literature_service.api.schemas import ReferenceRelationType
 
@@ -21,28 +21,19 @@ class ReferenceRelationSchemaPost(BaseModel):
         if not v.startswith("AGRKB:101"):
             raise ValueError('must start with AGRKB:101')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ReferenceRelationSchemaShow(ReferenceRelationSchemaPost):
     reference_relation_id: int
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ReferenceRelationSchemaPatch(BaseModel):
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
     reference_relation_type: Optional[ReferenceRelationType] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ReferenceRelationSchemaRelated(BaseModel):
@@ -50,7 +41,4 @@ class ReferenceRelationSchemaRelated(BaseModel):
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
     reference_relation_type: Optional[ReferenceRelationType] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")

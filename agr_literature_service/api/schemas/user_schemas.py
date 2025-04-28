@@ -1,6 +1,6 @@
 from typing import List
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 from agr_literature_service.api.schemas import ResourceSchemaShow
 
@@ -15,6 +15,4 @@ class ShowUserSchema(BaseModel):
     name: str
     email: str
     resources : List[ResourceSchemaShow] = []
-
-    class Config():
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)

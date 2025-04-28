@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -8,10 +8,7 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 class ReferencefileModSchemaPost(BaseModel):
     referencefile_id: int
     mod_abbreviation: Optional[str] = None
-
-    class Config:
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ReferencefileModSchemaShow(AuditedObjectModelSchema, ReferencefileModSchemaPost):
@@ -19,8 +16,8 @@ class ReferencefileModSchemaShow(AuditedObjectModelSchema, ReferencefileModSchem
 
 
 class ReferencefileModSchemaUpdate(BaseModel):
-    referencefile_id: Optional[int]
-    mod_abbreviation: Optional[str]
+    referencefile_id: Optional[int] = None
+    mod_abbreviation: Optional[str] = None
 
 
 class ReferencefileModSchemaRelated(AuditedObjectModelSchema):

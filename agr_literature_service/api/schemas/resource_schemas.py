@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import ConfigDict, BaseModel, field_validator
 
 from agr_literature_service.api.schemas import (AuditedObjectModelSchema,
                                                 CrossReferenceSchemaRelated, EditorSchemaPost,
@@ -33,10 +33,7 @@ class ResourceSchemaPost(BaseModel):
         if not v:
             raise ValueError('Cannot set title to None')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ResourceSchemaUpdate(BaseModel):
@@ -61,10 +58,7 @@ class ResourceSchemaUpdate(BaseModel):
         if not v:
             raise ValueError('Cannot set title to None')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ResourceSchemaShow(AuditedObjectModelSchema):

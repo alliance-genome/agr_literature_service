@@ -1,5 +1,5 @@
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import ConfigDict, BaseModel
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
@@ -7,10 +7,7 @@ class ModSchemaPost(BaseModel):
     abbreviation: str
     short_name: str
     full_name: str
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class ModSchemaShow(AuditedObjectModelSchema):
@@ -29,7 +26,4 @@ class ModSchemaUpdate(BaseModel):
 
 
 class ModSchemaCreate(ModSchemaPost):
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
