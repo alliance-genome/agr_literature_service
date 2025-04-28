@@ -1,11 +1,9 @@
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import configure_mappers, create_session
+from sqlalchemy.orm import configure_mappers
 
 from agr_literature_service.api.database.main import (
     create_all_tables,
     create_default_user,
-    create_all_triggers,
-    drop_open_db_sessions)
+    create_all_triggers)
 from agr_literature_service.api.models.author_model import AuthorModel
 from agr_literature_service.api.models.cross_reference_model import CrossReferenceModel
 from agr_literature_service.api.models.editor_model import EditorModel
@@ -32,6 +30,7 @@ from agr_literature_service.api.models.copyright_license_model import CopyrightL
 from agr_literature_service.api.models.citation_model import CitationModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.ml_model_model import MLModel
+from agr_literature_service.api.models.curation_status_model import CurationStatusModel
 import logging
 
 logger = logging.getLogger(__name__)
