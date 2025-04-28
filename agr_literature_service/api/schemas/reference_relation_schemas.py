@@ -8,7 +8,7 @@ from agr_literature_service.api.schemas import ReferenceRelationType
 class ReferenceRelationSchemaPost(BaseModel):
     reference_curie_from: str
     reference_curie_to: str
-    reference_relation_type: ReferenceRelationType
+    reference_relation_type: str
 
     @field_validator('reference_curie_from')
     def from_must_be_alliance_reference_curie(cls, v):
