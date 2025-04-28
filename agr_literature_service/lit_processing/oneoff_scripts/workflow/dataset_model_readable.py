@@ -25,15 +25,13 @@ def print_data(db: Session, mod_abbr):  # noqa
     dataset_value_count = {}
     try:
         query = """
-        Select dataset_id as dataset_id, classification_value as value, count(*) as count  
+        Select dataset_id as dataset_id, classification_value as value, count(*) as count
         from dataset_entry group by (dataset_id, classification_value)"""
         dvcs = db.execute(text(query)).mappings().fetchall()
         for dvc in dvcs:
             if dvc['dataset_id'] not in dataset_value_count:
                 dataset_value_count[dvc['dataset_id']] = {}
             dataset_value_count[dvc['dataset_id']][dvc['value']] = dvc['count']
-
-
     except Exception as e:
         logger.error(e)
         print(f"Error: {e}")
@@ -51,8 +49,6 @@ def print_data(db: Session, mod_abbr):  # noqa
                 and m.abbreviation = '{mod_abbr}'"""
 
         mds = db.execute(text(query)).mappings().fetchall()
-        start = '{'
-        end = '}'
 
         for md in mds:
             tet_name = "None"
