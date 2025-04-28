@@ -35,6 +35,7 @@ jobs:
           PSQL_PASSWORD: postgres
           PSQL_HOST: localhost
           PSQL_PORT: 5432
+          BUCKET_NAME: Bob
           PSQL_DATABASE: literature-test
           PYTHONPATH: agr_literature_service/lit_processing/
           OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'

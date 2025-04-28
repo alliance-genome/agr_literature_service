@@ -30,6 +30,7 @@ jobs:
           PSQL_PASSWORD: postgres
           PSQL_HOST: postgres
           PSQL_PORT: 5433
+          BUCKET_NAME: Bob
           PSQL_DATABASE: literature-test
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
