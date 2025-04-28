@@ -124,7 +124,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     volume: Optional[str] = None
     plain_language_abstract: Optional[str] = None
     pubmed_abstract_languages: Optional[List[str]] = None
-    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
+    pubmed_publication_status: Optional[PubMedPublicationStatus]
     language: Optional[str] = None
     page_range: Optional[str] = None
     abstract: Optional[str] = None
@@ -159,6 +159,7 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     curie: str
     title: Optional[str] = None
     category: Optional[str] = None
+    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     abstract: Optional[str] = None
     mod_corpus_association_id: int
     mod_corpus_association_corpus: Optional[bool] = None
@@ -170,4 +171,5 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
     copyright_license_open_access: Optional[str] = None
+    authors: Optional[List[AuthorSchemaShow]] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
