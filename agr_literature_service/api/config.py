@@ -13,14 +13,14 @@ class GlobalConfig(BaseSettings):
     # shell environment variable having the same name, that will take precedence.
 
     # the class Field is necessary while defining the global variables
-    ENV_STATE: EnvStateSchema = Field(..., env="ENV_STATE")
-    HOST: Optional[str] = Field(..., env="HOST")
-    PROD_HOST: Optional[str] = Field(..., env="HOST")
-    BUCKET_NAME: str = Field(default="agr-literature", env="BUCKET_NAME")
+    ENV_STATE: EnvStateSchema = 'ENV_STATE'
+    HOST: Optional[str] = 'HOST'
+    PROD_HOST: Optional[str] = 'HOST'
+    BUCKET_NAME: str = 'BUCKET_NAME'
 
     # AWS Creds
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env="AWS_SECRET_ACCESS_KEY")
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(..., env="AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY: Optional[str] = 'AWS_SECRET_ACCESS_KEY'
+    AWS_ACCESS_KEY_ID: Optional[str] = 'AWS_ACCESS_KEY_ID'
 
     # environment specific configs
     API_USERNAME: Optional[str] = None
