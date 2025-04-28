@@ -32,7 +32,7 @@ class ReferenceRelationSchemaShow(ReferenceRelationSchemaPost):
 class ReferenceRelationSchemaPatch(BaseModel):
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
-    reference_relation_type: Optional[ReferenceRelationType] = None
+    reference_relation_type: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
@@ -40,5 +40,5 @@ class ReferenceRelationSchemaRelated(BaseModel):
     reference_relation_id: Optional[int] = None
     reference_curie_from: Optional[str] = None
     reference_curie_to: Optional[str] = None
-    reference_relation_type: Optional[ReferenceRelationType] = None
+    reference_relation_type: Optional[str] = None
     model_config = ConfigDict(from_attributes=True, extra="forbid")
