@@ -4,9 +4,9 @@ wheel>=0.40.0                # Ensure up-to-date wheel.
 
 # Core Dependencies
 sqlalchemy==2.0.7            # Upgrade to SQLAlchemy 2.0.x.
-fastapi==0.115.12            # Updated from 0.68.1 for new features and fixes.
+fastapi==0.103.1           # Updated from 0.68.1 for new features and fixes.
 fastapi-health==0.4.0        # No update needed.
-uvicorn[standard]==0.22.0    # Updated for compatibility with FastAPI.
+uvicorn[standard]==0.23.2    # Updated for compatibility with FastAPI.
 starlette==0.40.0            # Updated for compatibility with FastAPI.
 aiofiles==23.1.0             # Updated for better performance.
 alembic==1.14.1              # Upgrade for compatibility with SQLAlchemy 2.0.x.
@@ -14,7 +14,7 @@ async-exit-stack==1.0.1      # No update needed.
 async-generator==1.10        # No update needed.
 asyncpg==0.27.0              # Updated for compatibility.
 psycopg2-binary==2.9.8       # Updated for better compatibility with newer PostgreSQL.
-pydantic
+pydantic==2.3.0
 pydantic-settings
 
 # Security and Authentication
