@@ -1030,6 +1030,7 @@ def _insert_reference_relation(db_session: Session, fw, pmid, reference_id_from,
     try:
         x = ReferenceRelationModel(**data)
         db_session.add(x)
+        db_session.commit()
         fw.write("PMID:" + str(pmid) + ": INSERT reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
     except Exception as e:
         fw.write("PMID:" + str(pmid) + ": INSERT reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
@@ -1043,7 +1044,7 @@ def _update_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
     for x in all:
         db_session.delete(x)
-
+        db_session.commit()
     _insert_reference_relation(db_session, fw, pmid, reference_id_from, reference_id_to, type)
 
 
@@ -1053,6 +1054,7 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
     for x in rows:
         try:
             db_session.delete(x)
+            db_session.commit()
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + "\n")
         except Exception as e:
             fw.write("PMID:" + str(pmid) + ": DELETE reference_relations: " + str(reference_id_from) + " " + str(reference_id_to) + " " + type + " failed: " + str(e) + "\n")
