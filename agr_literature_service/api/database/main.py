@@ -36,6 +36,7 @@ def get_db():
     except Exception as e:
         db.rollback()
         print(f"Error in get_db: {e}")
+        print("End of get_db error.")
         raise
     finally:
         db.close()
