@@ -35,6 +35,8 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
                   }
         print(f"curie: {test_reference.new_ref_curie}  mod_abbr: {test_mod.new_mod_abbreviation}")
         print(f"mod: {test_mod}")
+        print(f"curie: {test_reference}")
+        print(f"{new_wt}")
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
         yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
                          test_mod.new_mod_abbreviation)
