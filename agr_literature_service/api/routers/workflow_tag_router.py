@@ -33,6 +33,7 @@ def create(request: WorkflowTagSchemaPost,
            user: OktaUser = db_user,
            db: Session = db_session):
     set_global_user_from_okta(db, user)
+    print(f"router wft post -> request: {request}")
     return workflow_tag_crud.create(db, request)
 
 

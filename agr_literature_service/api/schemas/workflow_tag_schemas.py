@@ -10,9 +10,10 @@ class WorkflowTagSchemaCreate(BaseModel):
 
 
 # use by workflow_tag crud
-class WorkflowTagSchemaPost(WorkflowTagSchemaCreate):
+class WorkflowTagSchemaPost(BaseModel):
     reference_curie: str
-
+    workflow_tag_id: str
+    mod_abbreviation: str
 
 # used by parents, such as reference to show workflow_tag
 class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
