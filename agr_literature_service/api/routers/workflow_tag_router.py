@@ -56,7 +56,7 @@ async def patch(reference_workflow_tag_id: int,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
-    patch = request.dict(exclude_unset=True)
+    patch = request.model_dump(exclude_unset=True)
     return workflow_tag_crud.patch(db, reference_workflow_tag_id, patch)
 
 
