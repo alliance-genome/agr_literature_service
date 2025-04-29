@@ -40,5 +40,4 @@ class GlobalConfig(BaseSettings):
     ELASTICSEARCH_PORT: str = Field(..., validation_alias="ELASTICSEARCH_PORT")
     ELASTICSEARCH_INDEX: str = Field(..., validation_alias="ELASTICSEARCH_INDEX")
 
-
 config = GlobalConfig()

@@ -32,7 +32,7 @@ class WorkflowTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     workflow_tag_id: Optional[str] = None
-    # model_config = ConfigDict(from_attributes=True, extra="forbid")
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class WorkflowTransitionSchemaPost(BaseModel):

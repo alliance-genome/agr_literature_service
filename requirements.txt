@@ -4,7 +4,7 @@ wheel>=0.40.0                # Ensure up-to-date wheel.
 
 # Core Dependencies
 sqlalchemy==2.0.7            # Upgrade to SQLAlchemy 2.0.x.
-fastapi==0.103.1           # Updated from 0.68.1 for new features and fixes.
+fastapi==0.115.12            # Updated from 0.68.1 for new features and fixes.
 fastapi-health==0.4.0        # No update needed.
 uvicorn[standard]==0.23.2    # Updated for compatibility with FastAPI.
 starlette==0.40.0            # Updated for compatibility with FastAPI.
