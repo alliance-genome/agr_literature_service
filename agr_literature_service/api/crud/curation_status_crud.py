@@ -23,20 +23,17 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     """
 
     curation_status_data = jsonable_encoder(curation_status)
-    print(f"create cs: {curation_status_data}")
     reference_curie = curation_status_data.pop("reference_curie", None)
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="reference_curie not within curation_status_data")
     try:
         # get ref_id from curie
-        print(f"Looking up reference_curie: {reference_curie}")
-        ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie == curation_status_data.reference_curie).one().reference_id
-        print(f"ref_id: {ref_id}")
+        ref_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
         curation_status_data["reference_id"] = ref_id
         # look up mod
         abbreviation = curation_status_data.pop("mod_abbreviation", None)
-        mod_id = db.query(ModModel).filter(ModModel.abbreviation == abbreviation).one().mod_id
+        mod_id = db.query(ModModel).filter_by(abbreviation=abbreviation).one().mod_id
         curation_status_data["mod_id"] = mod_id
         curation_status_data["date_created"] = datetime.now().isoformat()
         db_obj = CurationStatusModel(**curation_status_data)

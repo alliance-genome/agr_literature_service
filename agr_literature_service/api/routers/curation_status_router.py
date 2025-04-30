@@ -21,8 +21,7 @@ db_user = Security(auth.get_user)
 
 
 @router.post("/",
-             status_code=status.HTTP_201_CREATED,
-             response_model=CurationStatusSchemaBase)
+             status_code=status.HTTP_201_CREATED)
 def create_curation_status(request: CurationStatusSchemaPost, user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
     return curation_status_crud.create(db, curation_status=request)

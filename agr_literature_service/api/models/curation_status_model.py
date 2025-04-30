@@ -56,3 +56,9 @@ class CurationStatusModel(Base, AuditedModel):
         String,
         nullable=True
     )
+
+    def __str__(self):
+        """
+        Overwrite the default output.
+        """
+        return f"topic:{self.topic} mod:{self.mod} ref:{self.reference}"
