@@ -10,8 +10,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
-from agr_literature_service.api.models import CurationStatusModel
+from agr_literature_service.api.models import CurationStatusModel, ReferenceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 
 
@@ -24,8 +23,14 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     """
 
     curation_status_data = jsonable_encoder(curation_status)
-
-    db_obj = create_obj(db, CurationStatusModel, curation_status_data)
+    reference_curie = curation_status_data.pop("reference_curie", None)
+    if reference_curie is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="reference_curie not within curation_status_data")
+    # get ref_id from curie
+    ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie==curation_status_data.reference_curie).one().reference_id
+    curation_status_data["reference_id"] = ref_id
+    db_obj = CurationStatusModel(**curation_status_data)
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
