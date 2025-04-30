@@ -22,8 +22,10 @@ def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
             "reference_curie": test_reference.new_ref_curie,
             "topic": "ATP:curation_test"
         }
+        print(f"new_curation_status: {new_curation_status}")
         response = client.post(url="/curation_status/", json=new_curation_status, headers=auth_headers)
-        yield TestCurationStatusData(response, response.json(), test_reference.new_ref_curie)
+        print(f"response: {response}")
+        yield TestCurationStatusData(response, response.json()['curation_status_id'], test_reference.new_ref_curie)
 
 
 class TestCurationStatus:
