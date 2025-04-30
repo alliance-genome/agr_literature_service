@@ -20,7 +20,8 @@ def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
     with TestClient(app) as client:
         new_curation_status = {
             "mod_abbreviation": test_mod.new_mod_abbreviation,
-            "reference_curie": test_reference.new_ref_curie
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:curation_test"
         }
         response = client.post(url="/curation_status/", json=new_curation_status, headers=auth_headers)
         yield TestCurationStatusData(response, response.json(), test_reference.new_ref_curie)
