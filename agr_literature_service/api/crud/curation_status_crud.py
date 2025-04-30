@@ -10,7 +10,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import CurationStatusModel, ReferenceModel
+from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 
 
@@ -33,6 +33,10 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie == curation_status_data.reference_curie).one().reference_id
     print(f"ref_id: {ref_id}")
     curation_status_data["reference_id"] = ref_id
+    # look up mod
+    abbreviation = curation_status_data.pop("mod_abbreviation", None)
+    mod_id = db.query(ModModel).filter(ModModel.abbreviation == abbreviation).one().mod_id
+    curation_status_data["mod_id"] = mod_id
     db_obj = CurationStatusModel(**curation_status_data)
     db.add(db_obj)
     db.commit()
