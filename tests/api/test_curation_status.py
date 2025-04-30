@@ -19,7 +19,7 @@ def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
     print("***** Adding a test curation_status *****")
     with TestClient(app) as client:
         new_curation_status = {
-            "mod_abbreviation": test_mod.abbreviation,
+            "mod_abbreviation": test_mod.new_mod_abbreviation,
             "reference_curie": test_reference.new_ref_curie
         }
         response = client.post(url="/curation_status/", json=new_curation_status, headers=auth_headers)

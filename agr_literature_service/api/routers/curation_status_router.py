@@ -46,5 +46,4 @@ def patch(curation_status_id: int,
           db: Session = db_session):
 
     set_global_user_from_okta(db, user)
-    result = request.model_dump(exclude_unset=True)
-    return curation_status_crud.patch(db, curation_status_id, result)
+    return curation_status_crud.patch(db, curation_status_id, request)
