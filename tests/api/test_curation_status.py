@@ -10,7 +10,7 @@ from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
 from .test_reference import test_reference # noqa
 
-TestCurationStatusData = namedtuple('TestCurationStatusData', ['response', 'new_curation_status_id', 'new_reference_id'])
+TestCurationStatusData = namedtuple('TestCurationStatusData', ['response', 'new_curation_status_id', 'new_reference_id', 'new_mod_id'])
 
 
 @pytest.fixture
@@ -22,10 +22,8 @@ def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
             "reference_curie": test_reference.new_ref_curie,
             "topic": "ATP:curation_test"
         }
-        print(f"new_curation_status: {new_curation_status}")
         response = client.post(url="/curation_status/", json=new_curation_status, headers=auth_headers)
-        print(f"response: {response}")
-        yield TestCurationStatusData(response, response.json()['curation_status_id'], test_reference.new_ref_curie)
+        yield TestCurationStatusData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_abbreviation)
 
 
 class TestCurationStatus:
@@ -33,3 +31,12 @@ class TestCurationStatus:
     def test_create(self, test_curation_status, auth_headers): # noqa
         with TestClient(app):
             assert test_curation_status.response.status_code == status.HTTP_201_CREATED
+
+    def test_list(self, test_curation_status, auth_headers): # noqa
+        with TestClient(app) as client:
+            url =f"/curation_status/{test_curation_status.new_reference_id}/{test_curation_status.new_mod_id}"
+            print(url)
+            response = client.post(url=url, headers=auth_headers)
+            print(response)
+            assert response.status_code == status.HTTP_200_OK
+            assert 1 == 0

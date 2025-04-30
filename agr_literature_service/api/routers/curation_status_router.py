@@ -20,6 +20,14 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
 
+@router.get("/{reference_curie}/{mod_abbreviation}",
+            status_code=200)
+def show(reference_curie: str,
+         mod_abbreviation: str,
+         db: Session = db_session):
+    return curation_status_crud.list_by_ref_and_mod(db, reference_curie, mod_abbreviation)
+
+
 @router.post("/",
              status_code=status.HTTP_201_CREATED)
 def create_curation_status(request: CurationStatusSchemaPost, user: OktaUser = db_user, db: Session = db_session):

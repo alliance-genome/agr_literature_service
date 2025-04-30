@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
@@ -105,3 +106,21 @@ def show(db: Session, curation_status_id: int) -> dict:
                             detail=f"CurationStatus with the curation_status_id {curation_status_id} is not available")
 
     return curation_status_data
+
+
+def list_by_ref_and_mod(db: Session, reference_curie: str, mod_abbr: str):
+    try:
+        # get ref_id from curie
+        ref_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
+        # look up mod
+        mod_id = db.query(ModModel).filter_by(abbreviation=mod_abbr).one().mod_id
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"Error creating curation_status: {err}")
+    # css = db.query(CurationStatusModel).filter_by(reference_id=ref_id, mod_id=mod_id).all()
+    # TODO: we really need to get lost of possible topics and then
+    #       create an empty dict for these and then fill in for those that exist
+    query = f"SELECT * FROM curation_status WHERE mod_id = {mod_id} AND reference_id = {ref_id}"
+    src_rows = db.execute(text(query)).mappings().fetchall()
+    data = [dict(row) for row in src_rows]
+    return {"data": data}
