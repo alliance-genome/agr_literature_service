@@ -16,6 +16,7 @@ class CurationStatusSchemaPost(CurationStatusSchemaBase):
     controlled_note: Optional[str]
     note: Optional[str]
 
+
 class CurationStatusSchemaUpdate(BaseModel):
     curation_status: Optional[str]
     controlled_note: Optional[str]

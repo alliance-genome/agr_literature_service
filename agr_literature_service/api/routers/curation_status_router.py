@@ -27,6 +27,7 @@ def create_curation_status(request: CurationStatusSchemaPost, user: OktaUser = d
     set_global_user_from_okta(db, user)
     return curation_status_crud.create(db, curation_status=request)
 
+
 @router.delete('/{curation_status_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curation_status_id: int,
@@ -36,13 +37,14 @@ def destroy(curation_status_id: int,
     curation_status_crud.destroy(db, curation_status_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
 @router.patch('/{curation_status_id}',
               status_code=status.HTTP_202_ACCEPTED)
-def patch(editor_id: int,
-                request: CurationStatusSchemaUpdate,
-                user: OktaUser = db_user,
-                db: Session = db_session):
+def patch(curation_status_id: int,
+          request: CurationStatusSchemaUpdate,
+          user: OktaUser = db_user,
+          db: Session = db_session):
 
     set_global_user_from_okta(db, user)
     result = request.model_dump(exclude_unset=True)
-    return curation_status_crud.patch(db, editor_id, result)
+    return curation_status_crud.patch(db, curation_status_id, result)
