@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
-
+from agr_literature_service.api.crud.reference_resource import add, stripout
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     """
@@ -70,8 +70,6 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> dict:
     if not curation_status_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"CurationStatus with curation_status_id {curation_status_id} not found")
-    res_ref = stripout(db, curation_status_update, non_fatal=True)
-    add(res_ref, curation_status_db_obj)
 
     for field, value in curation_status_data.items():
         setattr(curation_status_db_obj, field, value)
