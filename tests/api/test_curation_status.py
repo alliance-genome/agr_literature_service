@@ -1,5 +1,4 @@
 from collections import namedtuple
-
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status

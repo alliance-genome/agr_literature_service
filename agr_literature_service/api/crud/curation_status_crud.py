@@ -37,6 +37,7 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     abbreviation = curation_status_data.pop("mod_abbreviation", None)
     mod_id = db.query(ModModel).filter(ModModel.abbreviation == abbreviation).one().mod_id
     curation_status_data["mod_id"] = mod_id
+    curation_status_data["date_created"] = datetime.now().isoformat()
     db_obj = CurationStatusModel(**curation_status_data)
     db.add(db_obj)
     db.commit()
