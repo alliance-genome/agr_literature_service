@@ -30,7 +30,7 @@ def show_list(reference_curie: str,
 
 @router.get("/{curation_status_id}",
             status_code=200)
-def show_list(curation_status_id: int,
+def show(curation_status_id: int,
          db: Session = db_session):
     return curation_status_crud.show(db, curation_status_id)
 

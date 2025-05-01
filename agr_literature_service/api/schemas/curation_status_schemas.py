@@ -21,10 +21,6 @@ class CurationStatusSchemaUpdate(BaseModel):
     curation_status: Optional[str]
     controlled_note: Optional[str]
     note: Optional[str]
-    date_created: Optional[constr(min_length=1)]  # type: ignore
-    date_updated: Optional[constr(min_length=1)]  # type: ignore
-    created_by: Optional[constr(min_length=1)]  # type: ignore
-    updated_by: Optional[constr(min_length=1)]  # type: ignore
 
     class Config:
         orm_mode = True
