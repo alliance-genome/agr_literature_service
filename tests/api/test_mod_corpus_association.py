@@ -8,7 +8,8 @@ from fastapi import status
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
-from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
+from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock, \
+    search_topic_mock
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -117,6 +118,8 @@ class TestModCorpusAssociation:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.search_topic",
+           search_topic_mock)
     def test_mca_modid_wb(self, db, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             populate_test_mods()
