@@ -98,7 +98,7 @@ def show(db: Session, curation_status_id: int) -> dict:
     :return:
     """
 
-    curation_status = db.query(CurationStatusModel).filter(CurationStatusModel.curation_status_id == curation_status_id).first()
+    curation_status = db.query(CurationStatusModel).filter(CurationStatusModel.curation_status_id == curation_status_id).one()
     curation_status_data = jsonable_encoder(curation_status)
 
     if not curation_status:
@@ -118,7 +118,7 @@ def list_by_ref_and_mod(db: Session, reference_curie: str, mod_abbr: str):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Error creating curation_status: {err}")
     # css = db.query(CurationStatusModel).filter_by(reference_id=ref_id, mod_id=mod_id).all()
-    # TODO: we really need to get lost of possible topics and then
+    # TODO: We really need to get list of possible topics and then
     #       create an empty dict for these and then fill in for those that exist
     query = f"SELECT * FROM curation_status WHERE mod_id = {mod_id} AND reference_id = {ref_id}"
     src_rows = db.execute(text(query)).mappings().fetchall()

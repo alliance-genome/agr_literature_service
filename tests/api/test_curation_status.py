@@ -39,4 +39,33 @@ class TestCurationStatus:
             response = client.get(url=url, headers=auth_headers)
             print(response)
             assert response.status_code == status.HTTP_200_OK
-            assert 1 == 0
+            res = response.json()
+            assert res[0]["topic"] == "ATP:curation_test"
+            assert res[0]['curation_status_id'] == test_curation_status.new_curation_status_id
+
+    def test_show(self, test_curation_status, auth_headers): # noqa
+        with TestClient(app) as client:
+            url =f"/curation_status/{test_curation_status.new_curation_status_id}"
+            print(url)
+            response = client.get(url=url, headers=auth_headers)
+            print(response)
+            assert response.status_code == status.HTTP_200_OK
+            res = response.json()
+            assert res["topic"] == "ATP:curation_test"
+
+    def test_patch(self, test_curation_status, auth_headers): # noqa
+        with TestClient(app) as client:
+            patch_data = {
+                "extra": "bob",
+                "controlled_note": "ATP:cont_note",
+                "note": "some notes"
+            }
+            url =f"/curation_status/{test_curation_status.new_curation_status_id}"
+            print(url)
+            response = client.patch(url=url, headers=auth_headers, json=patch_data)
+            assert response.status_code == status.HTTP_202_ACCEPTED
+            response = client.get(f"/curation_status/{test_curation_status.new_curation_status_id}")
+            assert response.status_code == status.HTTP_200_OK
+            resp_data = response.json()
+            for key, value in patch_data.items():
+                assert resp_data[key] == value
