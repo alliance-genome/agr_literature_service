@@ -36,7 +36,7 @@ class TestCurationStatus:
         with TestClient(app) as client:
             url =f"/curation_status/{test_curation_status.new_reference_id}/{test_curation_status.new_mod_id}"
             print(url)
-            response = client.post(url=url, headers=auth_headers)
+            response = client.get(url=url, headers=auth_headers)
             print(response)
             assert response.status_code == status.HTTP_200_OK
             assert 1 == 0
