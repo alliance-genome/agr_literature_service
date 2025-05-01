@@ -18,6 +18,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     delete_manual_tets, has_manual_tet
 from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp
+from agr_literature_service.api.crud.curation_status_crud import add_topic_list
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -65,6 +66,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
+        add_topic_list(db, reference_curie, mod_abbreviation)
         if get_current_workflow_status(db, reference_curie, "ATP:0000140",
                                        mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
@@ -142,6 +144,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 mod_abbreviation = db_mod.abbreviation
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
+                add_topic_list(db, reference_obj.curie, mod_abbreviation)
                 if get_current_workflow_status(db, str(reference_obj.reference_id),
                                                "ATP:0000140",
                                                mod_abbreviation=mod_abbreviation) is None:
