@@ -13,7 +13,8 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_NOPAS
 from agr_literature_service.api.database.main import is_database_online
 from agr_literature_service.api.database.setup import setup_database
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
-                                                cross_reference_router, database_router,
+                                                cross_reference_router, curation_status_router,
+                                                database_router,
                                                 editor_router, mesh_detail_router,
                                                 mod_reference_type_router,
                                                 mod_router, mod_corpus_association_router,
@@ -86,6 +87,8 @@ app.include_router(copyright_license_router.router)
 app.include_router(check_router.router)
 app.include_router(dataset_router.router)
 app.include_router(ml_model_router.router)
+
+app.include_router(curation_status_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 
