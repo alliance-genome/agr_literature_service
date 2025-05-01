@@ -13,7 +13,6 @@ from sqlalchemy import text
 
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
-from agr_literature_service.api.crud.ateam_db_helpers import search_topic
 
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
@@ -125,23 +124,3 @@ def list_by_ref_and_mod(db: Session, reference_curie: str, mod_abbr: str):
     src_rows = db.execute(text(query)).mappings().fetchall()
     data = [dict(row) for row in src_rows]
     return {"data": data}
-
-
-def add_topic_list(db: Session, reference_curie: str, mod_abbr: str):
-    try:
-        reference_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
-        mod_id = db.query(ModModel).filter_by(abbreviation=mod_abbr).one().mod_id
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"reference {reference_curie} or mod {mod_abbr} is not in the database: {e}")
-    topic_data = search_topic(topic=None, mod_abbr=mod_abbr)
-    try:
-        for row in topic_data:
-            x = CurationStatusModel(reference_id=reference_id,
-                                    mod_id=mod_id,
-                                    topic=row['curie'])
-            db.add(x)
-        db.commit()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"An error occurred when adding topic data into curation table: {e}")
