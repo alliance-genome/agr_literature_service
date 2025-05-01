@@ -96,6 +96,30 @@ def load_sanitized_references(populate_test_mod_reference_types):
     yield None
 
 
+def search_topic_mock(topic, mod_addr):  # noqa
+    return [
+        {
+            'curie': 'ATP:0000005',
+            'name': 'gene'
+        },
+        {
+            'curie': 'ATP:0000006',
+            'name': 'allele'
+        },
+        {
+            'curie': 'ATP:0000011',
+            'name': 'disease'
+        },
+        {
+            'curie': 'ATP:0000009',
+            'name': 'phenotype'
+        },
+        {
+            'curie': 'ATP:0000070',
+            'name': 'regulatory interaction'
+        }
+    ]
+    
 def search_ancestors_or_descendants_mock(ontology_node, ancestors_or_descendants):  # noqa
     workflow_parent = {
         'ATP:0000172': ['ATP:0000177'],
