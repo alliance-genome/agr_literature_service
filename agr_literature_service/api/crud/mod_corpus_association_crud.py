@@ -18,7 +18,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
     get_current_workflow_status, delete_workflow_tags
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     delete_manual_tets, has_manual_tet
-from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp, search_topic
+from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -267,7 +267,13 @@ def add_topic_list(db: Session, reference_curie: str, mod_abbr: str):
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"reference {reference_curie} or mod {mod_abbr} is not in the database: {e}")
-    topic_data = search_topic(topic=None, mod_abbr=mod_abbr)
+    try:
+        from agr_literature_service.api.crud.ateam_db_helpers import search_topic
+        topic_data = search_topic(topic=None, mod_abbr=mod_abbr)
+    except Exception:
+        topic_data = []
+    if not topic_data:
+        return
     try:
         for row in topic_data:
             x = CurationStatusModel(reference_id=reference_id,
@@ -277,4 +283,4 @@ def add_topic_list(db: Session, reference_curie: str, mod_abbr: str):
         db.commit()
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"An error occurred when adding topic data into curation table: {e}")
+                            detail=f"An error occurred when adding topic data into curation_status table: {e}")
