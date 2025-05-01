@@ -130,14 +130,18 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
 
     elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
         sql_query = text("""
-        SELECT DISTINCT be.primaryexternalid, be.obsolete, agm.name
+        SELECT DISTINCT be.primaryexternalid, sa.obsolete, sa.displaytext
         FROM biologicalentity be
-        JOIN affectedgenomicmodel agm ON be.id = agm.id
+        JOIN slotannotation sa ON be.id = sa.singleagm_id
         JOIN ontologyterm ot ON be.taxon_id = ot.id
-        WHERE UPPER(agm.name) IN :entity_name_list
+        WHERE sa.slotannotationtype in (
+            'AgmFullNameSlotAnnotation',
+            'AgmSecondaryIdSlotAnnotation',
+            'AgmSynonymSlotAnnotation'
+        )
+        AND UPPER(sa.displaytext) IN :entity_name_list
         AND ot.curie = :taxon
         """)
-
     elif 'targeting reagent' in entity_type:
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, be.obsolete, str.name
@@ -411,9 +415,9 @@ def map_curies_to_names(category, curies):
 
     elif category in ['affected genome model', 'strain', 'genotype', 'fish']:
         sql_query = text("""
-        SELECT DISTINCT be.primaryexternalid, agm.name
+        SELECT DISTINCT be.primaryexternalid, sa.displaytext
         FROM biologicalentity be
-        JOIN affectedgenomicmodel agm ON be.id = agm.id
+        JOIN slotannotation sa ON be.id = sa.singleagm_id
         WHERE be.primaryexternalid IN :curies
         """)
 
