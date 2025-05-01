@@ -34,18 +34,18 @@ class TestCurationStatus:
 
     def test_list(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:
-            url =f"/curation_status/{test_curation_status.new_reference_id}/{test_curation_status.new_mod_id}"
+            url = f"/curation_status/{test_curation_status.new_reference_id}/{test_curation_status.new_mod_id}"
             print(url)
             response = client.get(url=url, headers=auth_headers)
             print(response)
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
-            assert res[0]["topic"] == "ATP:curation_test"
-            assert res[0]['curation_status_id'] == test_curation_status.new_curation_status_id
+            assert res['data'][0]["topic"] == "ATP:curation_test"
+            assert res['data'][0]['curation_status_id'] == test_curation_status.new_curation_status_id
 
     def test_show(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:
-            url =f"/curation_status/{test_curation_status.new_curation_status_id}"
+            url = f"/curation_status/{test_curation_status.new_curation_status_id}"
             print(url)
             response = client.get(url=url, headers=auth_headers)
             print(response)
@@ -60,7 +60,7 @@ class TestCurationStatus:
                 "note": "some notes",
                 "curation_status": "ATP:curation_started"
             }
-            url =f"/curation_status/{test_curation_status.new_curation_status_id}"
+            url = f"/curation_status/{test_curation_status.new_curation_status_id}"
             print(url)
             response = client.patch(url=url, headers=auth_headers, json=patch_data)
             assert response.status_code == status.HTTP_202_ACCEPTED

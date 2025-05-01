@@ -7,7 +7,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import curation_status_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas.curation_status_schemas import CurationStatusSchemaPost, \
-    CurationStatusSchemaBase, CurationStatusSchemaUpdate
+    CurationStatusSchemaUpdate
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -23,8 +23,8 @@ db_user = Security(auth.get_user)
 @router.get("/{reference_curie}/{mod_abbreviation}",
             status_code=200)
 def show_list(reference_curie: str,
-         mod_abbreviation: str,
-         db: Session = db_session):
+              mod_abbreviation: str,
+              db: Session = db_session):
     return curation_status_crud.list_by_ref_and_mod(db, reference_curie, mod_abbreviation)
 
 
@@ -33,7 +33,6 @@ def show_list(reference_curie: str,
 def show(curation_status_id: int,
          db: Session = db_session):
     return curation_status_crud.show(db, curation_status_id)
-
 
 
 @router.post("/",
