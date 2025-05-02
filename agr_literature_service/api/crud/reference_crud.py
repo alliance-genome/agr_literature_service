@@ -66,6 +66,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import \
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     get_meta_data, get_reference_col_names, generate_json_data
 from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
+from agr_literature_service.api.crud.curation_status_crud import list_by_ref_and_mod
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
@@ -1365,7 +1366,13 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
     for tet, tet_source in rows:
         topic_to_data[tet.topic].append((tet, tet_source))
 
-    topic_to_name = map_curies_to_names('atpterm', list(topic_to_data.keys()))
+    curation_topic_data = list_by_ref_and_mod(db, reference_curie, mod_abbreviation)
+    curation_topics = [row['topic'] for row in curation_topic_data['data']]
+    all_topics = curation_topics + [
+        t for t in topic_to_data.keys()
+        if t not in curation_topics
+    ]
+    topic_to_name = map_curies_to_names('atpterm', all_topics)
 
     data = {}
     for topic, topic_rows in topic_to_data.items():
@@ -1409,4 +1416,14 @@ def get_tet_info(db: Session, reference_curie, mod_abbreviation):
             "novel_data": novel_data,
             "no_data": no_data
         }
+    for topic in curation_topics:
+        if topic not in topic_to_data:
+            topic_name = topic_to_name.get(topic, topic)
+            data[topic_name] = {
+                "topic_added": '',
+                "topic_source": [],
+                "has_data": '',
+                "novel_data": '',
+                "no_data": ''
+            }
     return data
