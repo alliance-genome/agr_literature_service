@@ -2,16 +2,19 @@
 curation_status_crud.py
 =============
 """
-
+from collections import defaultdict
 from datetime import datetime
-
+from typing import List
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic
+from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
+from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
+    TopicEntityTagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 
 
@@ -108,19 +111,104 @@ def show(db: Session, curation_status_id: int) -> dict:
     return curation_status_data
 
 
-def list_by_ref_and_mod(db: Session, reference_curie: str, mod_abbr: str):
-    try:
-        # get ref_id from curie
-        ref_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
-        # look up mod
-        mod_id = db.query(ModModel).filter_by(abbreviation=mod_abbr).one().mod_id
-    except Exception as err:
+def get_tet_list_summary(topic_curie, topic_tet_list_dict):
+    if topic_curie not in topic_tet_list_dict or len(topic_tet_list_dict[topic_curie]) == 0:
+        return {
+            "topic_added": '',
+            "topic_source": [],
+            "has_data": '',
+            "novel_data": '',
+            "no_data": ''
+        }
+    # initialize earliest_dt from the very first row
+    first_tet, _ = topic_tet_list_dict[topic_curie][0]
+    if isinstance(first_tet.date_created, datetime):
+        earliest_dt = first_tet.date_created
+    else:
+        date_str = str(first_tet.date_created).split()[0]
+        earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
+    has_data = novel_data = no_data = False
+    topic_sources = set()
+    source_map = {
+        'ATP:0000035': 'author',
+        'ATP:0000036': 'biocurator'
+    }
+    for tet, tet_source in topic_tet_list_dict[topic_curie]:
+        topic_sources.add(
+            source_map.get(tet_source.source_evidence_assertion, 'computational')
+        )
+        if isinstance(tet.date_created, datetime):
+            dt = tet.date_created
+        else:
+            date_str = str(tet.date_created).split()[0]  # "2025-03-05"
+            dt = datetime.strptime(date_str, "%Y-%m-%d")
+        if dt < earliest_dt:
+            earliest_dt = dt
+
+        if tet.novel_topic_data:
+            novel_data = True
+        if tet.negated:
+            no_data = True
+        else:
+            has_data = True
+    topic_added = f"{earliest_dt.strftime('%b.')} {earliest_dt.day}, {earliest_dt.year}"
+    return {
+        "topic_added": topic_added,
+        "topic_source": sorted(topic_sources),
+        "has_data": has_data,
+        "novel_data": novel_data,
+        "no_data": no_data
+    }
+
+
+def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mod_abbreviation):
+
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    if reference_id is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Error creating curation_status: {err}")
-    # css = db.query(CurationStatusModel).filter_by(reference_id=ref_id, mod_id=mod_id).all()
-    # TODO: We really need to get list of possible topics and then
-    #       create an empty dict for these and then fill in for those that exist
-    query = f"SELECT * FROM curation_status WHERE mod_id = {mod_id} AND reference_id = {ref_id}"
-    src_rows = db.execute(text(query)).mappings().fetchall()
-    data = [dict(row) for row in src_rows]
-    return {"data": data}
+                            detail=f"The reference curie {reference_curie} is not in the database.")
+    mod_id = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one().mod_id
+    if mod_id is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The mod abbreviation {mod_abbreviation} is not in the database.")
+
+    # create empty return objects with topics from atp subsets as keys
+    agg_cur_stat_tet_objs = {topic_curie: {} for topic_curie in search_topic(topic=None, mod_abbr=mod_abbreviation)}
+
+    # add tet info to the objects
+    query = (
+        db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
+        .join(
+            TopicEntityTagSourceModel,
+            TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+        )
+        .filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagSourceModel.data_provider == mod_abbreviation
+        )
+    )
+    rows = query.all()
+
+    topic_tet_list_dict = defaultdict(list)
+    for tet, tet_source in rows:
+        topic_tet_list_dict[tet.topic].append((tet, tet_source))
+
+    query = (f"SELECT topic, curation_status, controlled_note, note, updated_by, date_updated FROM curation_status "
+             f"WHERE mod_id = {mod_id} AND reference_id = {reference_id}")
+    res = db.execute(text(query)).mappings().fetchall()
+    for row in res:
+        agg_cur_stat_tet_objs[row["topic"]].update({
+            "curation_status": row["curation_status"],
+            "controlled_note": row["controlled_note"],
+            "note": row["note"],
+            "updated_by": row["updated_by"],
+            "date_updated": row["date_updated"]
+        })
+    topic_to_name = map_curies_to_names('atpterm', agg_cur_stat_tet_objs.keys())
+
+    for topic_curie in agg_cur_stat_tet_objs.keys():
+        topic_name = topic_to_name.get(topic_curie, topic_curie)
+        agg_cur_stat_tet_objs[topic_curie]["topic_name"] = topic_name
+        agg_cur_stat_tet_objs[topic_curie]["topic_curie"] = topic_curie
+        agg_cur_stat_tet_objs[topic_curie].update(get_tet_list_summary(topic_curie, topic_tet_list_dict))
+    return [value for value in agg_cur_stat_tet_objs]

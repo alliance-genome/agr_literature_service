@@ -20,12 +20,12 @@ db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
 
-@router.get("/{reference_curie}/{mod_abbreviation}",
+@router.get("/aggregated_curation_status_and_tet_info/{reference_curie}/{mod_abbreviation}",
             status_code=200)
-def show_list(reference_curie: str,
-              mod_abbreviation: str,
-              db: Session = db_session):
-    return curation_status_crud.list_by_ref_and_mod(db, reference_curie, mod_abbreviation)
+def show_aggregated_curation_status_and_tet_info(reference_curie: str,
+                                                 mod_abbreviation: str,
+                                                 db: Session = db_session):
+    return curation_status_crud.get_aggregated_curation_status_and_tet_info(db, reference_curie, mod_abbreviation)
 
 
 @router.get("/{curation_status_id}",
