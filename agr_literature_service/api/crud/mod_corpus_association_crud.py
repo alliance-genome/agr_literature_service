@@ -18,7 +18,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
     get_current_workflow_status, delete_workflow_tags
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     delete_manual_tets, has_manual_tet
-from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp
+from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp, search_topic
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -268,7 +268,6 @@ def add_topic_list(db: Session, reference_curie: str, mod_abbr: str):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"reference {reference_curie} or mod {mod_abbr} is not in the database: {e}")
     try:
-        from agr_literature_service.api.crud.ateam_db_helpers import search_topic
         topic_data = search_topic(topic=None, mod_abbr=mod_abbr)
     except Exception:
         topic_data = []
