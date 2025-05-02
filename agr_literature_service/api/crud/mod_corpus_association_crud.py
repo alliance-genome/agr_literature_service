@@ -66,7 +66,6 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
-        add_topic_list(db, reference_curie, mod_abbreviation)
         if get_current_workflow_status(db, reference_curie, "ATP:0000140",
                                        mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
@@ -144,7 +143,6 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 mod_abbreviation = db_mod.abbreviation
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
-                add_topic_list(db, reference_obj.curie, mod_abbreviation)
                 if get_current_workflow_status(db, str(reference_obj.reference_id),
                                                "ATP:0000140",
                                                mod_abbreviation=mod_abbreviation) is None:
@@ -258,28 +256,3 @@ def show_changesets(db: Session, mod_corpus_association_id: int):
                         "changeset": version.changeset})
 
     return history
-
-
-def add_topic_list(db: Session, reference_curie: str, mod_abbr: str):
-    try:
-        reference_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
-        mod_id = db.query(ModModel).filter_by(abbreviation=mod_abbr).one().mod_id
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"reference {reference_curie} or mod {mod_abbr} is not in the database: {e}")
-    try:
-        topic_data = search_topic(topic=None, mod_abbr=mod_abbr)
-    except Exception:
-        topic_data = []
-    if not topic_data:
-        return
-    try:
-        for row in topic_data:
-            x = CurationStatusModel(reference_id=reference_id,
-                                    mod_id=mod_id,
-                                    topic=row['curie'])
-            db.add(x)
-        db.commit()
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"An error occurred when adding topic data into curation_status table: {e}")
