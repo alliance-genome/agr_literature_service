@@ -4,6 +4,7 @@ curation_status_crud.py
 """
 from collections import defaultdict
 from datetime import datetime
+from typing import Dict
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -172,7 +173,8 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database.")
 
     # create empty return objects with topics from atp subsets as keys
-    agg_cur_stat_tet_objs = {topic_curie: {} for topic_curie in search_topic(topic=None, mod_abbr=mod_abbreviation)}
+    agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic_curie: {} for topic_curie in
+                                                        search_topic(topic=None, mod_abbr=mod_abbreviation)}
 
     # add tet info to the objects
     query = (
