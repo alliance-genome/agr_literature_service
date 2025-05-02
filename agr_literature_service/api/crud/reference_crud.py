@@ -5,26 +5,37 @@ reference_crud.py
 import logging
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
-from os import getcwd
 from datetime import datetime, date, timedelta
+from os import getcwd
+from typing import Any, Dict, List, Optional
 
-from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from starlette.background import BackgroundTask
+from fastapi.responses import FileResponse
 from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
-from sqlalchemy.exc import SQLAlchemyError
+from starlette.background import BackgroundTask
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
-from agr_literature_service.api.crud.referencefile_crud import cleanup
+from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation
+from agr_literature_service.api.crud.referencefile_crud import cleanup
+from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
+from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
+from agr_literature_service.api.crud.workflow_tag_crud import (
+    create as create_workflow_tag,
+    patch as update_workflow_tag,
+    show as show_workflow_tag
+)
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_current_workflow_status, is_file_upload_blocked
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel,
                                                ModModel,
@@ -35,38 +46,22 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
                                                CitationModel,
-                                               TopicEntityTagModel,
-                                               TopicEntityTagSourceModel)
+                                               TopicEntityTagModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
     TopicEntityTagSchemaPost
-from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
-from agr_literature_service.api.crud.workflow_tag_crud import (
-    create as create_workflow_tag,
-    patch as update_workflow_tag,
-    show as show_workflow_tag
-)
-from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
 from agr_literature_service.global_utils import get_next_reference_curie
-from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
+# from agr_literature_service.api.crud.workflow_tag_crud import \
+#    get_workflow_tags_from_process
+from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
+    get_meta_data, get_reference_col_names, generate_json_data
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
     update_data
-from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
-    get_current_workflow_status, is_file_upload_blocked
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
     get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
     get_journal_by_resource_id
-from agr_literature_service.api.crud.topic_entity_tag_utils import \
-    get_reference_id_from_curie_or_id
-# from agr_literature_service.api.crud.workflow_tag_crud import \
-#    get_workflow_tags_from_process
-from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    get_meta_data, get_reference_col_names, generate_json_data
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
-from agr_literature_service.api.crud.curation_status_crud import list_by_ref_and_mod
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)

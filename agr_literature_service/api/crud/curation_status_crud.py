@@ -4,7 +4,6 @@ curation_status_crud.py
 """
 from collections import defaultdict
 from datetime import datetime
-from typing import List
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -211,4 +210,4 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
         agg_cur_stat_tet_objs[topic_curie]["topic_name"] = topic_name
         agg_cur_stat_tet_objs[topic_curie]["topic_curie"] = topic_curie
         agg_cur_stat_tet_objs[topic_curie].update(get_tet_list_summary(topic_curie, topic_tet_list_dict))
-    return [value for value in agg_cur_stat_tet_objs]
+    return [value for value in agg_cur_stat_tet_objs.values()]
