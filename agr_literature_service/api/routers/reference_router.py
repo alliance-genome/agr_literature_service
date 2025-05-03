@@ -309,11 +309,3 @@ def lock_status(referenceCurie: str,
     lock_details = reference_crud.lock_status(db, referenceCurie)
 
     return lock_details
-
-
-@router.get('/get_tet_info/{curie}',
-            status_code=status.HTTP_200_OK)
-def get_tet_info(curie: str,
-                 mod_abbreviation: str,
-                 db: Session = db_session):
-    return reference_crud.get_tet_info(db, curie, mod_abbreviation)

@@ -9,3 +9,4 @@ tmp
 .idea/*
 .vscode/*
 **/*.gz
+.env.unittest
