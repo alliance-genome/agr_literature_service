@@ -173,7 +173,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database.")
 
     # create empty return objects with topics from atp subsets as keys
-    agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic_curie: {} for topic_curie in
+    agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic["curie"]: {} for topic in
                                                         search_topic(topic=None, mod_abbr=mod_abbreviation)}
 
     # add tet info to the objects
