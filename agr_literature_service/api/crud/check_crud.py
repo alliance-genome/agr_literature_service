@@ -92,7 +92,7 @@ def check_obsolete_entities():
         "date-produced": date_produced,
         "obsolete_entities": dict(data)
     }
-##this is just copied right meow... but it should be pretty similar.
+##this is just copied right now... but it should be pretty similar.
 ##Will need to change the fields returned for sure.
 def check_redacted_references_with_tags():
 
