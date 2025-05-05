@@ -3,13 +3,8 @@ from datetime import date
 from sqlalchemy import text
 from os import environ, path
 from shutil import copy
-from collections import defaultdict
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.crud.ateam_db_helpers import create_ateam_db_session, \
-    atp_get_name, search_for_entity_curies
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_entity_curies_to_names
-from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
