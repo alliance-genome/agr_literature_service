@@ -92,7 +92,33 @@ def check_obsolete_entities():
         "date-produced": date_produced,
         "obsolete_entities": dict(data)
     }
+##this is just copied right meow... but it should be pretty similar.
+##Will need to change the fields returned for sure.
+def check_redacted_references_with_tags():
 
+    log_path = environ.get('LOG_PATH', '.')
+    log_file = path.join(log_path, "QC/redacted_references_with_tags.log")
+    date_produced = None
+    data = defaultdict(list)
+
+    with open(log_file, 'r') as f:
+        for line in f:
+            if 'date-produced:' in line:
+                date_produced = line.split('date-produced: ')[1].strip()
+            else:
+                pieces = line.strip().split('\t')
+                if len(pieces) >= 4:
+                    data[pieces[0]].append({
+                        "entity_type": pieces[1],
+                        "entity_status": pieces[2],
+                        "entity_curie": pieces[3],
+                        "entity_name": pieces[4] if len(pieces) > 4 else None
+                    })
+
+    return {
+        "date-produced": date_produced,
+        "obsolete_entities": dict(data)
+    }
 
 def show_environments():
     """
