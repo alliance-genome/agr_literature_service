@@ -16,7 +16,7 @@ TestCurationStatusData = namedtuple('TestCurationStatusData', ['response', 'new_
 
 
 def patch_subset(topic=None, mod_abbr: str = ""):
-    return [{"curie":"ATP:curation_test", "name": "curation test"}, {"curie": "ATP:topic1", "name": "Topic 1"},
+    return [{"curie": "ATP:curation_test", "name": "curation test"}, {"curie": "ATP:topic1", "name": "Topic 1"},
             {"curie": "ATP:topic2", "name": "Topic 2"}, {"curie": "ATP:topic3", "name": "Topic 3"}]
 
 
