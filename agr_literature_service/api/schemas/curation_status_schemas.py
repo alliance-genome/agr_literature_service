@@ -42,4 +42,3 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     tet_info_has_data: Union[bool, None] = None
     tet_info_novel_data: Union[bool, None] = None
     tet_info_no_data: Union[bool, None] = None
-
