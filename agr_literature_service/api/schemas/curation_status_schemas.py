@@ -33,6 +33,7 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     curst_controlled_note: Union[str, None]
     curst_note: Union[str, None]
     curst_updated_by: Union[str, None]
+    curst_updated_by_email: Union[str, None]
     curst_date_updated: Union[str, None]
     topic_curie: str
     topic_name: str
