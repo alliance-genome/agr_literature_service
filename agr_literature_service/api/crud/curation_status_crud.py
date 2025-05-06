@@ -117,9 +117,9 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
         return {
             "tet_info_date_created": None,
             "tet_info_topic_source": [],
-            "tet_info_has_data": None,
-            "tet_info_novel_data": None,
-            "tet_info_no_data": None
+            "tet_info_has_data": False,
+            "tet_info_novel_data": False,
+            "tet_info_no_data": False
         }
     # initialize earliest_dt from the very first row
     first_tet, _ = topic_tet_list_dict[topic_curie][0]

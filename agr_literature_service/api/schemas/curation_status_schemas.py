@@ -39,6 +39,6 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     topic_name: str
     tet_info_date_created: Union[str, None] = None
     tet_info_topic_source: List[str] = []
-    tet_info_has_data: Union[bool, None] = None
-    tet_info_novel_data: Union[bool, None] = None
-    tet_info_no_data: Union[bool, None] = None
+    tet_info_has_data: bool = False
+    tet_info_novel_data: bool = False
+    tet_info_no_data: bool = False
