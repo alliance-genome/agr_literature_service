@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, Depends, Security, Response
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
@@ -7,7 +9,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import curation_status_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas.curation_status_schemas import CurationStatusSchemaPost, \
-    CurationStatusSchemaUpdate
+    CurationStatusSchemaUpdate, AggregatedCurationStatusAndTETInfoSchema
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -21,7 +23,8 @@ db_user = Security(auth.get_user)
 
 
 @router.get("/aggregated_curation_status_and_tet_info/{reference_curie}/{mod_abbreviation}",
-            status_code=200)
+            status_code=200,
+            response_model=List[AggregatedCurationStatusAndTETInfoSchema])
 def show_aggregated_curation_status_and_tet_info(reference_curie: str,
                                                  mod_abbreviation: str,
                                                  db: Session = db_session):

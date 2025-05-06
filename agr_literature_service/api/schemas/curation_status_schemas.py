@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union, List
 
 from pydantic import BaseModel
 
@@ -25,3 +25,20 @@ class CurationStatusSchemaUpdate(BaseModel):
     class Config:
         orm_mode = True
         extra = "forbid"
+
+
+class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
+    curst_curation_status_id: Union[int, None] = None
+    curst_curation_status: Union[str, None] = None
+    curst_controlled_note: Union[str, None] = None
+    curst_note: Union[str, None] = None
+    curst_updated_by: Union[str, None] = None
+    curst_updated_by_email: Union[str, None] = None
+    curst_date_updated: Union[str, None] = None
+    topic_curie: str
+    topic_name: str
+    tet_info_date_created: Union[str, None] = None
+    tet_info_topic_source: List[str] = []
+    tet_info_has_data: Union[bool, None] = None
+    tet_info_novel_data: Union[bool, None] = None
+    tet_info_no_data: Union[bool, None] = None

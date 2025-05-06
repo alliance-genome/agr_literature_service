@@ -16,6 +16,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
     TopicEntityTagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
+from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
 
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
@@ -114,11 +115,11 @@ def show(db: Session, curation_status_id: int) -> dict:
 def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     if topic_curie not in topic_tet_list_dict or len(topic_tet_list_dict[topic_curie]) == 0:
         return {
-            "topic_added": '',
-            "topic_source": [],
-            "has_data": '',
-            "novel_data": '',
-            "no_data": ''
+            "tet_info_date_created": None,
+            "tet_info_topic_source": [],
+            "tet_info_has_data": None,
+            "tet_info_novel_data": None,
+            "tet_info_no_data": None
         }
     # initialize earliest_dt from the very first row
     first_tet, _ = topic_tet_list_dict[topic_curie][0]
@@ -151,13 +152,13 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             no_data = True
         else:
             has_data = True
-    topic_added = f"{earliest_dt.strftime('%b.')} {earliest_dt.day}, {earliest_dt.year}"
+    topic_added = earliest_dt.strftime("%Y-%m-%d")
     return {
-        "topic_added": topic_added,
-        "topic_source": sorted(topic_sources),
-        "has_data": has_data,
-        "novel_data": novel_data,
-        "no_data": no_data
+        "tet_info_date_created": topic_added,
+        "tet_info_topic_source": sorted(topic_sources),
+        "tet_info_has_data": has_data,
+        "tet_info_novel_data": novel_data,
+        "tet_info_no_data": no_data
     }
 
 
@@ -194,16 +195,20 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
     for tet, tet_source in rows:
         topic_tet_list_dict[tet.topic].append((tet, tet_source))
 
-    query = (f"SELECT topic, curation_status, controlled_note, note, updated_by, date_updated FROM curation_status "
-             f"WHERE mod_id = {mod_id} AND reference_id = {reference_id}")
+    query = (f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.controlled_note, cs.note, cs.updated_by, "
+             f"cs.date_updated, u.email AS updated_by_email "
+             f"FROM curation_status cs JOIN users u ON cs.updated_by = u.id WHERE cs.mod_id = {mod_id} AND "
+             f"cs.reference_id = {reference_id}")
     res = db.execute(text(query)).mappings().fetchall()
     for row in res:
         agg_cur_stat_tet_objs[row["topic"]].update({
-            "curation_status": row["curation_status"],
-            "controlled_note": row["controlled_note"],
-            "note": row["note"],
-            "updated_by": row["updated_by"],
-            "date_updated": row["date_updated"]
+            "curst_curation_status_id": row["curation_status_id"],
+            "curst_curation_status": row["curation_status"],
+            "curst_controlled_note": row["controlled_note"],
+            "curst_note": row["note"],
+            "curst_updated_by": row["updated_by"],
+            "curst_updated_by_email": row["updated_by_email"],
+            "curst_date_updated": row["date_updated"].strftime("%Y-%m-%d")
         })
     topic_to_name = map_curies_to_names('atpterm', agg_cur_stat_tet_objs.keys())
 
@@ -212,4 +217,4 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
         agg_cur_stat_tet_objs[topic_curie]["topic_name"] = topic_name
         agg_cur_stat_tet_objs[topic_curie]["topic_curie"] = topic_curie
         agg_cur_stat_tet_objs[topic_curie].update(get_tet_list_summary(topic_curie, topic_tet_list_dict))
-    return [value for value in agg_cur_stat_tet_objs.values()]
+    return [AggregatedCurationStatusAndTETInfoSchema(**value) for value in agg_cur_stat_tet_objs.values()]
