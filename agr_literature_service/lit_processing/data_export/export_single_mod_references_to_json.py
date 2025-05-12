@@ -13,7 +13,8 @@ from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_by_resource_id,\
     get_all_reference_relation_data, get_mod_corpus_association_data_for_ref_ids, \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
-    get_mesh_term_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids
+    get_mesh_term_data_for_ref_ids, get_mod_reference_type_data_for_ref_ids, \
+    get_citation_data, get_license_data
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils \
     import escape_special_characters, remove_surrogates
 from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
@@ -64,12 +65,23 @@ def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
 
     resource_id_to_journal = get_journal_by_resource_id(db_session)
 
+    log.info("Getting citation data from the database...")
+
+    reference_id_to_citation_data = get_citation_data(db_session)
+
+    log.info("Getting license data from the database...")
+
+    reference_id_to_license_data = get_license_data(db_session)
+
     db_session.close()
 
     log.info("Getting data from Reference table and generating json file...")
     try:
         get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data,
-                                             resource_id_to_journal, json_path + json_file,
+                                             resource_id_to_journal,
+                                             reference_id_to_citation_data,
+                                             reference_id_to_license_data,
+                                             json_path + json_file,
                                              datestamp)
 
     except Exception as e:
@@ -260,7 +272,7 @@ def get_reference_col_names():
             'date_created']
 
 
-def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data, resource_id_to_journal, json_file_with_path, datestamp):
+def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, json_file_with_path, datestamp):
 
     metaData = get_meta_data(mod, datestamp)
 
@@ -334,13 +346,13 @@ def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation
         reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids)
         reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db_session, ref_ids)
 
-        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data)
+        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, data)
         i += count_index
 
     db_session.close()
 
 
-def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, data):  # pragma: no cover
+def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, data):  # pragma: no cover
 
     i = 0
     for x in ref_data:
@@ -390,7 +402,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
             row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
         else:
             row['comment_and_corrections'] = reference_id_to_reference_relation_data.get(reference_id, {})
-        # row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
+        row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
 
         row['mod_corpus_associations'] = reference_id_to_mod_corpus_data.get(reference_id, [])
 
@@ -403,7 +415,22 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
             row['resource_curie'] = None
             row['resource_title'] = None
             row['resource_medline_abbreviation'] = None
-
+        if reference_id in reference_id_to_citation_data:
+            row['citation'] = reference_id_to_citation_data[reference_id]['citation']
+            row['short_citation'] = reference_id_to_citation_data[reference_id]['short_citation']
+        else:
+            row['citation'] = None
+            row['short_citation'] = None
+        if reference_id in reference_id_to_license_data:
+            row['copyright_license_name'] = reference_id_to_license_data[reference_id]['name']
+            row['copyright_license_url'] = reference_id_to_license_data[reference_id]['name']
+            row['copyright_license_description'] = reference_id_to_license_data[reference_id]['description']
+            row['copyright_license_open_access'] = reference_id_to_license_data[reference_id]['open_access']
+        else:
+            row['copyright_license_name'] = None
+            row['copyright_license_url'] = None
+            row['copyright_license_description'] = None
+            row['copyright_license_open_access'] = None
         data.append(row)
 
     return i
