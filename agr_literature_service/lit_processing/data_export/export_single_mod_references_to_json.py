@@ -436,13 +436,135 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
     return i
 
 
+def dump_all_mods_references(email=None, ondemand=False, ui_root_url=None):
+    """
+    Dump one big JSON of every paper that belongs to at least one of:
+      ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']
+    Then gzip & upload to S3 (and email if ondemand).
+
+    latest:   reference_all_mods.json.gz
+    recent:   reference_all_mods_YYYYMMDD.json.gz
+    """
+    mods = ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']
+
+    # ─── 1. prepare filenames & paths ──────────────────────────────────────────
+    base_name = "reference_all_mods"
+    if ondemand:
+        # include full timestamp for on-demand dumps
+        datestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
+        json_fname = f"{base_name}_{datestamp}.json"
+    else:
+        # daily scheduled dumps: keep JSON filename un‐stamped
+        datestamp = date.today().strftime('%Y%m%d')
+        json_fname = f"{base_name}.json"
+
+    base = environ.get('XML_PATH', '') + 'json_data/'
+    if not path.exists(base):
+        makedirs(base)
+    out_path = base + json_fname
+
+    # ─── 2. preload shared lookups ────────────────────────────────────────────
+    db = create_postgres_session(False)
+    rels = get_all_reference_relation_data(db)
+    journals = get_journal_by_resource_id(db)
+    cites = get_citation_data(db)
+    licenses = get_license_data(db)
+    db.close()
+
+    # ─── 3. gather all reference_ids in these MOD corpora ────────────────────
+    db = create_postgres_session(False)
+    mod_rows = db.execute(
+        text("SELECT mod_id FROM mod WHERE abbreviation = ANY(:mods)"),
+        {'mods': mods}
+    ).fetchall()
+    mod_ids = [r[0] for r in mod_rows]
+
+    ref_rows = db.execute(
+        text("""
+            SELECT DISTINCT reference_id
+              FROM mod_corpus_association
+             WHERE mod_id = ANY(:mod_ids)
+               AND corpus is True
+        """),
+        {'mod_ids': mod_ids}
+    ).fetchall()
+    reference_ids = [r[0] for r in ref_rows]
+    db.close()
+
+    # ─── 4. build JSON data in manageable chunks ─────────────────────────────
+    all_data = []
+
+    def chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    for chunk in chunks(reference_ids, limit):
+        db = create_postgres_session(False)
+        cols = ", ".join(get_reference_col_names())
+        rows = db.execute(
+            text(f"SELECT {cols} FROM reference WHERE reference_id = ANY(:rids) ORDER BY reference_id"),
+            {'rids': chunk}
+        ).fetchall()
+
+        # per-chunk lookups
+        rids_str = ",".join(map(str, chunk))
+        xrefs = get_cross_reference_data_for_ref_ids(db, rids_str)
+        authors = get_author_data_for_ref_ids(db, rids_str)
+        meshes = get_mesh_term_data_for_ref_ids(db, rids_str)
+        mod_types = get_mod_reference_type_data_for_ref_ids(db, rids_str)
+        mod_corpus = get_mod_corpus_association_data_for_ref_ids(db, rids_str)
+        db.close()
+
+        generate_json_data(
+            rows,
+            xrefs,
+            authors,
+            rels,
+            mod_types,
+            meshes,
+            mod_corpus,
+            journals,
+            cites,
+            licenses,
+            all_data
+        )
+
+    # ─── 5. write out the big JSON ────────────────────────────────────────────
+    meta = get_meta_data('ALL_MODS', datestamp)
+    generate_json_file(meta, all_data, out_path)
+
+    # ─── 6. gzip & upload, using the same helper as MOD dumps ────────────────
+    try:
+        uploaded_name = upload_json_file_to_s3(base, json_fname, datestamp, ondemand)
+    except Exception as e:
+        log.info(f"Error uploading ALL_MODS JSON to S3: {e}")
+        if ondemand:
+            send_data_export_report("ERROR", email, "ALL_MODS", str(e))
+        return
+
+    # ─── 7. send on-demand email notification ────────────────────────────────
+    if ondemand and uploaded_name:
+        ui_url = f"{ui_root_url}{uploaded_name}"
+        send_data_export_report(
+            "SUCCESS",
+            email,
+            "ALL_MODS",
+            f"The file {uploaded_name} is ready for <a href={ui_url}>download</a>"
+        )
+
+    return uploaded_name or out_path
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mod', action='store', type=str, help='MOD to dump',
-                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB'], required=True)
+                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'ALL'], required=True)
     parser.add_argument('-e', '--email', action='store', type=str, help="Email address to send file")
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
 
     args = vars(parser.parse_args())
-    dump_data(args['mod'], args['email'], args['ondemand'])
+    if args['mod'] == 'ALL':
+        dump_all_mods_references(args['email'], args['ondemand'], ui_root_url=None)
+    else:
+        dump_data(args['mod'], args['email'], args['ondemand'])
