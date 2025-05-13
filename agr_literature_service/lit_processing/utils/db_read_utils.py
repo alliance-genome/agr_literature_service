@@ -300,6 +300,32 @@ def get_reference_relation_data(db_session: Session, mod, reference_id_list):
     return reference_ids_to_reference_relation_type
 
 
+def get_citation_data(db_session: Session):
+    sql_query = text(
+        "SELECT r.reference_id, c.citation, c.short_citation "
+        "FROM reference r "
+        "JOIN citation c "
+        "  ON r.citation_id = c.citation_id"
+    )
+    return {
+        ref_id: {"citation": citation, "short_citation": short_citation}
+        for ref_id, citation, short_citation in db_session.execute(sql_query)
+    }
+
+
+def get_license_data(db_session: Session):
+    sql_query = text(
+        "SELECT r.reference_id, cl.name, cl.url, cl.open_access, cl.description "
+        "FROM reference r "
+        "JOIN copyright_license cl "
+        "  ON r.copyright_license_id = cl.copyright_license_id"
+    )
+    return {
+        ref_id: {"name": name, "url": url, "open_access": oa, "description": desc}
+        for ref_id, name, url, oa, desc in db_session.execute(sql_query)
+    }
+
+
 def get_all_reference_relation_data(db_session: Session, logger=None):
 
     reference_id_to_reference_relation_data: Dict[int, Dict[str, List[Dict[str, str]]]] = {}
