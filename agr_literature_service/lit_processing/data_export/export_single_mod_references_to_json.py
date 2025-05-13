@@ -423,7 +423,7 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
             row['short_citation'] = None
         if reference_id in reference_id_to_license_data:
             row['copyright_license_name'] = reference_id_to_license_data[reference_id]['name']
-            row['copyright_license_url'] = reference_id_to_license_data[reference_id]['name']
+            row['copyright_license_url'] = reference_id_to_license_data[reference_id]['url']
             row['copyright_license_description'] = reference_id_to_license_data[reference_id]['description']
             row['copyright_license_open_access'] = reference_id_to_license_data[reference_id]['open_access']
         else:
