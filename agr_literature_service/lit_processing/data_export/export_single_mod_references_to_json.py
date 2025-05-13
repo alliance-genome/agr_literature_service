@@ -398,11 +398,17 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         row['mod_reference_types'] = reference_id_to_mod_reference_types.get(reference_id, [])
 
         row['mesh_terms'] = reference_id_to_mesh_terms.get(reference_id, [])
-        if 'ChapterIn' in reference_id_to_reference_relation_data.get(reference_id, {}):
-            row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
-        else:
-            row['comment_and_corrections'] = reference_id_to_reference_relation_data.get(reference_id, {})
-        row['reference_relations'] = reference_id_to_reference_relation_data.get(reference_id, {})
+
+        row['comment_and_corrections'] = reference_id_to_reference_relation_data.get(reference_id, {})
+        reference_relations = []
+        for type, entries in row['comment_and_corrections'].items():
+            for entry in entries:
+                reference_relations.append({
+                    "reference_curie": entry['reference_curie'],
+                    "reference_relation_type": type,
+                    "PMID": entry['PMID']
+                })
+        row['reference_relations'] = reference_relations
 
         row['mod_corpus_associations'] = reference_id_to_mod_corpus_data.get(reference_id, [])
 
