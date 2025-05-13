@@ -61,7 +61,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
     get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
-    get_journal_by_resource_id
+    get_journal_by_resource_id, get_citation_data, get_license_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
@@ -1284,6 +1284,8 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
     reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
     reference_id_to_reference_relation_data = get_all_reference_relation_data(db)
     resource_id_to_journal = get_journal_by_resource_id(db)
+    reference_id_to_citation_data = get_citation_data(db)
+    reference_id_to_license_data = get_license_data(db)
 
     data: List[Dict[str, Any]] = []
     generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors,
@@ -1291,7 +1293,9 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
                        reference_id_to_mod_reference_types,
                        reference_id_to_mesh_terms,
                        reference_id_to_mod_corpus_data,
-                       resource_id_to_journal, data)
+                       resource_id_to_journal,
+                       reference_id_to_citation_data,
+                       reference_id_to_license_data, data)
     return {
         "metaData": metaData,
         "data": data
