@@ -12,16 +12,17 @@ from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
 from .test_reference import test_reference # noqa
 
-TestCurationStatusData = namedtuple('TestCurationStatusData', ['response', 'new_curation_status_id', 'new_reference_id', 'new_mod_id'])
+TestCurationStatusData = namedtuple('TestCurationStatusData', ['response', 'new_curation_status_id', 'new_reference_curie', 'new_mod_abbreviation'])
 
 
 def patch_subset(topic=None, mod_abbr: str = ""):
     return [{"curie": "ATP:curation_test", "name": "curation test"}, {"curie": "ATP:topic1", "name": "Topic 1"},
-            {"curie": "ATP:topic2", "name": "Topic 2"}, {"curie": "ATP:topic3", "name": "Topic 3"}]
+            {"curie": "ATP:topic2", "name": "Topic 2"}, {"curie": "ATP:topic3", "name": "Topic 3"},
+            {"curie": "ATP:0000002", "name": "Paper level curation status"}]
 
 
 topic_curie_to_name = {"ATP:curation_test": "curation test", "ATP:topic1": "Topic 1", "ATP:topic2": "Topic 2",
-                       "ATP:topic3": "Topic 3"}
+                       "ATP:topic3": "Topic 3", "ATP:0000002": "Paper level curation status"}
 
 
 def patch_map_curies_to_names(category, curies):
@@ -52,13 +53,28 @@ class TestCurationStatus:
     @patch("agr_literature_service.api.crud.curation_status_crud.map_curies_to_names", patch_map_curies_to_names)
     def test_show_aggregated_curation_status_and_tet_info(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:
-            url = (f"/curation_status/aggregated_curation_status_and_tet_info/{test_curation_status.new_reference_id}/"
-                   f"{test_curation_status.new_mod_id}")
+            url = (f"/curation_status/aggregated_curation_status_and_tet_info/{test_curation_status.new_reference_curie}/"
+                   f"{test_curation_status.new_mod_abbreviation}")
             response = client.get(url=url, headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
-            assert len(res) == 4
+            assert len(res) == 5
             assert any([res_obj["topic_curie"] == "ATP:topic1" for res_obj in res])
+            paper_level_curation_status = {
+                "mod_abbreviation": test_curation_status.new_mod_abbreviation,
+                "reference_curie": test_curation_status.new_reference_curie,
+                "topic": "ATP:0000002",
+                "curation_status": "ATP:0000237",
+            }
+            client.post(url="/curation_status/", json=paper_level_curation_status, headers=auth_headers)
+            response = client.get(url=url, headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            res = response.json()
+            assert len(res) == 5
+            assert any([res_obj["topic_curie"] == "ATP:0000002" for res_obj in res])
+            for res_obj in res:
+                if res_obj["topic_curie"] == "ATP:0000002":
+                    assert res_obj["curst_curation_status"] == "ATP:0000237"
 
     def test_show(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:

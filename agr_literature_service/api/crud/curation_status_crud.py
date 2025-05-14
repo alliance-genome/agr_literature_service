@@ -201,6 +201,8 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
              f"cs.reference_id = {reference_id}")
     res = db.execute(text(query)).mappings().fetchall()
     for row in res:
+        if row["topic"] not in agg_cur_stat_tet_objs:
+            agg_cur_stat_tet_objs[row["topic"]] = {}
         agg_cur_stat_tet_objs[row["topic"]].update({
             "curst_curation_status_id": row["curation_status_id"],
             "curst_curation_status": row["curation_status"],
