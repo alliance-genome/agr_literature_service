@@ -78,7 +78,7 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> dict:
     :return:
     """
 
-    curation_status_data = jsonable_encoder(curation_status_update)
+    curation_status_data = curation_status_update.dict(exclude_unset=True)
     curation_status_db_obj = db.query(CurationStatusModel).filter(CurationStatusModel.curation_status_id == curation_status_id).first()
     if not curation_status_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
