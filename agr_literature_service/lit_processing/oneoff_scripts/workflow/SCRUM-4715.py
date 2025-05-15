@@ -10,7 +10,6 @@ transition_type: "any"
 
 """
 import logging
-# from agr_literature_service.api.crud.ateam_db_helpers import search_atp_descendants
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
 from agr_literature_service.api.models import WorkflowTransitionModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -80,6 +79,7 @@ def generate_transitions(db_session, parent_atp):
                 transition_from=in_progress[name],
                 transition_to=needed[name])
             db_session.add(wft)
+
 
 def main():
     logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s', level=logging.INFO)

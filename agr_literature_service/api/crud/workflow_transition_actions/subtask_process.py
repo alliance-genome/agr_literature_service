@@ -81,7 +81,7 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
                             detail=mess)
 
 
-def subtask_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
+def sub_task_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
     """
     This is called if the workflow transition actions has 'sub_task_retry::XXXXXX' specified.
     i.e. if it has 'sub_task_retry::reference classification'.

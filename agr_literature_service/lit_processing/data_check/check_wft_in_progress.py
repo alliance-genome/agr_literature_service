@@ -75,8 +75,6 @@ Get list of problems:-
 
 """
 from os import environ, path
-
-from agr_literature_service.lit_processing.oneoff_scripts.workflow.transitions_add import get_name_to_atp_and_children
 from sqlalchemy import text
 from datetime import date, timedelta
 import argparse
