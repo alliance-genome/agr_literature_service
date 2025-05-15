@@ -13,8 +13,7 @@ from fastapi import HTTPException, status
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents
-from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations, \
-    get_source_evidence_assertion_atp_ids
+from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
 
 logger = logging.getLogger(__name__)
 
@@ -480,17 +479,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         }
         es_body["query"]["bool"]["must"].append(author_filter_query)
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
-    formatted_results = process_search_results(res, wft_mod_abbreviations)
-
-    # --- build a mapping of every bucket.key → bucket.name for our topic (and other) facets ---
-    facet_value_labels = {}
-    for facet in ("topics", "confidence_levels", "source_methods", "source_evidence_assertions"):
-        buckets = res["aggregations"].get(facet, {}).get("buckets", [])
-        facet_value_labels[facet] = {
-            b["key"]: b.get("name", b["key"])
-            for b in buckets
-        }
-    formatted_results["facetValueLabels"] = facet_value_labels
+    formatted_results = process_search_results(res, wft_mod_abbreviations)    
     return formatted_results
 
 
