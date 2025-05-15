@@ -13,7 +13,8 @@ from fastapi import HTTPException, status
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents
-from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
+from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations, \
+    get_source_evidence_assertion_atp_ids
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,8 @@ WORKFLOW_FACETS = [
     "entity_extraction",
     "reference_classification"
 ]
+manual_sea = ["ATP:0000036", "ATP:0000035"]
+automated_sea = ["ECO:0008021", "ECO:0008004"]
 
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
@@ -150,6 +153,23 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if query is None and facets_values is None and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="requested a search but no query and no facets provided")
+
+    # --- Expand SEA group filters into their child terms ---
+    SEA_FIELD = "topic_entity_tags.source_evidence_assertion.keyword"
+    # sea_list = get_source_evidence_assertion_atp_ids()
+    if facets_values and SEA_FIELD in facets_values:
+        expanded = []
+        for val in facets_values[SEA_FIELD]:
+            key = val.upper()
+            if key == "ECO:0006155":
+                expanded.extend(manual_sea)
+            elif key == "ECO:0007669":
+                expanded.extend(automated_sea)
+            else:
+                expanded.append(val)
+        # dedupe and reassign
+        facets_values[SEA_FIELD] = list(dict.fromkeys(expanded))
+
     
     if facets_limits is None:
         facets_limits = {}
@@ -461,6 +481,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         es_body["query"]["bool"]["must"].append(author_filter_query)
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
+
+    # --- build a mapping of every bucket.key → bucket.name for our topic (and other) facets ---
+    facet_value_labels = {}
+    for facet in ("topics", "confidence_levels", "source_methods", "source_evidence_assertions"):
+        buckets = res["aggregations"].get(facet, {}).get("buckets", [])
+        facet_value_labels[facet] = {
+            b["key"]: b.get("name", b["key"])
+            for b in buckets
+        }
+    formatted_results["facetValueLabels"] = facet_value_labels
     return formatted_results
 
 
@@ -801,16 +831,22 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
 def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data_providers):  # pragma: no cover
 
     """
-    build aggregations for topic entity tags.
-    we now apply an extra filter so that the aggregations are computed only
-    for topic entity tags whose data_provider is in tet_data_providers.
+    Builds:
+      1) topic / confidence / source_method aggs using base_tet_facets
+      2) two SEA aggs using full tet_facets
     """
 
     allowed_dp = [dp.upper() for dp in tet_data_providers]
+    # 1) exclude any SEA filter from base_tet_facets
+    base_tet_facets = {
+        k: v for k, v in tet_facets.items()
+        if k != "topic_entity_tags.source_evidence_assertion.keyword"
+    }
 
+    # 2) build topic, confidence, source_method over base_tet_facets
     es_body["aggregations"]["topic_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
-        tet_facets=tet_facets,
+        tet_facets=base_tet_facets,
         term_field="topic_entity_tags.topic.keyword",
         term_key="topics",
         allowed_dp=allowed_dp,
@@ -818,7 +854,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
     )
     es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
-        tet_facets=tet_facets,
+        tet_facets=base_tet_facets,
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
         allowed_dp=allowed_dp,
@@ -826,13 +862,13 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
     )
     es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
-        tet_facets=tet_facets,
+        tet_facets=base_tet_facets,
         term_field="topic_entity_tags.source_method.keyword",
         term_key="source_methods",
         allowed_dp=allowed_dp,
         size=facets_limits.get("source_methods", 10)
     )
-
+    
     # adding this fix to restore the SEA facet list under group‐filtered searches
     #
     # Hits are still filtered by source_evidence_assertion=eco:0007669 or eco:0006155)
@@ -842,8 +878,8 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
     # and the eco:0007669 combined bucket
 
     sea_tet_facets = {
-        k:v for k,v in tet_facets.items()
-        if k != "source_evidence_assertion"
+        k: v for k, v in tet_facets.items()
+        if k != "topic_entity_tags.source_evidence_assertion.keyword"
     }
 
     es_body["aggregations"]["source_evidence_assertion_aggregation"] = create_filtered_aggregation_with_dp(
