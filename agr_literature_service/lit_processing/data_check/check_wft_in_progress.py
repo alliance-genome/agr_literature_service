@@ -75,6 +75,8 @@ Get list of problems:-
 
 """
 from os import environ, path
+
+from agr_literature_service.lit_processing.oneoff_scripts.workflow.transitions_add import get_name_to_atp_and_children
 from sqlalchemy import text
 from datetime import date, timedelta
 import argparse
@@ -82,6 +84,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
+from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents, job_change_atp_code
 
 
 def get_date_weeks_ago(weeks):
@@ -119,50 +122,87 @@ def get_mod_abbreviations(db_session, debug):
     return mod_abbreviations
 
 
+def process_no_parent(db_session, phase, slack_messages, debug):
+    start_date = get_date_weeks_ago(phase['time limit in weeks'])
+    wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['current wft']),
+                                                     WorkflowTagModel.date_updated > start_date).all()
+
+    for wft in wfts:
+        sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
+                        WHERE r.reference_id = {wft.reference_id} AND
+                              r.reference_id = wft.reference_id AND
+                              wft.workflow_tag_id = '{phase['start of progress']}' AND
+                              wft.date_created >= '{start_date}'""")
+        if debug:
+            print(sql)
+        reference = db_session.execute(sql).first()
+        if debug:
+            print(reference)
+        if reference:  # need to set back to try again
+            if not debug:
+                if phase['slack message']:
+                    if wft.mod_id not in slack_messages:
+                        slack_messages[wft.mod_id] = []
+                    slack_messages[wft.mod_id].append(
+                        f"Setting {reference} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
+                wft.workflow_tag_id = phase['set to try again']
+            else:
+                print(f"Setting to try again for {wft}")
+        else:  # need to set to failed
+            if not debug:
+                if phase['slack message']:
+                    if wft.mod_id not in slack_messages:
+                        slack_messages[wft.mod_id] = []
+                    slack_messages[wft.mod_id].append(
+                        f"Setting {reference} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
+                wft.workflow_tag_id = phase['set to failed']
+            else:
+                print(f"Setting to failed for {wft}")
+
+
+def process_parent(db_session, phase, slack_messages, debug):
+    start_date = get_date_weeks_ago(phase['time limit in weeks'])
+    # get the children of the 'current wft''s
+    children = []
+    for atp in phase['current wft']:
+        children.extend(atp_get_all_descendents(atp))
+    if debug:
+        print(f"children: {children}")
+    wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(children),
+                                                     WorkflowTagModel.date_created > start_date).all()
+    for wft in wfts:
+        # So do the transition.
+        job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_retry')
+
+
 def check_wft_in_progress(db_session, debug=True):
     in_progress = [{'current wft': ['ATP:0000198', 'ATP:0000164'],  # in progress or failed
                     'start of progress': 'ATP:0000134',             # file uploaded, sets start of process
                     'set to failed': 'ATP:0000164',                 # what to do on failed
                     'set to try again': 'ATP:0000162',              # what to set to if okay to try again
                     'time limit in weeks': 6,                       # if older than this, ignore
-                    'slack message': True                           # if true notify slack
-                    }]
+                    'slack message': True,                          # if true notify slack
+                    'parent': False,                                # one off, no children
+                    },
+                   # classification phase
+                   {'current wft': ['ATP:0000189', 'ATP:0000178'],  # in progress or failed
+                    'time limit in weeks': 1,                       # runs daily so 1 week should be enough trys
+                    'slack message': True,                          # if true notify slack
+                    'parent': True                                  # Use children
+                    },
+                   # extraction phase
+                   {'current wft': ['ATP:0000187', 'ATP:0000190'],  # in progress or failed
+                    'time limit in weeks': 6,                       # runs ??? so ? week should be enough trys
+                    'slack message': True,                          # if true notify slack
+                    'parent': True                                  # Use children
+                    },
+                   ]
     slack_messages = {}
     for phase in in_progress:
-        start_date = get_date_weeks_ago(phase['time limit in weeks'])
-
-        wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['current wft']),
-                                                         WorkflowTagModel.date_updated > start_date).all()
-
-        for wft in wfts:
-            sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
-                            WHERE r.reference_id = {wft.reference_id} AND
-                                  r.reference_id = wft.reference_id AND
-                                  wft.workflow_tag_id = '{phase['start of progress']}' AND
-                                  wft.date_created >= '{start_date}'""")
-            if debug:
-                print(sql)
-            reference = db_session.execute(sql).first()
-            if debug:
-                print(reference)
-            if reference:  # need to set back to try again
-                if not debug:
-                    if phase['slack message']:
-                        if wft.mod_id not in slack_messages:
-                            slack_messages[wft.mod_id] = []
-                        slack_messages[wft.mod_id].append(f"Setting {reference} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
-                    wft.workflow_tag_id = phase['set to try again']
-                else:
-                    print(f"Setting to try again for {wft}")
-            else:      # need to set to failed
-                if not debug:
-                    if phase['slack message']:
-                        if wft.mod_id not in slack_messages:
-                            slack_messages[wft.mod_id] = []
-                        slack_messages[wft.mod_id].append(f"Setting {reference} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
-                    wft.workflow_tag_id = phase['set to failed']
-                else:
-                    print(f"Setting to failed for {wft}")
+        if phase['parent']:
+            process_parent(db_session, phase, slack_messages, debug)
+        else:
+            process_no_parent(db_session, phase, slack_messages, debug)
     db_session.commit()
 
     mod_abbr = {}
