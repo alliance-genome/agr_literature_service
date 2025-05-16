@@ -37,6 +37,12 @@ def check_obsolete_entities():
     return check_crud.check_obsolete_entities()
 
 
+@router.get('/check_redacted_references_with_tags',
+            status_code=200)
+def check_redacted_references_with_tags():
+    return check_crud.check_redacted_references_with_tags()
+
+
 @router.get('/environments',
             response_model=EnvironmentsSchemaShow,
             status_code=200)
