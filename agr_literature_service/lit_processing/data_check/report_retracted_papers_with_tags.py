@@ -29,7 +29,7 @@ def check_data():
 
         rows = db.execute(text(sql_query)).mappings().fetchall()
         for row in rows:
-            data_to_report.append((row.curie,row.mod))
+            data_to_report.append((row.curie, row.mod))
 
     except Exception as e:
         logger.info(f"An error occurred when getting the data for deleted/obsolete entities. Error={e}")
@@ -50,6 +50,7 @@ def write_report(data_to_report):
         for curie, mod in data_to_report:
             f.write(f"{curie}\t{mod}\tRetracted\n")
     copy(log_file, log_file_with_datestamp)
+
 
 if __name__ == "__main__":
 
