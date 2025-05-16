@@ -10,6 +10,7 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+
 def check_data():
 
     db = create_postgres_session(False)
@@ -38,7 +39,6 @@ def check_data():
     write_report(data_to_report)
 
 
-##Could this be a general fx? 
 def write_report(data_to_report):
 
     log_path = environ.get('LOG_PATH', '.')

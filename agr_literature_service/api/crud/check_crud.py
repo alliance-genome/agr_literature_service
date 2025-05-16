@@ -93,6 +93,7 @@ def check_obsolete_entities():
         "obsolete_entities": dict(data)
     }
 
+
 def check_redacted_references_with_tags():
 
     log_path = environ.get('LOG_PATH', '.')
@@ -115,6 +116,7 @@ def check_redacted_references_with_tags():
         "date-produced": date_produced,
         "redacted-references": dict(data)
     }
+
 
 def show_environments():
     """
