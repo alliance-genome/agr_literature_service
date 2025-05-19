@@ -22,10 +22,25 @@ parser.add_argument('-m', '--mod_abbr', help='list dataset/model info for a spec
 args = parser.parse_args()
 
 def print_data(db: Session, mod_abbr):  # noqa
+    dataset_value_count = {}
+    try:
+        query = """
+        Select dataset_id as dataset_id, classification_value as value, count(*) as count
+        from dataset_entry group by (dataset_id, classification_value)"""
+        dvcs = db.execute(text(query)).mappings().fetchall()
+        for dvc in dvcs:
+            if dvc['dataset_id'] not in dataset_value_count:
+                dataset_value_count[dvc['dataset_id']] = {}
+            dataset_value_count[dvc['dataset_id']][dvc['value']] = dvc['count']
+    except Exception as e:
+        logger.error(e)
+        print(f"Error: {e}")
+        exit(-1)
     try:
         query = f"""
         select d.dataset_id as dataset_id, d.title as dataset_title, d.data_type as dataset_type,
-               ml.model_type as model_type, ml.topic as tet_value, w.workflow_tag as wft
+               ml.model_type as model_type, ml.topic as tet_value, w.workflow_tag as wft,
+               ml.species, ml.negated, ml.novel_topic_data, ml.production
           from dataset d, mod m, ml_model ml
           left join workflow_tag_topic w on ml.topic = w.topic
           where d.dataset_id = ml.dataset_id
@@ -34,24 +49,27 @@ def print_data(db: Session, mod_abbr):  # noqa
                 and m.abbreviation = '{mod_abbr}'"""
 
         mds = db.execute(text(query)).mappings().fetchall()
-        start = '{'
-        end = '}'
 
         for md in mds:
-            if 1:
-                tet_name = "None"
-                if md['wft']:
-                    tet_name = atp_get_name(md['wft'])
-                print(f"""
-        {start}'dataset title': "{md['dataset_title']}",
-               'atp_dataset_tag':  "{md['dataset_type']}",,
-               'dataset_tag': "{atp_get_name(md['dataset_type'])}",
-               'model_type':  "{md['model_type']}",
-               'atp_tet_topic': "{md['tet_value']}",
-               'tet_topic': "{atp_get_name(md['tet_value'])}",
-               'workflow tag topic start atp': "{md['wft']}",
-               'workflow tag topic start name': "{tet_name}",
-        {end},""")
+            tet_name = "None"
+            if md['wft']:
+                tet_name = atp_get_name(md['wft'])
+            print(f"""\n{md['dataset_id']}
+    'dataset title': "{md['dataset_title']}",
+    'atp_dataset_tag':  "{md['dataset_type']}",,
+    'dataset_tag': "{atp_get_name(md['dataset_type'])}",
+    'model_type':  "{md['model_type']}",
+    'atp_tet_topic': "{md['tet_value']}",
+    'tet_topic': "{atp_get_name(md['tet_value'])}",
+    'workflow tag topic start atp': "{md['wft']}",
+    'workflow tag topic start name': "{tet_name}",
+    'species':  "{md['species']}",
+    "negated": "{md['negated']}",
+    "novel topic data": "{md['novel_topic_data']}",
+    "production": "{md['production']}" """)
+            for key, value in dataset_value_count[md['dataset_id']].items():
+                print(f"    class:{key} count: {value}")
+
     except Exception as e:
         logger.error(e)
         print(f"Error: {e}")

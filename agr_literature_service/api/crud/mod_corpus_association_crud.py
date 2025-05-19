@@ -9,15 +9,16 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id, \
     set_mod_curie_to_invalid
-from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, ModModel, WorkflowTagModel
-from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
-    get_current_workflow_status, delete_workflow_tags
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     delete_manual_tets, has_manual_tet
-from agr_literature_service.api.crud.ateam_db_helpers import name_to_atp
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_current_workflow_status, delete_workflow_tags
+from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, \
+    ModModel, WorkflowTagModel
+from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"

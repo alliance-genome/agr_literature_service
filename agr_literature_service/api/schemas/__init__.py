@@ -116,3 +116,8 @@ from agr_literature_service.api.schemas.check_schemas import (
     AteamApiSchemaShow,
     DatabaseSchemaShow,
     EnvironmentsSchemaShow)
+
+from agr_literature_service.api.schemas.curation_status_schemas import (
+    CurationStatusSchemaBase,
+    CurationStatusSchemaPost,
+    CurationStatusSchemaUpdate)

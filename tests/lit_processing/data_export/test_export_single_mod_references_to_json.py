@@ -111,10 +111,14 @@ class TestExportSingleModReferencesToJson:
         ## test get_reference_data_and_generate_json()
         reference_id_to_reference_relation_data = {}
         resource_id_to_journal = {}
+        reference_id_to_citation_data = {}
+        reference_id_to_license_data = {}
         json_file = json_path + "reference_WB.json"
         datestamp = str(date.today()).replace("-", "")
         get_reference_data_and_generate_json('WB', reference_id_to_reference_relation_data,
                                              resource_id_to_journal,
+                                             reference_id_to_citation_data,
+                                             reference_id_to_license_data,
                                              json_file, datestamp)
         assert path.exists(json_file)
         assert stat(json_file).st_size > 500

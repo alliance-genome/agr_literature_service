@@ -130,14 +130,18 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
 
     elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
         sql_query = text("""
-        SELECT DISTINCT be.primaryexternalid, be.obsolete, agm.name
+        SELECT DISTINCT be.primaryexternalid, sa.obsolete, sa.displaytext
         FROM biologicalentity be
-        JOIN affectedgenomicmodel agm ON be.id = agm.id
+        JOIN slotannotation sa ON be.id = sa.singleagm_id
         JOIN ontologyterm ot ON be.taxon_id = ot.id
-        WHERE UPPER(agm.name) IN :entity_name_list
+        WHERE sa.slotannotationtype in (
+            'AgmFullNameSlotAnnotation',
+            'AgmSecondaryIdSlotAnnotation',
+            'AgmSynonymSlotAnnotation'
+        )
+        AND UPPER(sa.displaytext) IN :entity_name_list
         AND ot.curie = :taxon
         """)
-
     elif 'targeting reagent' in entity_type:
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, be.obsolete, str.name
@@ -159,7 +163,6 @@ def search_for_entity_names(db: Session, entity_type, entity_name_list, taxon):
         AND UPPER(sa.displaytext) IN :entity_name_list
         """)
         rows = db.execute(sql_query, {'entity_name_list': tuple(entity_name_list)}).fetchall()
-        print("HELLO construct name search: rows[0][0]=", rows[0][0], ", rows[0][2]=", rows[0][2])
         return rows
 
     elif entity_type == 'species':
@@ -222,11 +225,12 @@ def search_for_entity_curies(db: Session, entity_type, entity_curie_list):
     return rows
 
 
-def search_topic(topic, mod_abbr=None):
+def search_topic(topic=None, mod_abbr=None):
     """Search ATP ontology for topics that match the given string."""
     db = create_ateam_db_session()
-    search_query = f"%{topic.upper()}%"
-    if mod_abbr is not None:
+    if topic is not None:
+        search_query = f"%{topic.upper()}%"
+    if mod_abbr is not None and topic is not None:
         sql_query = text("""
             SELECT ot.curie, ot.name
             FROM ontologyterm ot
@@ -241,7 +245,12 @@ def search_topic(topic, mod_abbr=None):
             ORDER BY LENGTH(ot.name)
             LIMIT 10
             """)
-    else:
+        rows = db.execute(sql_query, {
+            'search_query': search_query,
+            'topic_category_atp': topic_category_atp,
+            'mod_abbr': f'{mod_abbr}_tag'
+        }).fetchall()
+    elif topic is not None:
         sql_query = text("""
         SELECT ot.curie, ot.name
         FROM ontologyterm ot
@@ -254,12 +263,34 @@ def search_topic(topic, mod_abbr=None):
         ORDER BY LENGTH(ot.name)
         LIMIT 10
         """)
-    rows = db.execute(sql_query, {
-        'search_query': search_query,
-        'topic_category_atp': topic_category_atp,
-        'mod_abbr': f'{mod_abbr}_tag'
-    }).fetchall()
-
+        rows = db.execute(sql_query, {
+            'search_query': search_query,
+            'topic_category_atp': topic_category_atp
+        }).fetchall()
+    elif mod_abbr is not None:
+        sql_query = text("""
+            SELECT ot.curie, ot.name
+            FROM ontologyterm ot
+            JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
+            JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+            JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
+            WHERE ot.ontologytermtype = 'ATPTerm'
+            AND ancestor.curie = :topic_category_atp
+            AND s.subsets = :mod_abbr
+        """)
+        rows = db.execute(sql_query, {
+            'topic_category_atp': topic_category_atp,
+            'mod_abbr': f'{mod_abbr}_tag'
+        }).fetchall()
+        return [
+            {
+                "curie": row[0],
+                "name": row[1]
+            }
+            for row in (rows or [])
+        ]
+    else:
+        return []
     data = [
         {
             "curie": row[0],
@@ -411,9 +442,9 @@ def map_curies_to_names(category, curies):
 
     elif category in ['affected genome model', 'strain', 'genotype', 'fish']:
         sql_query = text("""
-        SELECT DISTINCT be.primaryexternalid, agm.name
+        SELECT DISTINCT be.primaryexternalid, sa.displaytext
         FROM biologicalentity be
-        JOIN affectedgenomicmodel agm ON be.id = agm.id
+        JOIN slotannotation sa ON be.id = sa.singleagm_id
         WHERE be.primaryexternalid IN :curies
         """)
 

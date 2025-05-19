@@ -5,26 +5,37 @@ reference_crud.py
 import logging
 import re
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
-from os import getcwd
 from datetime import datetime, date, timedelta
+from os import getcwd
+from typing import Any, Dict, List, Optional
 
-from fastapi.responses import FileResponse
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from starlette.background import BackgroundTask
+from fastapi.responses import FileResponse
 from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast, or_
-from sqlalchemy.exc import SQLAlchemyError
+from starlette.background import BackgroundTask
 
 from agr_literature_service.api.crud import (cross_reference_crud,
                                              reference_relation_crud)
+from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
-from agr_literature_service.api.crud.referencefile_crud import cleanup
+from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation
+from agr_literature_service.api.crud.referencefile_crud import cleanup
+from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
+from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
+from agr_literature_service.api.crud.workflow_tag_crud import (
+    create as create_workflow_tag,
+    patch as update_workflow_tag,
+    show as show_workflow_tag
+)
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
+    get_current_workflow_status, is_file_upload_blocked
 from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                MeshDetailModel,
                                                ModModel,
@@ -35,37 +46,22 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
                                                CitationModel,
-                                               TopicEntityTagModel,
-                                               TopicEntityTagSourceModel)
+                                               TopicEntityTagModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
     TopicEntityTagSchemaPost
-from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
-from agr_literature_service.api.crud.workflow_tag_crud import (
-    create as create_workflow_tag,
-    patch as update_workflow_tag,
-    show as show_workflow_tag
-)
-from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
 from agr_literature_service.global_utils import get_next_reference_curie
-from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
-    update_data
-from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
-from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
-    get_current_workflow_status, is_file_upload_blocked
-from agr_literature_service.lit_processing.utils.db_read_utils import \
-    get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
-    get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
-    get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
-    get_journal_by_resource_id
-from agr_literature_service.api.crud.topic_entity_tag_utils import \
-    get_reference_id_from_curie_or_id
 # from agr_literature_service.api.crud.workflow_tag_crud import \
 #    get_workflow_tags_from_process
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     get_meta_data, get_reference_col_names, generate_json_data
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
+    update_data
+from agr_literature_service.lit_processing.utils.db_read_utils import \
+    get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
+    get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
+    get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
+    get_journal_by_resource_id, get_citation_data, get_license_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 logger = logging.getLogger(__name__)
@@ -1288,6 +1284,8 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
     reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
     reference_id_to_reference_relation_data = get_all_reference_relation_data(db)
     resource_id_to_journal = get_journal_by_resource_id(db)
+    reference_id_to_citation_data = get_citation_data(db)
+    reference_id_to_license_data = get_license_data(db)
 
     data: List[Dict[str, Any]] = []
     generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors,
@@ -1295,7 +1293,9 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
                        reference_id_to_mod_reference_types,
                        reference_id_to_mesh_terms,
                        reference_id_to_mod_corpus_data,
-                       resource_id_to_journal, data)
+                       resource_id_to_journal,
+                       reference_id_to_citation_data,
+                       reference_id_to_license_data, data)
     return {
         "metaData": metaData,
         "data": data
@@ -1339,74 +1339,3 @@ def get_recently_deleted_references(db: Session, mod_abbreviation, days):
         "metaData": metaData,
         "data": data
     }
-
-
-def get_tet_info(db: Session, reference_curie, mod_abbreviation):
-
-    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
-    if reference_id is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"The reference curie {reference_curie} is not in the database.")
-
-    query = (
-        db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
-        .join(
-            TopicEntityTagSourceModel,
-            TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
-        )
-        .filter(
-            TopicEntityTagModel.reference_id == reference_id,
-            TopicEntityTagSourceModel.data_provider == mod_abbreviation
-        )
-    )
-    rows = query.all()
-
-    topic_to_data = defaultdict(list)
-    for tet, tet_source in rows:
-        topic_to_data[tet.topic].append((tet, tet_source))
-
-    topic_to_name = map_curies_to_names('atpterm', list(topic_to_data.keys()))
-
-    data = {}
-    for topic, topic_rows in topic_to_data.items():
-        # initialize earliest_dt from the very first row
-        first_tet, _ = topic_rows[0]
-        if isinstance(first_tet.date_created, datetime):
-            earliest_dt = first_tet.date_created
-        else:
-            date_str = str(first_tet.date_created).split()[0]
-            earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
-        has_data = novel_data = no_data = False
-        topic_sources = set()
-        source_map = {
-            'ATP:0000035': 'author',
-            'ATP:0000036': 'biocurator'
-        }
-        for tet, tet_source in topic_rows:
-            topic_sources.add(
-                source_map.get(tet_source.source_evidence_assertion, 'computational')
-            )
-            if isinstance(tet.date_created, datetime):
-                dt = tet.date_created
-            else:
-                date_str = str(tet.date_created).split()[0]  # "2025-03-05"
-                dt = datetime.strptime(date_str, "%Y-%m-%d")
-            if dt < earliest_dt:
-                earliest_dt = dt
-
-            if tet.novel_topic_data:
-                novel_data = True
-            if tet.negated:
-                no_data = True
-            else:
-                has_data = True
-        topic_added = f"{earliest_dt.strftime('%b.')} {earliest_dt.day}, {earliest_dt.year}"
-        topic_name = topic_to_name.get(topic, topic)
-        data[topic_name] = {
-            "topic_added": topic_added,
-            "topic_source": sorted(topic_sources),
-            "has_data": has_data,
-            "novel_data": novel_data,
-            "no_data": no_data
-        }
-    return data

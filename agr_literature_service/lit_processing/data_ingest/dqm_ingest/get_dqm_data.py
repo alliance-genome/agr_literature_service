@@ -35,7 +35,7 @@ def download_dqm_reference_json():  # pragma: no cover
         "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/REFERENCE_SGD.json",
         "WB": "https://caltech-curation.textpressolab.com/files/pub/agr_upload/pap_papers/agr_wb_literature.json",
         "ZFIN": "https://zfin.org/downloads/ZFIN_1.0.1.4_Reference.json",
-        "FB": "http://ftp.flybase.net/flybase/associated_files/alliance/FB_reference.json.gz",
+        "FB": "https://s3ftp.flybase.org/flybase/associated_files/alliance/FB_reference.json.gz",
         "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_REFERENCE.json.zip",
         "MGI": "http://www.informatics.jax.org/downloads/alliance/reference.json.gz",
         "RGD": "https://download.rgd.mcw.edu/data_release/agr/REFERENCE_RGD.json"
@@ -50,7 +50,7 @@ def download_dqm_resource_json():  # pragma: no cover
 
     mod_to_resource_url = {
         "ZFIN": "https://zfin.org/downloads/ZFIN_1.0.1.4_Resource.json",
-        "FB": "http://ftp.flybase.net/flybase/associated_files/alliance/FB_resource.json.gz"
+        "FB": "https://s3ftp.flybase.org/flybase/associated_files/alliance/FB_resource.json.gz"
     }
 
     for mod in mod_to_resource_url:
