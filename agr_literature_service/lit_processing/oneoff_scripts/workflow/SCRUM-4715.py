@@ -67,7 +67,7 @@ def generate_transitions(db_session, parent_atp):
             wft = WorkflowTransitionModel(
                 mod_id=mod,
                 condition='on_retry',
-                actions=['sub_task_retry:reference classification'],
+                actions=['sub_task_retry::reference classification'],
                 transition_from=failed[name],
                 transition_to=needed[name])
             db_session.add(wft)
@@ -75,7 +75,7 @@ def generate_transitions(db_session, parent_atp):
             wft = WorkflowTransitionModel(
                 mod_id=mod,
                 condition='on_retry',
-                actions=['sub_task_retry:reference classification'],
+                actions=['sub_task_retry::reference classification'],
                 transition_from=in_progress[name],
                 transition_to=needed[name])
             db_session.add(wft)
