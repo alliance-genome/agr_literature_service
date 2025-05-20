@@ -81,6 +81,37 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
                             detail=mess)
 
 
+def sub_task_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
+    """
+    This is called if the workflow transition actions has 'sub_task_retry::XXXXXX' specified.
+    i.e. if it has 'sub_task_retry::reference classification'.
+
+    args: [0] type of main flow i.e. 'reference classification' or 'entity extraction'
+
+    """
+    from agr_literature_service.api.crud.workflow_tag_crud import (
+        get_workflow_tags_from_process
+    )
+    global jobs_types
+
+    checktype = args[0]
+    check_type(checktype)
+    main_status_obj = get_current_status_obj(db, checktype, int(current_workflow_tag_db_obj.reference_id), int(current_workflow_tag_db_obj.mod_id))
+    if not main_status_obj:
+        mess = f"Error: main in progress. Could not find main_status_obj for {checktype} in DB"
+        raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                            detail=mess)
+    failed_list = get_workflow_tags_from_process(jobs_types[checktype]['failed'])
+
+    any_failed = db.query(WorkflowTagModel).filter(
+        WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
+        WorkflowTagModel.workflow_tag_id.in_(failed_list)).all()
+    if any_failed:
+        main_status_obj.workflow_tag_id = jobs_types[checktype]['failed']
+    else:
+        main_status_obj.workflow_tag_id = jobs_types[checktype]['in_progress']
+
+
 def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
     """
     This is called if the workflow transition actions has 'sub_task_complete::XXXXXX' specified.
