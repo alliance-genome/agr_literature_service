@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 
 MOD=$1
+TEST_EXTRACTION=false
+
+# Check for the test extraction flag
+if [[ "$2" == "--test-extraction" ]]; then
+  TEST_EXTRACTION=true
+fi
 
 # request okta access token
 generate_access_token () {
@@ -44,7 +50,7 @@ upload_file () {
     echo "INFO: ${detail_message}"
     return
   fi
-  
+
   if [[ "${response}" == "\"success\"" ]]; then
     upload_status="success"
     response="empty response"
@@ -83,11 +89,21 @@ extract_file_metadata() {
 export -f extract_file_metadata
 
 parse_main_filename() {
-  regex="^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
-  [[ $filename =~ $regex ]]
-  reference_id=${BASH_REMATCH[1]}
-  author_and_year=${BASH_REMATCH[2]}
-  additional_options=${BASH_REMATCH[3]}
+  regex_with_details="^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
+  regex_numbers_only="^([0-9]+)\..*$"
+
+  if [[ $filename =~ $regex_with_details ]]; then
+    reference_id=${BASH_REMATCH[1]}
+    author_and_year=${BASH_REMATCH[2]}
+    additional_options=${BASH_REMATCH[3]}
+  elif [[ $filename =~ $regex_numbers_only ]]; then
+    reference_id=${BASH_REMATCH[1]}
+    author_and_year=""
+    additional_options=""
+  else
+    echo "ERROR: Filename does not match expected patterns."
+    exit 1
+  fi
   if [[ "${additional_options}" == "temp" ]]; then
     file_publication_status="temp"
   elif [[ "${additional_options,,}" == "aut" ]]; then
@@ -123,6 +139,8 @@ process_file() {
     reference_id="AGRKB:${reference_id}"
   elif [[ $MOD == "WB" ]]; then
     reference_id="WB:WBPaper${reference_id}"
+  elif [[ $MOD == "FB" ]]; then
+    reference_id="PMID:${reference_id}"
   fi
   echo "reference ID: ${reference_id}"
   echo "display_name: ${display_name}"
@@ -130,7 +148,13 @@ process_file() {
   echo "file_class: ${file_class}"
   echo "file_publication_status: ${file_publication_status}"
   echo "pdf_type: ${pdf_type}"
-  upload_file
+
+  # Skip upload if testing extraction
+  if [[ "$TEST_EXTRACTION" == false ]]; then
+    upload_file
+  else
+    echo "TEST MODE: Skipping file upload."
+  fi
 }
 
 export -f process_file
