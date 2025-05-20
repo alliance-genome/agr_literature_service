@@ -94,6 +94,30 @@ def check_obsolete_entities():
     }
 
 
+def check_redacted_references_with_tags():
+
+    log_path = environ.get('LOG_PATH', '.')
+    log_file = path.join(log_path, "QC/redacted_references_with_tags.log")
+    date_produced = None
+    data = defaultdict(list)
+
+    with open(log_file, 'r') as f:
+        for line in f:
+            if 'date-produced:' in line:
+                date_produced = line.split('date-produced: ')[1].strip()
+            else:
+                pieces = line.strip().split('\t')
+                if len(pieces) >= 3:
+                    data[pieces[1]].append({
+                        "reference_id": pieces[0]
+                    })
+
+    return {
+        "date-produced": date_produced,
+        "redacted-references": dict(data)
+    }
+
+
 def show_environments():
     """
     But only those that are not sensitive. i.e. NO passwords etc
