@@ -47,7 +47,7 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
+
 test_reference2 = test_reference
 
 
