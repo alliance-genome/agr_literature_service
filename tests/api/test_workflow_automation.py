@@ -47,7 +47,7 @@ from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
-
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
 test_reference2 = test_reference
 
 
@@ -284,9 +284,7 @@ class TestWorkflowTagAutomation:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
 
-            # we should have "ATP:task1_successful", "ATP:task2_failed" and "ATP:main_failed"
-            # TODO: add "ATP:main_failed", as this needs to be covered BUT not codeded yet
-            #       as we may need the hierarchy
+            # we should have "ATP:task1_successful", "ATP:task2_failed" and "ATP:0000189"
             for atp in ["ATP:task1_successful", "ATP:task2_failed"]:
 
                 test_id = db.query(WorkflowTagModel). \
@@ -306,7 +304,7 @@ class TestWorkflowTagAutomation:
 
             # test main which should be failed
             test_id = db.query(WorkflowTagModel). \
-                filter(WorkflowTagModel.workflow_tag_id == 'ATP:main_failed',
+                filter(WorkflowTagModel.workflow_tag_id == 'ATP:0000189',
                        WorkflowTagModel.reference_id == reference.reference_id,
                        WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
             assert test_id
@@ -323,11 +321,11 @@ class TestWorkflowTagAutomation:
             assert test_id
 
             # test main which should now be in_progress
-            # test_id = db.query(WorkflowTagModel). \
-            #    filter(WorkflowTagModel.workflow_tag_id == 'ATP:main_in_progress',
-            #           WorkflowTagModel.reference_id == reference.reference_id,
-            #           WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
-            # assert test_id
+            test_id = db.query(WorkflowTagModel). \
+                filter(WorkflowTagModel.workflow_tag_id == 'ATP:0000178',
+                       WorkflowTagModel.reference_id == reference.reference_id,
+                       WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
+            assert test_id
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
