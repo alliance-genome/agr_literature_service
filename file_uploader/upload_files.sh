@@ -2,10 +2,22 @@
 
 MOD=$1
 TEST_EXTRACTION=false
+FILES_FOLDER="/usr/files_to_upload" # Default folder
 
 # Check for the test extraction flag
 if [[ "$2" == "--test-extraction" ]]; then
   TEST_EXTRACTION=true
+  if [[ -n "$3" ]]; then
+    FILES_FOLDER="$3"
+  fi
+elif [[ -n "$2" ]]; then
+  FILES_FOLDER="$2"
+fi
+
+# Validate the folder exists
+if [[ ! -d "$FILES_FOLDER" ]]; then
+  echo "ERROR: Folder '$FILES_FOLDER' does not exist."
+  exit 1
 fi
 
 # request okta access token
@@ -163,7 +175,7 @@ generate_access_token
 export OKTA_ACCESS_TOKEN
 export MOD
 
-for reffileordir in /usr/files_to_upload/*; do
+for reffileordir in "$FILES_FOLDER"/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
     find "${reffileordir}" -type f -exec bash -c 'process_file "$1" "supplement"' -- {} \;
