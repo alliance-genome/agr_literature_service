@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 
 MOD=$1
+TEST_EXTRACTION=false
+FILES_FOLDER="/usr/files_to_upload" # Default folder
+
+# Check for the test extraction flag
+if [[ "$2" == "--test-extraction" ]]; then
+  TEST_EXTRACTION=true
+  if [[ -n "$3" ]]; then
+    FILES_FOLDER="$3"
+  fi
+elif [[ -n "$2" ]]; then
+  FILES_FOLDER="$2"
+fi
+
+# Validate the folder exists
+if [[ ! -d "$FILES_FOLDER" ]]; then
+  echo "ERROR: Folder '$FILES_FOLDER' does not exist."
+  exit 1
+fi
 
 # request okta access token
 generate_access_token () {
@@ -44,7 +62,7 @@ upload_file () {
     echo "INFO: ${detail_message}"
     return
   fi
-  
+
   if [[ "${response}" == "\"success\"" ]]; then
     upload_status="success"
     response="empty response"
@@ -83,11 +101,21 @@ extract_file_metadata() {
 export -f extract_file_metadata
 
 parse_main_filename() {
-  regex="^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
-  [[ $filename =~ $regex ]]
-  reference_id=${BASH_REMATCH[1]}
-  author_and_year=${BASH_REMATCH[2]}
-  additional_options=${BASH_REMATCH[3]}
+  regex_with_details="^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
+  regex_numbers_only="^([0-9]+)\..*$"
+
+  if [[ $filename =~ $regex_with_details ]]; then
+    reference_id=${BASH_REMATCH[1]}
+    author_and_year=${BASH_REMATCH[2]}
+    additional_options=${BASH_REMATCH[3]}
+  elif [[ $filename =~ $regex_numbers_only ]]; then
+    reference_id=${BASH_REMATCH[1]}
+    author_and_year=""
+    additional_options=""
+  else
+    echo "ERROR: Filename does not match expected patterns."
+    exit 1
+  fi
   if [[ "${additional_options}" == "temp" ]]; then
     file_publication_status="temp"
   elif [[ "${additional_options,,}" == "aut" ]]; then
@@ -123,6 +151,8 @@ process_file() {
     reference_id="AGRKB:${reference_id}"
   elif [[ $MOD == "WB" ]]; then
     reference_id="WB:WBPaper${reference_id}"
+  elif [[ $MOD == "FB" ]]; then
+    reference_id="PMID:${reference_id}"
   fi
   echo "reference ID: ${reference_id}"
   echo "display_name: ${display_name}"
@@ -130,7 +160,13 @@ process_file() {
   echo "file_class: ${file_class}"
   echo "file_publication_status: ${file_publication_status}"
   echo "pdf_type: ${pdf_type}"
-  upload_file
+
+  # Skip upload if testing extraction
+  if [[ "$TEST_EXTRACTION" == false ]]; then
+    upload_file
+  else
+    echo "TEST MODE: Skipping file upload."
+  fi
 }
 
 export -f process_file
@@ -139,7 +175,7 @@ generate_access_token
 export OKTA_ACCESS_TOKEN
 export MOD
 
-for reffileordir in /usr/files_to_upload/*; do
+for reffileordir in "$FILES_FOLDER"/*; do
   if [[ -d ${reffileordir} ]]; then
     echo "Processing supplemental files from ${reffileordir}"
     find "${reffileordir}" -type f -exec bash -c 'process_file "$1" "supplement"' -- {} \;
