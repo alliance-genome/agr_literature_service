@@ -81,6 +81,12 @@ def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_failed')
 
 
+@router.post('/job/retry/{reference_workflow_tag_id}',
+             status_code=200)
+def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_retry')
+
+
 @router.post('/job/success/{reference_workflow_tag_id}',
              status_code=200)
 def successful_job(reference_workflow_tag_id: int, db: Session = db_session):

@@ -109,11 +109,15 @@ def workflow_automation_init(db):  # noqa
 
         ["ATP:task1_needed", "ATP:task1_in_progress", ["sub_task_in_progress::reference classification"], "on_start"],
         ["ATP:task1_in_progress", "ATP:task1_successful", ["sub_task_complete::reference classification"], "on_success"],
-        ["ATP:task1_in_progress", "ATP:task1_failed", ["sub_task_failed::reference classification"], "on_failed"],
+        ["ATP:task1_failed", "ATP:task1_failed", ["sub_task_failed::reference classification"], "on_failed"],
+        ["ATP:task1_in_progress", "ATP:task1_needed", ["sub_task_retry::reference classification"], "on_retry"],
+        ["ATP:task1_failed", "ATP:task1_needed", ["sub_task_retry::reference classification"], "on_retry"],
 
         ["ATP:task2_needed", "ATP:task2_in_progress", ["sub_task_in_progress::reference classification"], "on_start"],
         ["ATP:task2_in_progress", "ATP:task2_successful", ["sub_task_complete::reference classification"], "on_success"],
-        ["ATP:task2_in_progress", "ATP:task2_failed", ["sub_task_failed::reference classification"], "on_failed"]
+        ["ATP:task2_in_progress", "ATP:task2_failed", ["sub_task_failed::reference classification"], "on_failed"],
+        ["ATP:task2_in_progress", "ATP:task2_needed", ["sub_task_retry::reference classification"], "on_retry"],
+        ["ATP:task2_failed", "ATP:task2_needed", ["sub_task_retry::reference classification"], "on_retry"]
     ]
     mods = db.query(ModModel).all()
 
@@ -299,6 +303,31 @@ class TestWorkflowTagAutomation:
                            WorkflowTagModel.reference_id == reference.reference_id,
                            WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
                 assert test_id is None
+
+            # test main which should be failed
+            # test_id = db.query(WorkflowTagModel). \
+            #    filter(WorkflowTagModel.workflow_tag_id == 'ATP:main_failed',
+            #           WorkflowTagModel.reference_id == reference.reference_id,
+            #           WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
+            # assert test_id
+
+            # set the job to retry for task2
+            response = client.post(url=f"/workflow_tag/job/retry/{atp_to_ref_wft_id['ATP:task2_in_progress']}",
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+
+            test_id = db.query(WorkflowTagModel). \
+                filter(WorkflowTagModel.workflow_tag_id == 'ATP:task2_needed',
+                       WorkflowTagModel.reference_id == reference.reference_id,
+                       WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
+            assert test_id
+
+            # test main which should now be in_progress
+            # test_id = db.query(WorkflowTagModel). \
+            #    filter(WorkflowTagModel.workflow_tag_id == 'ATP:main_in_progress',
+            #           WorkflowTagModel.reference_id == reference.reference_id,
+            #           WorkflowTagModel.mod_id == mod.mod_id).one_or_none()
+            # assert test_id
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
