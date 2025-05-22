@@ -105,6 +105,7 @@ def sub_task_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
 
     any_failed = db.query(WorkflowTagModel).filter(
         WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
+        WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
         WorkflowTagModel.workflow_tag_id.in_(failed_list)).all()
     if any_failed:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['failed']
@@ -160,10 +161,12 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     elif len(not_complete_list) == 1:
         cur = db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
+            WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
             WorkflowTagModel.workflow_tag_id == not_complete_list[0]).all()
     else:
         cur = db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == current_workflow_tag_db_obj.reference_id,
+            WorkflowTagModel.mod_id == current_workflow_tag_db_obj.mod_id,
             WorkflowTagModel.workflow_tag_id.in_(not_complete_list)).all()
     # current job successful also we have no other subtasks that are failed, needed
     # or in_progress, so we can set the main one now to complete too.
