@@ -234,8 +234,8 @@ def search_topic(topic=None, mod_abbr=None):
         sql_query = text("""
             SELECT ot.curie, ot.name
             FROM ontologyterm ot
-            JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-            JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+            JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+            JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
             JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
             WHERE ot.ontologytermtype = 'ATPTerm'
             AND UPPER(ot.name) LIKE :search_query
@@ -254,8 +254,8 @@ def search_topic(topic=None, mod_abbr=None):
         sql_query = text("""
         SELECT ot.curie, ot.name
         FROM ontologyterm ot
-        JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-        JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+        JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+        JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
         WHERE ot.ontologytermtype = 'ATPTerm'
         AND UPPER(ot.name) LIKE :search_query
         AND ot.obsolete = false
@@ -271,8 +271,8 @@ def search_topic(topic=None, mod_abbr=None):
         sql_query = text("""
             SELECT ot.curie, ot.name
             FROM ontologyterm ot
-            JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-            JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+            JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+            JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
             JOIN ontologyterm_subsets s ON ot.id = s.ontologyterm_id
             WHERE ot.ontologytermtype = 'ATPTerm'
             AND ancestor.curie = :topic_category_atp
@@ -310,8 +310,8 @@ def search_atp_descendants(ancestor_curie):
     sql_query = text("""
     SELECT ot.curie, ot.name
     FROM ontologyterm ot
-    JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-    JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+    JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+    JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
     WHERE ot.ontologytermtype = 'ATPTerm'
     AND ot.obsolete = false
     AND ancestor.curie = :ancestor_curie
@@ -380,8 +380,8 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
         sql_query = text("""
         SELECT ot.curie
         FROM ontologyterm ot
-        JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isadescendants_id
-        JOIN ontologyterm ancestor ON ancestor.id = oad.isaancestors_id
+        JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+        JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
         WHERE ancestor.curie = :ontology_node
         AND ot.obsolete = False
         """)
@@ -389,8 +389,8 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
         sql_query = text("""
         SELECT ot.curie
         FROM ontologyterm ot
-        JOIN ontologyterm_isa_ancestor_descendant oad ON ot.id = oad.isaancestors_id
-        JOIN ontologyterm descendant ON descendant.id = oad.isadescendants_id
+        JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
+        JOIN ontologyterm descendant ON descendant.id = otc.closureobject_id
         WHERE descendant.curie = :ontology_node
         AND ot.obsolete = False
         """)
@@ -547,9 +547,9 @@ def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
     # Load atp data
     id_to_curie = {}
     sql_query = text("""
-    SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, opc.isachildren_id as child
+    SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, otc.closuresubject_id as child
       FROM ontologyterm o
-      LEFT JOIN ontologyterm_isa_parent_children opc ON o.id = opc.isaparents_id
+      LEFT JOIN ontologytermclosure otc ON o.id = otc.closureobject_id
          WHERE o.ontologytermtype = 'ATPTerm'
     """)
     try:
