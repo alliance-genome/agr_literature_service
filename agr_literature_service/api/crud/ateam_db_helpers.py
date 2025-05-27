@@ -232,7 +232,7 @@ def search_topic(topic=None, mod_abbr=None):
         search_query = f"%{topic.upper()}%"
     if mod_abbr is not None and topic is not None:
         sql_query = text("""
-            SELECT ot.curie, ot.name
+            SELECT DISTINCT ot.curie, ot.name
             FROM ontologyterm ot
             JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
             JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
@@ -242,7 +242,6 @@ def search_topic(topic=None, mod_abbr=None):
             AND ot.obsolete = false
             AND ancestor.curie = :topic_category_atp
             AND s.subsets = :mod_abbr
-            ORDER BY LENGTH(ot.name)
             LIMIT 10
             """)
         rows = db.execute(sql_query, {
@@ -252,7 +251,7 @@ def search_topic(topic=None, mod_abbr=None):
         }).fetchall()
     elif topic is not None:
         sql_query = text("""
-        SELECT ot.curie, ot.name
+        SELECT DISTINCT ot.curie, ot.name
         FROM ontologyterm ot
         JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
         JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
@@ -260,7 +259,6 @@ def search_topic(topic=None, mod_abbr=None):
         AND UPPER(ot.name) LIKE :search_query
         AND ot.obsolete = false
         AND ancestor.curie = :topic_category_atp
-        ORDER BY LENGTH(ot.name)
         LIMIT 10
         """)
         rows = db.execute(sql_query, {
@@ -269,7 +267,7 @@ def search_topic(topic=None, mod_abbr=None):
         }).fetchall()
     elif mod_abbr is not None:
         sql_query = text("""
-            SELECT ot.curie, ot.name
+            SELECT DISTINCT ot.curie, ot.name
             FROM ontologyterm ot
             JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
             JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
@@ -308,7 +306,7 @@ def search_atp_descendants(ancestor_curie):
     atp_get_children_as_dict(ancestor_curie)
     db = create_ateam_db_session()
     sql_query = text("""
-    SELECT ot.curie, ot.name
+    SELECT DISTINCT ot.curie, ot.name
     FROM ontologyterm ot
     JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
     JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
@@ -378,7 +376,7 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
     db = create_ateam_db_session()
     if ancestors_or_descendants == 'descendants':
         sql_query = text("""
-        SELECT ot.curie
+        SELECT DISTINCT ot.curie
         FROM ontologyterm ot
         JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
         JOIN ontologyterm ancestor ON ancestor.id = otc.closureobject_id
@@ -387,7 +385,7 @@ def search_ancestors_or_descendants(ontology_node, ancestors_or_descendants):
         """)
     else:
         sql_query = text("""
-        SELECT ot.curie
+        SELECT DISTINCT ot.curie
         FROM ontologyterm ot
         JOIN ontologytermclosure otc ON ot.id = otc.closuresubject_id
         JOIN ontologyterm descendant ON descendant.id = otc.closureobject_id
@@ -547,7 +545,7 @@ def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
     # Load atp data
     id_to_curie = {}
     sql_query = text("""
-    SELECT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, otc.closuresubject_id as child
+    SELECT DISTINCT o.curie as curie, o.name as name, o.obsolete as obsolete, o.id as id, otc.closuresubject_id as child
       FROM ontologyterm o
       LEFT JOIN ontologytermclosure otc ON o.id = otc.closureobject_id
          WHERE o.ontologytermtype = 'ATPTerm'
