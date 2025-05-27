@@ -145,7 +145,7 @@ def process_no_parent(db_session, phase, slack_messages, debug):
                     try:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to ({atp_get_name(phase['set to try again'])}) needed from {atp_get_name(wft.workflow_tag_id)}")
-                    except:
+                    except Exception:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
                 wft.workflow_tag_id = phase['set to try again']
@@ -159,7 +159,7 @@ def process_no_parent(db_session, phase, slack_messages, debug):
                     try:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to ({atp_get_name(phase['set to failed'])}) failed from {atp_get_name(wft.workflow_tag_id)}")
-                    except:
+                    except Exception:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
 
@@ -198,7 +198,7 @@ def process_parent(db_session, phase, slack_messages, debug, failed):
                     try:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to needed for {atp_get_name(wft.workflow_tag_id)}")
-                    except:
+                    except Exception:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to needed for {wft.workflow_tag_id}")
 
@@ -214,7 +214,7 @@ def process_parent(db_session, phase, slack_messages, debug, failed):
                     try:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to needed failed for {atp_get_name(wft.workflow_tag_id)}")
-                    except:
+                    except Exception:
                         slack_messages[wft.mod_id].append(
                             f"Setting {reference.curie} to needed failed for {wft.workflow_tag_id}")
 
