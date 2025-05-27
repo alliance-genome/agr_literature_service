@@ -144,31 +144,38 @@ def process_no_parent(db_session, phase, slack_messages, debug):
                         slack_messages[wft.mod_id] = []
                     try:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to ({atp_get_name(phase['set to try again'])}) needed from {atp_get_name(wft.workflow_tag_id)}")
+                            f"Setting {reference} to ({atp_get_name(phase['set to try again'])}) needed from {atp_get_name(wft.workflow_tag_id)}")
                     except Exception:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
+                            f"Setting {reference} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
                 wft.workflow_tag_id = phase['set to try again']
             else:
                 print(f"Setting to try again for {wft}")
         else:  # need to set to failed
+            sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
+                            WHERE r.reference_id = {wft.reference_id} AND
+                                  r.reference_id = wft.reference_id AND
+                                  wft.workflow_tag_id = {wft.workflow_tag_id} """)
+            if debug:
+                print(sql)
+            reference = db_session.execute(sql).first()
             if not debug:
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
                         slack_messages[wft.mod_id] = []
                     try:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to ({atp_get_name(phase['set to failed'])}) failed from {atp_get_name(wft.workflow_tag_id)}")
+                            f"Setting {reference} to ({atp_get_name(phase['set to failed'])}) failed from {atp_get_name(wft.workflow_tag_id)}")
                     except Exception:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
+                            f"Setting {reference} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
 
                 wft.workflow_tag_id = phase['set to failed']
             else:
                 print(f"Setting to failed for {wft}")
 
 
-def process_parent(db_session, phase, slack_messages, debug, failed):
+def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: max-complexity=25
     start_date = get_date_weeks_ago(phase['time limit in weeks'])
 
     if failed:
@@ -197,26 +204,33 @@ def process_parent(db_session, phase, slack_messages, debug, failed):
                         slack_messages[wft.mod_id] = []
                     try:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to needed for {atp_get_name(wft.workflow_tag_id)}")
+                            f"Setting {reference} to needed for {atp_get_name(wft.workflow_tag_id)}")
                     except Exception:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to needed for {wft.workflow_tag_id}")
+                            f"Setting {reference} to needed for {wft.workflow_tag_id}")
 
                     # So do the transition.
                     job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_retry')
             else:
                 print(f"Setting to try again for {wft}")
         else:  # need to set to failed
+            sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
+                            WHERE r.reference_id = {wft.reference_id} AND
+                                  r.reference_id = wft.reference_id AND
+                                  wft.workflow_tag_id = {wft.workflow_tag_id} """)
+            if debug:
+                print(sql)
+            reference = db_session.execute(sql).first()
             if not debug:
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
                         slack_messages[wft.mod_id] = []
                     try:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to needed failed for {atp_get_name(wft.workflow_tag_id)}")
+                            f"Setting {reference} to needed failed for {atp_get_name(wft.workflow_tag_id)}")
                     except Exception:
                         slack_messages[wft.mod_id].append(
-                            f"Setting {reference.curie} to needed failed for {wft.workflow_tag_id}")
+                            f"Setting {reference} to needed failed for {wft.workflow_tag_id}")
 
                 if not failed:  # else it is already set to failed and we have no transition from failed to failed.
                     job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_failed')
