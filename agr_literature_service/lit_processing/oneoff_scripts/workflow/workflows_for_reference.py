@@ -33,9 +33,13 @@ def print_data(db: Session, reference, mod_abbr):  # noqa
                 and m.abbreviation = '{mod_abbr}'
                 and r.curie = '{reference}'
                 order by date_created desc"""
+        print(query)
         wts = db.execute(text(query)).mappings().fetchall()
         for wt in wts:
-            print(f"{wt['date_created']}\t{atp_get_name(wt['workflow_tag_id'])}")
+            try:
+                print(f"{wt['date_created']}\t({wt['workflow_tag_id']}) {atp_get_name(wt['workflow_tag_id'])}")
+            except Exception as e:
+                print(f"{wt['date_created']}\t{wt['workflow_tag_id']} Could not translate ATP term {e}. Ateam database problem?")
 
     except Exception as e:
         logger.error(e)
