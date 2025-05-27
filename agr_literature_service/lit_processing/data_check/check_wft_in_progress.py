@@ -83,6 +83,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents, job_change_atp_code
+from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 
 
 def get_date_weeks_ago(weeks):
@@ -141,8 +142,12 @@ def process_no_parent(db_session, phase, slack_messages, debug):
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
                         slack_messages[wft.mod_id] = []
-                    slack_messages[wft.mod_id].append(
-                        f"Setting {reference} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
+                    try:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to ({atp_get_name(phase['set to try again'])}) needed from {atp_get_name(wft.workflow_tag_id)}")
+                    except:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to ({phase['set to try again']}) needed from {wft.workflow_tag_id}")
                 wft.workflow_tag_id = phase['set to try again']
             else:
                 print(f"Setting to try again for {wft}")
@@ -151,8 +156,13 @@ def process_no_parent(db_session, phase, slack_messages, debug):
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
                         slack_messages[wft.mod_id] = []
-                    slack_messages[wft.mod_id].append(
-                        f"Setting {reference} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
+                    try:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to ({atp_get_name(phase['set to failed'])}) failed from {atp_get_name(wft.workflow_tag_id)}")
+                    except:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to ({phase['set to failed']}) failed from {wft.workflow_tag_id}")
+
                 wft.workflow_tag_id = phase['set to failed']
             else:
                 print(f"Setting to failed for {wft}")
@@ -185,8 +195,13 @@ def process_parent(db_session, phase, slack_messages, debug, failed):
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
                         slack_messages[wft.mod_id] = []
-                    slack_messages[wft.mod_id].append(
-                        f"Setting {reference} to needed for {wft.workflow_tag_id}")
+                    try:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to needed for {atp_get_name(wft.workflow_tag_id)}")
+                    except:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to needed for {wft.workflow_tag_id}")
+
                     # So do the transition.
                     job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_retry')
             else:
@@ -196,8 +211,13 @@ def process_parent(db_session, phase, slack_messages, debug, failed):
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
                         slack_messages[wft.mod_id] = []
-                    slack_messages[wft.mod_id].append(
-                        f"Setting {reference} to needed failed for {wft.workflow_tag_id}")
+                    try:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to needed failed for {atp_get_name(wft.workflow_tag_id)}")
+                    except:
+                        slack_messages[wft.mod_id].append(
+                            f"Setting {reference.curie} to needed failed for {wft.workflow_tag_id}")
+
                 if not failed:  # else it is already set to failed and we have no transition from failed to failed.
                     job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_failed')
             else:
