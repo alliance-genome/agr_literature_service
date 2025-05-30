@@ -22,6 +22,7 @@ from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
+pre_indexing_prio_needed_tag_atp_id = "ATP:0000306"
 
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
@@ -69,12 +70,17 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if get_current_workflow_status(db, reference_curie, "ATP:0000140",
                                        mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-        if mod_abbreviation == 'SGD':
+        indexing_needed_tag = {
+            'SGD': manual_indexing_needed_tag_atp_id,
+            'ZFIN': pre_indexing_prio_needed_tag_atp_id
+        }.get(mod_abbreviation)
+        if indexing_needed_tag:
             wft_obj = WorkflowTagModel(reference_id=reference.reference_id,
                                        mod_id=mod.mod_id,
-                                       workflow_tag_id=manual_indexing_needed_tag_atp_id)
+                                       workflow_tag_id=pre_indexing_prio_needed_tag_atp_id)
             db.add(wft_obj)
             db.commit()
+
     return int(db_obj.mod_corpus_association_id)
 
 
