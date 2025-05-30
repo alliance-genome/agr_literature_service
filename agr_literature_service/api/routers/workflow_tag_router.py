@@ -187,3 +187,9 @@ def get_workflow_tags_subset(mod_abbreviation: str,
                              workflow_name: str,
                              db: Session = db_session):
     return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation, db)
+
+
+@router.post('/set_priority/{reference_curie}/{mod_abbreviation}/{priority}',
+             status_code=200)
+def set_priority(reference_curie: str, mod_abbreviation: str, priority: str, db: Session = db_session):
+    return workflow_tag_crud.set_priority(db, reference_curie, mod_abbreviation, priority)
