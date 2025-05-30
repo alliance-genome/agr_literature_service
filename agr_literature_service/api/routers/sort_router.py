@@ -25,6 +25,13 @@ def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_
     return sort_crud.show_need_review(mod_abbreviation, count, db)
 
 
+@router.get('/need_prioritization',
+            status_code=200,
+            response_model=List[ReferenceSchemaNeedReviewShow])
+def show_need_prioritization(mod_abbreviation: str, count: int = None, db: Session = db_session):
+    return sort_crud.show_need_prioritization(mod_abbreviation, count, db)
+
+
 @router.get('/prepublication_pipeline',
             status_code=200,
             response_model=List[ReferenceSchemaNeedReviewShow])
