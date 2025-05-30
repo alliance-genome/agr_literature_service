@@ -1240,3 +1240,67 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
     for curie in curie_list:
         result[atp_to_name[curie]] = curie
     return result
+
+
+def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
+
+    priority_to_atp_mapping = {
+        "priority_1": "ATP:0000211",
+        "priority_2": "ATP:0000212",
+        "priority_3": "ATP:0000213"
+    }
+    pre_indexing_prioritization_to_atp = {
+        "failed": "ATP:0000304",
+        "success": "ATP:0000303"
+    }
+
+    priority_atp = priority_to_atp_mapping.get(priority)
+    reference_workflow_tag_id = (
+        db.query(WorkflowTagModel.reference_workflow_tag_id).join(
+            ReferenceModel,
+            WorkflowTagModel.reference_id == ReferenceModel.reference_id
+        ).join(
+            ModModel,
+            WorkflowTagModel.mod_id == ModModel.mod_id
+        ).filter(
+            ModModel.abbreviation == mod_abbreviation,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000306',
+            ReferenceModel.curie == reference_curie
+        ).scalar()
+    )
+
+    if reference_workflow_tag_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No workflow‐tag ATP:0000306 for paper {reference_curie} in MOD {mod_abbreviation}"
+        )
+
+    if priority_atp is None:
+        patch(
+            db,
+            reference_workflow_tag_id,
+            {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
+        )
+    else:
+        data = {
+            "workflow_tag_id": priority_atp,
+            "mod_abbreviation": mod_abbreviation,
+            "reference_curie": reference_curie
+        }
+        try:
+            create(db, data)
+            patch(
+                db,
+                reference_workflow_tag_id,
+                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("success")}
+            )
+        except Exception as e:
+            patch(
+                db,
+                reference_workflow_tag_id,
+                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
+            )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Setting priority failed {e} for paper {reference_curie} in MOD {mod_abbreviation}"
+            )
