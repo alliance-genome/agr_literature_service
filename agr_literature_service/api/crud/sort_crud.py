@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, and_
 
 from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel,\
     ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
@@ -29,6 +29,34 @@ def show_need_review(mod_abbreviation, count, db: Session):
         ModCorpusAssociationModel.mod
     ).filter(
         ModModel.abbreviation == mod_abbreviation
+    ).outerjoin(
+        ReferenceModel.copyright_license
+    ).order_by(
+        ReferenceModel.curie.desc()
+    ).limit(count)
+    references = references_query.all()
+    return show_sort_result(references, mod_abbreviation, db)
+
+
+def show_need_prioritization(mod_abbreviation, count, db: Session):
+    references_query = db.query(
+        ReferenceModel
+    ).join(
+        ReferenceModel.mod_corpus_association
+    ).filter(
+        ModCorpusAssociationModel.corpus.is_(True)
+    ).join(
+        ModCorpusAssociationModel.mod
+    ).filter(
+        ModModel.abbreviation == mod_abbreviation
+    ).join(
+        WorkflowTagModel,
+        and_(
+            ReferenceModel.reference_id == WorkflowTagModel.reference_id,
+            ModCorpusAssociationModel.mod_id == WorkflowTagModel.mod_id
+        )
+    ).filter(
+        WorkflowTagModel.workflow_tag_id == 'ATP:0000306'
     ).outerjoin(
         ReferenceModel.copyright_license
     ).order_by(
