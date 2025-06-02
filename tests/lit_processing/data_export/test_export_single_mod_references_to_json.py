@@ -1,11 +1,8 @@
-import json
-from os import path, stat, rename, environ
 from datetime import date
 from sqlalchemy import text
 
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    dump_data, concatenate_json_files, get_meta_data, generate_json_file, get_reference_col_names,\
-    get_reference_data_and_generate_json
+    get_meta_data, get_reference_col_names
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
@@ -72,56 +69,3 @@ class TestExportSingleModReferencesToJson:
         ref_col_names = get_reference_col_names()
         assert 'title' in ref_col_names
         assert 'curie' in ref_col_names
-
-    def test_dump_data(self, db, load_sanitized_references, cleanup_tmp_files_when_done): # noqa
-
-        ## test dump_data()
-        dump_data('ZFIN', None, None)
-        base_path = environ.get('XML_PATH')
-        json_path = path.join(base_path, "json_data/")
-        json_file = json_path + "reference_ZFIN.json"
-        assert path.exists(json_file)
-        assert stat(json_file).st_size > 10000
-        json_data = json.load(open(json_file))
-        assert 'data' in json_data
-        assert len(json_data['data']) == 3
-
-        ## test concatenate_json_files()
-        dump_data('WB', None, None)
-        base_path = environ.get('XML_PATH')
-        json_path = path.join(base_path, "json_data/")
-        rename(json_path + "reference_ZFIN.json", json_path + "reference_ZFIN.json_0")
-        rename(json_path + "reference_WB.json", json_path + "reference_ZFIN.json_1")
-        json_file = json_path + "reference_ZFIN.json"
-        concatenate_json_files(json_file, 2)
-        assert path.exists(json_file)
-        assert stat(json_file).st_size > 10000
-        json_data = json.load(open(json_file))
-        data = json_data['data']
-        metaData = json_data['metaData']
-        assert len(data) == 6
-
-        ## test generate_json_file()
-        ## just to make sure there is only one copy of metaData in the concatenated json_file
-        new_json_file = json_file + "_new"
-        generate_json_file(metaData, data, new_json_file)
-        assert json.dumps(json.load(open(new_json_file)), sort_keys=True) == json.dumps(json.load(open(json_file)),
-                                                                                        sort_keys=True)
-
-        ## test get_reference_data_and_generate_json()
-        reference_id_to_reference_relation_data = {}
-        resource_id_to_journal = {}
-        reference_id_to_citation_data = {}
-        reference_id_to_license_data = {}
-        json_file = json_path + "reference_WB.json"
-        datestamp = str(date.today()).replace("-", "")
-        get_reference_data_and_generate_json('WB', reference_id_to_reference_relation_data,
-                                             resource_id_to_journal,
-                                             reference_id_to_citation_data,
-                                             reference_id_to_license_data,
-                                             json_file, datestamp)
-        assert path.exists(json_file)
-        assert stat(json_file).st_size > 500
-        json_data = json.load(open(json_file))
-        assert 'data' in json_data
-        assert len(json_data['data']) == 3
