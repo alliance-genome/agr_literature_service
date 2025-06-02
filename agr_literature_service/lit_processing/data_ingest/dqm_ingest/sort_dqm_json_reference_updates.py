@@ -8,6 +8,7 @@ import warnings
 from os import environ, makedirs, path
 from dotenv import load_dotenv
 from collections import defaultdict
+import shutil
 
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     load_database_md5data, generate_new_md5, update_md5sum
@@ -968,6 +969,18 @@ def update_db_entries(mod, mod_to_mod_id, dqm_entries, report_fh, processing_fla
 #        return True, dqm_resource_abbreviation, db_resource_title
 
 
+def cleanup_temp_directory():  # pragma: no cover
+
+    base_path = environ.get('XML_PATH', "")
+    dqm_data_path = base_path + "dqm_data/"
+    try:
+        if path.exists(dqm_data_path):
+            shutil.rmtree(dqm_data_path)
+    except OSError as e:
+        logger.info("Error deleting old dqm mod json reference files: %s" % (e.strerror))
+    makedirs(dqm_data_path)
+
+
 if __name__ == "__main__":
     """
     call main start function
@@ -998,4 +1011,5 @@ if __name__ == "__main__":
         except Exception as e:
             send_report(f"{mod} DQM Loading Failed",
                         f"Error message: {e}")
+    cleanup_temp_directory()
     logger.info("ending sort_dqm_json_reference_updates.py")
