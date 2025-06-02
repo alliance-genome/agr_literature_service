@@ -23,7 +23,7 @@ def dump_all_data():
             logger.info("Error occurred when dumping json data for " + mod + ": " + str(e))
         time.sleep(5)
     # dump papers for all mods
-    dump_data(mod=None, email=None, ondemand=False)
+    # dump_data(mod=None, email=None, ondemand=False)
     # When pytest runs the code, it automatically sets PYTEST_CURRENT_TEST in os.environ
     if "PYTEST_CURRENT_TEST" not in environ:
         cleanup_temp_directory()
