@@ -18,12 +18,12 @@ def dump_all_data():
     for mod in get_mod_abbreviations():
         logger.info("Dumping json data for " + mod)
         try:
-            dump_data(mod=mod, email=None, ondemand=None)
+            dump_data(mod=mod, email=None, ondemand=False)
         except Exception as e:
             logger.info("Error occurred when dumping json data for " + mod + ": " + str(e))
         time.sleep(5)
     # dump papers for all mods
-    dump_data(mod=None, email=None, ondemand=None)
+    dump_data(mod=None, email=None, ondemand=False)
     cleanup_temp_directory()
 
 
