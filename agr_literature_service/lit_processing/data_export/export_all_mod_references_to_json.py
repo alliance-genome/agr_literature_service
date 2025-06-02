@@ -24,7 +24,9 @@ def dump_all_data():
         time.sleep(5)
     # dump papers for all mods
     dump_data(mod=None, email=None, ondemand=False)
-    cleanup_temp_directory()
+    # When pytest runs the code, it automatically sets PYTEST_CURRENT_TEST in os.environ
+    if "PYTEST_CURRENT_TEST" not in environ:
+        cleanup_temp_directory()
 
 
 def cleanup_temp_directory():  # pragma: no cover
