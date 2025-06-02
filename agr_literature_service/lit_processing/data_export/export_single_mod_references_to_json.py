@@ -1,7 +1,7 @@
 import argparse
 from sqlalchemy import text
 import logging
-from os import environ, makedirs, path, rename, remove
+from os import environ, makedirs, path, remove
 from dotenv import load_dotenv
 from datetime import datetime, date
 import json
@@ -38,95 +38,6 @@ ondemand_bucket = sub_bucket + 'ondemand/'
 max_per_db_connection = 20000
 limit = 500
 loop_count = 700
-
-
-def dump_data(mod, email, ondemand, ui_root_url=None):  # noqa: C901
-
-    json_file = "reference" + "_" + mod
-    datestamp = str(date.today()).replace("-", "")
-    if ondemand:
-        # 2022-06-23 18:27:28.150889 => 20220623T182728
-        datestamp = str(datetime.now()).replace('-', '').replace(':', '').replace(' ', 'T').split('.')[0]
-        json_file = json_file + "_" + datestamp
-    json_file = json_file + ".json"
-
-    base_path = environ.get('XML_PATH', "")
-    json_path = base_path + "json_data/"
-    if not path.exists(json_path):
-        makedirs(json_path)
-
-    db_session = create_postgres_session(False)
-
-    log.info("Getting reference_relation data from the database...")
-
-    reference_id_to_reference_relation_data = get_all_reference_relation_data(db_session)
-
-    log.info("Getting journal data from the database...")
-
-    resource_id_to_journal = get_journal_by_resource_id(db_session)
-
-    log.info("Getting citation data from the database...")
-
-    reference_id_to_citation_data = get_citation_data(db_session)
-
-    log.info("Getting license data from the database...")
-
-    reference_id_to_license_data = get_license_data(db_session)
-
-    db_session.close()
-
-    log.info("Getting data from Reference table and generating json file...")
-    try:
-        get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data,
-                                             resource_id_to_journal,
-                                             reference_id_to_citation_data,
-                                             reference_id_to_license_data,
-                                             json_path + json_file,
-                                             datestamp)
-
-    except Exception as e:
-        error_msg = "Error occurred when retrieving data from Reference data and generating json file: " + str(e)
-        log.info(error_msg)
-        if ondemand:
-            send_data_export_report("ERROR", email, mod, error_msg)
-        return
-
-    log.info("Uploading json file to s3...")
-    filename = None
-    try:
-        filename = upload_json_file_to_s3(json_path, json_file, datestamp, ondemand)
-    except Exception as e:
-        error_msg = "Error occurred when uploading json file to s3: " + str(e)
-        log.info(error_msg)
-        if ondemand:
-            send_data_export_report("ERROR", email, mod, error_msg)
-        return
-
-    if ondemand:
-        log.info("Sending email...")
-        ui_url = str(ui_root_url) + filename
-        email_message = "The file " + filename + " is ready for <a href=" + ui_url + ">download</a>"
-        send_data_export_report("SUCCESS", email, mod, email_message)
-
-    log.info("DONE!")
-
-
-"""
-def generate_json_file(metaData, data, filename_with_path):
-
-    dataDict = {"data": data,
-                "metaData": metaData}
-    fw = open(filename_with_path, 'w')
-    try:
-        jsonStr = json.dumps(dataDict, indent=4, sort_keys=True)
-        byteStr = jsonStr.encode('utf-8')
-        decodedJsonStr = byteStr.decode('unicode-escape')
-        fw.write(decodedJsonStr)
-    except Exception as e:
-        log.info("Error when generating " + filename_with_path + ": " + str(e))
-        fw.write(json.dumps(dataDict, indent=4, sort_keys=True))
-    fw.close
-"""
 
 
 def generate_json_file(metaData, data, filename_with_path):
@@ -195,46 +106,6 @@ def upload_json_file_to_s3(json_path, json_file, datestamp, ondemand):  # pragma
     return None
 
 
-def concatenate_json_files(json_file, index):
-
-    if index == 1:
-        rename(json_file + '_0', json_file)
-        return
-
-    fw = open(json_file, "w")
-
-    for i in range(index):
-        this_json_file = json_file + '_' + str(i)
-        f = open(this_json_file)
-        if i == 0:
-            # first chuck of data so keep beginning part, remove ending part
-            for line in f:
-                if line.strip().endswith("}") and len(line) == 10:
-                    fw.write("        },\n")
-                    break
-                fw.write(line)
-        elif i + 1 == index:
-            # last chunk of data so keep ending part, remove beginning part
-            for line in f:
-                if line.startswith('{') or line.startswith('    "data": ['):
-                    continue
-                fw.write(line)
-        else:
-            # mid section(s) so remove beginning part & ending part
-            for line in f:
-                if line.strip().endswith("}") and len(line) == 10:
-                    fw.write("        },\n")
-                    break
-                if line.startswith('{') or line.startswith('    "data": ['):
-                    continue
-                fw.write(line)
-        f.close()
-
-        remove(this_json_file)
-
-    fw.close()
-
-
 def get_meta_data(mod, datestamp):
 
     ## return more info here?
@@ -270,86 +141,6 @@ def get_reference_col_names():
             'issue_name',
             'date_updated',
             'date_created']
-
-
-def get_reference_data_and_generate_json(mod, reference_id_to_reference_relation_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, json_file_with_path, datestamp):
-
-    metaData = get_meta_data(mod, datestamp)
-
-    data = []
-
-    db_session = create_postgres_session(False)
-
-    rs = db_session.execute(text("SELECT mod_id FROM mod where abbreviation = '" + mod + "'"))
-    rows = rs.fetchall()
-    mod_id = rows[0][0]
-
-    i = 0
-    j = 0
-    for index in range(loop_count):
-
-        if i >= max_per_db_connection:
-            i = 0
-            db_session.close()
-            json_file = json_file_with_path + "_" + str(j)
-            log.info("generating " + json_file + ": data size=" + str(len(data)))
-            generate_json_file(metaData, data, json_file)
-            data = []
-            j += 1
-            db_session = create_postgres_session(False)
-
-        offset = index * limit
-
-        log.info("offs=" + str(offset) + ", data=" + str(len(data)))
-
-        rs = None
-        if mod in ['WB', 'XB', 'ZFIN', 'SGD', 'RGD', 'FB']:
-            refColNmList = ", ".join(get_reference_col_names())
-            rs = db_session.execute(text(f"SELECT {refColNmList} "
-                                         f"FROM reference "
-                                         f"WHERE reference_id IN "
-                                         f"(select reference_id from mod_corpus_association "
-                                         f"where mod_id = {mod_id} and corpus is True) "
-                                         f"order by reference_id "
-                                         f"limit {limit} "
-                                         f"offset {offset}"))
-        else:
-            refColNmList = "r." + ", r.".join(get_reference_col_names())
-            rs = db_session.execute(text(f"SELECT {refColNmList} "
-                                         f"FROM reference r, mod_corpus_association m "
-                                         f"WHERE r.reference_id = m.reference_id "
-                                         f"AND m.mod_id = {mod_id} and m.corpus is True "
-                                         f"order by r.reference_id "
-                                         f"limit {limit} "
-                                         f"offset {offset}"))
-
-        rows = rs.fetchall()
-        if len(rows) == 0:
-            ## finished retrieving all data from database
-            if len(data) > 0:
-                json_file = json_file_with_path + "_" + str(j)
-                log.info("generating " + json_file + ": data size=" + str(len(data)))
-                generate_json_file(metaData, data, json_file)
-            log.info("concatenating " + str(j + 1) + " small json files to a single json file: " + json_file_with_path)
-            concatenate_json_files(json_file_with_path, j + 1)
-            return
-
-        reference_id_list = []
-        for x in rows:
-            reference_id_list.append(x[0])
-
-        ref_ids = ", ".join([str(x) for x in reference_id_list])
-
-        reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(db_session, ref_ids)
-        reference_id_to_authors = get_author_data_for_ref_ids(db_session, ref_ids)
-        reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(db_session, ref_ids)
-        reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db_session, ref_ids)
-        reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db_session, ref_ids)
-
-        count_index = generate_json_data(rows, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, data)
-        i += count_index
-
-    db_session.close()
 
 
 def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors, reference_id_to_reference_relation_data, reference_id_to_mod_reference_types, reference_id_to_mesh_terms, reference_id_to_mod_corpus_data, resource_id_to_journal, reference_id_to_citation_data, reference_id_to_license_data, data):  # pragma: no cover
@@ -442,19 +233,27 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
     return i
 
 
-def dump_all_mods_references(email=None, ondemand=False, ui_root_url=None):
+def dump_data(mod=None, email=None, ondemand=False, ui_root_url=None):  # noqa: C901
     """
-    Dump one big JSON of every paper that belongs to at least one of:
+    If mod is None, dump one big JSON of every paper that belongs to at least one of:
       ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']
     Then gzip & upload to S3 (and email if ondemand).
 
     latest:   reference_all_mods.json.gz
     recent:   reference_all_mods_YYYYMMDD.json.gz
+
+    If mod is provided, dump a json of every paper that belongs to the given mod
+    latest:   reference_[mod].json.gz
+    recent:   reference_[mod]_YYYYMMDD.json.gz
     """
-    mods = ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']
+    if mod:
+        mods = [mod]
+        base_name = f"reference_{mod}"
+    else:
+        mods = ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']
+        base_name = "reference_all_mods"
 
     # ─── 1. prepare filenames & paths ──────────────────────────────────────────
-    base_name = "reference_all_mods"
     if ondemand:
         # include full timestamp for on-demand dumps
         datestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
@@ -536,16 +335,17 @@ def dump_all_mods_references(email=None, ondemand=False, ui_root_url=None):
         )
 
     # ─── 5. write out the big JSON ────────────────────────────────────────────
-    meta = get_meta_data('ALL_MODS', datestamp)
+    modLabel = mod if mod else 'ALL MODS'
+    meta = get_meta_data(modLabel, datestamp)
     generate_json_file(meta, all_data, out_path)
 
     # ─── 6. gzip & upload, using the same helper as MOD dumps ────────────────
     try:
         uploaded_name = upload_json_file_to_s3(base, json_fname, datestamp, ondemand)
     except Exception as e:
-        log.info(f"Error uploading ALL_MODS JSON to S3: {e}")
+        log.info(f"Error uploading {modLabel} JSON to S3: {e}")
         if ondemand:
-            send_data_export_report("ERROR", email, "ALL_MODS", str(e))
+            send_data_export_report("ERROR", email, modLabel, str(e))
         return
 
     # ─── 7. send on-demand email notification ────────────────────────────────
@@ -554,7 +354,7 @@ def dump_all_mods_references(email=None, ondemand=False, ui_root_url=None):
         send_data_export_report(
             "SUCCESS",
             email,
-            "ALL_MODS",
+            modLabel,
             f"The file {uploaded_name} is ready for <a href={ui_url}>download</a>"
         )
 
@@ -565,12 +365,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--mod', action='store', type=str, help='MOD to dump',
-                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB', 'ALL'], required=True)
+                        choices=['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB'])
     parser.add_argument('-e', '--email', action='store', type=str, help="Email address to send file")
     parser.add_argument('-o', '--ondemand', action='store_true', help="by curator's request")
 
     args = vars(parser.parse_args())
-    if args['mod'] == 'ALL':
-        dump_all_mods_references(args['email'], args['ondemand'], ui_root_url=None)
-    else:
-        dump_data(args['mod'], args['email'], args['ondemand'])
+    dump_data(args['mod'], args['email'], args['ondemand'])
