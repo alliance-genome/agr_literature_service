@@ -57,11 +57,19 @@ valid_id_to_name_cache = ExpiringCache(expiration_time=7200)
 def get_reference_id_from_curie_or_id(db: Session, curie_or_reference_id):
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     if reference_id is None:
-        reference = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == curie_or_reference_id).one_or_none()
-        if reference is not None:
-            reference_id = reference.reference_id
+        if curie_or_reference_id.startswith("AGRKB:"):
+            reference = db.query(ReferenceModel.reference_id).filter(
+                ReferenceModel.curie == curie_or_reference_id).one_or_none()
+            if reference is not None:
+                reference_id = reference.reference_id
         else:
+            sql_query = "SELECT reference_id FROM cross_reference WHERE curie = :mod_curie AND is_obsolete = False"
+            row = db.execute(text(sql_query), {
+                'mod_curie': curie_or_reference_id
+            }).mappings().fetchone()
+            if row:
+                reference_id = row['reference_id']
+        if reference_id is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                                 detail=f"Reference with the reference_id or curie {curie_or_reference_id} "
                                        f"is not available")
