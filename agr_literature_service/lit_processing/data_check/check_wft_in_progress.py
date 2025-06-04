@@ -210,7 +210,7 @@ def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: m
                             f"Setting {reference} to needed for {wft.workflow_tag_id}")
 
                     # So do the transition.
-                    job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_retry')
+                    job_change_atp_code(db_session, wft.reference_workflow_tag_id, 'on_retry')
             else:
                 print(f"Setting to try again for {wft}")
         else:  # need to set to failed
@@ -233,7 +233,7 @@ def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: m
                             f"Setting {reference} to needed failed for {wft.workflow_tag_id}")
 
                 if not failed:  # else it is already set to failed and we have no transition from failed to failed.
-                    job_change_atp_code(db, wft.reference_workflow_tag_id, 'on_failed')
+                    job_change_atp_code(db_session, wft.reference_workflow_tag_id, 'on_failed')
             else:
                 if not failed:
                     print(f"Setting to failed for {wft}")
