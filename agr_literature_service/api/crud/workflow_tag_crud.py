@@ -1308,6 +1308,8 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
 
 def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_abbreviation=None):
 
+    if mod_abbreviation and mod_abbreviation in ['MGI', 'RGD', 'XB']:
+        return {}
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
     if reference_id is None:
         raise HTTPException(
@@ -1316,12 +1318,25 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         )
 
     # Define which “parent” processes we care about
-    process_atp_ids = {
-        "ATP:0000273": "manual indexing",
-        "ATP:0000235": "community curation",
-        "ATP:0000210": "indexing priority"
-    }
-
+    if mod_abbreviation:
+        if mod_abbreviation == 'SGD':
+            process_atp_ids = {"ATP:0000273": "manual indexing"}
+        elif mod_abbreviation == 'ZFIN':
+            process_atp_ids = {
+                "ATP:0000273": "manual indexing",
+                "ATP:0000210": "indexing priority"
+            }
+        else:
+            process_atp_ids = {
+                "ATP:0000273": "manual indexing",
+                "ATP:0000235": "community curation"
+            }
+    else:
+        process_atp_ids = {
+            "ATP:0000273": "manual indexing",
+            "ATP:0000235": "community curation",
+            "ATP:0000210": "indexing priority"
+        }
     result: dict[str, WorkflowTagModel] = {}
 
     for process_atp_id, workflow_name in process_atp_ids.items():
