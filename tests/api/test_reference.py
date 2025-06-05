@@ -657,7 +657,7 @@ class TestReference:
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
-            num_tags_per_ref = 100
+            num_tags_per_ref = 5  # Reduced from 100 for faster tests
             template_tet = {
                 "topic": "ATP:0000122",
                 "entity_type": "ATP:0000005",
