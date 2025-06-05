@@ -1,3 +1,4 @@
+
 from datetime import date
 from sqlalchemy import text
 import json
@@ -79,8 +80,9 @@ class TestExportSingleModReferencesToJson:
         test_data = [{"test_key": "test_value", "reference_id": 123}]
         test_metadata = {"dateProduced": "20240101", "dataProvider": {"mod": "TEST"}}
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp_file:
-            tmp_path = tmp_file.name
+        # Create a proper temporary file path
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = os.path.join(tmp_dir, 'test_file.json')
 
         try:
             generate_json_file(test_metadata, test_data, tmp_path)
@@ -98,6 +100,8 @@ class TestExportSingleModReferencesToJson:
         finally:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
+            if os.path.exists(tmp_dir):
+                os.rmdir(tmp_dir)
 
     def test_generate_json_data(self, test_db, load_sanitized_references):  # noqa
 
@@ -162,13 +166,31 @@ class TestExportSingleModReferencesToJson:
         mock_db = MagicMock()
         mock_db_session.return_value = mock_db
 
+        # Create a mock row object that has both tuple behavior and attribute access
+        class MockRow:
+            def __init__(self, *args):
+                self._data = args
+                # Map tuple positions to column names based on get_reference_col_names()
+                col_names = get_reference_col_names()
+                for i, col_name in enumerate(col_names):
+                    if i < len(args):
+                        setattr(self, col_name, args[i])
+
+            def __getitem__(self, key):
+                return self._data[key]
+
+            def __len__(self):
+                return len(self._data)
+
+        mock_row = MockRow(123, 'PMID:123', 1, 'Test Title', 'en', '2024-01-01', None, None,
+                           '1', None, None, '1-10', 'Test Abstract', None, None, None,
+                           'Research', None, None, '2024-01-01', '2024-01-01')
+
         # Mock mod_id query
         mock_db.execute.return_value.fetchall.side_effect = [
             [(1,)],  # mod_ids
             [(123,)],  # reference_ids
-            [(123, 'PMID:123', 1, 'Test Title', 'en', '2024-01-01', None, None,
-              '1', None, None, '1-10', 'Test Abstract', None, None, None,
-              'Research', None, None, '2024-01-01', '2024-01-01')]  # reference data
+            [mock_row]  # reference data
         ]
 
         with patch('os.environ.get') as mock_env:
