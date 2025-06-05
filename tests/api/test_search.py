@@ -1,3 +1,4 @@
+
 import pytest
 
 from starlette.testclient import TestClient
@@ -19,8 +20,6 @@ def patch_get_map_ateam_curies_to_names():
         yield
 
 
-
-
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
     # Mock Elasticsearch operations for much faster tests
@@ -31,7 +30,7 @@ def initialize_elasticsearch():
             return_facets_only = request_body.get('return_facets_only', False)
             query = request_body.get('query', '')
             size_result_count = request_body.get('size_result_count', 10)
-            
+
             # Base hits data with realistic document structures
             all_hits = [
                 {
@@ -99,7 +98,7 @@ def initialize_elasticsearch():
                     'highlight': {}
                 }
             ]
-            
+
             # Filter hits based on query
             if query == 'cell':
                 filtered_hits = [hit for hit in all_hits if 'cell' in hit['title'].lower()]
@@ -112,10 +111,10 @@ def initialize_elasticsearch():
                 filtered_hits = [hit for hit in all_hits if hit['title'].lower().startswith('book')]
             else:
                 filtered_hits = all_hits
-            
+
             # Apply size limit
             filtered_hits = filtered_hits[:size_result_count]
-            
+
             # Standard aggregations structure
             aggregations = {
                 'pubmed_types.keyword': {
@@ -148,9 +147,9 @@ def initialize_elasticsearch():
                     ]
                 }
             }
-            
+
             response = {'return_count': len(all_hits)}
-            
+
             if return_facets_only:
                 response.update({'aggregations': aggregations})
             else:
@@ -158,9 +157,9 @@ def initialize_elasticsearch():
                     'hits': filtered_hits,
                     'aggregations': aggregations
                 })
-            
+
             return response
-        
+
         mock_search.side_effect = mock_search_function
         yield mock_search
 
