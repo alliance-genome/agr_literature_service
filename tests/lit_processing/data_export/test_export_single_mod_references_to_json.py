@@ -6,7 +6,7 @@ import tempfile
 from unittest.mock import patch, MagicMock
 
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    get_meta_data, get_reference_col_names, generate_json_data, generate_json_file, dump_data
+    get_meta_data, get_reference_col_names, generate_json_data, generate_json_file, dump_data, upload_json_file_to_s3
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
@@ -230,3 +230,231 @@ class TestExportSingleModReferencesToJson:
 
         assert isinstance(citation_data, dict)
         assert isinstance(license_data, dict)
+
+    # New comprehensive tests
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_file_to_s3')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.gzip.open')
+    @patch('builtins.open')
+    def test_upload_json_file_to_s3_ondemand(self, mock_open, mock_gzip_open, mock_upload_s3):
+
+        # Test on-demand upload
+        with patch('os.environ.get') as mock_env:
+            mock_env.return_value = 'production'
+
+            result = upload_json_file_to_s3('/tmp/', 'test.json', '20240101', True)
+
+            assert result == 'test.json.gz'
+            mock_upload_s3.assert_called_once()
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_file_to_s3')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.gzip.open')
+    @patch('builtins.open')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.date')
+    def test_upload_json_file_to_s3_monthly(self, mock_date, mock_open, mock_gzip_open, mock_upload_s3):
+
+        # Mock today as first of month
+        mock_date.today.return_value.day = 1
+
+        with patch('os.environ.get') as mock_env:
+            mock_env.return_value = 'production'
+
+            result = upload_json_file_to_s3('/tmp/', 'test.json', '20240101', False)
+
+            assert result is None
+            # Should call upload 3 times (recent, latest, monthly)
+            assert mock_upload_s3.call_count == 3
+
+    def test_upload_json_file_to_s3_test_env(self):
+
+        with patch('os.environ.get') as mock_env:
+            mock_env.return_value = 'test'
+
+            result = upload_json_file_to_s3('/tmp/', 'test.json', '20240101', False)
+
+            assert result is None
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.log')
+    def test_generate_json_file_unicode_error(self, mock_log):
+
+        # Test data with Unicode issues
+        problematic_data = [{"title": "Test\ufffd\ufffd", "reference_id": 123}]
+        test_metadata = {"dateProduced": "20240101", "dataProvider": {"mod": "TEST"}}
+
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = os.path.join(tmp_dir, 'test_unicode.json')
+
+        try:
+            with patch('json.dump') as mock_json_dump:
+                mock_json_dump.side_effect = UnicodeEncodeError('utf-8', '', 0, 1, 'invalid start byte')
+
+                generate_json_file(test_metadata, problematic_data, tmp_path)
+
+                # Should log the error
+                mock_log.info.assert_called()
+
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            if os.path.exists(tmp_dir):
+                os.rmdir(tmp_dir)
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.log')
+    def test_generate_json_file_general_error(self, mock_log):
+
+        test_data = [{"test_key": "test_value"}]
+        test_metadata = {"dateProduced": "20240101"}
+
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = os.path.join(tmp_dir, 'test_error.json')
+
+        try:
+            with patch('json.dump') as mock_json_dump:
+                mock_json_dump.side_effect = Exception("General error")
+
+                generate_json_file(test_metadata, test_data, tmp_path)
+
+                # Should log the error
+                mock_log.info.assert_called()
+
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            if os.path.exists(tmp_dir):
+                os.rmdir(tmp_dir)
+
+    def test_get_meta_data_edge_cases(self):
+
+        # Test with empty mod
+        metadata = get_meta_data('', '20240101')
+        assert metadata['dataProvider']['mod'] == ''
+
+        # Test with None datestamp
+        metadata = get_meta_data('TEST', None)
+        assert metadata['dateProduced'] is None
+
+        # Test with special characters
+        metadata = get_meta_data('MOD-TEST_123', '20240229')
+        assert metadata['dataProvider']['mod'] == 'MOD-TEST_123'
+        assert metadata['dateProduced'] == '20240229'
+
+    def test_get_reference_col_names_completeness(self):
+
+        col_names = get_reference_col_names()
+
+        # Test that all expected columns are present
+        expected_columns = [
+            'reference_id', 'curie', 'resource_id', 'title', 'language',
+            'date_published', 'date_arrived_in_pubmed', 'date_last_modified_in_pubmed',
+            'volume', 'plain_language_abstract', 'pubmed_abstract_languages',
+            'page_range', 'abstract', 'keywords', 'pubmed_types', 'publisher',
+            'category', 'pubmed_publication_status', 'issue_name',
+            'date_updated', 'date_created'
+        ]
+
+        for col in expected_columns:
+            assert col in col_names
+
+        # Test that it returns a list
+        assert isinstance(col_names, list)
+        assert len(col_names) > 0
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_json_file_to_s3')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.create_postgres_session')
+    def test_dump_data_all_mods(self, mock_db_session, mock_upload):
+
+        # Test dump_data without specifying a mod (all mods)
+        mock_db = MagicMock()
+        mock_db_session.return_value = mock_db
+
+        # Mock database queries for multiple mods
+        mock_db.execute.return_value.fetchall.side_effect = [
+            [(1,), (2,), (3,)],  # Multiple mod_ids
+            [(123,), (124,)],    # Multiple reference_ids
+            []  # Empty reference data
+        ]
+
+        with patch('os.environ.get') as mock_env:
+            mock_env.return_value = tempfile.gettempdir() + '/'
+
+            with patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_all_reference_relation_data') as mock_rels, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_journal_by_resource_id') as mock_journals, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_citation_data') as mock_cites, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses:
+
+                mock_rels.return_value = {}
+                mock_journals.return_value = {}
+                mock_cites.return_value = {}
+                mock_licenses.return_value = {}
+                mock_upload.return_value = None
+
+                result = dump_data(mod=None)  # All mods
+
+                assert result is not None
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.send_data_export_report')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_json_file_to_s3')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.create_postgres_session')
+    def test_dump_data_with_error_handling(self, mock_db_session, mock_upload, mock_send_report):
+
+        # Test error handling in dump_data
+        mock_db = MagicMock()
+        mock_db_session.return_value = mock_db
+
+        mock_db.execute.return_value.fetchall.side_effect = [
+            [(1,)],  # mod_ids
+            [(123,)],  # reference_ids
+        ]
+
+        # Mock upload to raise an exception
+        mock_upload.side_effect = Exception("S3 upload failed")
+
+        with patch('os.environ.get') as mock_env:
+            mock_env.return_value = tempfile.gettempdir() + '/'
+
+            with patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_all_reference_relation_data') as mock_rels, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_journal_by_resource_id') as mock_journals, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_citation_data') as mock_cites, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses:
+
+                mock_rels.return_value = {}
+                mock_journals.return_value = {}
+                mock_cites.return_value = {}
+                mock_licenses.return_value = {}
+
+                result = dump_data(mod='SGD', email='test@example.com', ondemand=True)
+
+                # Should return None on error
+                assert result is None
+                # Should send error report
+                mock_send_report.assert_called_with("ERROR", "test@example.com", "SGD", "S3 upload failed")
+
+    def test_generate_json_file_with_special_characters(self):
+
+        # Test with special characters that should be handled properly
+        test_data = [
+            {"title": "Test with émojis 🧬 and spëcial chars", "reference_id": 123},
+            {"abstract": "Contains\nnewlines\tand\ttabs", "reference_id": 124}
+        ]
+        test_metadata = {"dateProduced": "20240101", "dataProvider": {"mod": "TEST"}}
+
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = os.path.join(tmp_dir, 'test_special.json')
+
+        try:
+            generate_json_file(test_metadata, test_data, tmp_path)
+
+            assert os.path.exists(tmp_path)
+
+            with open(tmp_path, 'r', encoding='utf-8') as f:
+                result = json.load(f)
+
+            assert 'data' in result
+            assert len(result['data']) == 2
+            assert "émojis 🧬" in result['data'][0]['title']
+
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            if os.path.exists(tmp_dir):
+                os.rmdir(tmp_dir)
