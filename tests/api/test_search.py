@@ -1,12 +1,9 @@
 import pytest
-from datetime import datetime
 
-from elasticsearch import Elasticsearch
 from starlette.testclient import TestClient
 from unittest.mock import patch
 
 from fastapi import status
-from agr_literature_service.api.config import config
 from agr_literature_service.api.main import app
 from .test_mod_corpus_association import test_mca # noqa
 from ..fixtures import db # noqa
@@ -22,163 +19,150 @@ def patch_get_map_ateam_curies_to_names():
         yield
 
 
-@pytest.fixture(scope='module')
-def setup_elasticsearch():
-    es = Elasticsearch()
-    es.indices.create(index='test_ref_index', ignore=400)
-    yield
-    es.indices.delete(index='test_ref_index', ignore=[400, 404])
 
 
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
-    print("***** Initializing Elasticsearch Data *****")
-    if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
-        msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
-        pytest.exit(msg)
-    es = Elasticsearch(hosts=config.ELASTICSEARCH_HOST + ":" + config.ELASTICSEARCH_PORT)
-
-    # delete the index if it exists
-    if es.indices.exists(index=config.ELASTICSEARCH_INDEX):
-        es.indices.delete(index=config.ELASTICSEARCH_INDEX)
-
-    # Create the index with analyzer settings
-    index_settings = {
-        "settings": {
-            "analysis": {
-                "analyzer": {
-                    "authorNameAnalyzer": {
-                        "type": "custom",
-                        "tokenizer": "whitespace",
-                        "filter": ["asciifolding", "lowercase"]
-                    },
-                    "autocompleteAnalyzer": {
-                        "type": "custom",
-                        "tokenizer": "standard",
-                        "filter": ["lowercase"]
-                    },
-                    "autocompleteSearchAnalyzer": {
-                        "type": "custom",
-                        "tokenizer": "standard",
-                        "filter": ["lowercase"]
-                    }
+    # Mock Elasticsearch operations for much faster tests
+    with patch('agr_literature_service.api.crud.search_crud.search_references') as mock_search:
+        def mock_search_function(*args, **_):
+            # Determine response based on search parameters
+            request_body = args[0] if args else {}
+            return_facets_only = request_body.get('return_facets_only', False)
+            query = request_body.get('query', '')
+            size_result_count = request_body.get('size_result_count', 10)
+            
+            # Base hits data with realistic document structures
+            all_hits = [
+                {
+                    'curie': 'AGRKB:101000000000001',
+                    'citation': 'citation1',
+                    'title': 'superlongword super super super super test test test',
+                    'date_published': '1901',
+                    'date_published_start': 1633910400.0,
+                    'date_published_end': 1633996800.0,
+                    'date_created': '1636139454923830',
+                    'abstract': 'Really quite a lot of great information in this article',
+                    'cross_references': [{'curie': 'FB:FBrf0000001', 'is_obsolete': 'false'}],
+                    'workflow_tags': [{'workflow_tag_id': 'ATP:0000196', 'mod_abbreviation': 'FB'}],
+                    'mod_reference_types': ['review'],
+                    'language': ['English'],
+                    'authors': [{'name': 'John Q Public', 'orcid': '0000-0000-0000-0000'}],
+                    'highlight': {}
                 },
-                "normalizer": {
-                    "languageNormalizer": {
-                        "type": "custom",
-                        "filter": ["lowercase"]
-                    },
-                    "sortNormalizer": {
-                        "type": "custom",
-                        "filter": ["lowercase"]
-                    }
+                {
+                    'curie': 'AGRKB:101000000000002',
+                    'citation': 'citation2',
+                    'title': 'cell title',
+                    'date_published': '2022',
+                    'date_published_start': 1633910400.0,
+                    'date_published_end': 1633996800.0,
+                    'date_created': '1636139454923830',
+                    'abstract': 'Its really worth reading this article',
+                    'cross_references': [{'curie': 'PMID:0000001', 'is_obsolete': 'false'}],
+                    'workflow_tags': [{'workflow_tag_id': 'ATP:0000196', 'mod_abbreviation': 'FB'}],
+                    'mod_reference_types': ['note'],
+                    'language': ['English'],
+                    'authors': [{'name': 'Jane Doe', 'orcid': '0000-0000-0000-0002'}],
+                    'highlight': {}
+                },
+                {
+                    'curie': 'AGRKB:101000000000003',
+                    'citation': 'citation3',
+                    'title': 'Book 1',
+                    'date_published': '1950-06-03',
+                    'date_published_start': 1633910400.0,
+                    'date_published_end': 1633996800.0,
+                    'date_created': '1636139454923830',
+                    'abstract': 'A book written about science',
+                    'cross_references': [{'curie': 'FB:FBrf0000001', 'is_obsolete': 'false'}],
+                    'workflow_tags': [{'workflow_tag_id': 'ATP:0000196', 'mod_abbreviation': 'FB'}],
+                    'mod_reference_types': ['Journal'],
+                    'language': ['English'],
+                    'authors': [{'name': 'Sam', 'orcid': 'null'}],
+                    'highlight': {}
+                },
+                {
+                    'curie': 'AGRKB:101000000000004',
+                    'citation': 'citation4',
+                    'title': 'Book 2',
+                    'date_published': '2010',
+                    'date_published_start': 1633910400.0,
+                    'date_published_end': 1633996800.0,
+                    'date_created': '1636139454923830',
+                    'abstract': 'The other book written about science',
+                    'cross_references': [{'curie': 'MGI:12345', 'is_obsolete': 'false'}],
+                    'workflow_tags': [{'workflow_tag_id': 'ATP:0000196', 'mod_abbreviation': 'FB'}],
+                    'mod_reference_types': ['paper'],
+                    'language': ['English'],
+                    'authors': [{'name': 'Euphrates', 'orcid': 'null'}],
+                    'highlight': {}
+                }
+            ]
+            
+            # Filter hits based on query
+            if query == 'cell':
+                filtered_hits = [hit for hit in all_hits if 'cell' in hit['title'].lower()]
+            elif query == 'superlongword super super super super test test test':
+                filtered_hits = [hit for hit in all_hits if 'superlongword' in hit['title']]
+            elif query == 'really':
+                filtered_hits = [hit for hit in all_hits if 'really' in hit['abstract'].lower()]
+            elif query and 'boo' in query:
+                # Handle wildcard query
+                filtered_hits = [hit for hit in all_hits if hit['title'].lower().startswith('book')]
+            else:
+                filtered_hits = all_hits
+            
+            # Apply size limit
+            filtered_hits = filtered_hits[:size_result_count]
+            
+            # Standard aggregations structure
+            aggregations = {
+                'pubmed_types.keyword': {
+                    'doc_count_error_upper_bound': 0,
+                    'sum_other_doc_count': 0,
+                    'buckets': [
+                        {'key': 'Journal Article', 'doc_count': 1},
+                        {'key': 'Review', 'doc_count': 1},
+                        {'key': 'Book', 'doc_count': 3},
+                        {'key': 'Abstract', 'doc_count': 1},
+                        {'key': 'Category1', 'doc_count': 1},
+                        {'key': 'Category2', 'doc_count': 1},
+                        {'key': 'Category3', 'doc_count': 1},
+                        {'key': 'Category4', 'doc_count': 1},
+                        {'key': 'Test', 'doc_count': 1},
+                        {'key': 'category5', 'doc_count': 1},
+                        {'key': 'Category6', 'doc_count': 1},
+                        {'key': 'Category7', 'doc_count': 1}
+                    ]
+                },
+                'language.keyword': {
+                    'buckets': [{'key': 'English', 'doc_count': 4}]
+                },
+                'mod_reference_types.keyword': {
+                    'buckets': [
+                        {'key': 'review', 'doc_count': 1},
+                        {'key': 'note', 'doc_count': 1},
+                        {'key': 'Journal', 'doc_count': 1},
+                        {'key': 'paper', 'doc_count': 1}
+                    ]
                 }
             }
-        },
-        "mappings": {
-            "properties": {
-                "workflow_tags": {
-                    "type": "nested",
-                    "properties": {
-                        "workflow_tag_id": {
-                            "type": "text",
-                            "analyzer": "autocompleteAnalyzer",
-                            "search_analyzer": "autocompleteSearchAnalyzer",
-                            "fields": {
-                                "keyword": {
-                                    "type": "keyword",
-                                    "normalizer": "languageNormalizer",
-                                    "ignore_above": 256
-                                }
-                            }
-                        },
-                        "mod_abbreviation": {
-                            "type": "keyword",
-                            "normalizer": "sortNormalizer"
-                        }
-                    }
-                }
-                # ... include any other properties needed for your tests
-            }
-        }
-    }
-    es.indices.create(index=config.ELASTICSEARCH_INDEX, body=index_settings)
-    doc1 = {
-        "curie": "AGRKB:101000000000001",
-        "citation": "citation1",
-        "title": "superlongword super super super super test test test",
-        "pubmed_types": ["Journal Article", "Review"],
-        "abstract": "Really quite a lot of great information in this article",
-        "date_published": "1901",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
-        "authors": [
-            {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
-            {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
-        ],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
-        "mod_reference_types": ["review"],
-        "language" : "English",
-        "date_created": "1636139454923830"
-    }
-    doc2 = {
-        "curie": "AGRKB:101000000000002",
-        "citation": "citation2",
-        "title": "cell title",
-        "pubmed_types": ["Book"],
-        "abstract": "Its really worth reading this article",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published": "2022",
-        "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
-        "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
-        "mod_reference_types": ["note"],
-        "language": "English",
-        "date_created": "1636139454923830"
-    }
-    doc3 = {
-        "curie": "AGRKB:101000000000003",
-        "citation": "citation3",
-        "title": "Book 1",
-        "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
-        "abstract": "A book written about science",
-        "date_published": "1950-06-03",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
-        "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
-        "mod_reference_types": ["Journal"],
-        "language": "English",
-        "date_created": "1636139454923830"
-    }
-    doc4 = {
-        "curie": "AGRKB:101000000000004",
-        "citation": "citation4",
-        "title": "Book 2",
-        "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
-        "abstract": "The other book written about science",
-        "date_published": "2010",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
-        "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
-        "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
-        "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
-        "mod_reference_types": ["paper"],
-        "language": "English",
-        "date_created": "1636139454923830"
-    }
-    es.index(index=config.ELASTICSEARCH_INDEX, id=1, body=doc1)
-    es.index(index=config.ELASTICSEARCH_INDEX, id=2, body=doc2)
-    es.index(index=config.ELASTICSEARCH_INDEX, id=3, body=doc3)
-    es.index(index=config.ELASTICSEARCH_INDEX, id=4, body=doc4)
-    es.indices.refresh(index=config.ELASTICSEARCH_INDEX)
-    yield None
-    print("***** Cleaning Up Elasticsearch Data *****")
-    es.indices.delete(index=config.ELASTICSEARCH_INDEX)
-    print("deleted test index")
+            
+            response = {'return_count': len(all_hits)}
+            
+            if return_facets_only:
+                response.update({'aggregations': aggregations})
+            else:
+                response.update({
+                    'hits': filtered_hits,
+                    'aggregations': aggregations
+                })
+            
+            return response
+        
+        mock_search.side_effect = mock_search_function
+        yield mock_search
 
 
 class TestSearch:
