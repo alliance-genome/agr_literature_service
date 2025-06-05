@@ -233,10 +233,11 @@ class TestExportSingleModReferencesToJson:
 
     # New comprehensive tests
 
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.remove')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_file_to_s3')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.gzip.open')
     @patch('builtins.open')
-    def test_upload_json_file_to_s3_ondemand(self, mock_open, mock_gzip_open, mock_upload_s3):
+    def test_upload_json_file_to_s3_ondemand(self, mock_open, mock_gzip_open, mock_upload_s3, mock_remove):
 
         # Test on-demand upload
         with patch('os.environ.get') as mock_env:
@@ -247,11 +248,12 @@ class TestExportSingleModReferencesToJson:
             assert result == 'test.json.gz'
             mock_upload_s3.assert_called_once()
 
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.remove')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_file_to_s3')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.gzip.open')
     @patch('builtins.open')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.date')
-    def test_upload_json_file_to_s3_monthly(self, mock_date, mock_open, mock_gzip_open, mock_upload_s3):
+    def test_upload_json_file_to_s3_monthly(self, mock_date, mock_open, mock_gzip_open, mock_upload_s3, mock_remove):
 
         # Mock today as first of month
         mock_date.today.return_value.day = 1
@@ -359,9 +361,10 @@ class TestExportSingleModReferencesToJson:
         assert isinstance(col_names, list)
         assert len(col_names) > 0
 
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.generate_json_file')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_json_file_to_s3')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.create_postgres_session')
-    def test_dump_data_all_mods(self, mock_db_session, mock_upload):
+    def test_dump_data_all_mods(self, mock_db_session, mock_upload, mock_generate_json):
 
         # Test dump_data without specifying a mod (all mods)
         mock_db = MagicMock()
@@ -380,22 +383,34 @@ class TestExportSingleModReferencesToJson:
             with patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_all_reference_relation_data') as mock_rels, \
                  patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_journal_by_resource_id') as mock_journals, \
                  patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_citation_data') as mock_cites, \
-                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses:
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_cross_reference_data_for_ref_ids') as mock_xrefs, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_author_data_for_ref_ids') as mock_authors, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mesh_term_data_for_ref_ids') as mock_mesh, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mod_reference_type_data_for_ref_ids') as mock_mod_types, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mod_corpus_association_data_for_ref_ids') as mock_mod_corpus:
 
                 mock_rels.return_value = {}
                 mock_journals.return_value = {}
                 mock_cites.return_value = {}
                 mock_licenses.return_value = {}
+                mock_xrefs.return_value = {}
+                mock_authors.return_value = {}
+                mock_mesh.return_value = {}
+                mock_mod_types.return_value = {}
+                mock_mod_corpus.return_value = {}
                 mock_upload.return_value = None
+                mock_generate_json.return_value = None
 
                 result = dump_data(mod=None)  # All mods
 
                 assert result is not None
 
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.generate_json_file')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.send_data_export_report')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_json_file_to_s3')
     @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.create_postgres_session')
-    def test_dump_data_with_error_handling(self, mock_db_session, mock_upload, mock_send_report):
+    def test_dump_data_with_error_handling(self, mock_db_session, mock_upload, mock_send_report, mock_generate_json):
 
         # Test error handling in dump_data
         mock_db = MagicMock()
@@ -415,12 +430,23 @@ class TestExportSingleModReferencesToJson:
             with patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_all_reference_relation_data') as mock_rels, \
                  patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_journal_by_resource_id') as mock_journals, \
                  patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_citation_data') as mock_cites, \
-                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses:
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_cross_reference_data_for_ref_ids') as mock_xrefs, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_author_data_for_ref_ids') as mock_authors, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mesh_term_data_for_ref_ids') as mock_mesh, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mod_reference_type_data_for_ref_ids') as mock_mod_types, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mod_corpus_association_data_for_ref_ids') as mock_mod_corpus:
 
                 mock_rels.return_value = {}
                 mock_journals.return_value = {}
                 mock_cites.return_value = {}
                 mock_licenses.return_value = {}
+                mock_xrefs.return_value = {}
+                mock_authors.return_value = {}
+                mock_mesh.return_value = {}
+                mock_mod_types.return_value = {}
+                mock_mod_corpus.return_value = {}
+                mock_generate_json.return_value = None
 
                 result = dump_data(mod='SGD', email='test@example.com', ondemand=True)
 
