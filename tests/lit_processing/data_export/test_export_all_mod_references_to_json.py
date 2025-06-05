@@ -21,18 +21,22 @@ class TestExportAllModReferencesToJson:
         # Basic parameter check (should have no required parameters)
         assert len(sig.parameters) == 0
 
+    @patch('agr_literature_service.lit_processing.data_export.export_all_mod_references_to_json.cleanup_temp_directory')
     @patch('agr_literature_service.lit_processing.data_export.export_all_mod_references_to_json.dump_data')
+    @patch('agr_literature_service.lit_processing.data_export.export_all_mod_references_to_json.get_mod_abbreviations')
     @patch('os.environ.get')
-    def test_dump_all_data_mocked(self, mock_env, mock_dump_data):
+    def test_dump_all_data_mocked(self, mock_env, mock_get_mods, mock_dump_data, mock_cleanup):
         # Test that dump_all_data calls dump_data for each MOD
         mock_env.return_value = tempfile.gettempdir() + '/'
+        mock_get_mods.return_value = ['SGD', 'WB', 'FB']
         mock_dump_data.return_value = '/tmp/test_file.json'
+        mock_cleanup.return_value = None
 
         # Call the function
         dump_all_data()
 
         # Verify it was called for each MOD
-        expected_mods = ['SGD', 'WB', 'FB', 'ZFIN', 'MGI', 'RGD', 'XB']
+        expected_mods = ['SGD', 'WB', 'FB']
         assert mock_dump_data.call_count == len(expected_mods)
 
         # Verify each MOD was called
