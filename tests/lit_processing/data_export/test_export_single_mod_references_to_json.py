@@ -1,12 +1,16 @@
 from datetime import date
 from sqlalchemy import text
+import json
+import os
+import tempfile
+from unittest.mock import patch, MagicMock
 
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
-    get_meta_data, get_reference_col_names
+    get_meta_data, get_reference_col_names, generate_json_data, generate_json_file, dump_data
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_cross_reference_data_for_ref_ids, get_author_data_for_ref_ids, \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
-    get_mod_reference_type_data_for_ref_ids
+    get_mod_reference_type_data_for_ref_ids, get_citation_data, get_license_data
 
 from ...fixtures import cleanup_tmp_files_when_done, load_sanitized_references, db, populate_test_mod_reference_types # noqa
 
@@ -69,3 +73,139 @@ class TestExportSingleModReferencesToJson:
         ref_col_names = get_reference_col_names()
         assert 'title' in ref_col_names
         assert 'curie' in ref_col_names
+
+    def test_generate_json_file(self, cleanup_tmp_files_when_done):
+        
+        test_data = [{"test_key": "test_value", "reference_id": 123}]
+        test_metadata = {"dateProduced": "20240101", "dataProvider": {"mod": "TEST"}}
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as tmp_file:
+            tmp_path = tmp_file.name
+        
+        try:
+            generate_json_file(test_metadata, test_data, tmp_path)
+            
+            assert os.path.exists(tmp_path)
+            
+            with open(tmp_path, 'r') as f:
+                result = json.load(f)
+            
+            assert 'data' in result
+            assert 'metaData' in result
+            assert result['data'] == test_data
+            assert result['metaData'] == test_metadata
+            
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
+    def test_generate_json_data(self, db, load_sanitized_references):
+        
+        reference_id_list = []
+        rs = db.execute(text("SELECT reference_id FROM cross_reference where curie = 'PMID:33622238' LIMIT 1"))
+        row = rs.fetchone()
+        if not row:
+            return  # Skip test if no data found
+            
+        reference_id_list.append(row[0])
+        ref_id = row[0]
+        ref_ids = str(ref_id)
+        
+        reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(db, ref_ids)
+        reference_id_to_authors = get_author_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
+        
+        # Mock data for other required parameters
+        reference_id_to_reference_relation_data = {}
+        resource_id_to_journal = {}
+        reference_id_to_citation_data = {}
+        reference_id_to_license_data = {}
+        
+        # Get reference data
+        ref_cols = get_reference_col_names()
+        cols = ", ".join(ref_cols)
+        ref_data = db.execute(text(f"SELECT {cols} FROM reference WHERE reference_id = :ref_id"), 
+                             {'ref_id': ref_id}).fetchall()
+        
+        data = []
+        count = generate_json_data(
+            ref_data,
+            reference_id_to_xrefs,
+            reference_id_to_authors,
+            reference_id_to_reference_relation_data,
+            reference_id_to_mod_reference_types,
+            reference_id_to_mesh_terms,
+            reference_id_to_mod_corpus_data,
+            resource_id_to_journal,
+            reference_id_to_citation_data,
+            reference_id_to_license_data,
+            data
+        )
+        
+        assert count == 1
+        assert len(data) == 1
+        assert 'reference_id' in data[0]
+        assert 'curie' in data[0]
+        assert 'authors' in data[0]
+        assert 'cross_references' in data[0]
+        assert 'mod_reference_types' in data[0]
+        assert 'mesh_terms' in data[0]
+        assert 'mod_corpus_associations' in data[0]
+
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.upload_json_file_to_s3')
+    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.create_postgres_session')
+    def test_dump_data_single_mod(self, mock_db_session, mock_upload, db, load_sanitized_references):
+        
+        # Mock database session and queries
+        mock_db = MagicMock()
+        mock_db_session.return_value = mock_db
+        
+        # Mock mod_id query
+        mock_db.execute.return_value.fetchall.side_effect = [
+            [(1,)],  # mod_ids
+            [(123,)],  # reference_ids
+            [(123, 'PMID:123', 1, 'Test Title', 'en', '2024-01-01', None, None, 
+              '1', None, None, '1-10', 'Test Abstract', None, None, None, 
+              'Research', None, None, '2024-01-01', '2024-01-01')]  # reference data
+        ]
+        
+        with patch('os.environ.get') as mock_env:
+            mock_env.return_value = tempfile.gettempdir() + '/'
+            
+            with patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_all_reference_relation_data') as mock_rels, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_journal_by_resource_id') as mock_journals, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_citation_data') as mock_cites, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_license_data') as mock_licenses, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_cross_reference_data_for_ref_ids') as mock_xrefs, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_author_data_for_ref_ids') as mock_authors, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mesh_term_data_for_ref_ids') as mock_mesh, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mod_reference_type_data_for_ref_ids') as mock_mod_types, \
+                 patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.get_mod_corpus_association_data_for_ref_ids') as mock_mod_corpus:
+                
+                # Mock return values
+                mock_rels.return_value = {}
+                mock_journals.return_value = {}
+                mock_cites.return_value = {}
+                mock_licenses.return_value = {}
+                mock_xrefs.return_value = {123: []}
+                mock_authors.return_value = {123: []}
+                mock_mesh.return_value = {123: []}
+                mock_mod_types.return_value = {123: []}
+                mock_mod_corpus.return_value = {123: []}
+                mock_upload.return_value = None
+                
+                result = dump_data(mod='SGD')
+                
+                assert result is not None
+                mock_upload.assert_called_once()
+
+    def test_citation_and_license_data_integration(self, db, load_sanitized_references):
+        
+        # Test that citation and license data functions are accessible
+        citation_data = get_citation_data(db)
+        license_data = get_license_data(db)
+        
+        assert isinstance(citation_data, dict)
+        assert isinstance(license_data, dict)
