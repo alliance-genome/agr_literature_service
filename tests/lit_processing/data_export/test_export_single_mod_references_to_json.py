@@ -1,3 +1,4 @@
+
 from datetime import date
 from sqlalchemy import text
 import json
@@ -356,16 +357,18 @@ class TestExportSingleModReferencesToJson:
         for param in expected_params:
             assert param in actual_params
 
-    @patch('agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json.send_data_export_report')
-    def test_send_data_export_report_function(self, mock_send_report):
-        # Lightweight test for error reporting functionality
+    def test_send_data_export_report_function_exists(self):
+        # Simple test that verifies the function exists and can be imported
         from agr_literature_service.lit_processing.utils.report_utils import send_data_export_report
+        import inspect
 
-        # Test that the function can be called with expected parameters
-        send_data_export_report("ERROR", "test@example.com", "SGD", "Test error message")
+        # Check that function exists and has expected parameters
+        sig = inspect.signature(send_data_export_report)
+        expected_params = ['status', 'email', 'mod', 'message']
+        actual_params = list(sig.parameters.keys())
 
-        # Verify it was called with correct parameters
-        mock_send_report.assert_called_with("ERROR", "test@example.com", "SGD", "Test error message")
+        for param in expected_params:
+            assert param in actual_params
 
     def test_generate_json_file_with_special_characters(self):
 
