@@ -13,14 +13,14 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from agr_literature_service.api.database import get_db  # noqa: E402
-from agr_literature_service.api.models.author_model import Author  # noqa: E402
-from agr_literature_service.api.models.citation_model import Citation  # noqa: E402
-from agr_literature_service.api.models.copyright_license_model import CopyrightLicense  # noqa: E402
-from agr_literature_service.api.models.cross_reference_model import CrossReference  # noqa: E402
-from agr_literature_service.api.models.mesh_detail_model import MeshDetail  # noqa: E402
-from agr_literature_service.api.models.reference_model import Reference  # noqa: E402
-from agr_literature_service.api.models.reference_relation_model import ReferenceRelation  # noqa: E402
-from agr_literature_service.api.models.resource_model import Resource  # noqa: E402
+from agr_literature_service.api.models.author_model import AuthorModel  # noqa: E402
+from agr_literature_service.api.models.citation_model import CitationModel  # noqa: E402
+from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel  # noqa: E402
+from agr_literature_service.api.models.cross_reference_model import CrossReferenceModel  # noqa: E402
+from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel  # noqa: E402
+from agr_literature_service.api.models.reference_model import ReferenceModel  # noqa: E402
+from agr_literature_service.api.models.reference_relation_model import ReferenceRelationModel  # noqa: E402
+from agr_literature_service.api.models.resource_model import ResourceModel  # noqa: E402
 
 
 def create_test_subset():
@@ -34,7 +34,7 @@ def create_test_subset():
         print("🔧 Creating test subset with all required tables...")
 
         # Create test resource
-        resource = Resource(
+        resource = ResourceModel(
             title="Test Genomics Journal",
             iso_abbreviation="Test Genom J",
             medline_abbreviation="Test Genom J",
@@ -47,7 +47,7 @@ def create_test_subset():
         # Create test citations
         citations = []
         for i in range(3):
-            citation = Citation(
+            citation = CitationModel(
                 citation=f"Test Citation {i+1}. Test Journal. 2024;{i+1}:123-456.",
                 short_citation="Test et al. 2024"
             )
@@ -58,7 +58,7 @@ def create_test_subset():
         # Create test references
         references = []
         for i, citation in enumerate(citations):
-            reference = Reference(
+            reference = ReferenceModel(
                 curie=f"AGRKB:101000{i+1}",
                 title=f"Test Reference {i+1}: Genomics Study",
                 abstract=f"This is a test abstract for reference {i+1}. "
@@ -83,7 +83,7 @@ def create_test_subset():
 
         # Create test authors
         for i, ref in enumerate(references):
-            author = Author(
+            author = AuthorModel(
                 reference_id=ref.reference_id,
                 name=f"Test Author {i+1}",
                 orcid=f"0000-0000-0000-000{i+1}"
@@ -93,7 +93,7 @@ def create_test_subset():
         # Create test cross-references
         for i, ref in enumerate(references):
             # Regular cross-reference
-            xref = CrossReference(
+            xref = CrossReferenceModel(
                 reference_id=ref.reference_id,
                 curie=f"PMID:1234567{i+1}",
                 is_obsolete=False
@@ -101,7 +101,7 @@ def create_test_subset():
             db.add(xref)
 
             # Obsolete cross-reference
-            xref_obsolete = CrossReference(
+            xref_obsolete = CrossReferenceModel(
                 reference_id=ref.reference_id,
                 curie=f"DOI:10.1000/test{i+1}_obsolete",
                 is_obsolete=True
@@ -110,14 +110,14 @@ def create_test_subset():
 
         # Create test reference relations
         if len(references) >= 2:
-            relation = ReferenceRelation(
+            relation = ReferenceRelationModel(
                 reference_id_from=references[0].reference_id,
                 reference_id_to=references[1].reference_id,
                 reference_relation_type="Reviews"
             )
             db.add(relation)
 
-            relation2 = ReferenceRelation(
+            relation2 = ReferenceRelationModel(
                 reference_id_from=references[1].reference_id,
                 reference_id_to=references[2].reference_id,
                 reference_relation_type="Cites"
@@ -126,7 +126,7 @@ def create_test_subset():
 
         # Create test copyright licenses
         for i, ref in enumerate(references):
-            copyright_license = CopyrightLicense(
+            copyright_license = CopyrightLicenseModel(
                 reference_id=ref.reference_id,
                 copyright_license_text=f"Creative Commons Attribution {i+1}.0 License",
                 copyright_license_url=f"https://creativecommons.org/licenses/by/{i+1}.0/",
@@ -146,7 +146,7 @@ def create_test_subset():
         for _i, ref in enumerate(references):
             # 2 mesh terms per reference
             for _j, (heading, qualifier) in enumerate(mesh_terms[:2]):
-                mesh = MeshDetail(
+                mesh = MeshDetailModel(
                     reference_id=ref.reference_id,
                     mesh_heading_term=heading,
                     mesh_qualifier_term=qualifier
