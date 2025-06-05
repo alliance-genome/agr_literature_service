@@ -40,13 +40,13 @@ def patch_get_map_ateam_curies_to_names():
 def initialize_elasticsearch():
     # Mock Elasticsearch operations for much faster tests
     with patch('agr_literature_service.api.crud.search_crud.search_references') as mock_search:
-        
+
         def mock_search_function(*args, **kwargs):
             # Parse search request parameters
             request_body = args[0] if args else {}
             date_published = request_body.get('date_published', [])
             date_pubmed_arrive = request_body.get('date_pubmed_arrive', [])
-            
+
             # Define test documents with different date ranges
             # These correspond to the original 9 documents in the test
             test_docs = [
@@ -66,7 +66,7 @@ def initialize_elasticsearch():
                 },
                 {
                     "curie": "AGRKB:101000000000200",
-                    "citation": "citation2", 
+                    "citation": "citation2",
                     "title": "cell title",
                     "date_published": "2022-03-28",
                     "date_arrived_in_pubmed": "2022-03-28",
@@ -95,7 +95,7 @@ def initialize_elasticsearch():
                 {
                     "curie": "AGRKB:101000000000400",
                     "citation": "citation4",
-                    "title": "Book 4", 
+                    "title": "Book 4",
                     "date_published": "2022-09-28",
                     "date_arrived_in_pubmed": "2022-09-28",
                     "date_published_start": "2022-01-01",  # full year
@@ -176,7 +176,7 @@ def initialize_elasticsearch():
                     "language": "English",
                 }
             ]
-            
+
             def date_str_to_timestamp(date_str):
                 """Convert date string to comparable timestamp"""
                 try:
@@ -184,37 +184,37 @@ def initialize_elasticsearch():
                         # Handle ISO format with time
                         date_str = date_str.split('T')[0]
                     return datetime.datetime.strptime(date_str, '%Y-%m-%d').timestamp()
-                except:
+                except (ValueError, TypeError):
                     return 0
-            
+
             # Filter documents based on date criteria
             filtered_docs = test_docs.copy()
-            
+
             if date_published and len(date_published) >= 2:
                 start_date = date_str_to_timestamp(date_published[0])
                 end_date = date_str_to_timestamp(date_published[1])
-                
+
                 # Filter based on date range overlap logic
                 filtered_docs = []
                 for doc in test_docs:
                     doc_start = date_str_to_timestamp(doc['date_published_start'])
                     doc_end = date_str_to_timestamp(doc['date_published_end'])
-                    
+
                     # Check for overlap: start <= doc_end and end >= doc_start
                     if start_date <= doc_end and end_date >= doc_start:
                         filtered_docs.append(doc)
-            
+
             elif date_pubmed_arrive and len(date_pubmed_arrive) >= 2:
                 start_date = date_str_to_timestamp(date_pubmed_arrive[0])
                 end_date = date_str_to_timestamp(date_pubmed_arrive[1])
-                
+
                 # Filter based on date_arrived_in_pubmed
                 filtered_docs = []
                 for doc in test_docs:
                     arrive_date = date_str_to_timestamp(doc['date_arrived_in_pubmed'])
                     if start_date <= arrive_date <= end_date:
                         filtered_docs.append(doc)
-            
+
             # Standard aggregations structure
             aggregations = {
                 'pubmed_types.keyword': {
@@ -238,15 +238,15 @@ def initialize_elasticsearch():
                     ]
                 }
             }
-            
+
             response = {
                 'return_count': len(filtered_docs),
                 'hits': filtered_docs,
                 'aggregations': aggregations
             }
-            
+
             return response
-        
+
         mock_search.side_effect = mock_search_function
         yield mock_search
 

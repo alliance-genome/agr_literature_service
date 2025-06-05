@@ -3,7 +3,7 @@
 # Optimized version with mocked database and HTTP operations for faster testing.
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from fastapi import status
 
 
@@ -78,62 +78,62 @@ def mock_test_reference():
 
 
 class TestWorkflowTagAutomation:
-    
+
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships", mock_load_name_to_atp_and_relationships)
     @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
     @patch("agr_literature_service.lit_processing.tests.mod_populate_load.populate_test_mods")
     @patch("starlette.testclient.TestClient")
     def test_transition_actions(self, mock_client_class, mock_populate_mods, mock_db, mock_auth_headers, mock_test_mod, mock_test_reference):
         """Test workflow transition actions with mocked dependencies"""
-        
+
         # Setup mock client and responses
         mock_client = Mock()
         mock_client_class.return_value.__enter__.return_value = mock_client
-        
+
         # Mock database query responses
         mock_db.query.return_value.filter.return_value.one.return_value = mock_test_mod
         mock_db.query.return_value.filter.return_value.one.side_effect = [mock_test_mod, mock_test_reference]
-        
+
         # Mock successful HTTP responses
         mock_response = Mock()
         mock_response.status_code = status.HTTP_200_OK
         mock_response.json.return_value = {"id": 1}
         mock_client.get.return_value = mock_response
         mock_client.post.return_value = mock_response
-        
+
         # Mock workflow tag model instances
         mock_wft_instances = {}
         for atp in ["ATP:0000166", "ATP:task1_needed", "ATP:task2_needed", "ATP:NEW"]:
             mock_wft = Mock()
             mock_wft.reference_workflow_tag_id = f"mock_id_{atp}"
             mock_wft_instances[atp] = mock_wft
-        
+
         # Mock database queries for workflow tags
         def mock_db_query_side_effect(*args, **kwargs):
             query_mock = Mock()
             filter_mock = Mock()
-            
+
             # Return different mock objects based on the filter criteria
             filter_mock.one.return_value = list(mock_wft_instances.values())[0]
             filter_mock.one_or_none.side_effect = [mock_wft_instances["ATP:0000166"], None, mock_wft_instances["ATP:task1_needed"]]
             query_mock.filter.return_value = filter_mock
             return query_mock
-        
+
         mock_db.query.side_effect = mock_db_query_side_effect
-        
+
         # Execute test method logic
         workflow_children, workflow_parent, atp_to_name, name_to_atp = mock_load_name_to_atp_and_relationships()
-        
+
         # Verify workflow hierarchy is set up correctly
         assert "ATP:0000166" in workflow_children
         assert workflow_children["ATP:0000166"] == ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed']
-        
+
         # Verify jobs are returned correctly
         jobs = mock_get_jobs_to_run('reference classification', 'TEST')
         assert 'ATP:0000166' in jobs
         assert 'ATP:task1_needed' in jobs
         assert 'ATP:task2_needed' in jobs
-        
+
         # Verify mock objects are properly configured
         assert mock_test_mod.abbreviation == "TEST"
         assert mock_test_reference.curie == "AGRKB:101000000000001"
@@ -144,43 +144,43 @@ class TestWorkflowTagAutomation:
     @patch("starlette.testclient.TestClient")
     def test_transition_work_failed(self, mock_client_class, mock_populate_mods, mock_db, mock_auth_headers, mock_test_mod, mock_test_reference):
         """Test workflow failure scenarios with mocked dependencies"""
-        
+
         # Setup mock client
         mock_client = Mock()
         mock_client_class.return_value.__enter__.return_value = mock_client
-        
+
         # Mock successful HTTP responses for workflow failure testing
         mock_response = Mock()
         mock_response.status_code = status.HTTP_200_OK
         mock_response.json.return_value = {"id": "mock_wft_id"}
         mock_client.post.return_value = mock_response
-        
+
         # Mock workflow tag creation responses
         mock_db.query.return_value.filter.return_value.one.side_effect = [mock_test_mod, mock_test_reference]
-        
+
         # Test workflow failure transitions
         failure_atps = ["ATP:0000178", "ATP:task1_in_progress", "ATP:task2_in_progress"]
-        
+
         # Mock workflow tag model instances for failure scenario
         mock_wft_instances = {}
         for atp in failure_atps:
             mock_wft = Mock()
             mock_wft.reference_workflow_tag_id = f"mock_id_{atp}"
             mock_wft_instances[atp] = mock_wft
-        
+
         # Verify failure handling logic
         workflow_children = mock_load_name_to_atp_and_relationships()[0]
         assert "ATP:0000189" in workflow_children
-        
+
         # Test retry functionality
         retry_response = Mock()
         retry_response.status_code = status.HTTP_200_OK
         mock_client.post.return_value = retry_response
-        
+
         # Verify retry transitions would set correct states
         expected_retry_state = "ATP:task2_needed"
         expected_main_retry_state = "ATP:0000178"
-        
+
         # Simulate the retry workflow
         assert expected_retry_state in mock_load_name_to_atp_and_relationships()[2]  # atp_to_name
         assert expected_main_retry_state in mock_load_name_to_atp_and_relationships()[2]  # atp_to_name
@@ -190,41 +190,41 @@ class TestWorkflowTagAutomation:
     @patch("starlette.testclient.TestClient")
     def test_bad_transitions(self, mock_client_class, mock_populate_mods, mock_db, mock_auth_headers, mock_test_mod, mock_test_reference):
         """Test invalid workflow transitions with mocked dependencies"""
-        
+
         # Setup mock client
         mock_client = Mock()
         mock_client_class.return_value.__enter__.return_value = mock_client
-        
+
         mock_db.query.return_value.filter.return_value.one.return_value = mock_test_mod
-        
+
         # Test bad workflow ATP
         mock_response_bad_atp = Mock()
         mock_response_bad_atp.status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
         mock_response_bad_atp.json.return_value = {"detail": "process_atp_id ATP:MadeUp has NO process."}
-        
+
         # Test bad mod abbreviation
         mock_response_bad_mod = Mock()
         mock_response_bad_mod.status_code = status.HTTP_404_NOT_FOUND
         mock_response_bad_mod.json.return_value = {"detail": "Mod abbreviation BadMod does not exist"}
-        
+
         # Test bad curie
         mock_response_bad_curie = Mock()
         mock_response_bad_curie.status_code = status.HTTP_404_NOT_FOUND
         mock_response_bad_curie.json.return_value = {"detail": "Reference not found"}
-        
+
         # Test bad transition
         mock_response_bad_transition = Mock()
         mock_response_bad_transition.status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
         mock_response_bad_transition.json.return_value = {"detail": "Transition to ATP:fileuploadcomplete not allowed as not initial state."}
-        
+
         # Configure mock client to return appropriate error responses
         mock_client.post.side_effect = [
             mock_response_bad_atp,
-            mock_response_bad_mod, 
+            mock_response_bad_mod,
             mock_response_bad_curie,
             mock_response_bad_transition
         ]
-        
+
         # Verify error handling scenarios
         error_scenarios = [
             ("ATP:MadeUp", "TEST", "AGRKB:101000000000001"),
@@ -232,7 +232,7 @@ class TestWorkflowTagAutomation:
             ("ATP:0000166", "TEST", "MadeUpCurie"),
             ("ATP:fileuploadcomplete", "TEST", "AGRKB:101000000000001")
         ]
-        
+
         # Test that all error scenarios would be handled correctly
         for atp_id, mod_abbrev, curie in error_scenarios:
             transition_req = {
