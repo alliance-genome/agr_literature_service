@@ -1,0 +1,24 @@
+{
+  "name": "postgres-source-public-tables",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "slot.name": "debezium_public_tables",
+    "publication.name": "debezium_public_tables",
+    "database.hostname": "${PSQL_HOST}",
+    "database.port": "${PSQL_PORT}",
+    "database.user": "${PSQL_USERNAME}",
+    "database.password": "${PSQL_PASSWORD}",
+    "database.dbname" : "${PSQL_DATABASE}",
+    "database.server.name": "abc",
+    "table.include.list": "public.reference_relation,public.copyright_license,public.mesh_detail,public.resource",
+    "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
+    "decimal.handling.mode" : "string",
+    "poll.interval.ms": "100",
+    "transforms": "unwrap",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.operation.header": "true",
+    "plugin.name": "pgoutput"
+  }
+}

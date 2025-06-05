@@ -588,6 +588,107 @@ CREATE TABLE reference_workflow_tags AS
     GROUP BY reference_workflow_tag_with_mod.reference_id
     EMIT CHANGES;
 
+-- Create tables for new public index tables
+CREATE TABLE reference_relation (
+    ROWKEY string PRIMARY KEY,
+    reference_id_from string,
+    reference_id_to string,
+    reference_relation_type string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference_relation',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE copyright_license (
+    copyright_license_id string PRIMARY KEY,
+    reference_id string,
+    copyright_license_text string,
+    copyright_license_url string,
+    open_access boolean
+  ) WITH (
+    KAFKA_TOPIC='abc.public.copyright_license',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE mesh_detail (
+    mesh_detail_id string PRIMARY KEY,
+    reference_id string,
+    mesh_heading_term string,
+    mesh_qualifier_term string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.mesh_detail',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE resource (
+    resource_id string PRIMARY KEY,
+    title string,
+    iso_abbreviation string,
+    medline_abbreviation string,
+    issn_print string,
+    issn_electronic string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.resource',
+    VALUE_FORMAT='json'
+  );
+
+-- Aggregate new tables for public index
+CREATE TABLE reference_relations AS
+    SELECT reference_id_from \"REFERENCE_ID\",
+    collect_list(map('reference_id_to':=reference_id_to, 'reference_relation_type':=reference_relation_type)) \"RELATIONS\"
+    FROM reference_relation
+    GROUP BY reference_id_from
+    EMIT CHANGES;
+
+CREATE TABLE copyright_licenses AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('copyright_license_text':=copyright_license_text, 'copyright_license_url':=copyright_license_url, 'open_access':=cast(open_access as string))) \"COPYRIGHT_LICENSE\"
+    FROM copyright_license
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE mesh_terms AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('mesh_heading_term':=mesh_heading_term, 'mesh_qualifier_term':=mesh_qualifier_term)) \"MESH_TERMS\"
+    FROM mesh_detail
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_with_resource AS
+    SELECT
+    reference.reference_id \"REFERENCE_ID\",
+    reference.curie,
+    reference.abstract,
+    reference.category,
+    NULLIF(reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
+    reference.date_created,
+    NULLIF(reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
+    reference.date_published,
+    reference.date_published_start,
+    reference.date_published_end,
+    reference.date_updated,
+    reference.issue_name,
+    reference.keywords,
+    reference.language,
+    reference.open_access,
+    reference.page_range,
+    reference.plain_language_abstract,
+    reference.publisher,
+    reference.pubmed_abstract_languages,
+    reference.pubmed_publication_status,
+    reference.pubmed_types,
+    reference.resource_id,
+    reference.title,
+    reference.volume,
+    citation.citation \"CITATION\",
+    citation.short_citation \"SHORT_CITATION\",
+    resource.title \"RESOURCE_TITLE\"
+    FROM reference reference
+    JOIN citation citation ON reference.citation_id = citation.citation_id
+    LEFT OUTER JOIN resource resource ON reference.resource_id = cast(resource.resource_id as bigint)
+    EMIT CHANGES;
+
+-- Create the existing private index (unchanged)
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
@@ -633,5 +734,43 @@ CREATE TABLE reference_joined WITH (
     LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
     reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
     LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id;
+
+-- Create the new public index with limited fields
+CREATE TABLE public_reference_joined WITH (
+    PARTITIONS = 1,
+    KAFKA_TOPIC = 'public_reference_joined',
+    VALUE_FORMAT='JSON',
+    KEY_FORMAT='JSON'
+  ) AS SELECT
+    reference_with_resource.reference_id \"reference_id\",
+    reference_with_resource.curie \"curie\",
+    reference_with_resource.title \"title\",
+    reference_with_resource.abstract \"abstract\",
+    reference_with_resource.category \"category\",
+    reference_with_resource.pubmed_types \"pubmed_types\",
+    reference_with_resource.resource_title \"resource_title\",
+    reference_with_resource.volume \"volume\",
+    reference_with_resource.issue_name \"issue_name\",
+    reference_with_resource.page_range \"page_range\",
+    reference_with_resource.publisher \"publisher\",
+    reference_with_resource.language \"language\",
+    reference_with_resource.date_published \"date_published\",
+    reference_with_resource.pubmed_publication_status \"pubmed_publication_status\",
+    reference_with_resource.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
+    reference_with_resource.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
+    reference_with_resource.date_created \"date_created\",
+    reference_with_resource.keywords \"keywords\",
+    reference_with_resource.citation \"citation\",
+    cross_references.cross_references \"cross_references\",
+    authors.authors \"authors\",
+    reference_relations.relations \"relations\",
+    copyright_licenses.copyright_license \"copyright_license\",
+    mesh_terms.mesh_terms \"mesh_terms\"
+    FROM reference_with_resource reference_with_resource
+    LEFT OUTER JOIN cross_references cross_references ON reference_with_resource.reference_id = cross_references.reference_id
+    LEFT OUTER JOIN authors authors ON reference_with_resource.reference_id = authors.reference_id
+    LEFT OUTER JOIN reference_relations reference_relations ON reference_with_resource.reference_id = reference_relations.reference_id
+    LEFT OUTER JOIN copyright_licenses copyright_licenses ON reference_with_resource.reference_id = copyright_licenses.reference_id
+    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_resource.reference_id = mesh_terms.reference_id;
 ",
 "streamsProperties": {}}
