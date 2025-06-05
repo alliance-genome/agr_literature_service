@@ -1,4 +1,3 @@
-
 from datetime import date
 from sqlalchemy import text
 import json
@@ -103,10 +102,10 @@ class TestExportSingleModReferencesToJson:
             if os.path.exists(tmp_dir):
                 os.rmdir(tmp_dir)
 
-    def test_generate_json_data(self, test_db, load_sanitized_references):  # noqa
+    def test_generate_json_data(self, db, load_sanitized_references):  # noqa
 
         reference_id_list = []
-        rs = test_db.execute(text("SELECT reference_id FROM cross_reference where curie = 'PMID:33622238' LIMIT 1"))
+        rs = db.execute(text("SELECT reference_id FROM cross_reference where curie = 'PMID:33622238' LIMIT 1"))
         row = rs.fetchone()
         if not row:
             return  # Skip test if no data found
@@ -115,11 +114,11 @@ class TestExportSingleModReferencesToJson:
         ref_id = row[0]
         ref_ids = str(ref_id)
 
-        reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(test_db, ref_ids)
-        reference_id_to_authors = get_author_data_for_ref_ids(test_db, ref_ids)
-        reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(test_db, ref_ids)
-        reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(test_db, ref_ids)
-        reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(test_db, ref_ids)
+        reference_id_to_xrefs = get_cross_reference_data_for_ref_ids(db, ref_ids)
+        reference_id_to_authors = get_author_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mesh_terms = get_mesh_term_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_corpus_data = get_mod_corpus_association_data_for_ref_ids(db, ref_ids)
+        reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
 
         # Mock data for other required parameters
         reference_id_to_reference_relation_data = {}
@@ -130,8 +129,8 @@ class TestExportSingleModReferencesToJson:
         # Get reference data
         ref_cols = get_reference_col_names()
         cols = ", ".join(ref_cols)
-        ref_data = test_db.execute(text(f"SELECT {cols} FROM reference WHERE reference_id = :ref_id"),
-                                   {'ref_id': ref_id}).fetchall()
+        ref_data = db.execute(text(f"SELECT {cols} FROM reference WHERE reference_id = :ref_id"),
+                              {'ref_id': ref_id}).fetchall()
 
         data = []
         count = generate_json_data(
@@ -223,11 +222,11 @@ class TestExportSingleModReferencesToJson:
                 assert result is not None
                 mock_upload.assert_called_once()
 
-    def test_citation_and_license_data_integration(self, test_db, load_sanitized_references):  # noqa
+    def test_citation_and_license_data_integration(self, db, load_sanitized_references):  # noqa
 
         # Test that citation and license data functions are accessible
-        citation_data = get_citation_data(test_db)
-        license_data = get_license_data(test_db)
+        citation_data = get_citation_data(db)
+        license_data = get_license_data(db)
 
         assert isinstance(citation_data, dict)
         assert isinstance(license_data, dict)
