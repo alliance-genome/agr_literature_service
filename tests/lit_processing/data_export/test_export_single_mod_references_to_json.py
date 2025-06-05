@@ -1,4 +1,5 @@
 
+
 from datetime import date
 from sqlalchemy import text
 import json
@@ -364,7 +365,7 @@ class TestExportSingleModReferencesToJson:
 
         # Check that function exists and has expected parameters
         sig = inspect.signature(send_data_export_report)
-        expected_params = ['status', 'email', 'mod', 'message']
+        expected_params = ['status', 'email', 'mod', 'email_message']
         actual_params = list(sig.parameters.keys())
 
         for param in expected_params:
