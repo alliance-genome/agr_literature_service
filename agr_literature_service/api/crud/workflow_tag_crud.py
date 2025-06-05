@@ -1304,3 +1304,48 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Setting priority failed {e} for paper {reference_curie} in MOD {mod_abbreviation}"
             )
+
+
+def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_abbreviation=None):
+
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    if reference_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"The reference curie '{reference_curie}' is not in the database."
+        )
+
+    # Define which “parent” processes we care about
+    process_atp_ids = {
+        "ATP:0000273": "manual indexing",
+        "ATP:0000235": "community curation",
+        "ATP:0000210": "indexing priority"
+    }
+
+    result: dict[str, WorkflowTagModel] = {}
+
+    for process_atp_id, workflow_name in process_atp_ids.items():
+        workflow_tags = get_workflow_tags_from_process(process_atp_id)
+        if not workflow_tags:
+            continue
+        _, tp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+        all_workflow_tags = {}
+        for wft in workflow_tags:
+            all_workflow_tags[wft] = atp_to_name.get(wft, wft)
+        all_tags = _get_current_workflow_tag_db_objs(db, reference_curie, process_atp_id)
+        tags = []
+        for tag in all_tags:
+            if not mod_abbreviation or tag["abbreviation"] == mod_abbreviation:
+                if not tag.get("email"):
+                    tag["email"] = tag["updated_by"]
+                raw_date = tag["date_updated"]
+                if raw_date:
+                    dt = raw_date
+                else:
+                    dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                tag["date_updated"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+                tags.append(tag)
+        result[workflow_name] = {}
+        result[workflow_name]['current_workflow_tag'] = tags
+        result[workflow_name]['all_workflow_tags'] = all_workflow_tags
+    return result
