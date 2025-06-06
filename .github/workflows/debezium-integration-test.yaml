@@ -110,11 +110,11 @@ jobs:
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: |
-          # Run Debezium integration tests (database tests only)
-          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_create_mock_data -v
+          # Run Debezium integration tests (database tests only) without coverage
+          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_create_mock_data -v --no-cov
           
-          # Run webtest marked tests (Elasticsearch tests)
-          pytest tests/test_debezium_integration.py -m webtest -v
+          # Run webtest marked tests (Elasticsearch tests) without coverage
+          pytest tests/test_debezium_integration.py -m webtest -v --no-cov
       
       - name: Debug Information
         if: failure()

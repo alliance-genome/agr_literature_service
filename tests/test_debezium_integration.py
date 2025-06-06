@@ -191,6 +191,7 @@ def elasticsearch_config():
 class TestDebeziumIntegration:
     """Test Debezium integration for both public and private indexes."""
 
+    @pytest.mark.debezium
     def test_create_mock_data(self, db, mock_data_factory):
         """Test creating realistic mock data in the test database."""
         # Create test data
@@ -233,6 +234,7 @@ class TestDebeziumIntegration:
         assert author_count == 3
         assert xref_count == 6  # 3 regular + 3 obsolete
 
+    @pytest.mark.debezium
     @pytest.mark.webtest
     def test_elasticsearch_indexes_exist(self, elasticsearch_config):
         """Test that both public and private Elasticsearch indexes exist."""
@@ -246,6 +248,7 @@ class TestDebeziumIntegration:
         public_response = requests.get(f"{es_url}/{elasticsearch_config['public_index']}")
         assert public_response.status_code == 200, f"Public index {elasticsearch_config['public_index']} not found"
 
+    @pytest.mark.debezium
     @pytest.mark.webtest
     def test_public_index_limited_fields(self, elasticsearch_config):
         """Test that public index contains only the specified limited fields."""
@@ -267,6 +270,7 @@ class TestDebeziumIntegration:
             key_fields = {'curie', 'title', 'abstract'}
             assert key_fields.issubset(doc_fields), f"Missing key fields: {key_fields - doc_fields}"
 
+    @pytest.mark.debezium
     @pytest.mark.webtest
     def test_private_index_full_fields(self, elasticsearch_config):
         """Test that private index contains full dataset including sensitive fields."""
@@ -284,6 +288,7 @@ class TestDebeziumIntegration:
             doc_fields = set(sample_doc.keys())
             assert len(doc_fields) >= 25, f"Private index has too few fields: {len(doc_fields)}"
 
+    @pytest.mark.debezium
     @pytest.mark.webtest
     def test_document_counts_match(self, elasticsearch_config):
         """Test that both indexes have the same number of documents."""
@@ -305,6 +310,7 @@ class TestDebeziumIntegration:
         # Both should have some documents
         assert private_count > 0, "Both indexes are empty"
 
+    @pytest.mark.debezium
     @pytest.mark.webtest
     def test_new_fields_present_in_public_index(self, elasticsearch_config):
         """Test that new fields (relations, copyright_license, mesh_terms) are present in public index."""
@@ -329,6 +335,7 @@ class TestDebeziumIntegration:
             field_found = field in index_mapping or any(field in str(index_mapping))
             assert field_found, f"Field {field} not found in public index mapping"
 
+    @pytest.mark.debezium
     @pytest.mark.webtest
     def test_search_functionality(self, elasticsearch_config):
         """Test that search functionality works in both indexes."""
