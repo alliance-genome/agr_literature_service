@@ -31,7 +31,7 @@ from agr_literature_service.api.models.resource_model import ResourceModel  # no
 from agr_literature_service.api.models.mod_model import ModModel  # noqa: E402
 from agr_literature_service.api.models.mod_corpus_association_model import ModCorpusAssociationModel  # noqa: E402
 from agr_literature_service.api.models.mod_reference_type_model import (  # noqa: E402
-    ModReferencetypeAssociationModel, ReferencetypeModel
+    ModReferencetypeAssociationModel, ReferencetypeModel, ReferenceModReferencetypeAssociationModel
 )
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel  # noqa: E402
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel  # noqa: E402
@@ -246,6 +246,17 @@ class MockDataFactory:
         db_session.flush()
         return association
 
+    def create_reference_mod_referencetype_association(self, db_session, reference: ReferenceModel,
+                                                       mod_referencetype: ModReferencetypeAssociationModel):
+        """Create a reference-MOD-referencetype association."""
+        association = ReferenceModReferencetypeAssociationModel(
+            reference_id=reference.reference_id,
+            mod_referencetype_id=mod_referencetype.mod_referencetype_id
+        )
+        db_session.add(association)
+        db_session.flush()
+        return association
+
     def create_mod_corpus_association(self, db_session, reference: ReferenceModel,
                                       mod: ModModel, corpus: bool = True) -> ModCorpusAssociationModel:
         """Create a MOD corpus association."""
@@ -435,6 +446,13 @@ def populate_database():
             workflow_mod = mods[i % len(mods)]
             factory.create_workflow_tag(db, reference, i, workflow_mod)
 
+            # Add reference-MOD-referencetype associations - REQUIRED for Debezium reference_mod_referencetype topic
+            # Link this reference to some MOD-referencetype associations
+            ref_mod_associations = [assoc for assoc in mod_ref_associations if assoc.mod_id == workflow_mod.mod_id]
+            if ref_mod_associations:
+                # Pick the first association for this MOD
+                factory.create_reference_mod_referencetype_association(db, reference, ref_mod_associations[0])
+
         # Create reference relations
         print("Creating reference relations...")
         for i in range(len(references) - 1):
@@ -468,6 +486,7 @@ def populate_database():
         mod_corpus_count = db.query(ModCorpusAssociationModel).count()
         ref_type_count = db.query(ReferencetypeModel).count()
         mod_ref_type_count = db.query(ModReferencetypeAssociationModel).count()
+        ref_mod_ref_type_count = db.query(ReferenceModReferencetypeAssociationModel).count()
         topic_tag_count = db.query(TopicEntityTagModel).count()
         tag_source_count = db.query(TopicEntityTagSourceModel).count()
         workflow_tag_count = db.query(WorkflowTagModel).count()
@@ -478,6 +497,7 @@ def populate_database():
         print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms")
         print(f"Created: {mod_count} MODs, {mod_corpus_count} MOD corpus associations")
         print(f"Created: {ref_type_count} reference types, {mod_ref_type_count} MOD-ref type assocs")
+        print(f"Created: {ref_mod_ref_type_count} reference-MOD-ref type associations")
         print(f"Created: {topic_tag_count} topic tags, {tag_source_count} tag sources, "
               f"{workflow_tag_count} workflow tags")
         print(f"Created: {obsolete_count} obsolete reference curies")
