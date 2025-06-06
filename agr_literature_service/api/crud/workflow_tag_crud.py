@@ -1337,7 +1337,8 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             "ATP:0000235": "community curation",
             "ATP:0000210": "indexing priority"
         }
-    result: dict[str, WorkflowTagModel] = {}
+
+    result: dict[str, dict[str, Any]] = {}
 
     for process_atp_id, workflow_name in process_atp_ids.items():
         workflow_tags = get_workflow_tags_from_process(process_atp_id)
@@ -1360,7 +1361,8 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
                     dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
                 tag["date_updated"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
                 tags.append(tag)
-        result[workflow_name] = {}
-        result[workflow_name]['current_workflow_tag'] = tags
-        result[workflow_name]['all_workflow_tags'] = all_workflow_tags
+        result[workflow_name] = {
+            "current_workflow_tag": tags,
+            "all_workflow_tags": all_workflow_tags
+        }
     return result
