@@ -57,7 +57,7 @@ jobs:
           
           # Make populate script executable and run it to create mock data for Debezium to sync
           chmod +x tests/populate_test_db.py
-          docker compose --env-file .env.test run --rm -e ENV_STATE=test -e PSQL_USERNAME=postgres -e PSQL_PASSWORD=postgres -e PSQL_HOST=postgres -e PSQL_PORT=5432 -e PSQL_DATABASE=literature-test dev_app python tests/populate_test_db.py
+          docker compose --env-file .env.test run --rm dev_app python tests/populate_test_db.py
           
           # Start Elasticsearch
           docker compose --env-file .env.test up -d elasticsearch

@@ -9,6 +9,13 @@ import os
 import sys
 from typing import Dict, Any
 
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.models import initialize
+from tests.fixtures import delete_all_table_content
+
 # Add the project root to the path so we can import our modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
@@ -179,7 +186,12 @@ class MockDataFactory:
 def populate_database():
     """Populate the test database with mock data for Debezium integration tests."""
     print("Starting mock data population for Debezium integration tests...")
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
 
+    initialize()
+    db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
+    db_session.commit()
+    delete_all_table_content(engine, db_session)
     # Initialize database connection
     db = next(get_db())
     factory = MockDataFactory()
