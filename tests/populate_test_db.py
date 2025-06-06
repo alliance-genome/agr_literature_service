@@ -28,6 +28,14 @@ from agr_literature_service.api.models.reference_relation_model import Reference
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel  # noqa: E402
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel  # noqa: E402
 from agr_literature_service.api.models.resource_model import ResourceModel  # noqa: E402
+from agr_literature_service.api.models.mod_model import ModModel  # noqa: E402
+from agr_literature_service.api.models.mod_corpus_association_model import ModCorpusAssociationModel  # noqa: E402
+from agr_literature_service.api.models.mod_reference_type_model import (  # noqa: E402
+    ModReferencetypeAssociationModel, ReferencetypeModel
+)
+from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel  # noqa: E402
+from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel  # noqa: E402
+from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel  # noqa: E402
 
 
 class MockDataFactory:
@@ -182,6 +190,152 @@ class MockDataFactory:
         db_session.add(mesh)
         return mesh
 
+    def create_mod(self, db_session, mod_id: int) -> ModModel:
+        """Create a MOD (Model Organism Database) entry."""
+        mod_data = [
+            ("WB", "WB", "WormBase", ["6239"]),
+            ("FB", "FB", "FlyBase", ["7227"]),
+            ("SGD", "SGD", "Saccharomyces Genome Database", ["559292"]),
+            ("RGD", "RGD", "Rat Genome Database", ["10116"]),
+            ("MGI", "MGI", "Mouse Genome Informatics", ["10090"]),
+            ("ZFIN", "ZFIN", "Zebrafish Information Network", ["7955"]),
+            ("XB", "XB", "Xenbase", ["8355"])
+        ]
+
+        abbrev, short, full, taxons = mod_data[mod_id % len(mod_data)]
+
+        mod = ModModel(
+            abbreviation=f"{abbrev}{mod_id}",
+            short_name=f"{short}{mod_id}",
+            full_name=f"{full} {mod_id}",
+            taxon_ids=taxons
+        )
+        db_session.add(mod)
+        db_session.flush()
+        return mod
+
+    def create_referencetype(self, db_session, ref_type_id: int) -> ReferencetypeModel:
+        """Create a reference type entry."""
+        ref_types = [
+            "Research Article",
+            "Review",
+            "News Article",
+            "Editorial",
+            "Comment",
+            "Letter",
+            "Book Chapter",
+            "Conference Proceeding"
+        ]
+
+        ref_type = ReferencetypeModel(
+            label=f"{ref_types[ref_type_id % len(ref_types)]} {ref_type_id}"
+        )
+        db_session.add(ref_type)
+        db_session.flush()
+        return ref_type
+
+    def create_mod_referencetype_association(self, db_session, mod: ModModel,
+                                             referencetype: ReferencetypeModel, order: int = 1) -> ModReferencetypeAssociationModel:
+        """Create a MOD-referencetype association."""
+        association = ModReferencetypeAssociationModel(
+            mod_id=mod.mod_id,
+            referencetype_id=referencetype.referencetype_id,
+            display_order=order
+        )
+        db_session.add(association)
+        db_session.flush()
+        return association
+
+    def create_mod_corpus_association(self, db_session, reference: ReferenceModel,
+                                      mod: ModModel, corpus: bool = True) -> ModCorpusAssociationModel:
+        """Create a MOD corpus association."""
+        from agr_literature_service.api.schemas.mod_corpus_sort_source_type import ModCorpusSortSourceType
+
+        association = ModCorpusAssociationModel(
+            reference_id=reference.reference_id,
+            mod_id=mod.mod_id,
+            corpus=corpus,
+            mod_corpus_sort_source=ModCorpusSortSourceType.dqm_files
+        )
+        db_session.add(association)
+        return association
+
+    def create_topic_entity_tag_source(self, db_session, source_id: int) -> TopicEntityTagSourceModel:
+        """Create a topic entity tag source entry."""
+        from agr_literature_service.api.schemas.tag_source_enum import TagSourceType
+
+        sources = [
+            TagSourceType.professional_biocurator,
+            TagSourceType.author,
+            TagSourceType.alliance_automated,
+            TagSourceType.mod_automated
+        ]
+
+        source = TopicEntityTagSourceModel(
+            source_type=sources[source_id % len(sources)],
+            source_method="test_method",
+            validation_method="test_validation",
+            description=f"Test source {source_id}"
+        )
+        db_session.add(source)
+        db_session.flush()
+        return source
+
+    def create_topic_entity_tag(self, db_session, reference: ReferenceModel,
+                                tag_id: int, source: TopicEntityTagSourceModel) -> TopicEntityTagModel:
+        """Create a topic entity tag entry."""
+        from agr_literature_service.api.schemas.tag_name_enum import TagNameType
+
+        tag_names = [
+            TagNameType.ATP,
+            TagNameType.GO,
+            TagNameType.disease,
+            TagNameType.gene,
+            TagNameType.species
+        ]
+
+        tag = TopicEntityTagModel(
+            reference_id=reference.reference_id,
+            topic=tag_names[tag_id % len(tag_names)],
+            entity_type="gene",
+            entity="TEST:gene001",
+            entity_id_validation="alliance",
+            topic_entity_tag_source_id=source.topic_entity_tag_source_id,
+            species="NCBITaxon:10090",
+            negated=False,
+            novel_topic_data=False
+        )
+        db_session.add(tag)
+        return tag
+
+    def create_workflow_tag(self, db_session, reference: ReferenceModel, tag_id: int) -> WorkflowTagModel:
+        """Create a workflow tag entry."""
+        from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagType
+
+        tag_types = [
+            WorkflowTagType.classification_flagged,
+            WorkflowTagType.entity_extraction_flagged,
+            WorkflowTagType.file_upload_flagged
+        ]
+
+        tag = WorkflowTagModel(
+            reference_id=reference.reference_id,
+            workflow_tag_id=tag_types[tag_id % len(tag_types)],
+            workflow_status="in_progress"
+        )
+        db_session.add(tag)
+        return tag
+
+    def create_obsolete_reference_curie(self, db_session, curie: str,
+                                        new_reference: ReferenceModel = None) -> ObsoleteReferenceModel:
+        """Create an obsolete reference curie entry."""
+        obsolete = ObsoleteReferenceModel(
+            curie=curie,
+            new_id=new_reference.reference_id if new_reference else None
+        )
+        db_session.add(obsolete)
+        return obsolete
+
 
 def populate_database():
     """Populate the test database with mock data for Debezium integration tests."""
@@ -197,6 +351,35 @@ def populate_database():
     factory = MockDataFactory()
 
     try:
+        # Create MODs (Model Organism Databases) - REQUIRED for Debezium
+        print("Creating MODs...")
+        mods = []
+        for i in range(7):  # Create all major MODs
+            mod = factory.create_mod(db, i)
+            mods.append(mod)
+
+        # Create reference types - REQUIRED for Debezium
+        print("Creating reference types...")
+        reference_types = []
+        for i in range(8):
+            ref_type = factory.create_referencetype(db, i)
+            reference_types.append(ref_type)
+
+        # Create MOD-referencetype associations - REQUIRED for Debezium
+        print("Creating MOD-referencetype associations...")
+        mod_ref_associations = []
+        for _i, mod in enumerate(mods):
+            for j, ref_type in enumerate(reference_types[:3]):  # Each MOD gets 3 ref types
+                association = factory.create_mod_referencetype_association(db, mod, ref_type, j + 1)
+                mod_ref_associations.append(association)
+
+        # Create topic entity tag sources - REQUIRED for Debezium
+        print("Creating topic entity tag sources...")
+        tag_sources = []
+        for i in range(4):
+            source = factory.create_topic_entity_tag_source(db, i)
+            tag_sources.append(source)
+
         # Create resources
         print("Creating resources...")
         resources = []
@@ -231,6 +414,17 @@ def populate_database():
             # Add MeSH terms
             factory.create_mesh_detail(db, reference, i)
 
+            # Add MOD corpus associations - REQUIRED for Debezium
+            mod = mods[i % len(mods)]
+            factory.create_mod_corpus_association(db, reference, mod, True)
+
+            # Add topic entity tags - REQUIRED for Debezium
+            source = tag_sources[i % len(tag_sources)]
+            factory.create_topic_entity_tag(db, reference, i, source)
+
+            # Add workflow tags - REQUIRED for Debezium
+            factory.create_workflow_tag(db, reference, i)
+
         # Create reference relations
         print("Creating reference relations...")
         for i in range(len(references) - 1):
@@ -244,6 +438,12 @@ def populate_database():
         for i in range(5):
             factory.create_copyright_license(db, i + 1)
 
+        # Create some obsolete reference curies - REQUIRED for Debezium
+        print("Creating obsolete reference curies...")
+        for i in range(3):
+            ref = references[i] if i < len(references) else None
+            factory.create_obsolete_reference_curie(db, f"OBSOLETE:test{i}", ref)
+
         # Commit all changes
         db.commit()
 
@@ -254,10 +454,23 @@ def populate_database():
         relation_count = db.query(ReferenceRelationModel).count()
         license_count = db.query(CopyrightLicenseModel).count()
         mesh_count = db.query(MeshDetailModel).count()
+        mod_count = db.query(ModModel).count()
+        mod_corpus_count = db.query(ModCorpusAssociationModel).count()
+        ref_type_count = db.query(ReferencetypeModel).count()
+        mod_ref_type_count = db.query(ModReferencetypeAssociationModel).count()
+        topic_tag_count = db.query(TopicEntityTagModel).count()
+        tag_source_count = db.query(TopicEntityTagSourceModel).count()
+        workflow_tag_count = db.query(WorkflowTagModel).count()
+        obsolete_count = db.query(ObsoleteReferenceModel).count()
 
         print("Mock data population completed successfully!")
-        print(f"Created: {ref_count} references, {author_count} authors, {xref_count} cross-references")
+        print(f"Created: {ref_count} references, {author_count} authors, {xref_count} cross-refs")
         print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms")
+        print(f"Created: {mod_count} MODs, {mod_corpus_count} MOD corpus associations")
+        print(f"Created: {ref_type_count} reference types, {mod_ref_type_count} MOD-ref type assocs")
+        print(f"Created: {topic_tag_count} topic tags, {tag_source_count} tag sources, "
+              f"{workflow_tag_count} workflow tags")
+        print(f"Created: {obsolete_count} obsolete reference curies")
 
     except Exception as e:
         print(f"Error populating database: {e}")
