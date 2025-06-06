@@ -43,30 +43,12 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
       
-      - name: Start Debezium Infrastructure
-        env:
-          ENV_STATE: test
-          HOST: 0.0.0.0
-          PSQL_USERNAME: postgres
-          PSQL_PASSWORD: postgres
-          PSQL_HOST: localhost
-          PSQL_PORT: 5432
-          PSQL_DATABASE: literature-test
-          ELASTICSEARCH_HOST: localhost
-          ELASTICSEARCH_PORT: 9200
-          DEBEZIUM_INDEX_NAME: test_references_index
-          PUBLIC_INDEX_NAME: public_references_index
-          DEBEZIUM_CONNECTOR_HOST: dbz_connector
-          DEBEZIUM_CONNECTOR_PORT: 8083
-          DEBEZIUM_KSQLDB_HOST: dbz_ksql_server
-          DEBEZIUM_KSQLDB_PORT: 8088
-          DEBEZIUM_VERSION: 3.0
-          KAFKA_HEAP_OPTS: "-Xms2G -Xmx4G"
+      - name: Start Core Infrastructure
         run: |
           # Clean up any existing containers
           docker compose --env-file .env.test down -v
           
-          # Start core infrastructure
+          # Start PostgreSQL
           docker compose --env-file .env.test up -d postgres
           sleep 10
           
@@ -76,9 +58,13 @@ jobs:
           # Start Elasticsearch
           docker compose --env-file .env.test up -d elasticsearch
           sleep 15
-          
+      
+      - name: Start Debezium Infrastructure
+        run: |
           # Start Kafka ecosystem
-          docker compose --env-file .env.test up -d dbz_zookeeper dbz_kafka
+          docker compose --env-file .env.test up -d dbz_zookeeper
+          sleep 10
+          docker compose --env-file .env.test up -d dbz_kafka
           sleep 15
           
           # Start Debezium connector
@@ -88,66 +74,46 @@ jobs:
           # Start KsqlDB
           docker compose --env-file .env.test up -d dbz_ksql_server
           sleep 25
-      
-      - name: Generate Mock Data
-        env:
-          ENV_STATE: test
-          PYTHONPATH: agr_literature_service/lit_processing/
-        run: |
-          # Generate realistic mock data patterns (if RDS dev is accessible)
-          python3 generate_mock_data.py || echo "Could not connect to RDS dev, using default patterns"
-      
-      - name: Setup Debezium Pipeline
-        env:
-          ENV_STATE: test
-          PSQL_USERNAME: postgres
-          PSQL_PASSWORD: postgres
-          PSQL_HOST: localhost
-          PSQL_PORT: 5432
-          PSQL_DATABASE: literature-test
-          ELASTICSEARCH_HOST: localhost
-          ELASTICSEARCH_PORT: 9200
-          DEBEZIUM_INDEX_NAME: test_references_index
-          PUBLIC_INDEX_NAME: public_references_index
-          DEBEZIUM_CONNECTOR_HOST: dbz_connector
-          DEBEZIUM_CONNECTOR_PORT: 8083
-          DEBEZIUM_KSQLDB_HOST: dbz_ksql_server
-          DEBEZIUM_KSQLDB_PORT: 8088
-        run: |
-          # Wait for services to be ready
-          sleep 30
           
           # Check service health
           docker compose --env-file .env.test ps
           
-          # Setup Debezium connectors and KSQL streams
+          # Wait for services to be ready
           timeout 300 bash -c 'until curl -f http://localhost:8083/connectors; do sleep 5; done'
           timeout 300 bash -c 'until curl -f http://localhost:8088/info; do sleep 5; done'
+      
+      - name: Setup Debezium Pipeline
+        run: |
+          # Run Debezium setup container to configure connectors and KSQL streams
+          docker compose --env-file .env.test up --build dbz_setup
           
-          # Run Debezium setup (simplified version)
-          docker compose --env-file .env.test up -d --build dbz_setup || echo "Setup container finished"
-          
-          # Wait for data to be processed
-          sleep 60
+          # Wait for data pipeline to be established
+          sleep 30
       
       - name: Run Debezium Integration Tests
         env:
           ENV_STATE: test
+          HOST: 0.0.0.0
+          PSQL_USERNAME: postgres
+          PSQL_PASSWORD: postgres
+          PSQL_HOST: localhost
+          PSQL_PORT: 5433
+          PSQL_DATABASE: literature-test
           PYTHONPATH: agr_literature_service/lit_processing/
-          ELASTICSEARCH_HOST: localhost
-          ELASTICSEARCH_PORT: 9200
-          DEBEZIUM_INDEX_NAME: test_references_index
-          PUBLIC_INDEX_NAME: public_references_index
           OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
           OKTA_API_AUDIENCE: 'api://default'
           RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
+          ELASTICSEARCH_HOST: localhost
+          ELASTICSEARCH_PORT: 9200
+          ELASTICSEARCH_INDEX: references_index
+          XML_PATH: ${GITHUB_WORKSPACE}/tests/tmp/
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: |
-          # Run Debezium integration tests
-          pytest tests/test_debezium_integration.py -v
+          # Run Debezium integration tests (database tests only)
+          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_create_mock_data -v
           
-          # Also run tests marked as webtest
+          # Run webtest marked tests (Elasticsearch tests)
           pytest tests/test_debezium_integration.py -m webtest -v
       
       - name: Debug Information
