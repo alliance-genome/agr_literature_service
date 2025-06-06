@@ -18,8 +18,7 @@ from agr_literature_service.api.models.copyright_license_model import CopyrightL
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
 from agr_literature_service.api.models.resource_model import ResourceModel
 
-# Import fixtures
-from .fixtures import db  # noqa
+# Import fixtures - db fixture is automatically available via pytest
 
 
 class MockDataFactory:
