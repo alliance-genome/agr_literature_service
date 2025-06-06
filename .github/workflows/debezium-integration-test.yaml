@@ -4,11 +4,13 @@ on:
     paths:
       - 'debezium/**'
       - 'tests/test_debezium_integration.py'
+      - 'tests/populate_test_db.py'
       - '.github/workflows/debezium-integration-test.yaml'
   pull_request:
     paths:
       - 'debezium/**'
       - 'tests/test_debezium_integration.py'
+      - 'tests/populate_test_db.py'
       - '.github/workflows/debezium-integration-test.yaml'
 
 jobs:
