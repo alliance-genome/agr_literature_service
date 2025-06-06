@@ -255,26 +255,33 @@ class MockDataFactory:
             reference_id=reference.reference_id,
             mod_id=mod.mod_id,
             corpus=corpus,
-            mod_corpus_sort_source=ModCorpusSortSourceType.dqm_files
+            mod_corpus_sort_source=ModCorpusSortSourceType.Dqm_files
         )
         db_session.add(association)
         return association
 
-    def create_topic_entity_tag_source(self, db_session, source_id: int) -> TopicEntityTagSourceModel:
+    def create_topic_entity_tag_source(self, db_session, source_id: int, mod: ModModel) -> TopicEntityTagSourceModel:
         """Create a topic entity tag source entry."""
-        from agr_literature_service.api.schemas.tag_source_enum import TagSourceType
+        data_providers = [
+            "professional_biocurator",
+            "author",
+            "alliance_automated",
+            "mod_automated"
+        ]
 
-        sources = [
-            TagSourceType.professional_biocurator,
-            TagSourceType.author,
-            TagSourceType.alliance_automated,
-            TagSourceType.mod_automated
+        evidence_assertions = [
+            "curator_judgement",
+            "author_statement",
+            "automated_inference",
+            "computational_analysis"
         ]
 
         source = TopicEntityTagSourceModel(
-            source_type=sources[source_id % len(sources)],
-            source_method="test_method",
-            validation_method="test_validation",
+            data_provider=data_providers[source_id % len(data_providers)],
+            secondary_data_provider_id=mod.mod_id,
+            source_evidence_assertion=evidence_assertions[source_id % len(evidence_assertions)],
+            source_method=f"test_method_{source_id}",
+            validation_type="manual_validation",
             description=f"Test source {source_id}"
         )
         db_session.add(source)
@@ -284,21 +291,20 @@ class MockDataFactory:
     def create_topic_entity_tag(self, db_session, reference: ReferenceModel,
                                 tag_id: int, source: TopicEntityTagSourceModel) -> TopicEntityTagModel:
         """Create a topic entity tag entry."""
-        from agr_literature_service.api.schemas.tag_name_enum import TagNameType
-
-        tag_names = [
-            TagNameType.ATP,
-            TagNameType.GO,
-            TagNameType.disease,
-            TagNameType.gene,
-            TagNameType.species
+        # Use real topic values that would be found in the system
+        topics = [
+            "ATP:0000000",  # ATP root term
+            "GO:0008150",   # biological_process
+            "DOID:4",       # disease
+            "HGNC:5",       # gene symbol
+            "NCBITaxon:10090"  # species
         ]
 
         tag = TopicEntityTagModel(
             reference_id=reference.reference_id,
-            topic=tag_names[tag_id % len(tag_names)],
+            topic=topics[tag_id % len(topics)],
             entity_type="gene",
-            entity="TEST:gene001",
+            entity="HGNC:12345",
             entity_id_validation="alliance",
             topic_entity_tag_source_id=source.topic_entity_tag_source_id,
             species="NCBITaxon:10090",
@@ -308,20 +314,22 @@ class MockDataFactory:
         db_session.add(tag)
         return tag
 
-    def create_workflow_tag(self, db_session, reference: ReferenceModel, tag_id: int) -> WorkflowTagModel:
+    def create_workflow_tag(self, db_session, reference: ReferenceModel, tag_id: int,
+                            mod: ModModel = None) -> WorkflowTagModel:
         """Create a workflow tag entry."""
-        from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagType
-
-        tag_types = [
-            WorkflowTagType.classification_flagged,
-            WorkflowTagType.entity_extraction_flagged,
-            WorkflowTagType.file_upload_flagged
+        # Use real workflow tag IDs that would be found in the system
+        workflow_tag_ids = [
+            "ATP:0000103",  # classification_flagged
+            "ATP:0000104",  # entity_extraction_flagged
+            "ATP:0000105",  # file_upload_flagged
+            "ATP:0000106",  # text_conversion_flagged
+            "ATP:0000107",  # stage_flagged
         ]
 
         tag = WorkflowTagModel(
             reference_id=reference.reference_id,
-            workflow_tag_id=tag_types[tag_id % len(tag_types)],
-            workflow_status="in_progress"
+            workflow_tag_id=workflow_tag_ids[tag_id % len(workflow_tag_ids)],
+            mod_id=mod.mod_id if mod else None
         )
         db_session.add(tag)
         return tag
@@ -377,7 +385,8 @@ def populate_database():
         print("Creating topic entity tag sources...")
         tag_sources = []
         for i in range(4):
-            source = factory.create_topic_entity_tag_source(db, i)
+            mod = mods[i % len(mods)]  # Use different MODs for different sources
+            source = factory.create_topic_entity_tag_source(db, i, mod)
             tag_sources.append(source)
 
         # Create resources
@@ -423,7 +432,8 @@ def populate_database():
             factory.create_topic_entity_tag(db, reference, i, source)
 
             # Add workflow tags - REQUIRED for Debezium
-            factory.create_workflow_tag(db, reference, i)
+            workflow_mod = mods[i % len(mods)]
+            factory.create_workflow_tag(db, reference, i, workflow_mod)
 
         # Create reference relations
         print("Creating reference relations...")
