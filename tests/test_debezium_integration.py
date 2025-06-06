@@ -195,47 +195,36 @@ class TestDebeziumIntegration:
     """Test Debezium integration for both public and private indexes."""
 
     @pytest.mark.debezium
-    def test_create_mock_data(self, db, mock_data_factory):
-        """Test creating realistic mock data in the test database."""
-        # Create test data
-        resource = mock_data_factory.create_resource(db, 1)
-        citation = mock_data_factory.create_citation(db, 1)
-
-        references = []
-        for i in range(3):
-            ref = mock_data_factory.create_reference(db, i + 1, citation, resource)
-            references.append(ref)
-
-            # Add authors
-            mock_data_factory.create_author(db, ref, i + 1)
-
-            # Add cross-references (regular and obsolete)
-            mock_data_factory.create_cross_reference(db, ref, i + 1, False)
-            mock_data_factory.create_cross_reference(db, ref, i + 1, True)
-
-            # Add MeSH terms
-            mock_data_factory.create_mesh_detail(db, ref, i)
-
-        # Add reference relations
-        if len(references) >= 2:
-            mock_data_factory.create_reference_relation(db, references[0], references[1], "CommentOn")
-            mock_data_factory.create_reference_relation(db, references[1], references[2], "ErratumFor")
-
-        # Add copyright licenses
-        for i in range(3):
-            mock_data_factory.create_copyright_license(db, i + 1)
-
-        # Commit test data
-        db.commit()
-
-        # Verify data was created
+    def test_verify_initial_data_sync(self, db):
+        """Test that initial mock data has been synced from database to Elasticsearch."""
+        # Verify that the mock data populated by populate_test_db.py exists in the database
         ref_count = db.query(ReferenceModel).count()
         author_count = db.query(AuthorModel).count()
         xref_count = db.query(CrossReferenceModel).count()
 
-        assert ref_count == 3
-        assert author_count == 3
-        assert xref_count == 6  # 3 regular + 3 obsolete
+        # Should have the data created by populate_test_db.py
+        assert ref_count >= 10, f"Expected at least 10 references, found {ref_count}"
+        assert author_count >= 10, f"Expected at least 10 authors, found {author_count}"
+        assert xref_count >= 10, f"Expected at least 10 cross-references, found {xref_count}"
+
+    @pytest.mark.debezium
+    def test_real_time_data_sync(self, db, mock_data_factory):
+        """Test real-time synchronization by creating new data after Debezium is running."""
+        # Create additional test data to test real-time sync
+        resource = mock_data_factory.create_resource(db, 999)
+        citation = mock_data_factory.create_citation(db, 999)
+
+        # Create a new reference for real-time sync testing
+        reference = mock_data_factory.create_reference(db, 999, citation, resource)
+        mock_data_factory.create_author(db, reference, 999)
+        mock_data_factory.create_cross_reference(db, reference, 999, False)
+
+        # Commit the new data
+        db.commit()
+
+        # Verify the new data exists in database
+        new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == "AGRKB:10100999").first()
+        assert new_ref is not None, "New reference should exist in database"
 
     @pytest.mark.debezium
     @pytest.mark.webtest

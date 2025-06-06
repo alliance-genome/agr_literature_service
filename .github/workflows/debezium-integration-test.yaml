@@ -55,6 +55,10 @@ jobs:
           # Initialize test database
           docker compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
           
+          # Make populate script executable and run it to create mock data for Debezium to sync
+          chmod +x tests/populate_test_db.py
+          docker compose --env-file .env.test run --rm -e ENV_STATE=test -e PSQL_USERNAME=postgres -e PSQL_PASSWORD=postgres -e PSQL_HOST=postgres -e PSQL_PORT=5432 -e PSQL_DATABASE=literature-test dev_app python tests/populate_test_db.py
+          
           # Start Elasticsearch
           docker compose --env-file .env.test up -d elasticsearch
           sleep 15
@@ -110,10 +114,13 @@ jobs:
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
         run: |
-          # Run Debezium integration tests (database tests only) without coverage
-          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_create_mock_data -v --no-cov
+          # First verify that initial data from populate_test_db.py exists in database
+          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_verify_initial_data_sync -v --no-cov
           
-          # Run webtest marked tests (Elasticsearch tests) without coverage
+          # Test real-time synchronization by creating new data
+          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_real_time_data_sync -v --no-cov
+          
+          # Run Elasticsearch tests to verify Debezium pipeline synchronization
           pytest tests/test_debezium_integration.py -m webtest -v --no-cov
       
       - name: Debug Information
