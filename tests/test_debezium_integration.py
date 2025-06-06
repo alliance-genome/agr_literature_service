@@ -5,7 +5,6 @@ This module tests the complete data pipeline: PostgreSQL -> Kafka -> KsqlDB -> E
 
 import json
 import os
-import time
 import pytest
 import requests
 from typing import Dict, Any
@@ -18,6 +17,9 @@ from agr_literature_service.api.models.reference_relation_model import Reference
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
 from agr_literature_service.api.models.resource_model import ResourceModel
+
+# Import fixtures
+from .fixtures import db  # noqa
 
 
 class MockDataFactory:
@@ -80,7 +82,6 @@ class MockDataFactory:
             citation_id=citation.citation_id,
             resource_id=resource.resource_id,
             date_published=ref_pattern.get('date_published', '2024-01-01'),
-            date_created=int(time.time() * 1000),
             language=ref_pattern.get('language', 'eng'),
             publisher=ref_pattern.get('publisher', 'Academic Press'),
             keywords=ref_pattern.get('keywords', ['genomics', 'test']),
@@ -113,19 +114,22 @@ class MockDataFactory:
         """Create a realistic cross-reference based on RDS dev patterns."""
         if is_obsolete:
             curie = f"DOI:10.1000/test{xref_id}_obsolete"
+            curie_prefix = "DOI"
         else:
             curie = f"PMID:1234567{xref_id}"
+            curie_prefix = "PMID"
 
         xref = CrossReferenceModel(
             reference_id=reference.reference_id,
             curie=curie,
+            curie_prefix=curie_prefix,
             is_obsolete=is_obsolete
         )
         db_session.add(xref)
         return xref
 
     def create_reference_relation(self, db_session, ref_from: ReferenceModel,
-                                  ref_to: ReferenceModel, relation_type: str = "Reviews") -> ReferenceRelationModel:
+                                  ref_to: ReferenceModel, relation_type: str = "CommentOn") -> ReferenceRelationModel:
         """Create a reference relation."""
         relation = ReferenceRelationModel(
             reference_id_from=ref_from.reference_id,
@@ -215,8 +219,8 @@ class TestDebeziumIntegration:
 
         # Add reference relations
         if len(references) >= 2:
-            mock_data_factory.create_reference_relation(db, references[0], references[1], "Reviews")
-            mock_data_factory.create_reference_relation(db, references[1], references[2], "Cites")
+            mock_data_factory.create_reference_relation(db, references[0], references[1], "CommentOn")
+            mock_data_factory.create_reference_relation(db, references[1], references[2], "ErratumFor")
 
         # Add copyright licenses
         for i in range(3):
