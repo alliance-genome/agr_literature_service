@@ -87,8 +87,8 @@ jobs:
           # Run Debezium setup container to configure connectors and KSQL streams
           docker compose --env-file .env.test up --build dbz_setup
           
-          # Wait for data pipeline to be established
-          sleep 30
+          # Brief wait for pipeline to stabilize (setup.sh handles data polling in test mode)
+          sleep 10
       
       - name: Run Debezium Integration Tests
         env:

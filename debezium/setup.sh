@@ -1,4 +1,22 @@
 #!/bin/bash
+
+# Configure sleep timings based on environment
+if [[ "${ENV_STATE}" == "test" ]]; then
+    # Test environment - much shorter sleeps for smaller datasets
+    CONNECTOR_SETUP_SLEEP=5
+    KSQL_SETUP_SLEEP=30
+    KSQL_POST_SLEEP=5
+    DATA_PROCESSING_SLEEP=60
+    echo "Running in TEST mode with reduced sleep timings"
+else
+    # Production environment - longer sleeps for full datasets
+    CONNECTOR_SETUP_SLEEP=10
+    KSQL_SETUP_SLEEP=300
+    KSQL_POST_SLEEP=10
+    DATA_PROCESSING_SLEEP=20000
+    echo "Running in PRODUCTION mode with full sleep timings"
+fi
+
 DEBEZIUM_INDEX_NAME_ORIG="${DEBEZIUM_INDEX_NAME}"
 DEBEZIUM_INDEX_NAME="${DEBEZIUM_INDEX_NAME}_temp"
 
@@ -27,12 +45,12 @@ curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json"
 # Create new connector for public index tables
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-public-tables.json)
 
-sleep 10
+sleep ${CONNECTOR_SETUP_SLEEP}
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-joined_tables.json)
-sleep 300
+sleep ${KSQL_SETUP_SLEEP}
 
 curl -X "POST" http://${DEBEZIUM_KSQLDB_HOST}:${DEBEZIUM_KSQLDB_PORT}/ksql -H "Accept: application/vnd.ksql.v1+json" -H "Content-Type: application/json" -d @/ksql_queries.ksql
-sleep 10
+sleep ${KSQL_POST_SLEEP}
 
 # Create temporary sink connectors for both private and public indexes
 export SINK_NAME="elastic-sink-temp"
@@ -41,11 +59,35 @@ export PUBLIC_SINK_NAME="elastic-sink-public-temp"
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$DEBEZIUM_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
 
-sleep 20000
+# Wait for data processing with intelligent polling for test mode
+if [[ "${ENV_STATE}" == "test" ]]; then
+    echo "Polling for data in test mode..."
+    max_attempts=12  # 12 attempts * 5 seconds = 1 minute max wait
+    attempt=0
+    while [[ $attempt -lt $max_attempts ]]; do
+        sleep 5
+        new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count 2>/dev/null | jq -r '.count // 0' 2>/dev/null || echo "0")
+        public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}/_count 2>/dev/null | jq -r '.count // 0' 2>/dev/null || echo "0")
+        
+        echo "Attempt $((attempt + 1)): Private index: ${new_index_doc_count} docs, Public index: ${public_index_doc_count} docs"
+        
+        if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
+            echo "Data found in both indexes! Proceeding..."
+            break
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+else
+    echo "Production mode: waiting ${DATA_PROCESSING_SLEEP} seconds for data processing..."
+    sleep ${DATA_PROCESSING_SLEEP}
+    
+    # Check both indexes have data and promote them
+    new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count | jq '.count')
+    public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}/_count | jq '.count')
+fi
 
-# Check both indexes have data and promote them
-new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count | jq '.count')
-public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}/_count | jq '.count')
+echo "Final counts - Private index: ${new_index_doc_count} docs, Public index: ${public_index_doc_count} docs"
 
 if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]
 then
