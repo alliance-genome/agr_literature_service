@@ -10,7 +10,6 @@ import pytest
 import requests
 from typing import Dict, Any
 
-from agr_literature_service.api.database import get_db
 from agr_literature_service.api.models.reference_model import ReferenceModel
 from agr_literature_service.api.models.citation_model import CitationModel
 from agr_literature_service.api.models.author_model import AuthorModel
@@ -189,62 +188,46 @@ def elasticsearch_config():
     }
 
 
-@pytest.fixture
-def test_database():
-    """Provide database session for tests."""
-    # Set test environment
-    os.environ['ENV_STATE'] = 'test'
-
-    db_gen = get_db()
-    db_session = next(db_gen)
-
-    yield db_session
-
-    # Cleanup
-    db_session.rollback()
-    db_session.close()
-
-
 class TestDebeziumIntegration:
     """Test Debezium integration for both public and private indexes."""
 
-    def test_create_mock_data(self, test_database, mock_data_factory):
+    def test_create_mock_data(self, db, mock_data_factory):
         """Test creating realistic mock data in the test database."""
         # Create test data
-        resource = mock_data_factory.create_resource(test_database, 1)
-        citation = mock_data_factory.create_citation(test_database, 1)
+        resource = mock_data_factory.create_resource(db, 1)
+        citation = mock_data_factory.create_citation(db, 1)
 
         references = []
         for i in range(3):
-            ref = mock_data_factory.create_reference(test_database, i + 1, citation, resource)
+            ref = mock_data_factory.create_reference(db, i + 1, citation, resource)
             references.append(ref)
 
             # Add authors
-            mock_data_factory.create_author(test_database, ref, i + 1)
+            mock_data_factory.create_author(db, ref, i + 1)
 
             # Add cross-references (regular and obsolete)
-            mock_data_factory.create_cross_reference(test_database, ref, i + 1, False)
-            mock_data_factory.create_cross_reference(test_database, ref, i + 1, True)
+            mock_data_factory.create_cross_reference(db, ref, i + 1, False)
+            mock_data_factory.create_cross_reference(db, ref, i + 1, True)
 
             # Add MeSH terms
-            mock_data_factory.create_mesh_detail(test_database, ref, i)
+            mock_data_factory.create_mesh_detail(db, ref, i)
 
         # Add reference relations
         if len(references) >= 2:
-            mock_data_factory.create_reference_relation(test_database, references[0], references[1], "Reviews")
-            mock_data_factory.create_reference_relation(test_database, references[1], references[2], "Cites")
+            mock_data_factory.create_reference_relation(db, references[0], references[1], "Reviews")
+            mock_data_factory.create_reference_relation(db, references[1], references[2], "Cites")
 
         # Add copyright licenses
         for i in range(3):
-            mock_data_factory.create_copyright_license(test_database, i + 1)
+            mock_data_factory.create_copyright_license(db, i + 1)
 
         # Commit test data
-        test_database.commit()
+        db.commit()
 
         # Verify data was created
-        ref_count = test_database.query(ReferenceModel).count()
-        author_count = test_database.query(AuthorModel).count()
-        xref_count = test_database.query(CrossReferenceModel).count()
+        ref_count = db.query(ReferenceModel).count()
+        author_count = db.query(AuthorModel).count()
+        xref_count = db.query(CrossReferenceModel).count()
 
         assert ref_count == 3
         assert author_count == 3
@@ -343,7 +326,8 @@ class TestDebeziumIntegration:
             index_mapping = list(mapping.values())[0]['mappings']['properties']
 
             # Field should be in the mapping
-            assert field in index_mapping or any(field in str(index_mapping)), f"Field {field} not found in public index mapping"
+            field_found = field in index_mapping or any(field in str(index_mapping))
+            assert field_found, f"Field {field} not found in public index mapping"
 
     @pytest.mark.webtest
     def test_search_functionality(self, elasticsearch_config):
