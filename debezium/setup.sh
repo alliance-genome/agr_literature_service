@@ -5,7 +5,7 @@ if [[ "${ENV_STATE}" == "test" ]]; then
     # Test environment - much shorter sleeps for smaller datasets
     CONNECTOR_SETUP_SLEEP=5
     KSQL_SETUP_SLEEP=30
-    KSQL_POST_SLEEP=5
+    KSQL_POST_SLEEP=60
     DATA_PROCESSING_SLEEP=60
     echo "Running in TEST mode with reduced sleep timings"
 else

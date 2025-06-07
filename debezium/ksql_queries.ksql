@@ -656,36 +656,35 @@ CREATE TABLE mesh_terms AS
 
 CREATE TABLE reference_with_resource AS
     SELECT
-    reference.reference_id \"REFERENCE_ID\",
-    reference.curie,
-    reference.abstract,
-    reference.category,
-    NULLIF(reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
-    reference.date_created,
-    NULLIF(reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
-    reference.date_published,
-    reference.date_published_start,
-    reference.date_published_end,
-    reference.date_updated,
-    reference.issue_name,
-    reference.keywords,
-    reference.language,
-    reference.open_access,
-    reference.page_range,
-    reference.plain_language_abstract,
-    reference.publisher,
-    reference.pubmed_abstract_languages,
-    reference.pubmed_publication_status,
-    reference.pubmed_types,
-    reference.resource_id,
-    reference.title,
-    reference.volume,
-    citation.citation \"CITATION\",
-    citation.short_citation \"SHORT_CITATION\",
+    reference_with_citation.REFERENCE_ID \"REFERENCE_ID\",
+    reference_with_citation.curie,
+    reference_with_citation.abstract,
+    reference_with_citation.category,
+    reference_with_citation.DATE_ARRIVED_IN_PUBMED,
+    reference_with_citation.date_created,
+    reference_with_citation.DATE_LAST_MODIFIED_IN_PUBMED,
+    reference_with_citation.date_published,
+    reference_with_citation.date_published_start,
+    reference_with_citation.date_published_end,
+    reference_with_citation.date_updated,
+    reference_with_citation.issue_name,
+    reference_with_citation.keywords,
+    reference_with_citation.language,
+    reference_with_citation.open_access,
+    reference_with_citation.page_range,
+    reference_with_citation.plain_language_abstract,
+    reference_with_citation.publisher,
+    reference_with_citation.pubmed_abstract_languages,
+    reference_with_citation.pubmed_publication_status,
+    reference_with_citation.pubmed_types,
+    reference_with_citation.resource_id,
+    reference_with_citation.title "TITLE",
+    reference_with_citation.volume,
+    reference_with_citation.CITATION,
+    reference_with_citation.SHORT_CITATION,
     resource.title \"RESOURCE_TITLE\"
-    FROM reference reference
-    JOIN citation citation ON reference.citation_id = citation.citation_id
-    LEFT OUTER JOIN resource resource ON reference.resource_id = cast(resource.resource_id as bigint)
+    FROM reference_with_citation reference_with_citation
+    LEFT OUTER JOIN resource resource ON cast(reference_with_citation.resource_id as string) = resource.resource_id
     EMIT CHANGES;
 
 -- Create the existing private index (unchanged)
@@ -742,13 +741,13 @@ CREATE TABLE public_reference_joined WITH (
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    reference_with_resource.reference_id \"reference_id\",
+    reference_with_resource.REFERENCE_ID \"reference_id\",
     reference_with_resource.curie \"curie\",
-    reference_with_resource.title \"title\",
+    reference_with_resource.TITLE \"title\",
     reference_with_resource.abstract \"abstract\",
     reference_with_resource.category \"category\",
     reference_with_resource.pubmed_types \"pubmed_types\",
-    reference_with_resource.resource_title \"resource_title\",
+    reference_with_resource.RESOURCE_TITLE \"resource_title\",
     reference_with_resource.volume \"volume\",
     reference_with_resource.issue_name \"issue_name\",
     reference_with_resource.page_range \"page_range\",
@@ -756,21 +755,21 @@ CREATE TABLE public_reference_joined WITH (
     reference_with_resource.language \"language\",
     reference_with_resource.date_published \"date_published\",
     reference_with_resource.pubmed_publication_status \"pubmed_publication_status\",
-    reference_with_resource.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
-    reference_with_resource.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
+    reference_with_resource.DATE_ARRIVED_IN_PUBMED \"date_arrived_in_pubmed\",
+    reference_with_resource.DATE_LAST_MODIFIED_IN_PUBMED \"date_last_modified_in_pubmed\",
     reference_with_resource.date_created \"date_created\",
     reference_with_resource.keywords \"keywords\",
-    reference_with_resource.citation \"citation\",
+    reference_with_resource.CITATION \"citation\",
     cross_references.cross_references \"cross_references\",
     authors.authors \"authors\",
     reference_relations.relations \"relations\",
     copyright_licenses.copyright_license \"copyright_license\",
     mesh_terms.mesh_terms \"mesh_terms\"
     FROM reference_with_resource reference_with_resource
-    LEFT OUTER JOIN cross_references cross_references ON reference_with_resource.reference_id = cross_references.reference_id
-    LEFT OUTER JOIN authors authors ON reference_with_resource.reference_id = authors.reference_id
-    LEFT OUTER JOIN reference_relations reference_relations ON reference_with_resource.reference_id = reference_relations.reference_id
-    LEFT OUTER JOIN copyright_licenses copyright_licenses ON reference_with_resource.reference_id = copyright_licenses.reference_id
-    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_resource.reference_id = mesh_terms.reference_id;
+    LEFT OUTER JOIN cross_references cross_references ON reference_with_resource.REFERENCE_ID = cross_references.REFERENCE_ID
+    LEFT OUTER JOIN authors authors ON reference_with_resource.REFERENCE_ID = authors.REFERENCE_ID
+    LEFT OUTER JOIN reference_relations reference_relations ON reference_with_resource.REFERENCE_ID = reference_relations.REFERENCE_ID
+    LEFT OUTER JOIN copyright_licenses copyright_licenses ON reference_with_resource.REFERENCE_ID = copyright_licenses.REFERENCE_ID
+    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_resource.REFERENCE_ID = mesh_terms.REFERENCE_ID;
 ",
 "streamsProperties": {}}
