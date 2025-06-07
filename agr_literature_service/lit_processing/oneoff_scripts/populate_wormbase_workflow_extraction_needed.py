@@ -44,6 +44,7 @@ def get_from_database(db_session):
     batch_counter = 0
     batch_size = 250
     for x in rows:
+        # logger.info(f"reference_id {x[0]}\t{x[1]}\t{x[2]}\t{x[3]}")
         wb_wbpaper_id = x[0]
         agr_reference_id = x[1]
         for wb_atp in atp_tags:
