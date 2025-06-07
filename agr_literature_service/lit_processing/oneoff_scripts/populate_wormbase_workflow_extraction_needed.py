@@ -26,20 +26,44 @@ def get_from_database(db_session):
                r.curie AS reference_curie
         FROM cross_reference cr
         JOIN reference r ON cr.reference_id = r.reference_id
-        JOIN workflow_tag wt ON r.reference_id = wt.reference_id
-        JOIN mod m ON wt.mod_id = m.mod_id
         WHERE cr.curie_prefix = 'WB'
           AND cr.is_obsolete = FALSE
-          AND NOT (
-              m.abbreviation = 'WB'
-              AND wt.workflow_tag_id IN (
-                  'ATP:0000173', 'ATP:0000174', 'ATP:0000190', 'ATP:0000187'
-              )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM workflow_tag wt
+              JOIN mod m ON wt.mod_id = m.mod_id
+              WHERE wt.reference_id = r.reference_id
+                AND m.abbreviation = 'WB'
+                AND wt.workflow_tag_id IN (
+                    'ATP:0000173', 'ATP:0000174', 'ATP:0000190', 'ATP:0000187'
+                )
           )
         ORDER BY cr.reference_id
     """)).fetchall()
-    for x in rows:
+    batch_counter = 0
+    batch_size = 250
+#     for x in rows:
+    for x in rows[:2]:
         logger.info(f"reference_id {x[0]}\t{x[1]}\t{x[2]}\t{x[3]}")
+        agr_reference_id = x[0]
+        wb_wbpaper_id = x[1]
+        wb_atp = 'ATP:0000221'
+        batch_counter += 1
+        if batch_counter % batch_size == 0:
+            batch_counter = 0
+            # UNCOMMENT TO POPULATE
+            # db_session.commit()
+        logger.info(f"INSERT {agr_reference_id} {wb_wbpaper_id} is NOT in agrkb_to_atp, needs new value {wb_atp}")
+        try:
+            x = WorkflowTagModel(reference_id=agr_reference_id,
+                                 mod_id=2,
+                                 workflow_tag_id=wb_atp)
+            db_session.add(x)
+        except Exception as e:
+            logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(agr_reference_id) + " and atp value = " + wb_atp + " " + str(e))
+    # UNCOMMENT TO POPULATE
+    # db_session.commit()
+
 #     rows = db_session.execute(text("SELECT reference_id, curie, is_obsolete FROM cross_reference "
 #                                    "WHERE curie_prefix = 'WB'")).fetchall()
 #     for x in rows:
