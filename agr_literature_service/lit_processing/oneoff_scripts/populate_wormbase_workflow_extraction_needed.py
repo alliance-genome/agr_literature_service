@@ -28,13 +28,21 @@ def get_from_database(db_session):
         JOIN reference r ON cr.reference_id = r.reference_id
         WHERE cr.curie_prefix = 'WB'
           AND cr.is_obsolete = FALSE
+          AND EXISTS (
+              SELECT 1
+              FROM workflow_tag wt1
+              JOIN mod m1 ON wt1.mod_id = m1.mod_id
+              WHERE wt1.reference_id = r.reference_id
+                AND m1.abbreviation = 'WB'
+                AND wt1.workflow_tag_id = 'ATP:0000163'
+          )
           AND NOT EXISTS (
               SELECT 1
-              FROM workflow_tag wt
-              JOIN mod m ON wt.mod_id = m.mod_id
-              WHERE wt.reference_id = r.reference_id
-                AND m.abbreviation = 'WB'
-                AND wt.workflow_tag_id IN (
+              FROM workflow_tag wt2
+              JOIN mod m2 ON wt2.mod_id = m2.mod_id
+              WHERE wt2.reference_id = r.reference_id
+                AND m2.abbreviation = 'WB'
+                AND wt2.workflow_tag_id IN (
                     'ATP:0000173', 'ATP:0000174', 'ATP:0000190', 'ATP:0000187'
                 )
           )
