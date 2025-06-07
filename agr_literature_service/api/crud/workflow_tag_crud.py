@@ -10,7 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import Union, Optional, Dict, Any
 
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -409,7 +409,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_workflow_tags_for_process)
 
     sql_query = """
-    SELECT distinct m.abbreviation, wft.workflow_tag_id, wft.updated_by,
+    SELECT distinct wft.reference_workflow_tag_id, m.abbreviation, wft.workflow_tag_id, wft.updated_by,
            wft.date_updated::date AS date_updated, u.email
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.mod_id
@@ -1304,3 +1304,65 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Setting priority failed {e} for paper {reference_curie} in MOD {mod_abbreviation}"
             )
+
+
+def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_abbreviation=None):
+
+    if mod_abbreviation and mod_abbreviation in ['MGI', 'RGD', 'XB']:
+        return {}
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    if reference_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"The reference curie '{reference_curie}' is not in the database."
+        )
+
+    # Define which “parent” processes we care about
+    if mod_abbreviation:
+        if mod_abbreviation == 'SGD':
+            process_atp_ids = {"ATP:0000273": "manual indexing"}
+        elif mod_abbreviation == 'ZFIN':
+            process_atp_ids = {
+                "ATP:0000273": "manual indexing",
+                "ATP:0000210": "indexing priority"
+            }
+        else:
+            process_atp_ids = {
+                "ATP:0000273": "manual indexing",
+                "ATP:0000235": "community curation"
+            }
+    else:
+        process_atp_ids = {
+            "ATP:0000273": "manual indexing",
+            "ATP:0000235": "community curation",
+            "ATP:0000210": "indexing priority"
+        }
+
+    result: dict[str, dict[str, Any]] = {}
+
+    for process_atp_id, workflow_name in process_atp_ids.items():
+        workflow_tags = get_workflow_tags_from_process(process_atp_id)
+        if not workflow_tags:
+            continue
+        _, tp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+        all_workflow_tags = {}
+        for wft in workflow_tags:
+            all_workflow_tags[wft] = atp_to_name.get(wft, wft)
+        all_tags = _get_current_workflow_tag_db_objs(db, reference_curie, process_atp_id)
+        tags = []
+        for tag in all_tags:
+            if not mod_abbreviation or tag["abbreviation"] == mod_abbreviation:
+                if not tag.get("email"):
+                    tag["email"] = tag["updated_by"]
+                raw_date = tag["date_updated"]
+                if isinstance(raw_date, (datetime, date)):
+                    dt = raw_date
+                else:
+                    dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                tag["date_updated"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+                tags.append(tag)
+        result[workflow_name] = {
+            "current_workflow_tag": tags,
+            "all_workflow_tags": all_workflow_tags
+        }
+    return result

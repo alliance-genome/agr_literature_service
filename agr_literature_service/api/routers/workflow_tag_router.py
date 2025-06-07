@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
+from typing import Optional
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import workflow_tag_crud
@@ -193,3 +194,15 @@ def get_workflow_tags_subset(mod_abbreviation: str,
              status_code=200)
 def set_priority(reference_curie: str, mod_abbreviation: str, priority: str, db: Session = db_session):
     return workflow_tag_crud.set_priority(db, reference_curie, mod_abbreviation, priority)
+
+
+@router.get("/indexing-community/{reference_curie}", status_code=200)
+@router.get("/indexing-community/{reference_curie}/{mod_abbreviation}", status_code=200)
+def get_indexing_and_community_workflow_tags(
+    reference_curie: str,
+    mod_abbreviation: Optional[str] = None,
+    db: Session = db_session
+):
+    return workflow_tag_crud.get_indexing_and_community_workflow_tags(
+        db, reference_curie, mod_abbreviation
+    )
