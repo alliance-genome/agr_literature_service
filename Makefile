@@ -143,7 +143,6 @@ run-debezium-integration-tests:
 	# Start required services
 	docker-compose --env-file .env.test up -d postgres
 	sleep 10
-	docker-compose --env-file .env.test build test_runner
 	docker-compose --env-file .env.test build dev_app
 	# Initialize test database with mock data
 	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
