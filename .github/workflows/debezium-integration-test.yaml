@@ -117,14 +117,7 @@ jobs:
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
           TEST_CLEANUP: false
         run: |
-          # First verify that initial data from populate_test_db.py exists in database
-          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_verify_initial_data_sync -v --no-cov
-          
-          # Test real-time synchronization by creating new data
-          pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_real_time_data_sync -v --no-cov
-          
-          # Run Elasticsearch tests to verify Debezium pipeline synchronization
-          pytest tests/test_debezium_integration.py -m webtest -v --no-cov
+          pytest tests/test_debezium_integration.py -v --no-cov
       
       - name: Debug Information
         if: failure()
