@@ -29,7 +29,7 @@ curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME} -d @/elasticsearch-settings.json
 
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}
-curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME} -d @/elasticsearch-settings.json
+curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME} -d @/elasticsearch-settings-public.json
 
 export PGPASSWORD=${PSQL_PASSWORD}
 psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "select pg_drop_replication_slot('debezium_mod'); select pg_drop_replication_slot('debezium_referencetype'); select pg_drop_replication_slot('debezium_reference'); select pg_drop_replication_slot('debezium_joined_tables'); select pg_drop_replication_slot('debezium_citation'); select pg_drop_replication_slot('debezium_mod_referencetype'); select pg_drop_replication_slot('debezium_topic_entity_tag_source'); select pg_drop_replication_slot('debezium_public_tables');"
@@ -104,7 +104,7 @@ then
   # Promote public index
   PUBLIC_INDEX_NAME="${PUBLIC_INDEX_NAME_ORIG}"
   curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_ORIG}
-  curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_ORIG} -d @/elasticsearch-settings.json
+  curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_ORIG} -d @/elasticsearch-settings-public.json
   curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${PUBLIC_INDEX_NAME}\"}, \"dest\": {\"index\": \"${PUBLIC_INDEX_NAME_ORIG}\"}}"
 
   # Create permanent connectors
