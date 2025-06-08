@@ -224,7 +224,7 @@ class TestDebeziumIntegration:
         db.commit()
 
         # Verify the new data exists in database
-        new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == "AGRKB:10100999").first()
+        new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == "AGRKB:101000999").first()
         assert new_ref is not None, "New reference should exist in database"
 
     @pytest.mark.debezium
