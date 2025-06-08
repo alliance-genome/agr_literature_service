@@ -90,7 +90,7 @@ jobs:
           ENV_STATE: test
           HOST: 0.0.0.0
           PSQL_USERNAME: postgres
-          PSQL_PASSWORD: postgres  # pragma: allowlist secret
+          PSQL_PASSWORD: postgres
           PSQL_HOST: localhost
           PSQL_PORT: 5433
           PSQL_DATABASE: literature-test
