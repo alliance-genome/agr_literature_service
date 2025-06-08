@@ -196,7 +196,7 @@ class TestDebeziumIntegration:
     """Test Debezium integration for both public and private indexes."""
 
     @pytest.mark.debezium
-    def test_verify_initial_data_sync(self, db):
+    def test_verify_initial_data_sync(self, db):  # noqa
         """Test that initial mock data has been synced from database to Elasticsearch."""
         # Verify that the mock data populated by populate_test_db.py exists in the database
         ref_count = db.query(ReferenceModel).count()
@@ -210,7 +210,7 @@ class TestDebeziumIntegration:
 
     @pytest.mark.debezium
     @pytest.mark.webtest
-    def test_real_time_data_sync(self, db, mock_data_factory, elasticsearch_config):
+    def test_real_time_data_sync(self, db, mock_data_factory, elasticsearch_config):  # noqa
         """Test real-time synchronization by creating new data after Debezium is running."""
         import time
         
