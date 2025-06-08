@@ -22,7 +22,7 @@ DEBEZIUM_INDEX_NAME="${DEBEZIUM_INDEX_NAME}_temp"
 
 # Set up public index variables
 PUBLIC_INDEX_NAME_ORIG="public_references_index"
-PUBLIC_INDEX_NAME="${PUBLIC_INDEX_NAME_ORIG}_temp"
+export PUBLIC_INDEX_NAME="${PUBLIC_INDEX_NAME_ORIG}_temp"
 
 # Delete and create both private and public indexes
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}
@@ -61,6 +61,7 @@ curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json"
 
 # Wait for data processing with intelligent polling for test mode
 if [[ "${ENV_STATE}" == "test" ]]; then
+    sleep 30
     echo "Polling for data in test mode..."
     max_attempts=12  # 12 attempts * 5 seconds = 1 minute max wait
     attempt=0
