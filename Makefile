@@ -163,7 +163,8 @@ run-debezium-integration-tests:
 	@echo "Running Debezium setup (this will wait for completion)..."
 	docker-compose --env-file .env.test up --build dbz_setup
 	sleep 20
-	# Run the actual integration tests
-	#docker-compose --env-file .env.test run --rm test_runner python3 -m pytest tests/test_debezium_integration.py -v -m "debezium"
+	# Run the actual integration tests with TEST_CLEANUP=false to preserve data
+	@echo "Running Debezium integration tests (with data preservation)..."
+	docker-compose --env-file .env.test run --rm -e TEST_CLEANUP=false test_runner python3 -m pytest tests/test_debezium_integration.py -v -m "debezium"
 	# Cleanup
 	#docker-compose --env-file .env.test down

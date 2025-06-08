@@ -115,6 +115,7 @@ jobs:
           XML_PATH: ${GITHUB_WORKSPACE}/tests/tmp/
           OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
           OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
+          TEST_CLEANUP: false
         run: |
           # First verify that initial data from populate_test_db.py exists in database
           pytest tests/test_debezium_integration.py::TestDebeziumIntegration::test_verify_initial_data_sync -v --no-cov
