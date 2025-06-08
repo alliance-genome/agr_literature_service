@@ -4,9 +4,9 @@
 if [[ "${ENV_STATE}" == "test" ]]; then
     # Test environment - much shorter sleeps for smaller datasets
     CONNECTOR_SETUP_SLEEP=5
-    KSQL_SETUP_SLEEP=30
-    KSQL_POST_SLEEP=60
-    DATA_PROCESSING_SLEEP=60
+    KSQL_SETUP_SLEEP=5
+    KSQL_POST_SLEEP=5
+    DATA_PROCESSING_SLEEP=10
     echo "Running in TEST mode with reduced sleep timings"
 else
     # Production environment - longer sleeps for full datasets
@@ -73,7 +73,7 @@ curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json"
 
 # Wait for data processing with intelligent polling for test mode
 if [[ "${ENV_STATE}" == "test" ]]; then
-    sleep 30
+    sleep ${DATA_PROCESSING_SLEEP}
     echo "Polling for data in test mode..."
     max_attempts=12  # 12 attempts * 5 seconds = 1 minute max wait
     attempt=0
