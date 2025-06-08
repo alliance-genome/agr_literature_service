@@ -17,7 +17,7 @@ from agr_literature_service.api.models.reference_relation_model import Reference
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
 from agr_literature_service.api.models.resource_model import ResourceModel
-from .fixtures import db
+from .fixtures import db # noqa
 
 # Import fixtures - db fixture is automatically available via pytest
 
@@ -209,8 +209,11 @@ class TestDebeziumIntegration:
         assert xref_count >= 10, f"Expected at least 10 cross-references, found {xref_count}"
 
     @pytest.mark.debezium
-    def test_real_time_data_sync(self, db, mock_data_factory):
+    @pytest.mark.webtest
+    def test_real_time_data_sync(self, db, mock_data_factory, elasticsearch_config):
         """Test real-time synchronization by creating new data after Debezium is running."""
+        import time
+        
         # Create additional test data to test real-time sync
         resource = mock_data_factory.create_resource(db, 999)
         citation = mock_data_factory.create_citation(db, 999)
@@ -226,6 +229,79 @@ class TestDebeziumIntegration:
         # Verify the new data exists in database
         new_ref = db.query(ReferenceModel).filter(ReferenceModel.curie == "AGRKB:101000999").first()
         assert new_ref is not None, "New reference should exist in database"
+
+        # Wait for Debezium to sync the data to Elasticsearch
+        # Use progressively longer waits up to a maximum
+        es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
+        test_curie = "AGRKB:101000999"
+        
+        max_wait_time = 30  # Maximum wait time in seconds
+        poll_interval = 2   # Poll every 2 seconds
+        elapsed_time = 0
+        
+        private_found = False
+        public_found = False
+        
+        while elapsed_time < max_wait_time and not (private_found and public_found):
+            time.sleep(poll_interval)
+            elapsed_time += poll_interval
+            
+            # Check private index
+            if not private_found:
+                private_response = requests.get(
+                    f"{es_url}/{elasticsearch_config['private_index']}/_search",
+                    params={"q": f"curie:{test_curie}", "size": 1}
+                )
+                if private_response.status_code == 200:
+                    private_data = private_response.json()
+                    private_found = private_data['hits']['total']['value'] > 0
+            
+            # Check public index
+            if not public_found:
+                public_response = requests.get(
+                    f"{es_url}/{elasticsearch_config['public_index']}/_search",
+                    params={"q": f"curie:{test_curie}", "size": 1}
+                )
+                if public_response.status_code == 200:
+                    public_data = public_response.json()
+                    public_found = public_data['hits']['total']['value'] > 0
+        
+        # Assert that the new reference was synced to both Elasticsearch indexes
+        assert private_found, f"New reference {test_curie} not found in private Elasticsearch index after {max_wait_time}s"
+        assert public_found, f"New reference {test_curie} not found in public Elasticsearch index after {max_wait_time}s"
+        
+        # Verify the document structure in both indexes
+        # Re-fetch the documents to ensure we have the latest data
+        private_response = requests.get(
+            f"{es_url}/{elasticsearch_config['private_index']}/_search",
+            params={"q": f"curie:{test_curie}", "size": 1}
+        )
+        public_response = requests.get(
+            f"{es_url}/{elasticsearch_config['public_index']}/_search",
+            params={"q": f"curie:{test_curie}", "size": 1}
+        )
+        
+        assert private_response.status_code == 200, "Failed to fetch from private index"
+        assert public_response.status_code == 200, "Failed to fetch from public index"
+        
+        private_data = private_response.json()
+        public_data = public_response.json()
+        
+        private_doc = private_data['hits']['hits'][0]['_source']
+        public_doc = public_data['hits']['hits'][0]['_source']
+        
+        # Both should have the curie
+        assert private_doc['curie'] == test_curie, "Private index document has incorrect curie"
+        assert public_doc['curie'] == test_curie, "Public index document has incorrect curie"
+        
+        # Private index should have more fields than public
+        private_fields = set(private_doc.keys())
+        public_fields = set(public_doc.keys())
+        
+        # Both should have core fields
+        core_fields = {'curie', 'title', 'abstract'}
+        assert core_fields.issubset(private_fields), "Private index missing core fields"
+        assert core_fields.issubset(public_fields), "Public index missing core fields"
 
     @pytest.mark.debezium
     @pytest.mark.webtest
