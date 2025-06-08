@@ -165,7 +165,7 @@ run-debezium-integration-tests:
 	sleep 20
 	# Run the actual integration tests with TEST_CLEANUP=false to preserve data
 	@echo "Running Debezium integration tests (with data preservation)..."
-	docker-compose --env-file .env.test run --rm -e TEST_CLEANUP=false test_runner python3 -m pytest tests/test_debezium_integration.py -v -m "debezium"
+	docker-compose --env-file .env.test run --rm -e TEST_CLEANUP=false test_runner python3 -m pytest tests/test_debezium_integration.py -v -m "debezium" --no-cov
 	# Cleanup
 	docker-compose --env-file .env.test down
 
