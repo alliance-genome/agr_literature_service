@@ -17,6 +17,7 @@ from agr_literature_service.api.models.reference_relation_model import Reference
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
 from agr_literature_service.api.models.resource_model import ResourceModel
+from .fixtures import db
 
 # Import fixtures - db fixture is automatically available via pytest
 

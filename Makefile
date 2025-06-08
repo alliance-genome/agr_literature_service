@@ -159,12 +159,10 @@ run-debezium-integration-tests:
 	# Start KSQL server
 	docker-compose --env-file .env.test up -d dbz_ksql_server
 	sleep 20
-	# Run Debezium setup
-	docker-compose --env-file .env.test up -d --build dbz_setup
-	sleep 30
-	# Wait for data to be indexed
-	@echo "Waiting for Debezium pipeline to process data..."
-	sleep 60
+	# Run Debezium setup and wait for completion
+	@echo "Running Debezium setup (this will wait for completion)..."
+	docker-compose --env-file .env.test up --build dbz_setup
+	sleep 20
 	# Run the actual integration tests
 	#docker-compose --env-file .env.test run --rm test_runner python3 -m pytest tests/test_debezium_integration.py -v -m "debezium"
 	# Cleanup
