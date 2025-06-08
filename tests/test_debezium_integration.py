@@ -253,7 +253,7 @@ class TestDebeziumIntegration:
                     json={
                         "query": {
                             "term": {
-                                "curie": test_curie
+                                "curie.keyword": test_curie
                             }
                         },
                         "size": 1
@@ -270,7 +270,7 @@ class TestDebeziumIntegration:
                     json={
                         "query": {
                             "term": {
-                                "curie": test_curie
+                                "curie.keyword": test_curie
                             }
                         },
                         "size": 1
@@ -291,7 +291,7 @@ class TestDebeziumIntegration:
             json={
                 "query": {
                     "term": {
-                        "curie": test_curie
+                        "curie.keyword": test_curie
                     }
                 },
                 "size": 1
@@ -302,7 +302,7 @@ class TestDebeziumIntegration:
             json={
                 "query": {
                     "term": {
-                        "curie": test_curie
+                        "curie.keyword": test_curie
                     }
                 },
                 "size": 1
