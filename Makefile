@@ -142,14 +142,13 @@ run-debezium-integration-tests:
 	docker-compose --env-file .env.test rm -svf elasticsearch dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 	# Start required services
 	docker-compose --env-file .env.test up -d postgres
-	sleep 5
+	sleep 3
 	docker-compose --env-file .env.test build dev_app
 	# Initialize test database with mock data
 	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
 	docker-compose --env-file .env.test run --rm dev_app python3 tests/populate_test_db.py
 	# Start Elasticsearch
 	docker-compose --env-file .env.test up -d elasticsearch
-	sleep 5
 	# Start Debezium stack
 	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5
@@ -173,14 +172,13 @@ run-debezium-start-test-env:
 	docker-compose --env-file .env.test rm -svf elasticsearch dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 	# Start required services
 	docker-compose --env-file .env.test up -d postgres
-	sleep 5
+	sleep 3
 	docker-compose --env-file .env.test build dev_app
 	# Initialize test database with mock data
 	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
 	docker-compose --env-file .env.test run --rm dev_app python3 tests/populate_test_db.py
 	# Start Elasticsearch
 	docker-compose --env-file .env.test up -d elasticsearch
-	sleep 5
 	# Start Debezium stack
 	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
 	sleep 5

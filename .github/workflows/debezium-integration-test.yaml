@@ -52,7 +52,7 @@ jobs:
           
           # Start PostgreSQL
           docker compose --env-file .env.test up -d postgres
-          sleep 5
+          sleep 3
           
           # Initialize test database
           docker compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
@@ -63,17 +63,15 @@ jobs:
           
           # Start Elasticsearch
           docker compose --env-file .env.test up -d elasticsearch
-          sleep 5
-      
+
       - name: Start Debezium Infrastructure
         run: |
           # Start Kafka ecosystem
           docker compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
-          sleep 5
+          sleep 3
           
           # Start KsqlDB
           docker compose --env-file .env.test up -d dbz_ksql_server
-          sleep 5
           
           # Check service health
           docker compose --env-file .env.test ps

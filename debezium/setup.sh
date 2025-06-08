@@ -3,10 +3,10 @@
 # Configure sleep timings based on environment
 if [[ "${ENV_STATE}" == "test" ]]; then
     # Test environment - much shorter sleeps for smaller datasets
-    CONNECTOR_SETUP_SLEEP=5
+    CONNECTOR_SETUP_SLEEP=0
     KSQL_SETUP_SLEEP=5
     KSQL_POST_SLEEP=5
-    DATA_PROCESSING_SLEEP=10
+    DATA_PROCESSING_SLEEP=3
     echo "Running in TEST mode with reduced sleep timings"
 else
     # Production environment - longer sleeps for full datasets
