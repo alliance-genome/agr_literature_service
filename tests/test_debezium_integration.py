@@ -248,9 +248,16 @@ class TestDebeziumIntegration:
             
             # Check private index
             if not private_found:
-                private_response = requests.get(
+                private_response = requests.post(
                     f"{es_url}/{elasticsearch_config['private_index']}/_search",
-                    params={"q": f"curie:{test_curie}", "size": 1}
+                    json={
+                        "query": {
+                            "term": {
+                                "curie": test_curie
+                            }
+                        },
+                        "size": 1
+                    }
                 )
                 if private_response.status_code == 200:
                     private_data = private_response.json()
@@ -258,9 +265,16 @@ class TestDebeziumIntegration:
             
             # Check public index
             if not public_found:
-                public_response = requests.get(
+                public_response = requests.post(
                     f"{es_url}/{elasticsearch_config['public_index']}/_search",
-                    params={"q": f"curie:{test_curie}", "size": 1}
+                    json={
+                        "query": {
+                            "term": {
+                                "curie": test_curie
+                            }
+                        },
+                        "size": 1
+                    }
                 )
                 if public_response.status_code == 200:
                     public_data = public_response.json()
@@ -272,13 +286,27 @@ class TestDebeziumIntegration:
         
         # Verify the document structure in both indexes
         # Re-fetch the documents to ensure we have the latest data
-        private_response = requests.get(
+        private_response = requests.post(
             f"{es_url}/{elasticsearch_config['private_index']}/_search",
-            params={"q": f"curie:{test_curie}", "size": 1}
+            json={
+                "query": {
+                    "term": {
+                        "curie": test_curie
+                    }
+                },
+                "size": 1
+            }
         )
-        public_response = requests.get(
+        public_response = requests.post(
             f"{es_url}/{elasticsearch_config['public_index']}/_search",
-            params={"q": f"curie:{test_curie}", "size": 1}
+            json={
+                "query": {
+                    "term": {
+                        "curie": test_curie
+                    }
+                },
+                "size": 1
+            }
         )
         
         assert private_response.status_code == 200, "Failed to fetch from private index"
@@ -389,7 +417,17 @@ class TestDebeziumIntegration:
         new_fields = ['relations', 'copyright_license', 'mesh_terms', 'resource_title']
 
         for field in new_fields:
-            response = requests.get(f"{es_url}/{elasticsearch_config['public_index']}/_search?q={field}:*&size=1")
+            response = requests.post(
+                f"{es_url}/{elasticsearch_config['public_index']}/_search",
+                json={
+                    "query": {
+                        "exists": {
+                            "field": field
+                        }
+                    },
+                    "size": 1
+                }
+            )
             assert response.status_code == 200
 
             # Field should exist in the mapping even if no documents have values
