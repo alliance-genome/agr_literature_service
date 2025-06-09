@@ -342,7 +342,7 @@ class TestWorkflowTag:
                 }
             )
             mock_atp_to_name.get.return_value = "manual indexing needed"
-            mock_get_map_ateam_curies_to_names.return_value ={
+            mock_get_map_ateam_curies_to_names.return_value = {
                 "ATP:0000274": "manual indexing needed",
                 "ATP:0000275": "manual indexing in progress",
                 "ATP:0000276": "manual indexing complete",
