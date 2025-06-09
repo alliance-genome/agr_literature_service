@@ -314,68 +314,88 @@ class TestWorkflowTag:
             assert isinstance(empty_counters, list)
             assert len(empty_counters) == 0  # Should be an empty dictionary
 
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process")
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children")
-    @patch("agr_literature_service.api.crud.workflow_tag_crud.atp_to_name")
-    def test_get_indexing_and_community_workflow_tags(self, mock_atp_to_name, mock_get_name_to_atp,
-                                                      mock_get_workflow_tags, test_workflow_tag,
-                                                      auth_headers):  # noqa
+    def test_get_indexing_and_community_workflow_tags(self, test_workflow_tag, db, auth_headers): # noqa
         """Test the get_indexing_and_community_workflow_tags function"""
+        from unittest.mock import patch  # ensure patch is in scope
 
-        # Create test data
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
-        mod = db.query(ModModel).filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation).one()
+        with patch(
+            "agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+            load_name_to_atp_and_relationships_mock
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process"
+        ) as mock_get_workflow_tags, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children"
+        ) as mock_get_name_to_atp, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.atp_to_name"
+        ) as mock_atp_to_name:
 
-        # Setup mock data
-        mock_get_workflow_tags.return_value = ["ATP:0000274", "ATP:0000275", "ATP:0000276"]
-        mock_get_name_to_atp.return_value = ({}, {"ATP:0000274": "manual indexing needed",
-                                                  "ATP:0000275": "manual indexing in progress",
-                                                  "ATP:0000276": "manual indexing complete"})
-        mock_atp_to_name.get.return_value = "manual indexing needed"
-
-        # Add workflow tags for manual indexing
-        wft1 = WorkflowTagModel(
-            reference_id=reference.reference_id,
-            mod_id=mod.mod_id,
-            workflow_tag_id="ATP:0000274"
-        )
-        db.add(wft1)
-        db.commit()
-
-        with TestClient(app) as client:
-            # Test with mod_abbreviation
-            response = client.get(
-                url=f"/workflow_tag/indexing-community/{test_workflow_tag.related_ref_curie}/{test_workflow_tag.related_mod_abbreviation}",
-                headers=auth_headers
+            # set up our mocks
+            mock_get_workflow_tags.return_value = [
+                "ATP:0000274", "ATP:0000275", "ATP:0000276"
+            ]
+            mock_get_name_to_atp.return_value = (
+                {},
+                {
+                    "ATP:0000274": "manual indexing needed",
+                    "ATP:0000275": "manual indexing in progress",
+                    "ATP:0000276": "manual indexing complete",
+                }
             )
-            assert response.status_code == status.HTTP_200_OK
-            result = response.json()
+            mock_atp_to_name.get.return_value = "manual indexing needed"
 
-            # Check that the response contains expected workflow data
-            assert isinstance(result, dict)
-
-            # Test without mod_abbreviation
-            response = client.get(
-                url=f"/workflow_tag/indexing-community/{test_workflow_tag.related_ref_curie}",
-                headers=auth_headers
+            # insert a manual-indexing tag into the DB
+            reference = (
+                db.query(ReferenceModel)
+                .filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie)
+                .one()
             )
-            assert response.status_code == status.HTTP_200_OK
-            result = response.json()
-            assert isinstance(result, dict)
-
-            # Test with mod_abbreviation that should return empty result (MGI, RGD, XB)
-            response = client.get(
-                url=f"/workflow_tag/indexing-community/{test_workflow_tag.related_ref_curie}/MGI",
-                headers=auth_headers
+            mod = (
+                db.query(ModModel)
+                .filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation)
+                .one()
             )
-            assert response.status_code == status.HTTP_200_OK
-            result = response.json()
-            assert result == {}
-
-            # Test with non-existent reference_curie
-            response = client.get(
-                url="/workflow_tag/indexing-community/NONEXISTENT:123/FB",
-                headers=auth_headers
+            wft1 = WorkflowTagModel(
+                reference_id=reference.reference_id,
+                mod_id=mod.mod_id,
+                workflow_tag_id="ATP:0000274"
             )
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-            assert "is not in the database" in response.json()["detail"]
+            db.add(wft1)
+            db.commit()
+
+            # now exercise the endpoint
+            with TestClient(app) as client:
+                # 1) with mod_abbreviation
+                r = client.get(
+                    f"/workflow_tag/indexing-community/"
+                    f"{test_workflow_tag.related_ref_curie}/"
+                    f"{test_workflow_tag.related_mod_abbreviation}",
+                    headers=auth_headers
+                )
+                assert r.status_code == status.HTTP_200_OK
+                assert isinstance(r.json(), dict)
+
+                # 2) without mod_abbreviation
+                r = client.get(
+                    f"/workflow_tag/indexing-community/"
+                    f"{test_workflow_tag.related_ref_curie}",
+                    headers=auth_headers
+                )
+                assert r.status_code == status.HTTP_200_OK
+                assert isinstance(r.json(), dict)
+
+                # 3) mod_abbreviation that is skipped (MGI, RGD, XB)
+                r = client.get(
+                    f"/workflow_tag/indexing-community/"
+                    f"{test_workflow_tag.related_ref_curie}/MGI",
+                    headers=auth_headers
+                )
+                assert r.status_code == status.HTTP_200_OK
+                assert r.json() == {}
+
+                # 4) non-existent reference_curie
+                r = client.get(
+                    "/workflow_tag/indexing-community/NONEXISTENT:123/FB",
+                    headers=auth_headers
+                )
+                assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+                assert "is not in the database" in r.json()["detail"]
