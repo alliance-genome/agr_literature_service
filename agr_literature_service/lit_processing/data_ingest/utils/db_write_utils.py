@@ -806,7 +806,7 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
                 logger.info("The mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + " has been added into database.")
             except Exception as e:
                 logger.info("An error occurred when adding mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + ". " + str(e))
-
+                return
         elif json_mca_entry['corpus'] != db_mod_corpus_association[mod]['corpus']:
             mod_corpus_association_id = db_mod_corpus_association[mod]['id']
             try:
@@ -814,6 +814,25 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
                 logger.info("The mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " has been updated in the database.")
             except Exception as e:
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
+                return
+        if mod == "ZFIN" and json_mca_entry.get("corpus"):
+            add_zfin_pre_indexing_tag(db_session, reference_id, mod_to_mod_id[mod], logger)
+
+
+def add_zfin_pre_indexing_tag(db, reference_id, mod_id, logger):
+    try:
+        atpid = 'ATP:0000306'
+        x = db.query(WorkflowTagModel).filter_by(reference_id=reference_id, mod_id=mod_id, workflow_tag_id=atpid).first()
+        if x is None:
+            x = WorkflowTagModel(
+                reference_id=reference_id,
+                mod_id=mod_id,
+                workflow_tag_id=atpid)
+            db.add(x)
+            db.commit()
+            logger.info(f"Adding ZFIN pre-indexing tag: {atpid}")
+    except Exception as e:
+        logger.error(f"Error when adding ZFIN pre-indexing tag: {e}")
 
 
 def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
