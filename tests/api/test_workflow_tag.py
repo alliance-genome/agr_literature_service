@@ -322,16 +322,16 @@ class TestWorkflowTag:
                                                       auth_headers):  # noqa
         """Test the get_indexing_and_community_workflow_tags function"""
 
+        # Create test data
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation).one()
+
         # Setup mock data
         mock_get_workflow_tags.return_value = ["ATP:0000274", "ATP:0000275", "ATP:0000276"]
         mock_get_name_to_atp.return_value = ({}, {"ATP:0000274": "manual indexing needed",
                                                   "ATP:0000275": "manual indexing in progress",
                                                   "ATP:0000276": "manual indexing complete"})
         mock_atp_to_name.get.return_value = "manual indexing needed"
-
-        # Create test data
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
-        mod = db.query(ModModel).filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation).one()
 
         # Add workflow tags for manual indexing
         wft1 = WorkflowTagModel(
