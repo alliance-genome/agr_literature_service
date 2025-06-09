@@ -320,7 +320,7 @@ class TestWorkflowTag:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children")
     @patch("agr_literature_service.api.crud.workflow_tag_crud.atp_to_name")
     def test_get_indexing_and_community_workflow_tags(self, mock_atp_to_name, mock_get_name_to_atp,
-                                                      mock_get_workflow_tags, test_workflow_tag, db,
+                                                      mock_get_workflow_tags, test_workflow_tag,
                                                       auth_headers):  # noqa
         """Test the get_indexing_and_community_workflow_tags function"""
 
