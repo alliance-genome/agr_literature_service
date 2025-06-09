@@ -13,7 +13,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process)
 from ..fixtures import load_name_to_atp_and_relationships_mock
-# from ..fixtures import db  # noqa
+from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
