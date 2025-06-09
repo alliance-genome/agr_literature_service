@@ -313,3 +313,81 @@ class TestWorkflowTag:
             empty_counters = response.json()
             assert isinstance(empty_counters, list)
             assert len(empty_counters) == 0  # Should be an empty dictionary
+
+    def test_get_indexing_and_community_workflow_tags(self, test_workflow_tag, db, auth_headers): # noqa
+        """Test the get_indexing_and_community_workflow_tags endpoint."""
+        with patch(
+            "agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+            load_name_to_atp_and_relationships_mock
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process"
+        ) as mock_get_workflow_tags, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children"
+        ) as mock_get_name_to_atp, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.atp_to_name"
+        ) as mock_atp_to_name, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names"
+        ) as mock_get_map_ateam_curies_to_names:
+
+            # ── configure our mocks ─────────────────────────────────
+            mock_get_workflow_tags.return_value = [
+                "ATP:0000274", "ATP:0000275", "ATP:0000276"
+            ]
+            mock_get_name_to_atp.return_value = (
+                {},
+                {
+                    "ATP:0000274": "manual indexing needed",
+                    "ATP:0000275": "manual indexing in progress",
+                    "ATP:0000276": "manual indexing complete",
+                }
+            )
+            mock_atp_to_name.get.return_value = "manual indexing needed"
+            mock_get_map_ateam_curies_to_names.return_value = {
+                "ATP:0000274": "manual indexing needed",
+                "ATP:0000275": "manual indexing in progress",
+                "ATP:0000276": "manual indexing complete",
+            }
+            # ── insert one WorkflowTagModel for “manual indexing” ─────
+            reference = (
+                db.query(ReferenceModel)
+                .filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie)
+                .one()
+            )
+            mod = (
+                db.query(ModModel)
+                .filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation)
+                .one()
+            )
+            db.add(WorkflowTagModel(
+                reference_id=reference.reference_id,
+                mod_id=mod.mod_id,
+                workflow_tag_id="ATP:0000274"
+            ))
+            db.commit()
+
+            # ── exercise the indexing-community endpoint ─────────────
+            with TestClient(app) as client:
+                base = f"/workflow_tag/indexing-community/{test_workflow_tag.related_ref_curie}"
+
+                # 1) no mod_abbreviation → should return all statuses
+                r = client.get(base, headers=auth_headers)
+                assert r.status_code == status.HTTP_200_OK
+                assert isinstance(r.json(), dict)
+
+                # 2) with mod_abbreviation as query parameter
+                r = client.get(base,
+                               params={"mod_abbreviation": test_workflow_tag.related_mod_abbreviation},
+                               headers=auth_headers)
+                assert r.status_code == status.HTTP_200_OK
+                assert isinstance(r.json(), dict)
+
+                # 3) a skipped MOD (MGI) → empty dict
+                r = client.get(base, params={"mod_abbreviation": "MGI"}, headers=auth_headers)
+                assert r.status_code == status.HTTP_200_OK
+                assert r.json() == {}
+
+                # 4) non-existent reference → 404
+                r = client.get("/workflow_tag/indexing-community/AGR:NONEXISTENT",
+                               headers=auth_headers)
+                assert r.status_code == status.HTTP_404_NOT_FOUND
+                assert 'Reference with the reference_id or curie AGR:NONEXISTENT is not available' in r.json()["detail"]
