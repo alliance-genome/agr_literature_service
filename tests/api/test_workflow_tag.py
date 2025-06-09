@@ -386,9 +386,8 @@ class TestWorkflowTag:
                 assert r.status_code == status.HTTP_200_OK
                 assert r.json() == {}
 
-                # 4) non-existent reference → 422
-                r = client.get("/workflow_tag/indexing-community/NONEXISTENT:123",
-                               params={"mod_abbreviation": "FB"},
+                # 4) non-existent reference → 404
+                r = client.get("/workflow_tag/indexing-community/AGR:NONEXISTENT",
                                headers=auth_headers)
-                assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-                assert "is not in the database" in r.json()["detail"]
+                assert r.status_code == status.HTTP_404_NOT_FOUND
+                assert 'Reference with the reference_id or curie AGR:NONEXISTENT is not available' in r.json()["detail"]
