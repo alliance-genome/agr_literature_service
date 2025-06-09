@@ -314,7 +314,7 @@ class TestWorkflowTag:
             assert isinstance(empty_counters, list)
             assert len(empty_counters) == 0  # Should be an empty dictionary
 
-    def test_get_indexing_and_community_workflow_tags(self, test_workflow_tag, db, auth_headers):
+    def test_get_indexing_and_community_workflow_tags(self, test_workflow_tag, db, auth_headers): # noqa
         """Test the get_indexing_and_community_workflow_tags endpoint."""
         with patch(
             "agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
@@ -344,13 +344,13 @@ class TestWorkflowTag:
             # ── insert one WorkflowTagModel for “manual indexing” ─────
             reference = (
                 db.query(ReferenceModel)
-                  .filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie)
-                  .one()
+                .filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie)
+                .one()
             )
             mod = (
                 db.query(ModModel)
-                  .filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation)
-                  .one()
+                .filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation)
+                .one()
             )
             db.add(WorkflowTagModel(
                 reference_id=reference.reference_id,
@@ -381,10 +381,8 @@ class TestWorkflowTag:
                 assert r.json() == {}
 
                 # 4) non-existent reference → 422
-                r = client.get(
-                    f"/workflow_tag/indexing-community/NONEXISTENT:123",
-                    params={"mod_abbreviation": "FB"},
-                    headers=auth_headers
-                )
+                r = client.get("/workflow_tag/indexing-community/NONEXISTENT:123",
+                               params={"mod_abbreviation": "FB"},
+                               headers=auth_headers)
                 assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
                 assert "is not in the database" in r.json()["detail"]
