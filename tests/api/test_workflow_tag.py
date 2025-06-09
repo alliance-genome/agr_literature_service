@@ -325,7 +325,9 @@ class TestWorkflowTag:
             "agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children"
         ) as mock_get_name_to_atp, patch(
             "agr_literature_service.api.crud.workflow_tag_crud.atp_to_name"
-        ) as mock_atp_to_name:
+        ) as mock_atp_to_name, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names"
+        ) as mock_get_map_ateam_curies_to_names:
 
             # ── configure our mocks ─────────────────────────────────
             mock_get_workflow_tags.return_value = [
@@ -340,7 +342,11 @@ class TestWorkflowTag:
                 }
             )
             mock_atp_to_name.get.return_value = "manual indexing needed"
-
+            mock_get_map_ateam_curies_to_names.return_value ={
+                "ATP:0000274": "manual indexing needed",
+                "ATP:0000275": "manual indexing in progress",
+                "ATP:0000276": "manual indexing complete",
+            }
             # ── insert one WorkflowTagModel for “manual indexing” ─────
             reference = (
                 db.query(ReferenceModel)
