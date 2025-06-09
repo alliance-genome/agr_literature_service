@@ -1132,6 +1132,12 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
             'ATP:0000189': 'reference classification failed',
             'ATP:0000178': 'reference classification in progress',
             'ATP:0000166': 'reference classification needed'
+        },
+        'ATP:0000172': {
+            'ATP:0000190': 'entity extraction in progress',
+            'ATP:0000187': 'entity extraction failed',
+            'ATP:0000174': 'entity extraction complete',
+            'ATP:0000173': 'entity extraction needed'
         }
     }
 
