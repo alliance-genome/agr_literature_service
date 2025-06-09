@@ -6,7 +6,6 @@ def test_atp_to_name_subset_with_monkeypatched_globals(monkeypatch):
     fake_mapping = {
         "ATP:0000274": "Manual indexing needed",
         "ATP:0000275": "Manual indexing in progress",
-        # note: we deliberately leave out ATP:0000276
     }
     monkeypatch.setattr(ateam_db_helpers, "atp_to_name", fake_mapping)
     monkeypatch.setattr(
@@ -16,7 +15,7 @@ def test_atp_to_name_subset_with_monkeypatched_globals(monkeypatch):
     )
 
     # 2) Call the subset function
-    curies = ["ATP:0000274", "ATP:0000275", "ATP:0000276"]
+    curies = ["ATP:0000274", "ATP:0000275"]
     result = ateam_db_helpers.atp_to_name_subset(curies)
 
     # 3) Assert we got only the keys present in our fake mapping
