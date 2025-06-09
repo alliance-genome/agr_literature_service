@@ -314,8 +314,6 @@ class TestWorkflowTag:
             assert isinstance(empty_counters, list)
             assert len(empty_counters) == 0  # Should be an empty dictionary
 
-    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
-           load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process")
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children")
     @patch("agr_literature_service.api.crud.workflow_tag_crud.atp_to_name")
