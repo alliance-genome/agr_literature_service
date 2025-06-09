@@ -13,7 +13,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process)
 from ..fixtures import load_name_to_atp_and_relationships_mock
-from ..fixtures import db  # noqa
+# from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
@@ -318,7 +318,7 @@ class TestWorkflowTag:
     @patch("agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children")
     @patch("agr_literature_service.api.crud.workflow_tag_crud.atp_to_name")
     def test_get_indexing_and_community_workflow_tags(self, mock_atp_to_name, mock_get_name_to_atp,
-                                                      mock_get_workflow_tags, test_workflow_tag,
+                                                      mock_get_workflow_tags, db, test_workflow_tag,
                                                       auth_headers):  # noqa
         """Test the get_indexing_and_community_workflow_tags function"""
 
