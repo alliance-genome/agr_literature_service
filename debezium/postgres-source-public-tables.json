@@ -14,7 +14,7 @@
     "table.include.list": "public.reference_relation,public.copyright_license,public.mesh_detail,public.resource",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
-    "poll.interval.ms": "5000",
+    "poll.interval.ms": "500",
     "transforms": "unwrap",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
     "transforms.unwrap.drop.tombstones": "false",

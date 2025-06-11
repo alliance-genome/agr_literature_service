@@ -14,7 +14,7 @@
     "table.include.list": "public.topic_entity_tag_source",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
-    "poll.interval.ms": "5000",
+    "poll.interval.ms": "500",
     "transforms": "extractKey,extractValue",
     "transforms.extractKey.field": "topic_entity_tag_source_id",
     "transforms.extractKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
