@@ -601,8 +601,9 @@ CREATE TABLE reference_relation (
 CREATE TABLE copyright_license (
     copyright_license_id string PRIMARY KEY,
     reference_id string,
-    copyright_license_text string,
-    copyright_license_url string,
+    name string,
+    url string,
+    description string,
     open_access boolean
   ) WITH (
     KAFKA_TOPIC='abc.public.copyright_license',
@@ -612,8 +613,8 @@ CREATE TABLE copyright_license (
 CREATE TABLE mesh_detail (
     mesh_detail_id string PRIMARY KEY,
     reference_id string,
-    mesh_heading_term string,
-    mesh_qualifier_term string
+    heading_term string,
+    qualifier_term string
   ) WITH (
     KAFKA_TOPIC='abc.public.mesh_detail',
     VALUE_FORMAT='json'
@@ -640,14 +641,14 @@ CREATE TABLE reference_relations AS
 
 CREATE TABLE copyright_licenses AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('copyright_license_text':=copyright_license_text, 'copyright_license_url':=copyright_license_url, 'open_access':=cast(open_access as string))) \"COPYRIGHT_LICENSE\"
+    collect_list(map('name':=name, 'url':=url, 'description':=description, 'open_access':=cast(open_access as string))) \"COPYRIGHT_LICENSE\"
     FROM copyright_license
     GROUP BY reference_id
     EMIT CHANGES;
 
 CREATE TABLE mesh_terms AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('mesh_heading_term':=mesh_heading_term, 'mesh_qualifier_term':=mesh_qualifier_term)) \"MESH_TERMS\"
+    collect_list(map('heading_term':=heading_term, 'qualifier_term':=qualifier_term)) \"MESH_TERMS\"
     FROM mesh_detail
     GROUP BY reference_id
     EMIT CHANGES;
