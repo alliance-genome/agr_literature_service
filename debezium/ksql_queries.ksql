@@ -9,6 +9,7 @@ CREATE TABLE reference (
     abstract string,
     category string,
     citation_id string,
+    copyright_license_id string,
     date_arrived_in_pubmed string,
     date_created bigint,
     date_last_modified_in_pubmed string,
@@ -19,7 +20,6 @@ CREATE TABLE reference (
     issue_name string,
     keywords array<string>,
     language string,
-    open_access boolean,
     page_range string,
     plain_language_abstract string,
     publisher string,
@@ -33,6 +33,39 @@ CREATE TABLE reference (
     KAFKA_TOPIC='abc.public.reference',
     VALUE_FORMAT='json'
   );
+
+CREATE TABLE normalized_copyright_reference AS
+  SELECT
+    reference_id,
+    curie,
+    abstract,
+    category,
+    citation_id,
+    CASE
+      WHEN copyright_license_id IS NULL THEN '__EMPTY__'
+      ELSE copyright_license_id
+    END AS copyright_license_id,
+    date_arrived_in_pubmed,
+    date_created,
+    date_last_modified_in_pubmed,
+    date_published,
+    date_published_start,
+    date_published_end,
+    date_updated,
+    issue_name,
+    keywords,
+    language,
+    page_range,
+    plain_language_abstract,
+    publisher,
+    pubmed_abstract_languages,
+    pubmed_publication_status,
+    pubmed_types,
+    resource_id,
+    title,
+    volume
+  FROM reference
+  EMIT CHANGES;
 
 CREATE TABLE cross_reference (
     ROWKEY string PRIMARY KEY,
@@ -272,35 +305,35 @@ CREATE TABLE obsolete_curies AS
 
 CREATE TABLE reference_with_citation AS
     SELECT
-    reference.reference_id \"REFERENCE_ID\",
-    reference.curie,
-    reference.abstract,
-    reference.category,
-    NULLIF(reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
-    reference.date_created,
-    NULLIF(reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
-    reference.date_published,
-    reference.date_published_start,
-    reference.date_published_end,
-    reference.date_updated,
-    reference.issue_name,
-    reference.keywords,
-    reference.language,
-    reference.open_access,
-    reference.page_range,
-    reference.plain_language_abstract,
-    reference.publisher,
-    reference.pubmed_abstract_languages,
-    reference.pubmed_publication_status,
-    reference.pubmed_types,
-    reference.resource_id,
-    reference.title,
-    reference.volume,
+    normalized_copyright_reference.reference_id \"REFERENCE_ID\",
+    normalized_copyright_reference.curie,
+    normalized_copyright_reference.abstract,
+    normalized_copyright_reference.category,
+    NULLIF(normalized_copyright_reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
+    normalized_copyright_reference.date_created,
+    NULLIF(normalized_copyright_reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
+    normalized_copyright_reference.date_published,
+    normalized_copyright_reference.date_published_start,
+    normalized_copyright_reference.date_published_end,
+    normalized_copyright_reference.date_updated,
+    normalized_copyright_reference.issue_name,
+    normalized_copyright_reference.keywords,
+    normalized_copyright_reference.language,
+    normalized_copyright_reference.copyright_license_id,
+    normalized_copyright_reference.page_range,
+    normalized_copyright_reference.plain_language_abstract,
+    normalized_copyright_reference.publisher,
+    normalized_copyright_reference.pubmed_abstract_languages,
+    normalized_copyright_reference.pubmed_publication_status,
+    normalized_copyright_reference.pubmed_types,
+    normalized_copyright_reference.resource_id,
+    normalized_copyright_reference.title,
+    normalized_copyright_reference.volume,
     citation.citation \"CITATION\",
     citation.short_citation \"SHORT_CITATION\"
-    FROM reference reference
+    FROM normalized_copyright_reference normalized_copyright_reference
     JOIN citation citation ON
-    reference.citation_id = citation.citation_id
+    normalized_copyright_reference.citation_id = citation.citation_id
     EMIT CHANGES;
 
 CREATE TABLE reference_xref AS
@@ -319,7 +352,7 @@ CREATE TABLE reference_xref AS
     reference.issue_name,
     reference.keywords,
     reference.language,
-    reference.open_access,
+    reference.copyright_license_id,
     reference.page_range,
     reference.plain_language_abstract,
     reference.publisher,
@@ -353,7 +386,7 @@ CREATE TABLE reference_xref_author AS
     reference_xref.issue_name,
     reference_xref.keywords,
     reference_xref.language,
-    reference_xref.open_access,
+    reference_xref.copyright_license_id,
     reference_xref.page_range,
     reference_xref.plain_language_abstract,
     reference_xref.publisher,
@@ -388,7 +421,7 @@ CREATE TABLE reference_xref_author_mods_in_corpus AS
     reference_xref_author.issue_name,
     reference_xref_author.keywords,
     reference_xref_author.language,
-    reference_xref_author.open_access,
+    reference_xref_author.copyright_license_id,
     reference_xref_author.page_range,
     reference_xref_author.plain_language_abstract,
     reference_xref_author.publisher,
@@ -424,7 +457,7 @@ CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
     reference_xref_author_mods_in_corpus.issue_name,
     reference_xref_author_mods_in_corpus.keywords,
     reference_xref_author_mods_in_corpus.language,
-    reference_xref_author_mods_in_corpus.open_access,
+    reference_xref_author_mods_in_corpus.copyright_license_id,
     reference_xref_author_mods_in_corpus.page_range,
     reference_xref_author_mods_in_corpus.plain_language_abstract,
     reference_xref_author_mods_in_corpus.publisher,
@@ -461,7 +494,7 @@ CREATE TABLE reference_xref_all_mods_corpus AS
     reference_xref_author_mods_in_corpus_mods_needs_review.issue_name,
     reference_xref_author_mods_in_corpus_mods_needs_review.keywords,
     reference_xref_author_mods_in_corpus_mods_needs_review.language,
-    reference_xref_author_mods_in_corpus_mods_needs_review.open_access,
+    reference_xref_author_mods_in_corpus_mods_needs_review.copyright_license_id,
     reference_xref_author_mods_in_corpus_mods_needs_review.page_range,
     reference_xref_author_mods_in_corpus_mods_needs_review.plain_language_abstract,
     reference_xref_author_mods_in_corpus_mods_needs_review.publisher,
@@ -498,7 +531,7 @@ CREATE TABLE reference_obsolete_curies AS SELECT
     reference_xref_all_mods_corpus.issue_name,
     reference_xref_all_mods_corpus.keywords,
     reference_xref_all_mods_corpus.language,
-    reference_xref_all_mods_corpus.open_access,
+    reference_xref_all_mods_corpus.copyright_license_id,
     reference_xref_all_mods_corpus.page_range,
     reference_xref_all_mods_corpus.plain_language_abstract,
     reference_xref_all_mods_corpus.publisher,
@@ -535,7 +568,7 @@ CREATE TABLE reference_mod_reference_types AS SELECT
     reference_obsolete_curies.issue_name,
     reference_obsolete_curies.keywords,
     reference_obsolete_curies.language,
-    reference_obsolete_curies.open_access,
+    reference_obsolete_curies.copyright_license_id,
     reference_obsolete_curies.page_range,
     reference_obsolete_curies.plain_language_abstract,
     reference_obsolete_curies.publisher,
@@ -588,6 +621,112 @@ CREATE TABLE reference_workflow_tags AS
     GROUP BY reference_workflow_tag_with_mod.reference_id
     EMIT CHANGES;
 
+CREATE TABLE reference_relation (
+    ROWKEY string PRIMARY KEY,
+    reference_id_from string,
+    reference_id_to string,
+    reference_relation_type string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference_relation',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE copyright_license (
+    copyright_license_id string PRIMARY KEY,
+    name string,
+    url string,
+    description string,
+    open_access boolean
+  ) WITH (
+    KAFKA_TOPIC='abc.public.copyright_license',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+  );
+
+INSERT INTO copyright_license (
+  copyright_license_id,
+  name,
+  url,
+  description,
+  open_access
+) VALUES (
+  '__EMPTY__',
+  NULL,
+  NULL,
+  NULL,
+  NULL
+);
+
+CREATE TABLE mesh_detail (
+    mesh_detail_id string PRIMARY KEY,
+    reference_id string,
+    heading_term string,
+    qualifier_term string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.mesh_detail',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE resource (
+    resource_id string PRIMARY KEY,
+    title string,
+    iso_abbreviation string,
+    medline_abbreviation string,
+    issn_print string,
+    issn_electronic string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.resource',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE reference_relations AS
+    SELECT reference_id_from \"REFERENCE_ID\",
+    collect_list(map('reference_id_to':=reference_id_to, 'reference_relation_type':=reference_relation_type)) \"RELATIONS\"
+    FROM reference_relation
+    GROUP BY reference_id_from
+    EMIT CHANGES;
+
+
+CREATE TABLE mesh_terms AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('heading_term':=heading_term, 'qualifier_term':=qualifier_term)) \"MESH_TERMS\"
+    FROM mesh_detail
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_with_resource AS
+    SELECT
+    reference_with_citation.REFERENCE_ID \"REFERENCE_ID\",
+    reference_with_citation.curie,
+    reference_with_citation.abstract,
+    reference_with_citation.category,
+    reference_with_citation.DATE_ARRIVED_IN_PUBMED,
+    reference_with_citation.date_created,
+    reference_with_citation.DATE_LAST_MODIFIED_IN_PUBMED,
+    reference_with_citation.date_published,
+    reference_with_citation.date_published_start,
+    reference_with_citation.date_published_end,
+    reference_with_citation.date_updated,
+    reference_with_citation.issue_name,
+    reference_with_citation.keywords,
+    reference_with_citation.language,
+    reference_with_citation.copyright_license_id,
+    reference_with_citation.page_range,
+    reference_with_citation.plain_language_abstract,
+    reference_with_citation.publisher,
+    reference_with_citation.pubmed_abstract_languages,
+    reference_with_citation.pubmed_publication_status,
+    reference_with_citation.pubmed_types,
+    reference_with_citation.resource_id,
+    reference_with_citation.title \"TITLE\",
+    reference_with_citation.volume,
+    reference_with_citation.CITATION,
+    reference_with_citation.SHORT_CITATION,
+    resource.title \"RESOURCE_TITLE\"
+    FROM reference_with_citation reference_with_citation
+    LEFT OUTER JOIN resource resource ON cast(reference_with_citation.resource_id as string) = resource.resource_id
+    EMIT CHANGES;
+
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
@@ -608,7 +747,6 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.issue_name \"issue_name\",
     reference_mod_reference_types.keywords \"keywords\",
     reference_mod_reference_types.language \"language\",
-    reference_mod_reference_types.open_access \"open_access\",
     reference_mod_reference_types.page_range \"page_range\",
     reference_mod_reference_types.plain_language_abstract \"plain_language_abstract\",
     reference_mod_reference_types.publisher \"publisher\",
@@ -632,6 +770,71 @@ CREATE TABLE reference_joined WITH (
     FROM reference_mod_reference_types reference_mod_reference_types
     LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
     reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
-    LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id;
+    LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_with_copyright AS
+    SELECT
+    reference_with_resource.REFERENCE_ID \"REFERENCE_ID\",
+    reference_with_resource.curie,
+    reference_with_resource.TITLE,
+    reference_with_resource.abstract,
+    reference_with_resource.category,
+    reference_with_resource.pubmed_types,
+    reference_with_resource.RESOURCE_TITLE,
+    reference_with_resource.volume,
+    reference_with_resource.issue_name,
+    reference_with_resource.page_range,
+    reference_with_resource.publisher,
+    reference_with_resource.language,
+    reference_with_resource.date_published,
+    reference_with_resource.pubmed_publication_status,
+    reference_with_resource.DATE_ARRIVED_IN_PUBMED,
+    reference_with_resource.DATE_LAST_MODIFIED_IN_PUBMED,
+    reference_with_resource.date_created,
+    reference_with_resource.keywords,
+    reference_with_resource.CITATION,
+    copyright_license.open_access,
+    copyright_license.name \"copyright_license\"
+    FROM reference_with_resource reference_with_resource
+    LEFT OUTER JOIN copyright_license copyright_license ON reference_with_resource.copyright_license_id = copyright_license.copyright_license_id
+    EMIT CHANGES;
+
+CREATE TABLE public_reference_joined WITH (
+    PARTITIONS = 1,
+    KAFKA_TOPIC = 'public_reference_joined',
+    VALUE_FORMAT='JSON',
+    KEY_FORMAT='JSON'
+  ) AS SELECT
+    reference_with_copyright.REFERENCE_ID \"reference_id\",
+    reference_with_copyright.curie \"curie\",
+    reference_with_copyright.TITLE \"title\",
+    reference_with_copyright.abstract \"abstract\",
+    reference_with_copyright.category \"category\",
+    reference_with_copyright.pubmed_types \"pubmed_types\",
+    reference_with_copyright.RESOURCE_TITLE \"resource_title\",
+    reference_with_copyright.volume \"volume\",
+    reference_with_copyright.issue_name \"issue_name\",
+    reference_with_copyright.page_range \"page_range\",
+    reference_with_copyright.publisher \"publisher\",
+    reference_with_copyright.language \"language\",
+    reference_with_copyright.date_published \"date_published\",
+    reference_with_copyright.pubmed_publication_status \"pubmed_publication_status\",
+    reference_with_copyright.DATE_ARRIVED_IN_PUBMED \"date_arrived_in_pubmed\",
+    reference_with_copyright.DATE_LAST_MODIFIED_IN_PUBMED \"date_last_modified_in_pubmed\",
+    reference_with_copyright.date_created \"date_created\",
+    reference_with_copyright.keywords \"keywords\",
+    reference_with_copyright.CITATION \"citation\",
+    reference_with_copyright.open_access \"open_access\",
+    reference_with_copyright.\"copyright_license\" \"copyright_license\",
+    cross_references.cross_references \"cross_references\",
+    authors.authors \"authors\",
+    reference_relations.relations \"relations\",
+    mesh_terms.mesh_terms \"mesh_terms\"
+    FROM reference_with_copyright reference_with_copyright
+    LEFT OUTER JOIN cross_references cross_references ON reference_with_copyright.REFERENCE_ID = cross_references.REFERENCE_ID
+    LEFT OUTER JOIN authors authors ON reference_with_copyright.REFERENCE_ID = authors.REFERENCE_ID
+    LEFT OUTER JOIN reference_relations reference_relations ON reference_with_copyright.REFERENCE_ID = reference_relations.REFERENCE_ID
+    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_copyright.REFERENCE_ID = mesh_terms.REFERENCE_ID;
 ",
 "streamsProperties": {}}

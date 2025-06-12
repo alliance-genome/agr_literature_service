@@ -6,6 +6,7 @@ omit =
         agr_literature_service/lit_processing/oneoff_scripts/*
 	agr_literature_service/lit_processing/end_of_year_update/*
         agr_literature_service/lit_processing/tests/*
+        tests/test_debezium_integration.py
         *__init__*
         agr_literature_service/lit_processing/utils/email_utils.py
         agr_literature_service/lit_processing/utils/s3_utils.py

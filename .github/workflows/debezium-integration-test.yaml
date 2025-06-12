@@ -1,0 +1,135 @@
+name: debezium-integration-test
+on: 
+  push:
+    paths:
+      - 'debezium/**'
+      - 'tests/test_debezium_integration.py'
+      - 'tests/populate_test_db.py'
+      - '.github/workflows/debezium-integration-test.yaml'
+  pull_request:
+    paths:
+      - 'debezium/**'
+      - 'tests/test_debezium_integration.py'
+      - 'tests/populate_test_db.py'
+      - '.github/workflows/debezium-integration-test.yaml'
+
+jobs:
+  run-debezium-integration-tests:
+    permissions:
+      id-token: write # Required for AWS credentials
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+      
+      - uses: actions/setup-python@v4
+        name: setup python
+        with:
+          python-version: 3.11
+      
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements.dev.txt
+      
+      - name: AWS credentials configuration
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{secrets.GH_ACTIONS_AWS_ROLE}}
+          role-session-name: gh-actions-${{github.run_id}}.${{github.run_number}}.${{github.run_attempt}}-debezium-test
+          aws-region: us-east-1
+      
+      - name: Amazon ECR login
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      
+      - name: Start Core Infrastructure
+        run: |
+          # Clean up any existing containers
+          docker compose --env-file .env.test down -v
+          
+          # Start PostgreSQL
+          docker compose --env-file .env.test up -d postgres
+          sleep 3
+          
+          # Initialize test database
+          docker compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
+          
+          # Make populate script executable and run it to create mock data for Debezium to sync
+          chmod +x tests/populate_test_db.py
+          docker compose --env-file .env.test run --rm dev_app python tests/populate_test_db.py
+          
+          # Start Elasticsearch
+          docker compose --env-file .env.test up -d elasticsearch
+
+      - name: Start Debezium Infrastructure
+        run: |
+          # Start Kafka ecosystem
+          docker compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+          sleep 3
+          
+          # Start KsqlDB
+          docker compose --env-file .env.test up -d dbz_ksql_server
+          
+          # Check service health
+          docker compose --env-file .env.test ps
+          
+          # Wait for services to be ready
+          timeout 300 bash -c 'until curl -f http://localhost:8083/connectors; do sleep 5; done'
+          timeout 300 bash -c 'until curl -f http://localhost:8088/info; do sleep 5; done'
+      
+      - name: Setup Debezium Pipeline
+        run: |
+          # Run Debezium setup container to configure connectors and KSQL streams
+          docker compose --env-file .env.test up --build dbz_setup
+      
+      - name: Run Debezium Integration Tests
+        env:
+          ENV_STATE: test
+          HOST: 0.0.0.0
+          PSQL_USERNAME: postgres
+          PSQL_PASSWORD: ${{ secrets.test_db_password }}
+          PSQL_HOST: localhost
+          PSQL_PORT: 5433
+          PSQL_DATABASE: literature-test
+          PYTHONPATH: agr_literature_service/lit_processing/
+          OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
+          OKTA_API_AUDIENCE: 'api://default'
+          RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
+          ELASTICSEARCH_HOST: localhost
+          ELASTICSEARCH_PORT: 9200
+          ELASTICSEARCH_INDEX: references_index
+          XML_PATH: ${GITHUB_WORKSPACE}/tests/tmp/
+          OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
+          OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
+          TEST_CLEANUP: false
+        run: |
+          pytest tests/test_debezium_integration.py -v --no-cov
+      
+      - name: Debug Information
+        if: failure()
+        run: |
+          echo "=== Docker Compose Status ==="
+          docker compose --env-file .env.test ps
+          
+          echo "=== Elasticsearch Status ==="
+          curl -s http://localhost:9200/_cat/health || echo "Elasticsearch not responding"
+          curl -s http://localhost:9200/_cat/indices || echo "Could not get index info"
+          
+          echo "=== Kafka Connector Status ==="
+          curl -s http://localhost:8083/connectors || echo "Connector not responding"
+          
+          echo "=== KsqlDB Status ==="
+          curl -s http://localhost:8088/info || echo "KsqlDB not responding"
+          
+          echo "=== Container Logs ==="
+          docker compose --env-file .env.test logs --tail=50 dbz_connector
+          docker compose --env-file .env.test logs --tail=50 dbz_ksql_server
+          docker compose --env-file .env.test logs --tail=50 elasticsearch
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose --env-file .env.test down -v

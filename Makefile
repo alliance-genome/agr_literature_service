@@ -134,3 +134,58 @@ bulk_upload_reference_files:
 
 dump_prod_locally:
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app python3 agr_literature_service/lit_processing/data_export/dump_database.py  -t  ondemand
+
+run-debezium-integration-tests:
+	@echo "Starting Debezium integration tests..."
+	# Clean up any existing containers
+	docker-compose --env-file .env.test down -v
+	docker-compose --env-file .env.test rm -svf elasticsearch dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
+	# Start required services
+	docker-compose --env-file .env.test up -d postgres
+	sleep 3
+	docker-compose --env-file .env.test build dev_app
+	# Initialize test database with mock data
+	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
+	docker-compose --env-file .env.test run --rm dev_app python3 tests/populate_test_db.py
+	# Start Elasticsearch
+	docker-compose --env-file .env.test up -d elasticsearch
+	# Start Debezium stack
+	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+	sleep 5
+	# Create required Kafka topics
+	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
+	# Start KSQL server
+	docker-compose --env-file .env.test up -d dbz_ksql_server
+	# Run Debezium setup and wait for completion
+	@echo "Running Debezium setup (this will wait for completion)..."
+	docker-compose --env-file .env.test up --build dbz_setup
+	# Run the actual integration tests with TEST_CLEANUP=false to preserve data
+	@echo "Running Debezium integration tests (with data preservation)..."
+	docker-compose --env-file .env.test run --rm -e TEST_CLEANUP=false test_runner python3 -m pytest tests/test_debezium_integration.py -v -m "debezium" --no-cov
+	# Cleanup
+	docker-compose --env-file .env.test down
+
+run-debezium-start-test-env:
+	@echo "Starting Debezium test environment..."
+	# Clean up any existing containers
+	docker-compose --env-file .env.test down -v
+	docker-compose --env-file .env.test rm -svf elasticsearch dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
+	# Start required services
+	docker-compose --env-file .env.test up -d postgres
+	sleep 3
+	docker-compose --env-file .env.test build dev_app
+	# Initialize test database with mock data
+	docker-compose --env-file .env.test run --rm dev_app sh tests/init_test_db.sh
+	docker-compose --env-file .env.test run --rm dev_app python3 tests/populate_test_db.py
+	# Start Elasticsearch
+	docker-compose --env-file .env.test up -d elasticsearch
+	# Start Debezium stack
+	docker-compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
+	sleep 5
+	# Create required Kafka topics
+	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
+	# Start KSQL server
+	docker-compose --env-file .env.test up -d dbz_ksql_server
+	# Run Debezium setup and wait for completion
+	@echo "Running Debezium setup (this will wait for completion)..."
+	docker-compose --env-file .env.test up --build dbz_setup
