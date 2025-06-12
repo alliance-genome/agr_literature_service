@@ -455,39 +455,19 @@
         }
       },
       "copyright_license": {
-        "type": "nested",
-        "properties": {
-          "copyright_license_text": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "normalizer": "sortNormalizer",
-                "ignore_above": 256
-              }
-            }
-          },
-          "copyright_license_url": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "normalizer": "sortNormalizer",
-                "ignore_above": 256
-              }
-            }
-          },
-          "open_access": {
-            "type": "text",
-            "fields": {
-              "keyword": {
-                "type": "keyword",
-                "normalizer": "sortNormalizer",
-                "ignore_above": 256
-              }
-            }
+        "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
           }
         }
+      },
+      "open_access": {
+        "type": "boolean"
       },
       "mesh_terms": {
         "type": "nested",

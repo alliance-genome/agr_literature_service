@@ -84,7 +84,7 @@ class MockDataFactory:
         return citation
 
     def create_reference(self, db_session, ref_id: int, citation: CitationModel,
-                         resource: ResourceModel) -> ReferenceModel:
+                         resource: ResourceModel, copyright_license_id: int = None) -> ReferenceModel:
         """Create a realistic reference based on RDS dev patterns."""
         ref_patterns = self.mock_patterns.get('references', [{}])
         ref_pattern = (ref_patterns[ref_id % len(ref_patterns)]
@@ -97,6 +97,7 @@ class MockDataFactory:
             category=ref_pattern.get('category', 'research_article'),
             citation_id=citation.citation_id,
             resource_id=resource.resource_id,
+            copyright_license_id=copyright_license_id,
             date_published=ref_pattern.get('date_published', '2024-01-01'),
             language=ref_pattern.get('language', 'eng'),
             publisher=ref_pattern.get('publisher', 'Academic Press'),
@@ -414,13 +415,26 @@ def populate_database():
             citation = factory.create_citation(db, i + 1)
             citations.append(citation)
 
+        # Create copyright licenses early so they can be linked to references
+        print("Creating copyright licenses...")
+        copyright_licenses = []
+        for i in range(5):
+            license_obj = factory.create_copyright_license(db, i + 1)
+            copyright_licenses.append(license_obj)
+        db.flush()  # Ensure licenses have IDs before linking
+
         # Create references
         print("Creating references...")
         references = []
         for i in range(10):
             resource = resources[i % len(resources)]
             citation = citations[i % len(citations)]
-            reference = factory.create_reference(db, i + 1, citation, resource)
+            # Link some references to copyright licenses (about 60% of them)
+            copyright_license_id = None
+            if i % 5 < 3:  # Link references 0,1,2,5,6,7 to licenses
+                license_obj = copyright_licenses[i % len(copyright_licenses)]
+                copyright_license_id = license_obj.copyright_license_id
+            reference = factory.create_reference(db, i + 1, citation, resource, copyright_license_id)
             references.append(reference)
 
             # Add authors for each reference
@@ -461,10 +475,7 @@ def populate_database():
             else:
                 factory.create_reference_relation(db, references[i], references[i + 1], "ErratumFor")
 
-        # Create copyright licenses
-        print("Creating copyright licenses...")
-        for i in range(5):
-            factory.create_copyright_license(db, i + 1)
+        # Copyright licenses already created earlier and linked to references
 
         # Create some obsolete reference curies - REQUIRED for Debezium
         print("Creating obsolete reference curies...")
