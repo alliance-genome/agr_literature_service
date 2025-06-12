@@ -21,10 +21,17 @@ logger = logging.getLogger('literature logger')
 # https://agr-jira.atlassian.net/browse/SCRUM-4974
 # Take all references inside corpus for WB.  Take all the workflow_tag entries for WB.  The references must have ATP:0000163 file converted to text.
 # The references must not have ATP:0000173 ATP:0000174 ATP:0000190 ATP:0000187 or any of their children.  For the references that satisfy all
-# conditions, add ATP:0000173 entity extraction needed.  Also add the children of 173, ATP:0000221 ATP:0000175 ATP:0000220 ATP:0000206 ATP:0000272
-# ATP:0000269, if none of their sibblings are in the database.  This doesn't make sense, we already checked that none of the children of the parents
-# are in there.
-
+# conditions, add ATP:0000173 entity extraction needed.  Separately add the children of 173, ATP:0000221 ATP:0000175 ATP:0000220 ATP:0000206
+# ATP:0000272 ATP:0000269, if none of their datatype siblings nor ATP:0000174 entity extraction complete are in the database
+# if at least one subclass is 'failed', set parent to 'failed' ATP:0000187
+#   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190
+#   else if at least one subclass is 'needed', set it parent 'needed' ATP:0000173
+#   else set parent to 'complete' ATP:0000174, but not possible because the script is going to create needed entries.
+# The only time it will set things to complete is in the future if no new datatype has been added, and all the existing datatypes are complete
+# For example, if a reference has
+#   ATP:0000174   entity extraction complete
+#   ATP:0000217 allele extraction failed
+#   then it needs to delete the 174, keep the 217, and add ATP:0000187   entity extraction failed
 
 def old_way_that_may_create_dupicates(db_session):
     rows = db_session.execute(text("""
@@ -182,8 +189,8 @@ def define_mappings():
         'ATP:0000272': 'strain extraction needed',
         'ATP:0000269': 'transgenic allele extraction needed'
     }
-    print(atp_term_to_name['ATP:0000172'])  # Output: entity extraction
-    sibblings = {
+    # print(atp_term_to_name['ATP:0000172'])  # Output: entity extraction
+    siblings = {
         'ATP:0000221': ['ATP:0000215', 'ATP:0000217', 'ATP:0000219', 'ATP:0000221'],
         'ATP:0000175': ['ATP:0000196', 'ATP:0000188', 'ATP:0000195', 'ATP:0000175'],
         'ATP:0000220': ['ATP:0000214', 'ATP:0000216', 'ATP:0000218', 'ATP:0000220'],
@@ -191,7 +198,7 @@ def define_mappings():
         'ATP:0000272': ['ATP:0000250', 'ATP:0000270', 'ATP:0000271', 'ATP:0000272'],
         'ATP:0000269': ['ATP:0000251', 'ATP:0000267', 'ATP:0000268', 'ATP:0000269']
     }
-    return children_by_parent, atp_term_to_name, sibblings
+    return children_by_parent, atp_term_to_name, siblings
 
 
 def validate_mappings(children_by_parent, atp_term_to_name):  # noqa: C901
@@ -309,7 +316,7 @@ def validate_mappings(children_by_parent, atp_term_to_name):  # noqa: C901
         logger.info("✅ All mappings match. Validation passed.")
 
 
-def process(db_session, children_by_parent, atp_term_to_name, sibblings):
+def process(db_session, children_by_parent, atp_term_to_name, siblings):
     wanted_reference_ids = set()
     wf_tags_db = {}
     rows = db_session.execute(text("""
@@ -336,19 +343,82 @@ def process(db_session, children_by_parent, atp_term_to_name, sibblings):
         # logger.info(f"{x[0]}\t{x[1]}")
 
 #     atp_tags = ['ATP:0000221', 'ATP:0000175', 'ATP:0000173', 'ATP:0000220', 'ATP:0000206', 'ATP:0000272', 'ATP:0000269']
-#     batch_counter = 0
-#     batch_size = 250
+    batch_counter = 0
+    batch_size = 250
     exclusion_tags = set(atp_term_to_name.keys()) - {'ATP:0000172'}
     for reference_id in sorted(wanted_reference_ids):
+        # if batch_counter > 2:
+        #     # UNCOMMENT TO POPULATE
+        #     # db_session.commit()
+        #     sys.exit(f"{batch_counter} counter reached")
+        logger.info(f"Processing reference_id {reference_id}")
         tags = wf_tags_db.get(reference_id, set())
         if 'ATP:0000163' not in tags:  # must have 'file converted to text'
             logger.info(f"Skipping {reference_id} because no TEI file")
             continue
         matching_exclusions = tags.intersection(exclusion_tags)  # must not have children or grandchildren of ATP:0000172
         if matching_exclusions:
-            logger.info(f"Skipping {reference_id} because exclusion tags in DB: {sorted(matching_exclusions)}")
-            continue
-        logger.info(f"Processing reference_id {reference_id}")
+            logger.info(f"{reference_id} has exclusion tags in DB: {sorted(matching_exclusions)}")
+        else:
+            batch_counter += 1
+            if batch_counter % batch_size == 0:
+                batch_counter = 0
+                # UNCOMMENT TO POPULATE
+#                 db_session.commit()
+            wf_atp = 'ATP:0000173'
+            logger.info(f"INSERT {reference_id} is NOT in exclusion list, add {wf_atp}")
+            try:
+                x = WorkflowTagModel(reference_id=reference_id,
+                                     mod_id=2,
+                                     workflow_tag_id={wf_atp})
+                db_session.add(x)
+            except Exception as e:
+                logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp + " " + str(e))
+
+        if 'ATP:0000174' in tags:
+            logger.info(f"{reference_id} entity extraction complete, not setting datatypes to needed based on siblings")
+        else:  # must not be 'entity extraction complete' to add datatype siblings needed
+            for group_tag, group_members in siblings.items():
+                matching_member_tags = [member for member in group_members if member in tags]
+                if matching_member_tags:
+                    logger.info(f"{reference_id} has existing sibling tags for group {group_tag}: {sorted(matching_member_tags)}")
+                else:
+                    logger.info(f"INSERT {reference_id} is NOT in sibling list, add {group_tag}")
+                    batch_counter += 1
+                    if batch_counter % batch_size == 0:
+                        batch_counter = 0
+                        # UNCOMMENT TO POPULATE
+#                         db_session.commit()
+                    logger.info(f"INSERT {reference_id} is NOT in exclusion list, add ATP:0000173")
+                    try:
+                        x = WorkflowTagModel(reference_id=reference_id,
+                                             mod_id=2,
+                                             workflow_tag_id=group_tag)
+                        db_session.add(x)
+                    except Exception as e:
+                        logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + group_tag + " " + str(e))
+
+        # TODO set parent tag based on hierarchy
+        # if      any children_by_parent of ATP:0000187, set ATP:0000187, remove ATP:0000190 ATP:0000173 ATP:0000174
+        # else if any children_by_parent of ATP:0000190, set ATP:0000190, remove ATP:0000173 ATP:0000174
+        # else if any children_by_parent of ATP:0000173 or a sibling was added above, set ATP:0000173, remove ATP:0000174
+        # else set ATP:0000174
+#         'ATP:0000187': [
+#             'ATP:0000217',
+#             'ATP:0000188',
+#             'ATP:0000216',
+#             'ATP:0000204',
+#             'ATP:0000270',
+#             'ATP:0000267'
+#         ],
+
+# if at least one subclass is 'failed', set parent to 'failed' ATP:0000187
+#   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190
+#   else if at least one subclass is 'needed', set it parent 'needed' ATP:0000173
+#   else set parent to 'complete' ATP:0000174, but not possible because the script is going to create needed entries.
+
+    # UNCOMMENT TO POPULATE
+#     db_session.commit()
 
 #     for x in rows:
 #         # logger.info(f"reference_id {x[0]}\t{x[1]}\t{x[2]}\t{x[3]}")
@@ -377,7 +447,7 @@ if __name__ == "__main__":
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
     # old_way_that_may_create_dupicates(db_session)
-    children_by_parent, atp_term_to_name, sibblings = define_mappings()
+    children_by_parent, atp_term_to_name, siblings = define_mappings()
 # put this back
 #     validate_mappings(children_by_parent, atp_term_to_name)
-    process(db_session, children_by_parent, atp_term_to_name, sibblings)
+    process(db_session, children_by_parent, atp_term_to_name, siblings)
