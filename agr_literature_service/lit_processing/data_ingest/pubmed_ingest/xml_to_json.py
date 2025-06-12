@@ -5,7 +5,7 @@ import sys
 import urllib.request
 from os import environ, makedirs, path
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Tuple
+from typing import List, Set, Dict, Tuple
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
