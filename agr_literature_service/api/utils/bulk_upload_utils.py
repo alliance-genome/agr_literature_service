@@ -1,324 +1,224 @@
-"""
-Utility functions for bulk upload processing.
-"""
-
 import os
 import re
 import io
 import tarfile
 import zipfile
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, BinaryIO
 import logging
 
 logger = logging.getLogger(__name__)
 
 
+def _get_curie(ref_id: str, mod_abbreviation: str) -> str:
+    """
+    Generate a CURIE based on the reference ID and MOD.
+
+    - 15-digit numeric IDs → AGRKB:{ref_id}
+    - WB → WB:WBPaper{ref_id}
+    - All others → PMID:{ref_id}
+    """
+    # 15-digit Alliance IDs
+    if len(ref_id) == 15 and ref_id.isdigit():
+        return f"AGRKB:{ref_id}"
+    # MOD-specific: WB
+    if mod_abbreviation.upper() == "WB":
+        return f"WB:WBPaper{ref_id}"
+    # Default for FB, SGD, MGI, RGD, ZFIN, XB, etc.
+    return f"PMID:{ref_id}"
+
+
 def parse_filename_by_mod(filename: str, mod_abbreviation: str) -> Dict[str, Any]:
     """
-    Parse filename using existing MOD-specific rules from upload_files.sh
+    Parse a main-file name into metadata according to MOD conventions.
 
-    Args:
-        filename: The filename to parse
-        mod_abbreviation: MOD abbreviation (WB, FB, etc.)
+    Patterns:
+      {number}_{authorYear}[_{options}].{ext}
+      {number}.{ext}
 
-    Returns:
-        Dictionary with parsed metadata
-
-    Raises:
-        ValueError: If filename doesn't match expected patterns
+    Returns metadata including reference_curie, display_name, file_extension,
+    file_publication_status, pdf_type, author_and_year, and mod_abbreviation.
     """
+    name = Path(filename)
+    stem = name.stem
+    ext = name.suffix.lstrip('.')
 
-    # Extract base filename and extension
-    base_name = os.path.splitext(filename)[0]
-    file_extension = os.path.splitext(filename)[1][1:]  # Remove leading dot
-
-    # Regex patterns from existing shell script (match the whole filename with extension)
-    regex_with_details = r"^([0-9]+)[_]([^_]+)[_]?(.*)?\..*$"
-    regex_numbers_only = r"^([0-9]+)\..*$"
-
-    reference_id = None
-    author_and_year = ""
-    additional_options = ""
-
-    # Parse filename (including extension)
-    match_details = re.match(regex_with_details, filename)
-    match_numbers = re.match(regex_numbers_only, filename)
-
-    if match_details:
-        reference_id = match_details.group(1)
-        author_and_year = match_details.group(2)
-        additional_options = match_details.group(3) or ""
-    elif match_numbers:
-        reference_id = match_numbers.group(1)
+    # Try pattern: number_authorYear[_options]
+    m = re.match(r"^(?P<ref>\d+)_(?P<year>[^_]+)(?:_(?P<opts>.*))?$", stem)
+    if m:
+        ref_id = m.group('ref')
+        author_and_year = m.group('year')
+        opts = m.group('opts') or ''
     else:
-        raise ValueError(f"Filename '{filename}' does not match expected patterns. "
-                         f"Expected: {{number}}_{{author_year}}[_{{options}}].{{ext}} or {{number}}.{{ext}}")
+        # Fallback: numbers only
+        m2 = re.match(r"^(?P<ref>\d+)$", stem)
+        if not m2:
+            raise ValueError(
+                f"Filename '{filename}' does not match expected patterns: '1234_ab23_opt.ext' or '1234.ext'"
+            )
+        ref_id = m2.group('ref')
+        author_and_year = ''
+        opts = ''
 
-    # Convert to proper reference CURIE based on MOD
-    if len(reference_id) == 15 and reference_id.isdigit():
-        reference_curie = f"AGRKB:{reference_id}"
-    elif mod_abbreviation == "WB":
-        reference_curie = f"WB:WBPaper{reference_id}"
-    elif mod_abbreviation == "FB":
-        reference_curie = f"PMID:{reference_id}"
-    else:
-        # For other MODs (SGD, MGI, RGD, ZFIN, XB), always use AGRKB prefix
-        reference_curie = f"AGRKB:{reference_id}"
+    reference_curie = _get_curie(ref_id, mod_abbreviation)
 
-    # Parse additional options for file metadata
-    file_publication_status = "final"
+    # Determine status and PDF type
+    pub_status = 'final'
     pdf_type = None
-
-    if additional_options:
-        additional_options_lower = additional_options.lower()
-        if additional_options_lower == "temp":
-            file_publication_status = "temp"
-        elif additional_options_lower in ["aut", "ocr", "html", "htm", "lib", "tif"]:
-            pdf_type = additional_options_lower
-            if pdf_type == "htm":
-                pdf_type = "html"
+    opt_lower = opts.lower()
+    if opt_lower:
+        if opt_lower == 'temp':
+            pub_status = 'temp'
+        elif opt_lower in {'aut', 'ocr', 'html', 'htm', 'lib', 'tif'}:
+            pdf_type = 'html' if opt_lower in {'html', 'htm'} else opt_lower
 
     return {
-        "reference_curie": reference_curie,
-        "display_name": base_name,
-        "file_extension": file_extension,
-        "file_publication_status": file_publication_status,
-        "pdf_type": pdf_type,
-        "author_and_year": author_and_year,
-        "mod_abbreviation": mod_abbreviation
+        'reference_curie': reference_curie,
+        'display_name': stem,
+        'file_extension': ext,
+        'file_publication_status': pub_status,
+        'pdf_type': pdf_type,
+        'author_and_year': author_and_year,
+        'mod_abbreviation': mod_abbreviation,
     }
 
 
 def parse_supplement_file(filename: str, reference_dir: str, mod_abbreviation: str) -> Dict[str, Any]:
     """
-    Parse supplement file metadata.
-    Reference ID comes from parent directory name.
+    Build metadata for supplement files; reference_dir is parent folder name.
     """
+    name = Path(filename)
+    stem = name.stem
+    ext = name.suffix.lstrip('.')
 
-    # Extract file extension
-    base_name = os.path.splitext(filename)[0]
-    file_extension = os.path.splitext(filename)[1][1:]  # Remove leading dot
-
-    # Reference ID comes from directory name
-    reference_id = reference_dir
-
-    # Convert to proper reference CURIE based on MOD
-    if len(reference_id) == 15 and reference_id.isdigit():
-        reference_curie = f"AGRKB:{reference_id}"
-    elif mod_abbreviation == "WB":
-        reference_curie = f"WB:WBPaper{reference_id}"
-    elif mod_abbreviation == "FB":
-        reference_curie = f"PMID:{reference_id}"
-    else:
-        reference_curie = f"AGRKB:{reference_id}" if len(reference_id) == 15 else reference_id
+    ref_id = reference_dir
+    reference_curie = _get_curie(ref_id, mod_abbreviation)
 
     return {
-        "reference_curie": reference_curie,
-        "display_name": base_name,
-        "file_extension": file_extension,
-        "file_publication_status": "final",
-        "pdf_type": None,
-        "mod_abbreviation": mod_abbreviation
+        'reference_curie': reference_curie,
+        'display_name': stem,
+        'file_extension': ext,
+        'file_publication_status': 'final',
+        'pdf_type': None,
+        'mod_abbreviation': mod_abbreviation,
     }
 
 
-def classify_and_parse_file(file_path: str, archive_root: str, mod_abbreviation: str) -> Dict[str, Any]:
+def classify_and_parse_file(
+    file_path: str,
+    archive_root: str,
+    mod_abbreviation: str
+) -> Dict[str, Any]:
     """
-    Classify file as main or supplement and parse metadata.
-
-    Rules:
-    - Files in root directory = main files
-    - Files in subdirectories = supplement files
-    - Reference ID for supplements = parent directory name
+    Classify a file as 'main' or 'supplement' by its relative path, then parse metadata.
     """
+    rel_path = Path(file_path).relative_to(archive_root)
+    parts = rel_path.parts
 
-    # Get relative path from archive root
-    rel_path = os.path.relpath(file_path, archive_root)
-    path_parts = Path(rel_path).parts
-    filename = os.path.basename(file_path)
-
-    if len(path_parts) == 1:
-        # File is in root directory = main file
-        file_class = "main"
-        metadata = parse_filename_by_mod(filename, mod_abbreviation)
+    if len(parts) == 1:
+        meta = parse_filename_by_mod(parts[0], mod_abbreviation)
+        file_class = 'main'
     else:
-        # File is in subdirectory = supplement file
-        file_class = "supplement"
-        parent_dir = path_parts[0]  # First directory is the reference ID
-        metadata = parse_supplement_file(filename, parent_dir, mod_abbreviation)
+        meta = parse_supplement_file(parts[-1], parts[0], mod_abbreviation)
+        file_class = 'supplement'
 
-    metadata["file_class"] = file_class
-    metadata["is_annotation"] = False
-    return metadata
+    meta['file_class'] = file_class
+    meta['is_annotation'] = False
+    return meta
 
 
-def extract_and_classify_files(archive_file, temp_dir: str) -> List[Tuple[str, bool]]:
+def extract_and_classify_files(
+    archive_file: BinaryIO,
+    temp_dir: str
+) -> List[Tuple[str, bool]]:
     """
-    Extract archive and return list of (file_path, is_main_file) tuples.
-
-    Args:
-        archive_file: File-like object containing the archive
-        temp_dir: Temporary directory to extract to
-
-    Returns:
-        List of (full_file_path, is_main_file) tuples
-
-    Raises:
-        ValueError: If archive format is not supported
+    Extract an archive (.tar.gz or .zip) into temp_dir and return a list of
+    (absolute_path, is_main) tuples.
     """
-
-    extracted_files = []
-
-    # Reset file pointer to beginning
+    extracted: List[Tuple[str, bool]] = []
     archive_file.seek(0)
 
-    # Try tar.gz first
+    def _process(entries, is_tar: bool):
+        for entry in entries:
+            name = entry.name if is_tar else entry.filename
+            if (is_tar and entry.isfile()) or (not is_tar and not entry.is_dir()):
+                full = os.path.join(temp_dir, name)
+                main = len(Path(name).parts) == 1
+                extracted.append((full, main))
+
+    # Try tar.gz
     try:
-        with tarfile.open(fileobj=archive_file, mode="r:gz") as tar:
-            tar.extractall(temp_dir)
-
-            # Classify files based on directory structure
-            for member in tar.getmembers():
-                if member.isfile():
-                    full_path = os.path.join(temp_dir, member.name)
-                    # Check if file is in root directory
-                    rel_path = os.path.relpath(member.name)
-                    is_main = len(Path(rel_path).parts) == 1
-                    extracted_files.append((full_path, is_main))
-
-        logger.info(f"Extracted {len(extracted_files)} files from tar.gz archive")
-        return extracted_files
-
+        with tarfile.open(fileobj=archive_file, mode='r:gz') as tar:
+            tar.extractall(path=temp_dir)
+            _process(tar.getmembers(), True)
+        logger.info(f"Extracted {len(extracted)} files from tar.gz archive")
+        return extracted
     except tarfile.TarError:
-        # Reset file pointer and try zip
         archive_file.seek(0)
-
+        # Fallback to zip
         try:
-            with zipfile.ZipFile(archive_file) as zip_file:
-                zip_file.extractall(temp_dir)
-
-                for file_info in zip_file.filelist:
-                    if not file_info.is_dir():
-                        full_path = os.path.join(temp_dir, file_info.filename)
-                        # Check if file is in root directory
-                        is_main = len(Path(file_info.filename).parts) == 1
-                        extracted_files.append((full_path, is_main))
-
-            logger.info(f"Extracted {len(extracted_files)} files from zip archive")
-            return extracted_files
-
+            with zipfile.ZipFile(archive_file) as zf:
+                zf.extractall(path=temp_dir)
+                _process(zf.filelist, False)
+            logger.info(f"Extracted {len(extracted)} files from zip archive")
+            return extracted
         except zipfile.BadZipFile:
-            raise ValueError("Archive format not supported. Please use .tar.gz or .zip format")
+            raise ValueError("Unsupported archive format; use .tar.gz or .zip")
 
 
 def process_single_file(file_path: str, metadata: Dict[str, Any], db) -> Dict[str, Any]:
     """
-    Process single file using existing referencefile_crud logic.
-
-    Args:
-        file_path: Path to the file to process
-        metadata: File metadata dictionary
-        db: Database session
-
-    Returns:
-        Dictionary with processing result
+    Read a file from disk and delegate to referencefile_crud.file_upload.
     """
-
-    filename = os.path.basename(file_path)
-
+    filename = Path(file_path).name
     try:
-        # Read file content
         with open(file_path, 'rb') as f:
-            file_content = f.read()
+            data = f.read()
 
-        # Create mock UploadFile object that mimics FastAPI's UploadFile
         class MockUploadFile:
-            def __init__(self, filename: str, content: bytes):
-                self.filename = filename
+            def __init__(self, name: str, content: bytes):
+                self.filename = name
                 self.content_type = 'application/octet-stream'
                 self.file = io.BytesIO(content)
-                self.size = len(content)
                 self.headers: Dict[str, str] = {}
 
-        mock_upload = MockUploadFile(filename, file_content)
+        upload = MockUploadFile(filename, data)
+        from agr_literature_service.api.crud.referencefile_crud import file_upload
+        file_upload(db, metadata, upload, upload_if_already_converted=True)  # type: ignore
 
-        # Use existing upload logic
-        from agr_literature_service.api.crud import referencefile_crud
-
-        referencefile_crud.file_upload(db, metadata, mock_upload, upload_if_already_converted=True)  # type: ignore
-
-        logger.info(f"Successfully processed file: {filename} -> {metadata['reference_curie']}")
-        return {
-            "status": "success",
-            "reference_curie": metadata["reference_curie"],
-            "file_class": metadata["file_class"]
-        }
-
+        logger.info(f"Successfully uploaded {filename} to {metadata['reference_curie']}")
+        return {'status': 'success', 'reference_curie': metadata['reference_curie'], 'file_class': metadata['file_class']}
     except Exception as e:
-        logger.error(f"Error processing file {filename}: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "reference_curie": metadata.get("reference_curie", "unknown"),
-            "file_class": metadata.get("file_class", "unknown")
-        }
+        logger.error(f"Error uploading {filename}: {e}")
+        return {'status': 'error', 'error': str(e), 'reference_curie': metadata.get('reference_curie'), 'file_class': metadata.get('file_class')}
 
 
-def validate_archive_structure(archive_file) -> Dict[str, Any]:
+def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:
     """
-    Validate archive structure and return summary information.
-
-    Args:
-        archive_file: File-like object containing the archive
-
-    Returns:
-        Dictionary with validation results and file counts
+    Inspect an archive to count main vs. supplement files without extracting to disk.
     """
-
     archive_file.seek(0)
+    file_list: List[str] = []
 
     try:
-        # Try to extract file list without actually extracting
-        file_list = []
-
+        with tarfile.open(fileobj=archive_file, mode='r:gz') as tar:
+            file_list = [m.name for m in tar.getmembers() if m.isfile()]
+    except tarfile.TarError:
+        archive_file.seek(0)
         try:
-            with tarfile.open(fileobj=archive_file, mode="r:gz") as tar:
-                for member in tar.getmembers():
-                    if member.isfile():
-                        file_list.append(member.name)
-        except tarfile.TarError:
-            archive_file.seek(0)
-            with zipfile.ZipFile(archive_file) as zip_file:
-                for file_info in zip_file.filelist:
-                    if not file_info.is_dir():
-                        file_list.append(file_info.filename)
+            with zipfile.ZipFile(archive_file) as zf:
+                file_list = [f.filename for f in zf.filelist if not f.is_dir()]
+        except zipfile.BadZipFile:
+            return {'valid': False, 'error': 'Unsupported archive type', 'total_files': 0, 'main_files': 0, 'supplement_files': 0}
 
-        # Analyze structure
-        main_files = []
-        supplement_files = []
+    main = [p for p in file_list if len(Path(p).parts) == 1]
+    supp = [p for p in file_list if len(Path(p).parts) > 1]
 
-        for file_path in file_list:
-            path_parts = Path(file_path).parts
-            if len(path_parts) == 1:
-                main_files.append(file_path)
-            else:
-                supplement_files.append(file_path)
-
-        return {
-            "valid": True,
-            "total_files": len(file_list),
-            "main_files": len(main_files),
-            "supplement_files": len(supplement_files),
-            "main_file_list": main_files[:10],  # First 10 for preview
-            "supplement_file_list": supplement_files[:10]  # First 10 for preview
-        }
-
-    except Exception as e:
-        return {
-            "valid": False,
-            "error": str(e),
-            "total_files": 0,
-            "main_files": 0,
-            "supplement_files": 0
-        }
+    return {
+        'valid': True,
+        'total_files': len(file_list),
+        'main_files': len(main),
+        'supplement_files': len(supp),
+        'main_file_list': main[:10],
+        'supplement_file_list': supp[:10],
+    }
