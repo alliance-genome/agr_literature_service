@@ -1,95 +1,107 @@
 """
-Simplified tests for bulk upload API endpoints.
+Simplified tests for bulk upload API endpoints with dependency overrides.
 """
 import io
 import tarfile
 import pytest
-from unittest.mock import patch
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 
 # Initialize TestClient
-d = TestClient(app)
+client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clear_jobs():
-    """Clear job manager state before each test."""
+def clear_jobs_and_auth_override():
+    # Clear jobs and set default auth override
     upload_manager._jobs.clear()
+    user = type('U', (), {'cid': 'test_user', 'groups': ['WBCurator']})()
+    app.dependency_overrides[auth.get_user] = lambda: user
     yield
     upload_manager._jobs.clear()
+    app.dependency_overrides.clear()
 
 
-@patch('agr_literature_service.api.routers.authentication.auth.get_user')
-def test_validate_and_start_and_status(mock_user):
-    # Mock authenticated user
-    mock_user.return_value = type('U', (), {'cid': 'user1', 'groups': ['WBCurator']})()
-
-    # Create a small archive
+def make_archive():
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode='w:gz') as tar:
-        info = tarfile.TarInfo('123_test.txt')
-        info.size = 4
-        tar.addfile(info, io.BytesIO(b'data'))
+        info = tarfile.TarInfo('file.txt')
+        info.size = len(b'x')
+        tar.addfile(info, io.BytesIO(b'x'))
     buf.seek(0)
+    return buf
 
-    # 1. Validate
-    resp = d.post(
+
+def test_validate_and_start_and_status():
+    buf = make_archive()
+
+    # Validate archive structure
+    resp = client.post(
         '/reference/referencefile/bulk_upload_validate/',
         files={'archive': ('a.tar.gz', buf, 'application/gzip')}
     )
     assert resp.status_code == 200
-    assert resp.json()['valid']
+    assert resp.json()['valid'] is True
 
-    # 2. Start upload
-    buf.seek(0)
-    resp = d.post(
+    # Start bulk upload
+    buf = make_archive()
+    resp = client.post(
         '/reference/referencefile/bulk_upload_archive/?mod_abbreviation=WB',
         files={'archive': ('a.tar.gz', buf, 'application/gzip')}
     )
     assert resp.status_code == 202
     data = resp.json()
-    job_id = data['job_id']
+    jid = data['job_id']
     assert data['status'] == 'started'
 
-    # 3. Status
-    resp = d.get(f'/reference/referencefile/bulk_upload_status/{job_id}')
+    # Check status
+    resp = client.get(f'/reference/referencefile/bulk_upload_status/{jid}')
     assert resp.status_code == 200
-    status = resp.json()
-    assert status['job_id'] == job_id
-    assert status['status'] in ('running', 'completed')
+    result = resp.json()
+    assert result['job_id'] == jid
+    assert result['status'] in ('running', 'completed')
 
 
-@patch('agr_literature_service.api.routers.authentication.auth.get_user')
-def test_status_not_found(mock_user):
-    mock_user.return_value = type('U', (), {'cid': 'user1', 'groups': ['WBCurator']})()
-    resp = d.get('/reference/referencefile/bulk_upload_status/does_not_exist')
-    assert resp.status_code == 404
-    assert resp.json()['detail'] == 'Job not found'
+@pytest.mark.parametrize('jid,expected_code,expected_detail', [
+    ('nonexistent', 404, 'Job not found'),
+])
+def test_status_not_found(jid, expected_code, expected_detail):
+    resp = client.get(f'/reference/referencefile/bulk_upload_status/{jid}')
+    assert resp.status_code == expected_code
+    assert resp.json()['detail'] == expected_detail
 
 
-@patch('agr_literature_service.api.routers.authentication.auth.get_user')
-def test_active_and_history_empty(mock_user):
-    mock_user.return_value = type('U', (), {'cid': 'user1', 'groups': ['WBCurator']})()
-    # Active should be empty
-    resp = d.get('/reference/referencefile/bulk_upload_active/')
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-    # History should be empty
-    resp = d.get('/reference/referencefile/bulk_upload_history/')
+def test_active_and_history_empty():
+    # No jobs yet
+    resp = client.get('/reference/referencefile/bulk_upload_active/')
     assert resp.status_code == 200
     assert resp.json() == []
 
+    resp = client.get('/reference/referencefile/bulk_upload_history/')
+    assert resp.status_code == 200
+    assert resp.json() == []
 
-@patch('agr_literature_service.api.routers.authentication.auth.get_user')
-def test_missing_authentication(mock_user):
-    # Simulate auth failure
-    mock_user.side_effect = Exception()
-    assert d.post('/reference/referencefile/bulk_upload_archive/?mod_abbreviation=WB', files={}).status_code == 403
-    assert d.get('/reference/referencefile/bulk_upload_status/foo').status_code == 403
-    assert d.get('/reference/referencefile/bulk_upload_active/').status_code == 403
-    assert d.get('/reference/referencefile/bulk_upload_history/').status_code == 403
-    assert d.post('/reference/referencefile/bulk_upload_validate/', files={}).status_code == 403
+
+def test_missing_authentication():
+    # Override auth to always fail
+    app.dependency_overrides[auth.get_user] = lambda: (_ for _ in ()).throw(HTTPException(status_code=403))
+
+    buf = make_archive()
+    # All endpoints should return 403 when unauthenticated
+    assert client.post(
+        '/reference/referencefile/bulk_upload_validate/',
+        files={'archive': ('a.tar.gz', buf, 'application/gzip')}
+    ).status_code == 403
+
+    assert client.post(
+        '/reference/referencefile/bulk_upload_archive/?mod_abbreviation=WB',
+        files={'archive': ('a.tar.gz', buf, 'application/gzip')}
+    ).status_code == 403
+
+    assert client.get('/reference/referencefile/bulk_upload_status/foo').status_code == 403
+    assert client.get('/reference/referencefile/bulk_upload_active/').status_code == 403
+    assert client.get('/reference/referencefile/bulk_upload_history/').status_code == 403
