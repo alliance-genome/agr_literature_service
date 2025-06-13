@@ -18,7 +18,7 @@ async def process_bulk_upload_async(job_id: str, archive_file, mod_abbreviation:
         upload_manager.update_job(job_id, total_files=len(files))
 
         # 2) Process each file sequentially
-        for idx, (path, is_main) in enumerate(files, start=1):
+        for idx, (path, _) in enumerate(files, start=1):
             metadata = classify_and_parse_file(path, temp_dir, mod_abbreviation)
             result = process_single_file(path, metadata, db)
 
