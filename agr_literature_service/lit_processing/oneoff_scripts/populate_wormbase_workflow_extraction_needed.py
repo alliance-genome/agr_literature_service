@@ -33,6 +33,9 @@ logger = logging.getLogger('literature logger')
 #   ATP:0000217 allele extraction failed
 #   then it needs to delete the 174, keep the 217, and add ATP:0000187   entity extraction failed
 
+# TODO  not sure it makes sense to add 173 when there are no terms, since that's happening in the else if part.
+
+
 def old_way_that_may_create_dupicates(db_session):
     rows = db_session.execute(text("""
         SELECT DISTINCT ON (cr.reference_id)
@@ -383,13 +386,12 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
                 if matching_member_tags:
                     logger.info(f"{reference_id} has existing sibling tags for group {group_tag}: {sorted(matching_member_tags)}")
                 else:
-                    logger.info(f"INSERT {reference_id} is NOT in sibling list, add {group_tag}")
                     batch_counter += 1
                     if batch_counter % batch_size == 0:
                         batch_counter = 0
                         # UNCOMMENT TO POPULATE
 #                         db_session.commit()
-                    logger.info(f"INSERT {reference_id} is NOT in exclusion list, add ATP:0000173")
+                    logger.info(f"INSERT {reference_id} is NOT in sibling list, add {group_tag}")
                     try:
                         x = WorkflowTagModel(reference_id=reference_id,
                                              mod_id=2,
