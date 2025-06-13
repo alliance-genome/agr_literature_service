@@ -209,7 +209,7 @@ async def bulk_upload_archive(
     background_tasks: BackgroundTasks,
     archive: UploadFile = _ArchiveParam,
     user: OktaUser = db_user,
-    db: Session = Depends(get_db),
+    db: Session = db_session
 ):
     """
     Start a bulk-upload of a ZIP/TAR archive of reference files for a single MOD.
