@@ -23,6 +23,8 @@ from agr_literature_service.api.user import set_global_user_from_okta
 
 logger = logging.getLogger(__name__)
 
+_ArchiveParam = File(...)
+
 router = APIRouter(
     prefix="/reference/referencefile",
     tags=['Reference'])
@@ -204,8 +206,8 @@ def merge_referencefiles(curie_or_reference_id: str,
 async def bulk_upload_archive(
     *,
     mod_abbreviation: str,
-    background_tasks: BackgroundTasks,  # noqa: B008
-    archive: UploadFile = File(...),  # noqa: B008
+    background_tasks: BackgroundTasks,
+    archive: UploadFile = _ArchiveParam,
     user: OktaUser = db_user,
     db: Session = Depends(get_db),
 ):
