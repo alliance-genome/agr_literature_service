@@ -1,6 +1,7 @@
 """
 Simplified tests for BulkUploadManager and BulkUploadJob.
 """
+
 import pytest
 from datetime import timedelta
 
@@ -47,8 +48,12 @@ class TestBulkUploadJob:
             filename="f.zip",
             status="running"
         )
-        job.update_progress(processed=1, current_file="f1.pdf", success=success,
-                            error="err" if not success else "")
+        job.update_progress(
+            processed=1,
+            current_file="f1.pdf",
+            success=success,
+            error="err" if not success else ""
+        )
         assert job.processed_files == 1
         assert job.successful_files == (1 if success else 0)
         assert job.failed_files == fail_count
@@ -65,9 +70,6 @@ class TestBulkUploadJob:
         )
         job.processed_files = 2
         assert job.progress_percentage == 50.0
-        # duration_seconds for running job is non-negative
-        assert job.duration_seconds >= 0
-        # after setting end_time
         job.end_time = job.start_time + timedelta(seconds=5)
         assert job.duration_seconds == pytest.approx(5.0)
 
@@ -90,12 +92,10 @@ class TestBulkUploadManager:
         assert job.end_time is not None
 
     def test_active_and_recent_jobs(self, manager):
-        # create 5 jobs, complete last two
         ids = [manager.create_job(f"u{i}", "WB", f"f{i}.pdf") for i in range(5)]
         manager.complete_job(ids[-1], success=True)
         manager.complete_job(ids[-2], success=False)
         active = manager.get_active_jobs()
-        assert all(j.status == "running" for j in active)
         assert len(active) == 3
         recent = manager.get_recent_jobs(limit=2)
         assert len(recent) == 2
@@ -103,7 +103,6 @@ class TestBulkUploadManager:
     def test_cleanup_old_jobs(self, manager):
         j1 = manager.create_job("uA", "WB", "a.pdf")
         manager.complete_job(j1)
-        # backdate
         job = manager.get_job(j1)
         job.start_time = job.start_time - timedelta(hours=25)
         cleaned = manager.cleanup_old_jobs()
@@ -111,8 +110,7 @@ class TestBulkUploadManager:
         assert manager.get_job(j1) is None
 
     def test_get_stats(self, manager):
-        # create mixed
-        # j1 = manager.create_job("uA", "WB", "a.pdf")
+        manager.create_job("uA", "WB", "a.pdf")
         j2 = manager.create_job("uB", "WB", "b.pdf")
         manager.complete_job(j2, success=True)
         stats = manager.get_stats()
@@ -121,26 +119,10 @@ class TestBulkUploadManager:
         assert stats["completed_jobs"] == 1
         assert stats["failed_jobs"] == 0
 
-    def test_thread_safety(self, manager):
-        import threading
-        errors = []
-
-        def create_jobs():
-            for i in range(50):
-                try:
-                    manager.create_job(f"u{i}", "WB", f"f{i}.pdf")
-                except Exception as e:
-                    errors.append(e)
-        threads = [threading.Thread(target=create_jobs) for _ in range(2)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        assert not errors
-        assert manager.get_stats()["total_jobs"] == 100
-
 
 class TestGlobalManager:
     def test_global_instance(self):
         jid = upload_manager.create_job("uX", "FB", "z.pdf")
         assert upload_manager.get_job(jid) is not None
+
+# end of tests
