@@ -204,7 +204,7 @@ def merge_referencefiles(curie_or_reference_id: str,
 async def bulk_upload_archive(
     *,
     mod_abbreviation: str,
-    background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks,  # noqa: B008
     archive: UploadFile = File(...),  # noqa: B008
     user: OktaUser = db_user,
     db: Session = Depends(get_db),
