@@ -320,8 +320,17 @@ def validate_mappings(children_by_parent, atp_term_to_name):  # noqa: C901
 
 
 def process(db_session, children_by_parent, atp_term_to_name, siblings):
+    mod_id_row = db_session.execute(text("""
+        SELECT mod_id
+        FROM mod
+        WHERE abbreviation = 'WB'
+    """)).fetchone()
+    if mod_id_row is None:
+        raise ValueError("No mod_id found for abbreviation 'WB'")
+        return
+    mod_id = mod_id_row.mod_id
+
     wanted_reference_ids = set()
-    wf_tags_db = {}
     rows = db_session.execute(text("""
         SELECT cr.curie, cr.reference_id, cr.is_obsolete,
                r.curie AS reference_curie
@@ -333,12 +342,12 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
     for x in rows:
         wanted_reference_ids.add(x.reference_id)
 
+    wf_tags_db = {}
     rows = db_session.execute(text("""
         SELECT reference_id, workflow_tag_id
         FROM workflow_tag wt1
-        JOIN mod m1 ON wt1.mod_id = m1.mod_id
-        WHERE m1.abbreviation = 'WB'
-    """)).fetchall()
+        WHERE mod_id = :mod_id
+    """), {'mod_id': mod_id}).fetchall()
     for x in rows:
         if x[0] not in wf_tags_db:
             wf_tags_db[x[0]] = set()
@@ -350,34 +359,30 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
     batch_size = 250
     exclusion_tags = set(atp_term_to_name.keys()) - {'ATP:0000172'}
     for reference_id in sorted(wanted_reference_ids):
-        # if batch_counter > 2:
-        #     # UNCOMMENT TO POPULATE
-        #     # db_session.commit()
-        #     sys.exit(f"{batch_counter} counter reached")
+        if batch_counter > 4:
+            # UNCOMMENT TO POPULATE
+            # db_session.commit()
+            sys.exit(f"{batch_counter} counter reached")
         logger.info(f"Processing reference_id {reference_id}")
+        parent_term_set_flag = False
         tags = wf_tags_db.get(reference_id, set())
+
         if 'ATP:0000163' not in tags:  # must have 'file converted to text'
             logger.info(f"Skipping {reference_id} because no TEI file")
             continue
+
+        # set parent term to entity extraction needed if there are no children or grandchildren tags
         matching_exclusions = tags.intersection(exclusion_tags)  # must not have children or grandchildren of ATP:0000172
         if matching_exclusions:
             logger.info(f"{reference_id} has exclusion tags in DB: {sorted(matching_exclusions)}")
         else:
-            batch_counter += 1
-            if batch_counter % batch_size == 0:
-                batch_counter = 0
-                # UNCOMMENT TO POPULATE
-#                 db_session.commit()
             wf_atp = 'ATP:0000173'
+            error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp
             logger.info(f"INSERT {reference_id} is NOT in exclusion list, add {wf_atp}")
-            try:
-                x = WorkflowTagModel(reference_id=reference_id,
-                                     mod_id=2,
-                                     workflow_tag_id={wf_atp})
-                db_session.add(x)
-            except Exception as e:
-                logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp + " " + str(e))
+            batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
+            parent_term_set_flag = True
 
+        # set grandchildren terms to datatype extraction needed
         if 'ATP:0000174' in tags:
             logger.info(f"{reference_id} entity extraction complete, not setting datatypes to needed based on siblings")
         else:  # must not be 'entity extraction complete' to add datatype siblings needed
@@ -386,19 +391,12 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
                 if matching_member_tags:
                     logger.info(f"{reference_id} has existing sibling tags for group {group_tag}: {sorted(matching_member_tags)}")
                 else:
-                    batch_counter += 1
-                    if batch_counter % batch_size == 0:
-                        batch_counter = 0
-                        # UNCOMMENT TO POPULATE
-#                         db_session.commit()
+                    error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + group_tag
                     logger.info(f"INSERT {reference_id} is NOT in sibling list, add {group_tag}")
-                    try:
-                        x = WorkflowTagModel(reference_id=reference_id,
-                                             mod_id=2,
-                                             workflow_tag_id=group_tag)
-                        db_session.add(x)
-                    except Exception as e:
-                        logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + group_tag + " " + str(e))
+                    batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, group_tag, error_message)
+
+        if parent_term_set_flag:
+            continue
 
         # TODO set parent tag based on hierarchy
         # if      any children_by_parent of ATP:0000187, set ATP:0000187, remove ATP:0000190 ATP:0000173 ATP:0000174
@@ -422,26 +420,21 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
     # UNCOMMENT TO POPULATE
 #     db_session.commit()
 
-#     for x in rows:
-#         # logger.info(f"reference_id {x[0]}\t{x[1]}\t{x[2]}\t{x[3]}")
-#         wb_wbpaper_id = x[0]
-#         agr_reference_id = x[1]
-#         for wb_atp in atp_tags:
-#             batch_counter += 1
-#             if batch_counter % batch_size == 0:
-#                 batch_counter = 0
-#                 # UNCOMMENT TO POPULATE
-#                 # db_session.commit()
-#             logger.info(f"INSERT {agr_reference_id} {wb_wbpaper_id} is NOT in entity extraction needed, needs new value {wb_atp}")
-#             try:
-#                 x = WorkflowTagModel(reference_id=agr_reference_id,
-#                                      mod_id=2,
-#                                      workflow_tag_id=wb_atp)
-#                 db_session.add(x)
-#             except Exception as e:
-#                 logger.info("An error occurred when adding workflog_tag row for reference_id = " + str(agr_reference_id) + " and atp value = " + wb_atp + " " + str(e))
-    # UNCOMMENT TO POPULATE
-    # db_session.commit()
+
+def create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
+    batch_counter += 1
+    if batch_counter % batch_size == 0:
+        batch_counter = 0
+        # UNCOMMENT TO POPULATE
+#         db_session.commit()
+    try:
+        x = WorkflowTagModel(reference_id=reference_id,
+                             mod_id=mod_id,
+                             workflow_tag_id=wf_atp)
+        db_session.add(x)
+    except Exception as e:
+        logger.info(error_message + " " + str(e))
+    return batch_counter
 
 
 if __name__ == "__main__":
