@@ -14,17 +14,17 @@ from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 # Initialize TestClient
 client = TestClient(app)
 
-
 @pytest.fixture(autouse=True)
 def clear_jobs_and_auth_override():
     # Clear jobs and set default auth override
     upload_manager._jobs.clear()
     user = type('U', (), {'cid': 'test_user', 'groups': ['WBCurator']})()
+    # Provide both cid and uid to avoid attribute errors
+    user = type('U', (), {'cid': 'test_user', 'uid': 'test_user', 'groups': ['WBCurator']})()
     app.dependency_overrides[auth.get_user] = lambda: user
     yield
     upload_manager._jobs.clear()
     app.dependency_overrides.clear()
-
 
 def make_archive():
     buf = io.BytesIO()
@@ -34,7 +34,6 @@ def make_archive():
         tar.addfile(info, io.BytesIO(b'x'))
     buf.seek(0)
     return buf
-
 
 def test_validate_and_start_and_status():
     buf = make_archive()
@@ -65,7 +64,6 @@ def test_validate_and_start_and_status():
     assert result['job_id'] == jid
     assert result['status'] in ('running', 'completed')
 
-
 @pytest.mark.parametrize('jid,expected_code,expected_detail', [
     ('nonexistent', 404, 'Job not found'),
 ])
@@ -73,7 +71,6 @@ def test_status_not_found(jid, expected_code, expected_detail):
     resp = client.get(f'/reference/referencefile/bulk_upload_status/{jid}')
     assert resp.status_code == expected_code
     assert resp.json()['detail'] == expected_detail
-
 
 def test_active_and_history_empty():
     # No jobs yet
@@ -84,7 +81,6 @@ def test_active_and_history_empty():
     resp = client.get('/reference/referencefile/bulk_upload_history/')
     assert resp.status_code == 200
     assert resp.json() == []
-
 
 def test_missing_authentication():
     # Override auth to always fail
