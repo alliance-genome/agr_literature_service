@@ -1,14 +1,10 @@
 import json
 import logging
-import asyncio
-import tempfile
-import io
-import os
 from json import JSONDecodeError
-from typing import Union, List
-from datetime import datetime
+from typing import Union, List, Any, Dict
 
-from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Security, status, File, UploadFile, \
+    BackgroundTasks, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
@@ -18,8 +14,11 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate, \
-    ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
+    ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
+from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
+from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
+from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_okta
 
 logger = logging.getLogger(__name__)
@@ -193,24 +192,25 @@ def merge_referencefiles(curie_or_reference_id: str,
                          user: OktaUser = db_user,
                          db: Session = db_session):
     set_global_user_from_okta(db, user)
-    return referencefile_crud.merge_referencefiles(db, curie_or_reference_id,
-                                                   losing_referencefile_id,
-                                                   winning_referencefile_id)
+    return referencefile_crud.merge_referencefiles(db, curie_or_reference_id, losing_referencefile_id, winning_referencefile_id)
 
 
 # Bulk Upload Endpoints
-
-@router.post('/bulk_upload_archive/',
-             status_code=status.HTTP_202_ACCEPTED,
-             response_model=dict)
+@router.post(
+    "/bulk_upload_archive/",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Dict[str, Any],
+)
 async def bulk_upload_archive(
+    *,
     mod_abbreviation: str,
+    background_tasks: BackgroundTasks,
     archive: UploadFile = File(...),  # noqa: B008
     user: OktaUser = db_user,
-    db: Session = db_session
+    db: Session = Depends(get_db),
 ):
     """
-    Start bulk upload job for MOD-specific reference files archive.
+    Start a bulk-upload of a ZIP/TAR archive of reference files for a single MOD.
 
     Archive structure:
     - Root files = main files (PDFs, etc.)
@@ -223,35 +223,46 @@ async def bulk_upload_archive(
 
     Returns job ID for tracking progress via /bulk_upload_status/{job_id}
     """
-    from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
-    from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 
+    # 1. authenticate
     set_global_user_from_okta(db, user)
 
-    # Validate archive before processing
-    validation = validate_archive_structure(archive.file)
-    if not validation["valid"]:
+    # 2. validate archive structure
+    try:
+        validation = validate_archive_structure(archive.file)
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Invalid archive format: {validation['error']}"
+            detail=f"Archive validation failed: {e}",
         )
-
-    if validation["total_files"] == 0:
+    if not validation.get("valid", False):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Archive contains no files"
+            detail=f"Invalid archive format: {validation.get('error')}",
+        )
+    if validation.get("total_files", 0) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Archive contains no files",
         )
 
-    # Create job
+    # 3. create a new bulk‐upload job
     job_id = upload_manager.create_job(
         user_id=user.cid,
         mod_abbreviation=mod_abbreviation,
-        filename=archive.filename or "unknown.archive"
+        filename=archive.filename or "archive.unknown",
     )
 
-    # Start background processing
-    asyncio.create_task(process_bulk_upload_async(job_id, archive, mod_abbreviation, db))
+    # 4. schedule the background task
+    background_tasks.add_task(
+        process_bulk_upload_async,
+        job_id,
+        archive.file,
+        mod_abbreviation,
+        db,
+    )
 
+    # 5. respond immediately
     return {
         "job_id": job_id,
         "status": "started",
@@ -259,20 +270,22 @@ async def bulk_upload_archive(
         "total_files": validation["total_files"],
         "main_files": validation["main_files"],
         "supplement_files": validation["supplement_files"],
-        "status_url": f"/reference/referencefile/bulk_upload_status/{job_id}"
+        "status_url": f"reference/referencefile/bulk_upload_status/{job_id}",
     }
 
 
-@router.get('/bulk_upload_status/{job_id}',
-            status_code=status.HTTP_200_OK,
-            response_model=dict)
+@router.get(
+    "/bulk_upload_status/{job_id}",
+    response_model=Dict[str, Any],
+    status_code=200
+)
 def get_bulk_upload_status(
     job_id: str,
     user: OktaUser = db_user,
     db: Session = db_session
 ):
+
     """Get status and progress of specific bulk upload job."""
-    from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 
     set_global_user_from_okta(db, user)
 
@@ -280,7 +293,7 @@ def get_bulk_upload_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    # Check if user owns this job (could add admin check here if needed)
+    # Check if user owns this job
     if job.user_id != user.cid:
         raise HTTPException(status_code=403, detail="Access denied")
 
@@ -296,7 +309,6 @@ def get_active_bulk_uploads(
     db: Session = db_session
 ):
     """Get all currently active bulk upload jobs."""
-    from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 
     set_global_user_from_okta(db, user)
 
@@ -320,7 +332,6 @@ def get_bulk_upload_history(
     db: Session = db_session
 ):
     """Get recent bulk upload jobs for current user."""
-    from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 
     set_global_user_from_okta(db, user)
 
@@ -341,81 +352,8 @@ def validate_bulk_upload_archive(
     db: Session = db_session
 ):
     """Validate archive structure without uploading."""
-    from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 
     set_global_user_from_okta(db, user)
 
     validation = validate_archive_structure(archive.file)
     return validation
-
-
-# Background processing function
-async def process_bulk_upload_async(job_id: str, archive: UploadFile,
-                                    mod_abbreviation: str, db: Session):
-    """Background task to process bulk upload."""
-    from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
-    from agr_literature_service.api.utils.bulk_upload_utils import (
-        extract_and_classify_files, classify_and_parse_file, process_single_file
-    )
-
-    try:
-        # Read archive content into memory for processing
-        archive_content = await archive.read()
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Extract files
-            with io.BytesIO(archive_content) as archive_file:
-                file_info_list = extract_and_classify_files(archive_file, temp_dir)
-
-            # Update job with total file count
-            upload_manager.update_job(job_id, total_files=len(file_info_list))
-
-            # Sort to process main files first, then supplements
-            file_info_list.sort(key=lambda x: (not x[1], x[0]))  # Main files first
-
-            # Process files
-            for i, (file_path, _) in enumerate(file_info_list):
-                try:
-                    filename = os.path.basename(file_path)
-
-                    # Update current file being processed
-                    job = upload_manager.get_job(job_id)
-                    if job:
-                        job.current_file = filename
-                        job.last_update = datetime.utcnow()
-
-                    # Process file
-                    metadata = classify_and_parse_file(file_path, temp_dir, mod_abbreviation)
-                    result = process_single_file(file_path, metadata, db)
-
-                    # Update progress
-                    success = result.get("status") == "success"
-                    error = result.get("error", "") if not success else ""
-
-                    if job:
-                        job.update_progress(
-                            processed=i + 1,
-                            current_file=filename,
-                            success=success,
-                            error=error
-                        )
-
-                except Exception as e:
-                    # Handle individual file error
-                    logger.error(f"Error processing file {filename}: {str(e)}")
-                    job = upload_manager.get_job(job_id)
-                    if job:
-                        job.update_progress(
-                            processed=i + 1,
-                            current_file=filename,
-                            success=False,
-                            error=str(e)
-                        )
-
-            # Mark job as completed
-            upload_manager.complete_job(job_id, success=True)
-
-    except Exception as e:
-        # Mark job as failed
-        logger.error(f"Bulk upload job {job_id} failed: {str(e)}")
-        upload_manager.complete_job(job_id, success=False, error=str(e))
