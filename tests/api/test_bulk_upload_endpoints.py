@@ -16,10 +16,14 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clear_jobs_and_auth_override():
-    """Clear jobs and override auth for tests."""
+def clear_jobs_and_auth_override(monkeypatch):
+    """Clear jobs and override auth and user setup for tests."""
+    # Clear any existing jobs
     upload_manager._jobs.clear()
-    # Mock user with required attributes
+    # Patch set_global_user_from_okta to no-op to avoid DB operations
+    import agr_literature_service.api.user as user_module
+    monkeypatch.setattr(user_module, 'set_global_user_from_okta', lambda db, user: None)
+    # Provide a mock user with required attributes
     user = type('U', (), {
         'cid': 'test_user',
         'uid': 'test_user',
@@ -28,6 +32,7 @@ def clear_jobs_and_auth_override():
     })()
     app.dependency_overrides[auth.get_user] = lambda: user
     yield
+    # Teardown
     upload_manager._jobs.clear()
     app.dependency_overrides.clear()
 
