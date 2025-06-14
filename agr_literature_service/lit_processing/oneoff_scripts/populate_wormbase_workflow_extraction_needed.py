@@ -73,11 +73,7 @@ def old_way_that_may_create_dupicates(db_session):
         wb_wbpaper_id = x[0]
         agr_reference_id = x[1]
         for wb_atp in atp_tags:
-            batch_counter += 1
-            if batch_counter % batch_size == 0:
-                batch_counter = 0
-                # UNCOMMENT TO POPULATE
-                # db_session.commit()
+            batch_counter = db_commit_if_batch_size(db_session, batch_counter, batch_size)
             logger.info(f"INSERT {agr_reference_id} {wb_wbpaper_id} is NOT in entity extraction needed, needs new value {wb_atp}")
             try:
                 x = WorkflowTagModel(reference_id=agr_reference_id,
@@ -359,12 +355,14 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
     batch_size = 250
     exclusion_tags = set(atp_term_to_name.keys()) - {'ATP:0000172'}
     for reference_id in sorted(wanted_reference_ids):
-        if batch_counter > 4:
+        if reference_id != 7:
+            continue
+        if batch_counter > 10:
             # UNCOMMENT TO POPULATE
             # db_session.commit()
             sys.exit(f"{batch_counter} counter reached")
         logger.info(f"Processing reference_id {reference_id}")
-        parent_term_set_flag = False
+        parent_term_already_set_flag = False
         tags = wf_tags_db.get(reference_id, set())
 
         if 'ATP:0000163' not in tags:  # must have 'file converted to text'
@@ -380,7 +378,7 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
             error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp
             logger.info(f"INSERT {reference_id} is NOT in exclusion list, add {wf_atp}")
             batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
-            parent_term_set_flag = True
+            parent_term_already_set_flag = True
 
         # set grandchildren terms to datatype extraction needed
         if 'ATP:0000174' in tags:
@@ -389,44 +387,83 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
             for group_tag, group_members in siblings.items():
                 matching_member_tags = [member for member in group_members if member in tags]
                 if matching_member_tags:
-                    logger.info(f"{reference_id} has existing sibling tags for group {group_tag}: {sorted(matching_member_tags)}")
+                    logger.info(f"{reference_id} has existing sibling tags for datatype group {group_tag}: {sorted(matching_member_tags)}")
                 else:
                     error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + group_tag
-                    logger.info(f"INSERT {reference_id} is NOT in sibling list, add {group_tag}")
+                    logger.info(f"INSERT {reference_id} does not have siblings of {group_tag}, add {group_tag}")
                     batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, group_tag, error_message)
 
-        if parent_term_set_flag:
+        if parent_term_already_set_flag:
             continue
 
-        # TODO set parent tag based on hierarchy
+        # this might not be right.  maybe only one parent term can exist at the same time, in which case it should delete the three others.
+        # set parent tag based on hierarchy
+        # if at least one subclass is 'failed', set parent to 'failed' ATP:0000187
+        #   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190
+        #   else if at least one subclass is 'needed', then set parent to 'needed' ATP:0000173
+        #   else set parent to 'complete' ATP:0000174, but not possible because the script is going to create needed entries.
+        # pseudocode
         # if      any children_by_parent of ATP:0000187, set ATP:0000187, remove ATP:0000190 ATP:0000173 ATP:0000174
         # else if any children_by_parent of ATP:0000190, set ATP:0000190, remove ATP:0000173 ATP:0000174
         # else if any children_by_parent of ATP:0000173 or a sibling was added above, set ATP:0000173, remove ATP:0000174
         # else set ATP:0000174
-#         'ATP:0000187': [
-#             'ATP:0000217',
-#             'ATP:0000188',
-#             'ATP:0000216',
-#             'ATP:0000204',
-#             'ATP:0000270',
-#             'ATP:0000267'
-#         ],
-
-# if at least one subclass is 'failed', set parent to 'failed' ATP:0000187
-#   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190
-#   else if at least one subclass is 'needed', set it parent 'needed' ATP:0000173
-#   else set parent to 'complete' ATP:0000174, but not possible because the script is going to create needed entries.
+        matching_children_187 = tags.intersection(set(children_by_parent['ATP:0000187']))
+        matching_children_190 = tags.intersection(set(children_by_parent['ATP:0000190']))
+        matching_children_173 = tags.intersection(set(children_by_parent['ATP:0000173']))
+        if matching_children_187:
+            tags_to_remove = {'ATP:0000190', 'ATP:0000173', 'ATP:0000174'}
+            batch_counter = ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_187, tags_to_remove, 'ATP:0000187')
+        elif matching_children_190:
+            tags_to_remove = {'ATP:0000173', 'ATP:0000174'}
+            batch_counter = ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_190, tags_to_remove, 'ATP:0000190')
+        elif matching_children_173:
+            tags_to_remove = {'ATP:0000174'}
+            batch_counter = ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_173, tags_to_remove, 'ATP:0000173')
+        elif 'ATP:0000174' not in tags:
+            error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = ATP:0000174"
+            logger.info(f"INSERT {reference_id} default case, add parent ATP:0000174")
+            batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, 'ATP:0000174', error_message)
 
     # UNCOMMENT TO POPULATE
-#     db_session.commit()
+    db_session.commit()
 
 
-def create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
+def ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children, tags_to_remove, tag_to_add):
+    logger.info(f"{reference_id} has children of {tag_to_add} {matching_children}, removing {tags_to_remove} to add {tag_to_add}")
+    for wf_atp in tags_to_remove:
+        if wf_atp in tags:
+            logger.info(f"DELETE {reference_id} remove {wf_atp} to add {tag_to_add}")
+            error_message = "An error occurred when removing workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp
+            batch_counter = delete_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
+    if tag_to_add not in tags:
+        error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + tag_to_add
+        logger.info(f"INSERT {reference_id} has children {matching_children}, add parent {tag_to_add}")
+        batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, tag_to_add, error_message)
+    return batch_counter
+
+
+def db_commit_if_batch_size(db_session, batch_counter, batch_size):
     batch_counter += 1
     if batch_counter % batch_size == 0:
         batch_counter = 0
         # UNCOMMENT TO POPULATE
-#         db_session.commit()
+        db_session.commit()
+    return batch_counter
+
+
+def delete_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
+    batch_counter = db_commit_if_batch_size(db_session, batch_counter, batch_size)
+    x = db_session.query(WorkflowTagModel).filter_by(reference_id=reference_id, mod_id=mod_id, workflow_tag_id=wf_atp).one_or_none()
+    if x:
+        try:
+            db_session.delete(x)
+        except Exception as e:
+            logger.info(error_message + " " + str(e))
+    return batch_counter
+
+
+def create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
+    batch_counter = db_commit_if_batch_size(db_session, batch_counter, batch_size)
     try:
         x = WorkflowTagModel(reference_id=reference_id,
                              mod_id=mod_id,
