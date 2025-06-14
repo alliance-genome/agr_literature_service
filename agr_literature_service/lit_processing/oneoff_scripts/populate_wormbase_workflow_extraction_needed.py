@@ -33,7 +33,93 @@ logger = logging.getLogger('literature logger')
 #   ATP:0000217 allele extraction failed
 #   then it needs to delete the 174, keep the 217, and add ATP:0000187   entity extraction failed
 
-# TODO  not sure it makes sense to add 173 when there are no terms, since that's happening in the else if part.
+# If this becomes a cronjob, this will need unit tests.
+# Test default case of no tags sets parent of ATP:0000173 and grandchildren to extraction needed
+# Add TEI file
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# script should do
+#   INSERT 7 is NOT in exclusion list, add ATP:0000173
+#   INSERT 7 does not have siblings of ATP:0000221, add ATP:0000221
+#   INSERT 7 does not have siblings of ATP:0000175, add ATP:0000175
+#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
+#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
+#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
+#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
+#
+# Test setting parent with priority of ATP:0000187   entity extraction failed
+# Add ATP:0000204 species extraction failed
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000204', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# script should do
+#   DELETE 7 remove ATP:0000173 to add ATP:0000187
+#   INSERT 7 has children {'ATP:0000204'}, add parent ATP:0000187
+#
+# Test that adding a parent with priority of ATP:0000190 does not take precedence over ATP:0000187
+# Add ATP:0000195 antibody extraction in progress
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000195', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# script makes no changes
+#
+# Test setting parent with priority of ATP:0000190   entity extraction in progress
+# Restart with TEI file
+#   DELETE FROM workflow_tag WHERE reference_id = 7
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# Add ATP:0000195 antibody extraction in progress
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000195', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# script does
+#   7 has exclusion tags in DB: ['ATP:0000195']
+#   INSERT 7 does not have siblings of ATP:0000221, add ATP:0000221
+#   7 has existing sibling tags for datatype group ATP:0000175: ['ATP:0000195']
+#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
+#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
+#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
+#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
+#   7 has children of ATP:0000190 {'ATP:0000195'}, removing {'ATP:0000173', 'ATP:0000174'} to add ATP:0000190
+#   INSERT 7 has children {'ATP:0000195'}, add parent ATP:0000190
+#
+# Test setting parent with priority of ATP:0000173   entity extraction needed
+# Restart with TEI file
+#   DELETE FROM workflow_tag WHERE reference_id = 7
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# Add ATP:0000221 allele extraction needed
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000221', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# script does
+#   7 has exclusion tags in DB: ['ATP:0000221']
+#   7 has existing sibling tags for datatype group ATP:0000221: ['ATP:0000221']
+#   INSERT 7 does not have siblings of ATP:0000175, add ATP:0000175
+#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
+#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
+#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
+#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
+#   7 has children of ATP:0000173 {'ATP:0000221'}, removing {'ATP:0000174'} to add ATP:0000173
+#   INSERT 7 has children {'ATP:0000221'}, add parent ATP:0000173
+#
+# Test setting parent with priority of ATP:0000174   entity extraction complete
+# Restart with TEI file
+#   DELETE FROM workflow_tag WHERE reference_id = 7
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# Add ATP:0000215 allele extraction complete
+#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
+#   VALUES ( 7, 2, 'ATP:0000215', NOW(), '00u1ctzvjgMpk87Qm5d7' );
+# script does
+#   7 has exclusion tags in DB: ['ATP:0000215']
+#   7 has existing sibling tags for datatype group ATP:0000221: ['ATP:0000215']
+#   INSERT 7 does not have siblings of ATP:0000175, add ATP:0000175
+#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
+#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
+#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
+#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
+#   INSERT 7 default case, add parent ATP:0000174
+#
+# Test incorrect case of child term of extraction failed, while also the 3 other parent terms
+#     ATP:0000217 allele extraction failed
+#     ATP:0000190 ATP:0000173 ATP:0000174
 
 
 def old_way_that_may_create_dupicates(db_session):
