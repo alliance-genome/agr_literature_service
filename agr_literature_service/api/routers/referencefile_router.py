@@ -1,4 +1,5 @@
 import json
+import io
 import logging
 from json import JSONDecodeError
 from typing import Union, List, Any, Dict
@@ -259,7 +260,7 @@ async def bulk_upload_archive(
     background_tasks.add_task(
         process_bulk_upload_async,
         job_id,
-        archive.file,
+        archive,
         mod_abbreviation,
         db,
     )
@@ -349,13 +350,32 @@ def get_bulk_upload_history(
              status_code=status.HTTP_200_OK,
              response_model=dict)
 def validate_bulk_upload_archive(
-    archive: UploadFile = File(...),  # noqa: B008
+    archive: UploadFile = File(...),
     user: OktaUser = db_user,
     db: Session = db_session
 ):
     """Validate archive structure without uploading."""
-
     set_global_user_from_okta(db, user)
 
-    validation = validate_archive_structure(archive.file)
-    return validation
+    try:
+        # Create an in-memory copy of the file content
+        content = archive.file.read()
+        archive_bytes = io.BytesIO(content)
+
+        # Validate using the in-memory copy
+        validation = validate_archive_structure(archive_bytes)
+        return validation
+    except Exception as e:
+        logger.error(f"Validation failed: {str(e)}")
+        return {
+            'valid': False,
+            'error': str(e),
+            'total_files': 0,
+            'main_files': 0,
+            'supplement_files': 0,
+            'main_file_list': [],
+            'supplement_file_list': []
+        }
+    finally:
+        # Reset file pointer for safety
+        archive.file.seek(0)
