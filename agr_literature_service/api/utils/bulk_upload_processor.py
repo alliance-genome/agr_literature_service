@@ -1,48 +1,69 @@
 import asyncio
 import tempfile
 import shutil
+import os
 from agr_literature_service.api.utils.bulk_upload_utils import (
     extract_and_classify_files,
     classify_and_parse_file,
     process_single_file
 )
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
+from fastapi import UploadFile
+from sqlalchemy.orm import Session
 
 
-async def process_bulk_upload_async(job_id: str, archive_file, mod_abbreviation: str, db):
-    """Background task to process bulk upload jobs asynchronously."""
-    temp_dir = tempfile.mkdtemp()
+async def process_bulk_upload_async(
+    job_id: str,
+    archive: UploadFile,
+    mod_abbreviation: str,
+    db: Session
+):
+    """
+    Background task to process a bulk upload:
+     - read the entire UploadFile into memory
+     - extract to a fresh temp subdir
+     - parse & upload each file
+     - update progress
+     - clean up
+    """
+    temp_dir = tempfile.mkdtemp(prefix=job_id + '_', dir=base_dir if (base_dir := os.environ.get('LOG_PATH')) else None)
+
     try:
-        # 1) Extract and count files
-        files = extract_and_classify_files(archive_file, temp_dir)
+        # 1) Save archive to temp file instead of reading into memory
+        archive_path = os.path.join(temp_dir, archive.filename or "archive")
+        with open(archive_path, "wb") as f:
+            shutil.copyfileobj(archive.file, f)
+
+        # 2) Process using the saved file
+        with open(archive_path, "rb") as f:
+            files = extract_and_classify_files(f, temp_dir, archive.filename)
         upload_manager.update_job(job_id, total_files=len(files))
 
-        # 2) Process each file sequentially
+        # 3) Process each file
         for idx, (path, _) in enumerate(files, start=1):
             metadata = classify_and_parse_file(path, temp_dir, mod_abbreviation)
             result = process_single_file(path, metadata, db)
 
-            # 3) Update progress
+            # 4) Update progress
             success = (result.get('status') == 'success')
-            error = result.get('error', '') if not success else ''
+            error = '' if success else result.get('error', '')
             upload_manager.update_progress(
-                job_id,
+                job_id=job_id,
                 processed=idx,
-                current_file=path,
+                current_file=os.path.basename(path),
                 success=success,
                 error=error
             )
 
-            # Yield control to event loop
+            # Let the loop occasionally yield
             await asyncio.sleep(0)
 
-        # 4) Mark the job as completed successfully
+        # 5) Mark complete
         upload_manager.complete_job(job_id, success=True)
 
     except Exception as e:
-        # On any exception, mark job as failed
         upload_manager.complete_job(job_id, success=False, error=str(e))
 
     finally:
-        # Always clean up temporary directory
+        # 7) Clean up only the directory we created
         shutil.rmtree(temp_dir, ignore_errors=True)

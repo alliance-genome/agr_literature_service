@@ -129,41 +129,76 @@ def classify_and_parse_file(
 
 def extract_and_classify_files(
     archive_file: BinaryIO,
-    temp_dir: str
+    temp_dir: str,
+    archive_name: str = None
 ) -> List[Tuple[str, bool]]:
-    """
-    Extract an archive (.tar.gz or .zip) into temp_dir and return a list of
-    (absolute_path, is_main) tuples.
-    """
-    extracted: List[Tuple[str, bool]] = []
+    archive_file.seek(0)
+    header = archive_file.read(5)
     archive_file.seek(0)
 
-    def _process(entries, is_tar: bool):
-        for entry in entries:
-            name = entry.name if is_tar else entry.filename
-            if (is_tar and entry.isfile()) or (not is_tar and not entry.is_dir()):
-                full = os.path.join(temp_dir, name)
-                main = len(Path(name).parts) == 1
-                extracted.append((full, main))
+    # Handle PDF files
+    if header == b'%PDF-':
+        os.makedirs(temp_dir, exist_ok=True)  # Ensure directory exists
+        filename = archive_name or "file.pdf"
+        out_path = os.path.join(temp_dir, filename)
+        with open(out_path, 'wb') as f:
+            f.write(archive_file.read())
+        return [(out_path, True)]
 
-    # Try tar.gz
+    extracted: List[Tuple[str, bool]] = []
+
+    # Helper to classify files
+    def _classify_and_add(name: str):
+        normalized = os.path.normpath(name)  # Normalize for Windows
+        full = os.path.join(temp_dir, normalized)
+        parts = Path(normalized).parts
+        # Files in root are main, any subdirectory are supplements
+        is_main = (len(parts) == 1)
+        extracted.append((full, is_main))
+
+    # 1) Try any-compression tar
     try:
-        with tarfile.open(fileobj=archive_file, mode='r:gz') as tar:
+        with tarfile.open(fileobj=archive_file, mode='r:*') as tar:
             tar.extractall(path=temp_dir)
-            _process(tar.getmembers(), True)
-        logger.info(f"Extracted {len(extracted)} files from tar.gz archive")
+            for member in tar.getmembers():
+                if member.isfile():
+                    _classify_and_add(member.name)
+        if not extracted:
+            raise ValueError("Tar archive contained no files")
         return extracted
     except tarfile.TarError:
         archive_file.seek(0)
-        # Fallback to zip
-        try:
-            with zipfile.ZipFile(archive_file) as zf:
-                zf.extractall(path=temp_dir)
-                _process(zf.filelist, False)
-            logger.info(f"Extracted {len(extracted)} files from zip archive")
-            return extracted
-        except zipfile.BadZipFile:
-            raise ValueError("Unsupported archive format; use .tar.gz or .zip")
+
+    # 2) Try ZIP
+    try:
+        with zipfile.ZipFile(archive_file) as zf:
+            zf.extractall(path=temp_dir)
+            for info in zf.filelist:
+                if not info.is_dir():
+                    _classify_and_add(info.filename)
+        if not extracted:
+            raise ValueError("Zip archive contained no files")
+        return extracted
+    except zipfile.BadZipFile:
+        archive_file.seek(0)
+
+    # 3) Try single-file gzip
+    try:
+        import gzip
+        with gzip.open(archive_file, 'rb') as gz:
+            data = gz.read()
+        base = (Path(archive_name).stem if archive_name else 'file')
+        out_path = os.path.join(temp_dir, base)
+        with open(out_path, 'wb') as out:
+            out.write(data)
+        return [(out_path, True)]
+    except Exception:
+        archive_file.seek(0)
+
+    # 4) Nothing matched
+    raise ValueError(
+        "Unsupported archive format—supported: PDF, tar, tgz, zip, gz."
+    )
 
 
 def process_single_file(file_path: str, metadata: Dict[str, Any], db) -> Dict[str, Any]:
@@ -196,29 +231,144 @@ def process_single_file(file_path: str, metadata: Dict[str, Any], db) -> Dict[st
 def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:
     """
     Inspect an archive to count main vs. supplement files without extracting to disk.
+    Supports: PDF, tar, tgz, zip, gz.
     """
-    archive_file.seek(0)
-    file_list: List[str] = []
-
     try:
-        with tarfile.open(fileobj=archive_file, mode='r:gz') as tar:
-            file_list = [m.name for m in tar.getmembers() if m.isfile()]
-    except tarfile.TarError:
+        # Save current position and reset to start
         archive_file.seek(0)
+        start_pos = archive_file.tell()
+
+        # Try to read first 5 bytes
+        header = archive_file.read(5)
+        archive_file.seek(start_pos)  # Reset after reading header
+
+        # Handle empty files
+        if not header:
+            return {
+                'valid': False,
+                'error': 'Empty file',
+                'total_files': 0,
+                'main_files': 0,
+                'supplement_files': 0,
+                'main_file_list': [],
+                'supplement_file_list': []
+            }
+
+        # Handle PDF files
+        if header == b'%PDF-':
+            return {
+                'valid': True,
+                'total_files': 1,
+                'main_files': 1,
+                'supplement_files': 0,
+                'main_file_list': ['PDF file'],
+                'supplement_file_list': []
+            }
+
+        # Handle gzip files
+        if header.startswith(b'\x1f\x8b'):
+            try:
+                # Try as gzipped tar
+                with tarfile.open(fileobj=archive_file, mode='r:gz') as tar:
+                    file_list = [m.name for m in tar.getmembers() if m.isfile()]
+                archive_file.seek(start_pos)  # Reset after validation
+
+                main = [p for p in file_list if len(Path(p).parts) == 1]
+                supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+                return {
+                    'valid': True,
+                    'total_files': len(file_list),
+                    'main_files': len(main),
+                    'supplement_files': len(supp),
+                    'main_file_list': main[:10],
+                    'supplement_file_list': supp[:10],
+                }
+            except tarfile.TarError:
+                # Handle as single gzip file
+                try:
+                    import gzip
+                    archive_file.seek(start_pos)
+                    with gzip.GzipFile(fileobj=archive_file) as gz:
+                        gz.read(1)  # Test decompression
+                    return {
+                        'valid': True,
+                        'total_files': 1,
+                        'main_files': 1,
+                        'supplement_files': 0,
+                        'main_file_list': ['gzipped file'],
+                        'supplement_file_list': []
+                    }
+                except Exception as gz_err:
+                    archive_file.seek(start_pos)
+                    return {
+                        'valid': False,
+                        'error': f'Invalid gzip format: {str(gz_err)}',
+                        'total_files': 0,
+                        'main_files': 0,
+                        'supplement_files': 0,
+                        'main_file_list': [],
+                        'supplement_file_list': []
+                    }
+
+        # Handle tar files (any compression)
+        try:
+            with tarfile.open(fileobj=archive_file, mode='r:*') as tar:
+                file_list = [m.name for m in tar.getmembers() if m.isfile()]
+            archive_file.seek(start_pos)  # Reset after validation
+
+            main = [p for p in file_list if len(Path(p).parts) == 1]
+            supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+            return {
+                'valid': True,
+                'total_files': len(file_list),
+                'main_files': len(main),
+                'supplement_files': len(supp),
+                'main_file_list': main[:10],
+                'supplement_file_list': supp[:10],
+            }
+        except tarfile.TarError:
+            archive_file.seek(start_pos)
+
+        # Handle zip files
         try:
             with zipfile.ZipFile(archive_file) as zf:
                 file_list = [f.filename for f in zf.filelist if not f.is_dir()]
+            archive_file.seek(start_pos)  # Reset after validation
+
+            main = [p for p in file_list if len(Path(p).parts) == 1]
+            supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+            return {
+                'valid': True,
+                'total_files': len(file_list),
+                'main_files': len(main),
+                'supplement_files': len(supp),
+                'main_file_list': main[:10],
+                'supplement_file_list': supp[:10],
+            }
         except zipfile.BadZipFile:
-            return {'valid': False, 'error': 'Unsupported archive type', 'total_files': 0, 'main_files': 0, 'supplement_files': 0}
+            archive_file.seek(start_pos)
 
-    main = [p for p in file_list if len(Path(p).parts) == 1]
-    supp = [p for p in file_list if len(Path(p).parts) > 1]
+        # Unsupported format
+        return {
+            'valid': False,
+            'error': 'Unsupported archive type. Supported formats: PDF, ZIP, TAR, GZ, TGZ',
+            'total_files': 0,
+            'main_files': 0,
+            'supplement_files': 0,
+            'main_file_list': [],
+            'supplement_file_list': []
+        }
 
-    return {
-        'valid': True,
-        'total_files': len(file_list),
-        'main_files': len(main),
-        'supplement_files': len(supp),
-        'main_file_list': main[:10],
-        'supplement_file_list': supp[:10],
-    }
+    except Exception as e:
+        return {
+            'valid': False,
+            'error': f'Validation error: {str(e)}',
+            'total_files': 0,
+            'main_files': 0,
+            'supplement_files': 0,
+            'main_file_list': [],
+            'supplement_file_list': []
+        }
