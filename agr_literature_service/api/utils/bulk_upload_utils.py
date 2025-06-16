@@ -31,13 +31,7 @@ def _get_curie(ref_id: str, mod_abbreviation: str) -> str:
 def parse_filename_by_mod(filename: str, mod_abbreviation: str) -> Dict[str, Any]:
     """
     Parse a main-file name into metadata according to MOD conventions.
-
-    Patterns:
-      {number}_{authorYear}[_{options}].{ext}
-      {number}.{ext}
-
-    Returns metadata including reference_curie, display_name, file_extension,
-    file_publication_status, pdf_type, author_and_year, and mod_abbreviation.
+    Returns only schema-allowed fields.
     """
     name = Path(filename)
     stem = name.stem
@@ -47,7 +41,6 @@ def parse_filename_by_mod(filename: str, mod_abbreviation: str) -> Dict[str, Any
     m = re.match(r"^(?P<ref>\d+)_(?P<year>[^_]+)(?:_(?P<opts>.*))?$", stem)
     if m:
         ref_id = m.group('ref')
-        author_and_year = m.group('year')
         opts = m.group('opts') or ''
     else:
         # Fallback: numbers only
@@ -57,7 +50,6 @@ def parse_filename_by_mod(filename: str, mod_abbreviation: str) -> Dict[str, Any
                 f"Filename '{filename}' does not match expected patterns: '1234_ab23_opt.ext' or '1234.ext'"
             )
         ref_id = m2.group('ref')
-        author_and_year = ''
         opts = ''
 
     reference_curie = _get_curie(ref_id, mod_abbreviation)
@@ -78,7 +70,6 @@ def parse_filename_by_mod(filename: str, mod_abbreviation: str) -> Dict[str, Any
         'file_extension': ext,
         'file_publication_status': pub_status,
         'pdf_type': pdf_type,
-        'author_and_year': author_and_year,
         'mod_abbreviation': mod_abbreviation,
     }
 
@@ -86,6 +77,7 @@ def parse_filename_by_mod(filename: str, mod_abbreviation: str) -> Dict[str, Any
 def parse_supplement_file(filename: str, reference_dir: str, mod_abbreviation: str) -> Dict[str, Any]:
     """
     Build metadata for supplement files; reference_dir is parent folder name.
+    Returns only schema-allowed fields.
     """
     name = Path(filename)
     stem = name.stem
@@ -111,20 +103,32 @@ def classify_and_parse_file(
 ) -> Dict[str, Any]:
     """
     Classify a file as 'main' or 'supplement' by its relative path, then parse metadata.
+    Returns only fields allowed by ReferencefileSchemaPost.
     """
     rel_path = Path(file_path).relative_to(archive_root)
     parts = rel_path.parts
 
     if len(parts) == 1:
+        # Parse main file metadata
         meta = parse_filename_by_mod(parts[0], mod_abbreviation)
         file_class = 'main'
     else:
+        # Parse supplement file metadata
         meta = parse_supplement_file(parts[-1], parts[0], mod_abbreviation)
         file_class = 'supplement'
 
+    # Add classification fields
     meta['file_class'] = file_class
     meta['is_annotation'] = False
-    return meta
+
+    # Filter out any extra fields not in the schema
+    allowed_fields = {
+        'reference_curie', 'display_name', 'file_extension',
+        'file_publication_status', 'pdf_type', 'mod_abbreviation',
+        'file_class', 'is_annotation'
+    }
+
+    return {k: v for k, v in meta.items() if k in allowed_fields}
 
 
 def extract_and_classify_files(
@@ -224,38 +228,18 @@ def process_single_file(file_path: str, metadata: Dict[str, Any], db) -> Dict[st
         logger.info(f"Successfully uploaded {filename} to {metadata['reference_curie']}")
         return {'status': 'success', 'reference_curie': metadata['reference_curie'], 'file_class': metadata['file_class']}
     except Exception as e:
-        logger.error(f"Error uploading {filename}: {e}")
-        return {'status': 'error', 'error': str(e), 'reference_curie': metadata.get('reference_curie'), 'file_class': metadata.get('file_class')}
+        logger.exception(f"Error uploading {filename}")
+        return {'status': 'error', 'error': str(e)}
 
 
 def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:
-    """
-    Inspect an archive to count main vs. supplement files without extracting to disk.
-    Supports: PDF, tar, tgz, zip, gz.
-    """
+    """Robust archive validation with enhanced PDF handling"""
     try:
-        # Save current position and reset to start
         archive_file.seek(0)
         start_pos = archive_file.tell()
 
-        # Try to read first 5 bytes
-        header = archive_file.read(5)
-        archive_file.seek(start_pos)  # Reset after reading header
-
-        # Handle empty files
-        if not header:
-            return {
-                'valid': False,
-                'error': 'Empty file',
-                'total_files': 0,
-                'main_files': 0,
-                'supplement_files': 0,
-                'main_file_list': [],
-                'supplement_file_list': []
-            }
-
-        # Handle PDF files
-        if header == b'%PDF-':
+        # Check for PDF
+        if is_pdf_file(archive_file):
             return {
                 'valid': True,
                 'total_files': 1,
@@ -265,110 +249,159 @@ def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:
                 'supplement_file_list': []
             }
 
-        # Handle gzip files
-        if header.startswith(b'\x1f\x8b'):
-            try:
-                # Try as gzipped tar
-                with tarfile.open(fileobj=archive_file, mode='r:gz') as tar:
-                    file_list = [m.name for m in tar.getmembers() if m.isfile()]
-                archive_file.seek(start_pos)  # Reset after validation
+        # Handle other formats
+        return validate_compressed_archive(archive_file)
 
-                main = [p for p in file_list if len(Path(p).parts) == 1]
-                supp = [p for p in file_list if len(Path(p).parts) > 1]
-
-                return {
-                    'valid': True,
-                    'total_files': len(file_list),
-                    'main_files': len(main),
-                    'supplement_files': len(supp),
-                    'main_file_list': main[:10],
-                    'supplement_file_list': supp[:10],
-                }
-            except tarfile.TarError:
-                # Handle as single gzip file
-                try:
-                    import gzip
-                    archive_file.seek(start_pos)
-                    with gzip.GzipFile(fileobj=archive_file) as gz:
-                        gz.read(1)  # Test decompression
-                    return {
-                        'valid': True,
-                        'total_files': 1,
-                        'main_files': 1,
-                        'supplement_files': 0,
-                        'main_file_list': ['gzipped file'],
-                        'supplement_file_list': []
-                    }
-                except Exception as gz_err:
-                    archive_file.seek(start_pos)
-                    return {
-                        'valid': False,
-                        'error': f'Invalid gzip format: {str(gz_err)}',
-                        'total_files': 0,
-                        'main_files': 0,
-                        'supplement_files': 0,
-                        'main_file_list': [],
-                        'supplement_file_list': []
-                    }
-
-        # Handle tar files (any compression)
-        try:
-            with tarfile.open(fileobj=archive_file, mode='r:*') as tar:
-                file_list = [m.name for m in tar.getmembers() if m.isfile()]
-            archive_file.seek(start_pos)  # Reset after validation
-
-            main = [p for p in file_list if len(Path(p).parts) == 1]
-            supp = [p for p in file_list if len(Path(p).parts) > 1]
-
-            return {
-                'valid': True,
-                'total_files': len(file_list),
-                'main_files': len(main),
-                'supplement_files': len(supp),
-                'main_file_list': main[:10],
-                'supplement_file_list': supp[:10],
-            }
-        except tarfile.TarError:
-            archive_file.seek(start_pos)
-
-        # Handle zip files
-        try:
-            with zipfile.ZipFile(archive_file) as zf:
-                file_list = [f.filename for f in zf.filelist if not f.is_dir()]
-            archive_file.seek(start_pos)  # Reset after validation
-
-            main = [p for p in file_list if len(Path(p).parts) == 1]
-            supp = [p for p in file_list if len(Path(p).parts) > 1]
-
-            return {
-                'valid': True,
-                'total_files': len(file_list),
-                'main_files': len(main),
-                'supplement_files': len(supp),
-                'main_file_list': main[:10],
-                'supplement_file_list': supp[:10],
-            }
-        except zipfile.BadZipFile:
-            archive_file.seek(start_pos)
-
-        # Unsupported format
+    except Exception as e:
+        logger.error(f"Validation error: {str(e)}")
         return {
             'valid': False,
-            'error': 'Unsupported archive type. Supported formats: PDF, ZIP, TAR, GZ, TGZ',
+            'error': str(e),
             'total_files': 0,
             'main_files': 0,
             'supplement_files': 0,
             'main_file_list': [],
             'supplement_file_list': []
         }
+    finally:
+        archive_file.seek(start_pos)
 
-    except Exception as e:
+
+def is_pdf_file(file: BinaryIO) -> bool:
+    """Simple PDF validation"""
+    try:
+        file.seek(0)
+        header = file.read(5)
+        return header == b'%PDF-'
+    except Exception:
+        return False
+
+
+def validate_compressed_archive(file: BinaryIO) -> Dict[str, Any]:
+    """Validate compressed archive formats"""
+    file.seek(0)
+
+    # Try ZIP first
+    try:
+        with zipfile.ZipFile(file) as zf:
+            file_list = [f.filename for f in zf.filelist if not f.is_dir()]
+        return process_file_list(file_list)
+    except zipfile.BadZipFile:
+        file.seek(0)
+
+    # Try TAR formats
+    try:
+        with tarfile.open(fileobj=file, mode='r:*') as tar:
+            file_list = [m.name for m in tar.getmembers() if m.isfile()]
+        return process_file_list(file_list)
+    except tarfile.TarError:
+        file.seek(0)
+
+    # Try single GZIP
+    try:
+        import gzip
+        with gzip.GzipFile(fileobj=file) as gz:
+            gz.read(1)  # Test decompression
         return {
-            'valid': False,
-            'error': f'Validation error: {str(e)}',
-            'total_files': 0,
-            'main_files': 0,
+            'valid': True,
+            'total_files': 1,
+            'main_files': 1,
             'supplement_files': 0,
-            'main_file_list': [],
+            'main_file_list': ['gzipped file'],
+            'supplement_file_list': []
+        }
+    except Exception:
+        file.seek(0)
+
+    # Unsupported format
+    return {
+        'valid': False,
+        'error': 'Unsupported archive format',
+        'total_files': 0,
+        'main_files': 0,
+        'supplement_files': 0,
+        'main_file_list': [],
+        'supplement_file_list': []
+    }
+
+
+def process_file_list(file_list: List[str]) -> Dict[str, Any]:
+    """Process file list into validation result"""
+    main = [p for p in file_list if len(Path(p).parts) == 1]
+    supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+    return {
+        'valid': True,
+        'total_files': len(file_list),
+        'main_files': len(main),
+        'supplement_files': len(supp),
+        'main_file_list': main[:10],
+        'supplement_file_list': supp[:10],
+    }
+
+
+def validate_tar(file: BinaryIO) -> Dict[str, Any]:
+    """Validate tar-based archives"""
+    with tarfile.open(fileobj=file, mode='r:*') as tar:
+        file_list = [m.name for m in tar.getmembers() if m.isfile()]
+
+    main = [p for p in file_list if len(Path(p).parts) == 1]
+    supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+    return {
+        'valid': True,
+        'total_files': len(file_list),
+        'main_files': len(main),
+        'supplement_files': len(supp),
+        'main_file_list': main[:10],
+        'supplement_file_list': supp[:10],
+    }
+
+
+def validate_zip(file: BinaryIO) -> Dict[str, Any]:
+    """Validate zip archives"""
+    with zipfile.ZipFile(file) as zf:
+        file_list = [f.filename for f in zf.filelist if not f.is_dir()]
+
+    main = [p for p in file_list if len(Path(p).parts) == 1]
+    supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+    return {
+        'valid': True,
+        'total_files': len(file_list),
+        'main_files': len(main),
+        'supplement_files': len(supp),
+        'main_file_list': main[:10],
+        'supplement_file_list': supp[:10],
+    }
+
+
+def validate_gzip(file: BinaryIO) -> Dict[str, Any]:
+    """Validate gzip files"""
+    try:
+        # Try as gzipped tar first
+        with tarfile.open(fileobj=file, mode='r:gz') as tar:
+            file_list = [m.name for m in tar.getmembers() if m.isfile()]
+
+        main = [p for p in file_list if len(Path(p).parts) == 1]
+        supp = [p for p in file_list if len(Path(p).parts) > 1]
+
+        return {
+            'valid': True,
+            'total_files': len(file_list),
+            'main_files': len(main),
+            'supplement_files': len(supp),
+            'main_file_list': main[:10],
+            'supplement_file_list': supp[:10],
+        }
+    except tarfile.TarError:
+        # Handle as single gzip file
+        file.seek(0)
+        return {
+            'valid': True,
+            'total_files': 1,
+            'main_files': 1,
+            'supplement_files': 0,
+            'main_file_list': ['gzipped file'],
             'supplement_file_list': []
         }
