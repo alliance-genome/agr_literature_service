@@ -3,6 +3,7 @@ import re
 import io
 import tarfile
 import zipfile
+import gzip
 from pathlib import Path
 from typing import Dict, Any, List, Tuple, BinaryIO
 import logging
@@ -131,78 +132,138 @@ def classify_and_parse_file(
     return {k: v for k, v in meta.items() if k in allowed_fields}
 
 
-def extract_and_classify_files(
-    archive_file: BinaryIO,
-    temp_dir: str,
-    archive_name: str = None
-) -> List[Tuple[str, bool]]:
+def extract_and_classify_files(archive_file: BinaryIO, temp_dir: str, archive_name: str = None) -> List[Tuple[str, bool]]:      # noqa: C901
+    """
+    Extract PDF, tar(.gz/.tgz/.bz2), zip, or gz.
+    Return a list of (full_disk_path, is_main_file).
+    """
+    # 1) Read everything into memory
     archive_file.seek(0)
-    header = archive_file.read(5)
-    archive_file.seek(0)
+    data = archive_file.read()
+    if not data:
+        raise ValueError("Archive is empty")
 
-    # Handle PDF files
-    if header == b'%PDF-':
-        os.makedirs(temp_dir, exist_ok=True)  # Ensure directory exists
-        filename = archive_name or "file.pdf"
-        out_path = os.path.join(temp_dir, filename)
-        with open(out_path, 'wb') as f:
-            f.write(archive_file.read())
-        return [(out_path, True)]
-
+    os.makedirs(temp_dir, exist_ok=True)
     extracted: List[Tuple[str, bool]] = []
 
-    # Helper to classify files
-    def _classify_and_add(name: str):
-        normalized = os.path.normpath(name)  # Normalize for Windows
-        full = os.path.join(temp_dir, normalized)
-        parts = Path(normalized).parts
-        # Files in root are main, any subdirectory are supplements
-        is_main = (len(parts) == 1)
-        extracted.append((full, is_main))
+    # Helper to skip macOS metadata / hidden files
+    def _is_metadata(parts: Tuple[str, ...]) -> bool:
+        if parts[0] == "__MACOSX":
+            return True
+        if parts[-1] == ".DS_Store":
+            return True
+        if any(p.startswith("._") for p in parts):
+            return True
+        if any(p.startswith(".") for p in parts):
+            return True
+        return False
 
-    # 1) Try any-compression tar
-    try:
-        with tarfile.open(fileobj=archive_file, mode='r:*') as tar:
-            tar.extractall(path=temp_dir)
-            for member in tar.getmembers():
-                if member.isfile():
-                    _classify_and_add(member.name)
-        if not extracted:
-            raise ValueError("Tar archive contained no files")
-        return extracted
-    except tarfile.TarError:
-        archive_file.seek(0)
+    # 2) PDF?
+    if data[:5] == b"%PDF-":
+        out = os.path.join(temp_dir, archive_name or "file.pdf")
+        with open(out, "wb") as f:
+            f.write(data)
+        return [(out, True)]
 
-    # 2) Try ZIP
-    try:
-        with zipfile.ZipFile(archive_file) as zf:
-            zf.extractall(path=temp_dir)
-            for info in zf.filelist:
-                if not info.is_dir():
-                    _classify_and_add(info.filename)
-        if not extracted:
-            raise ValueError("Zip archive contained no files")
-        return extracted
-    except zipfile.BadZipFile:
-        archive_file.seek(0)
+    # Helper to strip one common root folder
+    def _strip_root(names: List[str]) -> List[str]:
+        roots = {Path(n).parts[0] for n in names if n}
+        if len(roots) == 1 and not Path(next(iter(roots))).suffix:
+            root = next(iter(roots))
+            stripped = []
+            for n in names:
+                parts = list(Path(n).parts)
+                if parts[0] == root:
+                    parts = parts[1:]
+                if parts:
+                    stripped.append(os.path.normpath(os.path.join(*parts)))
+            return stripped
+        return names
 
-    # 3) Try single-file gzip
+    # 3) Try TAR (handles .tar, .tar.gz, .tgz, .tar.bz2)
     try:
-        import gzip
-        with gzip.open(archive_file, 'rb') as gz:
-            data = gz.read()
-        base = (Path(archive_name).stem if archive_name else 'file')
-        out_path = os.path.join(temp_dir, base)
-        with open(out_path, 'wb') as out:
-            out.write(data)
-        return [(out_path, True)]
+        bio = io.BytesIO(data)
+        with tarfile.open(fileobj=bio, mode="r:*") as tar:
+            members = [m for m in tar.getmembers() if m.isreg()]  # only regular files
+            names = [m.name for m in members]
+        names = _strip_root(names)
+
+        # Extract & classify
+        bio = io.BytesIO(data)
+        with tarfile.open(fileobj=bio, mode="r:*") as tar:
+            for m in members:
+                orig = m.name
+                parts = Path(orig).parts
+                if _is_metadata(parts):
+                    continue
+
+                # classification is by the original path
+                is_main = (len(parts) == 1)
+
+                # build a stripped-on-disk path
+                rel = orig
+                # if there was exactly one top-level folder, drop it on disk
+                root_candidates = {Path(n).parts[0] for n in names if n}
+                if len(root_candidates) == 1 and Path(orig).parts[0] in root_candidates:
+                    rel = os.path.normpath(os.path.join(*Path(orig).parts[1:]))
+
+                full = os.path.join(temp_dir, rel)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with tar.extractfile(m) as src, open(full, "wb") as dst:
+                    dst.write(src.read())
+                extracted.append((full, is_main))
+
+        if extracted:
+            return extracted
     except Exception:
-        archive_file.seek(0)
+        pass
 
-    # 4) Nothing matched
-    raise ValueError(
-        "Unsupported archive format—supported: PDF, tar, tgz, zip, gz."
-    )
+    # 4) Try ZIP
+    try:
+        bio = io.BytesIO(data)
+        with zipfile.ZipFile(bio) as zf:
+            infos = [i for i in zf.infolist() if not i.is_dir()]
+            names = [i.filename for i in infos]
+        names = _strip_root(names)
+
+        bio = io.BytesIO(data)
+        with zipfile.ZipFile(bio) as zf:
+            for info in infos:
+                orig = info.filename
+                parts = Path(orig).parts
+                if _is_metadata(parts):
+                    continue
+
+                is_main = (len(parts) == 1)
+
+                rel = orig
+                root_candidates = {Path(n).parts[0] for n in names if n}
+                if len(root_candidates) == 1 and Path(orig).parts[0] in root_candidates:
+                    rel = os.path.normpath(os.path.join(*Path(orig).parts[1:]))
+
+                full = os.path.join(temp_dir, rel)
+                os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, "wb") as dst:
+                    dst.write(zf.read(orig))
+                extracted.append((full, is_main))
+
+        if extracted:
+            return extracted
+    except Exception:
+        pass
+
+    # 5) Try single-file GZIP
+    try:
+        ungz = gzip.decompress(data)
+        out = os.path.join(temp_dir, archive_name or "file")
+        with open(out, "wb") as f:
+            f.write(ungz)
+        return [(out, True)]
+    except Exception:
+        pass
+
+    # 6) Nothing matched
+    raise ValueError("Unsupported archive format—supported: PDF, tar, tgz, zip, gz.")
 
 
 def process_single_file(file_path: str, metadata: Dict[str, Any], db) -> Dict[str, Any]:
@@ -232,14 +293,69 @@ def process_single_file(file_path: str, metadata: Dict[str, Any], db) -> Dict[st
         return {'status': 'error', 'error': str(e)}
 
 
-def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:
-    """Robust archive validation with enhanced PDF handling"""
-    try:
-        archive_file.seek(0)
-        start_pos = archive_file.tell()
+def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:      # noqa: C901
+    """
+    Validate PDF or a compressed archive (tar*, zip, gz).
+    Strips any single top-level folder and hidden files before counting.
+    Returns a dict with keys:
+      valid, total_files, main_files, supplement_files,
+      main_file_list, supplement_file_list, (and error if not valid)
+    """
+    # Load entire upload into memory
+    archive_file.seek(0)
+    data = archive_file.read()
+    if not data:
+        return {
+            'valid': False,
+            'error': 'Empty upload',
+            'total_files': 0,
+            'main_files': 0,
+            'supplement_files': 0,
+            'main_file_list': [],
+            'supplement_file_list': []
+        }
 
-        # Check for PDF
-        if is_pdf_file(archive_file):
+    # Helper: count mains vs supplements
+    def _count(paths: List[str]) -> Dict[str, Any]:
+        mains, supps = [], []
+        for p in paths:
+            parts = Path(p).parts
+            if len(parts) == 1 and Path(p).suffix:
+                mains.append(p)
+            elif len(parts) > 1:
+                supps.append(p)
+        return {
+            'valid': True,
+            'total_files': len(mains) + len(supps),
+            'main_files': len(mains),
+            'supplement_files': len(supps),
+            'main_file_list': mains[:10],
+            'supplement_file_list': supps[:10],
+        }
+
+    # Helper: strip single top-level folder & drop hidden files
+    def _clean_list(names: List[str]) -> List[str]:
+        roots = {Path(n).parts[0] for n in names if n}
+        strip_root = None
+        if len(roots) == 1 and not Path(next(iter(roots))).suffix:
+            strip_root = next(iter(roots))
+        cleaned = []
+        for n in names:
+            parts = Path(n).parts
+            if not parts or parts[0].startswith('.') or parts[0] == '__MACOSX':
+                continue
+            if strip_root and parts[0] == strip_root:
+                parts = parts[1:]
+            if not parts:
+                continue
+            cleaned.append(os.path.normpath(os.path.join(*parts)))
+        return cleaned
+
+    # 1) PDF?
+    pdf_stream = io.BytesIO(data)
+    try:
+        pdf_stream.seek(0)
+        if pdf_stream.read(5) == b'%PDF-':
             return {
                 'valid': True,
                 'total_files': 1,
@@ -248,23 +364,57 @@ def validate_archive_structure(archive_file: BinaryIO) -> Dict[str, Any]:
                 'main_file_list': ['PDF file'],
                 'supplement_file_list': []
             }
+    except Exception:
+        pass
 
-        # Handle other formats
-        return validate_compressed_archive(archive_file)
+    # 2) TAR (any compression: .tar, .tgz, .tar.gz, etc.)
+    try:
+        bio = io.BytesIO(data)
+        with tarfile.open(fileobj=bio, mode='r:*') as tar:
+            names = [m.name for m in tar.getmembers() if m.isfile()]
+        names = _clean_list(names)
+        if names:
+            return _count(names)
+    except Exception:
+        pass
 
-    except Exception as e:
-        logger.error(f"Validation error: {str(e)}")
+    # 3) ZIP
+    try:
+        bio = io.BytesIO(data)
+        with zipfile.ZipFile(bio) as zf:
+            names = [info.filename for info in zf.filelist if not info.is_dir()]
+        names = _clean_list(names)
+        if names:
+            return _count(names)
+    except Exception:
+        pass
+
+    # 4) single-file GZIP
+    try:
+        bio = io.BytesIO(data)
+        with gzip.GzipFile(fileobj=bio) as gz:
+            gz.read(1)  # test decompression
         return {
-            'valid': False,
-            'error': str(e),
-            'total_files': 0,
-            'main_files': 0,
+            'valid': True,
+            'total_files': 1,
+            'main_files': 1,
             'supplement_files': 0,
-            'main_file_list': [],
+            'main_file_list': ['gzipped file'],
             'supplement_file_list': []
         }
-    finally:
-        archive_file.seek(start_pos)
+    except Exception:
+        pass
+
+    # 5) Unsupported
+    return {
+        'valid': False,
+        'error': 'Unsupported archive format—supported: PDF, tar, tgz, zip, gz.',
+        'total_files': 0,
+        'main_files': 0,
+        'supplement_files': 0,
+        'main_file_list': [],
+        'supplement_file_list': []
+    }
 
 
 def is_pdf_file(file: BinaryIO) -> bool:
@@ -278,30 +428,103 @@ def is_pdf_file(file: BinaryIO) -> bool:
 
 
 def validate_compressed_archive(file: BinaryIO) -> Dict[str, Any]:
-    """Validate compressed archive formats"""
+    """
+    Read the entire file into memory and then try:
+      1) tar (any compression: .tar, .tar.gz, .tgz, .tar.bz2)
+      2) zip
+      3) single-file gzip (.gz)
+    """
+    # Read all bytes once
+    file.seek(0)
+    data = file.read()
     file.seek(0)
 
-    # Try ZIP first
+    # Helper to process a list of paths
+    def _process_list(paths: List[str]) -> Dict[str, Any]:
+        main = [p for p in paths if len(Path(p).parts) == 1]
+        supp = [p for p in paths if len(Path(p).parts) > 1]
+        return {
+            'valid': True,
+            'total_files': len(paths),
+            'main_files': len(main),
+            'supplement_files': len(supp),
+            'main_file_list': main[:10],
+            'supplement_file_list': supp[:10],
+        }
+    # 1) Try any-compression TAR
     try:
-        with zipfile.ZipFile(file) as zf:
-            file_list = [f.filename for f in zf.filelist if not f.is_dir()]
-        return process_file_list(file_list)
-    except zipfile.BadZipFile:
-        file.seek(0)
+        bio = io.BytesIO(data)
+        with tarfile.open(fileobj=bio, mode='r:*') as tar:
+            paths = [m.name for m in tar.getmembers() if m.isfile()]
+        return _process_list(paths)
+    except (tarfile.TarError, EOFError):
+        pass
 
-    # Try TAR formats
+    # 2) Try ZIP
+    try:
+        bio = io.BytesIO(data)
+        with zipfile.ZipFile(bio) as zf:
+            paths = [info.filename for info in zf.filelist if not info.is_dir()]
+        return _process_list(paths)
+    except (zipfile.BadZipFile, EOFError):
+        pass
+
+    # 3) Try single-file GZIP
+    try:
+        bio = io.BytesIO(data)
+        with gzip.GzipFile(fileobj=bio) as gz:
+            # just test decompression
+            gz.read(1)
+        return {
+            'valid': True,
+            'total_files': 1,
+            'main_files': 1,
+            'supplement_files': 0,
+            'main_file_list': ['gzipped file'],
+            'supplement_file_list': []
+        }
+    except (OSError, EOFError):
+        pass
+
+    # 4) Nothing matched
+    return {
+        'valid': False,
+        'error': 'Unsupported archive format—supported: PDF, tar, tgz, zip, gz.',
+        'total_files': 0,
+        'main_files': 0,
+        'supplement_files': 0,
+        'main_file_list': [],
+        'supplement_file_list': []
+    }
+
+
+def validate_compressed_archive_old(file: BinaryIO) -> Dict[str, Any]:
+    """Validate compressed archive formats."""
+    # Ensure we start at the beginning
+    file.seek(0)
+
+    # 1) Try any-compression TAR (handles .tar, .tar.gz, .tgz, .tar.bz2, etc.)
     try:
         with tarfile.open(fileobj=file, mode='r:*') as tar:
-            file_list = [m.name for m in tar.getmembers() if m.isfile()]
+            members = [m for m in tar.getmembers() if m.isfile()]
+            file_list = [m.name for m in members]
         return process_file_list(file_list)
     except tarfile.TarError:
         file.seek(0)
 
-    # Try single GZIP
+    # 2) Try ZIP
     try:
-        import gzip
+        with zipfile.ZipFile(file) as zf:
+            file_list = [info.filename for info in zf.filelist if not info.is_dir()]
+        return process_file_list(file_list)
+    except zipfile.BadZipFile:
+        file.seek(0)
+
+    # 3) Try single-file GZIP
+    try:
+        # test decompression
         with gzip.GzipFile(fileobj=file) as gz:
-            gz.read(1)  # Test decompression
+            gz.read(1)
         return {
             'valid': True,
             'total_files': 1,
@@ -313,15 +536,15 @@ def validate_compressed_archive(file: BinaryIO) -> Dict[str, Any]:
     except Exception:
         file.seek(0)
 
-    # Unsupported format
+    # 4) Nothing matched
     return {
         'valid': False,
-        'error': 'Unsupported archive format',
+        'error': 'Unsupported archive format—supported: PDF, tar, tgz, zip, gz.',
         'total_files': 0,
         'main_files': 0,
         'supplement_files': 0,
         'main_file_list': [],
-        'supplement_file_list': []
+        'supplement_file_list': [],
     }
 
 
