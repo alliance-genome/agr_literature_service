@@ -253,6 +253,14 @@ async def bulk_upload_archive(
             detail="Archive contains no files",
         )
 
+    # rewind the upload so the background task can read it again
+    try:
+        archive.file.seek(0)
+    except Exception:
+        # if this fails, wrap in a new UploadFile on BytesIO
+        data = await archive.read()
+        archive = UploadFile(filename=archive.filename, file=io.BytesIO(data))
+
     # 3. create a new bulk‐upload job
     job_id = upload_manager.create_job(
         user_id=user.cid,
