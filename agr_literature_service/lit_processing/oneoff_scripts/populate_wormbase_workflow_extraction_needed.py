@@ -20,20 +20,20 @@ logger = logging.getLogger('literature logger')
 
 # https://agr-jira.atlassian.net/browse/SCRUM-4974
 # Take all references inside corpus for WB.  Take all the workflow_tag entries for WB.  The references must have ATP:0000163 file converted to text.
-# The references must not have ATP:0000173 ATP:0000174 ATP:0000190 ATP:0000187 or any of their children.  For the references that satisfy all
-# conditions, add ATP:0000173 entity extraction needed.  Separately add the children of 173, ATP:0000221 ATP:0000175 ATP:0000220 ATP:0000206
-# ATP:0000272 ATP:0000269, if none of their datatype siblings nor ATP:0000174 entity extraction complete are in the database
-# if at least one subclass is 'failed', set parent to 'failed' ATP:0000187
-#   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190
-#   else if at least one subclass is 'needed', set it parent 'needed' ATP:0000173
-#   else set parent to 'complete' ATP:0000174, but not possible because the script is going to create needed entries.
-# The only time it will set things to complete is in the future if no new datatype has been added, and all the existing datatypes are complete
+# Set parent to entity extraction needed if no extraction tags exist.  The references must not have ATP:0000173 ATP:0000174 ATP:0000190 ATP:0000187 or any of their children.  For the references that satisfy all conditions, add ATP:0000173 entity extraction needed.
+# Set datatypes to needed based on siblings.  For each datatype sibling, if there’s only one sibling leave it be, if there’s multiple report that the data is bad, if zero exist add the datatype needed one.
+# Set parent based on heirarchy:
+# if at least one subclass is 'failed', set parent to 'failed' ATP:0000187 and delete the other parents.
+#   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190 and delete the other parents.
+#   else if at least one subclass is 'needed', set it parent 'needed' ATP:0000173 and delete the other parents.
+#   else set parent to 'complete' ATP:0000174, and delete the other parents,but not possible because the script is going to create needed entries.
+#   The only time it will set things to complete is in the future if no new datatype has been added, and all the existing datatypes are complete
 # For example, if a reference has
 #   ATP:0000174   entity extraction complete
-#   ATP:0000217 allele extraction failed
+#   ATP:0000217   allele extraction failed
 #   then it needs to delete the 174, keep the 217, and add ATP:0000187   entity extraction failed
 
-# If this becomes a cronjob, this will need unit tests.
+# If this becomes a cronjob, this will need functional tests.
 # Test default case of no tags sets parent of ATP:0000173 and grandchildren to extraction needed
 # Add TEI file
 #   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
@@ -136,7 +136,7 @@ logger = logging.getLogger('literature logger')
 #   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
 #   INSERT 7 default case, add parent ATP:0000174
 #
-# Test all parents + child of complete, does nothing because only ensuring parent complete exists.  Should it remove other parent tags ?
+# Test all parents + child of complete, does nothing because only ensuring parent complete exists.  Should it remove other parent tags ?  TODO - YES
 # Restart with TEI file
 #   DELETE FROM workflow_tag WHERE reference_id = 7;
 #   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
@@ -156,7 +156,8 @@ logger = logging.getLogger('literature logger')
 #   7 entity extraction complete, not setting datatypes to needed based on siblings
 # because it already has the correct parent set
 #
-# Test all parents + child of needed.  Does not add all other children of needed, should it ?
+# Test all parents + child of needed.  Does not add all other children of needed, should it ?  -- TODO, it should add based on siblings.
+# -- TODO - look at siblings, if any single sibling, leave it be.  if multiple siblings, add to report of bad data.
 # Restart with TEI file
 #   DELETE FROM workflow_tag WHERE reference_id = 7;
 #   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
