@@ -229,28 +229,29 @@ def extract_and_classify_files(archive_file: BinaryIO, temp_dir: str, archive_na
 
         # Extract & classify
         bio = io.BytesIO(data)
-        with tarfile.open(fileobj=bio, mode="r:*") as tar:
-            for m in members:
-                orig = m.name
-                parts = Path(orig).parts
-                if _is_metadata(parts):
-                    continue
-
-                # classification is by the original path
-                is_main = (len(parts) == 1)
-
-                # build a stripped-on-disk path
-                rel = orig
-                # if there was exactly one top-level folder, drop it on disk
-                root_candidates = {Path(n).parts[0] for n in names if n}
-                if len(root_candidates) == 1 and Path(orig).parts[0] in root_candidates:
-                    rel = os.path.normpath(os.path.join(*Path(orig).parts[1:]))
-
-                full = os.path.join(temp_dir, rel)
-                os.makedirs(os.path.dirname(full), exist_ok=True)
-                with tar.extractfile(m) as src, open(full, "wb") as dst:
-                    dst.write(src.read())
-                extracted.append((full, is_main))
+        tar = tarfile.open(fileobj=bio, mode="r:*")
+        for m in members:
+            orig = m.name
+            parts = Path(orig).parts
+            if _is_metadata(parts):
+                continue
+            is_main = (len(parts) == 1)
+            # build a stripped-on-disk path
+            rel = orig
+            root_candidates = {Path(n).parts[0] for n in names if n}
+            if len(root_candidates) == 1 and Path(orig).parts[0] in root_candidates:
+                rel = os.path.normpath(os.path.join(*Path(orig).parts[1:]))
+            full = os.path.join(temp_dir, rel)
+            os.makedirs(os.path.dirname(full), exist_ok=True)
+            src = tar.extractfile(m)
+            if src is None:
+                continue
+            data = src.read()
+            src.close()
+            with open(full, "wb") as dst:
+                dst.write(data)
+            extracted.append((full, is_main))
+        tar.close()
 
         if extracted:
             return extracted
