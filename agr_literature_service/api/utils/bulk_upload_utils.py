@@ -104,31 +104,70 @@ def classify_and_parse_file(
 ) -> Dict[str, Any]:
     """
     Classify a file as 'main' or 'supplement' by its relative path, then parse metadata.
-    Returns only fields allowed by ReferencefileSchemaPost.
+    Returns only fields allowed by ReferencefileSchemaPost, with a WB-specific fallback.
+
+    Args:
+        file_path: full path on disk to the extracted file
+        archive_root: root directory path where the archive was unpacked
+        mod_abbreviation: the MOD code (e.g. 'WB', 'SGD')
+
+    Returns:
+        A dict containing metadata keys:
+        reference_curie, display_name, file_extension,
+        file_publication_status, pdf_type, mod_abbreviation,
+        file_class, is_annotation.
     """
+    # Determine the path relative to the archive root
     rel_path = Path(file_path).relative_to(archive_root)
     parts = rel_path.parts
 
-    if len(parts) == 1:
-        # Parse main file metadata
-        meta = parse_filename_by_mod(parts[0], mod_abbreviation)
-        file_class = 'main'
-    else:
-        # Parse supplement file metadata
-        meta = parse_supplement_file(parts[-1], parts[0], mod_abbreviation)
-        file_class = 'supplement'
+    try:
+        # Main file if no subdirectory, else supplement
+        if len(parts) == 1:
+            meta = parse_filename_by_mod(parts[0], mod_abbreviation)
+            file_class = 'main'
+        else:
+            meta = parse_supplement_file(parts[-1], parts[0], mod_abbreviation)
+            file_class = 'supplement'
+    except ValueError as ve:
+        # WB-specific fallback for unexpected names
+        if mod_abbreviation.upper() == "WB":
+            # Use directory name or filename stem as the paper ID
+            if len(parts) > 1:
+                ref_id = parts[0]
+            else:
+                ref_id = Path(parts[0]).stem
 
-    # Add classification fields
+            reference_curie = f"WB:WBPaper{ref_id}"
+            display_name = Path(parts[-1]).stem
+            ext = Path(parts[-1]).suffix.lstrip('.')
+
+            meta = {
+                'reference_curie': reference_curie,
+                'display_name': display_name,
+                'file_extension': ext,
+                'file_publication_status': 'final',
+                'pdf_type': None,
+                'mod_abbreviation': mod_abbreviation,
+            }
+            file_class = 'main' if len(parts) == 1 else 'supplement'
+            logger.warning(
+                f"parse_filename_by_mod fallback for WB on '{parts[-1]}': {ve}"
+            )
+        else:
+            # Re-raise for other MODs
+            raise
+
+    # Ensure these two fields always present
     meta['file_class'] = file_class
     meta['is_annotation'] = False
 
-    # Filter out any extra fields not in the schema
+    # Only keep allowed schema fields
     allowed_fields = {
         'reference_curie', 'display_name', 'file_extension',
         'file_publication_status', 'pdf_type', 'mod_abbreviation',
         'file_class', 'is_annotation'
     }
-
     return {k: v for k, v in meta.items() if k in allowed_fields}
 
 
