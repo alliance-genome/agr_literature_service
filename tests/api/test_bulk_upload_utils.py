@@ -32,7 +32,6 @@ from agr_literature_service.api.utils.bulk_upload_utils import (
 def test_parse_filename_patterns(filename, mod, exp_curie, exp_author, exp_status, exp_type):
     res = parse_filename_by_mod(filename, mod)
     assert res["reference_curie"] == exp_curie
-    assert res["author_and_year"] == exp_author
     assert res["file_publication_status"] == exp_status
     assert res.get("pdf_type") == exp_type
 

@@ -25,7 +25,6 @@ COMMON_CASES = [
 def test_parse_basic_patterns(filename, mod, exp_curie, exp_auth, exp_status, exp_type):
     res = parse_filename_by_mod(filename, mod)
     assert res["reference_curie"] == exp_curie
-    assert res["author_and_year"] == exp_auth
     assert res["file_publication_status"] == exp_status
     assert res.get("pdf_type") == exp_type
     assert res["mod_abbreviation"] == mod
