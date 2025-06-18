@@ -2,6 +2,7 @@ import logging.config
 import json
 import requests
 import sys
+import argparse
 from os import environ, path
 from sqlalchemy import text
 from dotenv import load_dotenv
@@ -21,12 +22,12 @@ logger = logging.getLogger('literature logger')
 # https://agr-jira.atlassian.net/browse/SCRUM-4974
 # Take all references inside corpus for WB.  Take all the workflow_tag entries for WB.  The references must have ATP:0000163 file converted to text.
 # Set parent to entity extraction needed if no extraction tags exist.  The references must not have ATP:0000173 ATP:0000174 ATP:0000190 ATP:0000187 or any of their children.  For the references that satisfy all conditions, add ATP:0000173 entity extraction needed.
-# Set datatypes to needed based on siblings.  For each datatype sibling, if there’s only one sibling leave it be, if there’s multiple report that the data is bad, if zero exist add the datatype needed one.
+# Set datatypes to needed based on siblings.  For each datatype sibling, if there's only one sibling leave it be, if there's multiple report that the data is bad, if zero exist add the datatype needed one.
 # Set parent based on heirarchy:
 # if at least one subclass is 'failed', set parent to 'failed' ATP:0000187 and delete the other parents.
 #   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190 and delete the other parents.
 #   else if at least one subclass is 'needed', set it parent 'needed' ATP:0000173 and delete the other parents.
-#   else set parent to 'complete' ATP:0000174, and delete the other parents,but not possible because the script is going to create needed entries.
+#   else set parent to 'complete' ATP:0000174, and delete the other parents, but not possible because the script is going to create needed entries.
 #   The only time it will set things to complete is in the future if no new datatype has been added, and all the existing datatypes are complete
 # For example, if a reference has
 #   ATP:0000174   entity extraction complete
@@ -46,185 +47,6 @@ logger = logging.getLogger('literature logger')
 #   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
 #   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
 #   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
-#
-# Test setting child with parent of priority ATP:0000187   entity extraction failed
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7;
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000204 species extraction failed
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000204', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script should do
-#   7 has exclusion tags in DB: ['ATP:0000204']
-#   INSERT 7 does not have siblings of ATP:0000221, add ATP:0000221
-#   INSERT 7 does not have siblings of ATP:0000175, add ATP:0000175
-#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
-#   7 has existing sibling tags for datatype group ATP:0000206: ['ATP:0000204']
-#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
-#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
-#   7 has children of ATP:0000187 {'ATP:0000204'}, removing {'ATP:0000190', 'ATP:0000174', 'ATP:0000173'} to add ATP:0000187
-#   INSERT 7 has children {'ATP:0000204'}, add parent ATP:0000187
-#
-# Test that aftewards, adding a child with parent of priority ATP:0000190 does not take precedence over ATP:0000187
-# Add ATP:0000195 antibody extraction in progress
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000195', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script makes no changes
-#   7 has exclusion tags in DB: ['ATP:0000175', 'ATP:0000187', 'ATP:0000195', 'ATP:0000204', 'ATP:0000220', 'ATP:0000221', 'ATP:0000269', 'ATP:0000272']
-#   7 has existing sibling tags for datatype group ATP:0000221: ['ATP:0000221']
-#   7 has existing sibling tags for datatype group ATP:0000175: ['ATP:0000175', 'ATP:0000195']
-#   7 has existing sibling tags for datatype group ATP:0000220: ['ATP:0000220']
-#   7 has existing sibling tags for datatype group ATP:0000206: ['ATP:0000204']
-#   7 has existing sibling tags for datatype group ATP:0000272: ['ATP:0000272']
-#   7 has existing sibling tags for datatype group ATP:0000269: ['ATP:0000269']
-#   7 has children of ATP:0000187 {'ATP:0000204'}, removing {'ATP:0000173', 'ATP:0000190', 'ATP:0000174'} to add ATP:0000187
-#
-# Test setting child with parent of priority ATP:0000190   entity extraction in progress
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000195 antibody extraction in progress
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000195', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000195']
-#   INSERT 7 does not have siblings of ATP:0000221, add ATP:0000221
-#   7 has existing sibling tags for datatype group ATP:0000175: ['ATP:0000195']
-#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
-#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
-#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
-#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
-#   7 has children of ATP:0000190 {'ATP:0000195'}, removing {'ATP:0000173', 'ATP:0000187', 'ATP:0000174'} to add ATP:0000190
-#   INSERT 7 has children {'ATP:0000195'}, add parent ATP:0000190
-#
-# Test setting child with parent of priority ATP:0000173   entity extraction needed
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000221 allele extraction needed
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000221', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000221']
-#   7 has existing sibling tags for datatype group ATP:0000221: ['ATP:0000221']
-#   INSERT 7 does not have siblings of ATP:0000175, add ATP:0000175
-#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
-#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
-#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
-#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
-#   7 has children of ATP:0000173 {'ATP:0000221'}, removing {'ATP:0000174', 'ATP:0000190', 'ATP:0000187'} to add ATP:0000173
-#   INSERT 7 has children {'ATP:0000221'}, add parent ATP:0000173
-#
-# Test setting child with parent of priority ATP:0000174   entity extraction complete
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000215 allele extraction complete
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000215', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000215']
-#   7 has existing sibling tags for datatype group ATP:0000221: ['ATP:0000215']
-#   INSERT 7 does not have siblings of ATP:0000175, add ATP:0000175
-#   INSERT 7 does not have siblings of ATP:0000220, add ATP:0000220
-#   INSERT 7 does not have siblings of ATP:0000206, add ATP:0000206
-#   INSERT 7 does not have siblings of ATP:0000272, add ATP:0000272
-#   INSERT 7 does not have siblings of ATP:0000269, add ATP:0000269
-#   INSERT 7 default case, add parent ATP:0000174
-#
-# Test all parents + child of complete, does nothing because only ensuring parent complete exists.  Should it remove other parent tags ?  TODO - YES
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7;
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add all parents
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES
-#     ( 7, 2, 'ATP:0000187', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000190', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000173', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000174', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000215 allele extraction complete
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000215', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000173', 'ATP:0000174', 'ATP:0000187', 'ATP:0000190', 'ATP:0000215']
-#   7 entity extraction complete, not setting datatypes to needed based on siblings
-# because it already has the correct parent set
-#
-# Test all parents + child of needed.  Does not add all other children of needed, should it ?  -- TODO, it should add based on siblings.
-# -- TODO - look at siblings, if any single sibling, leave it be.  if multiple siblings, add to report of bad data.
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7;
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add all parents
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES
-#     ( 7, 2, 'ATP:0000187', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000190', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000173', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000174', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000221 allele extraction needed
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000221', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000173', 'ATP:0000174', 'ATP:0000187', 'ATP:0000190', 'ATP:0000221']
-#   7 entity extraction complete, not setting datatypes to needed based on siblings
-#   7 has children of ATP:0000173 {'ATP:0000221'}, removing {'ATP:0000190', 'ATP:0000174', 'ATP:0000187'} to add ATP:0000173
-#   DELETE 7 remove ATP:0000190 to add ATP:0000173
-#   DELETE 7 remove ATP:0000174 to add ATP:0000173
-#   DELETE 7 remove ATP:0000187 to add ATP:0000173
-#
-# Test all parents + child of in progress.  Correctly removed all other parents
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7;
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add all parents
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES
-#     ( 7, 2, 'ATP:0000187', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000190', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000173', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000174', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000219 allele extraction in progress
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000219', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000173', 'ATP:0000174', 'ATP:0000187', 'ATP:0000190', 'ATP:0000219']
-#   7 entity extraction complete, not setting datatypes to needed based on siblings
-#   7 has children of ATP:0000190 {'ATP:0000219'}, removing {'ATP:0000173', 'ATP:0000187', 'ATP:0000174'} to add ATP:0000190
-#   DELETE 7 remove ATP:0000173 to add ATP:0000190
-#   DELETE 7 remove ATP:0000187 to add ATP:0000190
-#   DELETE 7 remove ATP:0000174 to add ATP:0000190
-#
-# Test all parents + child of failed.  Correctly removed all other parents
-# Restart with TEI file
-#   DELETE FROM workflow_tag WHERE reference_id = 7;
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000163', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add all parents
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES
-#     ( 7, 2, 'ATP:0000187', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000190', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000173', NOW(), '00u1ctzvjgMpk87Qm5d7' ),
-#     ( 7, 2, 'ATP:0000174', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# Add ATP:0000217 allele extraction failed
-#   INSERT INTO workflow_tag ( reference_id, mod_id, workflow_tag_id, date_created, created_by )
-#   VALUES ( 7, 2, 'ATP:0000217', NOW(), '00u1ctzvjgMpk87Qm5d7' );
-# script does
-#   7 has exclusion tags in DB: ['ATP:0000173', 'ATP:0000174', 'ATP:0000187', 'ATP:0000190', 'ATP:0000217']
-#   7 entity extraction complete, not setting datatypes to needed based on siblings
-#   7 has children of ATP:0000187 {'ATP:0000217'}, removing {'ATP:0000190', 'ATP:0000173', 'ATP:0000174'} to add ATP:0000187
-#   DELETE 7 remove ATP:0000190 to add ATP:0000187
-#   DELETE 7 remove ATP:0000173 to add ATP:0000187
-#   DELETE 7 remove ATP:0000174 to add ATP:0000187
 
 
 def old_way_that_may_create_dupicates(db_session):
@@ -264,7 +86,7 @@ def old_way_that_may_create_dupicates(db_session):
         wb_wbpaper_id = x[0]
         agr_reference_id = x[1]
         for wb_atp in atp_tags:
-            batch_counter = db_commit_if_batch_size(db_session, batch_counter, batch_size)
+            batch_counter = db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size)
             logger.info(f"INSERT {agr_reference_id} {wb_wbpaper_id} is NOT in entity extraction needed, needs new value {wb_atp}")
             try:
                 x = WorkflowTagModel(reference_id=agr_reference_id,
@@ -412,7 +234,6 @@ def validate_mappings(children_by_parent, atp_term_to_name):  # noqa: C901
 
     visited = set()
     queue = [GRANDPARENT_TERM]
-    # for parent_term in children_by_parent:
     while queue:
         parent_term = queue.pop(0)
         if parent_term in visited:
@@ -506,7 +327,7 @@ def validate_mappings(children_by_parent, atp_term_to_name):  # noqa: C901
         logger.info("✅ All mappings match. Validation passed.")
 
 
-def process(db_session, children_by_parent, atp_term_to_name, siblings):
+def process(dryrun, db_session, children_by_parent, atp_term_to_name, siblings):  # noqa: C901
     mod_id_row = db_session.execute(text("""
         SELECT mod_id
         FROM mod
@@ -541,7 +362,6 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
         wf_tags_db[x[0]].add(x[1])
         # logger.info(f"{x[0]}\t{x[1]}")
 
-#     atp_tags = ['ATP:0000221', 'ATP:0000175', 'ATP:0000173', 'ATP:0000220', 'ATP:0000206', 'ATP:0000272', 'ATP:0000269']
     batch_counter = 0
     batch_size = 250
     exclusion_tags = set(atp_term_to_name.keys()) - {'ATP:0000172'}
@@ -549,8 +369,8 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
         if reference_id != 7:
             continue
         if batch_counter > 10:
-            # UNCOMMENT TO POPULATE
-            # db_session.commit()
+            if not dryrun:
+                db_session.commit()
             sys.exit(f"{batch_counter} counter reached")
         logger.info(f"Processing reference_id {reference_id}")
         parent_term_already_set_flag = False
@@ -568,31 +388,29 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
             wf_atp = 'ATP:0000173'
             error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp
             logger.info(f"INSERT {reference_id} is NOT in exclusion list, add {wf_atp}")
-            batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
+            batch_counter, tags = create_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message, tags)
             parent_term_already_set_flag = True
 
-        # set grandchildren terms to datatype extraction needed
-        if 'ATP:0000174' in tags:
-            logger.info(f"{reference_id} entity extraction complete, not setting datatypes to needed based on siblings")
-        else:  # must not be 'entity extraction complete' to add datatype siblings needed
-            for group_tag, group_members in siblings.items():
-                matching_member_tags = [member for member in group_members if member in tags]
-                if matching_member_tags:
-                    logger.info(f"{reference_id} has existing sibling tags for datatype group {group_tag}: {sorted(matching_member_tags)}")
-                else:
-                    error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + group_tag
-                    logger.info(f"INSERT {reference_id} does not have siblings of {group_tag}, add {group_tag}")
-                    batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, group_tag, error_message)
+        # set datatype child term to extraction needed if no siblings exist
+        for group_tag, group_members in siblings.items():
+            matching_member_tags = [member for member in group_members if member in tags]
+            if len(matching_member_tags) == 1:
+                logger.info(f"{reference_id} has valid sibling tag in datatype group {group_tag}: {matching_member_tags[0]}")
+            elif len(matching_member_tags) > 1:
+                logger.info(f"ERROR: {reference_id} has multiple sibling tags in datatype group {group_tag}: {sorted(matching_member_tags)}")
+            else:
+                error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + group_tag
+                logger.info(f"INSERT {reference_id} does not have siblings of {group_tag}, add {group_tag}")
+                batch_counter, tags = create_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, group_tag, error_message, tags)
 
         if parent_term_already_set_flag:
             continue
 
-        # this might not be right.  maybe only one parent term can exist at the same time, in which case it should delete the three others.
         # set parent tag based on hierarchy
-        # if at least one subclass is 'failed', set parent to 'failed' ATP:0000187
-        #   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190
-        #   else if at least one subclass is 'needed', then set parent to 'needed' ATP:0000173
-        #   else set parent to 'complete' ATP:0000174, but not possible because the script is going to create needed entries.
+        # if at least one subclass is 'failed', set parent to 'failed' ATP:0000187 and delete the other parents.
+        #   else if at least one subclass is 'in progress', then set parent to 'in progress' ATP:0000190 and delete the other parents.
+        #   else if at least one subclass is 'needed', then set parent to 'needed' ATP:0000173 and delete the other parents.
+        #   else set parent to 'complete' ATP:0000174, and delete the other parents, but not possible because the script is going to create needed entries.  The only time it will set things to complete is in the future if no new datatype has been added, and all the existing datatypes are complete.
         # pseudocode
         # if      any children_by_parent of ATP:0000187, set ATP:0000187, remove ATP:0000190 ATP:0000173 ATP:0000174
         # else if any children_by_parent of ATP:0000190, set ATP:0000190, remove ATP:0000173 ATP:0000174
@@ -605,49 +423,54 @@ def process(db_session, children_by_parent, atp_term_to_name, siblings):
         if matching_children_187:
             tag_to_add = 'ATP:0000187'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_187, tags_to_remove, tag_to_add)
+            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_187, tags_to_remove, tag_to_add)
         elif matching_children_190:
             tag_to_add = 'ATP:0000190'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_190, tags_to_remove, tag_to_add)
+            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_190, tags_to_remove, tag_to_add)
         elif matching_children_173:
             tag_to_add = 'ATP:0000173'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_173, tags_to_remove, tag_to_add)
+            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_173, tags_to_remove, tag_to_add)
         elif 'ATP:0000174' not in tags:
-            error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = ATP:0000174"
-            logger.info(f"INSERT {reference_id} default case, add parent ATP:0000174")
-            batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, 'ATP:0000174', error_message)
+            tag_to_add = 'ATP:0000174'
+            tags_to_remove = parents - {tag_to_add}
+            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, None, tags_to_remove, tag_to_add)
 
-    # UNCOMMENT TO POPULATE
-    db_session.commit()
+    if not dryrun:
+        db_session.commit()
 
 
-def ensure_parent_tag(db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children, tags_to_remove, tag_to_add):
-    logger.info(f"{reference_id} has children of {tag_to_add} {matching_children}, removing {tags_to_remove} to add {tag_to_add}")
+def ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children, tags_to_remove, tag_to_add):
+    if matching_children is not None:
+        logger.info(f"{reference_id} has children of {tag_to_add} {matching_children}, removing {tags_to_remove} to add {tag_to_add}")
+    logger.info(f"ensure parent tag {tag_to_add}, remove {tags_to_remove} add {tag_to_add}")
     for wf_atp in tags_to_remove:
         if wf_atp in tags:
             logger.info(f"DELETE {reference_id} remove {wf_atp} to add {tag_to_add}")
             error_message = "An error occurred when removing workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp
-            batch_counter = delete_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
+            batch_counter = delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
     if tag_to_add not in tags:
         error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + tag_to_add
-        logger.info(f"INSERT {reference_id} has children {matching_children}, add parent {tag_to_add}")
-        batch_counter = create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, tag_to_add, error_message)
+        if tag_to_add == 'ATP:0000174':
+            logger.info(f"INSERT {reference_id} default case, add parent {tag_to_add}")
+        else:
+            logger.info(f"INSERT {reference_id} has children {matching_children}, add parent {tag_to_add}")
+        batch_counter, tags = create_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, tag_to_add, error_message, tags)
     return batch_counter
 
 
-def db_commit_if_batch_size(db_session, batch_counter, batch_size):
+def db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size):
     batch_counter += 1
     if batch_counter % batch_size == 0:
         batch_counter = 0
-        # UNCOMMENT TO POPULATE
-        db_session.commit()
+        if not dryrun:
+            db_session.commit()
     return batch_counter
 
 
-def delete_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
-    batch_counter = db_commit_if_batch_size(db_session, batch_counter, batch_size)
+def delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
+    batch_counter = db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size)
     x = db_session.query(WorkflowTagModel).filter_by(reference_id=reference_id, mod_id=mod_id, workflow_tag_id=wf_atp).one_or_none()
     if x:
         try:
@@ -657,19 +480,27 @@ def delete_workflow(db_session, batch_counter, batch_size, reference_id, mod_id,
     return batch_counter
 
 
-def create_workflow(db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
-    batch_counter = db_commit_if_batch_size(db_session, batch_counter, batch_size)
+def create_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message, tags):
+    batch_counter = db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size)
     try:
         x = WorkflowTagModel(reference_id=reference_id,
                              mod_id=mod_id,
                              workflow_tag_id=wf_atp)
         db_session.add(x)
+        tags.add(wf_atp)
     except Exception as e:
         logger.info(error_message + " " + str(e))
-    return batch_counter
+    return batch_counter, tags
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Run workflow script with required --commit xor --dryrun flag.")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--dryrun', action='store_true', help='Run in dry-run mode (no commits).')
+    group.add_argument('--commit', action='store_true', help='Actually commit changes to the database.')
+    args = parser.parse_args()
+    dryrun = args.dryrun  # True if --dryrun passed, False if --commit passed
+
     db_session = create_postgres_session(False)
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
@@ -677,4 +508,4 @@ if __name__ == "__main__":
     children_by_parent, atp_term_to_name, siblings = define_mappings()
 # put this back
 #     validate_mappings(children_by_parent, atp_term_to_name)
-    process(db_session, children_by_parent, atp_term_to_name, siblings)
+    process(dryrun, db_session, children_by_parent, atp_term_to_name, siblings)
