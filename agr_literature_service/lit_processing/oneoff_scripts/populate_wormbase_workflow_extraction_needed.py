@@ -423,19 +423,19 @@ def process(dryrun, db_session, children_by_parent, atp_term_to_name, siblings):
         if matching_children_187:
             tag_to_add = 'ATP:0000187'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_187, tags_to_remove, tag_to_add)
+            batch_counter, tags = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_187, tags_to_remove, tag_to_add)
         elif matching_children_190:
             tag_to_add = 'ATP:0000190'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_190, tags_to_remove, tag_to_add)
+            batch_counter, tags = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_190, tags_to_remove, tag_to_add)
         elif matching_children_173:
             tag_to_add = 'ATP:0000173'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_173, tags_to_remove, tag_to_add)
+            batch_counter, tags = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, matching_children_173, tags_to_remove, tag_to_add)
         elif 'ATP:0000174' not in tags:
             tag_to_add = 'ATP:0000174'
             tags_to_remove = parents - {tag_to_add}
-            batch_counter = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, None, tags_to_remove, tag_to_add)
+            batch_counter, tags = ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, reference_id, mod_id, None, tags_to_remove, tag_to_add)
 
     if not dryrun:
         db_session.commit()
@@ -449,7 +449,7 @@ def ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, refer
         if wf_atp in tags:
             logger.info(f"DELETE {reference_id} remove {wf_atp} to add {tag_to_add}")
             error_message = "An error occurred when removing workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + wf_atp
-            batch_counter = delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message)
+            batch_counter, tags = delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message, tags)
     if tag_to_add not in tags:
         error_message = "An error occurred when adding workflog_tag row for reference_id = " + str(reference_id) + " and atp value = " + tag_to_add
         if tag_to_add == 'ATP:0000174':
@@ -457,7 +457,7 @@ def ensure_parent_tag(dryrun, db_session, batch_counter, batch_size, tags, refer
         else:
             logger.info(f"INSERT {reference_id} has children {matching_children}, add parent {tag_to_add}")
         batch_counter, tags = create_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, tag_to_add, error_message, tags)
-    return batch_counter
+    return batch_counter, tags
 
 
 def db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size):
@@ -469,15 +469,16 @@ def db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size):
     return batch_counter
 
 
-def delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message):
+def delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message, tags):
     batch_counter = db_commit_if_batch_size(dryrun, db_session, batch_counter, batch_size)
     x = db_session.query(WorkflowTagModel).filter_by(reference_id=reference_id, mod_id=mod_id, workflow_tag_id=wf_atp).one_or_none()
     if x:
         try:
             db_session.delete(x)
+            tags.discard(wf_atp)
         except Exception as e:
             logger.info(error_message + " " + str(e))
-    return batch_counter
+    return batch_counter, tags
 
 
 def create_workflow(dryrun, db_session, batch_counter, batch_size, reference_id, mod_id, wf_atp, error_message, tags):
