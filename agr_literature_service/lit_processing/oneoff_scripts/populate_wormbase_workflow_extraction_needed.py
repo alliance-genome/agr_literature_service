@@ -475,7 +475,7 @@ def delete_workflow(dryrun, db_session, batch_counter, batch_size, reference_id,
     if x:
         try:
             db_session.delete(x)
-            tags.discard(wf_atp)
+            tags.discard(wf_atp)  # remove only if present, no error if not
         except Exception as e:
             logger.info(error_message + " " + str(e))
     return batch_counter, tags
