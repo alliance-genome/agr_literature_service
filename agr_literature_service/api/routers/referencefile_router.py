@@ -18,8 +18,7 @@ from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
-from agr_literature_service.api.utils.bulk_upload_utils import is_pdf_file, \
-    validate_archive_structure, validate_compressed_archive
+from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_okta
@@ -313,6 +312,7 @@ def get_bulk_upload_status(
     )
 
 
+"""
 @router.get('/bulk_upload_active/',
             status_code=status.HTTP_200_OK,
             response_model=List[dict])
@@ -320,7 +320,7 @@ def get_active_bulk_uploads(
     mod_abbreviation: str = None,
     db: Session = db_session
 ):
-    """Get all currently active bulk upload jobs."""
+    # Get all currently active bulk upload jobs.
     active_jobs = upload_manager.get_active_jobs(
         user_id=None,
         mod_abbreviation=mod_abbreviation
@@ -336,7 +336,7 @@ def get_bulk_upload_history(
     limit: int = 10,
     db: Session = db_session
 ):
-    """Get recent bulk upload jobs for current user."""
+    # Get recent bulk upload jobs for current user.
 
     recent_jobs = upload_manager.get_recent_jobs(
         user_id=None,
@@ -354,7 +354,7 @@ def validate_bulk_upload_archive(
     user: OktaUser = db_user,
     db: Session = db_session
 ):
-    """Validate archive structure without uploading."""
+    # Validate archive structure without uploading.
     try:
         # Read file content into memory
         content = archive.file.read()
@@ -388,3 +388,4 @@ def validate_bulk_upload_archive(
         }
     finally:
         archive.file.seek(0)
+"""
