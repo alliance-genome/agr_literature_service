@@ -18,6 +18,8 @@ from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
+# from agr_literature_service.api.utils.bulk_upload_utils import is_pdf_file \
+#    validate_archive_structure, validate_compressed_archive
 from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
