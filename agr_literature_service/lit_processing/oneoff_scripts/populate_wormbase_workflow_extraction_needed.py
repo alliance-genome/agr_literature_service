@@ -647,12 +647,12 @@ def process(dryrun, db_session, children_by_parent, atp_term_to_name, siblings):
     batch_size = 250
     exclusion_tags = set(atp_term_to_name.keys()) - {'ATP:0000172'}
     for reference_id in sorted(wanted_reference_ids):
-        if reference_id != 7:
-            continue
-        if batch_counter > 10:
-            if not dryrun:
-                db_session.commit()
-            sys.exit(f"{batch_counter} counter reached")
+        # if reference_id != 7:
+        #     continue
+        # if batch_counter > 10:
+        #     if not dryrun:
+        #         db_session.commit()
+        #     sys.exit(f"{batch_counter} counter reached")
         logger.info(f"Processing reference_id {reference_id}")
         parent_term_already_set_flag = False
         tags = wf_tags_db.get(reference_id, set())
