@@ -262,22 +262,27 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                                        f"AND mca.corpus is True "
                                        f"AND mca.reference_id = r.reference_id "
                                        f"AND r.prepublication_pipeline is False")).fetchall()
-    for x in mca_rows:
-        if x[1] not in valid_reference_ids:
-            # move the papers outside corpus if they only have invalid MOD curies
-            try:
-                with db_session.begin():
-                    db_session.execute(text(f"UPDATE mod_corpus_association "
-                                            f"SET corpus = False "
-                                            f"WHERE mod_corpus_association_id = {int(x[0])}"))
+    try:
+        # update those that are no longer valid
+        for assoc_id, ref_id in mca_rows:
+            if ref_id not in valid_reference_ids:
+                db_session.execute(
+                    text("""
+                     UPDATE mod_corpus_association
+                        SET corpus = False
+                     WHERE mod_corpus_association_id = :assoc_id
+                    """),
+                    {"assoc_id": assoc_id}
+                )
                 if logger:
-                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
-            except Exception as e:
-                if logger:
-                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
-
-    db_session.commit()
-    # db_session.rollback()
+                    logger.info(
+                        f"Moving {mod} paper out of corpus for assoc_id={assoc_id}"
+                    )
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        if logger:
+            logger.error(f"Failed to move {mod} papers out of corpus: {e}")
 
 
 def _is_prepublication_pipeline(db_session: Session, reference_id):  # pragma: no cover
