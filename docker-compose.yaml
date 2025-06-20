@@ -341,6 +341,7 @@ services:
       context: .
       dockerfile: docker/debezium_setup.dockerfile
     environment:
+      ENV_STATE: "${ENV_STATE}"
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       DEBEZIUM_CONNECTOR_HOST: "${DEBEZIUM_CONNECTOR_HOST}"
