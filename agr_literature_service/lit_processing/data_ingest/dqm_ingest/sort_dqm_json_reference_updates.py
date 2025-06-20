@@ -37,7 +37,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
     add_cross_references, update_authors, update_mod_corpus_associations, \
     update_mod_reference_types, mark_not_in_mod_papers_as_out_of_corpus, change_mod_curie_status, \
-    add_file_needed_for_new_papers
+    add_file_needed_for_new_papers, set_category_for_fb_note_papers
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import cleanup_temp_directory
@@ -685,6 +685,12 @@ def sort_dqm_references(input_path, input_mod, update_all_papers=False, base_dir
             except Exception as e:
                 logger.info(f"An error occurred when updating md5sum for {mod} DQM papers:" + str(e))
         fh_mod_report[mod].close()
+
+        if mod == 'FB':
+            try:
+                set_category_for_fb_note_papers(db_session, logger=logger)
+            except Exception as e:
+                logger.info("An error occurred when updating category for FB papers with 'note' reference type:" + str(e))
 
         try:
             mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod[mod], logger)
