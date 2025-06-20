@@ -14,12 +14,23 @@
     "table.include.list": "public.citation",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
-    "poll.interval.ms": "100",
+    "poll.interval.ms": "500",
     "transforms": "extractKey,extractValue",
     "transforms.extractKey.field": "citation_id",
     "transforms.extractKey.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
     "transforms.extractValue.field": "after",
     "transforms.extractValue.type": "org.apache.kafka.connect.transforms.ExtractField$Value",
-    "plugin.name": "pgoutput"
+    "plugin.name": "pgoutput",
+    "database.tcpKeepAlive": "true",
+    "database.tcpUserTimeout": "30000",
+    "database.query.timeout.ms": "300000",
+    "database.connectTimeout": "30000",
+    "database.socketTimeout": "30000",
+    "errors.tolerance": "all",
+    "errors.deadletterqueue.topic.name": "debezium.errors.citation",
+    "errors.deadletterqueue.topic.replication.factor": "1",
+    "errors.deadletterqueue.context.headers.enable": "true",
+    "errors.log.enable": "true",
+    "errors.log.include.messages": "true"
   }
 }

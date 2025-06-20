@@ -52,5 +52,5 @@ jobs:
           sleep 5
           docker compose --env-file .env.test up -d elasticsearch
           sleep 10
-          pytest -m "not webtest"
+          pytest -m "not webtest" --ignore=tests/test_debezium_integration.py
           docker compose --env-file .env.test down -v

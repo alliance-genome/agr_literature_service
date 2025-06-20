@@ -3,6 +3,7 @@ import json
 from typing import List, Dict, Set, Tuple
 
 from sqlalchemy import or_, and_, text
+from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
@@ -1508,3 +1509,38 @@ def insert_referencefile(db_session: Session, pmid, file_class, file_publication
         logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + " an error occurred when loading data into Referencefile table. error: " + str(e))
 
     return referencefile_id
+
+
+def set_category_for_fb_note_papers(db, logger):
+    stmt = text("""
+        UPDATE reference
+        SET category = 'Other'
+        WHERE reference_id IN (
+            SELECT rmrt.reference_id
+              FROM reference_mod_referencetype rmrt
+              JOIN mod_referencetype mrt
+                ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id
+              JOIN referencetype rt
+                ON mrt.referencetype_id = rt.referencetype_id
+              JOIN mod m
+                ON mrt.mod_id = m.mod_id
+             WHERE rt.label = 'note'
+               AND m.abbreviation = 'FB'
+        )
+          AND reference_id NOT IN (
+            SELECT mca.reference_id
+              FROM mod_corpus_association mca
+              JOIN mod m2
+                ON mca.mod_id = m2.mod_id
+             WHERE mca.corpus = TRUE
+               AND m2.abbreviation <> 'FB'
+        )
+          AND category <> 'Other'
+    """)
+    try:
+        result: Result = db.execute(stmt)
+        db.commit()
+        logger.info(f"Set category='Other' for {result.rowcount} FB paper(s) with 'note' reference type")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to set category for FB note papers. Error={e}")
