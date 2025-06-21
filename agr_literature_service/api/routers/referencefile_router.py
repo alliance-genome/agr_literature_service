@@ -1,9 +1,12 @@
 import json
+import io
 import logging
 from json import JSONDecodeError
-from typing import Union, List
+from typing import Union, List, Any, Dict
 
-from fastapi import APIRouter, Depends, Security, status, File, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, Security, status, File, UploadFile, \
+    BackgroundTasks, HTTPException
+from fastapi.responses import PlainTextResponse
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
@@ -13,11 +16,18 @@ from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
-from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, ReferencefileSchemaUpdate, \
-    ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
+from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
+    ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
+# from agr_literature_service.api.utils.bulk_upload_utils import is_pdf_file \
+#    validate_archive_structure, validate_compressed_archive
+from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
+from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
+from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_okta
 
 logger = logging.getLogger(__name__)
+
+_ArchiveParam = File(...)
 
 router = APIRouter(
     prefix="/reference/referencefile",
@@ -189,3 +199,195 @@ def merge_referencefiles(curie_or_reference_id: str,
                          db: Session = db_session):
     set_global_user_from_okta(db, user)
     return referencefile_crud.merge_referencefiles(db, curie_or_reference_id, losing_referencefile_id, winning_referencefile_id)
+
+
+# Bulk Upload Endpoints
+@router.post(
+    "/bulk_upload_archive/",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=Dict[str, Any],
+)
+async def bulk_upload_archive(
+    *,
+    mod_abbreviation: str,
+    background_tasks: BackgroundTasks,
+    archive: UploadFile = _ArchiveParam,
+    user: OktaUser = db_user,
+    db: Session = db_session
+):
+    """
+    Start a bulk-upload of a ZIP/TAR archive of reference files for a single MOD.
+
+    Archive structure:
+    - Root files = main files (PDFs, etc.)
+    - Subdirectory files = supplement files (directory name = reference ID)
+
+    MOD-specific filename parsing:
+    - WB: {wbpaper_id}_{author_year}[_{options}].{ext} -> WB:WBPaper{id}
+    - FB: {pmid}_{author_year}[_{options}].{ext} -> PMID:{pmid}
+    - Others: {id}_{author_year}[_{options}].{ext} -> AGRKB:{id} (if 15 digits)
+
+    Returns job ID for tracking progress via /bulk_upload_status/{job_id}
+    """
+
+    logger.info(f"bulk_upload_archive called with mod_abbreviation={mod_abbreviation}")
+
+    # 1. authenticate
+    set_global_user_from_okta(db, user)
+
+    # 2. validate archive structure
+    try:
+        validation = validate_archive_structure(archive.file)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Archive validation failed: {e}",
+        )
+    if not validation.get("valid", False):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid archive format: {validation.get('error')}",
+        )
+    if validation.get("total_files", 0) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Archive contains no files",
+        )
+
+    # rewind the upload so the background task can read it again
+    try:
+        archive.file.seek(0)
+    except Exception:
+        # if this fails, wrap in a new UploadFile on BytesIO
+        data = await archive.read()
+        archive = UploadFile(filename=archive.filename, file=io.BytesIO(data))
+
+    # 3. create a new bulk‐upload job
+    job_id = upload_manager.create_job(
+        user_id=user.cid,
+        mod_abbreviation=mod_abbreviation,
+        filename=archive.filename or "archive.unknown",
+    )
+
+    # 4. schedule the background task
+    background_tasks.add_task(
+        process_bulk_upload_async,
+        job_id,
+        archive,
+        mod_abbreviation,
+        db,
+    )
+
+    # 5. respond immediately
+    return {
+        "job_id": job_id,
+        "status": "started",
+        "message": f"Bulk upload job started for {mod_abbreviation}",
+        "total_files": validation["total_files"],
+        "main_files": validation["main_files"],
+        "supplement_files": validation["supplement_files"],
+        "status_url": f"/reference/referencefile/bulk_upload_status/{job_id}",
+    }
+
+
+@router.get(
+    "/bulk_upload_status/{job_id}",
+    status_code=status.HTTP_200_OK,
+    response_class=PlainTextResponse,
+    responses={200: {"content": {"application/json": {}}}},
+)
+def get_bulk_upload_status(
+    job_id: str,
+    db: Session = db_session
+):
+    job = upload_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # pretty-print with 2-space indent
+    payload = json.dumps(job.to_dict(), indent=2)
+
+    return PlainTextResponse(
+        content=payload,
+        media_type="application/json",
+        status_code=status.HTTP_200_OK
+    )
+
+
+"""
+@router.get('/bulk_upload_active/',
+            status_code=status.HTTP_200_OK,
+            response_model=List[dict])
+def get_active_bulk_uploads(
+    mod_abbreviation: str = None,
+    db: Session = db_session
+):
+    # Get all currently active bulk upload jobs.
+    active_jobs = upload_manager.get_active_jobs(
+        user_id=None,
+        mod_abbreviation=mod_abbreviation
+    )
+
+    return [job.to_dict() for job in active_jobs]
+
+
+@router.get('/bulk_upload_history/',
+            status_code=status.HTTP_200_OK,
+            response_model=List[dict])
+def get_bulk_upload_history(
+    limit: int = 10,
+    db: Session = db_session
+):
+    # Get recent bulk upload jobs for current user.
+
+    recent_jobs = upload_manager.get_recent_jobs(
+        user_id=None,
+        limit=limit
+    )
+
+    return [job.to_dict() for job in recent_jobs]
+
+
+@router.post('/bulk_upload_validate/',
+             status_code=status.HTTP_200_OK,
+             response_model=dict)
+def validate_bulk_upload_archive(
+    archive: UploadFile = File(...),
+    user: OktaUser = db_user,
+    db: Session = db_session
+):
+    # Validate archive structure without uploading.
+    try:
+        # Read file content into memory
+        content = archive.file.read()
+        archive_bytes = io.BytesIO(content)
+        archive_bytes.seek(0)
+
+        # Check for PDF
+        if is_pdf_file(archive_bytes):
+            return {
+                'valid': True,
+                'total_files': 1,
+                'main_files': 1,
+                'supplement_files': 0,
+                'main_file_list': ['PDF file'],
+                'supplement_file_list': []
+            }
+
+        # Validate other formats
+        return validate_compressed_archive(archive_bytes)
+
+    except Exception as e:
+        logger.error(f"Validation error: {str(e)}")
+        return {
+            'valid': False,
+            'error': f'Validation error: {str(e)}',
+            'total_files': 0,
+            'main_files': 0,
+            'supplement_files': 0,
+            'main_file_list': [],
+            'supplement_file_list': []
+        }
+    finally:
+        archive.file.seek(0)
+"""
