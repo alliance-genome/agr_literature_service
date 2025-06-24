@@ -482,7 +482,6 @@ def define_mappings():
         'ATP:0000272': 'strain extraction needed',
         'ATP:0000269': 'transgenic allele extraction needed'
     }
-    # print(atp_term_to_name['ATP:0000172'])  # Output: entity extraction
     siblings = {
         'ATP:0000221': ['ATP:0000215', 'ATP:0000217', 'ATP:0000219', 'ATP:0000221'],
         'ATP:0000175': ['ATP:0000196', 'ATP:0000188', 'ATP:0000195', 'ATP:0000175'],
@@ -788,6 +787,5 @@ if __name__ == "__main__":
     set_global_user_id(db_session, scriptNm)
     # old_way_that_may_create_dupicates(db_session)
     children_by_parent, atp_term_to_name, siblings = define_mappings()
-# put this back
-#     validate_mappings(children_by_parent, atp_term_to_name)
+    validate_mappings(children_by_parent, atp_term_to_name)
     process(dryrun, db_session, children_by_parent, atp_term_to_name, siblings)
