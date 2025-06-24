@@ -1288,11 +1288,6 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
             {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
         )
     else:
-        data = WorkflowTagSchemaPost(
-            workflow_tag_id=priority_atp,
-            mod_abbreviation=mod_abbreviation,
-            reference_curie=reference_curie
-        )
         try:
             # create(db, data) We want to move needed to compete Not add complete.
             patch(
