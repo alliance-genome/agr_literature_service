@@ -6,7 +6,6 @@ from agr_literature_service.api.models import WorkflowTransitionModel
 # WorkflowTagTopicModel, MLModel
 
 
-
 def add_sequence_data(db_subset_session):
     # Need to set the initial seq values else we cannot add any more entries,
     # which might be needed for testing the api.
