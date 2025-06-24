@@ -2,10 +2,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 from os import environ
-from agr_literature_service.api.models import (
-    WorkflowTransitionModel
+from agr_literature_service.api.models import WorkflowTransitionModel
 # WorkflowTagTopicModel, MLModel
-)
+
 
 
 def add_sequence_data(db_subset_session):
@@ -134,16 +133,14 @@ def models_copy_NOT():
         query = f"""INSERT INTO dataset
         (title, mod_id, data_type, dataset_type, version, description, frozen, date_created)
         VALUES ('{row_dict['title']}', {row_dict['mod_id']}, '{row_dict['data_type']}',
-        '{row_dict['dataset_type']}', {row_dict['version']}, '{row_dict['description']}', {row_dict['frozen']}, NOW()) 
+        '{row_dict['dataset_type']}', {row_dict['version']}, '{row_dict['description']}', {row_dict['frozen']}, NOW())
         RETURNING dataset_id"""
         print(query)
         value = dev_db.execute(text(query)).fetchone()[0]
         print(F"Value: {value}")
         topic_to_dataset[row_dict['data_type']] = value
 
-    rows = prod_db.execute(text("SELECT m.* "
-                           "FROM ml_model m "
-                           "WHERE m.mod_id = 1")).mappings().fetchall()
+    rows = prod_db.execute(text("SELECT m.* FROM ml_model m WHERE m.mod_id = 1")).mappings().fetchall()
     for row in rows:
         row_dict = dict(row)
         print(row_dict)
