@@ -46,6 +46,7 @@ def dump_data(db_session, reference_id):
             op = "Delete"
         print(f"mod={row[wft_mod]}\top={op}\t{row[created]}\t{row[updated]}\t{atp_get_name(row[wft])}")
 
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
