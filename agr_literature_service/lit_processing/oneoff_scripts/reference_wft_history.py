@@ -29,7 +29,8 @@ def dump_data(db_session, reference_id):
     wft_mod = 4
     created = 5
     updated = 6
-    sql = """SELECT transaction_id, operation_type, end_transaction_id, workflow_tag_id, workflow_tag_id_mod, date_created, date_updated
+    rfid = 7
+    sql = """SELECT transaction_id, operation_type, end_transaction_id, workflow_tag_id, workflow_tag_id_mod, date_created, date_updated, reference_workflow_tag_id
               FROM workflow_tag_version
                 WHERE reference_id = '{}'
                 ORDER BY transaction_id
@@ -44,7 +45,7 @@ def dump_data(db_session, reference_id):
             op = "Update"
         elif row[1] == Operation.DELETE:
             op = "Delete"
-        print(f"mod={row[wft_mod]}\top={op}\t{row[created]}\t{row[updated]}\t{atp_get_name(row[wft])}")
+        print(f"rwfid={row[rfid]}\tmodified={row[wft_mod]}\top={op}\t{row[created]}\t{row[updated]}\t{atp_get_name(row[wft])}")
 
 
 if __name__ == "__main__":
