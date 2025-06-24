@@ -830,16 +830,32 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
 
 def add_zfin_pre_indexing_tag(db, reference_id, mod_id, logger):
     try:
-        atpid = 'ATP:0000306'
-        x = db.query(WorkflowTagModel).filter_by(reference_id=reference_id, mod_id=mod_id, workflow_tag_id=atpid).first()
-        if x is None:
+        # all ZFIN pre-indexing–style tags
+        allowed_tags = [
+            'ATP:0000303',
+            'ATP:0000304',
+            'ATP:0000305',
+            'ATP:0000306'
+        ]
+        existing = (
+            db.query(WorkflowTagModel)
+              .filter(
+                  WorkflowTagModel.reference_id == reference_id,
+                  WorkflowTagModel.mod_id == mod_id,
+                  WorkflowTagModel.workflow_tag_id.in_(allowed_tags)).first()
+        )
+        if existing is None:
+            atpid = 'ATP:0000306'
             x = WorkflowTagModel(
                 reference_id=reference_id,
                 mod_id=mod_id,
-                workflow_tag_id=atpid)
+                workflow_tag_id=atpid
+            )
             db.add(x)
             db.commit()
             logger.info(f"Adding ZFIN pre-indexing tag: {atpid}")
+        else:
+            logger.info(f"ZFIN pre-indexing tag already exists: {existing.workflow_tag_id}")
     except Exception as e:
         logger.error(f"Error when adding ZFIN pre-indexing tag: {e}")
 
