@@ -3,8 +3,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 from os import environ
 from agr_literature_service.api.models import (
-    WorkflowTransitionModel,
-    WorkflowTagTopicModel, MLModel
+    WorkflowTransitionModel
+#    WorkflowTagTopicModel, MLModel
 )
 
 
@@ -104,14 +104,13 @@ def main():
         dev_db.merge(wt)
     dev_db.commit()
 
-    #exit()
-    #query = "delete from workflow_tag_topic"
-    #dev_db.execute(text(query))
+    # query = "delete from workflow_tag_topic"
+    # dev_db.execute(text(query))
 
-    #wtts = prod_db.query(WorkflowTagTopicModel).all()
-    #for wtt in wtts:
+    # wtts = prod_db.query(WorkflowTagTopicModel).all()
+    # for wtt in wtts:
     #    dev_db.merge(wtt)
-    #dev_db.commit()
+    # dev_db.commit()
 
     add_sequence_data(dev_db)
 
