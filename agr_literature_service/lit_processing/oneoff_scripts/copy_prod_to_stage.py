@@ -4,7 +4,7 @@ from sqlalchemy import text
 from os import environ
 from agr_literature_service.api.models import (
     WorkflowTransitionModel
-#    WorkflowTagTopicModel, MLModel
+# WorkflowTagTopicModel, MLModel
 )
 
 
@@ -56,6 +56,7 @@ def add_sequence_data(db_subset_session):
             com = f"ALTER SEQUENCE {x[2]} RESTART WITH 1"
             db_subset_session.execute(text(com))
 
+
 def create_postgres_engine(production=False):
     """Connect to database.
     """
@@ -77,6 +78,7 @@ def create_postgres_engine(production=False):
     engine = create_engine(engine_var)
 
     return engine
+
 
 def main():
     prod_eng = create_postgres_engine(True)
@@ -114,6 +116,7 @@ def main():
 
     add_sequence_data(dev_db)
 
+
 def models_copy_NOT():
     prod_eng = create_postgres_engine(True)
     Session = sessionmaker(bind=prod_eng, autoflush=False, autocommit=False)
@@ -123,14 +126,12 @@ def models_copy_NOT():
     Session = sessionmaker(bind=dev_eng, autoflush=False, autocommit=False)
     dev_db = Session()
 
-    rows = prod_db.execute(text("SELECT m.* "
-                           "FROM dataset m "
-                           "WHERE m.mod_id = 1")).mappings().fetchall()
+    rows = prod_db.execute(text("SELECT m.* FROM dataset m WHERE m.mod_id = 1")).mappings().fetchall()
     topic_to_dataset = {}
     for row in rows:
         row_dict = dict(row)
         print(row_dict)
-        query = f"""INSERT INTO dataset 
+        query = f"""INSERT INTO dataset
         (title, mod_id, data_type, dataset_type, version, description, frozen, date_created)
         VALUES ('{row_dict['title']}', {row_dict['mod_id']}, '{row_dict['data_type']}',
         '{row_dict['dataset_type']}', {row_dict['version']}, '{row_dict['description']}', {row_dict['frozen']}, NOW()) 
@@ -147,11 +148,11 @@ def models_copy_NOT():
         row_dict = dict(row)
         print(row_dict)
         print(row_dict['topic'])
-        query = f"""INSERT INTO ml_model 
+        query = f"""INSERT INTO ml_model
         (task_type, model_type, file_extension, mod_id, topic, version_num, precision, recall, f1_score,
          parameters, dataset_id, production, negated, novel_topic_data)
-         VALUES ('{row_dict['task_type']}', '{row_dict['model_type']}', '{row_dict['file_extension']}', 
-                  {row_dict['mod_id']}, '{row_dict['topic']}', {row_dict['version_num']}, 
+         VALUES ('{row_dict['task_type']}', '{row_dict['model_type']}', '{row_dict['file_extension']}',
+                  {row_dict['mod_id']}, '{row_dict['topic']}', {row_dict['version_num']},
                   {row_dict['precision']}, {row_dict['recall']}, {row_dict['f1_score']},
                   'BOB', {topic_to_dataset[row_dict['topic']]},
                   't', 't', 'f')"""
