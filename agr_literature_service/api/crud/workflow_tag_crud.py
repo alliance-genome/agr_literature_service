@@ -1294,7 +1294,7 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
             reference_curie=reference_curie
         )
         try:
-            create(db, data)
+            # create(db, data) We want to move needed to compete Not add complete.
             patch(
                 db,
                 reference_workflow_tag_id,
