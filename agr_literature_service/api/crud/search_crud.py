@@ -21,12 +21,16 @@ file_workflow_root_ids = ["ATP:0000140", "ATP:0000161"]
 reference_classification_root_ids = ["ATP:0000165"]
 entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
+curation_classification_root_ids = ["ATP:0000311", "ATP:0000210"]
+community_curation_classification_root_ids = ["ATP:0000235"]
 
 WORKFLOW_FACETS = [
     "file_workflow",
     "manual_indexing",
     "entity_extraction",
-    "reference_classification"
+    "reference_classification",
+    "curation_classification",
+    "community_curation"
 ]
 
 
@@ -622,7 +626,9 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "file_workflow": get_atp_ids(file_workflow_root_ids),
         "reference_classification": get_atp_ids(reference_classification_root_ids),
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
-        "manual_indexing": get_atp_ids(manual_indexing_root_ids)
+        "manual_indexing": get_atp_ids(manual_indexing_root_ids),
+        "curation_classification": get_atp_ids(curation_classification_root_ids),
+        "community_curation": get_atp_ids(community_curation_classification_root_ids)
     }
     
     grouped_workflow_tags = {category: {} for category in atp_ids}
