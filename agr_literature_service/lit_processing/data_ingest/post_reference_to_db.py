@@ -11,6 +11,8 @@ from agr_literature_service.api.models import CrossReferenceModel, ReferenceMode
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_data, \
     get_doi_data, get_reference_by_pmid
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    add_zfin_pre_indexing_tag
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
@@ -149,6 +151,8 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
                                             corpus=x['corpus'])
             db_session.add(mca)
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'])
+            if x['modAbbreviation'] == 'ZFIN' and x['corpus']:
+                add_zfin_pre_indexing_tag(db_session, reference_id, mod_id, log)
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
 

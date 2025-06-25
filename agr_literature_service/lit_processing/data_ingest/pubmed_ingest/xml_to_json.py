@@ -5,7 +5,7 @@ import sys
 import urllib.request
 from os import environ, makedirs, path
 import xml.etree.ElementTree as ET
-from typing import List, Set
+from typing import List, Set, Dict, Tuple
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import generate_md5sum_from_dict
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import write_json
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import month_name_to_number_string
@@ -129,58 +129,73 @@ def get_medline_date_from_xml_date(pub_date):
 
 
 def get_alliance_category_from_pubmed_types(pubmed_types: List[str]):     # noqa: C901
-
-    # for functional tests work
     mapping_path = path.dirname(path.abspath(__file__)) + "/data_for_pubmed_processing/"
     mapping_file = mapping_path + "pubMedType2allianceCategory_mapping.tsv"
-    type2categoryInfo = {}
+    type2categoryInfo: Dict[str, Tuple[str, str]] = {}
 
-    f = open(mapping_file)
-    for line in f:
-        if line.startswith('#'):
-            continue
-        pieces = line.strip().split("\t")
-        if len(pieces) > 2:
-            type2categoryInfo[pieces[0].lower()] = (pieces[1], pieces[2].lower())
-        elif len(pieces) > 1:
-            type2categoryInfo[pieces[0].lower()] = (pieces[1], '')
-    f.close()
-
-    category_list = []
-    review_category = None
-    first_choice_category = None
-    secondary_choice_category = None
-    last_choice_category = None
-    for type in pubmed_types:
-        if type.lower() == 'review':
-            review_category = 'Review_Article'
-            break
-        if type.lower() in type2categoryInfo:
-            (thisCategory, filter) = type2categoryInfo[type.lower()]
-            if thisCategory is None:
+    with open(mapping_file) as f:
+        for line in f:
+            if line.startswith('#'):
                 continue
-            if filter == 1:
-                first_choice_category = thisCategory
-            elif filter == 'secondary':
-                secondary_choice_category = thisCategory
-            elif filter == 'last':
-                last_choice_category = thisCategory
-            elif thisCategory != 'Other':
-                category_list.append(thisCategory)
+            pieces = line.strip().split("\t")
+            if len(pieces) < 2:
+                continue
+            key = pieces[0].lower()
+            cat = pieces[1]
+            filt = pieces[2].lower() if len(pieces) > 2 else ''
+            type2categoryInfo[key] = (cat, filt)
 
-    if review_category:
-        return review_category
-    if first_choice_category:
-        return first_choice_category
-    if secondary_choice_category:
-        for category in category_list:
-            if secondary_choice_category != category:
-                return category
-        return secondary_choice_category
-    for category in category_list:
-        return category
-    if last_choice_category:
-        return last_choice_category
+    # make everything lowercase for easy membership tests
+    lower_types = [t.lower() for t in pubmed_types]
+
+    # 1) Review wins outright
+    if 'review' in lower_types:
+        return 'Review_Article'
+
+    # 2) Any Retraction/Correction/Preprint next
+    for t in lower_types:
+        info = type2categoryInfo.get(t)
+        if info and info[0] in ('Correction', 'Retraction', 'Preprint'):
+            return info[0]
+
+    # 3) Then Comment
+    if 'comment' in lower_types:
+        return 'Other'
+
+    # --- fallback to your existing 1/secondary/last logic ---
+    first_choice = None
+    secondary_choice = None
+    last_choice = None
+    category_list: List[str] = []
+
+    for t in lower_types:
+        info = type2categoryInfo.get(t)
+        if not info or info[0] is None:
+            continue
+        cat, filt = info
+        if filt == '1':
+            first_choice = cat
+        elif filt == 'secondary':
+            secondary_choice = cat
+        elif filt == 'last':
+            last_choice = cat
+        elif cat != 'Other':
+            category_list.append(cat)
+
+    if first_choice:
+        return first_choice
+    if secondary_choice:
+        # pick any non‐secondary category if present
+        for c in category_list:
+            if c != secondary_choice:
+                return c
+        return secondary_choice
+    if category_list:
+        return category_list[0]
+    if last_choice:
+        return last_choice
+
+    # ultimate fallback
     return 'Other'
 
 

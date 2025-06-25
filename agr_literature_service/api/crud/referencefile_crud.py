@@ -23,7 +23,8 @@ from agr_literature_service.api.crud.referencefile_utils import read_referencefi
 from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection, \
     destroy as destroy_mod_association
 from agr_literature_service.api.crud.workflow_tag_crud import get_current_workflow_status, \
-    transition_to_workflow_status, is_file_upload_blocked, reset_workflow_tags_after_deleting_main_pdf
+    transition_to_workflow_status, is_file_upload_blocked, create as create_wft, \
+    reset_workflow_tags_after_deleting_main_pdf
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     has_manual_tet
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, \
@@ -33,6 +34,7 @@ from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
     ReferencefileSchemaRelated, ReferencefileSchemaUpdate
+from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
@@ -307,6 +309,19 @@ def file_paths_in_dir(directory):
                 yield file_path
 
 
+def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
+    query = text("""
+        SELECT mca.corpus
+        FROM mod_corpus_association mca
+        JOIN reference r ON mca.reference_id = r.reference_id
+        JOIN mod m ON mca.mod_id = m.mod_id
+        WHERE r.curie = :reference_curie
+          AND m.abbreviation = :mod_abbr
+    """)
+    row = db.execute(query, {"reference_curie": reference_curie, "mod_abbr": mod_abbr}).fetchone()
+    return bool(row and row[0])
+
+
 def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
     if not metadata["reference_curie"].startswith("AGRKB:101"):
         ref_curie_res = db.query(ReferenceModel.curie).filter(
@@ -315,10 +330,13 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
             metadata["reference_curie"] = ref_curie_res.curie
         else:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="The specified curie is not in the standard Alliance format and no cross "
-                                       "references match the specified value.")
+                                detail=f"The specified curie: {metadata['reference_curie']} is not in the standard Alliance format and no cross references match the specified value.")
         metadata["reference_curie"] = ref_curie_res.curie
     if metadata["mod_abbreviation"]:
+        inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+        if not inCorpus:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"This paper ({metadata['reference_curie']}) is not in {metadata['mod_abbreviation']}.")
         job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
         if job_type:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -404,8 +422,14 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
             curr_tag_atp_id = get_current_workflow_status(db, reference_curie,
                                                           file_upload_process_atp_id, mod)
             if change_file_status is False:
-                # for new file upload
-                if curr_tag_atp_id is None or (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
+                if curr_tag_atp_id is None:
+                    data = WorkflowTagSchemaPost(
+                        workflow_tag_id=wft_tag_atp_id,
+                        mod_abbreviation=mod_abbreviation,
+                        reference_curie=reference_curie
+                    )
+                    create_wft(db, data)
+                elif (curr_tag_atp_id != wft_tag_atp_id and curr_tag_atp_id != file_uploaded_tag_atp_id):
                     transition_to_workflow_status(db, reference_curie, mod, wft_tag_atp_id)
             else:
                 # this should not happen, but just in case
@@ -417,7 +441,7 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"An error occurred when transitioning file_upload WFT for reference_curie = {reference_curie}, mod={mod}. error={e}")
+                                detail=f"Transitioning file_upload WFT for reference_curie = {reference_curie}, mod={mod} failed. error={e}")
     db.commit()
 
 
