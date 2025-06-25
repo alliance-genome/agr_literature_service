@@ -10,7 +10,6 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.models import ModModel
 
 
-
 def parse_arguments():
     parser = argparse.ArgumentParser(description='ADD ATP to references and mod.')
     parser.add_argument("-r", "--reference_curies", type=str, help="Only run for this reference.", required=True)
