@@ -1138,6 +1138,12 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
             'ATP:0000187': 'entity extraction failed',
             'ATP:0000174': 'entity extraction complete',
             'ATP:0000173': 'entity extraction needed'
+        },
+        'ATP:0000311': {
+            'ATP:0000312': 'curation classification complete',
+            'ATP:0000315': 'curation classification failed',
+            'ATP:0000314': 'curation classification in progress',
+            'ATP:0000313': 'curation classification needed'
         }
     }
 
