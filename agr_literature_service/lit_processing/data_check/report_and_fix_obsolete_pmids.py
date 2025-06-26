@@ -66,8 +66,7 @@ def update_cross_reference(all_invalid_pmids):
         """)
         db.execute(sql, {"pmid": pmid})
         logger.info(f"Making {pmid} invalid")
-    db.rollback()
-    # db.commit()
+    db.commit()
     db.close()
 
 
