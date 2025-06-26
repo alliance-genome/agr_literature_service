@@ -118,6 +118,28 @@ def check_redacted_references_with_tags():
     }
 
 
+def check_obsolete_pmids():
+
+    log_path = environ.get('LOG_PATH', '.')
+    log_file = path.join(log_path, "QC/obsolete_pmid_report.log")
+    date_produced = None
+    data = defaultdict(list)
+
+    with open(log_file, 'r') as f:
+        for line in f:
+            if 'date-produced:' in line:
+                date_produced = line.split('date-produced: ')[1].strip()
+            else:
+                pieces = line.strip().split('\t')
+                if len(pieces) >= 2:
+                    data[pieces[0]].append(pieces[1])
+
+    return {
+        "date-produced": date_produced,
+        "obsolete_pmids": dict(data)
+    }
+
+
 def show_environments():
     """
     But only those that are not sensitive. i.e. NO passwords etc

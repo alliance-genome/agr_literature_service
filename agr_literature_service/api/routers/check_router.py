@@ -43,6 +43,12 @@ def check_redacted_references_with_tags():
     return check_crud.check_redacted_references_with_tags()
 
 
+@router.get('/check_obsolete_pmids',
+            status_code=200)
+def check_obsolete_pmids():
+    return check_crud.check_obsolete_pmids()
+
+
 @router.get('/environments',
             response_model=EnvironmentsSchemaShow,
             status_code=200)
