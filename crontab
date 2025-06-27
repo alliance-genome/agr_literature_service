@@ -14,7 +14,8 @@ BASH_ENV=/container.env
 0 17 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py > /var/log/automated_scripts/pubmed_update_references_by_doi.log 2>&1
 0 0 17 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_references_for_cross_references.py > /var/log/automated_scripts/find_refs_with_no_xrefs.log 2>&1
 0 0 18 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/remove_obsolete_pubmed_types.py > /var/log/automated_scripts/remove_obsolete_pubmed_types.log 2>&1
-0 0 19 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_entities.py > /var/log/automated_scripts/report_obsolete_entities.log 2>&1
+0 22 18 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_and_fix_obsolete_pmids.py > /var/log/automated_scripts/report_and_fix_obsolete_pmids.log 2>&1
+0 2 19 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_entities.py > /var/log/automated_scripts/report_obsolete_entities.log 2>&1
 0 0 20 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_retracted_papers_with_tags.py > /var/log/automated_scripts/report_retracted_papers_with_tags.log 2>&1
 0 0 7 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_atp_ids.py > /var/log/automated_scripts/report_obsolete_disappeared_atp_ids.log 2>&1
 0 3 7 * * python3 /usr/src/app/agr_literature_service/lit_processing/data_check/report_obsolete_disappeared_species_ids.py > /var/log/automated_scripts/report_obsolete_disappeared_species_ids.log 2>&1
