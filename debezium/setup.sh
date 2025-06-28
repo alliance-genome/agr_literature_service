@@ -11,7 +11,7 @@ if [[ "${ENV_STATE}" == "test" ]]; then
 else
     # Production environment - longer sleeps for full datasets
     CONNECTOR_SETUP_SLEEP=10
-    KSQL_SETUP_SLEEP=300
+    KSQL_SETUP_SLEEP=1200
     KSQL_POST_SLEEP=10
     DATA_PROCESSING_SLEEP=20000
     echo "Running in PRODUCTION mode with full sleep timings"
