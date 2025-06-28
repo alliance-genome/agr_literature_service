@@ -188,7 +188,7 @@ def elasticsearch_config():
         'host': os.getenv('ELASTICSEARCH_HOST', 'localhost'),
         'port': int(os.getenv('ELASTICSEARCH_PORT', '9200')),
         'private_index': os.getenv('DEBEZIUM_INDEX_NAME', 'test_references_index'),
-        'public_index': os.getenv('PUBLIC_INDEX_NAME', 'public_references_index')
+        'public_index': os.getenv('PUBLIC_INDEX_NAME', 'public_test_references_index')
     }
 
 
