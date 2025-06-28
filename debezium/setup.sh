@@ -17,24 +17,25 @@ else
     echo "Running in PRODUCTION mode with full sleep timings"
 fi
 
-DEBEZIUM_INDEX_NAME_ORIG="${DEBEZIUM_INDEX_NAME}"
-PUBLIC_INDEX_NAME_ORIG="public_references_index"
+export INDEX_NAME_FINAL="${DEBEZIUM_INDEX_NAME}"
+export PUBLIC_INDEX_NAME_FINAL="public_${INDEX_NAME_FINAL}"
 
 if [[ "${ENV_STATE}" == "test" ]]; then
     # Test mode - use final index names directly
-    export PUBLIC_INDEX_NAME="${PUBLIC_INDEX_NAME_ORIG}"
+    export INDEX_NAME_CURRENT="${INDEX_NAME_FINAL}"
+    export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_NAME_FINAL}"
 else
     # Production mode - use temporary indexes
-    DEBEZIUM_INDEX_NAME="${DEBEZIUM_INDEX_NAME}_temp"
-    export PUBLIC_INDEX_NAME="${PUBLIC_INDEX_NAME_ORIG}_temp"
+    export INDEX_NAME_CURRENT="${INDEX_NAME_FINAL}_temp"
+    export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_NAME_FINAL}_temp"
 fi
 
 # Delete and create both private and public indexes
-curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}
-curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME} -d @/elasticsearch-settings.json
+curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
+curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT} -d @/elasticsearch-settings.json
 
-curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}
-curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME} -d @/elasticsearch-settings-public.json
+curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT}
+curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT} -d @/elasticsearch-settings-public.json
 
 export PGPASSWORD=${PSQL_PASSWORD}
 psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE slot text; BEGIN FOREACH slot IN ARRAY ARRAY['debezium_mod','debezium_referencetype','debezium_reference','debezium_joined_tables','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_public_tables','debezium_copyright_license','debezium_mod_corpus_association'] LOOP IF EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = slot) THEN PERFORM pg_drop_replication_slot(slot); END IF; END LOOP; END\$\$;"
@@ -69,8 +70,10 @@ else
     export PUBLIC_SINK_NAME="elastic-sink-public-temp"
 fi
 
-curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$DEBEZIUM_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
-curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
+export SINK_INDEX_NAME="${INDEX_NAME_CURRENT}"
+export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_CURRENT}"
+curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
+curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
 
 # Wait for data processing with intelligent polling for test mode
 if [[ "${ENV_STATE}" == "test" ]]; then
@@ -80,8 +83,8 @@ if [[ "${ENV_STATE}" == "test" ]]; then
     attempt=0
     while [[ $attempt -lt $max_attempts ]]; do
         sleep 5
-        new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count 2>/dev/null | jq -r '.count // 0' 2>/dev/null || echo "0")
-        public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}/_count 2>/dev/null | jq -r '.count // 0' 2>/dev/null || echo "0")
+        new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}/_count 2>/dev/null | jq -r '.count // 0' 2>/dev/null || echo "0")
+        public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT}/_count 2>/dev/null | jq -r '.count // 0' 2>/dev/null || echo "0")
         
         echo "Attempt $((attempt + 1)): Private index: ${new_index_doc_count} docs, Public index: ${public_index_doc_count} docs"
         
@@ -97,8 +100,8 @@ else
     sleep ${DATA_PROCESSING_SLEEP}
     
     # Check both indexes have data and promote them
-    new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME}/_count | jq '.count')
-    public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME}/_count | jq '.count')
+    new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}/_count | jq '.count')
+    public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT}/_count | jq '.count')
 fi
 
 echo "Final counts - Private index: ${new_index_doc_count} docs, Public index: ${public_index_doc_count} docs"
@@ -115,22 +118,22 @@ else
       curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-public
 
       # Promote private index
-      DEBEZIUM_INDEX_NAME="${DEBEZIUM_INDEX_NAME_ORIG}"
-      curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME_ORIG}
-      curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${DEBEZIUM_INDEX_NAME_ORIG} -d @/elasticsearch-settings.json
-      curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${DEBEZIUM_INDEX_NAME}\"}, \"dest\": {\"index\": \"${DEBEZIUM_INDEX_NAME_ORIG}\"}}"
+      curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_FINAL}
+      curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_FINAL} -d @/elasticsearch-settings.json
+      curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${INDEX_NAME_CURRENT}\"}, \"dest\": {\"index\": \"${INDEX_NAME_FINAL}\"}}"
       
       # Promote public index
-      PUBLIC_INDEX_NAME="${PUBLIC_INDEX_NAME_ORIG}"
-      curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_ORIG}
-      curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_ORIG} -d @/elasticsearch-settings-public.json
-      curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${PUBLIC_INDEX_NAME}\"}, \"dest\": {\"index\": \"${PUBLIC_INDEX_NAME_ORIG}\"}}"
+      curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_FINAL}
+      curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_FINAL} -d @/elasticsearch-settings-public.json
+      curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${PUBLIC_INDEX_NAME_CURRENT}\"}, \"dest\": {\"index\": \"${PUBLIC_INDEX_NAME_FINAL}\"}}"
 
       # Create permanent connectors
       export SINK_NAME="elastic-sink"
       export PUBLIC_SINK_NAME="elastic-sink-public"
-      curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$DEBEZIUM_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
-      curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
+      export SINK_INDEX_NAME="${INDEX_NAME_FINAL}"
+      export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_FINAL}"
+      curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
+      curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
     fi
 
     # Clean up temporary connectors (only in production mode)
