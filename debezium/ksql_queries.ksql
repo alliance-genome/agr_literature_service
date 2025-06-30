@@ -835,6 +835,7 @@ CREATE TABLE public_reference_joined WITH (
     LEFT OUTER JOIN cross_references cross_references ON reference_with_copyright.REFERENCE_ID = cross_references.REFERENCE_ID
     LEFT OUTER JOIN authors authors ON reference_with_copyright.REFERENCE_ID = authors.REFERENCE_ID
     LEFT OUTER JOIN reference_relations reference_relations ON reference_with_copyright.REFERENCE_ID = reference_relations.REFERENCE_ID
-    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_copyright.REFERENCE_ID = mesh_terms.REFERENCE_ID;
+    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_copyright.REFERENCE_ID = mesh_terms.REFERENCE_ID
+    INNER JOIN mods_in_corpus mods_in_corpus ON reference_with_copyright.REFERENCE_ID = mods_in_corpus.REFERENCE_ID;
 ",
 "streamsProperties": {}}
