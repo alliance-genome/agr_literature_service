@@ -17,6 +17,8 @@ from agr_literature_service.api.models.reference_relation_model import Reference
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from agr_literature_service.api.models.mesh_detail_model import MeshDetailModel
 from agr_literature_service.api.models.resource_model import ResourceModel
+from agr_literature_service.api.models.mod_model import ModModel
+from agr_literature_service.api.models.mod_corpus_association_model import ModCorpusAssociationModel
 from .fixtures import db # noqa
 
 # Import fixtures - db fixture is automatically available via pytest
@@ -174,6 +176,44 @@ class MockDataFactory:
         db_session.add(mesh)
         return mesh
 
+    def create_mod(self, db_session, mod_id: int) -> ModModel:
+        """Create a MOD (Model Organism Database) instance."""
+        mods = [
+            ("WB", "6239", "WormBase"),
+            ("FB", "7227", "FlyBase"),
+            ("SGD", "559292", "Saccharomyces Genome Database"),
+            ("RGD", "10116", "Rat Genome Database"),
+            ("MGI", "10090", "Mouse Genome Informatics"),
+            ("ZFIN", "7955", "Zebrafish Information Network"),
+            ("XB", "8355", "Xenbase")
+        ]
+
+        mod_data = mods[mod_id % len(mods)]
+        abbreviation, taxon_id, full_name = mod_data
+
+        mod = ModModel(
+            abbreviation=abbreviation,
+            taxon_ids=[f"NCBITaxon:{taxon_id}"],
+            full_name=full_name,
+            short_name=abbreviation
+        )
+        db_session.add(mod)
+        db_session.flush()
+        return mod
+
+    def create_mod_corpus_association(self, db_session, reference: ReferenceModel,
+                                      mod: ModModel, corpus: bool = True) -> ModCorpusAssociationModel:
+        """Create a MOD corpus association."""
+        mod_corpus_assoc = ModCorpusAssociationModel(
+            reference_id=reference.reference_id,
+            mod_id=mod.mod_id,
+            corpus=corpus,
+            mod_corpus_sort_source='dqm_files'
+        )
+        db_session.add(mod_corpus_assoc)
+        db_session.flush()
+        return mod_corpus_assoc
+
 
 @pytest.fixture
 def mock_data_factory():
@@ -188,7 +228,7 @@ def elasticsearch_config():
         'host': os.getenv('ELASTICSEARCH_HOST', 'localhost'),
         'port': int(os.getenv('ELASTICSEARCH_PORT', '9200')),
         'private_index': os.getenv('DEBEZIUM_INDEX_NAME', 'test_references_index'),
-        'public_index': os.getenv('PUBLIC_INDEX_NAME', 'public_references_index')
+        'public_index': os.getenv('PUBLIC_INDEX_NAME', 'public_test_references_index')
     }
 
 
@@ -222,6 +262,10 @@ class TestDebeziumIntegration:
         reference = mock_data_factory.create_reference(db, 999, citation, resource)
         mock_data_factory.create_author(db, reference, 999)
         mock_data_factory.create_cross_reference(db, reference, 999, False)
+
+        # Create MOD corpus association to ensure reference appears in public index
+        mod = mock_data_factory.create_mod(db, 0)  # Create WB MOD
+        mock_data_factory.create_mod_corpus_association(db, reference, mod, True)
 
         # Commit the new data
         db.commit()
@@ -281,8 +325,10 @@ class TestDebeziumIntegration:
                     public_found = public_data['hits']['total']['value'] > 0
 
         # Assert that the new reference was synced to both Elasticsearch indexes
-        assert private_found, f"New reference {test_curie} not found in private Elasticsearch index after {max_wait_time}s"
-        assert public_found, f"New reference {test_curie} not found in public Elasticsearch index after {max_wait_time}s"
+        assert private_found, (f"New reference {test_curie} not found in private Elasticsearch "
+                               f"index after {max_wait_time}s")
+        assert public_found, (f"New reference {test_curie} not found in public Elasticsearch "
+                              f"index after {max_wait_time}s")
 
         # Verify the document structure in both indexes
         # Re-fetch the documents to ensure we have the latest data

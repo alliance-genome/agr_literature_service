@@ -25,7 +25,7 @@
     "batch.size": 1500,
     "transforms.dropPrefix.type":"org.apache.kafka.connect.transforms.RegexRouter",
     "transforms.dropPrefix.regex":"public_reference_joined",
-    "transforms.dropPrefix.replacement":"${PUBLIC_INDEX_NAME}",
+    "transforms.dropPrefix.replacement":"${PUBLIC_SINK_INDEX_NAME}",
     "auto.create.indices.at.start": "false"
   }
 }
