@@ -13,6 +13,7 @@ class ReferenceCategory(str, Enum):
     Direct_Data_Submission = "direct_data_submission"
     Internal_Process_Reference = "internal_process_reference"
     Unknown = "unknown"
+    Comment = "comment"
     Retraction = "retraction"
     Obsolete = "obsolete"
     Correction = "correction"

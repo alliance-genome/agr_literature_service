@@ -148,6 +148,9 @@ def get_alliance_category_from_pubmed_types(pubmed_types: List[str]):     # noqa
     # make everything lowercase for easy membership tests
     lower_types = [t.lower() for t in pubmed_types]
 
+    if 'review' in lower_types and 'comment' in lower_types:
+        return 'Other'
+
     # 1) Review wins outright
     if 'review' in lower_types:
         return 'Review_Article'
@@ -160,7 +163,7 @@ def get_alliance_category_from_pubmed_types(pubmed_types: List[str]):     # noqa
 
     # 3) Then Comment
     if 'comment' in lower_types:
-        return 'Other'
+        return 'Comment'
 
     # --- fallback to your existing 1/secondary/last logic ---
     first_choice = None
