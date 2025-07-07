@@ -3,9 +3,12 @@ name: Alembic Migration Check
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
 
 jobs:
   check-alembic-migrations:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -201,7 +204,3 @@ The migration has been confirmed as applied and tested.`
               
 @${context.payload.comment.user.login} has approved the migration. The status check has been updated to passing.`
             });
-
-on:
-  issue_comment:
-    types: [created]
