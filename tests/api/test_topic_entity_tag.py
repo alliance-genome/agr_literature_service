@@ -801,7 +801,7 @@ class TestTopicEntityTag:
             assert tag_data["data_novelty"] == "ATP:0000321"
             
             # Test patch to update data_novelty
-            patch_data = {"data_novelty": "ATP:0000322"}
+            patch_data = {"data_novelty": "ATP:0000334"}
             patch_resp = client.patch(f"/topic_entity_tag/{tag_id}", json=patch_data, headers=auth_headers)
             assert patch_resp.status_code == status.HTTP_202_ACCEPTED
             
