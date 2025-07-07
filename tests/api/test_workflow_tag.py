@@ -31,7 +31,7 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
     with TestClient(app) as client:
         new_wt = {"reference_curie": test_reference.new_ref_curie,
                   "mod_abbreviation": test_mod.new_mod_abbreviation,
-                  "workflow_tag_id": "ont1",
+                  "workflow_tag_id": "ATP:0001111",
                   }
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
         yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
@@ -48,7 +48,7 @@ class TestWorkflowTag:
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {"reference_curie": test_workflow_tag.related_ref_curie,
-                   "workflow_tag_id": "ont1"
+                   "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -60,13 +60,13 @@ class TestWorkflowTag:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
             xml = {"mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
-                   "workflow_tag_id": "ont1"
+                   "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
             xml = {'mod_abbreviation': "",
-                   'workflow_tag_id': "ont tgba",
+                   'workflow_tag_id': "ATP:0002222",
                    'reference_curie': test_workflow_tag.related_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -78,12 +78,12 @@ class TestWorkflowTag:
             join(ReferenceModel,
                  WorkflowTagModel.reference_id == ReferenceModel.reference_id). \
             filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
-        assert ref_wt_obj.workflow_tag_id == "ont1"
+        assert ref_wt_obj.workflow_tag_id == "ATP:0001111"
 
     def test_patch_ref_wt(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             # change workflow_tag
-            xml = {"workflow_tag_id": "ont test patch",
+            xml = {"workflow_tag_id": "ATP:0003333",
                    "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
                    }
             response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml, headers=auth_headers)
@@ -92,13 +92,13 @@ class TestWorkflowTag:
             ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
                 WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
             assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
-            assert ref_wt_obj.workflow_tag_id == "ont test patch"
+            assert ref_wt_obj.workflow_tag_id == "ATP:0003333"
 
             transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions").json()
-            assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ont1'
+            assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ATP:0001111'
             assert not transactions[0]['changeset']['mod_id'][0]
-            assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ont1'
-            assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ont test patch'
+            assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ATP:0001111'
+            assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ATP:0003333'
 
     def test_patch_ref_wt_blank_mod_abbr(self, db, test_workflow_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -118,7 +118,7 @@ class TestWorkflowTag:
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
             assert res['reference_curie'] == test_workflow_tag.related_ref_curie
-            assert res['workflow_tag_id'] == 'ont1'
+            assert res['workflow_tag_id'] == 'ATP:0001111'
             assert res['mod_abbreviation'] == test_workflow_tag.related_mod_abbreviation
 
     def test_destroy_ref_wt(self, test_workflow_tag, auth_headers): # noqa
