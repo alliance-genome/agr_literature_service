@@ -21,16 +21,11 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Get base branch
-        id: base-branch
-        run: |
-          echo "base_ref=${{ github.event.pull_request.base.ref }}" >> $GITHUB_OUTPUT
-      
       - name: Check for new Alembic migrations
         id: check-migrations
         run: |
           # Get the base branch reference
-          BASE_REF="origin/${{ steps.base-branch.outputs.base_ref }}"
+          BASE_REF="origin/${{ github.event.pull_request.base.ref }}"
           
           # Check if there are new migration files
           NEW_MIGRATIONS=$(git diff --name-only "$BASE_REF"...HEAD | grep -E "^alembic/versions/.*\.py$" | wc -l)
@@ -51,6 +46,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const migrationCount = '${{ steps.check-migrations.outputs.new_migrations }}';
+            
             const { data: checks } = await github.rest.checks.listForRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -58,12 +55,25 @@ jobs:
               check_name: 'Alembic Migration Applied'
             });
             
-            // Check if status check already exists and is successful
             const existingCheck = checks.check_runs.find(check => 
               check.name === 'Alembic Migration Applied' && check.conclusion === 'success'
             );
             
             if (!existingCheck) {
+              const message = `⚠️ Database Migration Required
+
+This PR contains new Alembic migration files that need to be applied to the database before merging.
+
+Required Actions:
+1. Apply migrations to staging/development environment  
+2. Verify migrations work correctly
+3. Check that rollback works if needed
+4. Confirm with team lead before merging
+
+Migration Files: ${migrationCount} new migration file(s) detected.
+
+To mark this check as passed: Comment on this PR with /approve-migration`;
+
               await github.rest.checks.create({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -74,21 +84,7 @@ jobs:
                 output: {
                   title: 'Alembic Migration Detected',
                   summary: 'This PR contains new Alembic migration files. Please ensure migrations are applied before merging.',
-                  text: `⚠️ **Database Migration Required**
-
-This PR contains new Alembic migration files that need to be applied to the database before merging.
-
-**Required Actions:**
-1. Apply migrations to staging/development environment
-2. Verify migrations work correctly
-3. Check that rollback works if needed
-4. Confirm with team lead before merging
-
-**Migration Files:**
-${ steps.check-migrations.outputs.new_migrations } new migration file(s) detected.
-
-**To mark this check as passed:**
-Comment on this PR with: \`/approve-migration\``
+                  text: message
                 }
               });
             }
@@ -98,6 +94,8 @@ Comment on this PR with: \`/approve-migration\``
         uses: actions/github-script@v7
         with:
           script: |
+            const migrationCount = '${{ steps.check-migrations.outputs.new_migrations }}';
+            
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -106,29 +104,22 @@ Comment on this PR with: \`/approve-migration\``
             
             const botComment = comments.find(comment => 
               comment.user.type === 'Bot' && 
-              comment.body.includes('🔄 **Alembic Migration Detected**')
+              comment.body.includes('🔄 Alembic Migration Detected')
             );
             
             if (!botComment) {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.payload.pull_request.number,
-                body: `🔄 **Alembic Migration Detected**
+              const message = `🔄 **Alembic Migration Detected**
 
-This PR contains **${{ steps.check-migrations.outputs.new_migrations }}** new Alembic migration file(s).
+This PR contains **${migrationCount}** new Alembic migration file(s).
 
 **⚠️ IMPORTANT: Database migrations must be applied before merging!**
 
 **Required Steps:**
 - [ ] Apply migrations to staging/development environment
-- [ ] Verify migrations execute successfully
+- [ ] Verify migrations execute successfully  
 - [ ] Test rollback functionality
 - [ ] Confirm with team lead/DBA
 - [ ] Comment \`/approve-migration\` to mark as ready
-
-**Migration Files:**
-$(git diff --name-only origin/${{ steps.base-branch.outputs.base_ref }}...HEAD | grep -E "^alembic/versions/.*\.py$" | sed 's/^/- /')
 
 **Commands to apply migrations:**
 \`\`\`bash
@@ -139,7 +130,13 @@ make alembic-apply-latest-migration
 alembic upgrade head
 \`\`\`
 
-> **Note:** This status check must pass before the PR can be merged.`
+> **Note:** This status check must pass before the PR can be merged.`;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: message
               });
             }
 
@@ -176,6 +173,13 @@ alembic upgrade head
               pull_number: context.payload.issue.number
             });
             
+            const approvedMessage = `✅ Migration Approved
+
+Approved by: @${context.payload.comment.user.login}
+Time: ${new Date().toISOString()}
+
+The migration has been confirmed as applied and tested.`;
+
             await github.rest.checks.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -186,20 +190,17 @@ alembic upgrade head
               output: {
                 title: 'Migration Approved',
                 summary: `Migration approved by @${context.payload.comment.user.login}`,
-                text: `✅ **Migration Approved**
-
-Approved by: @${context.payload.comment.user.login}
-Time: ${new Date().toISOString()}
-
-The migration has been confirmed as applied and tested.`
+                text: approvedMessage
               }
             });
             
+            const commentMessage = `✅ **Migration Approved**
+
+@${context.payload.comment.user.login} has approved the migration. The status check has been updated to passing.`;
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
-              body: `✅ **Migration Approved**
-
-@${context.payload.comment.user.login} has approved the migration. The status check has been updated to passing.`
+              body: commentMessage
             });
