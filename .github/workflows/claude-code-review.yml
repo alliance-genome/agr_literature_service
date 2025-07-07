@@ -28,9 +28,6 @@ jobs:
       # Python/FastAPI backend with PostgreSQL/SQLAlchemy
       review_focus: "critical bugs, database performance issues, and security vulnerabilities in the Python FastAPI backend. Focus on: SQLAlchemy N+1 queries, missing database indexes, inefficient ORM usage, SQL injection risks, async/await misuse, API rate limiting issues, improper transaction handling, and data validation gaps"
       trigger_phrase: "@claude"
-      use_zen_tools: true
-      # Use centralized thresholds from .github repo (skip_threshold: 3, pr_size_threshold: 40)
+      # Use centralized threshold from .github repo (skip_threshold: 3)
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
