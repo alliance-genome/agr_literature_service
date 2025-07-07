@@ -1530,7 +1530,7 @@ def insert_referencefile(db_session: Session, pmid, file_class, file_publication
 def set_category_for_fb_note_papers(db, logger):
     stmt = text("""
         UPDATE reference
-        SET category = 'Other'
+        SET category = 'Comment'
         WHERE reference_id IN (
             SELECT rmrt.reference_id
               FROM reference_mod_referencetype rmrt
@@ -1551,12 +1551,12 @@ def set_category_for_fb_note_papers(db, logger):
              WHERE mca.corpus = TRUE
                AND m2.abbreviation <> 'FB'
         )
-          AND category <> 'Other'
+          AND category <> 'Comment'
     """)
     try:
         result: Result = db.execute(stmt)
         db.commit()
-        logger.info(f"Set category='Other' for {result.rowcount} FB paper(s) with 'note' reference type")
+        logger.info(f"Set category='Comment' for {result.rowcount} FB paper(s) with 'note' reference type")
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to set category for FB note papers. Error={e}")
