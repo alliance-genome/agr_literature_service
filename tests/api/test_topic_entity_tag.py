@@ -775,7 +775,7 @@ class TestTopicEntityTag:
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=source_with_atp36, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
-            
+
             # Create a tag with novel_topic_data=True and data_novelty="ATP:0000321"
             new_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -792,22 +792,21 @@ class TestTopicEntityTag:
             create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
             assert create_resp.status_code == status.HTTP_201_CREATED
             tag_id = create_resp.json()['topic_entity_tag_id']
-            
+
             # Verify the tag returns both fields correctly
             get_resp = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp.status_code == status.HTTP_200_OK
             tag_data = get_resp.json()
             assert tag_data["novel_topic_data"] is True
             assert tag_data["data_novelty"] == "ATP:0000321"
-            
+
             # Test patch to update data_novelty
             patch_data = {"data_novelty": "ATP:0000334"}
             patch_resp = client.patch(f"/topic_entity_tag/{tag_id}", json=patch_data, headers=auth_headers)
             assert patch_resp.status_code == status.HTTP_202_ACCEPTED
-            
             # Verify the update
             get_resp2 = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp2.status_code == status.HTTP_200_OK
             tag_data2 = get_resp2.json()
-            assert tag_data2["data_novelty"] == "ATP:0000322"
+            assert tag_data2["data_novelty"] == "ATP:0000334"
             assert tag_data2["novel_topic_data"] is True  # Should remain unchanged
