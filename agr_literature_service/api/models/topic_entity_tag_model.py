@@ -143,6 +143,12 @@ class TopicEntityTagModel(AuditedModel, Base):
         server_default='false'
     )
 
+    data_novelty = Column(
+        String(),
+        nullable=True,
+        unique=False
+    )
+
     validated_by = relationship(
         "TopicEntityTagModel",
         secondary=topic_entity_tag_validation,
