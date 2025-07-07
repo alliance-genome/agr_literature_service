@@ -75,7 +75,7 @@ jobs:
                   title: 'Alembic Migration Detected',
                   summary: 'This PR contains new Alembic migration files. Please ensure migrations are applied before merging.',
                   text: `⚠️ **Database Migration Required**
-                  
+
 This PR contains new Alembic migration files that need to be applied to the database before merging.
 
 **Required Actions:**
@@ -88,8 +88,7 @@ This PR contains new Alembic migration files that need to be applied to the data
 ${ steps.check-migrations.outputs.new_migrations } new migration file(s) detected.
 
 **To mark this check as passed:**
-Comment on this PR with: \`/approve-migration\`
-                  `
+Comment on this PR with: \`/approve-migration\``
                 }
               });
             }
@@ -116,7 +115,7 @@ Comment on this PR with: \`/approve-migration\`
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,
                 body: `🔄 **Alembic Migration Detected**
-                
+
 This PR contains **${{ steps.check-migrations.outputs.new_migrations }}** new Alembic migration file(s).
 
 **⚠️ IMPORTANT: Database migrations must be applied before merging!**
@@ -188,7 +187,7 @@ alembic upgrade head
                 title: 'Migration Approved',
                 summary: `Migration approved by @${context.payload.comment.user.login}`,
                 text: `✅ **Migration Approved**
-                
+
 Approved by: @${context.payload.comment.user.login}
 Time: ${new Date().toISOString()}
 
@@ -201,6 +200,6 @@ The migration has been confirmed as applied and tested.`
               repo: context.repo.repo,
               issue_number: context.payload.issue.number,
               body: `✅ **Migration Approved**
-              
+
 @${context.payload.comment.user.login} has approved the migration. The status check has been updated to passing.`
             });
