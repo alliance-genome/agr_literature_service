@@ -216,7 +216,7 @@ class TestWorkflowTag:
                 patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
                 mock_get_map_ateam_curies_to_names:
             mock_get_map_ateam_curies_to_names.return_value = {
-                'ATP:0000141': 'file needed', 'ont1': 'test',
+                'ATP:0000141': 'file needed', 'ATP:0001111': 'test',
                 'ATP:0000168': 'catalytic activity classification complete'
             }
             # Create additional references and MODs
