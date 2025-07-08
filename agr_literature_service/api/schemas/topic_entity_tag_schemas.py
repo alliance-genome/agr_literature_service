@@ -45,6 +45,7 @@ class TopicEntityTagSchemaCreate(AuditedObjectModelSchema):
     topic_entity_tag_source_id: int
     negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
+    data_novelty: Optional[constr(min_length=1)] = None  # type: ignore
     confidence_score: Optional[confloat(ge=0.0, le=1.0)] = None  # type: ignore
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
@@ -76,6 +77,7 @@ class TopicEntityTagSchemaRelated(AuditedObjectModelSchema):
     topic_entity_tag_source: Optional[TopicEntityTagSourceSchemaShow] = None
     negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
+    data_novelty: Optional[str] = None
     confidence_score: Optional[confloat(ge=0.0, le=1.0)] = None  # type: ignore
     confidence_level: Optional[str] = None
     note: Optional[str] = None
@@ -99,6 +101,7 @@ class TopicEntityTagSchemaUpdate(AuditedObjectModelSchema):
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     negated: Optional[Union[bool, None]] = False
     novel_topic_data: Optional[bool] = False
+    data_novelty: Optional[constr(min_length=1)] = None  # type: ignore
     confidence_score: Optional[confloat(ge=0.0, le=1.0)] = None  # type: ignore
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
