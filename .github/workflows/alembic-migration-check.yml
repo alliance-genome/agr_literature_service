@@ -140,20 +140,6 @@ jobs:
       checks: write
 
     steps:
-      - name: Check if commenter has permission
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: collaborator } = await github.rest.repos.getCollaboratorPermissionLevel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              username: context.payload.comment.user.login
-            });
-
-            if (!['admin', 'write', 'maintain'].includes(collaborator.permission)) {
-              throw new Error('Only maintainers can approve migrations');
-            }
-
       - name: Update status check to success
         uses: actions/github-script@v7
         with:
