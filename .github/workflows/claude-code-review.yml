@@ -360,10 +360,9 @@ jobs:
           set -euo pipefail
           
           # Always use minimal MCP configuration (no zen tools)
-          MCP_CONFIG=$(jq -n \
-            '{\
-              mcpServers: {}\
-            }')
+          MCP_CONFIG=$(jq -n '{
+            "mcpServers": {}
+          }')
           ALLOWED_TOOLS="Bash,Edit,Read,Write,Glob,Grep,LS"
           
           # Set outputs
