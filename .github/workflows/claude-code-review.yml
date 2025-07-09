@@ -387,20 +387,20 @@ jobs:
           set -euo pipefail
           
           # Verify password was retrieved
-          if [ -z "${DB_CREDS_PASSWORD:-}" ]; then
+          if [ -z "${DB_CREDS:-}" ]; then
             echo "❌ Failed to retrieve database password from Secrets Manager"
             exit 1
           fi
           
           # Mask the password
-          echo "::add-mask::$DB_CREDS_PASSWORD"
+          echo "::add-mask::$DB_CREDS"
           
           # Pass password to next step via GITHUB_ENV
-          echo "DB_PASSWORD=$DB_CREDS_PASSWORD" >> $GITHUB_ENV
+          echo "DB_PASSWORD=$DB_CREDS" >> $GITHUB_ENV
           
           # Quick database connectivity check
           echo "Testing database connection..."
-          if PGPASSWORD="$DB_CREDS_PASSWORD" psql -h localhost -p ${{ steps.tunnel.outputs.local_port }} -U "${{ steps.db-config.outputs.db_user }}" -d "${{ steps.db-config.outputs.db_name }}" -c "SELECT current_database(), version();" >/dev/null 2>&1; then
+          if PGPASSWORD="$DB_CREDS" psql -h localhost -p ${{ steps.tunnel.outputs.local_port }} -U "${{ steps.db-config.outputs.db_user }}" -d "${{ steps.db-config.outputs.db_name }}" -c "SELECT current_database(), version();" >/dev/null 2>&1; then
             echo "✅ Database connection verified"
           else
             echo "❌ Database connection test failed"
