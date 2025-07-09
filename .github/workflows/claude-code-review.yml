@@ -163,6 +163,7 @@ jobs:
               - **Implement Code Changes**: \`@claude add validation for publication references\`
               - **Debug Issues**: \`@claude help debug why the citation parser is failing\`
               - **Analyze Architecture**: \`@claude review the literature data model changes\`
+              - **Perform another review**: \`@claude Please review my changes\`
               
               Just comment \`@claude\` followed by your request!`
             });
