@@ -203,13 +203,13 @@ jobs:
           echo "::add-mask::$LITERATURE_CONFIG"
           
           # Extract values from shared config
-          SSM_INSTANCE_ID=$(echo $CONFIG | jq -r .ssm_instance_id)
+          SSM_INSTANCE_ID=$(echo "$CONFIG" | jq -r .ssm_instance_id)
           
           # Extract values from literature-specific config
-          DB_HOST=$(echo $LITERATURE_CONFIG | jq -r .host)
-          DB_PORT=$(echo $LITERATURE_CONFIG | jq -r .port)
-          DB_NAME=$(echo $LITERATURE_CONFIG | jq -r .dbname)
-          DB_USER=$(echo $LITERATURE_CONFIG | jq -r .username)
+          DB_HOST=$(echo "$LITERATURE_CONFIG" | jq -r .db_host)
+          DB_PORT=$(echo "$LITERATURE_CONFIG" | jq -r .db_port)
+          DB_NAME=$(echo "$LITERATURE_CONFIG" | jq -r .db_name)
+          DB_USER=$(echo "$LITERATURE_CONFIG" | jq -r .db_user)
           
           # Validate all required fields are present
           for var in SSM_INSTANCE_ID DB_HOST DB_PORT DB_NAME DB_USER; do
