@@ -400,11 +400,29 @@ jobs:
           
           # Quick database connectivity check
           echo "Testing database connection..."
-          if PGPASSWORD="$DB_CREDS" psql -h localhost -p ${{ steps.tunnel.outputs.local_port }} -U "${{ steps.db-config.outputs.db_user }}" -d "${{ steps.db-config.outputs.db_name }}" -c "SELECT current_database(), version();" >/dev/null 2>&1; then
+          echo "Connection details: localhost:${{ steps.tunnel.outputs.local_port }} user=${{ steps.db-config.outputs.db_user }} db=${{ steps.db-config.outputs.db_name }}"
+          
+          # Try connection with visible error output for debugging
+          if PGPASSWORD="$DB_CREDS" psql -h localhost -p ${{ steps.tunnel.outputs.local_port }} -U "${{ steps.db-config.outputs.db_user }}" -d "${{ steps.db-config.outputs.db_name }}" -c "SELECT current_database(), version();" 2>&1; then
             echo "✅ Database connection verified"
           else
-            echo "❌ Database connection test failed"
-            echo "Please check credentials and tunnel configuration"
+            echo "❌ Database connection test failed with exit code: $?"
+            
+            # Additional diagnostic information
+            echo "Checking if tunnel is still active..."
+            if nc -zv localhost ${{ steps.tunnel.outputs.local_port }} 2>&1; then
+              echo "✅ Tunnel port is responding"
+            else
+              echo "❌ Tunnel port is not responding"
+            fi
+            
+            # Check if the SSM process is still running
+            if ps -p ${{ steps.tunnel.outputs.pid }} >/dev/null 2>&1; then
+              echo "✅ SSM process is still running (PID: ${{ steps.tunnel.outputs.pid }})"
+            else
+              echo "❌ SSM process has died"
+            fi
+            
             exit 1
           fi
       
