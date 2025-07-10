@@ -787,8 +787,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                     term_key: {
                         "terms": {
                             "field": term_field,
-                            "size": size,
-                            "min_doc_count": 0
+                            "size": size
                         },
                         "aggs": {
                             # reverse nesting to count documents
@@ -800,6 +799,9 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 }
             }
         }
+        ##We want to see all options here.
+        if term_field == 'topic_entity_tags.confidence_level.keyword' :
+            tet_agg['aggs']['filter_by_other_tet_values']['aggs']['confidence_levels']['terms']['min_doc_count']=0
     else:
         tet_agg["aggs"] = {
             term_key: {
