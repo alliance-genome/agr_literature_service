@@ -1,7 +1,7 @@
 from typing import Optional
 
-from pydantic import BaseSettings, Field
-
+from pydantic import  Field
+from pydantic_settings import BaseSettings
 from agr_literature_service.api.schemas import EnvStateSchema
 
 
