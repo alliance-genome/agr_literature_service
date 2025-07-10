@@ -1,0 +1,645 @@
+{
+  "references": [
+    {
+      "curie": "AGRKB:101000000003857",
+      "title": "Voltage-clamp analysis of gap junctions between embryonic muscles in Drosophila.",
+      "abstract": "1. Intercellular communication between embryonic muscle fibres was examined in Drosophila melanogaster. 2. Injection of fluorescent dye revealed extensive coupling between muscle fibres which form a uniform communicating arrangement of cells without restriction at the segmental borders. 3. Dye transfer was blocked by octanol and membrane depolarization suggesting that it is mediated by gap junctions. 4. Double voltage-clamp experiments from cell pairs in situ showed that the ionic coupling is sensitive to the voltage difference between the cytoplasm and the extracellular space (transmembrane voltage, Vi-o) as well as between the cells (transjunctional voltage, Vj). 5. In steady-state conditions, the gap conductance (gj) was maximal for hyperpolarized Vi-o and decreased progressively to near zero as Vi-o became more positive than -50 mV. 6. Gap conductance decreased from a maximal value as Vj increased either in the positive or negative direction (by depolarizing or hyperpolarizing, respectively, one of the cells from a holding potential of -60 mV). In both cases, gj asymptotically approached a non-zero residual value which was different for negative and positive Vj (about 20% of the maximal conductance for negative transmembrane potentials and 10% for positive values). 7. Application of octanol (1 mM) resulted in an almost complete and reversible block of gj.",
+      "category": "research_article",
+      "date_published": "1994-12-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "481 ( Pt 2)",
+      "issue_name": "Pt 2",
+      "page_range": "371-83"
+    },
+    {
+      "curie": "AGRKB:101000000262585",
+      "title": "Modulation of B-cell tolerance by murine gammaherpesvirus 68 infection: requirement for Orf73 viral gene expression and follicular helper T cells.",
+      "abstract": "Viruses such as Epstein-Barr virus (EBV) have been linked to mechanisms that support autoantibody production in diseases such as systemic lupus erythematosus. However, the mechanisms by which viruses contribute to autoantibody production remain poorly defined. This stems in part, from the high level of seropositivity for EBV (> 95%) and the exquisite species specificity of EBV. In this study we overcame these problems by using murine gammaherpesvirus 68 (MHV68), a virus genetically and biologically related to EBV. We first showed that MHV68 drives autoantibody production by promoting a loss of B-cell anergy. We next showed that MHV68 infection resulted in the expansion of follicular helper T (Tfh) cells in vivo, and that these Tfh cells supported autoantibody production and a loss of B-cell anergy. Finally, we showed that the expansion of Tfh cells and autoantibody production was dependent on the establishment of viral latency and expression of a functional viral gene called Orf73. Collectively, our studies highlighted an unexpected role for viral latency in the development of autoantibodies following MHV68 infection and suggest that virus-induced expansion of Tfh cells probably plays a key role in the loss of B-cell anergy.",
+      "category": "research_article",
+      "date_published": "2013-06-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "139",
+      "issue_name": "2",
+      "page_range": "197-204"
+    },
+    {
+      "curie": "AGRKB:101000000095972",
+      "title": "Cloning and chromosomal assignment of a human cDNA encoding a T cell- and natural killer cell-specific trypsin-like serine protease.",
+      "abstract": "A cDNA clone encoding a human T cell- and natural killer cell-specific serine protease was obtained by screening a phage lambda gt10 cDNA library from phytohemagglutinin-stimulated human peripheral blood lymphocytes with the mouse Hanukah factor cDNA clone. In an RNA blot-hybridization analysis, this human Hanukah factor cDNA hybridized with a 1.3-kilobase band in allogeneic-stimulated cytotoxic T cells and the Jurkat cell line, but this transcript was not detectable in normal muscle, liver, tonsil, or thymus. By dot-blot hybridization, this cDNA hybridized with RNA from three cytolytic T-cell clones and three noncytolytic T-cell clones grown in vitro as well as with purified CD16+ natural killer cells and CD3+, CD16- T-cell large granular lymphocytes from peripheral blood lymphocytes (CD = cluster designation). The nucleotide sequence of this cDNA clone encodes a predicted serine protease of 262 amino acids. The predicted protein has a 22-amino acid presegment, a 6-amino acid prosegment, and an active enzyme of 234 amino acids with a calculated unglycosylated molecular weight of 25,820. The active enzyme is 71% and 77% similar to the mouse sequence at the amino acid and DNA level, respectively. The human and mouse sequences conserve the active site residues of serine proteases--the trypsin-specific Asp-189 and all 10 cysteine residues. The gene for the human Hanukah factor serine protease is located on human chromosome 5. We propose that this trypsin-like serine protease may function as a common component necessary for lysis of target cells by cytotoxic T lymphocytes and natural killer cells.",
+      "category": "research_article",
+      "date_published": "1988-02-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Comparative Study",
+        "Journal Article",
+        "Research Support, U.S. Gov't, P.H.S."
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "85",
+      "issue_name": "4",
+      "page_range": "1184-8"
+    },
+    {
+      "curie": "AGRKB:101000000095065",
+      "title": "Ig heavy chain variable region gene complex of lupus mice exhibits normal restriction fragment length polymorphism.",
+      "abstract": "B cell hyperactivity, hypergammaglobulinemia, and autoantibody expression, the hallmarks of systemic lupus erythematosus, might be associated with structural abnormalities within the Ig heavy chain variable region (Igh-V) gene complex. The Igh-V loci from several lupus-prone mouse strains, their ancestors, and other nonautoimmune mice were therefore analyzed by restriction fragment length polymorphisms with DNA probes corresponding to seven VH gene families. These seven families comprise the majority of the known polymorphic murine VH gene repertoire, including some involved in autoantibody generation. Our study showed that the Igh-V loci from lupus and haplotype-matched nonlupus mice resulted in essentially identical restriction fragment patterns, a finding which suggests that the Igh-V gene complex does not carry a primary defect responsible for autoimmune disease.",
+      "category": "research_article",
+      "date_published": "1985-07-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't",
+        "Research Support, U.S. Gov't, P.H.S."
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "162",
+      "issue_name": "1",
+      "page_range": "346-51"
+    },
+    {
+      "curie": "AGRKB:101000000000194",
+      "title": "Fat2 acts through the WAVE regulatory complex to drive collective cell migration during tissue rotation.",
+      "abstract": "Directional cell movements during morphogenesis require the coordinated interplay between membrane receptors and the actin cytoskeleton. The WAVE regulatory complex (WRC) is a conserved actin regulator. Here, we found that the atypical cadherin Fat2 recruits the WRC to basal membranes of tricellular contacts where a new type of planar-polarized whip-like actin protrusion is formed. Loss of either Fat2 function or its interaction with the WRC disrupts tricellular protrusions and results in the formation of nonpolarized filopodia. We provide further evidence for a molecular network in which the receptor tyrosine phosphatase Dlar interacts with the WRC to couple the extracellular matrix, the membrane, and the actin cytoskeleton during egg elongation. Our data uncover a mechanism by which polarity information can be transduced from a membrane receptor to a key actin regulator to control collective follicle cell migration during egg elongation. 4D-live imaging of rotating MCF10A mammary acini further suggests an evolutionary conserved mechanism driving rotational motions in epithelial morphogenesis.",
+      "category": "research_article",
+      "date_published": "2016-02-29",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "212",
+      "issue_name": "5",
+      "page_range": "591-603"
+    },
+    {
+      "curie": "AGRKB:101000000004895",
+      "title": "The behaving brain of a fly.",
+      "abstract": "The use of Drosophila as a suitable system to answer behavioural questions is usually based on the availability of mutant phenotypes. Indeed, the 'single-gene' approach to behaviour was a very illuminating strategy in practical and conceptual terms, and served to prove that the genetic mechanisms sustaining behaviour could be analysed. However, the essence of neurogenetics goes for beyond the utilitarian use of mutants as tools to dissect behavior. Our main contention is that the study of the genetic basis of behaviour requires the study of genomes, rather than single genes, and their functional organization. Here, we use two aspects of behaviour, olfaction and movement control, as examples to illustrate the intricate, albeit understandable, relationship between the genome and behaviour. At present, these examples offer only a glimpse into this relationship. Further progress might be reached if studies on the regulation of functionally related genes are undertaken. On these grounds, it appears that the answer to many fundamental questions about behaviour that are amendable to experimentation might come from the work on Drosophila, providing that the required multidisciplinary efforts are focused on this organism.",
+      "category": "research_article",
+      "date_published": "1994-11-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "17",
+      "issue_name": "11",
+      "page_range": "479-86"
+    },
+    {
+      "curie": "AGRKB:101000000259517",
+      "title": "Knockout of insulin-like growth factor-1 receptor impairs distal lung morphogenesis.",
+      "abstract": "<p><strong>Background</strong>: Insulin-like growth factors (IGF-I and -II) are pleiotropic regulators of somatic growth and development in vertebrate species. Endocrine and paracrine effects of both hormones are mediated by a common IGF type 1 receptor (IGF-1R). Lethal respiratory failure in neonatal IGF-1R knockout mice suggested a particular role for this receptor in pulmonary development, and we therefore investigated the consequences of IGF-1R inactivation in lung tissue.</p><p><strong>Methods and findings</strong>: We first generated compound heterozygous mutant mice harboring a hypomorphic (Igf1r(neo)) and a null (Igf1r(-)) allele. These IGF-1R(neo/-) mice express only 22% of normal IGF-1R levels and are viable. In adult IGF-1R(neo/-) mice, we assessed lung morphology and respiratory physiology and found normal histomorphometric characteristics and normal breathing response to hypercapnia. We then generated homozygous IGF-1R knockout mutants (IGF-1R(-/-)) and analyzed their lung development during late gestation using histomorphometric and immunohistochemical methods. IGF-1R(-/-) embryos displayed severe lung hypoplasia and markedly underdeveloped diaphragms, leading to lethal neonatal respiratory distress. Importantly, IGF-1R(-/-) lungs from late gestation embryos were four times smaller than control lungs and showed markedly thickened intersaccular mesenchyme, indicating strongly delayed lung maturation. Cell proliferation and apoptosis were significantly increased in IGF-1R(-/-) lung tissue as compared with IGF-1R(+/+) controls. Immunohistochemistry using pro-SP-C, NKX2-1, CD31 and vWF as markers revealed a delay in cell differentiation and arrest in the canalicular stage of prenatal respiratory organ development in IGF-1R(-/-) mutant mice.</p><p><strong>Conclusions/significance</strong>: We found that low levels of IGF-1R were sufficient to ensure normal lung development in mice. In contrast, complete absence of IGF-1R significantly delayed end-gestational lung maturation. Results indicate that IGF-1R plays essential roles in cell proliferation and timing of cell differentiation during fetal lung development.</p>",
+      "category": "research_article",
+      "date_published": "2012-01-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "7",
+      "issue_name": "11",
+      "page_range": "e48071"
+    },
+    {
+      "curie": "AGRKB:101000000825273",
+      "title": "Mus musculus mRNA for neuronal protein 15.6",
+      "abstract": "",
+      "category": "internal_process_reference",
+      "date_published": "1997",
+      "language": null,
+      "publisher": null,
+      "keywords": null,
+      "pubmed_types": null,
+      "pubmed_publication_status": null,
+      "volume": "",
+      "issue_name": "",
+      "page_range": null
+    },
+    {
+      "curie": "AGRKB:101000000249990",
+      "title": "\u03b1-Synuclein BAC transgenic mice as a model for Parkinson's disease manifested decreased anxiety-like behavior and hyperlocomotion.",
+      "abstract": "\u03b1-Synuclein (\u03b1-syn), the main component of Lewy bodies, was identified as a genetic risk factor for idiopathic Parkinson's disease (PD). As a model for PD, we generated human \u03b1-syn bacterial artificial chromosome transgenic mice (BAC tg mice) harboring the entire human \u03b1-syn gene and its gene expression regulatory regions. The \u03b1-syn BAC tg mice manifested decreased anxiety-like behaviors which may reflect non-motor symptoms of early PD, and they exhibited increased SERT expression that may be responsible for decreased anxiety-like behaviors. Our \u03b1-syn BAC tg mice could be a valuable tool to evaluate \u03b1-syn gene dosage effects in vivo.",
+      "category": "research_article",
+      "date_published": "2012-06-01",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [],
+      "pubmed_types": [
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "ppublish",
+      "volume": "73",
+      "issue_name": "2",
+      "page_range": "173-7"
+    },
+    {
+      "curie": "AGRKB:101000000011769",
+      "title": "Comparisons between the ON- and OFF-edge motion pathways in the <i>Drosophila</i> brain.",
+      "abstract": "Understanding the circuit mechanisms behind motion detection is a long-standing question in visual neuroscience. In <i>Drosophila melanogaster</i>, recently discovered synapse-level connectomes in the optic lobe, particularly in ON-pathway (T4) receptive-field circuits, in concert with physiological studies, suggest a motion model that is increasingly intricate when compared with the ubiquitous Hassenstein-Reichardt model. By contrast, our knowledge of OFF-pathway (T5) has been incomplete. Here, we present a conclusive and comprehensive connectome that, for the first time, integrates detailed connectivity information for inputs to both the T4 and T5 pathways in a single EM dataset covering the entire optic lobe. With novel reconstruction methods using automated synapse prediction suited to such a large connectome, we successfully corroborate previous findings in the T4 pathway and comprehensively identify inputs and receptive fields for T5. Although the two pathways are probably evolutionarily linked and exhibit many similarities, we uncover interesting differences and interactions that may underlie their distinct functional properties.",
+      "category": "research_article",
+      "date_published": "2019-01-09",
+      "language": "eng",
+      "publisher": null,
+      "keywords": [
+        "D. melanogaster",
+        "connectome",
+        "electron microscopy",
+        "motion detection",
+        "neuroanatomy",
+        "neuroscience",
+        "optic lobe",
+        "visual system"
+      ],
+      "pubmed_types": [
+        "Comparative Study",
+        "Journal Article",
+        "Research Support, Non-U.S. Gov't"
+      ],
+      "pubmed_publication_status": "epublish",
+      "volume": "8",
+      "issue_name": null,
+      "page_range": null
+    }
+  ],
+  "authors": [
+    {
+      "name": "R D Cole",
+      "orcid": null
+    },
+    {
+      "name": "Bing Zheng",
+      "orcid": null
+    },
+    {
+      "name": "A Jarmolowski",
+      "orcid": null
+    },
+    {
+      "name": "Lowri A Evans",
+      "orcid": null
+    },
+    {
+      "name": "Xu Shi-wen",
+      "orcid": null
+    },
+    {
+      "name": "Voon H Ong",
+      "orcid": null
+    },
+    {
+      "name": "Ivan Fisher",
+      "orcid": null
+    },
+    {
+      "name": "I W Mattaj",
+      "orcid": null
+    },
+    {
+      "name": "R F Rakowski",
+      "orcid": null
+    },
+    {
+      "name": "M C Gershengorn",
+      "orcid": null
+    },
+    {
+      "name": "M N Skoblina",
+      "orcid": null
+    },
+    {
+      "name": "T Matikainen",
+      "orcid": null
+    },
+    {
+      "name": "I Huhtaniemi",
+      "orcid": null
+    },
+    {
+      "name": "Fei-Yue Ma",
+      "orcid": null
+    },
+    {
+      "name": "Xiu-Mei Zhang",
+      "orcid": null
+    },
+    {
+      "name": "Ya Li",
+      "orcid": null
+    },
+    {
+      "name": "Ming Zhang",
+      "orcid": null
+    },
+    {
+      "name": "Xing-Hao Tu",
+      "orcid": null
+    },
+    {
+      "name": "H P Huemer",
+      "orcid": null
+    },
+    {
+      "name": "N A Churikov",
+      "orcid": null
+    }
+  ],
+  "resources": [
+    {
+      "title": "PLOS water",
+      "iso_abbreviation": "PLOS Water",
+      "medline_abbreviation": "PLOS Water",
+      "print_issn": null,
+      "online_issn": "2767-3219",
+      "publisher": null
+    },
+    {
+      "title": "AANA journal",
+      "iso_abbreviation": "AANA J",
+      "medline_abbreviation": "AANA J",
+      "print_issn": "0094-6354",
+      "online_issn": "2162-5239",
+      "publisher": null
+    },
+    {
+      "title": "Academia Peruana de Cirugia",
+      "iso_abbreviation": "Acad Peru Cir",
+      "medline_abbreviation": "Acad Peru Cir",
+      "print_issn": "0001-3854",
+      "online_issn": null,
+      "publisher": null
+    },
+    {
+      "title": "Acquisitions medicales recentes",
+      "iso_abbreviation": "Acquis Med Recent",
+      "medline_abbreviation": "Acquis Med Recent",
+      "print_issn": "0075-4463",
+      "online_issn": null,
+      "publisher": null
+    },
+    {
+      "title": "Academy review of the California Academy of Periodontology, United States Section, ARPA Internationale",
+      "iso_abbreviation": "Acad Rev Calif Acad Periodontol",
+      "medline_abbreviation": "Acad Rev Calif Acad Periodontol",
+      "print_issn": "0008-0810",
+      "online_issn": null,
+      "publisher": null
+    },
+    {
+      "title": "[Nihon shika hyoron] The Nippon dental review",
+      "iso_abbreviation": "Nihon Shika Hyoron",
+      "medline_abbreviation": "Nihon Shika Hyoron",
+      "print_issn": "0289-0909",
+      "online_issn": null,
+      "publisher": null
+    },
+    {
+      "title": "AADE editors' journal",
+      "iso_abbreviation": "AADE Ed J",
+      "medline_abbreviation": "AADE Ed J",
+      "print_issn": "0160-6999",
+      "online_issn": null,
+      "publisher": null
+    },
+    {
+      "title": "Current directions in biomedical engineering",
+      "iso_abbreviation": "Curr Dir Biomed Eng",
+      "medline_abbreviation": "Curr Dir Biomed Eng",
+      "print_issn": null,
+      "online_issn": "2364-5504",
+      "publisher": null
+    },
+    {
+      "title": "AARN news letter",
+      "iso_abbreviation": "AARN News Lett",
+      "medline_abbreviation": "AARN News Lett",
+      "print_issn": "0001-0197",
+      "online_issn": null,
+      "publisher": null
+    },
+    {
+      "title": "Acarologia",
+      "iso_abbreviation": "Acarologia",
+      "medline_abbreviation": "Acarologia",
+      "print_issn": "0044-586X",
+      "online_issn": null,
+      "publisher": null
+    }
+  ],
+  "citations": [
+    {
+      "citation": "A A Aravin; V V Vagin; Ia M Rozovski\u012d; V A Gvozdev, (2001) [Inhibition of gene expression by administration of homologous double-stranded RNA in Drosophila melanogaster cell culture].. Genetika 37(6):779-83",
+      "short_citation": "Aravin AA (2001) Genetika 37(6):779-83"
+    },
+    {
+      "citation": "G O Williams; E R Banboye, (1996) Genetic load in chromosomes 3 in a population of Drosophila melanogaster in Lagos, Nigeria.. Hereditas 125(1):83-7",
+      "short_citation": "Williams GO (1996) Hereditas 125(1):83-7"
+    },
+    {
+      "citation": "B.N. Sidorov; L.V. Ferry; N.I. Shapiro, (1930) Influence of heterozygote structure of chromosomes upon the crossing-over of Drosophila melanogaster.. Zhurnal eksperimental'noi biologii i meditsiny 6():",
+      "short_citation": "Sidorov B.N. (1930)   6():"
+    },
+    {
+      "citation": "Lijuan Liu; Chun-Fang Wu, (2014) Distinct effects of Abelson kinase mutations on myocytes and neurons in dissociated Drosophila embryonic cultures: mimicking of high temperature.. PloS one 9(1):e86438",
+      "short_citation": "Liu L (2014) PLoS One 9(1):e86438"
+    },
+    {
+      "citation": "Srinivasa R Rao; Sam W Z Olechnowicz; Patrick Kr\u00e4tschmer; James E C Jepson; Claire M Edwards; James R Edwards, (2019) Small Animal Video Tracking for Activity and Path Analysis Using a Novel Open-Source Multi-Platform Application (AnimApp).. Scientific reports 9(1):12343",
+      "short_citation": "Rao SR (2019) Sci Rep 9(1):12343"
+    },
+    {
+      "citation": "Katharine C Abruzzi; Corrie Ratner; Michael Rosbash, (2023) Comparison of TRIBE and STAMP for identifying targets of RNA binding proteins in human and <i>Drosophila</i> cells.. RNA (New York, N.Y.) 29(8):1230-1242",
+      "short_citation": "Abruzzi KC (2023) RNA 29(8):1230-1242"
+    },
+    {
+      "citation": "Swati Rawat; Kalyan C Kondapalli; Andria V Rodrigues; Timothy L Stemmler, (2019) Backbone resonance assignments and secondary structure of the apo-Drosophila melanogaster frataxin homolog (Dfh).. Biomolecular NMR assignments 13(2):377-381",
+      "short_citation": "Rawat S (2019) Biomol NMR Assign 13(2):377-381"
+    },
+    {
+      "citation": "Sang-Chul Nam; Kwang-Wook Choi, (2006) Domain-specific early and late function of Dpatj in Drosophila photoreceptor cells.. Developmental dynamics : an official publication of the American Association of Anatomists 235(6):1501-7",
+      "short_citation": "Nam SC (2006) Dev Dyn 235(6):1501-7"
+    },
+    {
+      "citation": "Tatyana D Kolesnikova; Fedor P Goncharov; Igor F Zhimulev, (2018) Similarity in replication timing between polytene and diploid cells is associated with the organization of the Drosophila genome.. PloS one 13(4):e0195207",
+      "short_citation": "Kolesnikova TD (2018) PLoS One 13(4):e0195207"
+    },
+    {
+      "citation": "H.J. Muller; B.B. League; C.A. Offermann, (1931) Effects of dosage changes of sex linked genes, and the compensatory effects of other gene differences between male and female.. The Anatomical record. Supplement : an offical publication of the American Association of Anatomists 51():",
+      "short_citation": "Muller H.J. (1931) Anat Rec Suppl 51():"
+    }
+  ],
+  "cross_references": [
+    {
+      "curie": "PMID:26291458",
+      "is_obsolete": false
+    },
+    {
+      "curie": "DOI:10.1016/j.mod.2017.04.002",
+      "is_obsolete": false
+    },
+    {
+      "curie": "FB:FBrf0237262",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMID:28433748",
+      "is_obsolete": false
+    },
+    {
+      "curie": "DOI:10.1128/MCB.19.3.2322",
+      "is_obsolete": false
+    },
+    {
+      "curie": "FB:FBrf0106118",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMCID:PMC84024",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMID:10022918",
+      "is_obsolete": false
+    },
+    {
+      "curie": "DOI:10.1093/genetics/44.6.1041",
+      "is_obsolete": false
+    },
+    {
+      "curie": "FB:FBrf0012631",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMCID:PMC1224415",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMID:17247875",
+      "is_obsolete": false
+    },
+    {
+      "curie": "FB:FBrf0042850",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMID:3926638",
+      "is_obsolete": false
+    },
+    {
+      "curie": "DOI:10.1007/s00359-009-0489-5",
+      "is_obsolete": false
+    },
+    {
+      "curie": "FB:FBrf0209778",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMCID:PMC2797847",
+      "is_obsolete": false
+    },
+    {
+      "curie": "PMID:19924417",
+      "is_obsolete": false
+    },
+    {
+      "curie": "DOI:10.1534/genetics.107.081968",
+      "is_obsolete": false
+    },
+    {
+      "curie": "FB:FBrf0202785",
+      "is_obsolete": false
+    }
+  ],
+  "relations": [
+    {
+      "reference_relation_type": "ReferenceRelationType.ErratumFor"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RetractionOf"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RepublishedFrom"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RetractionOf"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RepublishedFrom"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RepublishedFrom"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RepublishedFrom"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.ErratumFor"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RepublishedFrom"
+    },
+    {
+      "reference_relation_type": "ReferenceRelationType.RepublishedFrom"
+    }
+  ],
+  "copyright_licenses": [
+    {
+      "name": "CC BY",
+      "url": "https://creativecommons.org/licenses/by/4.0/",
+      "description": "This license allows reusers to distribute, remix, adapt, and build upon the material in any medium or format, so long as attribution is given to the creator. The license allows for commercial use.",
+      "open_access": true
+    },
+    {
+      "name": "CC BY-SA",
+      "url": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "description": "This license allows reusers to distribute, remix, adapt, and build upon the material in any medium or format, so long as attribution is given to the creator. The license allows for commercial use. If you remix, adapt, or build upon the material, you must license the modified material under identical terms.",
+      "open_access": true
+    },
+    {
+      "name": "CC BY-NC",
+      "url": "https://creativecommons.org/licenses/by-nc/4.0/",
+      "description": "This license allows reusers to distribute, remix, adapt, and build upon the material in any medium or format for noncommercial purposes only, and only so long as attribution is given to the creator.",
+      "open_access": true
+    },
+    {
+      "name": "CC BY-NC-SA",
+      "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+      "description": "This license allows reusers to distribute, remix, adapt, and build upon the material in any medium or format for noncommercial purposes only, and only so long as attribution is given to the creator. If you remix, adapt, or build upon the material, you must license the modified material under identical terms.",
+      "open_access": true
+    },
+    {
+      "name": "CC BY-ND",
+      "url": "https://creativecommons.org/licenses/by-nd/4.0/",
+      "description": "This license allows reusers to copy and distribute the material in any medium or format in unadapted form only, and only so long as attribution is given to the creator. The license allows for commercial use.",
+      "open_access": true
+    },
+    {
+      "name": "CC BY-NC-ND",
+      "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "description": "This license allows reusers to copy and distribute the material in any medium or format in unadapted form only, for noncommercial purposes only, and only so long as attribution is given to the creator.",
+      "open_access": true
+    },
+    {
+      "name": "CC0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "description": "This license (aka CC Zero) is a public dedication tool, which allows creators to give up their copyright and put their works into the worldwide public domain. CC0 allows reusers to distribute, remix, adapt, and build upon the material in any medium or format, with no conditions.",
+      "open_access": true
+    },
+    {
+      "name": "PMC-none",
+      "url": "",
+      "description": "PMC XML says license is \"none\"",
+      "open_access": false
+    }
+  ],
+  "mesh_terms": [
+    {
+      "heading_term": "Drosophila melanogaster",
+      "qualifier_term": "embryology"
+    },
+    {
+      "heading_term": "Drosophila melanogaster",
+      "qualifier_term": "genetics"
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Fasting",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Aging",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "DNA Damage",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Drosophila melanogaster",
+      "qualifier_term": "metabolism"
+    },
+    {
+      "heading_term": "Electron Transport Complex I",
+      "qualifier_term": "metabolism"
+    },
+    {
+      "heading_term": "Mitochondria",
+      "qualifier_term": "metabolism"
+    },
+    {
+      "heading_term": "NAD",
+      "qualifier_term": "metabolism"
+    },
+    {
+      "heading_term": "Reactive Oxygen Species",
+      "qualifier_term": "metabolism"
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Animals",
+      "qualifier_term": null
+    },
+    {
+      "heading_term": "Drosophila",
+      "qualifier_term": "embryology"
+    },
+    {
+      "heading_term": "Drosophila",
+      "qualifier_term": "genetics"
+    },
+    {
+      "heading_term": "Drosophila",
+      "qualifier_term": "metabolism"
+    }
+  ]
+}

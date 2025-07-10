@@ -3,6 +3,7 @@ import json
 from typing import List, Dict, Set, Tuple
 
 from sqlalchemy import or_, and_, text
+from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
@@ -262,22 +263,27 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                                        f"AND mca.corpus is True "
                                        f"AND mca.reference_id = r.reference_id "
                                        f"AND r.prepublication_pipeline is False")).fetchall()
-    for x in mca_rows:
-        if x[1] not in valid_reference_ids:
-            # move the papers outside corpus if they only have invalid MOD curies
-            try:
-                with db_session.begin():
-                    db_session.execute(text(f"UPDATE mod_corpus_association "
-                                            f"SET corpus = False "
-                                            f"WHERE mod_corpus_association_id = {int(x[0])}"))
+    try:
+        # update those that are no longer valid
+        for assoc_id, ref_id in mca_rows:
+            if ref_id not in valid_reference_ids:
+                db_session.execute(
+                    text("""
+                     UPDATE mod_corpus_association
+                        SET corpus = False
+                     WHERE mod_corpus_association_id = :assoc_id
+                    """),
+                    {"assoc_id": assoc_id}
+                )
                 if logger:
-                    logger.info(f"Moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}")
-            except Exception as e:
-                if logger:
-                    logger.info(f"An error occurred when moving {mod} paper out of corpus for mod_corpus_association_id = {x[0]}. Error = {e}")
-
-    db_session.commit()
-    # db_session.rollback()
+                    logger.info(
+                        f"Moving {mod} paper out of corpus for assoc_id={assoc_id}"
+                    )
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        if logger:
+            logger.error(f"Failed to move {mod} papers out of corpus: {e}")
 
 
 def _is_prepublication_pipeline(db_session: Session, reference_id):  # pragma: no cover
@@ -490,6 +496,10 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: List[Di
     if authors_lists_are_equal(authors_from_json, authors_from_db):
         return []
 
+    # Compute a dynamic offset above any existing order
+    max_order = max((a.order for a in authors_from_db), default=0)
+    author_offset = max_order + 1
+
     # create dictionaries of authors for comparison
     # example unique key: ('maita', 'nobuo', 'n', 'nobuo maita')
     authors_in_db_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_db}
@@ -572,7 +582,8 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: List[Di
         temp_order_map, name_updated = update_author_row(db_session, reference_id,
                                                          old_order, json_author,
                                                          pmid, temp_order_map,
-                                                         name_updated, fw, logger)
+                                                         name_updated, author_offset,
+                                                         fw, logger)
 
     """
     Step 5: Delete author rows in the author_order_to_delete_record
@@ -600,13 +611,11 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: List[Di
     """
     Step 8: Set the author orders (from the temp orders) to the ones in json
     """
-    for old_order, new_order in temp_order_map.items():
-        if old_order != new_order:
-            x = db_session.query(AuthorModel).filter_by(
-                reference_id=reference_id, order=old_order).one_or_none()
-            if x:
-                x.order = new_order
-                db_session.add(x)
+    for author_id, new_order in temp_order_map.items():
+        x = db_session.query(AuthorModel).filter_by(author_id=author_id).one_or_none()
+        if x and x.order != new_order:
+            x.order = new_order
+            db_session.add(x)
 
     """
     step 9: logging update summary
@@ -669,7 +678,7 @@ def insert_authors(db_session: Session, reference_id, pmid, author_order_to_add_
     return name_added
 
 
-def update_author_row(db_session: Session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, fw, logger):  # pragma: no cover
+def update_author_row(db_session: Session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, author_offset, fw, logger):  # pragma: no cover
 
     x = db_session.query(AuthorModel).filter_by(
         reference_id=reference_id, order=author_order).one_or_none()
@@ -690,9 +699,9 @@ def update_author_row(db_session: Session, reference_id, author_order, json_auth
         if x.orcid != json_author.orcid:
             x.orcid = json_author.orcid
         if x.order != json_author.order:
-            tmp_order = x.order + 1000
+            tmp_order = x.order + author_offset
             x.order = tmp_order
-            temp_order_map[tmp_order] = json_author.order
+            temp_order_map[x.author_id] = json_author.order
         db_session.add(x)
         log_message = f": UPDATE AUTHOR for {x.name} | {x.affiliations}"
         _write_log_message(reference_id, log_message, pmid, logger, fw)
@@ -806,7 +815,7 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
                 logger.info("The mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + " has been added into database.")
             except Exception as e:
                 logger.info("An error occurred when adding mod_corpus_association row for reference_id = " + str(reference_id) + " and mod = " + mod + ". " + str(e))
-
+                return
         elif json_mca_entry['corpus'] != db_mod_corpus_association[mod]['corpus']:
             mod_corpus_association_id = db_mod_corpus_association[mod]['id']
             try:
@@ -814,6 +823,41 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
                 logger.info("The mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " has been updated in the database.")
             except Exception as e:
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
+                return
+        if mod == "ZFIN" and json_mca_entry.get("corpus"):
+            add_zfin_pre_indexing_tag(db_session, reference_id, mod_to_mod_id[mod], logger)
+
+
+def add_zfin_pre_indexing_tag(db, reference_id, mod_id, logger):
+    try:
+        # all ZFIN pre-indexing–style tags
+        allowed_tags = [
+            'ATP:0000303',
+            'ATP:0000304',
+            'ATP:0000305',
+            'ATP:0000306'
+        ]
+        existing = (
+            db.query(WorkflowTagModel)
+              .filter(
+                  WorkflowTagModel.reference_id == reference_id,
+                  WorkflowTagModel.mod_id == mod_id,
+                  WorkflowTagModel.workflow_tag_id.in_(allowed_tags)).first()
+        )
+        if existing is None:
+            atpid = 'ATP:0000306'
+            x = WorkflowTagModel(
+                reference_id=reference_id,
+                mod_id=mod_id,
+                workflow_tag_id=atpid
+            )
+            db.add(x)
+            db.commit()
+            logger.info(f"Adding ZFIN pre-indexing tag: {atpid}")
+        else:
+            logger.info(f"ZFIN pre-indexing tag already exists: {existing.workflow_tag_id}")
+    except Exception as e:
+        logger.error(f"Error when adding ZFIN pre-indexing tag: {e}")
 
 
 def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
@@ -1481,3 +1525,38 @@ def insert_referencefile(db_session: Session, pmid, file_class, file_publication
         logger.info("PMID:" + pmid + ": pmc oa file = " + file_name_with_suffix + " an error occurred when loading data into Referencefile table. error: " + str(e))
 
     return referencefile_id
+
+
+def set_category_for_fb_note_papers(db, logger):
+    stmt = text("""
+        UPDATE reference
+        SET category = 'Comment'
+        WHERE reference_id IN (
+            SELECT rmrt.reference_id
+              FROM reference_mod_referencetype rmrt
+              JOIN mod_referencetype mrt
+                ON rmrt.mod_referencetype_id = mrt.mod_referencetype_id
+              JOIN referencetype rt
+                ON mrt.referencetype_id = rt.referencetype_id
+              JOIN mod m
+                ON mrt.mod_id = m.mod_id
+             WHERE rt.label = 'note'
+               AND m.abbreviation = 'FB'
+        )
+          AND reference_id NOT IN (
+            SELECT mca.reference_id
+              FROM mod_corpus_association mca
+              JOIN mod m2
+                ON mca.mod_id = m2.mod_id
+             WHERE mca.corpus = TRUE
+               AND m2.abbreviation <> 'FB'
+        )
+          AND category <> 'Comment'
+    """)
+    try:
+        result: Result = db.execute(stmt)
+        db.commit()
+        logger.info(f"Set category='Comment' for {result.rowcount} FB paper(s) with 'note' reference type")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to set category for FB note papers. Error={e}")

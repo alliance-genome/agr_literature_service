@@ -4,9 +4,14 @@ workflow_tag_model.py
 """
 
 from typing import Dict, List
-
-from sqlalchemy import (Column, ForeignKey, Integer,
-                        String)
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    CheckConstraint,
+)
 from sqlalchemy.orm import relationship, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -20,13 +25,27 @@ class WorkflowTagModel(AuditedModel, Base):
     __tablename__ = "workflow_tag"
     __versioned__: Dict = {}
 
+    # enforce uniqueness on mod_id + reference_id + workflow_tag_id
+    __table_args__ = (
+        UniqueConstraint(
+            'mod_id',
+            'reference_id',
+            'workflow_tag_id',
+            name='uq_workflow_tag_mod_ref_tag'
+        ),
+        # make sure workflow_tag_id always starts with 'ATP:'
+        CheckConstraint(
+            "workflow_tag_id LIKE 'ATP:%'",
+            name='ck_workflow_tag_id_prefix'
+        ),
+    )
+
     reference_workflow_tag_id = Column(
         Integer,
         primary_key=True,
         autoincrement=True
     )
 
-# reference id - internal reference id
     reference_id = Column(
         Integer,
         ForeignKey("reference.reference_id", ondelete="CASCADE"),
@@ -40,14 +59,12 @@ class WorkflowTagModel(AuditedModel, Base):
         back_populates="workflow_tag"
     )
 
-# workflow_tag node term-id - string from A api.
     workflow_tag_id = Column(
         String(),
         unique=False,
         nullable=False
     )
 
-# mod - from mod table (null means all).  Curators will be explicit and know that null means all, would never want to be vague and separate vague null from explicit all.
     mod_id = Column(
         Integer,
         ForeignKey("mod.mod_id"),
@@ -66,5 +83,8 @@ class WorkflowTagModel(AuditedModel, Base):
         """
         Overwrite the default output.
         """
-        return f"ID: {self.reference_workflow_tag_id} "\
-            f"mod: {self.mod.abbreviation}, ref: {self.reference_id}, workflow_tag: {self.workflow_tag_id} date_created: {self.date_created}"
+        return (
+            f"ID: {self.reference_workflow_tag_id} "
+            f"mod: {self.mod.abbreviation}, ref: {self.reference_id}, "
+            f"workflow_tag: {self.workflow_tag_id} date_created: {self.date_created}"
+        )

@@ -5,7 +5,8 @@ topic_entity_tag_model.py
 
 from typing import Dict, List
 
-from sqlalchemy import Column, ForeignKey, Integer, String, and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
+from sqlalchemy import Column, ForeignKey, Integer, String, Float, \
+    and_, CheckConstraint, UniqueConstraint, Boolean, or_, Table
 from sqlalchemy.orm import relationship, Mapped
 
 from agr_literature_service.api.database.base import Base
@@ -123,6 +124,12 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
+    confidence_score = Column(
+        Float(),
+        nullable=True,
+        unique=False
+    )
+
     confidence_level = Column(
         String(),
         nullable=True,
@@ -141,6 +148,12 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False,
         default=False,
         server_default='false'
+    )
+
+    data_novelty = Column(
+        String(),
+        nullable=True,
+        unique=False
     )
 
     validated_by = relationship(

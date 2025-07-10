@@ -25,7 +25,7 @@
     "batch.size": 1500,
     "transforms.dropPrefix.type":"org.apache.kafka.connect.transforms.RegexRouter",
     "transforms.dropPrefix.regex":"reference_joined",
-    "transforms.dropPrefix.replacement":"${DEBEZIUM_INDEX_NAME}",
+    "transforms.dropPrefix.replacement":"${SINK_INDEX_NAME}",
     "auto.create.indices.at.start": "false"
   }
 }

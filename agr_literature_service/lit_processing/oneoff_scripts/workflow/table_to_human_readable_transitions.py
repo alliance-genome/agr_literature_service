@@ -54,6 +54,7 @@ def print_transitions(db: Session, comma_format, mod_only: str, debug: bool):  #
           from workflow_transition"""
         if mod_only:
             query += f" where mod_id = '{mod_ids[mod_only]}'"
+        query += "order by condition, transition_from, transition_to"
         trans = db.execute(text(query)).mappings().fetchall()
         start = '{'
         end = '}'

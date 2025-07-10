@@ -31,7 +31,7 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
     with TestClient(app) as client:
         new_wt = {"reference_curie": test_reference.new_ref_curie,
                   "mod_abbreviation": test_mod.new_mod_abbreviation,
-                  "workflow_tag_id": "ont1",
+                  "workflow_tag_id": "ATP:0001111",
                   }
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
         yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
@@ -48,7 +48,7 @@ class TestWorkflowTag:
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {"reference_curie": test_workflow_tag.related_ref_curie,
-                   "workflow_tag_id": "ont1"
+                   "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -60,13 +60,13 @@ class TestWorkflowTag:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
             xml = {"mod_abbreviation": test_workflow_tag.related_mod_abbreviation,
-                   "workflow_tag_id": "ont1"
+                   "workflow_tag_id": "ATP:0001111"
                    }
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
             xml = {'mod_abbreviation': "",
-                   'workflow_tag_id': "ont tgba",
+                   'workflow_tag_id': "ATP:0002222",
                    'reference_curie': test_workflow_tag.related_ref_curie}
             response = client.post(url="/workflow_tag/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -78,12 +78,12 @@ class TestWorkflowTag:
             join(ReferenceModel,
                  WorkflowTagModel.reference_id == ReferenceModel.reference_id). \
             filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
-        assert ref_wt_obj.workflow_tag_id == "ont1"
+        assert ref_wt_obj.workflow_tag_id == "ATP:0001111"
 
     def test_patch_ref_wt(self, db, test_workflow_tag, auth_headers): # noqa
         with TestClient(app) as client:
             # change workflow_tag
-            xml = {"workflow_tag_id": "ont test patch",
+            xml = {"workflow_tag_id": "ATP:0003333",
                    "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
                    }
             response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml, headers=auth_headers)
@@ -92,13 +92,13 @@ class TestWorkflowTag:
             ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
                 WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
             assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
-            assert ref_wt_obj.workflow_tag_id == "ont test patch"
+            assert ref_wt_obj.workflow_tag_id == "ATP:0003333"
 
             transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions").json()
-            assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ont1'
+            assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ATP:0001111'
             assert not transactions[0]['changeset']['mod_id'][0]
-            assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ont1'
-            assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ont test patch'
+            assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ATP:0001111'
+            assert transactions[1]['changeset']['workflow_tag_id'][1] == 'ATP:0003333'
 
     def test_patch_ref_wt_blank_mod_abbr(self, db, test_workflow_tag, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -118,7 +118,7 @@ class TestWorkflowTag:
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
             assert res['reference_curie'] == test_workflow_tag.related_ref_curie
-            assert res['workflow_tag_id'] == 'ont1'
+            assert res['workflow_tag_id'] == 'ATP:0001111'
             assert res['mod_abbreviation'] == test_workflow_tag.related_mod_abbreviation
 
     def test_destroy_ref_wt(self, test_workflow_tag, auth_headers): # noqa
@@ -216,7 +216,7 @@ class TestWorkflowTag:
                 patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
                 mock_get_map_ateam_curies_to_names:
             mock_get_map_ateam_curies_to_names.return_value = {
-                'ATP:0000141': 'file needed', 'ont1': 'test',
+                'ATP:0000141': 'file needed', 'ATP:0001111': 'test',
                 'ATP:0000168': 'catalytic activity classification complete'
             }
             # Create additional references and MODs
@@ -313,3 +313,81 @@ class TestWorkflowTag:
             empty_counters = response.json()
             assert isinstance(empty_counters, list)
             assert len(empty_counters) == 0  # Should be an empty dictionary
+
+    def test_get_indexing_and_community_workflow_tags(self, test_workflow_tag, db, auth_headers): # noqa
+        """Test the get_indexing_and_community_workflow_tags endpoint."""
+        with patch(
+            "agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+            load_name_to_atp_and_relationships_mock
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process"
+        ) as mock_get_workflow_tags, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children"
+        ) as mock_get_name_to_atp, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.atp_to_name"
+        ) as mock_atp_to_name, patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names"
+        ) as mock_get_map_ateam_curies_to_names:
+
+            # ── configure our mocks ─────────────────────────────────
+            mock_get_workflow_tags.return_value = [
+                "ATP:0000274", "ATP:0000275", "ATP:0000276"
+            ]
+            mock_get_name_to_atp.return_value = (
+                {},
+                {
+                    "ATP:0000274": "manual indexing needed",
+                    "ATP:0000275": "manual indexing in progress",
+                    "ATP:0000276": "manual indexing complete",
+                }
+            )
+            mock_atp_to_name.get.return_value = "manual indexing needed"
+            mock_get_map_ateam_curies_to_names.return_value = {
+                "ATP:0000274": "manual indexing needed",
+                "ATP:0000275": "manual indexing in progress",
+                "ATP:0000276": "manual indexing complete",
+            }
+            # ── insert one WorkflowTagModel for “manual indexing” ─────
+            reference = (
+                db.query(ReferenceModel)
+                .filter(ReferenceModel.curie == test_workflow_tag.related_ref_curie)
+                .one()
+            )
+            mod = (
+                db.query(ModModel)
+                .filter(ModModel.abbreviation == test_workflow_tag.related_mod_abbreviation)
+                .one()
+            )
+            db.add(WorkflowTagModel(
+                reference_id=reference.reference_id,
+                mod_id=mod.mod_id,
+                workflow_tag_id="ATP:0000274"
+            ))
+            db.commit()
+
+            # ── exercise the indexing-community endpoint ─────────────
+            with TestClient(app) as client:
+                base = f"/workflow_tag/indexing-community/{test_workflow_tag.related_ref_curie}"
+
+                # 1) no mod_abbreviation → should return all statuses
+                r = client.get(base, headers=auth_headers)
+                assert r.status_code == status.HTTP_200_OK
+                assert isinstance(r.json(), dict)
+
+                # 2) with mod_abbreviation as query parameter
+                r = client.get(base,
+                               params={"mod_abbreviation": test_workflow_tag.related_mod_abbreviation},
+                               headers=auth_headers)
+                assert r.status_code == status.HTTP_200_OK
+                assert isinstance(r.json(), dict)
+
+                # 3) a skipped MOD (MGI) → empty dict
+                r = client.get(base, params={"mod_abbreviation": "MGI"}, headers=auth_headers)
+                assert r.status_code == status.HTTP_200_OK
+                assert r.json() == {}
+
+                # 4) non-existent reference → 404
+                r = client.get("/workflow_tag/indexing-community/AGR:NONEXISTENT",
+                               headers=auth_headers)
+                assert r.status_code == status.HTTP_404_NOT_FOUND
+                assert 'Reference with the reference_id or curie AGR:NONEXISTENT is not available' in r.json()["detail"]
