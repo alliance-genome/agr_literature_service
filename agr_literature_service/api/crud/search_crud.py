@@ -688,15 +688,26 @@ def remap_highlights(highlights):  # pragma: no cover
 
 def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet):  # pragma: no cover
     tet_facet_values = defaultdict(list)
+    ##Not Facets
+    levels = []
+    if tet_nested_facets_values["tet_facets_negative_values"]:
+        if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+            ##Not 100% sure this first line is necessary
+            es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+
+        for level in tet_nested_facets_values['tet_facets_negative_values'][0][
+            'topic_entity_tags.confidence_level.keyword']:
+            levels.append({"term": {"topic_entity_tags.confidence_level.keyword": level}})
+
     for facet_name_value_dict in tet_nested_facets_values.get("tet_facets_values", []):
-        add_nested_query(es_body, facet_name_value_dict)
+        add_nested_query(es_body, facet_name_value_dict, levels)
         if apply_to_single_tet:
             for facet_name, facet_value in facet_name_value_dict.items():
                 tet_facet_values[facet_name.replace("topic_entity_tags.", "").replace(".keyword", "")] = facet_value
     return tet_facet_values
 
 
-def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
+def add_nested_query(es_body, facet_name_values_dict,levels):  # pragma: no cover
     must_conditions = []
     for facet_name, facet_values in facet_name_values_dict.items():
         if facet_name == "topic_entity_tags.source_evidence_assertion.keyword":
@@ -712,11 +723,13 @@ def add_nested_query(es_body, facet_name_values_dict):  # pragma: no cover
             "path": "topic_entity_tags",
             "query": {
                 "bool": {
-                    "must": must_conditions
+                    "must": must_conditions,
+                    "must_not" :levels
                 }
             }
         }
     }
+
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
 
@@ -786,6 +799,9 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 }
             }
         }
+        ##We want to see all options here.
+        if term_field == 'topic_entity_tags.confidence_level.keyword' :
+            tet_agg['aggs']['filter_by_other_tet_values']['aggs']['confidence_levels']['terms']['min_doc_count']=0
     else:
         tet_agg["aggs"] = {
             term_key: {
