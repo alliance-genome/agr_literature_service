@@ -49,6 +49,12 @@ def check_obsolete_pmids():
     return check_crud.check_obsolete_pmids()
 
 
+@router.get('/check_duplicate_orcids',
+            status_code=200)
+def check_duplicate_orcids():
+    return check_crud.check_duplicate_orcids()
+
+
 @router.get('/environments',
             response_model=EnvironmentsSchemaShow,
             status_code=200)
