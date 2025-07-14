@@ -146,18 +146,21 @@ def check_duplicate_orcids():
     date_produced = None
     data = defaultdict(list)
 
-    with open(log_file, 'r') as f:
-        for line in f:
-            if 'date-produced:' in line:
-                date_produced = line.split('date-produced: ')[1].strip()
-            else:
-                pieces = line.strip().split('\t')
-                if len(pieces) >= 4:
-                    data[pieces[0]].append({
-                        "reference_curie": pieces[1],
-                        "orcid": pieces[2],
-                        "author_names": pieces[3]
-                    })
+    try:
+        with open(log_file, 'r') as f:
+            for line in f:
+                if 'date-produced:' in line:
+                    date_produced = line.split('date-produced: ')[1].strip()
+                else:
+                    pieces = line.strip().split('\t')
+                    if len(pieces) >= 4:
+                        data[pieces[0]].append({
+                            "reference_curie": pieces[1],
+                            "orcid": pieces[2],
+                            "author_names": pieces[3]
+                        })
+    except FileNotFoundError:
+        return {"date-produced": None, "duplicate_orcids": {}}
 
     return {
         "date-produced": date_produced,
