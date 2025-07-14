@@ -15,7 +15,7 @@ logger.setLevel(logging.INFO)
 def check_data():
     data_to_report = []
     for mod_abbr in get_mod_abbreviations():
-        logger.info(f"Getting pmids for {mod_abbr}.")
+        logger.info(f"Getting duplicate ORCIDs for {mod_abbr}.")
         db = create_postgres_session(False)
         db_rows = get_all_author_duplicate_orcid_reference_for_mod(db, mod_abbr)
         db.close()
@@ -55,7 +55,7 @@ def get_all_author_duplicate_orcid_reference_for_mod(db, mod_abbr):
 def write_report(data_to_report):
     log_path = environ.get('LOG_PATH', '.')
     log_file = path.join(log_path, "QC/duplicate_orcid_report.log")
-    print("log_file=", log_file)
+    # print("log_file=", log_file)
     datestamp = str(date.today()).replace("-", "")
     log_file_with_datestamp = path.join(log_path, f"QC/duplicate_orcid_report_{datestamp}.log")
     with open(log_file, "w") as f:

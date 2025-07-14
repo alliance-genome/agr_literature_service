@@ -161,7 +161,7 @@ def check_duplicate_orcids():
 
     return {
         "date-produced": date_produced,
-        "obsolete_pmids": dict(data)
+        "duplicate_orcids": dict(data)
     }
 
 
