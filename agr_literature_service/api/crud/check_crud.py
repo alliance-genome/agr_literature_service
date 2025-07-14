@@ -140,6 +140,31 @@ def check_obsolete_pmids():
     }
 
 
+def check_duplicate_orcids():
+    log_path = environ.get('LOG_PATH', '.')
+    log_file = path.join(log_path, "QC/duplicate_orcid_report.log")
+    date_produced = None
+    data = defaultdict(list)
+
+    with open(log_file, 'r') as f:
+        for line in f:
+            if 'date-produced:' in line:
+                date_produced = line.split('date-produced: ')[1].strip()
+            else:
+                pieces = line.strip().split('\t')
+                if len(pieces) >= 4:
+                    data[pieces[0]].append({
+                        "reference_curie": pieces[1],
+                        "orcid": pieces[2],
+                        "author_names": pieces[3]
+                    })
+
+    return {
+        "date-produced": date_produced,
+        "obsolete_pmids": dict(data)
+    }
+
+
 def show_environments():
     """
     But only those that are not sensitive. i.e. NO passwords etc
