@@ -1,4 +1,3 @@
-```python
 from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, constr
@@ -68,4 +67,3 @@ class DatasetEntrySchemaDelete(DatasetSchemaBase):
     version: int
     reference_curie: str
     entity: Optional[str] = None
-```
