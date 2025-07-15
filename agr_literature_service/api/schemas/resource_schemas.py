@@ -1,19 +1,22 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from agr_literature_service.api.schemas import (AuditedObjectModelSchema,
-                                                CrossReferenceSchemaRelated, EditorSchemaPost,
-                                                EditorSchemaShow)
+from agr_literature_service.api.schemas import AuditedObjectModelSchema, EditorSchemaPost, EditorSchemaShow, CrossReferenceSchemaRelated
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 
 
 class ResourceSchemaPost(BaseModel):
-    title: str
+    """Schema for creating a resource entry."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
 
-    title_synonyms: Optional[List[str]] = None
-    abbreviation_synonyms: Optional[List[str]] = None
+    title: str
+    title_synonyms: List[str] = Field(default_factory=list)
+    abbreviation_synonyms: List[str] = Field(default_factory=list)
     iso_abbreviation: Optional[str] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
@@ -21,29 +24,30 @@ class ResourceSchemaPost(BaseModel):
     print_issn: Optional[str] = None
     online_issn: Optional[str] = None
     pages: Optional[str] = None
-    volumes: Optional[List[str]] = None
+    volumes: List[str] = Field(default_factory=list)
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaCreate]] = None
-    editors: Optional[List[EditorSchemaPost]] = None
+    cross_references: List[CrossReferenceSchemaCreate] = Field(default_factory=list)
+    editors: List[EditorSchemaPost] = Field(default_factory=list)
     open_access: Optional[bool] = False
 
-    @validator('title')
-    def title_is_some(cls, v):
-        if not v:
-            raise ValueError('Cannot set title to None')
+    @field_validator('title')
+    def title_is_some(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError('Cannot set title to None or blank string')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
 
 
 class ResourceSchemaUpdate(BaseModel):
-    title: Optional[str] = None
+    """Schema for updating resource fields."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
 
-    title_synonyms: Optional[List[str]] = None
-    abbreviation_synonyms: Optional[List[str]] = None
+    title: Optional[str] = None
+    title_synonyms: List[str] = Field(default_factory=list)
+    abbreviation_synonyms: List[str] = Field(default_factory=list)
     iso_abbreviation: Optional[str] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
@@ -51,29 +55,31 @@ class ResourceSchemaUpdate(BaseModel):
     print_issn: Optional[str] = None
     online_issn: Optional[str] = None
     pages: Optional[str] = None
-    volumes: Optional[List[str]] = None
+    volumes: List[str] = Field(default_factory=list)
     abstract: Optional[str] = None
     summary: Optional[str] = None
     open_access: Optional[bool] = False
 
-    @validator('title')
-    def title_is_some(cls, v):
-        if not v:
-            raise ValueError('Cannot set title to None')
+    @field_validator('title')
+    def title_is_some(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.strip():
+            raise ValueError('Cannot set title to blank string')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
 
 
 class ResourceSchemaShow(AuditedObjectModelSchema):
+    """Schema for showing resource with audit fields."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
     resource_id: int
     curie: Optional[str] = None
     title: str
 
-    title_synonyms: Optional[List[str]] = None
-    abbreviation_synonyms: Optional[List[str]] = None
+    title_synonyms: List[str] = Field(default_factory=list)
+    abbreviation_synonyms: List[str] = Field(default_factory=list)
     iso_abbreviation: Optional[str] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
@@ -81,9 +87,9 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     print_issn: Optional[str] = None
     online_issn: Optional[str] = None
     pages: Optional[str] = None
-    volumes: Optional[List[str]] = None
+    volumes: List[str] = Field(default_factory=list)
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
-    editors: Optional[List[EditorSchemaShow]] = None
+    cross_references: List[CrossReferenceSchemaRelated] = Field(default_factory=list)
+    editors: List[EditorSchemaShow] = Field(default_factory=list)
     open_access: Optional[bool] = None
