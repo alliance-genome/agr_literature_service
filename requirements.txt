@@ -7,7 +7,7 @@ sqlalchemy==2.0.7            # Upgrade to SQLAlchemy 2.0.x.
 fastapi==0.95.2              # Updated from 0.68.1 for new features and fixes.
 fastapi-health==0.4.0        # No update needed.
 uvicorn[standard]==0.22.0    # Updated for compatibility with FastAPI.
-starlette==0.29.2            # the latest secure patch
+starlette==0.29.0            # the latest secure patch
 aiofiles==23.1.0             # Updated for better performance.
 alembic==1.14.1              # Upgrade for compatibility with SQLAlchemy 2.0.x.
 async-exit-stack==1.0.1      # No update needed.
