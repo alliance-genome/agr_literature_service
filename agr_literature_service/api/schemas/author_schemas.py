@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
