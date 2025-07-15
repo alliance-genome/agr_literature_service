@@ -28,7 +28,7 @@ class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
 
     source_evidence_assertion: str = Field(..., min_length=1)
     source_method: str = Field(..., min_length=1)
-    validation_type: Optional[constr(min_length=1)] = None
+    validation_type: Optional[constr(min_length=1)] = None  # type: ignore
     description: str
     data_provider: str
     secondary_data_provider_abbreviation: str
