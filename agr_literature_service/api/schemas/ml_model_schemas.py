@@ -1,33 +1,37 @@
-from typing import Union
+from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class MLModelSchemaBase(BaseModel):
+    """Base schema for ML model metadata."""
+    model_config = ConfigDict(
+        extra='forbid',        # forbid unexpected fields
+        from_attributes=True    # enable ORM->model initialization
+    )
 
     task_type: str
     mod_abbreviation: str
-    topic: Union[str, None]
-    version_num: Union[int, None]
+    topic: Optional[str] = None
+    version_num: Optional[int] = None
     model_type: str
     file_extension: str
-    precision: Union[float, None]
-    recall: Union[float, None]
-    f1_score: Union[float, None]
-    parameters: Union[str, None]
-    dataset_id: Union[int, None]
-    production: Union[bool, None]
-    negated: Union[bool, None]
-    novel_topic_data: Union[bool, None]
-    species: Union[str, None]
+    precision: Optional[float] = None
+    recall: Optional[float] = None
+    f1_score: Optional[float] = None
+    parameters: Optional[str] = None
+    dataset_id: Optional[int] = None
+    production: Optional[bool] = None
+    negated: Optional[bool] = None
+    novel_topic_data: Optional[bool] = None
+    species: Optional[str] = None
 
 
 class MLModelSchemaPost(MLModelSchemaBase):
+    """Schema used when posting a new ML model entry."""
     pass
 
 
 class MLModelSchemaShow(MLModelSchemaBase):
+    """Schema used when returning ML model with its primary key."""
     ml_model_id: int
-
-    class Config:
-        orm_mode = True
