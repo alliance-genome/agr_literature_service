@@ -13,7 +13,7 @@ class ConfidenceMixin(BaseModel):
         from_attributes=True,
     )
 
-    confidence_score: Optional[confloat(ge=0.0, le=1.0)] = None
+    confidence_score: Optional[confloat(ge=0.0, le=1.0)] = None  # type: ignore
 
     @field_validator('confidence_score')
     def _round_confidence_score(cls, v):
@@ -112,8 +112,8 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     data_novelty: Optional[str] = None
     confidence_level: Optional[str] = None
     note: Optional[str] = None
-    validation_by_author: Optional[constr(min_length=1)] = None
-    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None
+    validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
+    validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
     validating_users: List[str] = Field(default_factory=list)
     validating_tags: List[int] = Field(default_factory=list)
 
@@ -129,7 +129,7 @@ class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for updating a topic entity tag."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
-    topic: Optional[constr(min_length=1)] = None
+    topic: Optional[constr(min_length=1)] = None  # type: ignore
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
     entity_id_validation: Optional[constr(min_length=1)] = None  # type: ignore
