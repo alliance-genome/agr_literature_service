@@ -29,7 +29,7 @@ db_user = Security(auth.get_user)
              response_model=int)
 def create(request: ModReferenceTypeSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     return mod_reference_type_crud.create(db, request)
 
@@ -50,7 +50,7 @@ def destroy(mod_reference_type_id: int,
 async def patch(mod_reference_type_id: int,
                 request: ModReferenceTypeSchemaUpdate,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return mod_reference_type_crud.patch(db, mod_reference_type_id, patch)

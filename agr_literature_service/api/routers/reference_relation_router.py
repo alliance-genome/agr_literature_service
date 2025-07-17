@@ -27,7 +27,7 @@ db_user = Security(auth.get_user)
              response_model=str)
 def create(request: ReferenceRelationSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     return reference_relation_crud.create(db, request)
 
@@ -49,7 +49,7 @@ def destroy(reference_relation_id: int,
 async def patch(reference_relation_id: int,
                 request: ReferenceRelationSchemaPatch,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return reference_relation_crud.patch(db, reference_relation_id, patch)

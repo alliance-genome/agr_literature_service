@@ -23,9 +23,10 @@ db_user = Security(auth.get_user)
              status_code=status.HTTP_201_CREATED)
 def create(request: AuthorSchemaCreate,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
-    return author_crud.create(db, request)
+    new_id = author_crud.create(db, request)
+    return new_id
 
 
 @router.delete('/{author_id}',
@@ -44,10 +45,11 @@ def destroy(author_id: int,
 async def patch(author_id: int,
                 request: AuthorSchemaCreate,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
-    patch = request.dict(exclude_unset=True)
-    return author_crud.patch(db, author_id, patch)
+    updates = request.dict(exclude_unset=True)
+    updated_id = author_crud.patch(db, author_id, updates)
+    return updated_id
 
 
 @router.get('/{author_id}',

@@ -29,9 +29,10 @@ db_user = Security(auth.get_user)
              response_model=int)
 def create(request: CrossReferenceSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
-    return cross_reference_crud.create(db, request)
+    new_id = cross_reference_crud.create(db, request)
+    return new_id
 
 
 @router.delete('/{cross_reference_id}',
@@ -50,10 +51,11 @@ def destroy(cross_reference_id: int,
 async def patch(cross_reference_id: int,
                 request: CrossReferenceSchemaUpdate,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
-    return cross_reference_crud.patch(db, cross_reference_id, patch)
+    updated_id = cross_reference_crud.patch(db, cross_reference_id, patch)
+    return updated_id
 
 
 @router.get('/{cross_reference_id}/versions',

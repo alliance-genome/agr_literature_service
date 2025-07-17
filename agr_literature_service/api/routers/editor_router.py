@@ -23,7 +23,7 @@ db_user = Security(auth.get_user)
              response_model=str)
 def create(request: EditorSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     return editor_crud.create(db, request)
 
@@ -44,7 +44,7 @@ def destroy(editor_id: int,
 async def patch(editor_id: int,
                 request: EditorSchemaPost,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
 
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
