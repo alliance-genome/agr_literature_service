@@ -15,18 +15,22 @@ class GlobalConfig(BaseSettings):
         env_file_encoding='utf-8',
     )
 
+    # always required
     ENV_STATE: EnvStateSchema = Field(..., env='ENV_STATE')
-    HOST: Optional[str] = Field(..., env='HOST')
-    PROD_HOST: Optional[str] = Field(..., env='PROD_HOST')
+
+    # make these optional
+    HOST: Optional[str] = Field(None, env='HOST')
+    PROD_HOST: Optional[str] = Field(None, env='PROD_HOST')
+
     BUCKET_NAME: str = Field('agr-literature', env='BUCKET_NAME')
 
-    # AWS Creds
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env='AWS_SECRET_ACCESS_KEY')
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(..., env='AWS_ACCESS_KEY_ID')
+    # AWS Creds (optional if, e.g., running in ECS with IAM role)
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(None, env='AWS_SECRET_ACCESS_KEY')
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(None, env='AWS_ACCESS_KEY_ID')
 
-    # environment specific configs
-    API_USERNAME: Optional[str] = None
-    API_PASSWORD: Optional[str] = None
+    # environment specific configs (now correctly optional)
+    API_USERNAME: Optional[str] = Field(None, env='API_USERNAME')
+    API_PASSWORD: Optional[str] = Field(None, env='API_PASSWORD')
 
     OKTA_DOMAIN: str = Field(..., env='OKTA_DOMAIN')
     OKTA_API_AUDIENCE: str = Field(..., env='OKTA_API_AUDIENCE')
