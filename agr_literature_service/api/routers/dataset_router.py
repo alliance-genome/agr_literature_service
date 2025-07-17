@@ -24,7 +24,7 @@ db_user = Security(auth.get_user)
 @router.post("/",
              status_code=status.HTTP_201_CREATED,
              response_model=DatasetSchemaShow)
-def create_dataset(request: DatasetSchemaPost, user: OktaUser = db_user, db: Session = db_session) -> int:
+def create_dataset(request: DatasetSchemaPost, user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
     return dataset_crud.create_dataset(db, dataset=request)
 
@@ -54,7 +54,7 @@ def delete_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, ver
               status_code=status.HTTP_202_ACCEPTED,
               response_model=str)
 def patch_dataset(request: DatasetSchemaUpdate, mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
-                  user: OktaUser = db_user, db: Session = db_session) -> int:
+                  user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
     dataset_crud.patch_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                dataset_type=dataset_type, version=version, dataset_update=request)
