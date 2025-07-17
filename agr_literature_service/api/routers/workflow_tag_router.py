@@ -6,15 +6,15 @@ from typing import Optional
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import workflow_tag_crud
 from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.schemas import (WorkflowTagSchemaShow,
-                                                WorkflowTagSchemaUpdate,
-                                                WorkflowTagSchemaPost,
-                                                ResponseMessageSchema)
+from agr_literature_service.api.schemas import (
+    WorkflowTagSchemaShow,
+    WorkflowTagSchemaUpdate,
+    WorkflowTagSchemaPost,
+    ResponseMessageSchema
+)
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
-from agr_literature_service.api.crud.ateam_db_helpers import (
-    atp_get_name
-)
+from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 
 router = APIRouter(
     prefix="/workflow_tag",
@@ -32,9 +32,10 @@ db_user = Security(auth.get_user)
              response_model=str)
 def create(request: WorkflowTagSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
-    return workflow_tag_crud.create(db, request)
+    new_id = workflow_tag_crud.create(db, request)
+    return new_id
 
 
 @router.delete('/{reference_workflow_tag_id}',
@@ -44,7 +45,6 @@ def destroy(reference_workflow_tag_id: int,
             db: Session = db_session):
     set_global_user_from_okta(db, user)
     workflow_tag_crud.destroy(db, reference_workflow_tag_id)
-
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -54,10 +54,11 @@ def destroy(reference_workflow_tag_id: int,
 async def patch(reference_workflow_tag_id: int,
                 request: WorkflowTagSchemaUpdate,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
-    patch = request.dict(exclude_unset=True)
-    return workflow_tag_crud.patch(db, reference_workflow_tag_id, patch)
+    updates = request.dict(exclude_unset=True)
+    updated_id = workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
+    return updated_id
 
 
 @router.get('/{reference_workflow_tag_id}',
