@@ -45,16 +45,14 @@ def create_tag(
     request: TopicEntityTagSchemaPost,
     user: OktaUser = db_user,
     db: Session = db_session
-) -> int:
+) -> TopicEntityTagSchemaPost:
     """
     Create a new topic-entity-tag (and its associated corpus/workflow-tag entries).
     Returns just the new topic_entity_tag_id.
     """
     set_global_user_from_okta(db, user)
-    result = topic_entity_tag_crud.create_tag(db, request)
-    # extract and return the integer ID
-    return int(result["topic_entity_tag_id"])
-
+    return topic_entity_tag_crud.create_tag(db, request)
+    
 
 @router.get(
     "/{topic_entity_tag_id}",
