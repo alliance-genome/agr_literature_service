@@ -24,6 +24,7 @@ class WorkflowTagSchemaPost(WorkflowTagSchemaCreate):
     )
 
     reference_curie: str
+    date_updated: Optional[datetime] = None
 
 
 class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
