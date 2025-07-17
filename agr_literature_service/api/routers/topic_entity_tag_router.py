@@ -1,26 +1,19 @@
 from multiprocessing import Process, Value
-from typing import List, Dict
+from typing import List, Dict, Union
 
 from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import topic_entity_tag_crud, ateam_db_helpers, topic_entity_tag_utils
+from agr_literature_service.api.crud import topic_entity_tag_crud, \
+    ateam_db_helpers, topic_entity_tag_utils
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
-from agr_literature_service.api.schemas import (
-    TopicEntityTagSchemaShow,
-    TopicEntityTagSchemaRelated,
-    TopicEntityTagSchemaPost,
-    ResponseMessageSchema,
-    TopicEntityTagSourceSchemaShow,
-)
-from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
-    TopicEntityTagSourceSchemaCreate,
-    TopicEntityTagSourceSchemaUpdate,
-    TopicEntityTagSchemaUpdate,
-)
+from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
+from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
+    TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
+    TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
@@ -28,165 +21,122 @@ router = APIRouter(
     tags=['Topic Entity Tag']
 )
 
+
 get_db = database.get_db
 db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
-# prevent concurrent “revalidate all” runs
 revalidate_all_tags_already_running = Value('b', False)
 
 
-@router.post(
-    "/",
-    status_code=status.HTTP_201_CREATED,
-    response_model=int
-)
-def create_tag(
-    request: TopicEntityTagSchemaPost,
-    user: OktaUser = db_user,
-    db: Session = db_session
-) -> TopicEntityTagSchemaPost:
-    """
-    Create a new topic-entity-tag (and its associated corpus/workflow-tag entries).
-    Returns just the new topic_entity_tag_id.
-    """
+@router.post('/', status_code=status.HTTP_201_CREATED, response_model=dict)
+def create_tag(request: TopicEntityTagSchemaPost, user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.create_tag(db, request)
-    
 
-@router.get(
-    "/{topic_entity_tag_id}",
-    response_model=TopicEntityTagSchemaShow,
-    status_code=status.HTTP_200_OK
-)
-def show_tag(
-    topic_entity_tag_id: int,
-    db: Session = db_session
-) -> TopicEntityTagSchemaShow:
+
+@router.get('/{topic_entity_tag_id}',
+            response_model=TopicEntityTagSchemaShow,
+            status_code=200)
+def show_tag(topic_entity_tag_id: int,
+             db: Session = db_session):
     return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
 
-@router.patch(
-    "/{topic_entity_tag_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema
-)
-def patch_tag(
-    topic_entity_tag_id: int,
-    request: TopicEntityTagSchemaUpdate,
-    user: OktaUser = db_user,
-    db: Session = db_session
-) -> ResponseMessageSchema:
+@router.patch('/{topic_entity_tag_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=ResponseMessageSchema)
+def patch_tag(topic_entity_tag_id: int,
+              request: TopicEntityTagSchemaUpdate,
+              user: OktaUser = db_user,
+              db: Session = db_session):
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
 
 
-@router.delete(
-    "/{topic_entity_tag_id}",
-    status_code=status.HTTP_204_NO_CONTENT
-)
-def delete_tag(
-    topic_entity_tag_id: int,
-    user: OktaUser = db_user,
-    db: Session = db_session
-):
+@router.delete('/{topic_entity_tag_id}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def delete_tag(topic_entity_tag_id,
+               user: OktaUser = db_user,
+               db: Session = db_session):
     set_global_user_from_okta(db, user)
     topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_okta_mod_access(user))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post(
-    "/source",
-    status_code=status.HTTP_201_CREATED,
-    response_model=int
-)
-def create_source(
-    request: TopicEntityTagSourceSchemaCreate,
-    user: OktaUser = db_user,
-    db: Session = db_session
-) -> int:
+@router.post('/source',
+             status_code=status.HTTP_201_CREATED,
+             response_model=int)
+def create_source(request: TopicEntityTagSourceSchemaCreate,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.create_source(db, request)
 
 
-@router.delete(
-    "/source/{topic_entity_tag_source_id}",
-    status_code=status.HTTP_204_NO_CONTENT
-)
-def delete_source(
-    topic_entity_tag_source_id: int,
-    user: OktaUser = db_user,
-    db: Session = db_session
-):
+@router.delete('/source/{topic_entity_tag_source_id}',
+               status_code=status.HTTP_204_NO_CONTENT)
+def delete_source(topic_entity_tag_source_id,
+                  user: OktaUser = db_user,
+                  db: Session = db_session):
     set_global_user_from_okta(db, user)
     topic_entity_tag_crud.destroy_source(db, topic_entity_tag_source_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.patch(
-    "/source/{topic_entity_tag_source_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema
-)
-def patch_source(
-    topic_entity_tag_source_id: int,
-    request: TopicEntityTagSourceSchemaUpdate,
-    user: OktaUser = db_user,
-    db: Session = db_session
-) -> ResponseMessageSchema:
+@router.patch('/source/{topic_entity_tag_source_id}',
+              status_code=status.HTTP_202_ACCEPTED,
+              response_model=ResponseMessageSchema)
+def patch_source(topic_entity_tag_source_id,
+                 request: TopicEntityTagSourceSchemaUpdate,
+                 user: OktaUser = db_user,
+                 db: Session = db_session):
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
 
 
-@router.get(
-    "/source/all",
-    status_code=status.HTTP_200_OK
-)
-def show_all_source(db: Session = db_session) -> List[TopicEntityTagSourceSchemaShow]:
+@router.get('/source/all',
+            status_code=200)
+def show_all_source(db: Session = db_session):
     return topic_entity_tag_crud.show_all_source(db)
 
 
-@router.get(
-    "/source/{topic_entity_tag_source_id}",
-    response_model=TopicEntityTagSourceSchemaShow,
-    status_code=status.HTTP_200_OK
-)
-def show_source(
-    topic_entity_tag_source_id: int,
-    db: Session = db_session
-) -> TopicEntityTagSourceSchemaShow:
+@router.get('/source/{topic_entity_tag_source_id}',
+            response_model=TopicEntityTagSourceSchemaShow,
+            status_code=200)
+def show_source(topic_entity_tag_source_id: int,
+                db: Session = db_session):
     return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
 
 
-@router.get(
-    "/by_reference/{curie_or_reference_id}",
-    status_code=status.HTTP_200_OK,
-    response_model=List[TopicEntityTagSchemaRelated]
-)
-def show_all_reference_tags(
-    curie_or_reference_id: str,
-    page: int = 1,
-    page_size: int = None,
-    column_only: str = None,
-    column_filter: str = None,
-    column_values: str = None,
-    count_only: bool = False,
-    sort_by: str = None,
-    desc_sort: bool = False,
-    db: Session = db_session
-) -> List[TopicEntityTagSchemaRelated]:
-    """
-    List all tags on a reference (with pagination / sorting).
-    By declaring response_model=List[TopicEntityTagSchemaRelated],
-    FastAPI will drop any extra fields your Pydantic schema forbids.
-    """
-    return topic_entity_tag_crud.show_all_reference_tags(
-        db, curie_or_reference_id,
-        page, page_size,
-        count_only, sort_by, desc_sort,
-        column_only, column_filter,
-        column_values
-    )
+@router.get('/source/{source_evidence_assertion}/{source_method}/{data_provider}/{secondary_data_provider_abbreviation}',
+            response_model=TopicEntityTagSourceSchemaShow,
+            status_code=200)
+def show_source_by_name(source_evidence_assertion: str,
+                        source_method: str,
+                        data_provider: str,
+                        secondary_data_provider_abbreviation: str,
+                        db: Session = db_session):
+    return topic_entity_tag_crud.show_source_by_name(db, source_evidence_assertion, source_method,
+                                                     data_provider, secondary_data_provider_abbreviation)
+
+
+@router.get('/by_reference/{curie_or_reference_id}',
+            status_code=200)
+def show_all_reference_tags(curie_or_reference_id: str,
+                            page: int = 1, page_size: int = None,
+                            column_only: str = None,
+                            column_filter: str = None,
+                            column_values: str = None,
+                            count_only: bool = False,
+                            sort_by: str = None,
+                            desc_sort: bool = False,
+                            db: Session = db_session) -> Union[List[TopicEntityTagSchemaRelated], int]:
+    return topic_entity_tag_crud.show_all_reference_tags(db, curie_or_reference_id,
+                                                         page, page_size,
+                                                         count_only, sort_by, desc_sort,
+                                                         column_only, column_filter,
+                                                         column_values)
 
 
 @router.get('/by_mod/{mod_abbreviation}',
