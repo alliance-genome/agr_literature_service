@@ -46,8 +46,10 @@ def set_global_user_from_okta(db: Session, user: OktaUser):
 
     x = db.query(UserModel).filter_by(id=user_id).one_or_none()
     if x is None:
-        user_crud.create(db, user_id, user_email)
-        # should we delete old entry with email in the ID column for this okta user?
+        if user_email is not None:
+            user_crud.create(db, user_id, user_email)
+        else:
+            user_crud.create(db, user_id)
     elif x.email != user_email:
         x.email = user_email
         db.add(x)
