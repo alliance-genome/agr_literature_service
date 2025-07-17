@@ -25,7 +25,7 @@ db_user = Security(auth.get_user)
              response_model=int)
 def create(request: MeshDetailSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session) -> int:
+           db: Session = db_session):
     set_global_user_from_okta(db, user)
     return mesh_detail_crud.create(db, request)
 
@@ -46,7 +46,7 @@ def destroy(mesh_detail_id: int,
 async def patch(mesh_detail_id: int,
                 request: MeshDetailSchemaUpdate,
                 user: OktaUser = db_user,
-                db: Session = db_session) -> int:
+                db: Session = db_session):
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return mesh_detail_crud.patch(db, mesh_detail_id, patch)
