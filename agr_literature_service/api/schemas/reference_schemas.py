@@ -167,6 +167,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     resources_for_curation: Optional[List[Dict[str, str]]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
+    mesh_term: Optional[List[MeshDetailSchemaRelated]] = None  # allow singular mesh_term
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
     prepublication_pipeline: Optional[bool] = None
