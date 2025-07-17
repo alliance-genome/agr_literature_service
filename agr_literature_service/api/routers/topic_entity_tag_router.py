@@ -39,6 +39,11 @@ db_user = Security(auth.get_user)
 # guard against concurrent revalidations
 revalidate_all_tags_already_running = Value("b", False)
 
+PAGE = Query(1, ge=1)
+PAGE_SIZE = Query(None, ge=1)
+DAYS_UPDATED = Query(7, ge=0)
+CURIE_OR_REFERENCE_ID = Query(...)
+
 
 @router.post(
     "/",
@@ -187,8 +192,8 @@ def show_source_by_name(
 )
 def show_all_reference_tags(
     curie_or_reference_id: str,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(None, ge=1),
+    page: int = PAGE,
+    page_size: int = PAGE_SIZE,
     column_only: str = None,
     column_filter: str = None,
     column_values: str = None,
@@ -214,7 +219,7 @@ def show_all_reference_tags(
 @router.get("/by_mod/{mod_abbreviation}", status_code=status.HTTP_200_OK)
 def get_reference_tags(
     mod_abbreviation: str,
-    days_updated: int = Query(7, ge=0),
+    days_updated: int = DAYS_UPDATED,
     db: Session = db_session,
 ):
     return topic_entity_tag_crud.get_all_topic_entity_tags_by_mod(
@@ -228,7 +233,7 @@ def get_reference_tags(
     status_code=status.HTTP_200_OK,
 )
 def get_curie_to_name_from_all_tets(
-    curie_or_reference_id: str = Query(...),
+    curie_or_reference_id: str = CURIE_OR_REFERENCE_ID,
     db: Session = db_session,
 ):
     return topic_entity_tag_crud.get_curie_to_name_from_all_tets(
