@@ -9,10 +9,11 @@ from agr_literature_service.api.schemas import EnvStateSchema
 class GlobalConfig(BaseSettings):
     """Global configurations."""
 
-    # load .env automatically; adjust path or encoding if needed
+    # load .env automatically; ignore any extra keys in the environment
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',         # <— allow unknown vars
     )
 
     # always required
