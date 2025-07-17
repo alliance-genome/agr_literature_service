@@ -29,9 +29,18 @@ db_user = Security(auth.get_user)
 revalidate_all_tags_already_running = Value('b', False)
 
 
-@router.post('/', status_code=status.HTTP_201_CREATED, response_model=dict)
-def create_tag(request: TopicEntityTagSchemaPost, user: OktaUser = db_user, db: Session = db_session):
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=int
+)
+def create_tag(
+    request: TopicEntityTagSchemaPost,
+    user: OktaUser = db_user,
+    db: Session = db_session
+) -> int:
     set_global_user_from_okta(db, user)
+    # now returns just the new tag’s ID
     return topic_entity_tag_crud.create_tag(db, request)
 
 
@@ -43,13 +52,17 @@ def show_tag(topic_entity_tag_id: int,
     return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
 
-@router.patch('/{topic_entity_tag_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
-def patch_tag(topic_entity_tag_id: int,
-              request: TopicEntityTagSchemaUpdate,
-              user: OktaUser = db_user,
-              db: Session = db_session):
+@router.patch(
+    "/{topic_entity_tag_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ResponseMessageSchema
+)
+def patch_tag(
+    topic_entity_tag_id: int,
+    request: TopicEntityTagSchemaUpdate,
+    user: OktaUser = db_user,
+    db: Session = db_session
+) -> ResponseMessageSchema:
     set_global_user_from_okta(db, user)
     return topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
 
