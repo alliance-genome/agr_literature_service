@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -7,9 +7,9 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import workflow_tag_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (
-    WorkflowTagSchemaShow,
-    WorkflowTagSchemaUpdate,
     WorkflowTagSchemaPost,
+    WorkflowTagSchemaUpdate,
+    WorkflowTagSchemaShow,
 )
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_okta
@@ -21,7 +21,6 @@ router = APIRouter(
 )
 
 get_db = database.get_db
-# assign these at module level so we can reuse them in all endpoints
 db_session: Session = Depends(get_db)
 db_user = Security(auth.get_user)
 
@@ -29,7 +28,7 @@ db_user = Security(auth.get_user)
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    response_model=int,
+    response_model=int,  # now returns the new record’s ID as an int
 )
 def create(
     request: WorkflowTagSchemaPost,
@@ -37,8 +36,7 @@ def create(
     db: Session = db_session,
 ) -> int:
     set_global_user_from_okta(db, user)
-    new_id = workflow_tag_crud.create(db, request)
-    return new_id
+    return workflow_tag_crud.create(db, request)
 
 
 @router.delete(
@@ -52,13 +50,12 @@ def destroy(
 ):
     set_global_user_from_okta(db, user)
     workflow_tag_crud.destroy(db, reference_workflow_tag_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch(
     "/{reference_workflow_tag_id}",
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    response_model=int,  # now returns the updated record’s ID as an int
 )
 def patch(
     reference_workflow_tag_id: int,
@@ -68,8 +65,7 @@ def patch(
 ) -> int:
     set_global_user_from_okta(db, user)
     updates = request.dict(exclude_unset=True)
-    updated_id = workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
-    return updated_id
+    return workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
 
 
 @router.get(
@@ -109,7 +105,10 @@ def get_jobs(
     "/job/failed/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
+def failed_job(
+    reference_workflow_tag_id: int,
+    db: Session = db_session,
+):
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
 
 
@@ -117,7 +116,10 @@ def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
     "/job/retry/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
+def retry_job(
+    reference_workflow_tag_id: int,
+    db: Session = db_session,
+):
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_retry")
 
 
@@ -125,7 +127,10 @@ def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
     "/job/success/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
+def successful_job(
+    reference_workflow_tag_id: int,
+    db: Session = db_session,
+):
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_success")
 
 
@@ -133,7 +138,10 @@ def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
     "/job/started/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def start_job(reference_workflow_tag_id: int, db: Session = db_session):
+def start_job(
+    reference_workflow_tag_id: int,
+    db: Session = db_session,
+):
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_start")
 
 
@@ -243,7 +251,10 @@ def get_report_workflow_tags(
     "/workflow_diagram/{mod}",
     status_code=status.HTTP_200_OK,
 )
-def get_report_workflow_diagram(mod: str, db: Session = db_session):
+def get_report_workflow_diagram(
+    mod: str,
+    db: Session = db_session,
+):
     return workflow_tag_crud.get_workflow_tag_diagram(mod, db)
 
 
