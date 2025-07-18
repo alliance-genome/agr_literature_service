@@ -629,7 +629,7 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
             author_source_1 = {
-                "source_evidence_assertion": "community curation",
+                "source_evidence_assertion": "ECO:0000000",
                 "source_method": "acknowledge",
                 "validation_type": "author",
                 "description": "author from acknowledge",
