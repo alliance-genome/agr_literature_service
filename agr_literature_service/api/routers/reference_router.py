@@ -176,7 +176,11 @@ def show_xref(curie_or_cross_reference_id: str,
             response_model=ReferenceSchemaShow)
 def show(curie_or_reference_id: str,
          db: Session = db_session):
-    return reference_crud.show(db, curie_or_reference_id)
+    # return reference_crud.show(db, curie_or_reference_id)
+    data = reference_crud.show(db, curie_or_reference_id)
+    if isinstance(data, dict) and "mod" in data:
+        data.pop("mod")
+    return data
 
 
 @router.get('/{curie_or_reference_id}/versions',
