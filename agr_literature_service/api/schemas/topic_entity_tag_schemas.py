@@ -90,7 +90,7 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 
 class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for related topic entity tags with audit fields."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
 
     topic_entity_tag_id: int
     topic: str
@@ -120,7 +120,7 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
     """Schema for showing a topic entity tag with reference context."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
 
     reference_curie: str
 
