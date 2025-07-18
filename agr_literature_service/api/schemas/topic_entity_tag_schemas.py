@@ -120,8 +120,6 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
     """Schema for showing a topic entity tag with reference context."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
-
     reference_curie: str
 
 
