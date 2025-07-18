@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from agr_literature_service.api.schemas import (
     AuthorSchemaPost,
     AuthorSchemaShow,
+    ModSchemaShow,
     AuditedObjectModelSchema,
     CrossReferenceSchemaRelated,
     CrossReferenceSchemaShow,
@@ -185,6 +186,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     citation_short: Optional[str] = None
     citation_id: Optional[int] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
+    mod: Optional[ModSchemaShow] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
