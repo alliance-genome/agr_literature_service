@@ -56,8 +56,8 @@ def create_tag(
     db: Session = db_session,
 ) -> Dict[str, int]:
     set_global_user_from_okta(db, user)
-    # returns {"topic_entity_tag_id": new_id}
-    return topic_entity_tag_crud.create_tag(db, request)
+    new_id = topic_entity_tag_crud.create_tag(db, request)
+    return {"topic_entity_tag_id": new_id}
 
 
 @router.get(
