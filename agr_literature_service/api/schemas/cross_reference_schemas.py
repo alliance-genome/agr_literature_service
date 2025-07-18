@@ -78,7 +78,7 @@ class CrossReferenceSchemaPost(CrossReferenceSchemaCreate):
 class CrossReferenceSchemaShow(AuditedObjectModelSchema):
     """Schema for showing cross-reference with all context."""
     model_config = ConfigDict(
-        extra='forbid',
+        extra='ignore',
         from_attributes=True,
     )
 
