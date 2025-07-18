@@ -1,4 +1,3 @@
-from os import environ, path
 import math
 import shutil
 from typing import Generator
@@ -19,8 +18,7 @@ from agr_literature_service.lit_processing.data_ingest.post_reference_to_db impo
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.api.config import config
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
-
-environ['ENV_STATE'] = 'test'
+from os import environ, path
 
 
 def delete_all_table_content(engine, db_session):
