@@ -30,7 +30,7 @@ class WorkflowTagSchemaPost(WorkflowTagSchemaCreate):
 class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
     """Schema for related workflow tag entries with audit fields."""
     model_config = ConfigDict(
-        extra='forbid',
+        extra='ignore',
         from_attributes=True
     )
 
@@ -42,11 +42,6 @@ class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
 
 class WorkflowTagSchemaShow(WorkflowTagSchemaRelated):
     """Schema for showing a workflow tag with its reference context."""
-    model_config = ConfigDict(
-        extra='forbid',
-        from_attributes=True
-    )
-
     reference_curie: str
 
 

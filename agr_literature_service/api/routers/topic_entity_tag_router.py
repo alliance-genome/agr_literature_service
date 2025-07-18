@@ -32,9 +32,9 @@ revalidate_all_tags_already_running = Value('b', False)
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=dict)
 def create_tag(request: TopicEntityTagSchemaPost, user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    result = topic_entity_tag_crud.create_tag(db, request)
+    new_tag = topic_entity_tag_crud.create_tag(db, request)
     # make sure response includes topic_entity_tag_id
-    return {"topic_entity_tag_id": result["topic_entity_tag_id"]}
+    return {"topic_entity_tag_id": new_tag.topic_entity_tag_id}
 
 
 @router.get('/{topic_entity_tag_id}',
@@ -136,7 +136,7 @@ def show_all_reference_tags(
     sort_by: str = None,
     desc_sort: bool = False,
     db: Session = db_session
-) -> Union[List[TopicEntityTagSchemaRelated], dict]:  # Changed return type
+) -> Union[List[TopicEntityTagSchemaRelated], int]:
     result = topic_entity_tag_crud.show_all_reference_tags(
         db, curie_or_reference_id,
         page, page_size,
@@ -144,9 +144,6 @@ def show_all_reference_tags(
         column_only, column_filter,
         column_values
     )
-    
-    if count_only:
-        return {"count": result}
     return result
 
 
