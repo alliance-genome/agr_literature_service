@@ -106,7 +106,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    return new_db_obj
+    return {"topic_entity_tag_id": new_db_obj.topic_entity_tag_id}
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):

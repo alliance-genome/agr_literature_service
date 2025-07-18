@@ -32,9 +32,8 @@ revalidate_all_tags_already_running = Value('b', False)
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=dict)
 def create_tag(request: TopicEntityTagSchemaPost, user: OktaUser = db_user, db: Session = db_session):
     set_global_user_from_okta(db, user)
-    new_tag = topic_entity_tag_crud.create_tag(db, request)
-    # make sure response includes topic_entity_tag_id
-    return {"topic_entity_tag_id": new_tag.topic_entity_tag_id}
+    result = topic_entity_tag_crud.create_tag(db, request)
+    return result
 
 
 @router.get('/{topic_entity_tag_id}',
