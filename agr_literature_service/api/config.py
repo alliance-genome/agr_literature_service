@@ -11,6 +11,7 @@ class GlobalConfig(BaseSettings):
     model_config = SettingsConfigDict(
         env_file='.env',
         env_file_encoding='utf-8',
+        extra='ignore',
     )
 
     ENV_STATE: EnvStateSchema = Field(..., env='ENV_STATE')
