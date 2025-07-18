@@ -65,7 +65,7 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     @field_validator('negated', 'novel_topic_data', mode='before')
     def convert_none_to_false(cls, v):
         return v if v is not None else False
-    
+
     topic: str = Field(..., min_length=1)
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
