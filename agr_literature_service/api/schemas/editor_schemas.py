@@ -39,7 +39,7 @@ class EditorSchemaPost(BaseModel):
 class EditorSchemaShow(AuditedObjectModelSchema):
     """Schema for showing editor with audit fields."""
     model_config = ConfigDict(
-        extra='ignore',
+        extra='forbid',
         from_attributes=True
     )
 
