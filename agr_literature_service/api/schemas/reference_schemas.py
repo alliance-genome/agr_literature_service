@@ -210,6 +210,6 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_name: Optional[str] = None
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
-    copyright_license_open_access: Optional[bool] = None
+    copyright_license_open_access: Optional[bool] = False
     authors: Optional[List[AuthorSchemaShow]] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
