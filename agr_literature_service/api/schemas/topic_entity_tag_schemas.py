@@ -36,7 +36,7 @@ class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
 
 class TopicEntityTagSourceSchemaShow(TopicEntityTagSourceSchemaCreate):
     """Schema for showing a topic entity tag source."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
 
     topic_entity_tag_source_id: int
     source_evidence_assertion_name: Optional[str] = None
@@ -90,7 +90,7 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 
 class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for related topic entity tags with audit fields."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
+    model_config = ConfigDict(extra='ignore', from_attributes=True)
 
     topic_entity_tag_id: int
     topic: str
