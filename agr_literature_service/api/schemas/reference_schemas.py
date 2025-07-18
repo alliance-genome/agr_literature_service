@@ -196,6 +196,12 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
         from_attributes=True,
     )
 
+    @field_validator('copyright_license_open_access', mode='before')
+    def _convert_open_access(cls, v):
+        if v in (None, ''):
+            return False
+        return v
+
     curie: str
     title: Optional[str] = None
     category: Optional[str] = None
