@@ -125,19 +125,26 @@ def show_source_by_name(source_evidence_assertion: str,
 
 @router.get('/by_reference/{curie_or_reference_id}',
             status_code=200)
-def show_all_reference_tags(curie_or_reference_id: str,
-                            page: int = 1, page_size: int = None,
-                            column_only: str = None,
-                            column_filter: str = None,
-                            column_values: str = None,
-                            count_only: bool = False,
-                            sort_by: str = None,
-                            desc_sort: bool = False,
-                            db: Session = db_session) -> Union[List[TopicEntityTagSchemaRelated], int]:
+def show_all_reference_tags(
+    curie_or_reference_id: str,
+    page: int = 1,
+    page_size: int = None,
+    column_only: str = None,
+    column_filter: str = None,
+    column_values: str = None,
+    count_only: bool = False,
+    sort_by: str = None,
+    desc_sort: bool = False,
+    db: Session = db_session
+) -> Union[List[TopicEntityTagSchemaRelated], dict]:  # Changed return type
     result = topic_entity_tag_crud.show_all_reference_tags(
-        db, curie_or_reference_id, page, page_size, count_only, sort_by, desc_sort,
-        column_only, column_filter, column_values
+        db, curie_or_reference_id,
+        page, page_size,
+        count_only, sort_by, desc_sort,
+        column_only, column_filter,
+        column_values
     )
+    
     if count_only:
         return {"count": result}
     return result
