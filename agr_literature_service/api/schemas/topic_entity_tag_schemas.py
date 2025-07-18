@@ -62,6 +62,10 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for creating a topic entity tag."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
+    @field_validator('negated', 'novel_topic_data', mode='before')
+    def convert_none_to_false(cls, v):
+        return v if v is not None else False
+    
     topic: str = Field(..., min_length=1)
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
@@ -91,6 +95,10 @@ class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
 class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for related topic entity tags with audit fields."""
     model_config = ConfigDict(extra='ignore', from_attributes=True)
+
+    @field_validator('negated', 'novel_topic_data', mode='before')
+    def convert_none_to_false(cls, v):
+        return v if v is not None else False
 
     topic_entity_tag_id: int
     topic: str
@@ -126,6 +134,10 @@ class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
 class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for updating a topic entity tag."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
+
+    @field_validator('negated', 'novel_topic_data', mode='before')
+    def convert_none_to_false(cls, v):
+        return v if v is not None else False
 
     topic: Optional[constr(min_length=1)] = None  # type: ignore
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
