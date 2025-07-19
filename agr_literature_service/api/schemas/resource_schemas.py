@@ -70,7 +70,7 @@ class ResourceSchemaUpdate(BaseModel):
 class ResourceSchemaShow(AuditedObjectModelSchema):
     """Schema for showing resource with audit fields."""
     model_config = ConfigDict(
-        extra='forbid',
+        extra='ignore',
         from_attributes=True,
     )
 

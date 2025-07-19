@@ -41,7 +41,7 @@ class ModCorpusAssociationSchemaPost(ModCorpusAssociationSchemaCreate):
 class ModCorpusAssociationSchemaShow(AuditedObjectModelSchema):
     """Schema for showing full mod-corpus association with audit fields."""
     model_config = ConfigDict(
-        extra='forbid',
+        extra='ignore',
         from_attributes=True
     )
 

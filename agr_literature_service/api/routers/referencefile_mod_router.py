@@ -12,6 +12,7 @@ from agr_literature_service.api.schemas.referencefile_mod_schemas import (
     ReferencefileModSchemaShow,
     ReferencefileModSchemaUpdate,
 )
+from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.user import set_global_user_from_okta
 from agr_literature_service.api.crud import referencefile_mod_crud, referencefile_mod_utils
 
@@ -58,18 +59,17 @@ def show(
 @router.patch(
     "/{referencefile_mod_id}",
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    response_model=ResponseMessageSchema,
 )
 def patch(
     referencefile_mod_id: int,
     request: ReferencefileModSchemaUpdate,
     user: OktaUser = db_user,
     db: Session = db_session,
-) -> int:
+) -> ResponseMessageSchema:
     set_global_user_from_okta(db, user)
     updates = request.dict(exclude_unset=True)
-    updated_id = referencefile_mod_crud.patch(db, referencefile_mod_id, updates)
-    return updated_id
+    return referencefile_mod_crud.patch(db, referencefile_mod_id, updates)
 
 
 @router.delete(

@@ -3,19 +3,19 @@ from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import reference_relation_crud
+from agr_literature_service.api.crud import editor_crud
 from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (
-    ReferenceRelationSchemaPatch,
-    ReferenceRelationSchemaPost,
-    ReferenceRelationSchemaShow,
-    ResponseMessageSchema,
+    EditorSchemaCreate,
+    EditorSchemaPost,
+    EditorSchemaShow,
+    ResponseMessageSchema
 )
 from agr_literature_service.api.user import set_global_user_from_okta
 
 router = APIRouter(
-    prefix="/reference_relation",
-    tags=["Reference Relation"]
+    prefix="/editor",
+    tags=['Editor']
 )
 
 get_db = database.get_db
@@ -26,61 +26,65 @@ db_user = Security(auth.get_user)
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    response_model=int,   # ← changed from str to int
+    response_model=int
 )
 def create(
-    request: ReferenceRelationSchemaPost,
+    request: EditorSchemaCreate,
     user: OktaUser = db_user,
-    db: Session = db_session,
+    db: Session = db_session
 ) -> int:
     set_global_user_from_okta(db, user)
-    return reference_relation_crud.create(db, request)
+    return editor_crud.create(db, request)
 
 
 @router.delete(
-    "/{reference_relation_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    "/{editor_id}",
+    status_code=status.HTTP_204_NO_CONTENT
 )
 def destroy(
-    reference_relation_id: int,
+    editor_id: int,
     user: OktaUser = db_user,
-    db: Session = db_session,
+    db: Session = db_session
 ):
     set_global_user_from_okta(db, user)
-    reference_relation_crud.destroy(db, reference_relation_id)
+    editor_crud.destroy(db, editor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch(
-    "/{reference_relation_id}",
+    "/{editor_id}",
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    response_model=ResponseMessageSchema
 )
-async def patch(
-    reference_relation_id: int,
-    request: ReferenceRelationSchemaPatch,
+def patch(
+    editor_id: int,
+    request: EditorSchemaPost,
     user: OktaUser = db_user,
-    db: Session = db_session,
+    db: Session = db_session
 ) -> ResponseMessageSchema:
     set_global_user_from_okta(db, user)
-    patch_data = request.dict(exclude_unset=True)
-    return reference_relation_crud.patch(db, reference_relation_id, patch_data)
+    patch_data = request.model_dump(exclude_unset=True)
+    return editor_crud.patch(db, editor_id, patch_data)
 
 
 @router.get(
-    "/{reference_relation_id}",
-    response_model=ReferenceRelationSchemaShow,
+    "/{editor_id}",
     status_code=status.HTTP_200_OK,
+    response_model=EditorSchemaShow
 )
-def show(reference_relation_id: int, db: Session = db_session) -> ReferenceRelationSchemaShow:
-    return reference_relation_crud.show(db, reference_relation_id)
+def show(
+    editor_id: int,
+    db: Session = db_session
+) -> EditorSchemaShow:
+    return editor_crud.show(db, editor_id)
 
 
 @router.get(
-    "/{reference_relation_id}/versions",
-    status_code=status.HTTP_200_OK,
+    "/{editor_id}/versions",
+    status_code=status.HTTP_200_OK
 )
 def show_versions(
-    reference_relation_id: int, db: Session = db_session
+    editor_id: int,
+    db: Session = db_session
 ):
-    return reference_relation_crud.show_changesets(db, reference_relation_id)
+    return editor_crud.show_changesets(db, editor_id)
