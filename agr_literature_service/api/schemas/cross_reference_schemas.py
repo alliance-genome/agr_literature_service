@@ -8,7 +8,7 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 class CrossReferencePageSchemaShow(BaseModel):
     """Schema for individual cross-reference pages."""
     model_config = ConfigDict(
-        extra='forbid',
+        extra='ignore',
         from_attributes=True,
     )
 
@@ -90,6 +90,19 @@ class CrossReferenceSchemaShow(AuditedObjectModelSchema):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
+
+    @field_validator('pages', mode='before')
+    def _handle_string_pages(cls, v):
+        # convert list of string pages into CrossReferencePageSchemaShow dicts
+        if v is None:
+            return v
+        converted = []
+        for item in v:
+            if isinstance(item, str):
+                converted.append({'name': item})
+            else:
+                converted.append(item)
+        return converted
 
 
 class CrossReferenceSchemaUpdate(BaseModel):
