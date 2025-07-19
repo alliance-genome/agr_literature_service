@@ -26,3 +26,7 @@ class FacetsOptionsSchema(BaseModel):
     query_fields: Optional[str] = None
     partial_match: bool = True
     tet_nested_facets_values: Dict[str, Any] = Field(default_factory=dict)
+
+    # the tests send "query_field" (singular) and "sort"
+    sort: Optional[List[Dict[str, Any]]] = None
+    query_field: Optional[str] = None
