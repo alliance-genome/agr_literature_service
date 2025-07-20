@@ -64,7 +64,8 @@ def patch(
 ) -> ResponseMessageSchema:
     set_global_user_from_okta(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return editor_crud.patch(db, editor_id, patch_data)
+    result = editor_crud.patch(db, editor_id, patch_data)
+    return ResponseMessageSchema.model_validate(result)
 
 
 @router.get(
@@ -76,7 +77,8 @@ def show(
     editor_id: int,
     db: Session = db_session
 ) -> EditorSchemaShow:
-    return editor_crud.show(db, editor_id)
+    editor = editor_crud.show(db, editor_id)
+    return EditorSchemaShow.model_validate(editor)
 
 
 @router.get(
