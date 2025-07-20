@@ -9,7 +9,6 @@ from agr_literature_service.api.schemas import (
     ReferenceRelationSchemaPost,
     ReferenceRelationSchemaShow,
     ReferenceRelationSchemaPatch,
-    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_okta
 
