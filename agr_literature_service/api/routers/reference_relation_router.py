@@ -55,18 +55,17 @@ def destroy(
 @router.patch(
     "/{reference_relation_id}",
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    response_model=int,
 )
 def patch(
     reference_relation_id: int,
     request: ReferenceRelationSchemaPatch,
     user: OktaUser = db_user,
     db: Session = db_session,
-) -> ResponseMessageSchema:
+) -> int:
     set_global_user_from_okta(db, user)
-    data = request.dict(exclude_unset=True)
-    result = reference_relation_crud.patch(db, reference_relation_id, data)
-    return ResponseMessageSchema.model_validate(result)
+    update_data = request.model_dump(exclude_unset=True)
+    return reference_relation_crud.patch(db, reference_relation_id, update_data)
 
 
 @router.get(
