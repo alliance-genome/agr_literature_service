@@ -9,6 +9,7 @@ from agr_literature_service.api.schemas import (
     ReferenceRelationSchemaPost,
     ReferenceRelationSchemaShow,
     ReferenceRelationSchemaPatch,
+    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_okta
 
@@ -54,18 +55,18 @@ def destroy(
 @router.patch(
     "/{reference_relation_id}",
     status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    response_model=ResponseMessageSchema,
 )
 def patch(
     reference_relation_id: int,
     request: ReferenceRelationSchemaPatch,
     user: OktaUser = db_user,
     db: Session = db_session,
-) -> int:
+) -> ResponseMessageSchema:
     set_global_user_from_okta(db, user)
-    update_data = request.dict(exclude_unset=True)
-    updated_id = reference_relation_crud.patch(db, reference_relation_id, update_data)
-    return updated_id
+    data = request.dict(exclude_unset=True)
+    result = reference_relation_crud.patch(db, reference_relation_id, data)
+    return ResponseMessageSchema.model_validate(result)
 
 
 @router.get(
