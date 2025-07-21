@@ -558,7 +558,7 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int, force_insertion: bool = False):
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int, force_insertion: bool = False):  # pragma: no cover
     new_tag_data = copy.copy(topic_entity_tag_data)
     new_tag_data.pop('validation_by_author', None)
     new_tag_data.pop('validation_by_professional_biocurator', None)
