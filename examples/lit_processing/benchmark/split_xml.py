@@ -1,6 +1,6 @@
 # 22 minutes on dev.wormbase for 646727 documents from filesystem. 12G of xml to 6.0G of jso1
 # import json
-import urllib
+import urllib.request
 # import xmltodict
 
 

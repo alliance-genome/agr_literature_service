@@ -24,9 +24,10 @@ db_user = Security(auth.get_user)
              response_model=int)
 def create(request: CopyrightLicenseSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
-    return copyright_license_crud.create(db, request)
+    new_id = copyright_license_crud.create(db, request)
+    return new_id
 
 
 @router.get('/all',

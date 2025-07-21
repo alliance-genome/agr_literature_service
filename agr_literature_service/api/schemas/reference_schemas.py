@@ -1,24 +1,37 @@
-from typing import List, Optional, Dict
-from pydantic import BaseModel, validator
+from typing import Any, Dict, List, Optional
 
-from agr_literature_service.api.schemas import (AuthorSchemaPost, AuthorSchemaShow,
-                                                AuditedObjectModelSchema, CrossReferenceSchemaRelated,
-                                                CrossReferenceSchemaShow,
-                                                MeshDetailSchemaCreate,
-                                                MeshDetailSchemaRelated,
-                                                ModReferenceTypeSchemaCreate,
-                                                ModReferenceTypeSchemaRelated,
-                                                ModCorpusAssociationSchemaCreate,
-                                                PubMedPublicationStatus, ReferenceCategory,
-                                                ReferenceRelationSchemaRelated,
-                                                ReferencefileSchemaRelated,
-                                                ModCorpusAssociationSchemaRelated)
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from agr_literature_service.api.schemas import (
+    AuthorSchemaPost,
+    AuthorSchemaShow,
+    ModSchemaShow,
+    AuditedObjectModelSchema,
+    CrossReferenceSchemaRelated,
+    CrossReferenceSchemaShow,
+    MeshDetailSchemaCreate,
+    MeshDetailSchemaRelated,
+    ModReferenceTypeSchemaCreate,
+    ModReferenceTypeSchemaRelated,
+    ModCorpusAssociationSchemaCreate,
+    ModCorpusAssociationSchemaRelated,
+    PubMedPublicationStatus,
+    ReferenceCategory,
+    ReferenceRelationSchemaRelated,
+    ReferencefileSchemaRelated,
+)
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate
 
 
 class ReferenceSchemaPost(BaseModel):
+    """Schema for creating or posting a reference record."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
     title: Optional[str] = None
     category: Optional[ReferenceCategory] = None
     date_published: Optional[str] = None
@@ -47,12 +60,14 @@ class ReferenceSchemaPost(BaseModel):
     workflow_tags: Optional[List[WorkflowTagSchemaCreate]] = None
     topic_entity_tags: Optional[List[TopicEntityTagSchemaCreate]] = None
 
-    class Config:
-        orm_mode = True
-        extra = "forbid"
-
 
 class ReferenceSchemaUpdate(BaseModel):
+    """Schema for updating reference fields."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
     title: Optional[str] = None
     category: Optional[ReferenceCategory] = None
     date_published: Optional[str] = None
@@ -74,50 +89,61 @@ class ReferenceSchemaUpdate(BaseModel):
     resource: Optional[str] = None
     prepublication_pipeline: Optional[bool] = False
 
-    @validator('title')
-    def title_is_some(cls, v: str) -> str:
-        if not v:
-            raise ValueError('Cannot set title to None or blank string')
+    @field_validator('title')
+    def title_is_some(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v.strip() == '':
+            raise ValueError('Cannot set title to blank string')
         return v
 
-    @validator('category')
-    def category_is_some(cls, v):
-        if not v:
-            raise ValueError('Cannot set category to None or blank string')
+    @field_validator('category')
+    def category_is_some(cls, v: Optional[ReferenceCategory]) -> Optional[ReferenceCategory]:
+        if v is None:
+            raise ValueError('Cannot set category to None')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
 
 
 class ReferenceSchemaAddPmid(BaseModel):
+    """Schema for adding a PubMed ID to a reference."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
     pubmed_id: str
     mod_mca: str
     mod_curie: Optional[str] = ''
 
-    @validator('mod_curie')
-    def mod_curie_is_valid(cls, v):
-        if v:
-            if v == '':
-                return v
-            if v.count(":") != 1:
-                raise ValueError('Malformed MOD curie, must have colon')
-            mod_curie_prefix, mod_curie_id = v.split(":")
-            if len(mod_curie_prefix) == 0 or len(mod_curie_id) == 0:
-                raise ValueError('Malformed MOD curie, must have prefix and identifier')
+    @field_validator('mod_curie')
+    def mod_curie_is_valid(cls, v: Optional[str]) -> Optional[str]:
+        if v and v != '':
+            if v.count(':') != 1:
+                raise ValueError('Malformed MOD curie, must have single colon')
+            prefix, ident = v.split(':')
+            if not prefix or not ident:
+                raise ValueError('Malformed MOD curie, prefix and identifier required')
         return v
 
 
 class ReferenceRelationSchemaRelations(BaseModel):
+    """Schema grouping related references by relationship type."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
     to_references: Optional[List[ReferenceRelationSchemaRelated]] = None
     from_references: Optional[List[ReferenceRelationSchemaRelated]] = None
 
 
 class ReferenceSchemaShow(AuditedObjectModelSchema):
+    """Schema for showing full reference details with relationships and metadata."""
+    model_config = ConfigDict(
+        extra='ignore',
+        from_attributes=True,
+    )
+
     reference_id: int
     curie: str
-
     title: Optional[str] = None
     category: Optional[ReferenceCategory] = None
     resource_id: Optional[int] = None
@@ -130,7 +156,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     volume: Optional[str] = None
     plain_language_abstract: Optional[str] = None
     pubmed_abstract_languages: Optional[List[str]] = None
-    pubmed_publication_status: Optional[PubMedPublicationStatus]
+    pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     language: Optional[str] = None
     page_range: Optional[str] = None
     abstract: Optional[str] = None
@@ -142,9 +168,10 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     resources_for_curation: Optional[List[Dict[str, str]]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
+    # mesh_term: Optional[List[MeshDetailSchemaRelated]] = None  # allow singular mesh_term
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None
-    prepublication_pipeline: Optional[bool]
+    prepublication_pipeline: Optional[bool] = None
     resource_curie: Optional[str] = None
     resource_title: Optional[str] = None
     copyright_license_name: Optional[str] = None
@@ -154,28 +181,41 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     copyright_license_last_updated_by: Optional[str] = None
     invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
-    reference_relations: ReferenceRelationSchemaRelations
+    reference_relations: ReferenceRelationSchemaRelations = Field(default_factory=ReferenceRelationSchemaRelations)
     citation: Optional[str] = None
     citation_short: Optional[str] = None
     citation_id: Optional[int] = None
     workflow_tags: Optional[List[WorkflowTagSchemaRelated]] = None
+    mod: Optional[ModSchemaShow] = None
 
 
 class ReferenceSchemaNeedReviewShow(BaseModel):
+    """Schema for showing references needing review with essential fields."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
+    @field_validator('copyright_license_open_access', mode='before')
+    def _convert_open_access(cls, v):
+        if v in (None, ''):
+            return False
+        return v
+
     curie: str
     title: Optional[str] = None
     category: Optional[str] = None
     pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     abstract: Optional[str] = None
     mod_corpus_association_id: int
-    mod_corpus_association_corpus: Optional[bool]
-    prepublication_pipeline: Optional[bool]
+    mod_corpus_association_corpus: Optional[bool] = None
+    prepublication_pipeline: Optional[bool] = None
     resource_title: Optional[str] = None
-    cross_references: Optional[List[CrossReferenceSchemaShow]]
-    workflow_tags: Optional[List] = []
+    cross_references: Optional[List[CrossReferenceSchemaShow]] = None
+    workflow_tags: Optional[List[Any]] = Field(default_factory=list)
     copyright_license_name: Optional[str] = None
     copyright_license_url: Optional[str] = None
     copyright_license_description: Optional[str] = None
-    copyright_license_open_access: Optional[str] = None
+    copyright_license_open_access: Optional[bool] = False
     authors: Optional[List[AuthorSchemaShow]] = None
-    referencefiles: Optional[List[ReferencefileSchemaRelated]]
+    referencefiles: Optional[List[ReferencefileSchemaRelated]] = None

@@ -626,6 +626,8 @@ class TestTopicEntityTag:
 
     def test_validate_negated_null(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.map_curies_to_names") \
+                as mock_map_curies_to_names, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
             author_source_1 = {
@@ -655,6 +657,12 @@ class TestTopicEntityTag:
             mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
             mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             positive_tag_id = client.post(url="/topic_entity_tag/", json=positive_tag, headers=auth_headers).json()['topic_entity_tag_id']
+            mock_map_curies_to_names.return_value = {
+                'ATP:0000005': 'gene',
+                'community curation': 'community curation',
+                'ATP:0000009': 'phenotype',
+                'ATP:0000122': 'some term'
+            }
             mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
             mock_get_descendants.return_value = {'ATP:0000009', 'ATP:0000033', 'ATP:0000034', 'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000100'}
             null_tag_id = client.post(url="/topic_entity_tag/", json=null_tag, headers=auth_headers).json()['topic_entity_tag_id']
