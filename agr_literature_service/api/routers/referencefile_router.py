@@ -172,7 +172,7 @@ def delete(
 def show(
     referencefile_id: int,
     db: Session = DB_DEP
-) -> Dict[str, Any]:
+) -> ReferencefileSchemaShow:
     return referencefile_crud.show(db, referencefile_id)
 
 
@@ -184,7 +184,7 @@ def show(
 def show_all(
     curie_or_reference_id: str,
     db: Session = DB_DEP
-) -> List[Dict[str, Any]]:
+) -> List[ReferencefileSchemaRelated]:
     return referencefile_crud.show_all(db, curie_or_reference_id)
 
 
