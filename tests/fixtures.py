@@ -13,12 +13,12 @@ from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from os import environ, path
 
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from agr_literature_service.api.config import config
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
-from os import environ, path
 
 
 def delete_all_table_content(engine, db_session):

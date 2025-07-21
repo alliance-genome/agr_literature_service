@@ -59,7 +59,7 @@ def destroy(
     status_code=status.HTTP_202_ACCEPTED,
     response_model=int,
 )
-def patch(
+async def patch(
     reference_workflow_tag_id: int,
     request: WorkflowTagSchemaUpdate,
     user: OktaUser = db_user,
@@ -111,7 +111,7 @@ def get_jobs(
     status_code=status.HTTP_200_OK,
 )
 def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
-    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_failed')
 
 
 @router.post(
@@ -119,7 +119,7 @@ def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
     status_code=status.HTTP_200_OK,
 )
 def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
-    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_retry")
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_retry')
 
 
 @router.post(
@@ -127,7 +127,7 @@ def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
     status_code=status.HTTP_200_OK,
 )
 def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
-    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_success')
 
 
 @router.post(
@@ -135,7 +135,7 @@ def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
     status_code=status.HTTP_200_OK,
 )
 def start_job(reference_workflow_tag_id: int, db: Session = db_session):
-    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, "on_start")
+    return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_start')
 
 
 @router.get(

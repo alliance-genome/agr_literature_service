@@ -14,32 +14,30 @@ class GlobalConfig(BaseSettings):
         extra='ignore',
     )
 
-    ENV_STATE: EnvStateSchema = Field(..., env='ENV_STATE')
-    HOST: Optional[str] = Field(None, env='HOST')
-    PROD_HOST: Optional[str] = Field(None, env='PROD_HOST')
-    BUCKET_NAME: str = Field('agr-literature', env='BUCKET_NAME')
+    ENV_STATE: EnvStateSchema = Field(..., env="ENV_STATE")
+    HOST: Optional[str] = Field(None, env="HOST")
+    PROD_HOST: Optional[str] = Field(None, env="PROD_HOST")
+    BUCKET_NAME: str = Field("agr-literature", env="BUCKET_NAME")
 
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(None, env='AWS_SECRET_ACCESS_KEY')
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(None, env='AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(None, env="AWS_SECRET_ACCESS_KEY")
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(None, env="AWS_ACCESS_KEY_ID")
 
-    # these two are required by Okta(...)
-    OKTA_DOMAIN: str = Field(..., env='OKTA_DOMAIN')
-    OKTA_API_AUDIENCE: str = Field(..., env='OKTA_API_AUDIENCE')
+    OKTA_DOMAIN: str = Field(..., env="OKTA_DOMAIN")
+    OKTA_API_AUDIENCE: str = Field(..., env="OKTA_API_AUDIENCE")
 
-    # preserve them if your startup‐check still needs them
-    OKTA_CLIENT_ID: Optional[str] = Field(None, env='OKTA_CLIENT_ID')
-    OKTA_CLIENT_SECRET: Optional[str] = Field(None, env='OKTA_CLIENT_SECRET')
+    OKTA_CLIENT_ID: Optional[str] = Field(None, env="OKTA_CLIENT_ID")
+    OKTA_CLIENT_SECRET: Optional[str] = Field(None, env="OKTA_CLIENT_SECRET")
 
-    PSQL_USERNAME: str = Field(..., env='PSQL_USERNAME')
-    PSQL_PASSWORD: str = Field(..., env='PSQL_PASSWORD')
-    PSQL_HOST: str = Field(..., env='PSQL_HOST')
-    PSQL_PORT: str = Field(..., env='PSQL_PORT')
-    PSQL_DATABASE: str = Field(..., env='PSQL_DATABASE')
+    PSQL_USERNAME: str = Field(..., env="PSQL_USERNAME")
+    PSQL_PASSWORD: str = Field(..., env="PSQL_PASSWORD")
+    PSQL_HOST: str = Field(..., env="PSQL_HOST")
+    PSQL_PORT: str = Field(..., env="PSQL_PORT")
+    PSQL_DATABASE: str = Field(..., env="PSQL_DATABASE")
 
-    RESOURCE_DESCRIPTOR_URL: str = Field(..., env='RESOURCE_DESCRIPTOR_URL')
-    ELASTICSEARCH_HOST: str = Field(..., env='ELASTICSEARCH_HOST')
-    ELASTICSEARCH_PORT: str = Field(..., env='ELASTICSEARCH_PORT')
-    ELASTICSEARCH_INDEX: str = Field(..., env='ELASTICSEARCH_INDEX')
+    RESOURCE_DESCRIPTOR_URL: str = Field(..., env="RESOURCE_DESCRIPTOR_URL")
+    ELASTICSEARCH_HOST: str = Field(..., env="ELASTICSEARCH_HOST")
+    ELASTICSEARCH_PORT: str = Field(..., env="ELASTICSEARCH_PORT")
+    ELASTICSEARCH_INDEX: str = Field(..., env="ELASTICSEARCH_INDEX")
 
 
 # instantiate once for application‑wide use
