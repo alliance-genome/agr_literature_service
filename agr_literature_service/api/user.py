@@ -28,12 +28,14 @@ def add_user_if_not_exists(db: Session, user_id: str):
 
 def set_global_user_from_okta(db: Session, user: OktaUser):
     """
-    Pull the user ID/email from Okta and make sure our DB has a matching UserModel.
+    Pull the user ID/email from Okta and ensure our DB has a matching UserModel.
     """
     global user_id
+    # pick a concrete string ID
     uid: str = user.uid if user.uid else user.cid
     user_id = uid
 
+    # only treat this as an “email” if it’s different from the uid and looks like one
     user_email: Optional[str] = None
     if user.email and user.email != uid and "@" in user.email:
         user_email = user.email
