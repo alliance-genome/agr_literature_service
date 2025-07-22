@@ -1,7 +1,6 @@
 from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-import os
 from agr_literature_service.api.schemas import EnvStateSchema
 
 
@@ -9,7 +8,7 @@ class GlobalConfig(BaseSettings):
     """Global configurations."""
 
     model_config = SettingsConfigDict(
-        env_file=os.getenv('ENV_FILE', '.env'),
+        env_file=None,
         env_file_encoding='utf-8',
         extra='ignore',
     )
