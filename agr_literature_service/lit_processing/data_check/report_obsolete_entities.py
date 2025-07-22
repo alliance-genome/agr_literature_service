@@ -27,7 +27,7 @@ def check_data():
             entity_type_to_mod_entity_ids = get_unique_entity_list(db, mod_abbreviation)
             for entity_type, entity_id_curies_set in entity_type_to_mod_entity_ids.items():
                 mod_entity_ids = [eid for eid, _ in entity_id_curies_set]
-                agrkbs = {eid: curies for eid, curies in entity_id_curies_set}
+                entity_id_to_agrkbs = {eid: curies for eid, curies in entity_id_curies_set}
                 entity_type_name = atp_get_name(entity_type)
                 entity_type_name = entity_type_name.replace("transgenic ", "")
                 logger.info(f"Checking {mod_abbreviation} obsolete {entity_type_name}:")
@@ -58,7 +58,7 @@ def check_data():
                         deleted_id_set,
                         obsolete_id_set,
                         obsolete_id_to_name,
-                        agrkbs
+                        entity_id_to_agrkbs
                     )
                 )
     except Exception as e:
@@ -79,13 +79,13 @@ def write_report(data_to_report):
     log_file_with_datestamp = path.join(log_path, f"QC/obsolete_entity_report_{datestamp}.log")
     with open(log_file, "w") as f:
         f.write(f"#!date-produced: {datestamp}\n")
-        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, agrkbs in data_to_report:
+        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, entity_id_to_agrkbs in data_to_report:
             for curie in deleted_id_set:
-                references = agrkbs.get(curie, '')
+                references = entity_id_to_agrkbs.get(curie, '')
                 f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{curie}\t\t{references}\n")
             for curie in obsolete_id_set:
                 obsolete_name = obsolete_id_to_name.get(curie, '')
-                references = agrkbs.get(curie, '')
+                references = entity_id_to_agrkbs.get(curie, '')
                 f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{curie}\t{obsolete_name}\t{references}\n")
     copy(log_file, log_file_with_datestamp)
 
