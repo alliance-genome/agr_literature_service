@@ -438,6 +438,9 @@ services:
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - /home:/home:ro
+      - /var/www:/var/www:ro
 
 volumes:
   agr-literature-pg-data:
