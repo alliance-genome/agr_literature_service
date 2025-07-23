@@ -441,6 +441,7 @@ services:
     volumes:
       - /home:/home:ro
       - /var/www:/var/www:ro
+      - /var/log/agr_literature_service:/var/log/agr_literature_service:ro
 
 volumes:
   agr-literature-pg-data:
