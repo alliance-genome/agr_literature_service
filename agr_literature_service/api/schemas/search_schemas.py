@@ -6,8 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class FacetsOptionsSchema(BaseModel):
     """Schema for search facets, pagination, and filtering options."""
     model_config = ConfigDict(
-        extra='forbid',       # forbid unexpected fields
-        from_attributes=True  # allow ORM-like init if needed
+        extra='ignore',
+        from_attributes=True
     )
 
     query: Optional[str] = None
