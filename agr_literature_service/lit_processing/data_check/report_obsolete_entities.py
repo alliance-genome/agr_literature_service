@@ -25,7 +25,9 @@ def check_data():
     try:
         for mod_abbreviation in get_mod_abbreviations():
             entity_type_to_mod_entity_ids = get_unique_entity_list(db, mod_abbreviation)
-            for entity_type, mod_entity_ids in entity_type_to_mod_entity_ids.items():
+            for entity_type, entity_id_curies_set in entity_type_to_mod_entity_ids.items():
+                mod_entity_ids = [eid for eid, _ in entity_id_curies_set]
+                entity_id_to_agrkbs = {eid: curies for eid, curies in entity_id_curies_set}
                 entity_type_name = atp_get_name(entity_type)
                 entity_type_name = entity_type_name.replace("transgenic ", "")
                 logger.info(f"Checking {mod_abbreviation} obsolete {entity_type_name}:")
@@ -55,7 +57,8 @@ def check_data():
                         entity_type_name,
                         deleted_id_set,
                         obsolete_id_set,
-                        obsolete_id_to_name
+                        obsolete_id_to_name,
+                        entity_id_to_agrkbs
                     )
                 )
     except Exception as e:
@@ -76,12 +79,14 @@ def write_report(data_to_report):
     log_file_with_datestamp = path.join(log_path, f"QC/obsolete_entity_report_{datestamp}.log")
     with open(log_file, "w") as f:
         f.write(f"#!date-produced: {datestamp}\n")
-        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name in data_to_report:
+        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, entity_id_to_agrkbs in data_to_report:
             for curie in deleted_id_set:
-                f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{curie}\t\n")
+                references = entity_id_to_agrkbs.get(curie, '')
+                f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{curie}\t\t{references}\n")
             for curie in obsolete_id_set:
                 obsolete_name = obsolete_id_to_name.get(curie, '')
-                f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{curie}\t{obsolete_name}\n")
+                references = entity_id_to_agrkbs.get(curie, '')
+                f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{curie}\t{obsolete_name}\t{references}\n")
     copy(log_file, log_file_with_datestamp)
 
 
@@ -200,20 +205,31 @@ def check_ateam_database(ateam_db, entity_type_name, mod_entity_ids, batch_size=
 
 
 def get_unique_entity_list(db, mod_abbreviation):
-
     query = text("""
-        SELECT distinct tet.entity_type, tet.entity
-        FROM topic_entity_tag tet, topic_entity_tag_source tet_src
-        WHERE entity is not NULL
-        AND tet.topic_entity_tag_source_id = tet_src.topic_entity_tag_source_id
-        AND tet_src.data_provider = :mod_abbreviation
+        SELECT
+            tet.entity_type,
+            tet.entity,
+            string_agg(ref.curie, ', ') AS reference_curies
+        FROM
+            topic_entity_tag tet
+        JOIN
+            topic_entity_tag_source tet_src
+            ON tet.topic_entity_tag_source_id = tet_src.topic_entity_tag_source_id
+        JOIN
+            reference ref
+            ON tet.reference_id = ref.reference_id
+        WHERE
+            tet.entity IS NOT NULL
+            AND tet_src.data_provider = :mod_abbreviation
+        GROUP BY
+            tet.entity_type, tet.entity;
     """)
     params = {"mod_abbreviation": mod_abbreviation}
     rows = db.execute(query, params).fetchall()
 
     entity_type_to_mod_entity_ids = defaultdict(set)
-    for entity_type, entity_mod_id in rows:
-        entity_type_to_mod_entity_ids[entity_type].add(entity_mod_id)
+    for entity_type, entity_mod_id, agrkbs in rows:
+        entity_type_to_mod_entity_ids[entity_type].add((entity_mod_id, agrkbs))
 
     return entity_type_to_mod_entity_ids
 
