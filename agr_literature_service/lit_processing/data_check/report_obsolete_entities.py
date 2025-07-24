@@ -26,8 +26,9 @@ def check_data():
         for mod_abbreviation in get_mod_abbreviations():
             entity_type_to_mod_entity_ids = get_unique_entity_list(db, mod_abbreviation)
             for entity_type, entity_id_curies_set in entity_type_to_mod_entity_ids.items():
-                mod_entity_ids = [eid for eid, _ in entity_id_curies_set]
-                entity_id_to_agrkbs = {eid: curies for eid, curies in entity_id_curies_set}
+                mod_entity_ids = [eid for eid, _, _ in entity_id_curies_set]
+                entity_id_to_agrkbs = {eid: curies for eid, _, curies in entity_id_curies_set}
+                entity_id_to_ref_count = {eid: ref_count for eid, ref_count, _ in entity_id_curies_set}
                 entity_type_name = atp_get_name(entity_type)
                 entity_type_name = entity_type_name.replace("transgenic ", "")
                 logger.info(f"Checking {mod_abbreviation} obsolete {entity_type_name}:")
@@ -58,6 +59,7 @@ def check_data():
                         deleted_id_set,
                         obsolete_id_set,
                         obsolete_id_to_name,
+                        entity_id_to_ref_count,
                         entity_id_to_agrkbs
                     )
                 )
@@ -79,14 +81,16 @@ def write_report(data_to_report):
     log_file_with_datestamp = path.join(log_path, f"QC/obsolete_entity_report_{datestamp}.log")
     with open(log_file, "w") as f:
         f.write(f"#!date-produced: {datestamp}\n")
-        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, entity_id_to_agrkbs in data_to_report:
-            for curie in deleted_id_set:
-                references = entity_id_to_agrkbs.get(curie, '')
-                f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{curie}\t\t{references}\n")
-            for curie in obsolete_id_set:
-                obsolete_name = obsolete_id_to_name.get(curie, '')
-                references = entity_id_to_agrkbs.get(curie, '')
-                f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{curie}\t{obsolete_name}\t{references}\n")
+        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, entity_id_to_ref_count, entity_id_to_agrkbs in data_to_report:
+            for entity_id in deleted_id_set:
+                ref_count = entity_id_to_ref_count.get(entity_id, '')
+                references = entity_id_to_agrkbs.get(entity_id, '')
+                f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{entity_id}\t\t{ref_count}\t{references}\n")
+            for entity_id in obsolete_id_set:
+                obsolete_name = obsolete_id_to_name.get(entity_id, '')
+                ref_count = entity_id_to_ref_count.get(entity_id, '')
+                references = entity_id_to_agrkbs.get(entity_id, '')
+                f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{entity_id}\t{obsolete_name}\t{ref_count}\t{references}\n")
     copy(log_file, log_file_with_datestamp)
 
 
@@ -209,6 +213,7 @@ def get_unique_entity_list(db, mod_abbreviation):
         SELECT
             tet.entity_type,
             tet.entity,
+            COUNT(ref.curie),
             string_agg(ref.curie, ', ') AS reference_curies
         FROM
             topic_entity_tag tet
@@ -228,8 +233,8 @@ def get_unique_entity_list(db, mod_abbreviation):
     rows = db.execute(query, params).fetchall()
 
     entity_type_to_mod_entity_ids = defaultdict(set)
-    for entity_type, entity_mod_id, agrkbs in rows:
-        entity_type_to_mod_entity_ids[entity_type].add((entity_mod_id, agrkbs))
+    for entity_type, entity_mod_id, ref_count, agrkbs in rows:
+        entity_type_to_mod_entity_ids[entity_type].add((entity_mod_id, ref_count, agrkbs))
 
     return entity_type_to_mod_entity_ids
 
