@@ -80,12 +80,20 @@ def check_obsolete_entities():
                 date_produced = line.split('date-produced: ')[1].strip()
             else:
                 pieces = line.strip().split('\t')
-                if len(pieces) >= 4:
+                if len(pieces) >= 6:
+                    reference_curies_raw = pieces[6] if len(pieces) > 6 else ''
+                    reference_curies_list = [curie.strip() for curie in reference_curies_raw.split(',') if curie.strip()]
+                    if len(reference_curies_list) > 5:
+                        display_curies = ', '.join(reference_curies_list[:5]) + ', ...'
+                    else:
+                        display_curies = ', '.join(reference_curies_list)
                     data[pieces[0]].append({
                         "entity_type": pieces[1],
                         "entity_status": pieces[2],
                         "entity_curie": pieces[3],
-                        "entity_name": pieces[4] if len(pieces) > 4 else None
+                        "entity_name": pieces[4] if len(pieces) > 4 else None,
+                        "reference_count": pieces[5],
+                        "reference_curies": display_curies
                     })
 
     return {
