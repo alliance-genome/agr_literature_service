@@ -80,7 +80,7 @@ def check_obsolete_entities():
                 date_produced = line.split('date-produced: ')[1].strip()
             else:
                 pieces = line.strip().split('\t')
-                if len(pieces) >= 6:
+                if len(pieces) > 6:
                     reference_curies_raw = pieces[6] if len(pieces) > 6 else ''
                     reference_curies_list = [curie.strip() for curie in reference_curies_raw.split(',') if curie.strip()]
                     if len(reference_curies_list) > 5:
