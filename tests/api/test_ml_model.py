@@ -44,6 +44,7 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                 "production": True,
                 "negated": True,
                 "novel_topic_data": False,
+                "novel_topic_value": "ATP:0000062",
                 "species": None
             }
             model_data_json = json.dumps(new_model)
@@ -87,6 +88,7 @@ class TestMLModel:
         assert ml_model.mod.abbreviation == test_mod.new_mod_abbreviation
         assert ml_model.topic == "ATP:0000061"
         assert ml_model.version_num == 1
+        assert ml_model.novel_topic_value == "ATP:0000062"
 
     def test_get_model_metadata(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:

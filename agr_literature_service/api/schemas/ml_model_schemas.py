@@ -19,6 +19,7 @@ class MLModelSchemaBase(BaseModel):
     production: Union[bool, None]
     negated: Union[bool, None]
     novel_topic_data: Union[bool, None]
+    novel_topic_value: Union[str, None]
     species: Union[str, None]
 
 

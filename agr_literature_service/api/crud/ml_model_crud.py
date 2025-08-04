@@ -60,6 +60,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         production=request.production,
         species=request.species,
         novel_topic_data=request.novel_topic_data,
+        novel_topic_value=request.novel_topic_value,
         negated=request.negated
     )
     try:
@@ -143,6 +144,7 @@ def get_model_schema_from_orm(model: MLModel):
         "production": model.production,
         "species": model.species,
         "novel_topic_data": model.novel_topic_data,
+        "novel_topic_value": model.novel_topic_value,
         "negated": model.negated
     }
     return MLModelSchemaShow(**model_data)
