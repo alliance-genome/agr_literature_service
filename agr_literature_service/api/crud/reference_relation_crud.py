@@ -153,7 +153,8 @@ def patch(db: Session, reference_relation_id: int, reference_relation_update):
         db.add(db_obj)
         db.commit()
         db.refresh(db_obj)
-        return {"message": "updated"}
+        # return {"message": "updated"}
+        return db_obj.reference_relation_id
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

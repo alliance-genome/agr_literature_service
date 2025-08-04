@@ -28,7 +28,7 @@ db_user = Security(auth.get_user)
              response_model=int)
 def create(request: ModCorpusAssociationSchemaPost,
            user: OktaUser = db_user,
-           db: Session = db_session):
+           db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     return mod_corpus_association_crud.create(db, request)
 
@@ -49,7 +49,7 @@ def destroy(mod_corpus_association_id: int,
 async def patch(mod_corpus_association_id: int,
                 request: ModCorpusAssociationSchemaUpdate,
                 user: OktaUser = db_user,
-                db: Session = db_session):
+                db: Session = db_session) -> int:
     set_global_user_from_okta(db, user)
     patch = request.dict(exclude_unset=True)
     return mod_corpus_association_crud.patch(db, mod_corpus_association_id, patch)

@@ -425,6 +425,23 @@ services:
       - API_PORT=$API_PORT
       - API_SERVER=$API_SERVER
 
+  reverse_proxy:
+    build:
+      context: ./reverse_proxy
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: ${BUILD_ENV:-dev}
+    ports:
+      - "80:80"
+    networks:
+      - agr-literature
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /home:/home:ro
+      - /var/www:/var/www:ro
+      - /var/log/agr_literature_service:/var/log/agr_literature_service:ro
 
 volumes:
   agr-literature-pg-data:

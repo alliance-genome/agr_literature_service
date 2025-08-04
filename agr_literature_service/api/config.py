@@ -1,32 +1,31 @@
 from typing import Optional
-
-from pydantic import  Field
-from pydantic_settings import BaseSettings
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from agr_literature_service.api.schemas import EnvStateSchema
 
 
 class GlobalConfig(BaseSettings):
     """Global configurations."""
 
-    # This variable will be loaded from the .env file. However, if there is a
-    # shell environment variable having the same name, that will take precedence.
+    model_config = SettingsConfigDict(
+        env_file=None,
+        env_file_encoding='utf-8',
+        extra='ignore',
+    )
 
-    # the class Field is necessary while defining the global variables
     ENV_STATE: EnvStateSchema = Field(..., env="ENV_STATE")
-    HOST: Optional[str] = Field(..., env="HOST")
-    PROD_HOST: Optional[str] = Field(..., env="HOST")
-    BUCKET_NAME: str = Field(default="agr-literature", env="BUCKET_NAME")
+    HOST: Optional[str] = Field(None, env="HOST")
+    PROD_HOST: Optional[str] = Field(None, env="PROD_HOST")
+    BUCKET_NAME: str = Field("agr-literature", env="BUCKET_NAME")
 
-    # AWS Creds
-    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(..., env="AWS_SECRET_ACCESS_KEY")
-    AWS_ACCESS_KEY_ID: Optional[str] = Field(..., env="AWS_ACCESS_KEY_ID")
-
-    # environment specific configs
-    API_USERNAME: Optional[str] = None
-    API_PASSWORD: Optional[str] = None
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(None, env="AWS_SECRET_ACCESS_KEY")
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(None, env="AWS_ACCESS_KEY_ID")
 
     OKTA_DOMAIN: str = Field(..., env="OKTA_DOMAIN")
     OKTA_API_AUDIENCE: str = Field(..., env="OKTA_API_AUDIENCE")
+
+    OKTA_CLIENT_ID: Optional[str] = Field(None, env="OKTA_CLIENT_ID")
+    OKTA_CLIENT_SECRET: Optional[str] = Field(None, env="OKTA_CLIENT_SECRET")
 
     PSQL_USERNAME: str = Field(..., env="PSQL_USERNAME")
     PSQL_PASSWORD: str = Field(..., env="PSQL_PASSWORD")
@@ -40,4 +39,5 @@ class GlobalConfig(BaseSettings):
     ELASTICSEARCH_INDEX: str = Field(..., env="ELASTICSEARCH_INDEX")
 
 
+# instantiate once for application‑wide use
 config = GlobalConfig()

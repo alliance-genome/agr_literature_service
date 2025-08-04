@@ -80,12 +80,20 @@ def check_obsolete_entities():
                 date_produced = line.split('date-produced: ')[1].strip()
             else:
                 pieces = line.strip().split('\t')
-                if len(pieces) >= 4:
+                if len(pieces) > 6:
+                    reference_curies_raw = pieces[6] if len(pieces) > 6 else ''
+                    reference_curies_list = [curie.strip() for curie in reference_curies_raw.split(',') if curie.strip()]
+                    if len(reference_curies_list) > 5:
+                        display_curies = ', '.join(reference_curies_list[:5]) + ', ...'
+                    else:
+                        display_curies = ', '.join(reference_curies_list)
                     data[pieces[0]].append({
                         "entity_type": pieces[1],
                         "entity_status": pieces[2],
                         "entity_curie": pieces[3],
-                        "entity_name": pieces[4] if len(pieces) > 4 else None
+                        "entity_name": pieces[4] if len(pieces) > 4 else None,
+                        "reference_count": pieces[5],
+                        "reference_curies": display_curies
                     })
 
     return {
@@ -137,6 +145,34 @@ def check_obsolete_pmids():
     return {
         "date-produced": date_produced,
         "obsolete_pmids": dict(data)
+    }
+
+
+def check_duplicate_orcids():
+    log_path = environ.get('LOG_PATH', '.')
+    log_file = path.join(log_path, "QC/duplicate_orcid_report.log")
+    date_produced = None
+    data = defaultdict(list)
+
+    try:
+        with open(log_file, 'r') as f:
+            for line in f:
+                if 'date-produced:' in line:
+                    date_produced = line.split('date-produced: ')[1].strip()
+                else:
+                    pieces = line.strip().split('\t')
+                    if len(pieces) >= 4:
+                        data[pieces[0]].append({
+                            "reference_curie": pieces[1],
+                            "orcid": pieces[2],
+                            "author_names": pieces[3]
+                        })
+    except FileNotFoundError:
+        return {"date-produced": None, "duplicate_orcids": {}}
+
+    return {
+        "date-produced": date_produced,
+        "duplicate_orcids": dict(data)
     }
 
 

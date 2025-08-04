@@ -1,19 +1,36 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, ConfigDict, field_validator
+
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 class CrossReferencePageSchemaShow(BaseModel):
+    """Schema for individual cross-reference pages."""
+    model_config = ConfigDict(
+        extra='ignore',
+        from_attributes=True,
+    )
+
     name: Optional[str] = None
     url: Optional[str] = None
 
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-
 
 class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
+    """Schema for related cross-reference details with audit fields."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+        json_schema_extra={
+            "example": {
+                "curie": "MOD:curie",
+                "pages": [
+                    {"name": "page1", "url": "https://..."}
+                ]
+            }
+        }
+    )
+
     cross_reference_id: int
     curie: str
     curie_prefix: str
@@ -21,51 +38,50 @@ class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     is_obsolete: Optional[bool] = None
 
-    @validator('curie')
-    def name_must_contain_space(cls, v):
-        # if v.count(":") != 1 and not v.startswith("DOI:"):
-        if v.count(":") == 0:
-            raise ValueError('must contain a single colon')
+    @field_validator('curie')
+    def validate_curie(cls, v: str) -> str:
+        if v.count(':') == 0:
+            raise ValueError('curie must contain a single colon')
         return v
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"
-        schema_extra = {
-            "example": {
-                "curie": "MOD:curie",
-                "pages": [
-                    "reference"
-                ]
-            }
-        }
 
 
 class CrossReferenceSchemaCreate(BaseModel):
+    """Schema for creating a new cross-reference."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
     curie: str
     pages: Optional[List[str]] = None
     is_obsolete: Optional[bool] = False
 
 
 class CrossReferenceSchemaPost(CrossReferenceSchemaCreate):
-    resource_curie: Optional[str] = None
-    reference_curie: Optional[str] = None
-
-    class Config():
-        orm_mod = True
-        extra = "forbid"
-        schema_extra = {
+    """Schema for posting cross-reference with resource and reference context."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "curie": "MOD:curie",
-                "pages": [
-                    "reference"
-                ],
+                "pages": ["reference"],
                 "reference_curie": "AGRKB:101"
             }
         }
+    )
+
+    resource_curie: Optional[str] = None
+    reference_curie: Optional[str] = None
 
 
 class CrossReferenceSchemaShow(AuditedObjectModelSchema):
+    """Schema for showing cross-reference with all context."""
+    model_config = ConfigDict(
+        extra='ignore',
+        from_attributes=True,
+    )
+
     cross_reference_id: int
     curie: str
     curie_prefix: str
@@ -73,16 +89,31 @@ class CrossReferenceSchemaShow(AuditedObjectModelSchema):
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
-    is_obsolete: Optional[bool]
+    is_obsolete: Optional[bool] = None
+
+    @field_validator('pages', mode='before')
+    def _handle_string_pages(cls, v):
+        # convert list of string pages into CrossReferencePageSchemaShow dicts
+        if v is None:
+            return v
+        converted = []
+        for item in v:
+            if isinstance(item, str):
+                converted.append({'name': item})
+            else:
+                converted.append(item)
+        return converted
 
 
 class CrossReferenceSchemaUpdate(BaseModel):
+    """Schema for updating cross-reference fields."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
+    curie: Optional[str] = None
     pages: Optional[List[str]] = None
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
-    curie: Optional[str] = None
-
-    class Config():
-        orm_mode = True
-        extra = "forbid"

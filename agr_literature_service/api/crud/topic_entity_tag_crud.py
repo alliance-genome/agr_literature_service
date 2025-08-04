@@ -28,8 +28,9 @@ from agr_literature_service.api.models import (
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
-from agr_literature_service.api.models.audited_model import get_default_user_value, \
-    disable_set_updated_by_onupdate, disable_set_date_updated_onupdate
+# from agr_literature_service.api.models.audited_model import get_default_user_value, \
+#    disable_set_updated_by_onupdate, disable_set_date_updated_onupdate
+from agr_literature_service.api.models.audited_model import get_default_user_value
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
@@ -48,7 +49,7 @@ TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> dict:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
@@ -106,7 +107,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    # return topic_entity_tag_id
+    return {"topic_entity_tag_id": new_db_obj.topic_entity_tag_id}
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
@@ -433,8 +434,8 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
 
 
 def set_validation_values_to_tag(tag: TopicEntityTagModel):
-    disable_set_updated_by_onupdate(tag)
-    disable_set_date_updated_onupdate(tag)
+    # disable_set_updated_by_onupdate(tag)
+    # disable_set_date_updated_onupdate(tag)
     tag.validation_by_professional_biocurator = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_CURATOR)
     tag.validation_by_author = calculate_validation_value_for_tag(tag, ATP_ID_SOURCE_AUTHOR)
 
@@ -583,7 +584,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             return {
                 "status": "exists",
                 "message": "The tag already exists in the database.",
-                "data": tag_data
+                "data": tag_data,
+                "topic_entity_tag_id": existing_tag.topic_entity_tag_id
             }
         else:
             message = "The new note was added to the previously empty note column for the tag already in the database."
@@ -604,7 +606,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
                 return {
                     "status": "exists",
                     "message": message,
-                    "data": tag_data
+                    "data": tag_data,
+                    "topic_entity_tag_id": existing_tag.topic_entity_tag_id
                 }
             except (IntegrityError, HTTPException) as e:
                 db.rollback()
@@ -626,7 +629,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             return {
                 "status": f"exists: {existing_tag.created_by} | {existing_tag.note}",
                 "message": "The tag, created by another curator, already exists in the database.",
-                "data": tag_data
+                "data": tag_data,
+                "topic_entity_tag_id": existing_tag.topic_entity_tag_id
             }
         else:
             message = "The tag without a note, created by another curator, already exists in the database."
@@ -636,7 +640,8 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
             return {
                 "status": f"exists: {existing_tag.created_by} | {note_in_db}",
                 "message": message,
-                "data": tag_data
+                "data": tag_data,
+                "topic_entity_tag_id": existing_tag.topic_entity_tag_id
             }
 
     # if no duplicates found, return None
