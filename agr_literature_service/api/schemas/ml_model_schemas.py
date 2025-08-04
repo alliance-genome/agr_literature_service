@@ -24,7 +24,7 @@ class MLModelSchemaBase(BaseModel):
     production: Optional[bool] = None
     negated: Optional[bool] = None
     novel_topic_data: Optional[bool] = None
-    novel_topic_value: Union[str, None]
+    novel_topic_value: Optional[str] = None
     species: Optional[str] = None
 
 
