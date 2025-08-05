@@ -44,7 +44,7 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                 "production": True,
                 "negated": True,
                 "novel_topic_data": False,
-                "novel_topic_value": "ATP:0000062",
+                "novel_topic_qualifier": "ATP:0000062",
                 "species": None
             }
             model_data_json = json.dumps(new_model)
