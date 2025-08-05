@@ -45,7 +45,7 @@ git+https://github.com/alliance-genome/agr_fastapi_okta@v1.3#egg=fastapi_okta # 
 
 # HTTP and Networking
 requests==2.31.0             # Updated for bug fixes and improvements.
-urllib3==1.26.16             # No update needed.
+urllib3==1.26.17             # Dependabot fix.
 
 # XML Processing
 bs4==0.0.1                   # No update needed.
