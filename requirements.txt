@@ -28,6 +28,7 @@ sqlalchemy_utils==0.38.0     # Upgrade to be compatible with SQLAlchemy 2.0.x.
 databases[postgresql]==0.9.0  # Upgrade for compatibility with SQLAlchemy 2.0.x.
 pytz==2023.3                 # Updated for timezone data.
 sqlalchemy_continuum==1.4.0  # Upgrade for compatibility with SQLAlchemy 2.0.x.
+pydantic-settings
 
 # FastAPI Auth
 fastapi_auth0==0.3.0         # Updated for compatibility.
@@ -44,7 +45,7 @@ git+https://github.com/alliance-genome/agr_fastapi_okta@v1.3#egg=fastapi_okta # 
 
 # HTTP and Networking
 requests==2.31.0             # Updated for bug fixes and improvements.
-urllib3==1.26.16             # No update needed.
+urllib3==1.26.17             # Dependabot fix.
 
 # XML Processing
 bs4==0.0.1                   # No update needed.
