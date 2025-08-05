@@ -88,7 +88,7 @@ class TestMLModel:
         assert ml_model.mod.abbreviation == test_mod.new_mod_abbreviation
         assert ml_model.topic == "ATP:0000061"
         assert ml_model.version_num == 1
-        assert ml_model.novel_topic_value == "ATP:0000062"
+        assert ml_model.novel_topic_qualifier == "ATP:0000062"
 
     def test_get_model_metadata(self, test_ml_model, test_mod):  # noqa
         with TestClient(app) as client:

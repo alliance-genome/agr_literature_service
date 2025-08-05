@@ -92,7 +92,7 @@ class MLModel(Base):
     )
 
     # This will eventually replace novel_topic_data
-    novel_topic_value = Column(
+    novel_topic_qualifier = Column(
         String,
         nullable=True
     )
