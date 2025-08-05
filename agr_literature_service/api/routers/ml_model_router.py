@@ -46,7 +46,7 @@ def upload_model(
         production: bool = False,
         negated: bool = True,
         novel_topic_data: bool = False,
-        novel_topic_value: str = None,
+        novel_topic_qualifier: str = None,
         species: str = None):
     model_data = None
     if task_type and mod_abbreviation:
@@ -65,7 +65,7 @@ def upload_model(
             "production": production,
             "negated": negated,
             "novel_topic_data": novel_topic_data,
-            "novel_topic_value": novel_topic_value,
+            "novel_topic_qualifier": novel_topic_qualifier,
             "species": species
         }
     elif model_data_file is not None:
@@ -92,7 +92,7 @@ def upload_model(
         production=model_data["production"],
         negated=model_data["negated"],
         novel_topic_data=model_data["novel_topic_data"],
-        novel_topic_value=model_data["novel_topic_value"],
+        novel_topic_qualifier=model_data["novel_topic_qualifier"],
         species=model_data["species"]
     )
     set_global_user_from_okta(db, user)
