@@ -8,7 +8,7 @@ from agr_literature_service.api.models.audited_model import AuditedModel
 enable_versioning()
 
 
-class IndexingPriorityTagModel(Base, AuditedModel):
+class IndexingPriorityModel(Base, AuditedModel):
     __tablename__ = 'indexing_priority'
     __versioned__: Dict = {}
 
@@ -47,7 +47,7 @@ class IndexingPriorityTagModel(Base, AuditedModel):
 
     reference = relationship(
         "ReferenceModel",
-        foreign_keys="CurationTagModel.reference_id"
+        foreign_keys="IndexingPriorityModel.reference_id"
     )
 
     mod_id = Column(
@@ -59,7 +59,7 @@ class IndexingPriorityTagModel(Base, AuditedModel):
 
     mod = relationship(
         "ModModel",
-        foreign_keys="CurationTagModel.mod_id"
+        foreign_keys="IndexingPriorityModel.mod_id"
     )
 
     confidence_score = Column(
@@ -85,4 +85,4 @@ class IndexingPriorityTagModel(Base, AuditedModel):
         """
         Overwrite the default output.
         """
-        return f"tag:{self.curation_tag_type} {self.curation_tag} mod:{self.mod} ref:{self.reference}"
+        return f"tag:{self.indexing_priority} mod:{self.mod} ref:{self.reference}"
