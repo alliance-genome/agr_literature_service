@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.workflow_tag_crud import\
     patch as wft_patch
 from agr_literature_service.api.models import IndexingPriorityModel, \
-    ModModel, ReferenceModel, WorkflowTagModel
+    ModModel, ReferenceModel, WorkflowTagModel, TopicEntityTagSourceModel
 from agr_literature_service.api.schemas import IndexingPrioritySchemaPost
 
 logger = logging.getLogger(__name__)
@@ -64,9 +64,16 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
                                    f"{indexing_priority} already exist, "
                                    f"with id:{indexing_priority_obj.indexing_priority} can not "
                                    f"create duplicate record.")
-
+    tet_src_obj = db.query(TopicEntityTagSourceModel).filter(
+        TopicEntityTagSourceModel.source_method == 'abc_document_classifier').filter(
+        TopicEntityTagSourceModel.data_provider == mod_abbreviation).first()
+    if not tet_src_obj:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"The TET source with the source_method 'abc_document_classifier' does not exist for {mod_abbreviation}.")
     indexing_priority_tag_data["reference_id"] = reference.reference_id
     indexing_priority_tag_data["mod_id"] = mod_id
+    indexing_priority_tag_data["source_id"] = tet_src_obj.topic_entity_tag_source_id
+
     db_obj = IndexingPriorityModel(**indexing_priority_tag_data)
     db.add(db_obj)
     db.commit()
