@@ -1,88 +1,75 @@
-from typing import Dict
-from sqlalchemy import UniqueConstraint, CheckConstraint, Column, ForeignKey, Integer, String, Float
-from sqlalchemy.orm import relationship, mapped_column, Mapped
+from typing import Dict, Optional
+from sqlalchemy import UniqueConstraint, CheckConstraint, ForeignKey
+from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy import Integer, String, Float
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
+from agr_literature_service.api.models import ReferenceModel, ModModel
 
 enable_versioning()
 
 
 class IndexingPriorityModel(Base, AuditedModel):
-    __tablename__ = 'indexing_priority'
+    __tablename__ = "indexing_priority"
     __versioned__: Dict = {}
 
-    # enforce uniqueness on mod_id + reference_id + indexing_priority
     __table_args__ = (
         UniqueConstraint(
-            'mod_id',
-            'reference_id',
-            'indexing_priority',
-            name='uq_indexing_priority_mod_ref_tag'
+            "mod_id",
+            "reference_id",
+            "indexing_priority",
+            name="uq_indexing_priority_mod_ref_priority",  # renamed for clarity
         ),
-        # make sure indexing_priority always starts with 'ATP:'
         CheckConstraint(
             "indexing_priority LIKE 'ATP:%'",
-            name='ck_indexing_priority_prefix'
+            name="ck_indexing_priority_prefix",
+        ),
+        CheckConstraint(
+            "(confidence_score IS NULL) OR (confidence_score >= 0.0 AND confidence_score <= 1.0)",
+            name="ck_indexing_priority_confidence_range",
         ),
     )
 
     indexing_priority_id: Mapped[int] = mapped_column(
-        primary_key=True,
-        autoincrement=True
+        Integer, primary_key=True, autoincrement=True
     )
 
-    indexing_priority = Column(
-        String,
-        index=True,
-        nullable=False
+    indexing_priority: Mapped[str] = mapped_column(
+        String, index=True, nullable=False
     )
 
-    reference_id = Column(
-        Integer,
-        ForeignKey("reference.reference_id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+    reference_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("reference.reference_id", ondelete="CASCADE"),
+        index=True, nullable=False
     )
-
-    reference = relationship(
+    reference: Mapped["ReferenceModel"] = relationship(
         "ReferenceModel",
-        foreign_keys="IndexingPriorityModel.reference_id"
+        foreign_keys="IndexingPriorityModel.reference_id",
     )
 
-    mod_id = Column(
-        Integer,
-        ForeignKey("mod.mod_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
+    mod_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("mod.mod_id", ondelete="CASCADE"),
+        index=True, nullable=False
     )
-
-    mod = relationship(
+    mod: Mapped["ModModel"] = relationship(
         "ModModel",
-        foreign_keys="IndexingPriorityModel.mod_id"
+        foreign_keys="IndexingPriorityModel.mod_id",
     )
 
-    confidence_score = Column(
-        Float(),
-        nullable=True,
-        unique=False
+    confidence_score: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True
     )
 
-    source_id = Column(
+    source_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
-        index=True,
-        nullable=False
+        index=True, nullable=False
     )
 
-    validation_by_biocurator = Column(
-        String(),
-        nullable=True,
-        unique=False
+    validation_by_biocurator: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
     )
 
-    def __str__(self):
-        """
-        Overwrite the default output.
-        """
-        return f"tag:{self.indexing_priority} mod:{self.mod} ref:{self.reference}"
+    def __str__(self) -> str:
+        return f"priority:{self.indexing_priority} mod_id:{self.mod_id} ref_id:{self.reference_id}"
