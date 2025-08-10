@@ -5,6 +5,7 @@ See docs/source/workflow_automation.rst for detailed description on transitionin
 between workflow tags.
 ===========================
 """
+import logging
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, text, func
@@ -20,7 +21,6 @@ from agr_literature_service.api.schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.crud.topic_entity_tag_utils import (
     get_reference_id_from_curie_or_id,
     get_map_ateam_curies_to_names)
-import logging
 from agr_literature_service.api.crud.workflow_transition_requirements import *  # noqa
 from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
@@ -1330,24 +1330,12 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         )
 
     # Define which “parent” processes we care about
-    if mod_abbreviation:
-        if mod_abbreviation == 'SGD':
-            process_atp_ids = {"ATP:0000273": "manual indexing"}
-        elif mod_abbreviation == 'ZFIN':
-            process_atp_ids = {
-                "ATP:0000273": "manual indexing",
-                "ATP:0000210": "indexing priority"
-            }
-        else:
-            process_atp_ids = {
-                "ATP:0000273": "manual indexing",
-                "ATP:0000235": "community curation"
-            }
+    if mod_abbreviation and mod_abbreviation in ['SGD', 'ZFIN']:
+        process_atp_ids = {"ATP:0000273": "manual indexing"}
     else:
         process_atp_ids = {
             "ATP:0000273": "manual indexing",
-            "ATP:0000235": "community curation",
-            "ATP:0000210": "indexing priority"
+            "ATP:0000235": "community curation"
         }
 
     result: dict[str, dict[str, Any]] = {}
