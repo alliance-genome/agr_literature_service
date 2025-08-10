@@ -16,21 +16,27 @@ class ConfidenceMixin(BaseModel):
     confidence_score: Optional[confloat(ge=0.0, le=1.0)] = None  # type: ignore
 
     @field_validator('confidence_score')
-    def _round_confidence_score(cls, v):
+    def _round_confidence_score(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return None
         return round(v, 2)
 
 
-class IndexingPrioritySchemaCreate(ConfidenceMixin, BaseModel):
+class IndexingPrioritySchemaCreate(ConfidenceMixin):
     """Schema for creating an indexing priority tag association."""
     model_config = ConfigDict(
-        extra='forbid',        # forbid unexpected fields
-        from_attributes=True    # enable ORM->model initialization
+        extra='forbid',
+        from_attributes=True
     )
 
     indexing_priority: str
     mod_abbreviation: str
+
+    @field_validator('indexing_priority')
+    def _check_atp_prefix(cls, v: str) -> str:
+        if not v.startswith('ATP:'):
+            raise ValueError("indexing_priority must start with 'ATP:'")
+        return v
 
 
 class IndexingPrioritySchemaPost(IndexingPrioritySchemaCreate):
@@ -41,7 +47,6 @@ class IndexingPrioritySchemaPost(IndexingPrioritySchemaCreate):
     )
 
     reference_curie: str
-    date_updated: Optional[datetime] = None
 
 
 class IndexingPrioritySchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
@@ -55,6 +60,7 @@ class IndexingPrioritySchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     indexing_priority: str
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
+    date_updated: Optional[datetime] = None  # include for output
 
 
 class IndexingPrioritySchemaShow(IndexingPrioritySchemaRelated):
@@ -62,7 +68,7 @@ class IndexingPrioritySchemaShow(IndexingPrioritySchemaRelated):
     reference_curie: str
 
 
-class IndexingPrioritySchemaUpdate(ConfidenceMixin, BaseModel):
+class IndexingPrioritySchemaUpdate(ConfidenceMixin):
     """Schema for updating an indexing priority tag association."""
     model_config = ConfigDict(
         extra='forbid',
@@ -72,3 +78,9 @@ class IndexingPrioritySchemaUpdate(ConfidenceMixin, BaseModel):
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     indexing_priority: Optional[str] = None
+
+    @field_validator('indexing_priority')
+    def _check_atp_prefix_optional(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("indexing_priority must start with 'ATP:'")
+        return v
