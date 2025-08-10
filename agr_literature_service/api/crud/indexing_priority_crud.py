@@ -2,246 +2,361 @@
 indexing_priority_crud.py
 """
 import logging
+from typing import Any, Dict, List, Optional
+from datetime import datetime, date
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.workflow_tag_crud import\
-    patch as wft_patch
-from agr_literature_service.api.models import IndexingPriorityModel, \
-    ModModel, ReferenceModel, WorkflowTagModel, TopicEntityTagSourceModel
-from agr_literature_service.api.schemas import IndexingPrioritySchemaPost
+from agr_literature_service.api.crud.workflow_tag_crud import patch as wft_patch
+from agr_literature_service.api.models import (
+    IndexingPriorityModel,
+    ModModel,
+    ReferenceModel,
+    WorkflowTagModel,
+    TopicEntityTagSourceModel,
+)
+from agr_literature_service.api.schemas.indexing_priority_schemas import IndexingPrioritySchemaPost
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
 
 logger = logging.getLogger(__name__)
 
 
-def get_ref_ids_with_indexing_priority(db: Session, indexing_priority: str, mod_abbreviation: str = None):
-    query = db.query(IndexingPriorityModel.reference_id).filter(IndexingPriorityModel.indexing_priority == indexing_priority)
+def get_ref_ids_with_indexing_priority(
+    db: Session, indexing_priority: str, mod_abbreviation: Optional[str] = None
+) -> List[int]:
+    """
+    Return reference_ids that have the given indexing_priority, optionally filtered by MOD.
+    """
+    q = db.query(IndexingPriorityModel.reference_id).filter(
+        IndexingPriorityModel.indexing_priority == indexing_priority
+    )
     if mod_abbreviation is not None:
         mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first()
-        query = query.filter(IndexingPriorityModel.mod_id == mod.mod_id)
-    return [ref.reference_id for ref in query.all()]
+        if not mod:
+            return []
+        q = q.filter(IndexingPriorityModel.mod_id == mod.mod_id)
+
+    return [row.reference_id for row in q.all()]
 
 
 def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> int:
     """
-    Create a new indexing_priority_tag
-    :param db:
-    :param indexing_priority_tag:
-    :return:
+    Create a new indexing_priority entry and return its ID.
     """
+    data: Dict[str, Any] = jsonable_encoder(indexing_priority_tag)
 
-    indexing_priority_tag_data = jsonable_encoder(indexing_priority_tag)
-    reference_curie = indexing_priority_tag_data["reference_curie"]
-    del indexing_priority_tag_data["reference_curie"]
-    mod_abbreviation = indexing_priority_tag_data["mod_abbreviation"]
-    del indexing_priority_tag_data["mod_abbreviation"]
-    indexing_priority = indexing_priority_tag_data["indexing_priority"]
+    reference_curie: str = data.pop("reference_curie")
+    mod_abbreviation: str = data.pop("mod_abbreviation")
+    indexing_priority: str = data["indexing_priority"]
 
-    reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
+    reference = (
+        db.query(ReferenceModel)
+        .filter(ReferenceModel.curie == reference_curie)
+        .first()
+    )
     if not reference:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Reference with curie {reference_curie} does not exist")
-    mod_id = None
-    if mod_abbreviation:
-        mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-        if not mod:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-        mod_id = mod.mod_id
-    if not mod_id:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-    indexing_priority_obj = db.query(IndexingPriorityModel).filter(
-        IndexingPriorityModel.reference_id == reference.reference_id).filter(
-        IndexingPriorityModel.mod_id == mod_id).filter(
-        IndexingPriorityModel.indexing_priority == indexing_priority).first()
-    if indexing_priority_obj:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"IndexingPriority with the reference_curie {reference_curie} "
-                                   f"and mod_abbreviation {mod_abbreviation} and "
-                                   f"{indexing_priority} already exist, "
-                                   f"with id:{indexing_priority_obj.indexing_priority} can not "
-                                   f"create duplicate record.")
-    tet_src_obj = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.source_method == 'abc_document_classifier').filter(
-        TopicEntityTagSourceModel.data_provider == mod_abbreviation).first()
-    if not tet_src_obj:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"The TET source with the source_method 'abc_document_classifier' does not exist for {mod_abbreviation}.")
-    indexing_priority_tag_data["reference_id"] = reference.reference_id
-    indexing_priority_tag_data["mod_id"] = mod_id
-    indexing_priority_tag_data["source_id"] = tet_src_obj.topic_entity_tag_source_id
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Reference with curie {reference_curie} does not exist",
+        )
 
-    db_obj = IndexingPriorityModel(**indexing_priority_tag_data)
+    mod = (
+        db.query(ModModel)
+        .filter(ModModel.abbreviation == mod_abbreviation)
+        .first()
+    )
+    if not mod:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Mod with abbreviation {mod_abbreviation} does not exist",
+        )
+
+    existing = (
+        db.query(IndexingPriorityModel)
+        .filter(IndexingPriorityModel.reference_id == reference.reference_id)
+        .filter(IndexingPriorityModel.mod_id == mod.mod_id)
+        .filter(IndexingPriorityModel.indexing_priority == indexing_priority)
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "IndexingPriority already exists for "
+                f"reference_curie={reference_curie}, "
+                f"mod_abbreviation={mod_abbreviation}, "
+                f"indexing_priority={indexing_priority} "
+                f"(id:{existing.indexing_priority_id}); cannot create duplicate record."
+            ),
+        )
+
+    tet_src_obj = (
+        db.query(TopicEntityTagSourceModel)
+        .filter(TopicEntityTagSourceModel.source_method == "abc_document_classifier")
+        .filter(TopicEntityTagSourceModel.data_provider == mod_abbreviation)
+        .first()
+    )
+    if not tet_src_obj:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "The TET source with source_method 'abc_document_classifier' "
+                f"does not exist for {mod_abbreviation}."
+            ),
+        )
+
+    data["reference_id"] = reference.reference_id
+    data["mod_id"] = mod.mod_id
+    data["source_id"] = tet_src_obj.topic_entity_tag_source_id
+
+    db_obj = IndexingPriorityModel(**data)
     db.add(db_obj)
     db.commit()
+    db.refresh(db_obj)
 
     return int(db_obj.indexing_priority_id)
 
 
 def destroy(db: Session, indexing_priority_id: int) -> None:
-    """
-
-    :param db:
-    :param indexing_priority_id:
-    :return:
-    """
-
-    priority_tag = db.query(IndexingPriorityModel).\
-        filter(IndexingPriorityModel.indexing_priority_id == indexing_priority_id).first()
-    if not priority_tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"IndexingPriorityTag with indexing_priority_id {indexing_priority_id} not found")
-    db.delete(priority_tag)
+    tag = (
+        db.query(IndexingPriorityModel)
+        .filter(IndexingPriorityModel.indexing_priority_id == indexing_priority_id)
+        .first()
+    )
+    if not tag:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"IndexingPriorityTag with indexing_priority_id {indexing_priority_id} not found",
+        )
+    db.delete(tag)
     db.commit()
 
-    return None
 
-
-def patch(db: Session, indexing_priority_id: int, indexing_priority_update):
+def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict[str, Any]) -> None:
     """
-    Update an indexing_priority_tag
-    :param db:
-    :param indexing_priority_id
-    :param indexing_priority_update:
-    :return:
+    Partial update an indexing_priority record. `indexing_priority_update` is expected
+    to be a dict from `model_dump(exclude_unset=True)` (router enforces Pydantic v2).
     """
-    indexing_priority_tag_data = jsonable_encoder(indexing_priority_update)
-    indexing_priority_obj = db.query(IndexingPriorityModel).\
-        filter(IndexingPriorityModel.indexing_priority_id == indexing_priority_id).first()
-    if not indexing_priority_obj:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"IndexingPriorityTag with indexing_priority_id {indexing_priority_id} not found")
+    data: Dict[str, Any] = jsonable_encoder(indexing_priority_update)
 
-    for field, value in indexing_priority_tag_data.items():
+    obj = (
+        db.query(IndexingPriorityModel)
+        .filter(IndexingPriorityModel.indexing_priority_id == indexing_priority_id)
+        .first()
+    )
+    if not obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"IndexingPriorityTag with indexing_priority_id {indexing_priority_id} not found",
+        )
+
+    for field, value in data.items():
         if field == "reference_curie":
             if value is not None:
-                reference_curie = value
-                new_reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
-                if not new_reference:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                        detail=f"Reference with curie {reference_curie} does not exist")
-                indexing_priority_obj.reference = new_reference
+                ref = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+                if not ref:
+                    raise HTTPException(
+                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                        detail=f"Reference with curie {value} does not exist",
+                    )
+                obj.reference_id = ref.reference_id
+
         elif field == "mod_abbreviation":
-            if ((value is not None) and (len(value))) == 0:
-                indexing_priority_obj.mod_id = None
-            elif value is not None:
-                mod_abbreviation = value
-                new_mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
-                if not new_mod:
-                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                        detail=f"Mod with abbreviation {mod_abbreviation} does not exist")
-                indexing_priority_obj.mod_id = new_mod.mod_id
+            if value is None:
+                continue
+            if isinstance(value, str) and value.strip() == "":
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="mod_abbreviation cannot be empty",
+                )
+            mod = db.query(ModModel).filter(ModModel.abbreviation == value).first()
+            if not mod:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Mod with abbreviation {value} does not exist",
+                )
+            obj.mod_id = mod.mod_id
+
         else:
-            setattr(indexing_priority_obj, field, value)
+            setattr(obj, field, value)
+
     db.commit()
-    return {"message": "updated"}
 
 
-def show(db: Session, indexing_priority_id: int):
-    """
+def show(db: Session, indexing_priority_id: int) -> Dict[str, Any]:
+    tag: Optional[IndexingPriorityModel] = (
+        db.query(IndexingPriorityModel)
+        .filter(IndexingPriorityModel.indexing_priority_id == indexing_priority_id)
+        .first()
+    )
+    if not tag:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                "IndexingPriorityTag with the indexing_priority_id "
+                f"{indexing_priority_id} is not available"
+            ),
+        )
 
-    :param db:
-    :param indexing_priority_id:
-    :return:
-    """
+    data: Dict[str, Any] = jsonable_encoder(tag)
 
-    indexing_priority_tag: IndexingPriorityModel = db.query(IndexingPriorityModel).\
-        filter(IndexingPriorityModel.indexing_priority_id == indexing_priority_id).first()
-    if not indexing_priority_tag:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"IndexingPriorityTag with the indexing_priority_id {indexing_priority_id} is not available")
+    if data.get("reference_id"):
+        ref = (
+            db.query(ReferenceModel)
+            .filter(ReferenceModel.reference_id == data["reference_id"])
+            .first()
+        )
+        data["reference_curie"] = ref.curie if ref else None
+    data.pop("reference_id", None)
 
-    indexing_priority_tag_data = jsonable_encoder(indexing_priority_tag)
-
-    if indexing_priority_tag_data["reference_id"]:
-        indexing_priority_tag_data["reference_curie"] = db.query(ReferenceModel).\
-            filter(ReferenceModel.reference_id == indexing_priority_tag_data["reference_id"]).first().curie
-    del indexing_priority_tag_data["reference_id"]
-    if indexing_priority_tag_data["mod_id"]:
-        indexing_priority_tag_data["mod_abbreviation"] = db.query(ModModel).\
-            filter(ModModel.mod_id == indexing_priority_tag_data["mod_id"]).first().abbreviation
+    if data.get("mod_id"):
+        mod = db.query(ModModel).filter(ModModel.mod_id == data["mod_id"]).first()
+        data["mod_abbreviation"] = mod.abbreviation if mod else None
     else:
-        indexing_priority_tag_data["mod_abbreviation"] = ""
-    del indexing_priority_tag_data["mod_id"]
-    ## add email address for updated_by
+        data["mod_abbreviation"] = ""
+    data.pop("mod_id", None)
+
+    # add email
     sql_query_str = """
         SELECT email
         FROM users
         WHERE id = :okta_id
     """
-    sql_query = text(sql_query_str)
-    result = db.execute(sql_query, {'okta_id': indexing_priority_tag_data["updated_by"]})
+    result = db.execute(text(sql_query_str), {"okta_id": data.get("updated_by")})
     row = result.fetchone()
-    indexing_priority_tag_data["updated_by_email"] = indexing_priority_tag_data["updated_by"] if row is None else row[0]
-    if not indexing_priority_tag_data["updated_by_email"]:
-        indexing_priority_tag_data["updated_by_email"] = indexing_priority_tag_data["updated_by"]
+    data["updated_by_email"] = data.get("updated_by") if row is None else row[0]
+    if not data.get("updated_by_email"):
+        data["updated_by_email"] = data.get("updated_by")
+    return data
 
-    return indexing_priority_tag_data
 
+def get_indexing_priority_tag(db: Session, reference_curie: str):
+    process_atp_id = "ATP:0000210"
+    priority_tags = get_workflow_tags_from_process(process_atp_id)
+    _, atp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+    priority_tag_to_name = {atp: atp_to_name.get(atp, atp) for atp in priority_tags}
 
-def set_priority(db: Session, reference_curie, mod_abbreviation, priority, confidence_score):
+    sql = """
+        SELECT
+            ip.indexing_priority_id,
+            ip.indexing_priority,
+            ip.confidence_score,
+            ip.validation_by_biocurator,
+            ip.date_updated,
+            ip.source_id,
+            r.curie AS reference_curie,
+            m.abbreviation AS mod_abbreviation,
+            COALESCE(u.email, ip.updated_by) AS updated_by_email,
+            ip.updated_by
+        FROM indexing_priority ip
+        JOIN reference r ON r.reference_id = ip.reference_id
+        JOIN mod m ON m.mod_id = ip.mod_id
+        LEFT JOIN users u ON u.id = ip.updated_by
+        WHERE r.curie = :ref_curie
+    """
+    rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
 
-    priority_to_atp_mapping = {
-        "priority_1": "ATP:0000211",
-        "priority_2": "ATP:0000212",
-        "priority_3": "ATP:0000213"
+    def _fmt_date(raw):
+        if raw is None:
+            return None
+        if isinstance(raw, datetime):
+            d = raw.date()
+        elif isinstance(raw, date):
+            d = raw
+        else:
+            s = str(raw)
+            try:
+                dt = datetime.fromisoformat(s)
+            except ValueError:
+                dt = datetime.strptime(s[:10], "%Y-%m-%d")
+            d = dt.date()
+        return f"{d.strftime('%B')} {d.day}, {d.year}"
+
+    tags = []
+    for row in rows:
+        d = dict(row)
+        code = d.get("indexing_priority")
+        d["indexing_priority_name"] = priority_tag_to_name.get(code, code)
+        d["date_updated"] = _fmt_date(d.get("date_updated"))
+        tags.append(d)
+
+    return {
+        "current_priority_tag": tags,
+        "all_priority_tags": priority_tag_to_name,
     }
+
+
+def set_priority(
+    db: Session,
+    reference_curie: str,
+    mod_abbreviation: str,
+    indexing_priority: str,
+    confidence_score: float,
+) -> Dict[str, Any]:
+    """
+    Set an indexing priority (expects an ATP:... code), and update the pre-indexing
+    workflow tag to success/failure accordingly. Returns the created record (incl. date_updated).
+    """
+    # Workflow tags for pre-indexing status
     pre_indexing_prioritization_to_atp = {
         "failed": "ATP:0000304",
-        "success": "ATP:0000303"
+        "success": "ATP:0000303",
     }
 
-    priority_atp = priority_to_atp_mapping.get(priority)
+    # Ensure the reference has the pre-indexing workflow tag ATP:0000306 for this MOD
     reference_workflow_tag_id = (
-        db.query(WorkflowTagModel.reference_workflow_tag_id).join(
-            ReferenceModel,
-            WorkflowTagModel.reference_id == ReferenceModel.reference_id
-        ).join(
-            ModModel,
-            WorkflowTagModel.mod_id == ModModel.mod_id
-        ).filter(
+        db.query(WorkflowTagModel.reference_workflow_tag_id)
+        .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
+        .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
+        .filter(
             ModModel.abbreviation == mod_abbreviation,
-            WorkflowTagModel.workflow_tag_id == 'ATP:0000306',
-            ReferenceModel.curie == reference_curie
-        ).scalar()
+            WorkflowTagModel.workflow_tag_id == "ATP:0000306",
+            ReferenceModel.curie == reference_curie,
+        )
+        .scalar()
     )
 
     if reference_workflow_tag_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No workflow‐tag ATP:0000306 for paper {reference_curie} in MOD {mod_abbreviation}"
+            detail=(
+                f"No workflow‐tag ATP:0000306 for paper {reference_curie} "
+                f"in MOD {mod_abbreviation}"
+            ),
         )
 
-    if priority_atp is None:
+    # Build a Post schema so we benefit from its validation (ATP prefix + confidence rounding)
+    payload = IndexingPrioritySchemaPost(
+        indexing_priority=indexing_priority,
+        mod_abbreviation=mod_abbreviation,
+        reference_curie=reference_curie,
+        confidence_score=confidence_score,
+    )
+
+    try:
+        new_id = create(db, payload)
+        # mark success on the workflow tag
         wft_patch(
             db,
             reference_workflow_tag_id,
-            {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
+            {"workflow_tag_id": pre_indexing_prioritization_to_atp["success"]},
         )
-    else:
-        data = IndexingPrioritySchemaPost(
-            indexing_priority=priority_atp,
-            mod_abbreviation=mod_abbreviation,
-            reference_curie=reference_curie,
-            confidence_score=confidence_score
+        # Return the created record (with date_updated, updated_by_email, etc.)
+        return show(db, new_id)
+    except Exception as e:
+        # mark failure on the workflow tag
+        wft_patch(
+            db,
+            reference_workflow_tag_id,
+            {"workflow_tag_id": pre_indexing_prioritization_to_atp["failed"]},
         )
-        try:
-            create(db, data)
-            wft_patch(
-                db,
-                reference_workflow_tag_id,
-                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("success")}
-            )
-        except Exception as e:
-            wft_patch(
-                db,
-                reference_workflow_tag_id,
-                {"workflow_tag_id": pre_indexing_prioritization_to_atp.get("failed")}
-            )
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Setting priority failed {e} for paper {reference_curie} in MOD {mod_abbreviation}"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"Setting indexing_priority failed: {e} "
+                f"for paper {reference_curie} in MOD {mod_abbreviation}"
+            ),
+        )
