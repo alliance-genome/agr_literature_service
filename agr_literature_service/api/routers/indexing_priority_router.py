@@ -87,7 +87,8 @@ def show(
     indexing_priority_id: int,
     db: Session = db_session,
 ) -> IndexingPrioritySchemaShow:
-    return indexing_priority_crud.show(db, indexing_priority_id)
+    data = indexing_priority_crud.show(db, indexing_priority_id)
+    return IndexingPrioritySchemaShow.model_validate(data)
 
 
 @router.get(

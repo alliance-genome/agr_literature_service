@@ -1,5 +1,4 @@
 from typing import Optional
-from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_validator, confloat
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
@@ -60,7 +59,7 @@ class IndexingPrioritySchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     indexing_priority: str
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
-    date_updated: Optional[datetime] = None  # include for output
+    date_updated: Optional[str] = None  # include for output
 
 
 class IndexingPrioritySchemaShow(IndexingPrioritySchemaRelated):
