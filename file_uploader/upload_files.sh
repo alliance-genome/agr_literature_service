@@ -173,6 +173,7 @@ export -f process_file
 generate_access_token
 export OKTA_ACCESS_TOKEN
 export MOD
+export TEST_EXTRACTION
 
 for reffileordir in "$FILES_FOLDER"/*; do
   if [[ -d ${reffileordir} ]]; then
