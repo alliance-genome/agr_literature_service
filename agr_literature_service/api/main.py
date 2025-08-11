@@ -14,16 +14,16 @@ from agr_literature_service.api.database.main import is_database_online
 from agr_literature_service.api.database.setup import setup_database
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
                                                 cross_reference_router, curation_status_router,
-                                                database_router,
-                                                editor_router, mesh_detail_router,
-                                                mod_reference_type_router,
-                                                mod_router, mod_corpus_association_router,
+                                                database_router, editor_router,
+                                                indexing_priority_router, mesh_detail_router,
+                                                mod_reference_type_router, mod_router,
+                                                mod_corpus_association_router,
                                                 reference_relation_router,
                                                 reference_router, resource_descriptor_router,
                                                 resource_router, search_router, sort_router,
                                                 workflow_tag_router, topic_entity_tag_router,
-                                                referencefile_router,
-                                                referencefile_mod_router, copyright_license_router, check_router,
+                                                referencefile_router, referencefile_mod_router,
+                                                copyright_license_router, check_router,
                                                 dataset_router, ml_model_router)
 
 title = "Alliance Literature Service"
@@ -87,8 +87,8 @@ app.include_router(copyright_license_router.router)
 app.include_router(check_router.router)
 app.include_router(dataset_router.router)
 app.include_router(ml_model_router.router)
-
 app.include_router(curation_status_router.router)
+app.include_router(indexing_priority_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 
