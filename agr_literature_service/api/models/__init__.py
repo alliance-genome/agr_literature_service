@@ -33,6 +33,7 @@ from agr_literature_service.api.models.citation_model import CitationModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.models.curation_status_model import CurationStatusModel
+from agr_literature_service.api.models.indexing_priority_model import IndexingPriorityModel
 import logging
 
 logger = logging.getLogger(__name__)
