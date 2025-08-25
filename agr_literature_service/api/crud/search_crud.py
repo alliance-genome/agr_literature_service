@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
+import re
 from datetime import datetime
 # from os import getcwd
 
@@ -32,6 +33,9 @@ WORKFLOW_FACETS = [
     "curation_classification",
     "community_curation"
 ]
+
+# Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
+_ORCID_INPUT = re.compile(r'(?i)^(?:\s*orcid:\s*)?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9Xx]{4})\s*$')
 
 
 def date_str_to_micro_seconds(date_str: str, start: bool):
@@ -151,16 +155,28 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       date_created: Optional[List[str]] = None,
                       query_fields: str = None, partial_match: bool = True,
                       tet_nested_facets_values: Optional[Dict] = None):
-    if query is None and facets_values is None and not return_facets_only:
+    has_any_input = any([
+        query,
+        facets_values,
+        author_filter,
+        date_pubmed_modified,
+        date_pubmed_arrive,
+        date_published,
+        date_created,
+        tet_nested_facets_values,
+    ])
+    if not has_any_input and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="requested a search but no query and no facets provided")
-    
+                            detail="requested a search but no query/filters provided")
+
     if facets_limits is None:
         facets_limits = {}
     if size_result_count is None:
         size_result_count = 10
     if page is None:
         page = 1
+
+    author_filter = (author_filter or "").strip() or None
 
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
@@ -182,7 +198,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 {"abstract": {"type": "unified"}},
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
-                {"authors.name": {"type": "unified"}}
+                {"authors.name": {"type": "unified"}},
+                {"authors.orcid": {"type": "unified"}}
             ]
         },
         "aggregations": {
@@ -240,12 +257,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 }
             },
             "authors.name.keyword": {
-                "terms": {
-                    "field": "authors.name.keyword",
-                    "size": facets_limits.get("authors.name.keyword", 10)
+                "nested": { "path": "authors" },
+                "aggs": {
+                    "terms": {
+                        "terms": {
+                            "field": "authors.name.keyword",
+                            "size": facets_limits.get("authors.name.keyword", 10)
+                        }
+                    }
                 }
             },
-            # define workflow_tags as a nested aggregation.
             "workflow_tags": {
                 "nested": {
                     "path": "workflow_tags"
@@ -320,44 +341,27 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         return process_search_results(res, wft_mod_abbreviations)
 
     if query and (query_fields == "All" or query_fields is None):
-        es_body["query"]["bool"]["must"].append({
-            "bool": {
-                "should":
-                    [
-                        {
-                            "simple_query_string": {
-                                "fields": [
-                                    "title",
-                                    "keywords",
-                                    "abstract",
-                                    "citation"
-                                ],
-                                "query": query + "*" if partial_match else query,
-                                "analyze_wildcard": "true",
-                                "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
-                            }
-                        },
-                        {
-                            "match": {
-                                "authors.name": {
-                                    "query": query.lower(),
-                                    "analyzer": "authorNameAnalyzer"
-                                }
-                            }
-                        },
-                        {
-                            "wildcard" : {
-                                "curie.keyword": "*" + query
-                            }
-                        },
-                        {
-                            "wildcard": {
-                                "cross_references.curie.keyword": "*" + query
-                            }
-                        }
-                    ]
-            }
-        })
+        q_free = strip_orcid_prefix_for_free_text(query)
+        shoulds = [
+            {
+                "simple_query_string": {
+                    "fields": ["title", "keywords", "abstract", "citation"],
+                    "query": (q_free + "*") if partial_match else q_free,
+                    "analyze_wildcard": True,
+                    "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                }
+            },
+            {"wildcard": {"curie.keyword": f"*{q_free}"}},
+            {"wildcard": {"cross_references.curie.keyword": f"*{q_free}"}},
+            nested_author_name_query(query),
+        ]
+
+        core = extract_orcid_core(query)
+        if core:
+            shoulds.append(nested_orcid_exact(core))
+
+        es_body["query"]["bool"]["must"].append({"bool": {"should": shoulds}})
+
     elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword" or query_fields == "Citation"):
         if query_fields == "Title":
                 es_field = "title"
@@ -378,6 +382,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
                 }
             })
+    elif query and query_fields == "Author":
+        es_body["query"]["bool"]["must"].append(nested_author_name_query(query))
+    elif query and query_fields == "ORCID":
+        core = extract_orcid_core(query)
+        if core:
+            es_body["query"]["bool"]["must"].append(nested_orcid_exact(core))
+        else:
+            # not ORCID-shaped; force no matches (or you can fall back to a name search)
+            es_body["query"]["bool"]["must"].append({"match_none": {}})
     elif query and query_fields == "Curie":
         es_body["query"]["bool"]["must"].append(
             {
@@ -453,16 +466,26 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         del es_body["query"]["bool"]["filter"]
 
     if author_filter:
-        # es_body["aggregations"]["authors.name.keyword"]["terms"]["include"] = ".*" + author_filter + ".*"
-        author_filter_query = {
-            "match": {
-                "authors.name": {
-                    "query": author_filter,
-                    "analyzer": "authorNameAnalyzer"
+        name = (author_filter or "").strip()
+        if name:
+            shoulds = []
+            shoulds.append(nested_author_name_query(name))
+            shoulds.append({
+                "nested": {
+                    "path": "authors",
+                    "query": {
+                        "term": {"authors.name.keyword": name}
+                    },
+                    "score_mode": "max"
                 }
-            }
-        }
-        es_body["query"]["bool"]["must"].append(author_filter_query)
+            })
+            core = extract_orcid_core(name)
+            if core:
+                shoulds.append(nested_orcid_exact(core))
+
+            es_body["query"]["bool"]["must"].append({
+                "bool": {"should": shoulds, "minimum_should_match": 1}
+            })
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
     return formatted_results
@@ -496,6 +519,14 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     # merge the processed aggregations into the response.
     res['aggregations'].update(topic_aggs)
     res['aggregations'].update(workflow_aggs)
+
+    # take care of authors
+    agg = res['aggregations'].get("authors.name.keyword")
+    if isinstance(agg, dict) and "aggs" in agg or "terms" in agg:
+        # new nested shape: { "authors.name.keyword": { "doc_count":..., "terms": { "buckets":[...] } } }
+        inner = agg.get("terms") if "terms" in agg else agg.get("aggs", {}).get("terms")
+        if isinstance(inner, dict) and "buckets" in inner:
+            res['aggregations']["authors.name.keyword"] = inner
 
     return {
         "hits": hits,
@@ -925,5 +956,96 @@ def add_curie_to_name_values(aggregations):
 def get_atp_ids(root_atp_ids):
     return [child for root_atp_id in root_atp_ids for child in atp_get_all_descendents(root_atp_id)]
 
-    
 
+def nested_author_name_query(q: str) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {"match": {"authors.name": {"query": q, "analyzer": "authorNameAnalyzer"}}},
+            "score_mode": "max"
+        }
+    }
+
+
+def normalize_orcid(raw: str) -> str:
+    """
+    Strip optional 'ORCID:' prefix (any case), trim, lowercase.
+    Assumes hyphenated input (as in your examples).
+    """
+    m = _ORCID_INPUT.match(raw or "")
+    if not m:
+        return (raw or "").strip().lower()  # fallback – let prefix/match handle odd inputs
+    return m.group(1).lower()
+
+
+def orcid_variants(raw: str):
+    s = (raw or "").strip()
+    m = _ORCID_INPUT.match(s)
+    hyph = m.group(1) if m else s
+    hyph_l = hyph.lower(); hyph_u = hyph.upper()
+
+    return [
+        hyph_l, hyph_u,                         # bare hyphenated
+        f"orcid:{hyph_l}", f"ORCID:{hyph_u}",   # prefixed
+        f"https://orcid.org/{hyph_l}", f"http://orcid.org/{hyph_l}",
+        f"https://orcid.org/{hyph_u}", f"http://orcid.org/{hyph_u}",
+        hyph_l.replace("-", ""), hyph_u.replace("-", "")  # no hyphen
+    ]
+
+
+def orcid_prefix(hyph_lower: str) -> str:
+    """First 3 blocks for prefix searches, e.g. '0000-0001-7597'."""
+    if "-" in hyph_lower:
+        parts = hyph_lower.split("-")
+        if len(parts) >= 3:
+            return "-".join(parts[:3])
+    return hyph_lower[:13]
+
+
+def extract_orcid_core(raw: str) -> Optional[str]:
+    """
+    Return the hyphenated ORCID core (lowercased), e.g., '0000-0001-1111-1111',
+    or None if it doesn't look like an ORCID.
+    Handles both 'ORCID:' (uppercase) and 'orcid:' (lowercase) prefixes.
+    """
+    if not raw:
+        return None
+    
+    s = raw.strip()
+    m = _ORCID_INPUT.match(s)
+    if m:
+        return m.group(1).lower()
+    
+    # Handle both uppercase and lowercase ORCID: prefixes
+    if s.upper().startswith("ORCID:"):
+        tail = s.split(":", 1)[1].strip()
+        m = _ORCID_INPUT.match(tail)
+        if m:
+            return m.group(1).lower()
+    
+    return None
+
+
+def strip_orcid_prefix_for_free_text(q: str) -> str:
+    # only for simple_query_string / wildcard clauses
+    return re.sub(r'(?i)^\s*orcid:\s*', '', q or '').strip()
+
+
+def nested_orcid_exact(core_lower: str) -> dict:
+    """
+    Search for ORCID in the normalized format (likely lowercase)
+    """
+    # The normalizer probably lowercases everything, so search for lowercase
+    normalized_orcid = f"orcid:{core_lower}".lower()
+    
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "term": {
+                    "authors.orcid.keyword": normalized_orcid
+                }
+            },
+            "score_mode": "max"
+        }
+    }
