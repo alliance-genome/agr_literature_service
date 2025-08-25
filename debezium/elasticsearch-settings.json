@@ -203,6 +203,7 @@
         }
       },
       "authors": {
+	"type": "nested",
         "properties": {
           "name": {
             "type": "text",
