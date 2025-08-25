@@ -444,19 +444,37 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     }
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
             else:
-                # Standard facet application
-                es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
-                for facet_value in facet_list_values:
-                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
-                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
+                if facet_field == 'authors.name.keyword':
+                    for facet_value in facet_list_values:
+                        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+                            "nested": {
+                                "path": "authors",
+                                "query": { "term": { facet_field: facet_value } }
+                            }
+                        })
+                else:
+                    # Standard facet application
+                    es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
+                    for facet_value in facet_list_values:
+                        es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
+                        es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
 
     if negated_facets_values:
         for facet_field, facet_list_values in negated_facets_values.items():
             if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
-            for facet_value in facet_list_values:
-                es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {}})
-                es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["term"][facet_field] = facet_value
+            if facet_field == 'authors.name.keyword':
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+                        "nested": {
+                            "path": "authors",
+                            "query": { "term": { facet_field: facet_value } }
+                        }
+                    })
+            else:
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {}})
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"][-1]["term"][facet_field] = facet_value
 
     date_range = False
     if date_pubmed_modified or date_pubmed_arrive or date_published or date_created:
