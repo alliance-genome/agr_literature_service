@@ -177,11 +177,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         page = 1
 
     author_filter = (author_filter or "").strip() or None
-    author_include_regex = None
-    if author_filter:
-        # escape special regex chars, wrap with .*….*
-        author_include_regex = f".*{re.escape(author_filter)}.*"
-    
+
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -266,9 +262,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "terms": {
                         "terms": {
                             "field": "authors.name.keyword",
-                            "size": facets_limits.get("authors.name.keyword", 10),
-                            # filter facet buckets by the author_filter textbox
-                            **({"include": author_include_regex} if author_include_regex else {})
+                            "size": facets_limits.get("authors.name.keyword", 10)
                         }
                     }
                 }
@@ -449,22 +443,21 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                         }
                     }
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
-            elif facet_field in ("authors.name.keyword", "authors.orcid.keyword"):
-                # Each selected author becomes its own nested clause.
-                # Combining them in "must" means: document has ALL selected authors.
-                for facet_value in facet_list_values:
-                    es_body["query"]["bool"]["filter"]["bool"]["must"].append({
-                        "nested": {
-                            "path": "authors",
-                            "query": { "term": { facet_field: facet_value } }
-                        }
-                    })
             else:
-                # Standard facet application
-                es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
-                for facet_value in facet_list_values:
-                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
-                    es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
+                if facet_field == 'authors.name.keyword':
+                    for facet_value in facet_list_values:
+                        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+                            "nested": {
+                                "path": "authors",
+                                "query": { "term": { facet_field: facet_value } }
+                            }
+                        })
+                else:
+                    # Standard facet application
+                    es_body["query"]["bool"]["filter"]["bool"]["must"].append({"bool": {"must": []}})
+                    for facet_value in facet_list_values:
+                        es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"].append({"term": {}})
+                        es_body["query"]["bool"]["filter"]["bool"]["must"][-1]["bool"]["must"][-1]["term"][facet_field] = facet_value
 
     if negated_facets_values:
         for facet_field, facet_list_values in negated_facets_values.items():
@@ -490,17 +483,27 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     if not facets_values and not date_range and not negated_facets_values and not tet_facets:
         del es_body["query"]["bool"]["filter"]
 
-    # If the author text box is filled, filter results by exact author match (case-sensitive)
     if author_filter:
-        if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
-            es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        es_body["query"]["bool"]["filter"]["bool"]["must"].append({
-            "nested": {
-                "path": "authors",
-                "query": { "term": { "authors.name.keyword": author_filter } }
-            }
-        })
+        name = (author_filter or "").strip()
+        if name:
+            shoulds = []
+            shoulds.append(nested_author_name_query(name))
+            shoulds.append({
+                "nested": {
+                    "path": "authors",
+                    "query": {
+                        "term": {"authors.name.keyword": name}
+                    },
+                    "score_mode": "max"
+                }
+            })
+            core = extract_orcid_core(name)
+            if core:
+                shoulds.append(nested_orcid_exact(core))
 
+            es_body["query"]["bool"]["must"].append({
+                "bool": {"should": shoulds, "minimum_should_match": 1}
+            })
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
     return formatted_results
