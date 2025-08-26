@@ -130,7 +130,7 @@ class TestMLModel:
 # Now try with multiple models. Inserting these via direct sql to avoid files etc,
 # and just the bare minimum needed for testing new version stuff.
     def test_various_version_model(self, db, test_mod):  # noqa
-        first = MLModel(mod_id=test_mod.mod_id,
+        first = MLModel(mod_id=test_mod.new_mod_id,
                         version_num=10,
                         topic="ATP:0000061",
                         production=False,
@@ -138,7 +138,7 @@ class TestMLModel:
                         model_type='old')
         db.add(first)
 
-        prod = MLModel(mod_id=test_mod.mod_id,
+        prod = MLModel(mod_id=test_mod.new_mod_id,
                        version_num=11,
                        topic="ATP:0000061",
                        production=True,
