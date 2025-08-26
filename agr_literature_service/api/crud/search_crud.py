@@ -398,7 +398,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         if core:
             es_body["query"]["bool"]["must"].append(nested_orcid_exact(core))
         else:
-            # not ORCID-shaped; force no matches (or you can fall back to a name search)
             es_body["query"]["bool"]["must"].append({"match_none": {}})
     elif query and query_fields == "Curie":
         es_body["query"]["bool"]["must"].append(
@@ -997,11 +996,12 @@ def nested_author_name_query(q: str) -> dict:
 def normalize_orcid(raw: str) -> str:
     """
     Strip optional 'ORCID:' prefix (any case), trim, lowercase.
-    Assumes hyphenated input (as in your examples).
     """
     m = _ORCID_INPUT.match(raw or "")
+    # if the input doesn’t match the pattern, it returns the trimmed, lowercased original string 
     if not m:
-        return (raw or "").strip().lower()  # fallback – let prefix/match handle odd inputs
+        return (raw or "").strip().lower()
+    # otherwise, it will return something like '0000-0001-0111-111x'
     return m.group(1).lower()
 
 
@@ -1021,7 +1021,7 @@ def orcid_variants(raw: str):
 
 
 def orcid_prefix(hyph_lower: str) -> str:
-    """First 3 blocks for prefix searches, e.g. '0000-0001-7597'."""
+    """First 3 blocks for prefix searches, e.g. '0000-0001-1111'."""
     if "-" in hyph_lower:
         parts = hyph_lower.split("-")
         if len(parts) >= 3:
@@ -1059,10 +1059,6 @@ def strip_orcid_prefix_for_free_text(q: str) -> str:
 
 
 def nested_orcid_exact(core_lower: str) -> dict:
-    """
-    Search for ORCID in the normalized format (likely lowercase)
-    """
-    # The normalizer probably lowercases everything, so search for lowercase
     normalized_orcid = f"orcid:{core_lower}".lower()
     
     return {
