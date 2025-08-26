@@ -7,7 +7,6 @@ from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
-from typing import Union
 
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.ml_model_model import MLModel
