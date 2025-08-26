@@ -27,6 +27,8 @@ omit =
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_identify_main_pdfs.py
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py
 
+	agr_literature_service/lit_processing/data_check/*
+
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_resource_updates.py
