@@ -154,7 +154,8 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                       date_published: Optional[List[str]] = None,
                       date_created: Optional[List[str]] = None,
                       query_fields: str = None, partial_match: bool = True,
-                      tet_nested_facets_values: Optional[Dict] = None):
+                      tet_nested_facets_values: Optional[Dict] = None,
+                      sort: Optional[List[Dict[str, Any]]] = None):
     has_any_input = any([
         query,
         facets_values,
@@ -164,6 +165,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         date_published,
         date_created,
         tet_nested_facets_values,
+        sort
     ])
     if not has_any_input and not return_facets_only:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
@@ -308,8 +310,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             }
         ]
     }
+
+    """
     if sort_by_published_date_order not in ["desc", "asc"]:
         del es_body["sort"]
+    """
+    if sort:
+        es_body["sort"] = sort
+    elif sort_by_published_date_order not in ["desc", "asc"]:
+        es_body.pop("sort", None)
 
     ensure_structure(es_body)
 
