@@ -147,14 +147,14 @@ class TestMLModel:
                        model_type='prod')
         db.add(prod)
 
-        last = MLModel(mod_id=test_mod.mod_id,
+        last = MLModel(mod_id=test_mod.new_mod_id,
                        version_num=12,
                        topic="ATP:0000061",
                        production=False,
                        task_type='document_classification',
                        model_type='latest')
         db.add(last)
-        
+
         with TestClient(app) as client:
             # fetch by version number
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/10")
