@@ -131,25 +131,30 @@ class TestMLModel:
 # Now try with multiple models. Inserting these via direct sql to avoid files etc,
 # and just the bare minimum needed for testing new version stuff.
     def test_various_version_model(self, db, test_mod):
-        first = insert(MLModel).values(mod_id=test_mod.mod_id,
-                                       version_num=10,
-                                       topic="ATP:0000061",
-                                       production=False,
-                                       task_type='document_classification',
-                                       model_type='old')
-        prod = insert(MLModel).values(mod_id=test_mod.mod_id,
-                                      version_num=11,
-                                      topic="ATP:0000061",
-                                      production=True,
-                                      task_type='document_classification',
-                                      model_type='prod')
-        last = insert(MLModel).values(mod_id=test_mod.mod_id,
-                                      version_num=12,
-                                      topic="ATP:0000061",
-                                      production=False,
-                                      task_type='document_classification',
-                                      model_type='latest')
+        first = MLModel(mod_id=test_mod.mod_id,
+                        version_num=10,
+                        topic="ATP:0000061",
+                        production=False,
+                        task_type='document_classification',
+                        model_type='old')
+        db.add(first)
 
+        prod = MLModel(mod_id=test_mod.mod_id,
+                       version_num=11,
+                       topic="ATP:0000061",
+                       production=True,
+                       task_type='document_classification',
+                       model_type='prod')
+        db.add(prod)
+
+        last = MLModel(mod_id=test_mod.mod_id,
+                       version_num=12,
+                       topic="ATP:0000061",
+                       production=False,
+                       task_type='document_classification',
+                       model_type='latest')
+        db.add(last)
+        
         with TestClient(app) as client:
             # fetch by version number
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/10")
