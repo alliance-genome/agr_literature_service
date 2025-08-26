@@ -473,7 +473,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
             if facet_field == 'authors.name.keyword':
                 for facet_value in facet_list_values:
-                    es_body["query"]["bool"]["filter"]["bool"]["must"].append({
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
                         "nested": {
                             "path": "authors",
                             "query": { "term": { facet_field: facet_value } }
