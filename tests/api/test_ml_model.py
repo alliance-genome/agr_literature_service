@@ -6,7 +6,6 @@ import tempfile
 import pytest
 from fastapi import status
 from starlette.testclient import TestClient
-from sqlalchemy import insert
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import MLModel
@@ -130,7 +129,7 @@ class TestMLModel:
 
 # Now try with multiple models. Inserting these via direct sql to avoid files etc,
 # and just the bare minimum needed for testing new version stuff.
-    def test_various_version_model(self, db, test_mod):
+    def test_various_version_model(self, db, test_mod):  # noqa
         first = MLModel(mod_id=test_mod.mod_id,
                         version_num=10,
                         topic="ATP:0000061",
@@ -189,4 +188,3 @@ class TestMLModel:
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == prod.version_num
             assert response.json()["model_type"] == prod.model_type
-
