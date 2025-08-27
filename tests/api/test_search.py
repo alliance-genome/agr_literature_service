@@ -77,6 +77,32 @@ def initialize_elasticsearch():
         },
         "mappings": {
             "properties": {
+                "authors": {
+                    "type": "nested",
+                    "properties": {
+                        "name": {
+                            "type": "text",
+                            "analyzer": "authorNameAnalyzer",
+                            "fields": {
+                                "keyword": {
+                                    "type": "keyword",
+                                    "normalizer": "sortNormalizer",
+                                    "ignore_above": 256
+                                }
+                            }
+                        },
+                        "orcid": {
+                            "type": "text",
+                            "fields": {
+                                "keyword": {
+                                    "type": "keyword",
+                                    "normalizer": "sortNormalizer",
+                                    "ignore_above": 256
+                                }
+                            }
+                        }
+                    }
+                },
                 "workflow_tags": {
                     "type": "nested",
                     "properties": {
@@ -95,6 +121,15 @@ def initialize_elasticsearch():
                         "mod_abbreviation": {
                             "type": "keyword",
                             "normalizer": "sortNormalizer"
+                        }
+                    }
+                },
+                "language": {
+                    "type": "text",
+                    "fields": {
+                        "keyword": {
+                            "type": "keyword",
+                            "normalizer": "languageNormalizer"
                         }
                     }
                 }
