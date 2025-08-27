@@ -123,6 +123,7 @@ def get_model_metadata(task_type: str,
                        topic: str = None,
                        version: str = None,
                        db: Session = db_session):
+    print(f"BOB: Router mod:{mod_abbreviation} topic:{topic} version:{version}")
     return ml_model_crud.get_model_metadata(db, task_type, mod_abbreviation, topic, version)
 
 

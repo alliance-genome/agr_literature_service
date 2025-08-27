@@ -110,13 +110,13 @@ def get_mod(db: Session, mod_abbreviation: str):
 
 
 def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version: str = None):
-    """NOTE: version can be the integer value to be used OR one of 'production' pr 'latest' """
+    """NOTE: version can be the integer value to be used OR one of 'production' or 'latest' """
     query = db.query(MLModel).filter(
         MLModel.task_type == task_type,
         MLModel.mod_id == mod_id,
         MLModel.topic == topic
     )
-    print(f"BOB: mod:{mod_id} topic:{topic} version:{version}")
+    print(f"BOB: get model mod:{mod_id} topic:{topic} version:{version}")
     if version is not None:
         try:
             arg = int(version)
@@ -162,6 +162,7 @@ def get_model_schema_from_orm(model: MLModel):
 
 def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version: str = None):
     mod = get_mod(db, mod_abbreviation)
+    print(f"BOB: get_model_metadata mod:{mod_abbreviation} topic:{topic} version:{version}")
     model = get_model(db, task_type, mod.mod_id, topic, version)
     return get_model_schema_from_orm(model)
 
