@@ -141,6 +141,7 @@ class TestMLModel:
                         topic="ATP:0000061",
                         production=False,
                         task_type='document_classification',
+                        file_extension = "joblib",
                         model_type='old')
         db.add(first)
         db.commit()
@@ -149,6 +150,7 @@ class TestMLModel:
                        topic="ATP:0000061",
                        production=True,
                        task_type='document_classification',
+                       file_extension = "joblib",
                        model_type='prod')
         db.add(prod)
         db.commit()
@@ -157,6 +159,7 @@ class TestMLModel:
                        topic="ATP:0000061",
                        production=False,
                        task_type='document_classification',
+                       file_extension = "joblib",
                        model_type='latest')
         db.add(last)
         db.commit()
