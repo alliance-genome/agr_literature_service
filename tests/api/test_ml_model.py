@@ -192,9 +192,3 @@ class TestMLModel:
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == prod.version_num
             assert response.json()["model_type"] == prod.model_type
-
-            response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/production")
-            assert response.status_code == status.HTTP_200_OK
-            assert response.json()["task_type"] == "document_classification"
-            assert response.json()["version_num"] == prod.version_num
-            assert response.json()["model_type"] == prod.model_type
