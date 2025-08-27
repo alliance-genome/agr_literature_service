@@ -8,7 +8,7 @@ from fastapi import status
 from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import MLModel
+from agr_literature_service.api.models import MLModel, ModModel
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod  # noqa
 from ..fixtures import db  # noqa
@@ -126,3 +126,69 @@ class TestMLModel:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/ml_models/{test_ml_model['ml_model_id']}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+# Now try with multiple models. Inserting these via direct sql to avoid files etc,
+# and just the bare minimum needed for testing new version stuff.
+    def test_various_version_model(self, db, test_mod):  # noqa
+
+        mod = db.query(ModModel).filter_by(abbreviation=test_mod.new_mod_abbreviation).one()
+        assert mod.short_name == "AtDB"
+        assert mod.full_name == "Test genome database"
+        print(f" mod_id = {test_mod.new_mod_id}")
+
+        first = MLModel(mod_id=test_mod.new_mod_id,
+                        version_num=10,
+                        topic="ATP:0000061",
+                        production=False,
+                        task_type='document_classification',
+                        file_extension="joblib",
+                        model_type='old')
+        db.add(first)
+        db.commit()
+        prod = MLModel(mod_id=test_mod.new_mod_id,
+                       version_num=11,
+                       topic="ATP:0000061",
+                       production=True,
+                       task_type='document_classification',
+                       file_extension="joblib",
+                       model_type='prod')
+        db.add(prod)
+        db.commit()
+        last = MLModel(mod_id=test_mod.new_mod_id,
+                       version_num=12,
+                       topic="ATP:0000061",
+                       production=False,
+                       task_type='document_classification',
+                       file_extension="joblib",
+                       model_type='latest')
+        db.add(last)
+        db.commit()
+
+        with TestClient(app) as client:
+            # fetch by version number
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/10")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["task_type"] == "document_classification"
+            assert response.json()["version_num"] == 10
+            assert response.json()["model_type"] == first.model_type
+
+            # fetch latest by using NOT specifying the version
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["task_type"] == "document_classification"
+            assert response.json()["version_num"] == 12
+            assert response.json()["model_type"] == last.model_type
+
+            # fetch latest by specifying latest
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/latest")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["task_type"] == "document_classification"
+            assert response.json()["version_num"] == 12
+            assert response.json()["model_type"] == last.model_type
+
+            # fetch production version
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/production")
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["task_type"] == "document_classification"
+            assert response.json()["version_num"] == prod.version_num
+            assert response.json()["model_type"] == prod.model_type

@@ -109,16 +109,24 @@ def get_mod(db: Session, mod_abbreviation: str):
     return mod
 
 
-def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version_num: int = None , production: bool = None):
+def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, version: str = None):
+    """NOTE: version can be the integer value to be used OR one of 'production' or 'latest' """
     query = db.query(MLModel).filter(
         MLModel.task_type == task_type,
         MLModel.mod_id == mod_id,
         MLModel.topic == topic
     )
-    if production is not None:
-        query = query.filter(MLModel.production == production)
-    if version_num is not None and version_num > 0:
-        query = query.filter(MLModel.version_num == version_num)
+    if version is not None:
+        try:
+            arg = int(version)
+            query = query.filter(MLModel.version_num == arg)
+        except ValueError:
+            if version == 'production':
+                query = query.filter(MLModel.production)
+            elif version == 'latest':
+                query = query.order_by(MLModel.version_num.desc())
+            else:
+                raise HTTPException(status_code=404, detail=f"version '{version}' is neither an integer or one the strings 'production' or 'latest'.")
     else:
         query = query.order_by(MLModel.version_num.desc())
     model = query.first()
@@ -150,15 +158,15 @@ def get_model_schema_from_orm(model: MLModel):
     return MLModelSchemaShow(**model_data)
 
 
-def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None):
+def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version: str = None):
     mod = get_mod(db, mod_abbreviation)
-    model = get_model(db, task_type, mod.mod_id, topic, version_num)
+    model = get_model(db, task_type, mod.mod_id, topic, version)
     return get_model_schema_from_orm(model)
 
 
-def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version_num: int = None, production: bool = None):
+def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version: str = None):
     mod = get_mod(db, mod_abbreviation)
-    model = get_model(db, task_type, mod.mod_id, topic, version_num, production)
+    model = get_model(db, task_type, mod.mod_id, topic, version)
     topic = topic if topic is not None else "None"
 
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
