@@ -116,6 +116,7 @@ def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, versi
         MLModel.mod_id == mod_id,
         MLModel.topic == topic
     )
+    print(f"BOB: mod:{mod_id} topic:{topic} version:{version}")
     if version is not None:
         try:
             arg = int(version)
@@ -129,6 +130,7 @@ def get_model(db: Session, task_type: str, mod_id: int, topic: str = None, versi
                 raise HTTPException(status_code=404, detail=f"version '{version}' is neither an integer or one the strings 'production' or 'latest'.")
     else:
         query = query.order_by(MLModel.version_num.desc())
+    print(f"BOB: {query}")
     model = query.first()
     if not model:
         raise HTTPException(status_code=404, detail="Model not found")
