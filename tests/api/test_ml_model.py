@@ -143,7 +143,7 @@ class TestMLModel:
                         task_type='document_classification',
                         model_type='old')
         db.add(first)
-
+        db.commit()
         prod = MLModel(mod_id=test_mod.new_mod_id,
                        version_num=11,
                        topic="ATP:0000061",
@@ -151,7 +151,7 @@ class TestMLModel:
                        task_type='document_classification',
                        model_type='prod')
         db.add(prod)
-
+        db.commit()
         last = MLModel(mod_id=test_mod.new_mod_id,
                        version_num=12,
                        topic="ATP:0000061",
@@ -159,6 +159,7 @@ class TestMLModel:
                        task_type='document_classification',
                        model_type='latest')
         db.add(last)
+        db.commit()
 
         with TestClient(app) as client:
             # fetch by version number
