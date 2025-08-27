@@ -8,7 +8,7 @@ from fastapi import status
 from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import MLModel
+from agr_literature_service.api.models import MLModel, ModModel
 from .fixtures import auth_headers  # noqa
 from .test_mod import test_mod  # noqa
 from ..fixtures import db  # noqa
@@ -130,6 +130,12 @@ class TestMLModel:
 # Now try with multiple models. Inserting these via direct sql to avoid files etc,
 # and just the bare minimum needed for testing new version stuff.
     def test_various_version_model(self, db, test_mod):  # noqa
+
+        mod = db.query(ModModel).filter_by(abbreviation=test_mod.new_mod_abbreviation).one()
+        assert mod.short_name == "AtDB"
+        assert mod.full_name == "Test genome database"
+        print(f" mod_id = {test_mod.new_mod_id}")
+
         first = MLModel(mod_id=test_mod.new_mod_id,
                         version_num=10,
                         topic="ATP:0000061",
