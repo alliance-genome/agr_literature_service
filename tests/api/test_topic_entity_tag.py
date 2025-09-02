@@ -818,3 +818,513 @@ class TestTopicEntityTag:
             tag_data2 = get_resp2.json()
             assert tag_data2["data_novelty"] == "ATP:0000334"
             assert tag_data2["novel_topic_data"] is True  # Should remain unchanged
+
+    def test_data_novelty_branch_separation(self):
+        """Test that new data and existing data branches are properly separated."""
+        from agr_literature_service.api.crud.topic_entity_tag_crud import are_in_same_novelty_branch
+        load_name_to_atp_and_relationships_mock()
+        
+        with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000321": {"ATP:0000335"},                     # new data -> root
+                "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # new to db -> new data -> root
+            }.get(x, set())
+            
+            # Test same branch compatibility
+            assert are_in_same_novelty_branch("ATP:0000321", "ATP:0000228") is True  # Both new data
+            assert are_in_same_novelty_branch("ATP:0000228", "ATP:0000321") is True  # Both new data
+            assert are_in_same_novelty_branch("ATP:0000334", "ATP:0000334") is True  # Same value
+            
+            # Test different branch incompatibility  
+            assert are_in_same_novelty_branch("ATP:0000321", "ATP:0000334") is False  # New vs existing
+            assert are_in_same_novelty_branch("ATP:0000334", "ATP:0000228") is False  # Existing vs new
+            
+            # Test null handling
+            assert are_in_same_novelty_branch(None, "ATP:0000334") is True
+            assert are_in_same_novelty_branch("ATP:0000321", None) is True
+            assert are_in_same_novelty_branch(None, None) is True
+
+    @pytest.mark.webtest
+    def test_data_novelty_validation_separation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test that new data and existing data tags don't validate each other."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            # Mock ontology calls to ensure consistent behavior
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000321": {"ATP:0000335"},  # new data -> data novelty root
+                "ATP:0000334": {"ATP:0000335"},  # existing data -> data novelty root
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},  # new to db -> new data -> root
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},  # topic hierarchy
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228", "ATP:0000229"},
+                "ATP:0000321": {"ATP:0000228", "ATP:0000229"},  # new data has specific subtypes
+                "ATP:0000334": set(),  # existing data has no subtypes
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"}
+            }.get(x, set())
+
+            # Create curator source for validation
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            
+            # Create tag with existing data novelty
+            existing_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": False,
+                "data_novelty": "ATP:0000334"  # existing data
+            }
+            existing_tag_resp = client.post(url="/topic_entity_tag/", json=existing_data_tag, headers=auth_headers)
+            existing_tag_id = existing_tag_resp.json()["topic_entity_tag_id"]
+            
+            # Create tag with new data novelty - should NOT validate existing data tag
+            new_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # more specific topic
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": False,
+                "data_novelty": "ATP:0000321"  # new data
+            }
+            new_tag_resp = client.post(url="/topic_entity_tag/", json=new_data_tag, headers=auth_headers)
+            new_tag_id = new_tag_resp.json()["topic_entity_tag_id"]
+            
+            # Check validation status - should NOT be validated due to data novelty incompatibility
+            existing_tag_data = client.get(f"/topic_entity_tag/{existing_tag_id}").json()
+            new_tag_data = client.get(f"/topic_entity_tag/{new_tag_id}").json()
+            
+            # Neither tag should validate the other due to incompatible data novelty
+            assert existing_tag_data["validation_by_professional_biocurator"] == "not_validated"
+            assert new_tag_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
+
+    @pytest.mark.webtest
+    def test_data_novelty_hierarchy_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test that data novelty hierarchy works correctly within the same branch."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            # Mock ontology hierarchy for data novelty
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},  # new to db -> new data -> root
+                "ATP:0000321": {"ATP:0000335"},  # new data -> root
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                "ATP:0000321": {"ATP:0000228", "ATP:0000229"},  # new data -> specific types
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"}
+            }.get(x, set())
+
+            # Create curator source
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system", 
+                "validation_type": "professional_biocurator",
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+
+            # Create tag with generic new data novelty
+            generic_new_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": False,
+                "data_novelty": "ATP:0000321"  # generic new data
+            }
+            generic_tag_resp = client.post(url="/topic_entity_tag/", json=generic_new_data_tag, headers=auth_headers)
+            generic_tag_id = generic_tag_resp.json()["topic_entity_tag_id"]
+
+            # Create tag with more specific new data novelty - should validate generic
+            specific_new_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # more specific topic
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # new to database (more specific)
+            }
+            specific_tag_resp = client.post(url="/topic_entity_tag/", json=specific_new_data_tag, headers=auth_headers)
+            specific_tag_id = specific_tag_resp.json()["topic_entity_tag_id"]
+
+            # Check validation - generic tag should be validated by specific tag
+            generic_tag_data = client.get(f"/topic_entity_tag/{generic_tag_id}").json()
+            specific_tag_data = client.get(f"/topic_entity_tag/{specific_tag_id}").json()
+            
+            # Generic tag should be validated as correct by the more specific tag
+            assert generic_tag_data["validation_by_professional_biocurator"] == "validated_right"
+            
+    @pytest.mark.webtest  
+    def test_data_novelty_with_null_values(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test that tags with null data_novelty can validate any tag."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000334": {"ATP:0000335"},
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"}
+            }.get(x, set())
+
+            # Create curator source
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator", 
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+
+            # Create tag with null data_novelty
+            null_novelty_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009", 
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": False
+                # data_novelty is None/null
+            }
+            null_tag_resp = client.post(url="/topic_entity_tag/", json=null_novelty_tag, headers=auth_headers)
+            null_tag_id = null_tag_resp.json()["topic_entity_tag_id"]
+
+            # Create tag with existing data novelty - should be validated by null novelty tag
+            existing_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # more specific topic
+                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "negated": False,
+                "data_novelty": "ATP:0000334"  # existing data
+            }
+            existing_tag_resp = client.post(url="/topic_entity_tag/", json=existing_data_tag, headers=auth_headers)
+            existing_tag_id = existing_tag_resp.json()["topic_entity_tag_id"]
+
+            # Check validation - null novelty should be able to validate any tag
+            null_tag_data = client.get(f"/topic_entity_tag/{null_tag_id}").json()
+            existing_tag_data = client.get(f"/topic_entity_tag/{existing_tag_id}").json()
+            
+            # The more generic tag (null novelty) should be validated by more specific tag
+            assert null_tag_data["validation_by_professional_biocurator"] == "validated_right"
+
+    @pytest.mark.webtest
+    def test_comprehensive_topic_novelty_validation_matrix(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test all combinations of topic hierarchy and data novelty hierarchy validation."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            # Setup comprehensive ontology mock
+            mock_get_ancestors.side_effect = lambda x: {
+                # Topic hierarchy
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},      # generic topic
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"},  # specific topic
+                # Data novelty hierarchy  
+                "ATP:0000335": set(),                               # novelty root (no ancestors)
+                "ATP:0000321": {"ATP:0000335"},                     # new data -> root
+                "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # new to db -> new data -> root
+                "ATP:0000229": {"ATP:0000321", "ATP:0000335"},      # new to field -> new data -> root
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                # Topic hierarchy
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081"},  # generic has specific descendants
+                "ATP:0000079": set(),                               # specific topic (no descendants)
+                # Data novelty hierarchy
+                "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228", "ATP:0000229"},  # root has all descendants
+                "ATP:0000321": {"ATP:0000228", "ATP:0000229"},      # new data has specific descendants
+                "ATP:0000334": set(),                               # existing data (no descendants)
+                "ATP:0000228": set(),                               # new to db (no descendants)
+                "ATP:0000229": set(),                               # new to field (no descendants)
+            }.get(x, set())
+
+            # Create curator source for validation
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = curator_source_resp.json()
+
+            # Test Case 1: Positive specific topic + specific novelty validates positive generic topic + generic novelty
+            generic_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",        # generic topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000321"  # generic new data
+            }
+            generic_resp = client.post(url="/topic_entity_tag/", json=generic_tag, headers=auth_headers)
+            generic_id = generic_resp.json()["topic_entity_tag_id"]
+
+            specific_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # specific topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # specific new data
+            }
+            specific_resp = client.post(url="/topic_entity_tag/", json=specific_tag, headers=auth_headers)
+            
+            # Generic tag should be validated as correct by more specific tag
+            generic_data = client.get(f"/topic_entity_tag/{generic_id}").json()
+            assert generic_data["validation_by_professional_biocurator"] == "validated_right"
+
+            # Test Case 2: Negative specific topic + specific novelty validates positive specific topic + specific novelty
+            client.delete(f"/topic_entity_tag/{generic_id}", headers=auth_headers)  # Clean up
+            
+            positive_specific = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # specific topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # specific novelty
+            }
+            pos_spec_resp = client.post(url="/topic_entity_tag/", json=positive_specific, headers=auth_headers)
+            pos_spec_id = pos_spec_resp.json()["topic_entity_tag_id"]
+
+            negative_specific = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # same specific topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": True,
+                "data_novelty": "ATP:0000228"  # same specific novelty
+            }
+            client.post(url="/topic_entity_tag/", json=negative_specific, headers=auth_headers)
+
+            # Positive specific should be validated as wrong by negative specific
+            pos_spec_data = client.get(f"/topic_entity_tag/{pos_spec_id}").json()
+            assert pos_spec_data["validation_by_professional_biocurator"] == "validated_wrong"
+
+    @pytest.mark.webtest
+    def test_cross_branch_novelty_incompatibility(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test that existing data and new data branches don't validate each other."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000321": {"ATP:0000335"},                     # new data -> root
+                "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # new to db -> new data -> root
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228"},
+                "ATP:0000321": {"ATP:0000228"},
+                "ATP:0000334": set(),
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081"}
+            }.get(x, set())
+
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = source_resp.json()
+
+            # Create tag with existing data novelty
+            existing_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334"  # existing data branch
+            }
+            existing_resp = client.post(url="/topic_entity_tag/", json=existing_data_tag, headers=auth_headers)
+            existing_id = existing_resp.json()["topic_entity_tag_id"]
+
+            # Create tag with new data novelty - should NOT validate existing data tag
+            new_data_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # more specific topic (normally would validate)
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # new data branch (specific)
+            }
+            client.post(url="/topic_entity_tag/", json=new_data_tag, headers=auth_headers)
+
+            # Existing data tag should NOT be validated due to incompatible novelty branches
+            existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
+            assert existing_data["validation_by_professional_biocurator"] == "not_validated"
+
+    @pytest.mark.webtest
+    def test_mixed_hierarchy_validation_scenarios(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test edge cases with mixed topic and novelty hierarchies."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000335": set(),                               # novelty root
+                "ATP:0000321": {"ATP:0000335"},                     # new data -> root
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # new to db -> new data -> root
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},      # generic topic
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}  # specific topic
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                "ATP:0000335": {"ATP:0000321", "ATP:0000228"},      # root has descendants
+                "ATP:0000321": {"ATP:0000228"},                     # new data has specific descendants
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080"}       # generic topic has specific descendants
+            }.get(x, set())
+
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = source_resp.json()
+
+            # Scenario: Generic topic + root novelty should be validated by specific topic + specific novelty
+            root_novelty_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",        # generic topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335"  # root novelty (most generic)
+            }
+            root_resp = client.post(url="/topic_entity_tag/", json=root_novelty_tag, headers=auth_headers)
+            root_id = root_resp.json()["topic_entity_tag_id"]
+
+            specific_both_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # specific topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # specific novelty
+            }
+            client.post(url="/topic_entity_tag/", json=specific_both_tag, headers=auth_headers)
+
+            # Root novelty tag should be validated as correct
+            root_data = client.get(f"/topic_entity_tag/{root_id}").json()
+            assert root_data["validation_by_professional_biocurator"] == "validated_right"
+
+            # Clean up for next test
+            client.delete(f"/topic_entity_tag/{root_id}", headers=auth_headers)
+
+            # Scenario: Specific topic + generic novelty vs Generic topic + specific novelty
+            # This tests hierarchy mismatch - should they validate?
+            specific_topic_generic_novelty = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # specific topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000321"  # generic novelty
+            }
+            st_gn_resp = client.post(url="/topic_entity_tag/", json=specific_topic_generic_novelty, headers=auth_headers)
+            st_gn_id = st_gn_resp.json()["topic_entity_tag_id"]
+
+            generic_topic_specific_novelty = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",        # generic topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # specific novelty
+            }
+            client.post(url="/topic_entity_tag/", json=generic_topic_specific_novelty, headers=auth_headers)
+
+            # The specific topic + generic novelty should NOT be validated 
+            # because it's not more generic than generic topic + specific novelty in both dimensions
+            st_gn_data = client.get(f"/topic_entity_tag/{st_gn_id}").json()
+            assert st_gn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
+
+    @pytest.mark.webtest
+    def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+        """Test negative tag validation with both topic and novelty hierarchies."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            
+            mock_get_ancestors.side_effect = lambda x: {
+                "ATP:0000321": {"ATP:0000335"},
+                "ATP:0000228": {"ATP:0000321", "ATP:0000335"},
+                "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
+                "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"},
+                "ATP:0000080": {"ATP:0000001", "ATP:0000002", "ATP:0000009", "ATP:0000079"}  # very specific topic
+            }.get(x, set())
+            
+            mock_get_descendants.side_effect = lambda x: {
+                "ATP:0000335": {"ATP:0000321", "ATP:0000228"},
+                "ATP:0000321": {"ATP:0000228"},
+                "ATP:0000009": {"ATP:0000079", "ATP:0000080"},
+                "ATP:0000079": {"ATP:0000080"}
+            }.get(x, set())
+
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator validation",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = source_resp.json()
+
+            # Create positive tag with specific topic and specific novelty
+            positive_specific = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000080",        # very specific topic
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000228"  # specific novelty
+            }
+            pos_resp = client.post(url="/topic_entity_tag/", json=positive_specific, headers=auth_headers)
+            pos_id = pos_resp.json()["topic_entity_tag_id"]
+
+            # Create negative tag with less specific topic and less specific novelty
+            # This should validate the positive tag as wrong
+            negative_less_specific = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",        # less specific topic (ancestor of ATP:0000080)
+                "topic_entity_tag_source_id": source_id,
+                "negated": True,
+                "data_novelty": "ATP:0000321"  # less specific novelty (ancestor of ATP:0000228)
+            }
+            client.post(url="/topic_entity_tag/", json=negative_less_specific, headers=auth_headers)
+
+            # Positive specific tag should be validated as wrong by negative less specific
+            pos_data = client.get(f"/topic_entity_tag/{pos_id}").json()
+            assert pos_data["validation_by_professional_biocurator"] == "validated_wrong"
