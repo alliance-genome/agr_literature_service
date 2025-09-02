@@ -21,8 +21,7 @@ db_user = Security(auth.get_user)
             status_code=200)
 def check_ateam_api():
     res = check_crud.check_ateam_api()
-    return res
-
+    return AteamApiSchemaShow(checks=[res])
 
 @router.get('/database',
             response_model=DatabaseSchemaShow,
