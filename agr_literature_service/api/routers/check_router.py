@@ -23,6 +23,7 @@ def check_ateam_api():
     res = check_crud.check_ateam_api()
     return AteamApiSchemaShow(checks=[res])
 
+
 @router.get('/database',
             response_model=DatabaseSchemaShow,
             status_code=200)
