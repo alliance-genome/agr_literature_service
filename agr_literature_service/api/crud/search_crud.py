@@ -311,24 +311,14 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         ]
     }
 
-    # ----- sorting vs recency boosting -----
-    # If explicit `sort` provided -> respect it (no recency wrapper).
+    """
+    if sort_by_published_date_order not in ["desc", "asc"]:
+        del es_body["sort"]
+    """
     if sort:
         es_body["sort"] = sort
-    else:
-        # If caller passed the order ('asc'/'desc'), keep hard sort by date
-        if sort_by_published_date_order in ["desc", "asc"]:
-            es_body["sort"] = [
-                {
-                    "date_published_start": {
-                        "order": sort_by_published_date_order,
-                        "missing": "_last"
-                    }
-                }
-            ]
-        else:
-            # Default: no hard sort; apply recency boost via function_score
-            es_body.pop("sort", None)
+    elif sort_by_published_date_order not in ["desc", "asc"]:
+        es_body.pop("sort", None)
 
     ensure_structure(es_body)
 
@@ -522,11 +512,6 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             es_body["query"]["bool"]["must"].append({
                 "bool": {"should": shoulds, "minimum_should_match": 1}
             })
-
-    # Apply recency boost if we are not hard-sorting
-    if "sort" not in es_body:
-        apply_recency_boost(es_body, weight_recent=2.0, offset="365d", scale="1095d")
-
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
     return formatted_results
@@ -1085,57 +1070,5 @@ def nested_orcid_exact(core_lower: str) -> dict:
                 }
             },
             "score_mode": "max"
-        }
-    }
-
-
-def apply_recency_boost(es_body,
-                        weight_recent: float = 2.0,
-                        offset: str = "365d",
-                        scale: str = "1095d"):
-    """
-    Wrap es_body['query'] in a function_score that boosts newer docs.
-    - Primary boost: date_published_start (gauss decay from 'now')
-    - Fallback boost: date_created (for records missing published date)
-    We multiply the original relevance by the recency signal.
-    """
-    if "query" not in es_body or not es_body["query"]:
-        es_body["query"] = {"match_all": {}}
-
-    original_query = es_body["query"]
-
-    # function 1: boost by date_published_start when that field exists
-    pubdate_decay = {
-        "filter": {"exists": {"field": "date_published_start"}},
-        "gauss": {
-            "date_published_start": {
-                "origin": "now",
-                "offset": offset,     # no decay for first 1 year
-                "scale": scale        # decays over ~3 years by default
-            }
-        },
-        "weight": weight_recent
-    }
-
-    # function 2: fallback boost by date_created if no published date
-    created_decay = {
-        "filter": {"bool": {"must_not": {"exists": {"field": "date_published_start"}},
-                            "must": {"exists": {"field": "date_created"}}}},
-        "gauss": {
-            "date_created": {
-                "origin": "now",
-                "offset": offset,
-                "scale": scale
-            }
-        },
-        "weight": weight_recent * 0.8  # a bit less than true publish date
-    }
-
-    es_body["query"] = {
-        "function_score": {
-            "query": original_query,
-            "functions": [pubdate_decay, created_decay],
-            "score_mode": "sum",       # add decay to text/other scores
-            "boost_mode": "multiply"   # then multiply by original score
         }
     }
