@@ -77,3 +77,9 @@ def show_versions(mod_reference_type_id: int,
 def show_by_mod(abbreviation: str,
                 db: Session = db_session):
     return mod_reference_type_crud.show_by_mod(db=db, mod_abbreviation=abbreviation)
+
+
+@router.get('/utils/mod_reftype_to_mods',
+            status_code=200)
+def mod_reftype_to_mods_endpoint(db: Session = db_session):
+    return mod_reference_type_crud.mod_reftype_to_mods(db=db)

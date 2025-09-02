@@ -52,8 +52,7 @@ upload_file () {
     -H 'accept: application/json' \
     -H "Authorization: Bearer ${OKTA_ACCESS_TOKEN}" \
     -H 'Content-Type: multipart/form-data' \
-    -F "file=@\"${filepath}\";type=text/plain" \
-    -F 'metadata_file=')
+    -F "file=@\"${filepath}\";type=text/plain")
 
   # Check if the response contains a "detail" field with specific phrases
   detail_message=$(echo "$response" | jq -r '.detail // empty')
@@ -174,6 +173,7 @@ export -f process_file
 generate_access_token
 export OKTA_ACCESS_TOKEN
 export MOD
+export TEST_EXTRACTION
 
 for reffileordir in "$FILES_FOLDER"/*; do
   if [[ -d ${reffileordir} ]]; then

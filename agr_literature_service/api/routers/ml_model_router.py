@@ -46,6 +46,7 @@ def upload_model(
         production: bool = False,
         negated: bool = True,
         novel_topic_data: bool = False,
+        novel_topic_qualifier: str = None,
         species: str = None):
     model_data = None
     if task_type and mod_abbreviation:
@@ -64,6 +65,7 @@ def upload_model(
             "production": production,
             "negated": negated,
             "novel_topic_data": novel_topic_data,
+            "novel_topic_qualifier": novel_topic_qualifier,
             "species": species
         }
     elif model_data_file is not None:
@@ -90,6 +92,7 @@ def upload_model(
         production=model_data["production"],
         negated=model_data["negated"],
         novel_topic_data=model_data["novel_topic_data"],
+        novel_topic_qualifier=model_data["novel_topic_qualifier"],
         species=model_data["species"]
     )
     set_global_user_from_okta(db, user)
@@ -106,7 +109,7 @@ def destroy(ml_model_id: int,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}/{version_num}',
+@router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}/{version}',
             response_model=MLModelSchemaShow,
             status_code=200)
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}',
@@ -118,12 +121,12 @@ def destroy(ml_model_id: int,
 def get_model_metadata(task_type: str,
                        mod_abbreviation: str,
                        topic: str = None,
-                       version_num: int = None,
+                       version: str = None,
                        db: Session = db_session):
-    return ml_model_crud.get_model_metadata(db, task_type, mod_abbreviation, topic, version_num)
+    return ml_model_crud.get_model_metadata(db, task_type, mod_abbreviation, topic, version)
 
 
-@router.get('/download/{task_type}/{mod_abbreviation}/{topic}/{version_num}',
+@router.get('/download/{task_type}/{mod_abbreviation}/{topic}/{version}',
             response_model=MLModelSchemaShow,
             status_code=200)
 @router.get('/download/{task_type}/{mod_abbreviation}/{topic}',
@@ -135,16 +138,6 @@ def get_model_metadata(task_type: str,
 def download_model_file(task_type: str,
                         mod_abbreviation: str,
                         topic: str = None,
-                        version_num: int = None,
+                        version: str = None,
                         db: Session = db_session):
-    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version_num)
-
-
-@router.get('/download/production/{task_type}/{mod_abbreviation}',
-            response_model=MLModelSchemaShow,
-            status_code=200)
-def download_model_file_prod_flag(
-        task_type: str,
-        mod_abbreviation: str,
-        db: Session = db_session):
-    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, version_num=None, production=True)
+    return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version)

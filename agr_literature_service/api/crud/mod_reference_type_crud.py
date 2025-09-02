@@ -7,6 +7,7 @@ import math
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from agr_literature_service.api.models import ReferenceModel, ReferenceModReferencetypeAssociationModel, ModModel, \
     ReferencetypeModel, ModReferencetypeAssociationModel
@@ -209,3 +210,21 @@ def show_by_mod(db: Session, mod_abbreviation: str):
             abbreviation=mod_abbreviation)
     ).order_by(ModReferencetypeAssociationModel.display_order).all()
     return [mod_reference_type.referencetype.label for mod_reference_type in mod_reference_types]
+
+
+def mod_reftype_to_mods(db: Session):
+
+    sql = text("""
+        SELECT
+            rt.label AS label,
+            array_agg(DISTINCT m.abbreviation ORDER BY m.abbreviation) AS mods
+        FROM referencetype AS rt
+        JOIN mod_referencetype AS mrt
+          ON rt.referencetype_id = mrt.referencetype_id
+        JOIN mod AS m
+          ON m.mod_id = mrt.mod_id
+        GROUP BY rt.label
+        ORDER BY rt.label
+    """)
+    rows = db.execute(sql).fetchall()
+    return {row.label: list(row.mods or []) for row in rows}

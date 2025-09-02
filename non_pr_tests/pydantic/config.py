@@ -3,9 +3,9 @@ from typing import Set
 import inspect
 from pydantic import (
     BaseModel,
-    BaseSettings,
     Field
 )
+from pydantic_settings import BaseSettings
 from os import environ
 from agr_literature_service.api.schemas import EnvStateSchema
 
