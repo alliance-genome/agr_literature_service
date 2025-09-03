@@ -830,7 +830,7 @@ class TestTopicEntityTag:
 
             # Branch compatibility is now handled directly through hierarchy checks
 
-    def test_data_novelty_validation_separation(self, test_reference, test_mod, auth_headers):
+    def test_data_novelty_validation_separation(self, test_reference, test_mod, auth_headers): # noqa
         """Test that novel data and existing data tags don't validate each other."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -895,7 +895,7 @@ class TestTopicEntityTag:
                                                                                   "validated_right_self"]
             assert novel_tag_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
-    def test_data_novelty_hierarchy_validation(self, test_reference, test_mod, auth_headers):
+    def test_data_novelty_hierarchy_validation(self, test_reference, test_mod, auth_headers): # noqa
         """Test that data novelty hierarchy works correctly within the same branch."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -954,8 +954,8 @@ class TestTopicEntityTag:
             # Generic tag should be validated as correct by the more specific tag
             assert generic_tag_data["validation_by_professional_biocurator"] == "validated_right"
             
-    def test_comprehensive_topic_novelty_validation_matrix(self, test_topic_entity_tag, test_topic_entity_tag_source,
-                                                           test_reference, test_mod, auth_headers, db):
+    def test_comprehensive_topic_novelty_validation_matrix(self, test_topic_entity_tag, test_topic_entity_tag_source, # noqa
+                                                           test_reference, test_mod, auth_headers, db): # noqa
         """Test all combinations of topic hierarchy and data novelty hierarchy validation."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1051,7 +1051,8 @@ class TestTopicEntityTag:
             pos_spec_data = client.get(f"/topic_entity_tag/{pos_spec_id}").json()
             assert pos_spec_data["validation_by_professional_biocurator"] == "validated_wrong"
 
-    def test_cross_branch_novelty_incompatibility(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+    def test_cross_branch_novelty_incompatibility(self, test_topic_entity_tag, test_reference, test_mod, # noqa
+                                                  auth_headers, db): # noqa
         """Test that existing data and novel data branches don't validate each other."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1109,7 +1110,7 @@ class TestTopicEntityTag:
             existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
             assert existing_data["validation_by_professional_biocurator"] == "validated_right_self"
 
-    def test_mixed_hierarchy_validation_scenarios(self, test_reference, test_mod, auth_headers, db):
+    def test_mixed_hierarchy_validation_scenarios(self, test_reference, test_mod, auth_headers, db): # noqa
         """Test edge cases with mixed topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1200,7 +1201,8 @@ class TestTopicEntityTag:
             gt_sn_data = client.get(f"/topic_entity_tag/{gt_sn_id}").json()
             assert gt_sn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
-    def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag_source, test_reference, test_mod, auth_headers, db):
+    def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag_source, test_reference, test_mod, # noqa
+                                               auth_headers, db): # noqa
         """Test negative tag validation with both topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1259,7 +1261,8 @@ class TestTopicEntityTag:
             pos_data = client.get(f"/topic_entity_tag/{pos_id}").json()
             assert pos_data["validation_by_professional_biocurator"] == "validated_wrong"
 
-    def test_comprehensive_novel_data_validation_combinations(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+    def test_comprehensive_novel_data_validation_combinations(self, test_topic_entity_tag, test_reference, # noqa
+                                                              test_mod, auth_headers, db): # noqa
         """Test all combinations of novel data values in validation scenarios."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1356,7 +1359,8 @@ class TestTopicEntityTag:
             existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
             assert existing_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
-    def test_entity_only_validation_with_novel_data(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+    def test_entity_only_validation_with_novel_data(self, test_topic_entity_tag, test_reference, test_mod, # noqa
+                                                    auth_headers, db): # noqa
         """Test entity-only tag validation with novel data considerations."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
