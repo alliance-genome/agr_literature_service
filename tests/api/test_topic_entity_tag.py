@@ -48,8 +48,10 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
 class TestTopicEntityTag:
 
     def test_create(self, test_topic_entity_tag, auth_headers): # noqa
-        with TestClient(app):
+        with TestClient(app) as client:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            assert response.json()["created_by"] == "WBPerson1"
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
