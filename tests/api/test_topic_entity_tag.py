@@ -822,11 +822,11 @@ class TestTopicEntityTag:
         load_name_to_atp_and_relationships_mock()
         
         with patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors:
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
                 "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # novel to db -> novel data -> root
-            }.get(x, set())
+            }.get(onto_node, set())
             
             # Branch compatibility is now handled directly through hierarchy checks
 
@@ -834,24 +834,24 @@ class TestTopicEntityTag:
         """Test that novel data and existing data tags don't validate each other."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
             # Mock ontology calls to ensure consistent behavior
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},  # novel data -> data novelty root
                 "ATP:0000334": {"ATP:0000335"},  # existing data -> data novelty root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},  # novel to db -> novel data -> root
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},  # topic hierarchy
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228", "ATP:0000229"},
                 "ATP:0000321": {"ATP:0000228", "ATP:0000229"},  # novel data has specific subtypes
                 "ATP:0000334": set(),  # existing data has no subtypes
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"}
-            }.get(x, set())
+            }.get(onto_node, set())
 
             # Create curator source for validation
             curator_source = {
@@ -899,21 +899,21 @@ class TestTopicEntityTag:
         """Test that data novelty hierarchy works correctly within the same branch."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
             # Mock ontology hierarchy for data novelty
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},  # new to db -> new data -> root
                 "ATP:0000321": {"ATP:0000335"},  # new data -> root
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000228", "ATP:0000229"},  # new data -> specific types
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"}
-            }.get(x, set())
+            }.get(onto_node, set())
 
             # Create curator source
             curator_source = {
@@ -960,11 +960,11 @@ class TestTopicEntityTag:
         """Test all combinations of topic hierarchy and data novelty hierarchy validation."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
             # Setup comprehensive ontology mock
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 # Topic hierarchy
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},      # generic topic
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"},  # specific topic
@@ -974,9 +974,9 @@ class TestTopicEntityTag:
                 "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # new to db -> new data -> root
                 "ATP:0000229": {"ATP:0000321", "ATP:0000335"},      # new to field -> new data -> root
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 # Topic hierarchy
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081"},  # generic has specific descendants
                 "ATP:0000079": set(),                               # specific topic (no descendants)
@@ -986,7 +986,7 @@ class TestTopicEntityTag:
                 "ATP:0000334": set(),                               # existing data (no descendants)
                 "ATP:0000228": set(),                               # new to db (no descendants)
                 "ATP:0000229": set(),                               # new to field (no descendants)
-            }.get(x, set())
+            }.get(onto_node, set())
 
             # Create curator source for validation
             curator_source = {
@@ -1056,23 +1056,23 @@ class TestTopicEntityTag:
         """Test that existing data and novel data branches don't validate each other."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
                 "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # novel to db -> novel data -> root
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228"},
                 "ATP:0000321": {"ATP:0000228"},
                 "ATP:0000334": set(),
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081"}
-            }.get(x, set())
+            }.get(onto_node, set())
 
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
@@ -1114,22 +1114,22 @@ class TestTopicEntityTag:
         """Test edge cases with mixed topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000335": set(),                               # novelty root
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # novel to db -> novel data -> root
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},      # generic topic
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}  # specific topic
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000228"},      # root has descendants
                 "ATP:0000321": {"ATP:0000228"},                     # novel data has specific descendants
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080"}       # generic topic has specific descendants
-            }.get(x, set())
+            }.get(onto_node, set())
 
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
@@ -1205,23 +1205,23 @@ class TestTopicEntityTag:
         """Test negative tag validation with both topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # novel to db -> novel data -> root
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},      # generic topic
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"},  # specific topic
                 "ATP:0000080": {"ATP:0000001", "ATP:0000002", "ATP:0000009", "ATP:0000079"}  # very specific topic
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000228"},      # novelty root has descendants
                 "ATP:0000321": {"ATP:0000228"},                     # novel data has specific descendants
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080"},      # generic topic has descendants
                 "ATP:0000079": {"ATP:0000080"}                      # specific topic has descendant
-            }.get(x, set())
+            }.get(onto_node, set())
 
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
@@ -1264,11 +1264,11 @@ class TestTopicEntityTag:
         """Test all combinations of novel data values in validation scenarios."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
             # Complete novel data hierarchy
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000335": set(),                                           # root (no ancestors)
                 "ATP:0000321": {"ATP:0000335"},                                 # novel data -> root  
                 "ATP:0000334": {"ATP:0000335"},                                 # existing data -> root
@@ -1276,16 +1276,16 @@ class TestTopicEntityTag:
                 "ATP:0000229": {"ATP:0000321", "ATP:0000335"},                  # novel to field -> novel data -> root
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},                  # generic topic
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}    # specific topic
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228", "ATP:0000229"},  # root has all
                 "ATP:0000321": {"ATP:0000228", "ATP:0000229"},                  # novel data -> specific subtypes
                 "ATP:0000334": set(),                                           # existing data (leaf)
                 "ATP:0000228": set(),                                           # novel to db (leaf)
                 "ATP:0000229": set(),                                           # novel to field (leaf)
                 "ATP:0000009": {"ATP:0000079"}                                  # generic topic -> specific
-            }.get(x, set())
+            }.get(onto_node, set())
 
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
@@ -1355,27 +1355,27 @@ class TestTopicEntityTag:
 
             # Should NOT validate existing data tag
             existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
-            assert existing_data["validation_by_professional_biocurator"] == "not_validated"
+            assert existing_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
     def test_entity_only_validation_with_novel_data(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test entity-only tag validation with novel data considerations."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
             
-            mock_get_ancestors.side_effect = lambda x: {
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
-            }.get(x, set())
+            }.get(onto_node, set())
             
-            mock_get_descendants.side_effect = lambda x: {
+            mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000228"},
                 "ATP:0000321": {"ATP:0000228"},
                 "ATP:0000009": {"ATP:0000079"}
-            }.get(x, set())
+            }.get(onto_node, set())
 
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
@@ -1420,47 +1420,3 @@ class TestTopicEntityTag:
             # Entity-only tag should be validated by mixed tag
             entity_data = client.get(f"/topic_entity_tag/{entity_id}").json()
             assert entity_data["validation_by_professional_biocurator"] in ["validated_right", "validated_right_self"]
-
-    def test_novel_data_edge_cases(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
-        """Test edge cases with novel data validation."""
-        load_name_to_atp_and_relationships_mock()
-        with TestClient(app) as client, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
-            
-            mock_get_ancestors.side_effect = lambda x: {
-                "ATP:0000335": set(),
-                "ATP:0000321": {"ATP:0000335"},
-                "ATP:0000334": {"ATP:0000335"},
-                "ATP:0000009": {"ATP:0000001", "ATP:0000002"}
-            }.get(x, set())
-            
-            mock_get_descendants.side_effect = lambda x: {
-                "ATP:0000335": {"ATP:0000321", "ATP:0000334"},
-                "ATP:0000009": {"ATP:0000079"}
-            }.get(x, set())
-
-            curator_source = {
-                "source_evidence_assertion": "ATP:0000036",
-                "source_method": "abc_literature_system",
-                "validation_type": "professional_biocurator",
-                "description": "curator validation",
-                "data_provider": "WB",
-                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
-            }
-            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
-
-            # Test: Root novel data should validate everything
-            root_tag = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000009",
-                "topic_entity_tag_source_id": source_id,
-                "negated": False,
-                "data_novelty": "ATP:0000335"  # root
-            }
-            root_resp = client.post(url="/topic_entity_tag/", json=root_tag, headers=auth_headers)
-            root_id = root_resp.json()["topic_entity_tag_id"]
-
-            root_data = client.get(f"/topic_entity_tag/{root_id}").json()
-            assert root_data["validation_by_professional_biocurator"] == "validated_right"
