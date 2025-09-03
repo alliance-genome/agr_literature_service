@@ -515,7 +515,7 @@ class TestReference:
                         "species": "NCBITaxon:6239",
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
-                        "novel_topic_data": True,
+                        "data_novelty": "ATP:0000321",
                         "note": "test note",
                         "created_by": "WBPerson1",
                         "date_created": "2020-01-01",
@@ -529,7 +529,7 @@ class TestReference:
                         "species": "NCBITaxon:6239",
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
-                        "novel_topic_data": True,
+                        "data_novelty": "ATP:0000321",
                         "note": "test note",
                         "created_by": "WBPerson1",
                         "date_created": "2020-01-02"
@@ -566,7 +566,7 @@ class TestReference:
                         "species": "NCBITaxon:6239",
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
-                        "novel_topic_data": True,
+                        "data_novelty": "ATP:0000321",
                         "note": "another note",  # only the note is different
                         "created_by": "WBPerson1",
                         "date_created": "2020-01-03",
@@ -580,7 +580,7 @@ class TestReference:
                         "species": "NCBITaxon:6239",
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
-                        "novel_topic_data": True,
+                        "data_novelty": "ATP:0000321",
                         "note": "test note",
                         "created_by": "WBPerson1",
                         "date_created": "2020-01-02"
@@ -593,7 +593,7 @@ class TestReference:
                         "species": "NCBITaxon:6239",
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                         "negated": False,
-                        "novel_topic_data": True,
+                        "data_novelty": "ATP:0000321",
                         "note": "test note",
                         "created_by": "WBPerson2",  # same tag but created by a different user
                         "date_created": "2020-01-03"
@@ -667,7 +667,7 @@ class TestReference:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
-                "novel_topic_data": True,
+                "data_novelty": "ATP:0000321",
                 "note": "test note",
                 "created_by": "WBPerson",
                 "date_created": "2020-01-01",
@@ -828,7 +828,7 @@ class TestReference:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
-                "novel_topic_data": True,
+                "data_novelty": "ATP:0000321",
                 "note": "test note",
                 "created_by": "WBPerson1",
                 "date_created": "2020-01-01"

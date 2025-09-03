@@ -36,7 +36,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "species": "NCBITaxon:6239",
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
-            "novel_topic_data": True,
+            "data_novelty": "ATP:0000334",
             "note": "test note",
             "created_by": "WBPerson1",
             "date_created": "2020-01-01"
@@ -63,7 +63,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": -1,
                 "negated": False,
-                "novel_topic_data": False,
+                "data_novelty": "ATP:0000334",
                 "note": "test note",
                 "created_by": "WBPerson1",
                 "date_created": "2020-01-01"
@@ -82,7 +82,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
-                "novel_topic_data": True,
+                "data_novelty": "ATP:0000334",
                 "note": "test note",
                 "created_by": "WBPerson1"
             }
@@ -103,7 +103,6 @@ class TestTopicEntityTag:
                 "entity_id_validation": "alliance",
                 "entity_published_as": "test",
                 "display_tag": None,
-                "novel_topic_data": True,
                 "data_novelty": "ATP:0000334",
                 "negated": False,
                 "species": "NCBITaxon:6239"
@@ -120,7 +119,7 @@ class TestTopicEntityTag:
                 "entity_id_validation": "alliance",
                 "entity_published_as": "test",
                 "display_tag": None,
-                "novel_topic_data": True,
+                "data_novelty": "ATP:0000334",
                 "negated": False,
                 "species": "NCBITaxon:6239"
             }
@@ -158,7 +157,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
-                "novel_topic_data": True,
+                "data_novelty": "ATP:0000334",
                 "note": "test note",
                 "created_by": "WBPerson1",
                 "date_created": "2020-01-01"
@@ -253,7 +252,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000334"
             }
             validating_tag_aut_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -264,7 +263,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
                 "negated": True,
-                "novel_topic_data": False
+                "data_novelty": "ATP:0000334"
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
@@ -301,7 +300,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000334"
             }
             validating_tag_cur_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -312,7 +311,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
                 "negated": False,
-                "novel_topic_data": False,
+                "data_novelty": "ATP:0000334",
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
@@ -351,14 +350,14 @@ class TestTopicEntityTag:
                 "topic": "ATP:0000009",  # more generic topic
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_generic_tag_2 = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000068",  # more generic topic
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_specific_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -369,7 +368,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
                 "negated": False,
-                "novel_topic_data": False
+                "data_novelty": "ATP:0000228"
             }
             more_specific_tag_2 = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -380,7 +379,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": auth_source_2_resp.json(),
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000228"
             }
 
             # add the new tags
@@ -445,21 +444,21 @@ class TestTopicEntityTag:
                 "topic": "ATP:0000079",  # genetic phenotype
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,  # automated tag
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_generic_positive_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",  # phenotype
                 "topic_entity_tag_source_id": author_source_resp.json(),
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_generic_negative_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",  # phenotype
                 "topic_entity_tag_source_id": author_source_resp.json(),
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_specific_positive_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -470,7 +469,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": author_source_resp.json(),
                 "negated": False,
-                "novel_topic_data": False
+                "data_novelty": "ATP:0000321"
             }
             more_specific_negative_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -481,7 +480,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": curator_source_resp.json(),
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
             mock_get_descendants.return_value = {'ATP:0000079', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084'}
@@ -547,21 +546,21 @@ class TestTopicEntityTag:
                 "topic": "ATP:0000079",  # genetic phenotype
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,  # automated tag
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_generic_positive_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",  # phenotype
                 "topic_entity_tag_source_id": author_source_resp.json(),
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_generic_negative_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",  # phenotype
                 "topic_entity_tag_source_id": author_source_resp.json(),
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             more_specific_positive_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -572,7 +571,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": author_source_resp.json(),
                 "negated": False,
-                "novel_topic_data": False
+                "data_novelty": "ATP:0000321"
             }
             more_specific_negative_tag = {
                 "reference_curie": test_reference.new_ref_curie,
@@ -583,7 +582,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": curator_source_resp.json(),
                 "negated": True,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009', 'ATP:0000079'}
             mock_get_descendants.return_value = {'ATP:0000079', 'ATP:0000082', 'ATP:0000083', 'ATP:0000084'}
@@ -644,14 +643,14 @@ class TestTopicEntityTag:
                 "topic": "ATP:0000009",
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
                 "negated": False,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             null_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
                 "topic_entity_tag_source_id": auth_source_1_resp.json(),
                 "negated": None,
-                "novel_topic_data": True
+                "data_novelty": "ATP:0000321"
             }
             # add the new tags
             mock_get_ancestors.return_value = {'ATP:0000001', 'ATP:0000002', 'ATP:0000009'}
@@ -770,7 +769,7 @@ class TestTopicEntityTag:
         assert len(ancestors) == 0
 
     def test_data_novelty_field(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
-        """Test that data_novelty field is properly handled along with novel_topic_data."""
+        """Test that data_novelty field is properly handled."""
         with TestClient(app) as client:
             # Create a source with source_evidence_assertion = ATP:0000036
             source_with_atp36 = {
@@ -784,7 +783,7 @@ class TestTopicEntityTag:
             source_resp = client.post(url="/topic_entity_tag/source", json=source_with_atp36, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
 
-            # Create a tag with novel_topic_data=True and data_novelty="ATP:0000321"
+            # Create a tag with data_novelty="ATP:0000321" (novel data)
             new_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000122",
@@ -794,7 +793,6 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": source_resp.json(),
                 "negated": False,
-                "novel_topic_data": True,
                 "data_novelty": "ATP:0000321"
             }
             create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
@@ -805,7 +803,7 @@ class TestTopicEntityTag:
             get_resp = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp.status_code == status.HTTP_200_OK
             tag_data = get_resp.json()
-            assert tag_data["novel_topic_data"] is True
+            # Check that data_novelty is set correctly
             assert tag_data["data_novelty"] == "ATP:0000321"
 
             # Test patch to update data_novelty
@@ -816,8 +814,8 @@ class TestTopicEntityTag:
             get_resp2 = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp2.status_code == status.HTTP_200_OK
             tag_data2 = get_resp2.json()
+            # Check that data_novelty is updated
             assert tag_data2["data_novelty"] == "ATP:0000334"
-            assert tag_data2["novel_topic_data"] is True  # Should remain unchanged
 
     def test_data_novelty_branch_separation(self):
         """Test that novel data and existing data branches are properly separated."""

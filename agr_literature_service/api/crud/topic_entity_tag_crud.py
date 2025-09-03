@@ -290,7 +290,7 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
     more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
-    more_generic_novelty = get_ancestors(new_tag_obj.data_novelty)
+    more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -318,7 +318,7 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
     more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
-    more_specific_novelty = get_descendants(new_tag_obj.data_novelty)
+    more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
@@ -349,11 +349,11 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
     more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
-    more_specific_novelty = get_descendants(new_tag_obj.data_novelty)
+    more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
     more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
-    more_generic_novelty = get_ancestors(new_tag_obj.data_novelty)
+    more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:

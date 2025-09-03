@@ -146,7 +146,9 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
         'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
-        'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
+        'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete'],
+        'ATP:0000335': ['ATP:0000334', 'ATP:0000321'],
+        'ATP:0000321': ['ATP:0000228', 'ATP:0000229']
     }
 
     atp_to_name = {
@@ -161,7 +163,12 @@ def load_name_to_atp_and_relationships_mock():
         'NCBITaxon:6239': 'Caenorhabditis elegans',
         'ATP:0000141': 'file needed',
         'ont1': 'test',
-        'ATP:0000168': 'catalytic activity classification complete'
+        'ATP:0000168': 'catalytic activity classification complete',
+        'ATP:0000335': 'data novelty',
+        'ATP:0000334': 'existing data',
+        'ATP:0000321': 'new data',
+        'ATP:0000228': 'new to database',
+        'ATP:0000229': 'new to field'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -172,7 +179,12 @@ def load_name_to_atp_and_relationships_mock():
         'gene': 'ATP:0000005',
         'lin-12': 'WB:WBGene00003001',
         'Caenorhabditis elegans': 'NCBITaxon:6239',
-        'not sure': 'ATP:0000123'
+        'not sure': 'ATP:0000123',
+        'data novelty': 'ATP:0000335',
+        'existing data': 'ATP:0000334',
+        'new data': 'ATP:0000321',
+        'new to database': 'ATP:0000228',
+        'new to field': 'ATP:0000229'
     }
     workflow_parent = {}
     for atp in workflow_children.keys():
