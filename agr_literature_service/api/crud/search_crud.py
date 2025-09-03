@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
 import re
+import time
 from datetime import datetime
 # from os import getcwd
 
@@ -144,7 +145,7 @@ def search_date_range(es_body,
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       negated_facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10,
-                      sort_by_published_date_order: Optional[str] = "asc",
+                      sort_by_published_date_order: Optional[str] = "desc",
                       page: Optional[int] = 1,
                       facets_limits: Dict[str, int] = None,
                       return_facets_only: bool = False,
@@ -302,14 +303,19 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "size": size_result_count,
         "track_total_hits": True,
         "sort": [
-            {
-                "date_published_start": {
-                    "order": sort_by_published_date_order,
-                    "missing": "_last"
-                }
-            }
+            {"date_published_start": {"order": sort_by_published_date_order, "missing": "_last"}},
+            {"date_created": {"order": sort_by_published_date_order, "missing": "_last"}},
+            {"_score": "desc"},
+            {"curie.keyword": "asc"} 
         ]
     }
+    """
+    Sorting update:
+    Primary sort: date_published_start - orders by publication date first.
+    Secondary sort: date_created - deterministic fallback when date_published_start is missing.
+    Tertiary sort: _score - keeps ES relevance in the mix when scores are tied.
+    Final tie-breaker: curie.keyword - gives stable ordering for completely identical values.
+    """
 
     # ----- sorting vs recency boosting -----
     # If explicit `sort` provided -> respect it (no recency wrapper).
@@ -524,8 +530,11 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             })
 
     # Apply recency boost if we are not hard-sorting
+    # Papers published within the last 1 year → boosted by 3.0×
+    # Papers published between 1 and 10 years ago → boosted by 1.5×
+    # Papers older than 10 years → no boost (weight defaults to 1.0)
     if "sort" not in es_body:
-        apply_recency_boost(es_body, weight_recent=2.0, offset="365d", scale="1095d")
+        apply_recency_boost(es_body, windows_days=(365, 1095), weights=(3.0, 1.5))
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
@@ -1090,52 +1099,45 @@ def nested_orcid_exact(core_lower: str) -> dict:
 
 
 def apply_recency_boost(es_body,
-                        weight_recent: float = 2.0,
-                        offset: str = "365d",
-                        scale: str = "1095d"):
+                        windows_days=(365, 1095),
+                        weights=(3.0, 1.5),
+                        field="date_published_start"):
     """
-    Wrap es_body['query'] in a function_score that boosts newer docs.
-    - Primary boost: date_published_start (gauss decay from 'now')
-    - Fallback boost: date_created (for records missing published date)
-    We multiply the original relevance by the recency signal.
+    Add mapping-agnostic recency boosts using range 'should' clauses.
+    - Adds both seconds and millis thresholds so it works for either mapping.
+    - Skips fields that may be text (we only touch `field`).
     """
     if "query" not in es_body or not es_body["query"]:
-        es_body["query"] = {"match_all": {}}
+        es_body["query"] = {"bool": {"must": [{"match_all": {}}]}}
+    elif "bool" not in es_body["query"]:
+        es_body["query"] = {"bool": {"must": [es_body["query"]]}}
 
-    original_query = es_body["query"]
+    now_sec = int(time.time())
+    now_ms  = now_sec * 1000
 
-    # function 1: boost by date_published_start when that field exists
-    pubdate_decay = {
-        "filter": {"exists": {"field": "date_published_start"}},
-        "gauss": {
-            "date_published_start": {
-                "origin": "now",
-                "offset": offset,     # no decay for first 1 year
-                "scale": scale        # decays over ~3 years by default
+    shoulds = es_body["query"]["bool"].setdefault("should", [])
+
+    for days, boost in zip(windows_days, weights):
+        # seconds window (for fields indexed as epoch seconds / numeric)
+        cutoff_sec = now_sec - days * 24 * 3600
+        shoulds.append({
+            "range": {
+                field: {
+                    "gte": cutoff_sec,
+                    "boost": float(boost)
+                }
             }
-        },
-        "weight": weight_recent
-    }
-
-    # function 2: fallback boost by date_created if no published date
-    created_decay = {
-        "filter": {"bool": {"must_not": {"exists": {"field": "date_published_start"}},
-                            "must": {"exists": {"field": "date_created"}}}},
-        "gauss": {
-            "date_created": {
-                "origin": "now",
-                "offset": offset,
-                "scale": scale
+        })
+        # millis window (for fields indexed as date (epoch_millis) )
+        cutoff_ms = now_ms - days * 24 * 3600 * 1000
+        shoulds.append({
+            "range": {
+                field: {
+                    "gte": cutoff_ms,
+                    "boost": float(boost)
+                }
             }
-        },
-        "weight": weight_recent * 0.8  # a bit less than true publish date
-    }
+        })
 
-    es_body["query"] = {
-        "function_score": {
-            "query": original_query,
-            "functions": [pubdate_decay, created_decay],
-            "score_mode": "sum",       # add decay to text/other scores
-            "boost_mode": "multiply"   # then multiply by original score
-        }
-    }
+    # make sure 'should' contributes even if there are 'must' clauses
+    es_body["query"]["bool"]["minimum_should_match"] = 0
