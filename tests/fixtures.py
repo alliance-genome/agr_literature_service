@@ -168,7 +168,8 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000334': 'existing data',
         'ATP:0000321': 'new data',
         'ATP:0000228': 'new to database',
-        'ATP:0000229': 'new to field'
+        'ATP:0000229': 'new to field',
+        'ATP:0000036': 'assertion by professional curator'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -184,7 +185,8 @@ def load_name_to_atp_and_relationships_mock():
         'existing data': 'ATP:0000334',
         'new data': 'ATP:0000321',
         'new to database': 'ATP:0000228',
-        'new to field': 'ATP:0000229'
+        'new to field': 'ATP:0000229',
+        'assertion by professional curator': 'ATP:0000036'
     }
     workflow_parent = {}
     for atp in workflow_children.keys():

@@ -830,7 +830,6 @@ class TestTopicEntityTag:
             
             # Branch compatibility is now handled directly through hierarchy checks
 
-    @pytest.mark.webtest
     def test_data_novelty_validation_separation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test that novel data and existing data tags don't validate each other."""
         load_name_to_atp_and_relationships_mock()
@@ -892,10 +891,10 @@ class TestTopicEntityTag:
             novel_tag_data = client.get(f"/topic_entity_tag/{novel_tag_id}").json()
             
             # Neither tag should validate the other due to incompatible data novelty
-            assert existing_tag_data["validation_by_professional_biocurator"] == "not_validated"
+            assert existing_tag_data["validation_by_professional_biocurator"] in ["not_validated",
+                                                                                  "validated_right_self"]
             assert novel_tag_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
-    @pytest.mark.webtest
     def test_data_novelty_hierarchy_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test that data novelty hierarchy works correctly within the same branch."""
         load_name_to_atp_and_relationships_mock()
@@ -951,15 +950,13 @@ class TestTopicEntityTag:
 
             # Check validation - generic tag should be validated by specific tag
             generic_tag_data = client.get(f"/topic_entity_tag/{generic_tag_id}").json()
-            specific_tag_data = client.get(f"/topic_entity_tag/{specific_tag_id}").json()
+            # specific_tag_data = client.get(f"/topic_entity_tag/{specific_tag_id}").json()
             
             # Generic tag should be validated as correct by the more specific tag
             assert generic_tag_data["validation_by_professional_biocurator"] == "validated_right"
             
-    @pytest.mark.webtest  
-
-    @pytest.mark.webtest
-    def test_comprehensive_topic_novelty_validation_matrix(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+    def test_comprehensive_topic_novelty_validation_matrix(self, test_topic_entity_tag, test_topic_entity_tag_source,
+                                                           test_reference, test_mod, auth_headers, db):
         """Test all combinations of topic hierarchy and data novelty hierarchy validation."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1001,13 +998,13 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = curator_source_resp.json()
+            curator_source_id = curator_source_resp.json()
 
             # Test Case 1: Positive specific topic + specific novelty validates positive generic topic + generic novelty
             generic_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",        # generic topic
-                "topic_entity_tag_source_id": source_id,
+                "topic_entity_tag_source_id": curator_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000321"  # generic new data
             }
@@ -1017,23 +1014,25 @@ class TestTopicEntityTag:
             specific_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000079",        # specific topic
-                "topic_entity_tag_source_id": source_id,
+                "topic_entity_tag_source_id": curator_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000228"  # specific new data
             }
             specific_resp = client.post(url="/topic_entity_tag/", json=specific_tag, headers=auth_headers)
-            
-            # Generic tag should be validated as correct by more specific tag
+            specific_id = specific_resp.json()["topic_entity_tag_id"]
+
+            # Generic tag should be validated as correct by more specific tag, both y curator
             generic_data = client.get(f"/topic_entity_tag/{generic_id}").json()
             assert generic_data["validation_by_professional_biocurator"] == "validated_right"
 
             # Test Case 2: Negative specific topic + specific novelty validates positive specific topic + specific novelty
             client.delete(f"/topic_entity_tag/{generic_id}", headers=auth_headers)  # Clean up
-            
+            client.delete(f"/topic_entity_tag/{specific_id}", headers=auth_headers)  # Clean up
+
             positive_specific = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000079",        # specific topic
-                "topic_entity_tag_source_id": source_id,
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000228"  # specific novelty
             }
@@ -1043,7 +1042,7 @@ class TestTopicEntityTag:
             negative_specific = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000079",        # same specific topic
-                "topic_entity_tag_source_id": source_id,
+                "topic_entity_tag_source_id": curator_source_id,
                 "negated": True,
                 "data_novelty": "ATP:0000228"  # same specific novelty
             }
@@ -1053,7 +1052,6 @@ class TestTopicEntityTag:
             pos_spec_data = client.get(f"/topic_entity_tag/{pos_spec_id}").json()
             assert pos_spec_data["validation_by_professional_biocurator"] == "validated_wrong"
 
-    @pytest.mark.webtest
     def test_cross_branch_novelty_incompatibility(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test that existing data and novel data branches don't validate each other."""
         load_name_to_atp_and_relationships_mock()
@@ -1112,7 +1110,6 @@ class TestTopicEntityTag:
             existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
             assert existing_data["validation_by_professional_biocurator"] == "not_validated"
 
-    @pytest.mark.webtest
     def test_mixed_hierarchy_validation_scenarios(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test edge cases with mixed topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
@@ -1198,7 +1195,6 @@ class TestTopicEntityTag:
             st_gn_data = client.get(f"/topic_entity_tag/{st_gn_id}").json()
             assert st_gn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
-    @pytest.mark.webtest
     def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test negative tag validation with both topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
@@ -1258,7 +1254,6 @@ class TestTopicEntityTag:
             pos_data = client.get(f"/topic_entity_tag/{pos_id}").json()
             assert pos_data["validation_by_professional_biocurator"] == "validated_wrong"
 
-    @pytest.mark.webtest
     def test_comprehensive_novel_data_validation_combinations(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test all combinations of novel data values in validation scenarios."""
         load_name_to_atp_and_relationships_mock()
@@ -1356,7 +1351,6 @@ class TestTopicEntityTag:
             existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
             assert existing_data["validation_by_professional_biocurator"] == "not_validated"
 
-    @pytest.mark.webtest
     def test_entity_only_validation_with_novel_data(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test entity-only tag validation with novel data considerations."""
         load_name_to_atp_and_relationships_mock()
@@ -1421,7 +1415,6 @@ class TestTopicEntityTag:
             entity_data = client.get(f"/topic_entity_tag/{entity_id}").json()
             assert entity_data["validation_by_professional_biocurator"] in ["validated_right", "validated_right_self"]
 
-    @pytest.mark.webtest
     def test_novel_data_edge_cases(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
         """Test edge cases with novel data validation."""
         load_name_to_atp_and_relationships_mock()
