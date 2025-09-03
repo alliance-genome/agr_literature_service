@@ -953,7 +953,7 @@ class TestTopicEntityTag:
 
             # Generic tag should be validated as correct by the more specific tag
             assert generic_tag_data["validation_by_professional_biocurator"] == "validated_right"
-            
+
     def test_comprehensive_topic_novelty_validation_matrix(self, test_topic_entity_tag, test_topic_entity_tag_source, # noqa
                                                            test_reference, test_mod, auth_headers, db): # noqa
         """Test all combinations of topic hierarchy and data novelty hierarchy validation."""
@@ -974,7 +974,7 @@ class TestTopicEntityTag:
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # new to db -> new data -> root
                 "ATP:0000229": {"ATP:0000321", "ATP:0000335"},      # new to field -> new data -> root
             }.get(onto_node, set())
-            
+
             mock_get_descendants.side_effect = lambda onto_node=None: {
                 # Topic hierarchy
                 "ATP:0000009": {"ATP:0000079", "ATP:0000080", "ATP:0000081"},  # generic has specific descendants
@@ -1058,7 +1058,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
-            
+
             mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
                 "ATP:0000334": {"ATP:0000335"},                     # existing data -> root
@@ -1066,7 +1066,7 @@ class TestTopicEntityTag:
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
             }.get(onto_node, set())
-            
+
             mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228"},
                 "ATP:0000321": {"ATP:0000228"},
@@ -1116,7 +1116,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
-            
+
             mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000335": set(),                               # novelty root
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
@@ -1124,7 +1124,7 @@ class TestTopicEntityTag:
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},      # generic topic
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}  # specific topic
             }.get(onto_node, set())
-            
+
             mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000228"},      # root has descendants
                 "ATP:0000321": {"ATP:0000228"},                     # novel data has specific descendants
@@ -1208,7 +1208,7 @@ class TestTopicEntityTag:
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
-            
+
             mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},                     # novel data -> root
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},      # novel to db -> novel data -> root
@@ -1216,7 +1216,7 @@ class TestTopicEntityTag:
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"},  # specific topic
                 "ATP:0000080": {"ATP:0000001", "ATP:0000002", "ATP:0000009", "ATP:0000079"}  # very specific topic
             }.get(onto_node, set())
-            
+
             mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000228"},      # novelty root has descendants
                 "ATP:0000321": {"ATP:0000228"},                     # novel data has specific descendants
@@ -1279,7 +1279,7 @@ class TestTopicEntityTag:
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},                  # generic topic
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}    # specific topic
             }.get(onto_node, set())
-            
+
             mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000334", "ATP:0000228", "ATP:0000229"},  # root has all
                 "ATP:0000321": {"ATP:0000228", "ATP:0000229"},                  # novel data -> specific subtypes
@@ -1366,14 +1366,14 @@ class TestTopicEntityTag:
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants:
-            
+
             mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000321": {"ATP:0000335"},
                 "ATP:0000228": {"ATP:0000321", "ATP:0000335"},
                 "ATP:0000009": {"ATP:0000001", "ATP:0000002"},
                 "ATP:0000079": {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
             }.get(onto_node, set())
-            
+
             mock_get_descendants.side_effect = lambda onto_node=None: {
                 "ATP:0000335": {"ATP:0000321", "ATP:0000228"},
                 "ATP:0000321": {"ATP:0000228"},
