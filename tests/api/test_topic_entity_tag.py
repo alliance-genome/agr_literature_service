@@ -1108,9 +1108,9 @@ class TestTopicEntityTag:
 
             # Existing data tag should NOT be validated due to incompatible novelty branches
             existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
-            assert existing_data["validation_by_professional_biocurator"] == "not_validated"
+            assert existing_data["validation_by_professional_biocurator"] == "validated_right_self"
 
-    def test_mixed_hierarchy_validation_scenarios(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+    def test_mixed_hierarchy_validation_scenarios(self, test_reference, test_mod, auth_headers, db):
         """Test edge cases with mixed topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1160,7 +1160,8 @@ class TestTopicEntityTag:
                 "negated": False,
                 "data_novelty": "ATP:0000228"  # specific novelty
             }
-            client.post(url="/topic_entity_tag/", json=specific_both_tag, headers=auth_headers)
+            sbt_resp = client.post(url="/topic_entity_tag/", json=specific_both_tag, headers=auth_headers)
+            sbt_id = sbt_resp.json()["topic_entity_tag_id"]
 
             # Root novelty tag should be validated as correct
             root_data = client.get(f"/topic_entity_tag/{root_id}").json()
@@ -1168,6 +1169,7 @@ class TestTopicEntityTag:
 
             # Clean up for next test
             client.delete(f"/topic_entity_tag/{root_id}", headers=auth_headers)
+            client.delete(f"/topic_entity_tag/{sbt_id}", headers=auth_headers)
 
             # Scenario: Specific topic + generic novelty vs Generic topic + specific novelty
             # This tests hierarchy mismatch - should they validate?
@@ -1188,14 +1190,18 @@ class TestTopicEntityTag:
                 "negated": False,
                 "data_novelty": "ATP:0000228"  # specific novelty
             }
-            client.post(url="/topic_entity_tag/", json=generic_topic_specific_novelty, headers=auth_headers)
+            gt_sn_resp = client.post(url="/topic_entity_tag/", json=generic_topic_specific_novelty, headers=auth_headers)
+            gt_sn_id = gt_sn_resp.json()["topic_entity_tag_id"]
 
             # The specific topic + generic novelty should NOT be validated 
             # because it's not more generic than generic topic + specific novelty in both dimensions
+            # same but reverse for the generic topic + specific novelty
             st_gn_data = client.get(f"/topic_entity_tag/{st_gn_id}").json()
             assert st_gn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
+            gt_sn_data = client.get(f"/topic_entity_tag/{gt_sn_id}").json()
+            assert gt_sn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
-    def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):
+    def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag_source, test_reference, test_mod, auth_headers, db):
         """Test negative tag validation with both topic and novelty hierarchies."""
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -1232,7 +1238,7 @@ class TestTopicEntityTag:
             positive_specific = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000080",        # very specific topic
-                "topic_entity_tag_source_id": source_id,
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000228"  # specific novelty
             }
