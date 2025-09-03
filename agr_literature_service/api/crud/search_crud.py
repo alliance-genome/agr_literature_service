@@ -181,6 +181,20 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     author_filter = (author_filter or "").strip() or None
 
+    """
+    Primary sort: date_published_start - orders by publication date first
+    Secondary sort: date_created - deterministic fallback when date_published_start is missing
+    Tertiary sort: _score - keeps ES relevance in the mix when scores are tied
+    Final tie-breaker: curie.keyword - gives stable ordering for completely identical values
+    """
+    order = sort_by_published_date_order if sort_by_published_date_order in ("asc", "desc") else "desc"
+    base_sort =	[
+	{"date_published_start": {"order": order, "missing": "_last"}},
+        {"date_created": {"order": order, "missing": "_last"}},
+        {"_score": {"order": "desc"}},
+        {"curie.keyword": {"order": "asc"}},
+    ]
+    
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -302,40 +316,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "from": from_entry,
         "size": size_result_count,
         "track_total_hits": True,
-        "sort": [
-            {"date_published_start": {"order": sort_by_published_date_order, "missing": "_last"}},
-            {"date_created": {"order": sort_by_published_date_order, "missing": "_last"}},
-            {"_score": "desc"},
-            {"curie.keyword": "asc"} 
-        ]
+        "sort": base_sort
     }
-    """
-    Sorting update:
-    Primary sort: date_published_start - orders by publication date first.
-    Secondary sort: date_created - deterministic fallback when date_published_start is missing.
-    Tertiary sort: _score - keeps ES relevance in the mix when scores are tied.
-    Final tie-breaker: curie.keyword - gives stable ordering for completely identical values.
-    """
 
     # ----- sorting vs recency boosting -----
-    # If explicit `sort` provided -> respect it (no recency wrapper).
     if sort:
         es_body["sort"] = sort
     else:
-        # If caller passed the order ('asc'/'desc'), keep hard sort by date
-        if sort_by_published_date_order in ["desc", "asc"]:
-            es_body["sort"] = [
-                {
-                    "date_published_start": {
-                        "order": sort_by_published_date_order,
-                        "missing": "_last"
-                    }
-                }
-            ]
-        else:
-            # Default: no hard sort; apply recency boost via function_score
-            es_body.pop("sort", None)
-
+     
+        es_body["sort"] = base_sort
+    
     ensure_structure(es_body)
 
     # set tet_data_providers & wft_mod_abbreviations
