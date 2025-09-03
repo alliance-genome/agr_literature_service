@@ -357,15 +357,15 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     more_generic_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
-        if (tag_in_db.negated is False and tag_in_db.topic in more_specific_topics and
-                tag_in_db.data_novelty in more_specific_novelty):
+        if (tag_in_db.negated is False and tag_in_db.topic in more_specific_topics
+                and tag_in_db.data_novelty in more_specific_novelty):
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
                                          calculate_validation_values=calculate_validation_values)
-        elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics and
-              tag_in_db.data_novelty in more_generic_novelty):
+        elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics
+              and tag_in_db.data_novelty in more_generic_novelty):
             if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
