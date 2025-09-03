@@ -726,6 +726,7 @@ class TestReference:
             for i in range(num_tags_per_ref):
                 template_tet_copy = copy.deepcopy(template_tet)
                 template_tet_copy["created_by"] = "WBPerson" + str(i + 1 + num_tags_per_ref)
+                template_tet_copy["topic"] = "ATP:0000082"
                 ref2_data["topic_entity_tags"].append(template_tet_copy)
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
             logger.info(f"inserting refs with tags took {datetime.datetime.now() - start_time}")

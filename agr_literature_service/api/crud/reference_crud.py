@@ -556,8 +556,8 @@ def merge_references(db: Session,
 
     # Lookup both curies
     logger.info("Merging references started")
-    old_ref = get_reference(db=db, curie_or_reference_id=old_curie)
-    new_ref = get_reference(db=db, curie_or_reference_id=new_curie)
+    old_ref: ReferenceModel = get_reference(db=db, curie_or_reference_id=old_curie)
+    new_ref: ReferenceModel = get_reference(db=db, curie_or_reference_id=new_curie)
 
     if old_ref.prepublication_pipeline or new_ref.prepublication_pipeline:
         new_ref.prepublication_pipeline = True
@@ -566,9 +566,7 @@ def merge_references(db: Session,
     merge_reference_relations(db, old_ref.reference_id, new_ref.reference_id,
                               old_curie, new_curie)
 
-    old_ref_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == old_ref.reference_id).all()
-
-    for old_tet in old_ref_tets:
+    for old_tet in old_ref.topic_entity_tags:
         new_tet_data = {
             "topic": old_tet.topic,
             "entity_type": old_tet.entity_type,
@@ -579,7 +577,7 @@ def merge_references(db: Session,
             "display_tag": old_tet.display_tag,
             "topic_entity_tag_source_id": old_tet.topic_entity_tag_source_id,
             "negated": old_tet.negated,
-            "novel_topic_data": old_tet.novel_topic_data,
+            "data_novelty": old_tet.data_novelty,
             "confidence_score": old_tet.confidence_score,
             "confidence_level": old_tet.confidence_level,
             "note": old_tet.note,
