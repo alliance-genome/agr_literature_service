@@ -321,7 +321,7 @@ class MockDataFactory:
             topic_entity_tag_source_id=source.topic_entity_tag_source_id,
             species="NCBITaxon:10090",
             negated=False,
-            novel_topic_data=False
+            data_novelty="ATP:0000334"
         )
         db_session.add(tag)
         return tag

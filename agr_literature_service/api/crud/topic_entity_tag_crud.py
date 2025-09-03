@@ -290,21 +290,26 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
     # 2. new tag positive, existing tag negative = validate existing (wrong) if existing is more generic
     more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
+    more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
+    more_generic_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_generic_topics:
             if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
-                    add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                         calculate_validation_values=calculate_validation_values)
+                    # Check data novelty
+                    if tag_in_db.data_novelty in more_generic_novelty:
+                        add_validation_to_db(db, tag_in_db, new_tag_obj,
+                                             calculate_validation_values=calculate_validation_values)
     # validate pure entity-only tags if the new tag is a mixed topic + entity tag for the same entity
     if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_tags_in_db:
             if (tag_in_db.topic == tag_in_db.entity_type == new_tag_obj.entity_type
                     and new_tag_obj.entity == tag_in_db.entity):
-                add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                     calculate_validation_values=calculate_validation_values)
+                if tag_in_db.data_novelty in more_generic_novelty:
+                    add_validation_to_db(db, tag_in_db, new_tag_obj,
+                                         calculate_validation_values=calculate_validation_values)
 
 
 def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
@@ -313,14 +318,17 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
     # 2. new tag negative, existing tag negative = validate existing (right) if existing is more specific
     more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
+    more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
+    more_specific_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_specific_topics:
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
-                    add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                         calculate_validation_values=calculate_validation_values)
+                    if tag_in_db.data_novelty in more_specific_novelty:
+                        add_validation_to_db(db, tag_in_db, new_tag_obj,
+                                             calculate_validation_values=calculate_validation_values)
     # if the new tag is a pure entity-only tag and there are mixed topic + entity tags with the same entity
     # validate existing tag only if it is positive
     if new_tag_obj.topic == new_tag_obj.entity_type:
@@ -328,8 +336,9 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
             if (tag_in_db.negated is False and tag_in_db.entity_type != tag_in_db.topic
                     and new_tag_obj.entity_type == tag_in_db.entity_type
                     and new_tag_obj.entity == tag_in_db.entity):
-                add_validation_to_db(db, tag_in_db, new_tag_obj,
-                                     calculate_validation_values=calculate_validation_values)
+                if tag_in_db.data_novelty in more_specific_novelty:
+                    add_validation_to_db(db, tag_in_db, new_tag_obj,
+                                         calculate_validation_values=calculate_validation_values)
 
 
 def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, related_validating_tags_in_db,
@@ -340,17 +349,23 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # 4. new tag negative, existing tag negative = validate new tag (right) if existing is more generic
     more_specific_topics = set(get_descendants(onto_node=new_tag_obj.topic))  # type: ignore
     more_specific_topics.add(new_tag_obj.topic)
+    more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
+    more_specific_novelty.add(new_tag_obj.data_novelty)
     more_generic_topics = set(get_ancestors(onto_node=new_tag_obj.topic))  # type: ignore
     more_generic_topics.add(new_tag_obj.topic)
+    more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
+    more_generic_novelty.add(new_tag_obj.data_novelty)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
-        if tag_in_db.negated is False and tag_in_db.topic in more_specific_topics:
+        if (tag_in_db.negated is False and tag_in_db.topic in more_specific_topics
+                and tag_in_db.data_novelty in more_specific_novelty):
             if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
                                          calculate_validation_values=calculate_validation_values)
-        elif tag_in_db.negated is True and tag_in_db.topic in more_generic_topics:
+        elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics
+              and tag_in_db.data_novelty in more_generic_novelty):
             if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
@@ -362,14 +377,15 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
         for tag_in_db in related_validating_tags_in_db:
             if (tag_in_db.entity_type != tag_in_db.topic and new_tag_obj.entity_type == tag_in_db.entity_type
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.negated is False):
-                add_validation_to_db(db, new_tag_obj, tag_in_db,
-                                     calculate_validation_values=calculate_validation_values)
+                if tag_in_db.data_novelty in more_specific_novelty:
+                    add_validation_to_db(db, new_tag_obj, tag_in_db,
+                                         calculate_validation_values=calculate_validation_values)
     # if the new tag is a mixed topic + entity tag and there are pure entity-only tags with the same entity
     # validate only positive new tag if existing is negative
     if new_tag_obj.negated is False and new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_validating_tags_in_db:
             if (tag_in_db.negated is True and tag_in_db.topic == tag_in_db.entity_type == new_tag_obj.entity_type
-                    and new_tag_obj.entity == tag_in_db.entity):
+                    and new_tag_obj.entity == tag_in_db.entity and tag_in_db.data_novelty in more_generic_novelty):
                 add_validation_to_db(db, new_tag_obj, tag_in_db,
                                      calculate_validation_values=calculate_validation_values)
 
@@ -397,6 +413,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagModel.entity,
             TopicEntityTagModel.species,
             TopicEntityTagModel.negated,
+            TopicEntityTagModel.data_novelty,
             TopicEntityTagSourceModel.validation_type
         ).join(
             TopicEntityTagSourceModel, TopicEntityTagModel.topic_entity_tag_source

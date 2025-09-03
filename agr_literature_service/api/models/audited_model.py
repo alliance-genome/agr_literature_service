@@ -49,14 +49,20 @@ class AuditedModel(object):
 @event.listens_for(AuditedModel, "before_insert", propagate=True)
 def _set_created_and_updated(mapper, connection, target):
     now = datetime.now(tz=pytz.timezone("UTC"))
-    target.date_created = now
-    target.date_updated = now
-    target.created_by = get_default_user_value()
-    target.updated_by = get_default_user_value()
+    if target.date_created is None:
+        target.date_created = now
+    if target.date_updated is None:
+        target.date_updated = now
+    if target.created_by is None:
+        target.created_by = get_default_user_value()
+    if target.updated_by is None:
+        target.updated_by = get_default_user_value()
 
 
 @event.listens_for(AuditedModel, "before_update", propagate=True)
 def _set_updated(mapper, connection, target):
     now = datetime.now(tz=pytz.timezone("UTC"))
-    target.date_updated = now
-    target.updated_by = get_default_user_value()
+    if target.date_updated is None:
+        target.date_updated = now
+    if target.updated_by is None:
+        target.updated_by = get_default_user_value()
