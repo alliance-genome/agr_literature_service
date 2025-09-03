@@ -45,8 +45,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
-                                               CitationModel,
-                                               TopicEntityTagModel)
+                                               CitationModel)
 from agr_literature_service.api.routers.okta_utils import OktaAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
     TopicEntityTagSchemaPost
