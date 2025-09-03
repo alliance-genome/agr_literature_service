@@ -132,8 +132,27 @@ def initialize_elasticsearch():
                             "normalizer": "languageNormalizer"
                         }
                     }
+                },
+                # --- add these explicit mappings ---
+                # You store epoch microseconds as numbers; map to long for sort/range
+                "date_created": {"type": "long"},
+                # Allow either ISO dates (yyyy-MM-dd) or epoch seconds/millis
+                "date_published_start": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis||epoch_second"
+                },
+                "date_published_end": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis||epoch_second"
+                },
+                "date_arrived_in_pubmed": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd"
+                },
+                "date_last_modified_in_pubmed": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd"
                 }
-                # ... include any other properties needed for your tests
             }
         }
     }
