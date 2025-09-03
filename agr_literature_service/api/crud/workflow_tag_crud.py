@@ -344,6 +344,13 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
         except TypeError:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Could not find wft for {reference.reference_id} {process_atp_id} {mod_abbreviation}")
+
+    # if setting to a child of 0000273 and there is no sibling term in db, add 0000274 needed first
+    if process_atp_id == "ATP:0000273" and not current_workflow_tag_db_obj:
+        current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id="ATP:0000274")
+        db.add(current_workflow_tag_db_obj)
+        db.commit()
+
     if current_workflow_tag_db_obj:
         transition = db.query(WorkflowTransitionModel).filter(
             and_(
