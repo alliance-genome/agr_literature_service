@@ -184,7 +184,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     """
     Primary sort: date_published_start - orders by publication date first
     Secondary sort: date_created - deterministic fallback when date_published_start is missing
-    Tertiary sort: _score - keeps ES relevance in the mix when scores are tied
+    3rd sort: _score - will use its relevance score (_score) as a tie-breaker to determine their order
     Final tie-breaker: curie.keyword - gives stable ordering for completely identical values
     """
     order = sort_by_published_date_order if sort_by_published_date_order in ("asc", "desc") else "desc"
@@ -519,10 +519,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "bool": {"should": shoulds, "minimum_should_match": 1}
             })
 
-    # Apply recency boost if we are not hard-sorting
-    # Papers published within the last 1 year → boosted by 3.0×
-    # Papers published between 1 and 10 years ago → boosted by 1.5×
-    # Papers older than 10 years → no boost (weight defaults to 1.0)
+    """
+    windows_days=(365, 1095)
+    First window: Documents from the last 365 days (1 year).
+    Second window: Documents from the last 1095 days (3 years).
+    weights=(3.0, 1.5)
+    Documents in the 1-year window get their score multiplied by 3.0 (a huge boost).
+    Documents in the 1-to-3-year window get their score multiplied by 1.5 (a moderate boost).
+    Documents older than 3 years get no recency boost (their score is based only on the original query).
+    """
     if "sort" not in es_body:
         apply_recency_boost(es_body, windows_days=(365, 1095), weights=(3.0, 1.5))
 
@@ -1093,20 +1098,22 @@ def apply_recency_boost(es_body,
                         weights=(3.0, 1.5),
                         field="date_published_start"):
     """
-    Add mapping-agnostic recency boosts using range 'should' clauses.
+    Add recency boosts using range 'should' clauses.
     - Adds both seconds and millis thresholds so it works for either mapping.
-    - Skips fields that may be text (we only touch `field`).
+    - Skips fields that may be text
     """
     if "query" not in es_body or not es_body["query"]:
         es_body["query"] = {"bool": {"must": [{"match_all": {}}]}}
     elif "bool" not in es_body["query"]:
         es_body["query"] = {"bool": {"must": [es_body["query"]]}}
 
+    # get current time
     now_sec = int(time.time())
     now_ms  = now_sec * 1000
 
     shoulds = es_body["query"]["bool"].setdefault("should", [])
 
+    # zip(a, b) → (a[0], b[0]), (a[1], b[1])
     for days, boost in zip(windows_days, weights):
         # seconds window (for fields indexed as epoch seconds / numeric)
         cutoff_sec = now_sec - days * 24 * 3600
@@ -1129,5 +1136,10 @@ def apply_recency_boost(es_body,
             }
         })
 
-    # make sure 'should' contributes even if there are 'must' clauses
+    """
+    It tells ES: "It's okay if a document matches ZERO of the should clauses.
+    We don't need to fulfill any of them." This makes sure that old documents
+    are still returned (just without a boost), while new documents get their
+    score inflated by the should clauses they match.
+    """
     es_body["query"]["bool"]["minimum_should_match"] = 0
