@@ -177,6 +177,13 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
+    ml_model_id = Column(
+        Integer,
+        ForeignKey("ml_model.ml_model_id"),
+        index=True,
+        nullable=True
+    )
+
     # Add relationship to Dataset
     dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_topic_entity_tag")  # type: ignore  # noqa
 
