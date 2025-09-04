@@ -194,7 +194,15 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         {"_score": {"order": "desc"}},
         {"curie.keyword": {"order": "asc"}},
     ]
-    
+    # When there's any free-text query, let ES relevance decide first,
+    # then apply recency tie-breakers
+    score_first_sort = [
+        {"_score": {"order": "desc"}},
+        {"date_published_start": {"order": order, "missing": "_last"}},
+        {"date_created": {"order": order, "missing": "_last"}},
+        {"curie.keyword": {"order": "asc"}},
+    ]
+
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -210,6 +218,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "fields": ["language.keyword"],
         "highlight": {
+            "require_field_match": False,
             "fields": [
                 {"title": {"type": "unified"}},
                 {"abstract": {"type": "unified"}},
@@ -319,11 +328,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "sort": base_sort
     }
 
-    # ----- sorting vs recency boosting -----
+    # Apply sort preference:
+    # 1) Respect an explicit `sort` from the user.
+    # 2) If there's a free-text query (including Author), use score-first
+    #    so exact hits outrank looser matches.
+    # 3) Otherwise (facets/date-only queries), keep recency-first for stability.
     if sort:
         es_body["sort"] = sort
+    elif query or author_filter:
+        es_body["sort"] = score_first_sort
     else:
-     
         es_body["sort"] = base_sort
     
     ensure_structure(es_body)
@@ -357,25 +371,61 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     if query and (query_fields == "All" or query_fields is None):
         q_free = strip_orcid_prefix_for_free_text(query)
-        shoulds = [
+
+        # 1) Exact WORD match tier (boosted)
+        #    Use multi_match phrase on individual fields so "west" does NOT match "western".
+        exact_word_shoulds = [
+            {
+                "multi_match": {
+                    "type": "phrase",
+                    "query": q_free,
+                    "fields": ["title", "keywords", "abstract", "citation"],
+                    "boost": 8.0
+                }
+            }
+        ]
+
+        # 2) Prefix tier: west* (lower boost than exact)
+        prefix_shoulds = [
             {
                 "simple_query_string": {
                     "fields": ["title", "keywords", "abstract", "citation"],
-                    "query": (q_free + "*") if partial_match else q_free,
+                    "query": (q_free + "*"),
                     "analyze_wildcard": True,
-                    "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                    "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE",
+                    "default_operator": "and"
                 }
-            },
-            {"wildcard": {"curie.keyword": f"*{q_free}"}},
-            {"wildcard": {"cross_references.curie.keyword": f"*{q_free}"}},
-            nested_author_name_query(query),
+            }
         ]
 
+        # 3) IDs/Xrefs (wildcards) + Author scoring (exact > prefix > analyzed)
+        #    - wildcard curie/xref catch ID mentions
+        #    - author matching ranks exact token "West" highest, then "West*" prefixes,
+        #      then an analyzed fallback; match_prefix is included to enable highlighting
+        id_shoulds = [
+            {"wildcard": {"curie.keyword": f"*{q_free}"}},
+            {"wildcard": {"cross_references.curie.keyword": f"*{q_free}"}},
+
+            # Author ranking
+            nested_author_name_match(q_free, boost=10.0),        # strongest: token == "West"
+            nested_author_name_exact_keyword(q_free, boost=9.0), # exact keyword "West"
+            nested_author_name_prefix_keyword(q_free, boost=6.0),# "West*"
+            nested_author_name_match_prefix(q_free, boost=3.0),  # for highlighting prefixes
+            nested_author_name_query(q_free),                    # gentle analyzed fallback
+        ]
+
+        # 4) ORCID exact (nested)
         core = extract_orcid_core(query)
         if core:
-            shoulds.append(nested_orcid_exact(core))
+            id_shoulds.append(nested_orcid_exact(core))
 
-        es_body["query"]["bool"]["must"].append({"bool": {"should": shoulds}})
+        # Combine: exact (boosted) + prefix + ids/authors
+        es_body["query"]["bool"]["must"].append({
+            "bool": {
+                "should": exact_word_shoulds + prefix_shoulds + id_shoulds,
+                "minimum_should_match": 1
+            }
+        })
 
     elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword" or query_fields == "Citation"):
         if query_fields == "Title":
@@ -397,8 +447,25 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
                 }
             })
+
     elif query and query_fields == "Author":
-        es_body["query"]["bool"]["must"].append(nested_author_name_query(query))
+        
+        es_body["query"]["bool"]["must"].append({
+            "bool": {
+                "should": [
+                    nested_author_name_match(query, boost=10.0),
+                    nested_author_name_exact_keyword(query, boost=9.0),
+                    nested_author_name_prefix_keyword(query, boost=6.0),
+                    nested_author_name_match_prefix(query, boost=3.0),
+                    nested_author_name_query(query),
+                ],
+                "minimum_should_match": 1
+            }
+        })
+        core = extract_orcid_core(query)
+        if core:
+            es_body["query"]["bool"]["must"].append(nested_orcid_exact(core))
+
     elif query and query_fields == "ORCID":
         core = extract_orcid_core(query)
         if core:
@@ -1008,6 +1075,68 @@ def nested_author_name_query(q: str) -> dict:
             "path": "authors",
             "query": {"match": {"authors.name": {"query": q, "analyzer": "authorNameAnalyzer"}}},
             "score_mode": "max"
+        }
+    }
+
+
+def nested_author_name_match(name: str, boost: float = 10.0) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "match": {
+                    "authors.name": {
+                        "query": name,
+                        "analyzer": "authorNameAnalyzer"
+                    }
+                }
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
+def nested_author_name_exact_keyword(name: str, boost: float = 8.0) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "term": {"authors.name.keyword": name}
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
+def nested_author_name_prefix_keyword(prefix: str, boost: float = 4.0) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "wildcard": {"authors.name.keyword": f"{prefix}*"}
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
+def nested_author_name_match_prefix(name: str, boost: float = 3.0) -> dict:
+    # analyzed prefix on authors.name so the highlighter can light up "West" in "Westerfield"
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "match_phrase_prefix": {
+                    "authors.name": {
+                        "query": name
+                    }
+                }
+            },
+            "score_mode": "max",
+            "boost": boost
         }
     }
 
