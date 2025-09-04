@@ -150,6 +150,38 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
+    def test_transition_to_workflow_status_manual_indexing_child(self, db, test_mod, test_reference,  # noqa
+                                                                 auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000336', transition_to='ATP:0000275'))
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000336'))
+        db.commit()
+        with TestClient(app) as client:
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000275"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(WorkflowTagModel).filter(
+                and_(
+                    WorkflowTagModel.reference_id == reference.reference_id,
+                    WorkflowTagModel.mod_id == mod.mod_id,
+                    WorkflowTagModel.workflow_tag_id == 'ATP:0000275'
+                )
+            ).first()
+
+            new_status_response = client.get(url=f"/workflow_tag/get_current_workflow_status/"
+                                                 f"{test_reference.new_ref_curie}/{test_mod.new_mod_abbreviation}/"
+                                                 f"{'ATP:0000273'}", headers=auth_headers)
+            assert new_status_response.status_code == status.HTTP_200_OK
+            assert new_status_response.json() == 'ATP:0000275'
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     # @patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants", get_descendants_mock)
     # @patch("agr_literature_service.api.crud.ateam_db_helpers.search_ancestors_or_descendants",
     #       search_ancestors_or_descendants_mock)
