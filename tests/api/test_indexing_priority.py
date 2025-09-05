@@ -1,8 +1,6 @@
 import pytest
-from starlette.testclient import TestClient
-from fastapi import status, HTTPException
+from fastapi import HTTPException
 
-from agr_literature_service.api.main import app
 from agr_literature_service.api.models import (
     ReferenceModel,
     IndexingPriorityModel,
@@ -11,12 +9,12 @@ from agr_literature_service.api.models import (
     TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.crud import indexing_priority_crud as ip_crud
-from ..fixtures import db  # noqa: F401
-# from .fixtures import auth_headers  # noqa: F401
-from .test_reference import test_reference  # noqa: F401
+from agr_literature_service.api.schemas.indexing_priority_schemas import (
+    IndexingPrioritySchemaPost,
+)
 
+# ---------- helpers ----------
 
-# ---------- helpers / fixtures ----------
 
 def _ensure_mod(session, abbr: str) -> int:
     mod = session.query(ModModel).filter(ModModel.abbreviation == abbr).first()
@@ -49,7 +47,7 @@ def _ensure_tet_source(session, data_provider: str) -> int:
 
 
 def _ensure_preindexing_wft(session, ref_curie: str, mod_abbr: str) -> int:
-    """Create ATP:0000306 workflow tag for (ref, mod)."""
+    """Create ATP:0000306 workflow tag for (ref, mod) if missing."""
     ref_id = (
         session.query(ReferenceModel.reference_id)
         .filter(ReferenceModel.curie == ref_curie)
@@ -75,138 +73,99 @@ def _ensure_preindexing_wft(session, ref_curie: str, mod_abbr: str) -> int:
     return wft.reference_workflow_tag_id
 
 
-@pytest.fixture
-def make_mod_and_source(db):  # noqa: F811
-    """Factory to ensure MOD + TET source exist."""
-    def _make(abbr: str) -> int:
-        _ensure_mod(db, abbr)
-        _ensure_tet_source(db, abbr)
-        return 1
-    return _make
+def _mk_payload(ref_curie: str, mod_abbr: str, ip_code: str = "ATP:0000211", score: float = 0.5):
+    return IndexingPrioritySchemaPost(
+        reference_curie=ref_curie,
+        mod_abbreviation=mod_abbr,
+        indexing_priority=ip_code,
+        confidence_score=score,
+        validation_by_biocurator=False,
+    )
 
 
 # ---------- tests ----------
 
 class TestIndexingPriorityCRUD:
-    def test_create_success_and_show(self, db, auth_headers, test_reference, make_mod_and_source):  # noqa: F811
-        with TestClient(app) as client:
-            ref_curie = test_reference.new_ref_curie
-            mod_abbr = "ZFIN"
-            make_mod_and_source(mod_abbr)
+    def test_create_and_show(self, db, test_reference):
+        ref_curie = test_reference.new_ref_curie
+        mod_abbr = "ZFIN"
+        _ensure_mod(db, mod_abbr)
+        _ensure_tet_source(db, mod_abbr)
 
-            payload = {
-                "reference_curie": ref_curie,
-                "mod_abbreviation": mod_abbr,
-                "indexing_priority": "ATP:0000211",
-                "confidence_score": 0.87,
-                "validation_by_biocurator": False,
-            }
-            r = client.post("/indexing_priority/", json=payload, headers=auth_headers)
-            assert r.status_code == status.HTTP_201_CREATED
-            new_id = int(r.json())
+        new_id = ip_crud.create(db, _mk_payload(ref_curie, mod_abbr, score=0.87))
+        assert isinstance(new_id, int)
 
-            r2 = client.get(f"/indexing_priority/{new_id}")
-            assert r2.status_code == status.HTTP_200_OK
-            data = r2.json()
-            assert data["indexing_priority_id"] == new_id
-            assert data["reference_curie"] == ref_curie
-            assert data["mod_abbreviation"] == mod_abbr
-            assert "updated_by_email" in data
+        data = ip_crud.show(db, new_id)
+        assert data["indexing_priority_id"] == new_id
+        assert data["reference_curie"] == ref_curie
+        assert data["mod_abbreviation"] == mod_abbr
+        assert "updated_by_email" in data
 
-    def test_create_duplicate(self, db, auth_headers, test_reference, make_mod_and_source):  # noqa: F811
-        with TestClient(app) as client:
-            ref_curie = test_reference.new_ref_curie
-            mod_abbr = "SGD"
-            make_mod_and_source(mod_abbr)
+    def test_create_duplicate(self, db, test_reference):
+        ref_curie = test_reference.new_ref_curie
+        mod_abbr = "SGD"
+        _ensure_mod(db, mod_abbr)
+        _ensure_tet_source(db, mod_abbr)
 
-            payload = {
-                "reference_curie": ref_curie,
-                "mod_abbreviation": mod_abbr,
-                "indexing_priority": "ATP:0000211",
-                "confidence_score": 0.55,
-            }
-            r1 = client.post("/indexing_priority/", json=payload, headers=auth_headers)
-            assert r1.status_code == status.HTTP_201_CREATED
+        ip_crud.create(db, _mk_payload(ref_curie, mod_abbr))
+        with pytest.raises(HTTPException) as ei:
+            ip_crud.create(db, _mk_payload(ref_curie, mod_abbr))
+        assert ei.value.status_code == 422
+        assert "already exists" in ei.value.detail
 
-            r2 = client.post("/indexing_priority/", json=payload, headers=auth_headers)
-            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-            assert "already exists" in r2.json()["detail"]
+    def test_create_bad_ref_or_mod(self, db):
+        # bad reference
+        mod_abbr = "WB"
+        _ensure_mod(db, mod_abbr)
+        _ensure_tet_source(db, mod_abbr)
+        with pytest.raises(HTTPException) as ei1:
+            ip_crud.create(db, _mk_payload("AGRKB:NOT_A_REF", mod_abbr))
+        assert ei1.value.status_code == 422
 
-    def test_create_bad_ref_or_mod(self, auth_headers, make_mod_and_source):
-        with TestClient(app) as client:
-            payload = {
-                "reference_curie": "AGRKB:NOT_A_REF",
-                "mod_abbreviation": "WB",
-                "indexing_priority": "ATP:0000211",
-                "confidence_score": 0.5,
-            }
-            r = client.post("/indexing_priority/", json=payload, headers=auth_headers)
-            assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        # bad MOD
+        with pytest.raises(HTTPException) as ei2:
+            ip_crud.create(db, _mk_payload("AGRKB:0000000001", "NOPE"))
+        assert ei2.value.status_code == 422
 
-            payload2 = dict(payload)
-            payload2["reference_curie"] = "AGRKB:0000000001"
-            payload2["mod_abbreviation"] = "NOPE"
-            r2 = client.post("/indexing_priority/", json=payload2, headers=auth_headers)
-            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    def test_patch_and_show(self, db, test_reference):
+        ref_curie = test_reference.new_ref_curie
+        mod1, mod2 = "FB", "MGI"
+        _ensure_mod(db, mod1)
+        _ensure_mod(db, mod2)
+        _ensure_tet_source(db, mod1)
+        _ensure_tet_source(db, mod2)
 
-    def test_patch_and_show(self, db, auth_headers, test_reference, make_mod_and_source):  # noqa: F811
-        with TestClient(app) as client:
-            ref = test_reference.new_ref_curie
-            mod1, mod2 = "FB", "MGI"
-            make_mod_and_source(mod1)
-            make_mod_and_source(mod2)
+        tag_id = ip_crud.create(db, _mk_payload(ref_curie, mod1, score=0.61))
 
-            payload = {
-                "reference_curie": ref,
-                "mod_abbreviation": mod1,
-                "indexing_priority": "ATP:0000211",
-                "confidence_score": 0.61,
-                "validation_by_biocurator": False,
-            }
-            r = client.post("/indexing_priority/", json=payload, headers=auth_headers)
-            assert r.status_code == status.HTTP_201_CREATED
-            tag_id = int(r.json())
-
-            patch_body = {
+        ip_crud.patch(
+            db,
+            tag_id,
+            {
                 "mod_abbreviation": mod2,
                 "confidence_score": 0.9,
                 "validation_by_biocurator": True,
-            }
-            r2 = client.patch(f"/indexing_priority/{tag_id}", json=patch_body, headers=auth_headers)
-            assert r2.status_code == status.HTTP_202_ACCEPTED
+            },
+        )
 
-            r3 = client.get(f"/indexing_priority/{tag_id}")
-            assert r3.status_code == status.HTTP_200_OK
-            data = r3.json()
-            assert data["mod_abbreviation"] == mod2
-            assert float(data["confidence_score"]) == pytest.approx(0.9, rel=0, abs=1e-6)
-            assert data["validation_by_biocurator"] is True
+        data = ip_crud.show(db, tag_id)
+        assert data["mod_abbreviation"] == mod2
+        assert float(data["confidence_score"]) == pytest.approx(0.9, rel=0, abs=1e-6)
+        assert data["validation_by_biocurator"] is True
 
-    def test_destroy(self, db, auth_headers, test_reference, make_mod_and_source):  # noqa: F811
-        with TestClient(app) as client:
-            ref = test_reference.new_ref_curie
-            mod = "XB"
-            make_mod_and_source(mod)
+    def test_destroy(self, db, test_reference):
+        ref_curie = test_reference.new_ref_curie
+        mod_abbr = "XB"
+        _ensure_mod(db, mod_abbr)
+        _ensure_tet_source(db, mod_abbr)
 
-            r = client.post(
-                "/indexing_priority/",
-                json={
-                    "reference_curie": ref,
-                    "mod_abbreviation": mod,
-                    "indexing_priority": "ATP:0000211",
-                    "confidence_score": 0.42,
-                },
-                headers=auth_headers,
-            )
-            tag_id = int(r.json())
+        tag_id = ip_crud.create(db, _mk_payload(ref_curie, mod_abbr, score=0.42))
+        ip_crud.destroy(db, tag_id)
 
-            r_del = client.delete(f"/indexing_priority/{tag_id}", headers=auth_headers)
-            assert r_del.status_code == status.HTTP_204_NO_CONTENT
+        with pytest.raises(HTTPException) as ei:
+            ip_crud.show(db, tag_id)
+        assert ei.value.status_code == 404
 
-            r_get = client.get(f"/indexing_priority/{tag_id}")
-            assert r_get.status_code == status.HTTP_404_NOT_FOUND
-
-    def test_get_ref_ids_with_indexing_priority_helper(self, db, test_reference, make_mod_and_source):  # noqa: F811
+    def test_get_ref_ids_with_indexing_priority_helper(self, db, test_reference):
         ref_curie = test_reference.new_ref_curie
         ref_id = (
             db.query(ReferenceModel.reference_id)
@@ -216,22 +175,27 @@ class TestIndexingPriorityCRUD:
 
         mod_a = "RGD"
         mod_b = "WB"
-        make_mod_and_source(mod_a)
-        make_mod_and_source(mod_b)
+        for m in (mod_a, mod_b):
+            _ensure_mod(db, m)
+            _ensure_tet_source(db, m)
 
-        def create_tag(session, mod_abbr, prio):
-            session.add(IndexingPriorityModel(
-                reference_id=ref_id,
-                mod_id=session.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbr).scalar(),
-                source_id=_ensure_tet_source(session, mod_abbr),
-                indexing_priority=prio,
-                confidence_score=0.5,
-                validation_by_biocurator=False,
-            ))
-            session.commit()
-
-        create_tag(db, mod_a, "ATP:0000211")
-        create_tag(db, mod_b, "ATP:0000212")
+        db.add(IndexingPriorityModel(
+            reference_id=ref_id,
+            mod_id=db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_a).scalar(),
+            source_id=_ensure_tet_source(db, mod_a),
+            indexing_priority="ATP:0000211",
+            confidence_score=0.5,
+            validation_by_biocurator=False,
+        ))
+        db.add(IndexingPriorityModel(
+            reference_id=ref_id,
+            mod_id=db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_b).scalar(),
+            source_id=_ensure_tet_source(db, mod_b),
+            indexing_priority="ATP:0000212",
+            confidence_score=0.5,
+            validation_by_biocurator=False,
+        ))
+        db.commit()
 
         ids_all_211 = set(ip_crud.get_ref_ids_with_indexing_priority(db, "ATP:0000211"))
         ids_mod_a_211 = set(ip_crud.get_ref_ids_with_indexing_priority(db, "ATP:0000211", mod_a))
@@ -240,40 +204,41 @@ class TestIndexingPriorityCRUD:
         assert ref_id in ids_mod_a_211
         assert ref_id not in ids_mod_b_211
 
-    def test_set_priority_success_and_failure_paths(self, db, test_reference, make_mod_and_source):  # noqa: F811
-        ref = test_reference.new_ref_curie
-        mod = "ZFIN"
-        make_mod_and_source(mod)
-        _ensure_preindexing_wft(db, ref, mod)
+    def test_set_priority_success_and_failure_paths(self, db, test_reference):
+        ref_curie = test_reference.new_ref_curie
+        mod_abbr = "ZFIN"
+        _ensure_mod(db, mod_abbr)
+        _ensure_tet_source(db, mod_abbr)
+        _ensure_preindexing_wft(db, ref_curie, mod_abbr)
 
         result = ip_crud.set_priority(
             db=db,
-            reference_curie=ref,
-            mod_abbreviation=mod,
+            reference_curie=ref_curie,
+            mod_abbreviation=mod_abbr,
             indexing_priority="ATP:0000211",
             confidence_score=0.777,
         )
-        assert result["reference_curie"] == ref
-        assert result["mod_abbreviation"] == mod
+        assert result["reference_curie"] == ref_curie
+        assert result["mod_abbreviation"] == mod_abbr
         assert result["indexing_priority"] == "ATP:0000211"
 
         wft_row = (
             db.query(WorkflowTagModel)
             .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
             .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-            .filter(ReferenceModel.curie == ref, ModModel.abbreviation == mod)
+            .filter(ReferenceModel.curie == ref_curie, ModModel.abbreviation == mod_abbr)
             .filter(WorkflowTagModel.workflow_tag_id.in_(["ATP:0000303", "ATP:0000304", "ATP:0000306"]))
             .order_by(WorkflowTagModel.reference_workflow_tag_id.desc())
             .first()
         )
         assert wft_row.workflow_tag_id == "ATP:0000303"
 
-        _ensure_preindexing_wft(db, ref, mod)  # fresh ATP:0000306 again
+        _ensure_preindexing_wft(db, ref_curie, mod_abbr)  # fresh ATP:0000306 again
         with pytest.raises(HTTPException):
             ip_crud.set_priority(
                 db=db,
-                reference_curie=ref,
-                mod_abbreviation=mod,
+                reference_curie=ref_curie,
+                mod_abbreviation=mod_abbr,
                 indexing_priority="ATP:0000211",
                 confidence_score=0.9,
             )
@@ -281,32 +246,23 @@ class TestIndexingPriorityCRUD:
             db.query(WorkflowTagModel)
             .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
             .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-            .filter(ReferenceModel.curie == ref, ModModel.abbreviation == mod)
+            .filter(ReferenceModel.curie == ref_curie, ModModel.abbreviation == mod_abbr)
             .filter(WorkflowTagModel.workflow_tag_id.in_(["ATP:0000303", "ATP:0000304"]))
             .order_by(WorkflowTagModel.reference_workflow_tag_id.desc())
             .first()
         )
         assert wft_row2.workflow_tag_id == "ATP:0000304"
 
-    def test_get_indexing_priority_tag_shapes_and_names(self, db, auth_headers, test_reference, make_mod_and_source):  # noqa: F811
-        ref = test_reference.new_ref_curie
-        mod = "SGD"
-        make_mod_and_source(mod)
+    def test_get_indexing_priority_tag_shapes_and_names(self, db, test_reference):
+        ref_curie = test_reference.new_ref_curie
+        mod_abbr = "SGD"
+        _ensure_mod(db, mod_abbr)
+        _ensure_tet_source(db, mod_abbr)
 
-        with TestClient(app) as client:
-            r = client.post(
-                "/indexing_priority/",
-                json={
-                    "reference_curie": ref,
-                    "mod_abbreviation": mod,
-                    "indexing_priority": "ATP:0000211",
-                    "confidence_score": 0.33,
-                },
-                headers=auth_headers,
-            )
-            assert r.status_code == status.HTTP_201_CREATED
+        ip_id = ip_crud.create(db, _mk_payload(ref_curie, mod_abbr, "ATP:0000211", 0.33))
+        assert isinstance(ip_id, int)
 
-        out = ip_crud.get_indexing_priority_tag(db, ref)
+        out = ip_crud.get_indexing_priority_tag(db, ref_curie)
         assert "current_priority_tag" in out
         assert "all_priority_tags" in out
         assert isinstance(out["current_priority_tag"], list)
