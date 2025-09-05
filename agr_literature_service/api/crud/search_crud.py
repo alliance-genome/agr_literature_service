@@ -2,7 +2,6 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
 import re
-import time
 from datetime import datetime
 # from os import getcwd
 
@@ -12,7 +11,6 @@ from agr_literature_service.api.config import config
 
 from fastapi import HTTPException, status
 
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents
 from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
@@ -111,8 +109,8 @@ def search_date_range(es_body,
                         {
                             "range": {
                                 "date_published_start": {
-                                    "lte": start,
-                                    "gte": end
+                                    "gte": start,
+                                    "lte": end
                                 }
                             }
                         },
@@ -233,7 +231,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "terms": {
                     "field": "language.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("mod_reference_types.keyword", 10)
+                    "size": facets_limits.get("language.keyword", 10)
                 }
             },
             "mod_reference_types.keyword": {
@@ -348,13 +346,13 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
     tet_data_providers = list(
         set(
             facets_values.get("mods_in_corpus.keyword", []) +
-            facets_values.get("mods_in_needs_review.keyword", []) +
+            facets_values.get("mods_needs_review.keyword", []) +
             facets_values.get("mods_in_corpus_or_needs_review.keyword", [])
         )
     )
     if len(tet_data_providers) == 0:
         tet_data_providers = get_mod_abbreviations()
-    wft_mod_abbreviations = tet_data_providers
+    wft_mod_abbreviations = [dp.upper() for dp in tet_data_providers]
 
     # search papers by TET
     tet_facets = {}
@@ -586,17 +584,16 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                 "bool": {"should": shoulds, "minimum_should_match": 1}
             })
 
-    """
-    windows_days=(365, 1095)
-    First window: Documents from the last 365 days (1 year).
-    Second window: Documents from the last 1095 days (3 years).
-    weights=(3.0, 1.5)
-    Documents in the 1-year window get their score multiplied by 3.0 (a huge boost).
-    Documents in the 1-to-3-year window get their score multiplied by 1.5 (a moderate boost).
-    Documents older than 3 years get no recency boost (their score is based only on the original query).
-    """
-    if "sort" not in es_body:
-        apply_recency_boost(es_body, windows_days=(365, 1095), weights=(3.0, 1.5))
+    # if there is a search query, sort papers by _score (which now reflects recency dominance)
+    # otherwise, sort papers by newest first
+    if query or author_filter or query_fields in {"Author", "Title", "Abstract", "Keyword", "Citation", "Curie", "Xref"}:
+        apply_recency_function_score(
+            es_body,
+            field="date_published_start",
+            one_year_weight=3.0,     # 1-year = 3.0x
+            three_year_weight=1.5,   # <3-years = 1.5x
+            add_decay=True           # gentle preference among “recent” ties
+        )
 
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
@@ -1222,53 +1219,53 @@ def nested_orcid_exact(core_lower: str) -> dict:
     }
 
 
-def apply_recency_boost(es_body,
-                        windows_days=(365, 1095),
-                        weights=(3.0, 1.5),
-                        field="date_published_start"):
+def apply_recency_function_score(es_body,
+                                 field: str = "date_published_start",
+                                 one_year_weight: float = 3.0,
+                                 three_year_weight: float = 1.5,
+                                 add_decay: bool = True):
     """
-    Add recency boosts using range 'should' clauses.
-    - Adds both seconds and millis thresholds so it works for either mapping.
-    - Skips fields that may be text
+    Make recency *dominate* the final score for query-mode searches:
+      - 0–1 year: weight 3.0
+      - 1–3 years: weight 1.5
+      - Optional smooth decay around 'now' (gauss) so 'newer' wins among equals.
+
+    Uses ES date math so it works regardless of your stored format (date/epoch).
     """
-    if "query" not in es_body or not es_body["query"]:
-        es_body["query"] = {"bool": {"must": [{"match_all": {}}]}}
-    elif "bool" not in es_body["query"]:
-        es_body["query"] = {"bool": {"must": [es_body["query"]]}}
+    base_query = es_body.get("query") or {"match_all": {}}
 
-    # get current time
-    now_sec = int(time.time())
-    now_ms  = now_sec * 1000
+    functions = [
+        # 0–1 year bucket
+        {
+            "filter": {"range": {field: {"gte": "now-365d/d"}}},
+            "weight": float(one_year_weight)
+        },
+        # 1–3 year bucket
+        {
+            "filter": {"range": {field: {"gte": "now-1095d/d", "lt": "now-365d/d"}}},
+            "weight": float(three_year_weight)
+        }
+    ]
 
-    shoulds = es_body["query"]["bool"].setdefault("should", [])
-
-    # zip(a, b) → (a[0], b[0]), (a[1], b[1])
-    for days, boost in zip(windows_days, weights):
-        # seconds window (for fields indexed as epoch seconds / numeric)
-        cutoff_sec = now_sec - days * 24 * 3600
-        shoulds.append({
-            "range": {
+    # optional smooth preference for “newer within the same bucket”
+    if add_decay:
+        functions.append({
+            "gauss": {
                 field: {
-                    "gte": cutoff_sec,
-                    "boost": float(boost)
+                    "origin": "now",
+                    "scale": "365d",     # ~ halves each year (decay=0.5)
+                    "offset": "0d",
+                    "decay": 0.5
                 }
-            }
-        })
-        # millis window (for fields indexed as date (epoch_millis) )
-        cutoff_ms = now_ms - days * 24 * 3600 * 1000
-        shoulds.append({
-            "range": {
-                field: {
-                    "gte": cutoff_ms,
-                    "boost": float(boost)
-                }
-            }
+            },
+            "weight": 1.0
         })
 
-    """
-    It tells ES: "It's okay if a document matches ZERO of the should clauses.
-    We don't need to fulfill any of them." This makes sure that old documents
-    are still returned (just without a boost), while new documents get their
-    score inflated by the should clauses they match.
-    """
-    es_body["query"]["bool"]["minimum_should_match"] = 0
+    es_body["query"] = {
+        "function_score": {
+            "query": base_query,
+            "score_mode": "multiply",  # multiply text relevance by recency boosts
+            "boost_mode": "multiply",
+            "functions": functions
+        }
+    }
