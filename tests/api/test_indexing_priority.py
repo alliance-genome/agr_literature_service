@@ -144,7 +144,7 @@ def _mk_payload(ref_curie: str, mod_abbr: str, ip_code: str = "ATP:0000211", sco
 # ---------- tests ----------
 
 class TestIndexingPriorityCRUD:
-    def test_create_and_show(self, db, test_reference):
+    def test_create_and_show(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "ZFIN"
         _ensure_mod(db, mod_abbr)
@@ -159,7 +159,7 @@ class TestIndexingPriorityCRUD:
         assert data["mod_abbreviation"] == mod_abbr
         assert "updated_by_email" in data
 
-    def test_create_duplicate(self, db, test_reference):
+    def test_create_duplicate(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "SGD"
         _ensure_mod(db, mod_abbr)
@@ -171,7 +171,7 @@ class TestIndexingPriorityCRUD:
         assert ei.value.status_code == 422
         assert "already exists" in ei.value.detail
 
-    def test_create_bad_ref_or_mod(self, db):
+    def test_create_bad_ref_or_mod(self, db): # noqa
         # bad reference
         mod_abbr = "WB"
         _ensure_mod(db, mod_abbr)
@@ -185,7 +185,7 @@ class TestIndexingPriorityCRUD:
             ip_crud.create(db, _mk_payload("AGRKB:0000000001", "NOPE"))
         assert ei2.value.status_code == 422
 
-    def test_patch_and_show(self, db, test_reference):
+    def test_patch_and_show(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod1, mod2 = "FB", "MGI"
         _ensure_mod(db, mod1)
@@ -210,7 +210,7 @@ class TestIndexingPriorityCRUD:
         assert float(data["confidence_score"]) == pytest.approx(0.9, rel=0, abs=1e-6)
         assert data["validation_by_biocurator"] is True
 
-    def test_destroy(self, db, test_reference):
+    def test_destroy(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "XB"
         _ensure_mod(db, mod_abbr)
@@ -223,7 +223,7 @@ class TestIndexingPriorityCRUD:
             ip_crud.show(db, tag_id)
         assert ei.value.status_code == 404
 
-    def test_get_ref_ids_with_indexing_priority_helper(self, db, test_reference):
+    def test_get_ref_ids_with_indexing_priority_helper(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         ref_id = (
             db.query(ReferenceModel.reference_id)
@@ -262,7 +262,7 @@ class TestIndexingPriorityCRUD:
         assert ref_id in ids_mod_a_211
         assert ref_id not in ids_mod_b_211
 
-    def test_set_priority_success_and_failure_paths(self, db, test_reference):
+    def test_set_priority_success_and_failure_paths(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "ZFIN"
         _ensure_mod(db, mod_abbr)
@@ -311,7 +311,7 @@ class TestIndexingPriorityCRUD:
         )
         assert wft_row2.workflow_tag_id == "ATP:0000304"
 
-    def test_get_indexing_priority_tag_shapes_and_names(self, db, test_reference):
+    def test_get_indexing_priority_tag_shapes_and_names(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "SGD"
         _ensure_mod(db, mod_abbr)
