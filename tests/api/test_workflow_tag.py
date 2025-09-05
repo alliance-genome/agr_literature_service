@@ -150,6 +150,75 @@ class TestWorkflowTag:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
+    def test_transition_to_workflow_status_manual_indexing_child_without_transition(self, db, test_mod, test_reference,  # noqa
+                                                                 auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.commit()
+        with TestClient(app) as client:
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000275"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_transition_to_workflow_status_manual_indexing_child_without_existing_direct_needed(self, db, test_mod, test_reference,  # noqa
+                                                                 auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000336', transition_to='ATP:0000275'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.commit()
+        with TestClient(app) as client:
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000274"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(WorkflowTagModel).filter(
+                and_(
+                    WorkflowTagModel.reference_id == reference.reference_id,
+                    WorkflowTagModel.mod_id == mod.mod_id,
+                    WorkflowTagModel.workflow_tag_id == 'ATP:0000274'
+                )
+            ).first()
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_transition_to_workflow_status_manual_indexing_child_without_existing(self, db, test_mod, test_reference,  # noqa
+                                                                 auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000336', transition_to='ATP:0000275'))
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.commit()
+        with TestClient(app) as client:
+            transition_req = {
+                "curie_or_reference_id": test_reference.new_ref_curie,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000275"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(WorkflowTagModel).filter(
+                and_(
+                    WorkflowTagModel.reference_id == reference.reference_id,
+                    WorkflowTagModel.mod_id == mod.mod_id,
+                    WorkflowTagModel.workflow_tag_id == 'ATP:0000275'
+                )
+            ).first()
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     def test_transition_to_workflow_status_manual_indexing_child(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
