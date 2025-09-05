@@ -352,3 +352,119 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert res["hits"][0]['date_published'] == "1901"
+
+    def test_search_query_field_author(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "Jane Doe",
+                "query_field": "Author",
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] >= 1
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000002" in curies  # Jane Doe
+
+    def test_search_query_field_orcid_valid_and_invalid(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            # valid ORCID → one of our docs (Socrates)
+            ok = {
+                "query": "ORCID:0000-0000-0000-0001",
+                "query_field": "ORCID",
+                "return_facets_only": False
+            }
+            res_ok = client.post("/search/references/", json=ok, headers=auth_headers).json()
+            assert res_ok["return_count"] == 1
+            assert res_ok["hits"][0]["curie"] == "AGRKB:101000000000001"
+
+            # invalid/non-existent ORCID → zero
+            bad = {
+                "query": "ORCID:0000-0000-0000-9999",
+                "query_field": "ORCID",
+                "return_facets_only": False
+            }
+            res_bad = client.post("/search/references/", json=bad, headers=auth_headers).json()
+            assert res_bad["return_count"] == 0
+
+    def test_search_query_field_curie(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "AGRKB:101000000000003",
+                "query_field": "Curie",
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] >= 1
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000003" in curies
+
+    def test_search_query_field_xref(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "PMID:0000001",
+                "query_field": "Xref",
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] == 1
+            assert res["hits"][0]["curie"] == "AGRKB:101000000000002"
+
+    def test_search_with_author_filter_only(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "author_filter": "Socrates",  # nested author filter path
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] >= 1
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000001" in curies
+
+    def test_search_date_filters_published_and_created(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "date_published": ["2021-10-01", "2021-12-01"],
+                "date_created": ["2021-11-05T00:00:00.000", "2021-11-05T23:59:00.000"],
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            # all 4 seeded docs fall in these ranges
+            assert res["return_count"] == 4
+
+    def test_search_negated_facets_exclude_paper(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "negated_facets_values": {"mod_reference_types.keyword": ["paper"]}
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000004" not in curies  # doc4 is 'paper'
+            # still returns others
+            assert "AGRKB:101000000000001" in curies
+            assert "AGRKB:101000000000002" in curies
+            assert "AGRKB:101000000000003" in curies
+
+    def test_search_workflow_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"file_workflow": ["ATP:0000196"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            # all 4 seeded docs carry ATP:0000196 for mod FB
+            assert res["return_count"] == 4
+
+    def test_search_free_text_orcid_in_all_fields(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "ORCID:0000-0000-0000-0002",  # Jane Doe
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000002" in curies
