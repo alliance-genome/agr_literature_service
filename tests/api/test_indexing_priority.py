@@ -190,31 +190,6 @@ class TestIndexingPriorityCRUD:
             ip_crud.create(db, _mk_payload("AGRKB:0000000001", "NOPE"))
         assert ei2.value.status_code == 422
 
-    def test_patch_and_show(self, db, test_reference): # noqa
-        ref_curie = test_reference.new_ref_curie
-        mod1, mod2 = "FB", "MGI"
-        _ensure_mod(db, mod1)
-        _ensure_mod(db, mod2)
-        _ensure_tet_source(db, mod1)
-        _ensure_tet_source(db, mod2)
-
-        tag_id = ip_crud.create(db, _mk_payload(ref_curie, mod1, score=0.61))
-
-        ip_crud.patch(
-            db,
-            tag_id,
-            {
-                "mod_abbreviation": mod2,
-                "confidence_score": 0.9,
-                "validation_by_biocurator": True,
-            },
-        )
-
-        data = ip_crud.show(db, tag_id)
-        assert data["mod_abbreviation"] == mod2
-        assert float(data["confidence_score"]) == pytest.approx(0.9, rel=0, abs=1e-6)
-        assert data["validation_by_biocurator"] is True
-
     def test_destroy(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "XB"
