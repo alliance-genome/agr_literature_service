@@ -164,6 +164,39 @@ class TestIndexingPriorityCRUD:
         assert data["mod_abbreviation"] == mod_abbr
         assert "updated_by_email" in data
 
+    def test_patch_and_show(self, db, test_reference): # noqa
+        ref_curie = test_reference.new_ref_curie
+        mod1, mod2 = "FB", "MGI"
+        _ensure_mod(db, mod1)
+        _ensure_mod(db, mod2)
+        _ensure_tet_source(db, mod1)
+        _ensure_tet_source(db, mod2)
+
+        tag_id = ip_crud.create(db, _mk_payload(ref_curie, mod1, score=0.61))
+
+        ip_crud.patch(
+            db,
+            tag_id,
+            {
+                "mod_abbreviation": mod2,
+                "confidence_score": 0.9,
+                "validation_by_biocurator": True,
+            },
+        )
+
+        data = ip_crud.show(db, tag_id)
+        assert data["mod_abbreviation"] == mod2
+        assert float(data["confidence_score"]) == pytest.approx(0.9, rel=0, abs=1e-6)
+
+        # Handle both string and boolean representations
+        validation_value = data["validation_by_biocurator"]
+        if isinstance(validation_value, str):
+            # If it's a string, check for 'true' (case-insensitive)
+            assert validation_value.lower() == 'true'
+        else:
+            # If it's a boolean, check for True
+            assert validation_value is True
+
     def test_create_duplicate(self, db, test_reference): # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "SGD"
