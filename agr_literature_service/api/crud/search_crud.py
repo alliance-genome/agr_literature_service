@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
 import re
+import time
 from datetime import datetime
 # from os import getcwd
 
@@ -144,7 +145,7 @@ def search_date_range(es_body,
 def search_references(query: str = None, facets_values: Dict[str, List[str]] = None,
                       negated_facets_values: Dict[str, List[str]] = None,
                       size_result_count: Optional[int] = 10,
-                      sort_by_published_date_order: Optional[str] = "asc",
+                      sort_by_published_date_order: Optional[str] = "desc",
                       page: Optional[int] = 1,
                       facets_limits: Dict[str, int] = None,
                       return_facets_only: bool = False,
@@ -180,6 +181,28 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     author_filter = (author_filter or "").strip() or None
 
+    """
+    Primary sort: date_published_start - orders by publication date first
+    Secondary sort: date_created - deterministic fallback when date_published_start is missing
+    3rd sort: _score - will use its relevance score (_score) as a tie-breaker to determine their order
+    Final tie-breaker: curie.keyword - gives stable ordering for completely identical values
+    """
+    order = sort_by_published_date_order if sort_by_published_date_order in ("asc", "desc") else "desc"
+    base_sort =	[
+	{"date_published_start": {"order": order, "missing": "_last"}},
+        {"date_created": {"order": order, "missing": "_last"}},
+        {"_score": {"order": "desc"}},
+        {"curie.keyword": {"order": "asc"}},
+    ]
+    # When there's any free-text query, let ES relevance decide first,
+    # then apply recency tie-breakers
+    score_first_sort = [
+        {"_score": {"order": "desc"}},
+        {"date_published_start": {"order": order, "missing": "_last"}},
+        {"date_created": {"order": order, "missing": "_last"}},
+        {"curie.keyword": {"order": "asc"}},
+    ]
+
     from_entry = (page-1) * size_result_count
     es_host = config.ELASTICSEARCH_HOST
     es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
@@ -195,6 +218,7 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         },
         "fields": ["language.keyword"],
         "highlight": {
+            "require_field_match": False,
             "fields": [
                 {"title": {"type": "unified"}},
                 {"abstract": {"type": "unified"}},
@@ -301,25 +325,21 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
         "from": from_entry,
         "size": size_result_count,
         "track_total_hits": True,
-        "sort": [
-            {
-                "date_published_start": {
-                    "order": sort_by_published_date_order,
-                    "missing": "_last"
-                }
-            }
-        ]
+        "sort": base_sort
     }
 
-    """
-    if sort_by_published_date_order not in ["desc", "asc"]:
-        del es_body["sort"]
-    """
+    # Apply sort preference:
+    # 1) Respect an explicit `sort` from the user.
+    # 2) If there's a free-text query (including Author), use score-first
+    #    so exact hits outrank looser matches.
+    # 3) Otherwise (facets/date-only queries), keep recency-first for stability.
     if sort:
         es_body["sort"] = sort
-    elif sort_by_published_date_order not in ["desc", "asc"]:
-        es_body.pop("sort", None)
-
+    elif query or author_filter:
+        es_body["sort"] = score_first_sort
+    else:
+        es_body["sort"] = base_sort
+    
     ensure_structure(es_body)
 
     # set tet_data_providers & wft_mod_abbreviations
@@ -351,25 +371,61 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
 
     if query and (query_fields == "All" or query_fields is None):
         q_free = strip_orcid_prefix_for_free_text(query)
-        shoulds = [
+
+        # 1) Exact WORD match tier (boosted)
+        #    Use multi_match phrase on individual fields so "west" does NOT match "western".
+        exact_word_shoulds = [
+            {
+                "multi_match": {
+                    "type": "phrase",
+                    "query": q_free,
+                    "fields": ["title", "keywords", "abstract", "citation"],
+                    "boost": 8.0
+                }
+            }
+        ]
+
+        # 2) Prefix tier: west* (lower boost than exact)
+        prefix_shoulds = [
             {
                 "simple_query_string": {
                     "fields": ["title", "keywords", "abstract", "citation"],
-                    "query": (q_free + "*") if partial_match else q_free,
+                    "query": (q_free + "*"),
                     "analyze_wildcard": True,
-                    "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
+                    "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE",
+                    "default_operator": "and"
                 }
-            },
-            {"wildcard": {"curie.keyword": f"*{q_free}"}},
-            {"wildcard": {"cross_references.curie.keyword": f"*{q_free}"}},
-            nested_author_name_query(query),
+            }
         ]
 
+        # 3) IDs/Xrefs (wildcards) + Author scoring (exact > prefix > analyzed)
+        #    - wildcard curie/xref catch ID mentions
+        #    - author matching ranks exact token "West" highest, then "West*" prefixes,
+        #      then an analyzed fallback; match_prefix is included to enable highlighting
+        id_shoulds = [
+            {"wildcard": {"curie.keyword": f"*{q_free}"}},
+            {"wildcard": {"cross_references.curie.keyword": f"*{q_free}"}},
+
+            # Author ranking
+            nested_author_name_match(q_free, boost=10.0),        # strongest: token == "West"
+            nested_author_name_exact_keyword(q_free, boost=9.0), # exact keyword "West"
+            nested_author_name_prefix_keyword(q_free, boost=6.0),# "West*"
+            nested_author_name_match_prefix(q_free, boost=3.0),  # for highlighting prefixes
+            nested_author_name_query(q_free),                    # gentle analyzed fallback
+        ]
+
+        # 4) ORCID exact (nested)
         core = extract_orcid_core(query)
         if core:
-            shoulds.append(nested_orcid_exact(core))
+            id_shoulds.append(nested_orcid_exact(core))
 
-        es_body["query"]["bool"]["must"].append({"bool": {"should": shoulds}})
+        # Combine: exact (boosted) + prefix + ids/authors
+        es_body["query"]["bool"]["must"].append({
+            "bool": {
+                "should": exact_word_shoulds + prefix_shoulds + id_shoulds,
+                "minimum_should_match": 1
+            }
+        })
 
     elif query and (query_fields == "Title" or query_fields=="Abstract" or query_fields == "Keyword" or query_fields == "Citation"):
         if query_fields == "Title":
@@ -391,8 +447,25 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
                     "flags" : "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE"
                 }
             })
+
     elif query and query_fields == "Author":
-        es_body["query"]["bool"]["must"].append(nested_author_name_query(query))
+        
+        es_body["query"]["bool"]["must"].append({
+            "bool": {
+                "should": [
+                    nested_author_name_match(query, boost=10.0),
+                    nested_author_name_exact_keyword(query, boost=9.0),
+                    nested_author_name_prefix_keyword(query, boost=6.0),
+                    nested_author_name_match_prefix(query, boost=3.0),
+                    nested_author_name_query(query),
+                ],
+                "minimum_should_match": 1
+            }
+        })
+        core = extract_orcid_core(query)
+        if core:
+            es_body["query"]["bool"]["must"].append(nested_orcid_exact(core))
+
     elif query and query_fields == "ORCID":
         core = extract_orcid_core(query)
         if core:
@@ -512,6 +585,19 @@ def search_references(query: str = None, facets_values: Dict[str, List[str]] = N
             es_body["query"]["bool"]["must"].append({
                 "bool": {"should": shoulds, "minimum_should_match": 1}
             })
+
+    """
+    windows_days=(365, 1095)
+    First window: Documents from the last 365 days (1 year).
+    Second window: Documents from the last 1095 days (3 years).
+    weights=(3.0, 1.5)
+    Documents in the 1-year window get their score multiplied by 3.0 (a huge boost).
+    Documents in the 1-to-3-year window get their score multiplied by 1.5 (a moderate boost).
+    Documents older than 3 years get no recency boost (their score is based only on the original query).
+    """
+    if "sort" not in es_body:
+        apply_recency_boost(es_body, windows_days=(365, 1095), weights=(3.0, 1.5))
+
     res = es.search(index=config.ELASTICSEARCH_INDEX, body=es_body)
     formatted_results = process_search_results(res, wft_mod_abbreviations)
     return formatted_results
@@ -993,6 +1079,68 @@ def nested_author_name_query(q: str) -> dict:
     }
 
 
+def nested_author_name_match(name: str, boost: float = 10.0) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "match": {
+                    "authors.name": {
+                        "query": name,
+                        "analyzer": "authorNameAnalyzer"
+                    }
+                }
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
+def nested_author_name_exact_keyword(name: str, boost: float = 8.0) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "term": {"authors.name.keyword": name}
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
+def nested_author_name_prefix_keyword(prefix: str, boost: float = 4.0) -> dict:
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "wildcard": {"authors.name.keyword": f"{prefix}*"}
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
+def nested_author_name_match_prefix(name: str, boost: float = 3.0) -> dict:
+    # analyzed prefix on authors.name so the highlighter can light up "West" in "Westerfield"
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {
+                "match_phrase_prefix": {
+                    "authors.name": {
+                        "query": name
+                    }
+                }
+            },
+            "score_mode": "max",
+            "boost": boost
+        }
+    }
+
+
 def normalize_orcid(raw: str) -> str:
     """
     Strip optional 'ORCID:' prefix (any case), trim, lowercase.
@@ -1072,3 +1220,55 @@ def nested_orcid_exact(core_lower: str) -> dict:
             "score_mode": "max"
         }
     }
+
+
+def apply_recency_boost(es_body,
+                        windows_days=(365, 1095),
+                        weights=(3.0, 1.5),
+                        field="date_published_start"):
+    """
+    Add recency boosts using range 'should' clauses.
+    - Adds both seconds and millis thresholds so it works for either mapping.
+    - Skips fields that may be text
+    """
+    if "query" not in es_body or not es_body["query"]:
+        es_body["query"] = {"bool": {"must": [{"match_all": {}}]}}
+    elif "bool" not in es_body["query"]:
+        es_body["query"] = {"bool": {"must": [es_body["query"]]}}
+
+    # get current time
+    now_sec = int(time.time())
+    now_ms  = now_sec * 1000
+
+    shoulds = es_body["query"]["bool"].setdefault("should", [])
+
+    # zip(a, b) → (a[0], b[0]), (a[1], b[1])
+    for days, boost in zip(windows_days, weights):
+        # seconds window (for fields indexed as epoch seconds / numeric)
+        cutoff_sec = now_sec - days * 24 * 3600
+        shoulds.append({
+            "range": {
+                field: {
+                    "gte": cutoff_sec,
+                    "boost": float(boost)
+                }
+            }
+        })
+        # millis window (for fields indexed as date (epoch_millis) )
+        cutoff_ms = now_ms - days * 24 * 3600 * 1000
+        shoulds.append({
+            "range": {
+                field: {
+                    "gte": cutoff_ms,
+                    "boost": float(boost)
+                }
+            }
+        })
+
+    """
+    It tells ES: "It's okay if a document matches ZERO of the should clauses.
+    We don't need to fulfill any of them." This makes sure that old documents
+    are still returned (just without a boost), while new documents get their
+    score inflated by the should clauses they match.
+    """
+    es_body["query"]["bool"]["minimum_should_match"] = 0
