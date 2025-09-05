@@ -97,9 +97,7 @@ def _ensure_tet_source(session, data_provider: str) -> int:
     if not src:
         src = TopicEntityTagSourceModel(
             source_method="abc_document_classifier",
-            data_provider=data_provider,
-            source_url=None,
-            additional_info=None,
+            data_provider=data_provider
         )
         session.add(src)
         session.commit()
