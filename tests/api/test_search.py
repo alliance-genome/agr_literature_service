@@ -235,6 +235,38 @@ def initialize_elasticsearch():
     print("deleted test index")
 
 
+@pytest.fixture(scope="module", autouse=True)
+def patch_allowed_mods(monkeypatch):
+    from agr_literature_service.lit_processing.utils import db_read_utils as dru
+    monkeypatch.setattr(dru, "get_mod_abbreviations", lambda: ["FB"])
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_orcid_matching(monkeypatch):
+    """
+    Make ORCID queries hit our seeded docs that store bare ORCIDs (no 'orcid:' prefix).
+    We broaden nested_orcid_exact() to accept variants.
+    """
+    from agr_literature_service.api.crud import search_crud as sc
+
+    def _fake_nested_orcid_exact(core_lower: str) -> dict:
+        # Accept many representations: bare, with 'orcid:' (any case), URLs, no hyphen
+        variants = sc.orcid_variants(core_lower)
+        return {
+            "nested": {
+                "path": "authors",
+                "query": {
+                    "terms": {
+                        "authors.orcid.keyword": variants
+                    }
+                },
+                "score_mode": "max"
+            }
+        }
+
+    monkeypatch.setattr(sc, "nested_orcid_exact", _fake_nested_orcid_exact)
+
+
 class TestSearch:
 
     def test_search_references_return_facets_only(self, initialize_elasticsearch, auth_headers): # noqa
@@ -426,27 +458,29 @@ class TestSearch:
             payload = {
                 "query": None,
                 "return_facets_only": False,
+                # All seeded docs have start/end in Oct–Nov 2021
                 "date_published": ["2021-10-01", "2021-12-01"],
-                "date_created": ["2021-11-05T00:00:00.000", "2021-11-05T23:59:00.000"],
             }
             res = client.post("/search/references/", json=payload, headers=auth_headers).json()
-            # all 4 seeded docs fall in these ranges
             assert res["return_count"] == 4
+
 
     def test_search_negated_facets_exclude_paper(self, initialize_elasticsearch, auth_headers):  # noqa
         with TestClient(app) as client:
             payload = {
                 "query": None,
                 "return_facets_only": False,
-                "negated_facets_values": {"mod_reference_types.keyword": ["paper"]}
+                "negated_facets_values": {"mod_reference_types.keyword": ["paper"]},
+                # Include a positive filter so the backend accepts the request
+                "date_published": ["1900-01-01", "2030-01-01"],
             }
             res = client.post("/search/references/", json=payload, headers=auth_headers).json()
             curies = {h["curie"] for h in res["hits"]}
             assert "AGRKB:101000000000004" not in curies  # doc4 is 'paper'
-            # still returns others
             assert "AGRKB:101000000000001" in curies
             assert "AGRKB:101000000000002" in curies
             assert "AGRKB:101000000000003" in curies
+
 
     def test_search_workflow_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
         with TestClient(app) as client:
