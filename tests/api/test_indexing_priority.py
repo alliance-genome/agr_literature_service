@@ -13,8 +13,62 @@ from agr_literature_service.api.schemas.indexing_priority_schemas import (
     IndexingPrioritySchemaPost,
 )
 
-# ---------- helpers ----------
+# ---------- monkeypatch app dependencies so tests are self-contained ----------
 
+
+@pytest.fixture(autouse=True)
+def patch_ip_helpers(monkeypatch):
+    """
+    Make ip_crud independent of seeded ATP/workflow data:
+      - get_workflow_tags_from_process -> fixed list of ATP codes
+      - get_name_to_atp_for_all_children -> fixed name map
+      - wft_patch -> simple in-DB update of WorkflowTagModel.workflow_tag_id
+    """
+    def _fake_get_workflow_tags_from_process(process_atp_id):
+        # Pretend the process ATP:0000210 has these two child tags
+        return ["ATP:0000211", "ATP:0000212"]
+
+    def _fake_get_name_to_atp_for_all_children(process_atp_id):
+        # ip_crud only uses the 2nd return (atp_to_name)
+        name_to_atp = {}
+        atp_to_name = {
+            "ATP:0000211": "High Priority",
+            "ATP:0000212": "Medium Priority",
+        }
+        return name_to_atp, atp_to_name
+
+    monkeypatch.setattr(ip_crud, "get_workflow_tags_from_process", _fake_get_workflow_tags_from_process)
+    monkeypatch.setattr(ip_crud, "get_name_to_atp_for_all_children", _fake_get_name_to_atp_for_all_children)
+
+    yield
+    # nothing to unpatch explicitly (monkeypatch handles teardown)
+
+
+@pytest.fixture(autouse=True)
+def patch_wft_patch(monkeypatch):
+    """
+    Replace ip_crud.wft_patch with a minimal in-DB updater so set_priority
+    can flip ATP:0000306 -> {success,failed} without depending on router logic.
+    """
+    def _fake_wft_patch(db, reference_workflow_tag_id, update_dict):
+        wft = (
+            db.query(WorkflowTagModel)
+            .filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id)
+            .first()
+        )
+        if not wft:
+            # Mirror your real patch behavior with an HTTPException if needed
+            raise HTTPException(status_code=404, detail="workflow tag not found")
+        if "workflow_tag_id" in update_dict:
+            wft.workflow_tag_id = update_dict["workflow_tag_id"]
+        db.add(wft)
+        db.commit()
+
+    monkeypatch.setattr(ip_crud, "wft_patch", _fake_wft_patch)
+    yield
+
+
+# ---------- helpers ----------
 
 def _ensure_mod(session, abbr: str) -> int:
     mod = session.query(ModModel).filter(ModModel.abbreviation == abbr).first()
