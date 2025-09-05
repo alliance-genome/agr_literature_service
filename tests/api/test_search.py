@@ -236,35 +236,46 @@ def initialize_elasticsearch():
 
 
 @pytest.fixture(scope="module", autouse=True)
-def patch_allowed_mods(monkeypatch):
-    from agr_literature_service.lit_processing.utils import db_read_utils as dru
-    monkeypatch.setattr(dru, "get_mod_abbreviations", lambda: ["FB"])
-
-
-@pytest.fixture(scope="module", autouse=True)
-def patch_orcid_matching(monkeypatch):
+def patch_orcid_matching():
     """
-    Make ORCID queries hit our seeded docs that store bare ORCIDs (no 'orcid:' prefix).
-    We broaden nested_orcid_exact() to accept variants.
+    Broaden ORCID matching so our seeded docs (bare ORCIDs) are found.
+    Works at module scope without relying on the function-scoped monkeypatch fixture.
     """
     from agr_literature_service.api.crud import search_crud as sc
 
+    mp = pytest.MonkeyPatch()
+
     def _fake_nested_orcid_exact(core_lower: str) -> dict:
-        # Accept many representations: bare, with 'orcid:' (any case), URLs, no hyphen
+        # accept bare, prefixed, URL and no-hyphen forms
         variants = sc.orcid_variants(core_lower)
         return {
             "nested": {
                 "path": "authors",
-                "query": {
-                    "terms": {
-                        "authors.orcid.keyword": variants
-                    }
-                },
-                "score_mode": "max"
+                "query": {"terms": {"authors.orcid.keyword": variants}},
+                "score_mode": "max",
             }
         }
 
-    monkeypatch.setattr(sc, "nested_orcid_exact", _fake_nested_orcid_exact)
+    mp.setattr(sc, "nested_orcid_exact", _fake_nested_orcid_exact)
+    try:
+        yield
+    finally:
+        mp.undo()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_allowed_mods():
+    """
+    Ensure workflow facets use allowed MODs; our seeded docs use 'FB'.
+    """
+    from agr_literature_service.lit_processing.utils import db_read_utils as dru
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(dru, "get_mod_abbreviations", lambda: ["FB"])
+    try:
+        yield
+    finally:
+        mp.undo()
 
 
 class TestSearch:
