@@ -143,7 +143,6 @@ def _mk_payload(ref_curie: str, mod_abbr: str, ip_code: str = "ATP:0000211", sco
         mod_abbreviation=mod_abbr,
         indexing_priority=ip_code,
         confidence_score=score,
-        validation_by_biocurator=False,
     )
 
 
