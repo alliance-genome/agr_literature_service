@@ -12,7 +12,8 @@ from agr_literature_service.api.crud import indexing_priority_crud as ip_crud
 from agr_literature_service.api.schemas.indexing_priority_schemas import (
     IndexingPrioritySchemaPost,
 )
-
+from ..fixtures import db as _db_fixture  # noqa: F401
+from .test_reference import test_reference as _test_reference_fixture  # noqa: F401
 # ---------- monkeypatch app dependencies so tests are self-contained ----------
 
 
