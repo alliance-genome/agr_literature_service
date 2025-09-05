@@ -88,6 +88,9 @@ def _ensure_mod(session, abbr: str) -> int:
 
 
 def _ensure_tet_source(session, data_provider: str) -> int:
+    # First ensure the MOD exists for the data_provider
+    mod_id = _ensure_mod(session, data_provider)
+
     src = (
         session.query(TopicEntityTagSourceModel)
         .filter(TopicEntityTagSourceModel.source_method == "abc_document_classifier")
@@ -97,7 +100,9 @@ def _ensure_tet_source(session, data_provider: str) -> int:
     if not src:
         src = TopicEntityTagSourceModel(
             source_method="abc_document_classifier",
-            data_provider=data_provider
+            data_provider=data_provider,
+            secondary_data_provider_id=mod_id,
+            source_evidence_assertion="automated_assertion",  # Provide a default value
         )
         session.add(src)
         session.commit()
