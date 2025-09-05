@@ -1228,9 +1228,9 @@ def apply_recency_function_score(es_body,
     Make recency *dominate* the final score for query-mode searches:
       - 0–1 year: weight 3.0
       - 1–3 years: weight 1.5
-      - Optional smooth decay around 'now' (gauss) so 'newer' wins among equals.
-
-    Uses ES date math so it works regardless of your stored format (date/epoch).
+    With the decay:
+    We add a smooth preference that favors fresher papers within the same age group.
+    Among two equally relevant papers, the one published more recently will still float higher
     """
     base_query = es_body.get("query") or {"match_all": {}}
 
@@ -1248,6 +1248,8 @@ def apply_recency_function_score(es_body,
     ]
 
     # optional smooth preference for “newer within the same bucket”
+    # So a paper from last month still gets slightly more boost than one from 11 months ago,
+    # even though both are “< 1 year old
     if add_decay:
         functions.append({
             "gauss": {
