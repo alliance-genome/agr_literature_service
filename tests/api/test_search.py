@@ -32,6 +32,11 @@ def setup_elasticsearch():
 
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
+
+    def ts_ms(s: str) -> int:
+        # parse 'mm/dd/YYYY' → epoch_millis
+        return int(datetime.strptime(s, '%m/%d/%Y').timestamp() * 1000)
+
     print("***** Initializing Elasticsearch Data *****")
     if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
         msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
@@ -164,8 +169,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "authors": [
             {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
             {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
@@ -182,8 +187,8 @@ def initialize_elasticsearch():
         "title": "cell title",
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "date_published": "2022",
         "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
@@ -199,8 +204,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
         "date_published": "1950-06-03",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
@@ -215,8 +220,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
         "date_published": "2010",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
@@ -267,11 +272,11 @@ def patch_orcid_matching():
 def patch_allowed_mods():
     """
     Ensure workflow facets use allowed MODs; our seeded docs use 'FB'.
+    Patch the symbol actually referenced by search_crud.
     """
-    from agr_literature_service.lit_processing.utils import db_read_utils as dru
-
+    from agr_literature_service.api.crud import search_crud as sc
     mp = pytest.MonkeyPatch()
-    mp.setattr(dru, "get_mod_abbreviations", lambda: ["FB"])
+    mp.setattr(sc, "get_mod_abbreviations", lambda: ["FB"])
     try:
         yield
     finally:
