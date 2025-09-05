@@ -14,6 +14,9 @@ from agr_literature_service.api.schemas.indexing_priority_schemas import (
 )
 from ..fixtures import db as _db_fixture  # noqa: F401
 from .test_reference import test_reference as _test_reference_fixture  # noqa: F401
+db = _db_fixture
+test_reference = _test_reference_fixture
+
 # ---------- monkeypatch app dependencies so tests are self-contained ----------
 
 
