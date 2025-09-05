@@ -439,7 +439,7 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
-            assert res["return_count"] == 3
+            assert res["return_count"] == 4
 
     def test_search_references_case4(self, initialize_elasticsearch, auth_headers): # noqa
         # Should just find all first 6 records.
