@@ -265,6 +265,10 @@ def search_references(
             es_body["rescore"] = bundle["rescore"]
         uses_rescore = bool(bundle.get("uses_rescore"))
 
+        core = extract_orcid_core(q_raw)
+        if core:
+            es_body["query"]["bool"]["should"].append(nested_orcid_exact(core))
+
     # 2) Single-field text: Title / Abstract / Keyword / Citation
     elif query and query_fields in TEXT_FIELDS:
         add_simple_text_field_query(es_body, TEXT_FIELDS[query_fields], query, partial_match)
