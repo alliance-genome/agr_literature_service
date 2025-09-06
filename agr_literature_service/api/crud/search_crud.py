@@ -267,7 +267,7 @@ def search_references(
 
         core = extract_orcid_core(q_raw)
         if core:
-            es_body["query"]["bool"]["should"].append(nested_orcid_exact(core))
+            es_body["query"]["bool"]["should"].append(_nested_orcid_terms(core))
 
     # 2) Single-field text: Title / Abstract / Keyword / Citation
     elif query and query_fields in TEXT_FIELDS:
@@ -305,7 +305,7 @@ def search_references(
     elif query and query_fields == "ORCID":
         core = extract_orcid_core(query)
         if core:
-            es_body["query"]["bool"]["must"].append(nested_orcid_exact(core))
+            es_body["query"]["bool"]["must"].append(_nested_orcid_terms(core))
         else:
             es_body["query"]["bool"]["must"].append({"match_none": {}})
 
@@ -863,3 +863,18 @@ def extract_orcid_core(raw: str) -> Optional[str]:
         if m2:
             return m2.group(1).lower()
     return None
+
+
+def _nested_orcid_terms(core_lower: str) -> dict:
+    """
+    Robust ORCID matcher used by both ORCID field and free-text paths.
+    Matches bare, prefixed, URL and no-hyphen variants against authors.orcid.keyword.
+    """
+    variants = orcid_variants(core_lower)
+    return {
+        "nested": {
+            "path": "authors",
+            "query": {"terms": {"authors.orcid.keyword": variants}},
+            "score_mode": "max",
+        }
+    }
