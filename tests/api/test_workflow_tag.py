@@ -168,7 +168,6 @@ class TestWorkflowTag:
     def test_transition_to_workflow_status_manual_indexing_child_without_existing_direct_needed(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000336', transition_to='ATP:0000275'))
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
@@ -194,7 +193,6 @@ class TestWorkflowTag:
     def test_transition_to_workflow_status_manual_indexing_child_without_existing(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000336', transition_to='ATP:0000275'))
         db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
         reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
