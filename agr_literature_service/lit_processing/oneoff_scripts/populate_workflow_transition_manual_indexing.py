@@ -44,8 +44,8 @@ def populate_data():
                             print(f"{transition_key} already in db")
                             continue
                         insert_sql = (
-                            f"INSERT INTO workflow_transition (mod_id, transition_from, transition_to, date_created) "
-                            f"VALUES ({mod.mod_id}, '{from_term}', '{to_term}', '{now}');"
+                            f"INSERT INTO workflow_transition (mod_id, transition_from, transition_to, date_created, actions) "
+                            f"VALUES ({mod.mod_id}, '{from_term}', '{to_term}', '{now}', '{{}}');"
                         )
                         print(insert_sql)
                         db_session.execute(text(insert_sql))
