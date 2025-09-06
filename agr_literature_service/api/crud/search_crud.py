@@ -46,7 +46,7 @@ WORKFLOW_FACETS = [
     "entity_extraction",
     "reference_classification",
     "curation_classification",
-    "community_curation",
+    "community_curation"
 ]
 
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
@@ -115,61 +115,61 @@ def search_references(
                 {"keywords": {"type": "unified"}},
                 {"citation": {"type": "unified"}},
                 {"authors.name": {"type": "unified"}},
-                {"authors.orcid": {"type": "unified"}},
-            ],
+                {"authors.orcid": {"type": "unified"}}
+            ]
         },
         "aggregations": {
             "language.keyword": {
                 "terms": {
                     "field": "language.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("language.keyword", 10),
+                    "size": facets_limits.get("language.keyword", 10)
                 }
             },
             "mod_reference_types.keyword": {
                 "terms": {
                     "field": "mod_reference_types.keyword",
-                    "size": facets_limits.get("mod_reference_types.keyword", 10),
+                    "size": facets_limits.get("mod_reference_types.keyword", 10)
                 }
             },
             "pubmed_types.keyword": {
                 "terms": {
                     "field": "pubmed_types.keyword",
-                    "size": facets_limits.get("pubmed_types.keyword", 10),
+                    "size": facets_limits.get("pubmed_types.keyword", 10)
                 }
             },
             "category.keyword": {
                 "terms": {
                     "field": "category.keyword",
-                    "size": facets_limits.get("category.keyword", 10),
+                    "size": facets_limits.get("category.keyword", 10)
                 }
             },
             "pubmed_publication_status.keyword": {
                 "terms": {
                     "field": "pubmed_publication_status.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("pubmed_publication_status.keyword", 10),
+                    "size": facets_limits.get("pubmed_publication_status.keyword", 10)
                 }
             },
             "mods_in_corpus.keyword": {
                 "terms": {
                     "field": "mods_in_corpus.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("mods_in_corpus.keyword", 10),
+                    "size": facets_limits.get("mods_in_corpus.keyword", 10)
                 }
             },
             "mods_needs_review.keyword": {
                 "terms": {
                     "field": "mods_needs_review.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("mods_needs_review.keyword", 10),
+                    "size": facets_limits.get("mods_needs_review.keyword", 10)
                 }
             },
             "mods_in_corpus_or_needs_review.keyword": {
                 "terms": {
                     "field": "mods_in_corpus_or_needs_review.keyword",
                     "min_doc_count": 0,
-                    "size": facets_limits.get("mods_in_corpus_or_needs_review.keyword", 10),
+                    "size": facets_limits.get("mods_in_corpus_or_needs_review.keyword", 10)
                 }
             },
             "authors.name.keyword": {
@@ -178,10 +178,10 @@ def search_references(
                     "terms": {
                         "terms": {
                             "field": "authors.name.keyword",
-                            "size": facets_limits.get("authors.name.keyword", 10),
+                            "size": facets_limits.get("authors.name.keyword", 10)
                         }
                     }
-                },
+                }
             },
             "workflow_tags": {
                 "nested": {"path": "workflow_tags"},
@@ -190,25 +190,25 @@ def search_references(
                         "terms": {
                             "field": "workflow_tags.mod_abbreviation",
                             "min_doc_count": 0,
-                            "size": 100,
+                            "size": 100
                         },
                         "aggs": {
                             "workflow_tag_ids": {
                                 "terms": {
                                     "field": "workflow_tags.workflow_tag_id.keyword",
                                     "min_doc_count": 0,
-                                    "size": 100,
+                                    "size": 100
                                 },
-                                "aggs": {"reverse_docs": {"reverse_nested": {}}},
+                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
                             }
-                        },
+                        }
                     }
-                },
-            },
+                }
+            }
         },
         "from": from_entry,
         "size": size_result_count,
-        "track_total_hits": True,
+        "track_total_hits": True
     }
 
     # Determine if this is a text-based search that should get recency boosting
@@ -336,10 +336,10 @@ def search_references(
                                     "bool": {
                                         "must": [
                                             {"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}},
-                                            {"term": {"workflow_tags.workflow_tag_id.keyword": tag}},
+                                            {"term": {"workflow_tags.workflow_tag_id.keyword": tag}}
                                         ]
                                     }
-                                },
+                                }
                             }
                         }
                         es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
@@ -351,10 +351,10 @@ def search_references(
                                 "bool": {
                                     "must": [
                                         {"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}},
-                                        {"term": {"workflow_tags.workflow_tag_id.keyword": facet_list_values[0]}},
+                                        {"term": {"workflow_tags.workflow_tag_id.keyword": facet_list_values[0]}}
                                     ]
                                 }
-                            },
+                            }
                         }
                     }
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
@@ -365,7 +365,7 @@ def search_references(
                         es_body["query"]["bool"]["filter"]["bool"]["must"].append({
                             "nested": {
                                 "path": "authors",
-                                "query": {"term": {facet_field: facet_value}},
+                                "query": {"term": {facet_field: facet_value}}
                             }
                         })
                 else:
@@ -386,7 +386,7 @@ def search_references(
                     es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
                         "nested": {
                             "path": "authors",
-                            "query": {"term": {facet_field: facet_value}},
+                            "query": {"term": {facet_field: facet_value}}
                         }
                     })
             else:
@@ -463,7 +463,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "mod_reference_types": ref["_source"]["mod_reference_types"],
         "language": ref["fields"]["language.keyword"],
         "authors": ref["_source"]["authors"],
-        "highlight": remap_highlights(ref.get("highlight", {})),
+        "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
     # extract topic entity tag aggregations.
@@ -481,12 +481,12 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     if isinstance(agg, dict) and ("aggs" in agg or "terms" in agg):
         inner = agg.get("terms") if "terms" in agg else agg.get("aggs", {}).get("terms")
         if isinstance(inner, dict) and "buckets" in inner:
-            res["aggregations"]["authors.name.keyword"] = inner
+            res['aggregations']["authors.name.keyword"] = inner
 
     return {
         "hits": hits,
         "aggregations": res["aggregations"],
-        "return_count": res["hits"]["total"]["value"],
+        "return_count": res["hits"]["total"]["value"]
     }
 
 
@@ -495,7 +495,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     Post-process TET aggregations (topics, confidence, source methods, SEA)
     """
     def extract_filtered_agg(res, main_key, data_key):
-        agg = res["aggregations"].get(main_key, {})
+        agg = res['aggregations'].get(main_key, {})
         if "filtered" in agg:
             agg = agg["filtered"]
         if "filter_by_other_tet_values" in agg:
@@ -523,13 +523,13 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
 
     # remove temp aggs
     for k in [
-        "topic_aggregation",
-        "confidence_aggregation",
-        "source_method_aggregation",
-        "source_evidence_assertion_aggregation",
-        "source_evidence_assertion_group_aggregation",
+        'topic_aggregation',
+        'confidence_aggregation',
+        'source_method_aggregation',
+        'source_evidence_assertion_aggregation',
+        'source_evidence_assertion_group_aggregation',
     ]:
-        res["aggregations"].pop(k, None)
+        res['aggregations'].pop(k, None)
 
     # add labels to ATP/ECO curies
     add_curie_to_name_values(topics)
@@ -575,7 +575,7 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
         "manual_indexing": get_atp_ids(manual_indexing_root_ids),
         "curation_classification": get_atp_ids(curation_classification_root_ids),
-        "community_curation": get_atp_ids(community_curation_classification_root_ids),
+        "community_curation": get_atp_ids(community_curation_classification_root_ids)
     }
 
     grouped_workflow_tags: Dict[str, Dict[str, Any]] = {category: {} for category in atp_ids}
@@ -592,7 +592,7 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
                         grouped_workflow_tags[category][expected_upper] = {
                             "key": expected_upper,
                             "doc_count": 0,
-                            "name": bucket.get("name", expected_upper),
+                            "name": bucket.get("name", expected_upper)
                         }
                     grouped_workflow_tags[category][expected_upper]["doc_count"] += count
 
@@ -606,12 +606,12 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         sorted_buckets = sorted(
             filtered_buckets,
             key=lambda x: x.get("reverse_docs", {}).get("doc_count", x["doc_count"]),
-            reverse=True,
+            reverse=True
         )
         aggregated_result = {
             "doc_count_error_upper_bound": 0,
             "sum_other_doc_count": 0,
-            "buckets": sorted_buckets,
+            "buckets": sorted_buckets
         }
         add_curie_to_name_values(aggregated_result)
         final_workflow_aggs[category] = aggregated_result
@@ -678,9 +678,9 @@ def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, 
         "aggs": {
             "filtered": {
                 "filter": {"terms": {f"{path}.data_provider": allowed_dp}},
-                "aggs": base_agg["aggs"],
+                "aggs": base_agg["aggs"]
             }
-        },
+        }
     }
 
 
@@ -701,9 +701,9 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 "aggs": {
                     term_key: {
                         "terms": {"field": term_field, "size": size},
-                        "aggs": {"docs_count": {"reverse_nested": {}}},
+                        "aggs": {"docs_count": {"reverse_nested": {}}}
                     }
-                },
+                }
             }
         }
         # Ensure we keep empty buckets visible for confidence_levels
@@ -713,7 +713,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
         tet_agg["aggs"] = {
             term_key: {
                 "terms": {"field": term_field, "size": size},
-                "aggs": {"docs_count": {"reverse_nested": {}}},
+                "aggs": {"docs_count": {"reverse_nested": {}}}
             }
         }
     return tet_agg
@@ -728,7 +728,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_field="topic_entity_tags.topic.keyword",
         term_key="topics",
         allowed_dp=allowed_dp,
-        size=facets_limits.get("topics", 10),
+        size=facets_limits.get("topics", 10)
     )
 
     es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation_with_dp(
@@ -737,7 +737,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
         allowed_dp=allowed_dp,
-        size=facets_limits.get("confidence_levels", 10),
+        size=facets_limits.get("confidence_levels", 10)
     )
 
     es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
@@ -746,7 +746,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_field="topic_entity_tags.source_method.keyword",
         term_key="source_methods",
         allowed_dp=allowed_dp,
-        size=facets_limits.get("source_methods", 10),
+        size=facets_limits.get("source_methods", 10)
     )
 
     # SEA facets: count over filtered hits but not restricted by SEA value itself
@@ -758,7 +758,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_field="topic_entity_tags.source_evidence_assertion.keyword",
         term_key="source_evidence_assertions",
         allowed_dp=allowed_dp,
-        size=facets_limits.get("source_evidence_assertions", 10),
+        size=facets_limits.get("source_evidence_assertions", 10)
     )
     es_body["aggregations"]["source_evidence_assertion_group_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
@@ -766,7 +766,7 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_field="topic_entity_tags.source_evidence_assertion_group.keyword",
         term_key="source_evidence_assertions",
         allowed_dp=allowed_dp,
-        size=facets_limits.get("source_evidence_assertions", 10),
+        size=facets_limits.get("source_evidence_assertions", 10)
     )
 
 
@@ -787,11 +787,11 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
     curie_keys = [bucket["key"] for bucket in aggregations.get("buckets", [])]
     curie_to_name_map = get_map_ateam_curies_to_names(
         category="atpterm",
-        curies=[c.upper() for c in curie_keys if c.upper().startswith("ATP:")],
+        curies=[c.upper() for c in curie_keys if c.upper().startswith("ATP:")]
     )
     curie_to_name_map.update(get_map_ateam_curies_to_names(
         category="ecoterm",
-        curies=[c.upper() for c in curie_keys if c.upper().startswith("ECO:")],
+        curies=[c.upper() for c in curie_keys if c.upper().startswith("ECO:")]
     ))
 
     for bucket in aggregations.get("buckets", []):
@@ -833,7 +833,7 @@ def orcid_variants(raw: str) -> List[str]:
         f"orcid:{hyph_l}", f"ORCID:{hyph_u}",
         f"https://orcid.org/{hyph_l}", f"http://orcid.org/{hyph_l}",
         f"https://orcid.org/{hyph_u}", f"http://orcid.org/{hyph_u}",
-        hyph_l.replace("-", ""), hyph_u.replace("-", ""),
+        hyph_l.replace("-", ""), hyph_u.replace("-", "")
     ]
 
 
@@ -878,4 +878,3 @@ def nested_orcid_exact(core_lower: str) -> dict:
             "score_mode": "max",
         }
     }
-
