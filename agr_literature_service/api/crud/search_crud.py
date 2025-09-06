@@ -23,7 +23,6 @@ from agr_literature_service.api.crud.search_ranking import (
     nested_author_name_prefix_keyword,
     nested_author_name_match_prefix,
     nested_author_name_exact_token,
-    nested_orcid_exact,
     apply_scoring_and_sort,
     build_author_bucket_function_score,
     author_bucket_sort,
@@ -267,7 +266,7 @@ def search_references(
 
         core = extract_orcid_core(q_raw)
         if core:
-            es_body["query"]["bool"]["should"].append(_nested_orcid_terms(core))
+            es_body["query"]["bool"]["should"].append(nested_orcid_exact(core))
 
     # 2) Single-field text: Title / Abstract / Keyword / Citation
     elif query and query_fields in TEXT_FIELDS:
@@ -281,6 +280,7 @@ def search_references(
 
         # ORCID typed into the author box -> considered a "near" signal
         core = extract_orcid_core(query)
+        orcid_clause = nested_orcid_exact(core) if core else None
 
         # Build the author function_score clause and attach it as a MUST under the outer bool
         ensure_structure(es_body)
@@ -290,7 +290,7 @@ def search_references(
                 phrase,
                 is_full_name=(is_quoted or " " in phrase),
                 partial_match=partial_match,
-                orcid_core=core
+                orcid_nested_clause=orcid_clause,
             )
         )
 
@@ -305,7 +305,7 @@ def search_references(
     elif query and query_fields == "ORCID":
         core = extract_orcid_core(query)
         if core:
-            es_body["query"]["bool"]["must"].append(_nested_orcid_terms(core))
+            es_body["query"]["bool"]["must"].append(nested_orcid_exact(core))
         else:
             es_body["query"]["bool"]["must"].append({"match_none": {}})
 
@@ -865,12 +865,12 @@ def extract_orcid_core(raw: str) -> Optional[str]:
     return None
 
 
-def _nested_orcid_terms(core_lower: str) -> dict:
+def nested_orcid_exact(core_lower: str) -> dict:
     """
-    Robust ORCID matcher used by both ORCID field and free-text paths.
-    Matches bare, prefixed, URL and no-hyphen variants against authors.orcid.keyword.
+    - Accepts bare, ORCID:-prefixed, URL, and no-hyphen forms.
+    - Queries authors.orcid.keyword (exact string match via normalizer).
     """
-    variants = orcid_variants(core_lower)
+    variants = orcid_variants(core_lower)  # uses your existing helper
     return {
         "nested": {
             "path": "authors",
@@ -878,3 +878,4 @@ def _nested_orcid_terms(core_lower: str) -> dict:
             "score_mode": "max",
         }
     }
+

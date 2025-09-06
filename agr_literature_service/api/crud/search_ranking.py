@@ -67,7 +67,7 @@ def apply_balanced_recency_boost(es_body: Dict[str, Any], field: str = "date_pub
     }
 
 
-# --------------------------- Author / ORCID building blocks ---------------------------
+# --------------------------- Author building blocks ---------------------------
 # Each of these helpers builds a different style of match query on authors.name.
 # They are meant to be combined with different boosts so Elasticsearch can rank:
 #   exact match > close match > looser match.
@@ -179,17 +179,6 @@ Summary of relative strengths:
 """
 
 
-def nested_orcid_exact(core_lower: str) -> dict:
-    normalized_orcid = f"orcid:{core_lower}".lower()
-    return {
-        "nested": {
-            "path": "authors",
-            "query": {"term": {"authors.orcid.keyword": normalized_orcid}},
-            "score_mode": "max"
-        }
-    }
-
-
 # --------------------------- Author bucketed ranking ---------------------------
 
 
@@ -240,7 +229,7 @@ def build_author_bucket_function_score(
     *,
     is_full_name: bool,
     partial_match: bool,
-    orcid_core: Optional[str] = None
+    orcid_nested_clause: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     Build a function_score that buckets author hits:
@@ -255,9 +244,9 @@ def build_author_bucket_function_score(
         exact_clause = _author_exact_clause_single_token(phrase)
         near_clauses = _author_near_clauses_single_token(phrase, partial=partial_match)
 
-    # Optionally treat ORCID match as a "near" signal within the author search
-    if orcid_core:
-        near_clauses.append(nested_orcid_exact(orcid_core))
+    # Optionally include an external ORCID nested clause (built by caller)
+    if orcid_nested_clause:
+        near_clauses.append(orcid_nested_clause)
 
     return {
         "function_score": {
