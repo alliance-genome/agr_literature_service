@@ -152,8 +152,6 @@ class TestWorkflowTag:
            load_name_to_atp_and_relationships_mock)
     def test_transition_to_workflow_status_manual_indexing_child_without_transition(self, db, test_mod, test_reference,  # noqa
                                                                  auth_headers):  # noqa
-        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
-        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
         db.commit()
         with TestClient(app) as client:
             transition_req = {
