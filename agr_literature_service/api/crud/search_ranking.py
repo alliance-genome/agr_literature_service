@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 
 # --------------------------- Public constants ---------------------------
 
@@ -86,7 +86,7 @@ def nested_author_name_match_any(name: str, boost: float | None = None) -> dict:
     - boost=None  -> lower-weighted fallback
     - boost=10.0  -> stronger signal
     """
-    node = {
+    node: Dict[str, Any] = {
         "nested": {
             "path": "authors",
             "query": {"match": {"authors.name": {"query": name, "analyzer": "authorNameAnalyzer"}}},
@@ -94,7 +94,8 @@ def nested_author_name_match_any(name: str, boost: float | None = None) -> dict:
         }
     }
     if boost is not None:
-        node["nested"]["boost"] = boost
+        nested = cast(Dict[str, Any], node["nested"])
+        nested["boost"] = float(boost)
     return node
 
 

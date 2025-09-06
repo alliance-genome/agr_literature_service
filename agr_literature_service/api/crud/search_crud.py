@@ -366,7 +366,7 @@ def search_references(
                         })
                 else:
                     # Bundle multiple values under a single bool.must for this field
-                    group = {"bool": {"must": []}}
+                    group: Dict[str, Any] = {"bool": {"must": []}}
                     for facet_value in facet_list_values:
                         group["bool"]["must"].append({"term": {facet_field: facet_value}})
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(group)
