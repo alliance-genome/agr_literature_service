@@ -234,6 +234,9 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
             topic_entity_tag_data["entity_name"] = name
+    if topic_entity_tag.validated_by:
+        add_list_of_users_who_validated_tag(topic_entity_tag, topic_entity_tag_data)
+        add_list_of_validating_tag_ids(topic_entity_tag, topic_entity_tag_data)
     return topic_entity_tag_data
 
 
@@ -280,8 +283,10 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
 
+    reference_id = topic_entity_tag.reference_id
     db.delete(topic_entity_tag)
     db.commit()
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=True, validation_values_only=True)
 
 
 def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
@@ -447,6 +452,14 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         set_validation_values_to_tag(new_tag_obj)
     if commit_changes:
         db.commit()
+    if new_tag_obj.validation_by_professional_biocurator == "validation_conflict" or \
+            new_tag_obj.validation_by_author == "validation_conflict":
+        for related_tag in related_tags_in_db:
+            related_tag_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == related_tag.topic_entity_tag_id).first()
+            set_validation_values_to_tag(related_tag_obj)
+        if commit_changes:
+            db.commit()
     return all_related_tags
 
 
