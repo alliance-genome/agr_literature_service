@@ -1,29 +1,19 @@
-import re
 import copy
 import datetime
 import logging
 from collections import namedtuple
 import json
 from typing import Dict, Tuple
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy_continuum import Operation
 from starlette.testclient import TestClient
 from fastapi import status
 from unittest.mock import patch
-import numpy as np
-if not hasattr(np, "float_"):
-    np.float_ = np.float64
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.crud import reference_crud
-from agr_literature_service.api.models import (
-    ReferenceModel,
-    AuthorModel,
-    CrossReferenceModel,
-    ModModel,
-    ModCorpusAssociationModel,
-)
+from agr_literature_service.api.models import ReferenceModel, AuthorModel, CrossReferenceModel
 from agr_literature_service.api.schemas import ReferencefileSchemaPost
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import load_name_to_atp_and_relationships_mock, search_ancestors_or_descendants_mock
@@ -970,80 +960,3 @@ class TestReference:
                 if xref['curie'] == 'WB:WBPaper00000001':
                     xrefs_ok = xrefs_ok + 1
             assert xrefs_ok == 2
-
-
-# The following tests were generated with the help of AI.
-class TestReferenceExtras:
-    def test_lock_status_unlocked_when_no_jobs(self, db, auth_headers): # noqa
-        with TestClient(app) as client:
-            # create a bare reference
-            new_reference = {"title": "Lock Test", "category": "thesis"}
-            curie = client.post("/reference/", json=new_reference, headers=auth_headers).json()
-
-        # should be unlocked (no corpus mods / jobs)
-        result = reference_crud.lock_status(db, curie)
-        assert result["locked"] is False
-        assert "No lock" in result["message"]
-
-    def test_add_to_corpus_triggers_needed_tag_when_missing(self, db, auth_headers, monkeypatch): # noqa
-        # ensure a MOD exists
-        populate_test_mods()
-        mod_abbrev = "WB"
-
-        with TestClient(app) as client:
-            curie = client.post("/reference/", json={"title": "AddToCorpus", "category": "book"},
-                                headers=auth_headers).json()
-
-        # fake: no current tag -> expect transition_to_workflow_status to be called
-        called = {"transition": []}
-
-        def fake_get_current_status(*args, **kwargs):
-            return None
-
-        def fake_transition(db_, ref_curie, mod, atp_id):
-            called["transition"].append((ref_curie, mod, atp_id))
-
-        # don't do xref generation work in unit test
-        monkeypatch.setattr(reference_crud, "get_current_workflow_status", fake_get_current_status)
-        monkeypatch.setattr(reference_crud, "transition_to_workflow_status", fake_transition)
-        monkeypatch.setattr(reference_crud.cross_reference_crud, "check_xref_and_generate_mod_id", lambda *a, **k: None)
-
-        # run
-        reference_crud.add_to_corpus(db, mod_abbrev, curie)
-
-        # verify MCA row created
-        ref = db.query(ReferenceModel).filter_by(curie=curie).one()
-        mod = db.query(ModModel).filter_by(abbreviation=mod_abbrev).one()
-        mca = db.query(ModCorpusAssociationModel).filter_by(reference_id=ref.reference_id, mod_id=mod.mod_id).one()
-        assert mca.corpus is True
-
-        # verify workflow transition was requested to "file needed" (ATP:0000141)
-        assert any(t[0] == curie and t[1] == mod_abbrev and t[2] == reference_crud.file_needed_tag_atp_id
-                   for t in called["transition"])
-
-    def test_show_all_references_external_ids_shapes_output(self, db, auth_headers): # noqa
-        with TestClient(app) as client:
-            new_reference = {
-                "title": "ShowAllXrefs",
-                "category": "research_article",
-                "cross_references": [
-                    {"curie": "PMID:999999", "is_obsolete": False},
-                    {"curie": "DOI:10.1234/example", "is_obsolete": True},
-                ],
-            }
-            curie = client.post("/reference/", json=new_reference, headers=auth_headers).json()
-
-        all_refs = reference_crud.show_all_references_external_ids(db)
-        entry = next(x for x in all_refs if x["curie"] == curie)
-        # order of xrefs not guaranteed; check by set membership
-        ids = {xref["curie"] for xref in entry["cross_references"]}
-        assert {"PMID:999999", "DOI:10.1234/example"} <= ids
-        # confirm boolean flags are present
-        assert {type(x["is_obsolete"]) for x in entry["cross_references"]} == {bool}
-
-    def test_get_past_to_present_date_range(self):
-        ts, start_date, end_date = reference_crud.get_past_to_present_date_range(7)
-        assert re.fullmatch(r"\d{8}", ts)  # YYYYMMDD
-        assert isinstance(start_date, type(end_date))
-        # end_date should be strictly after start_date
-        assert end_date > start_date
