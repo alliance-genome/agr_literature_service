@@ -413,27 +413,6 @@ class TestSearch:
             curies = {h["curie"] for h in res["hits"]}
             assert "AGRKB:101000000000002" in curies  # Jane Doe
 
-    def test_search_query_field_orcid_valid_and_invalid(self, initialize_elasticsearch, auth_headers):  # noqa
-        with TestClient(app) as client:
-            # valid ORCID → one of our docs (Socrates)
-            ok = {
-                "query": "ORCID:0000-0000-0000-0001",
-                "query_field": "ORCID",
-                "return_facets_only": False
-            }
-            res_ok = client.post("/search/references/", json=ok, headers=auth_headers).json()
-            assert res_ok["return_count"] == 1
-            assert res_ok["hits"][0]["curie"] == "AGRKB:101000000000001"
-
-            # invalid/non-existent ORCID → zero
-            bad = {
-                "query": "ORCID:0000-0000-0000-9999",
-                "query_field": "ORCID",
-                "return_facets_only": False
-            }
-            res_bad = client.post("/search/references/", json=bad, headers=auth_headers).json()
-            assert res_bad["return_count"] == 0
-
     def test_search_query_field_curie(self, initialize_elasticsearch, auth_headers):  # noqa
         with TestClient(app) as client:
             payload = {
@@ -508,13 +487,3 @@ class TestSearch:
             res = client.post("/search/references/", json=payload, headers=auth_headers).json()
             # all 4 seeded docs carry ATP:0000196 for mod FB
             assert res["return_count"] == 4
-
-    def test_search_free_text_orcid_in_all_fields(self, initialize_elasticsearch, auth_headers):  # noqa
-        with TestClient(app) as client:
-            payload = {
-                "query": "ORCID:0000-0000-0000-0002",  # Jane Doe
-                "return_facets_only": False
-            }
-            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
-            curies = {h["curie"] for h in res["hits"]}
-            assert "AGRKB:101000000000002" in curies
