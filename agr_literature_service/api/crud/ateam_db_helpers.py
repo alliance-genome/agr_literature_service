@@ -599,7 +599,7 @@ def atp_get_parent(child_id):
     if child_id in atp_to_parent:
         return atp_to_parent[child_id]
     else:
-        return []
+        return None
 
 
 def atp_get_children(parent_id):
