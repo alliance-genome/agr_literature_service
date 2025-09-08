@@ -1425,3 +1425,266 @@ class TestTopicEntityTag:
             # Entity-only tag should be validated by mixed tag
             entity_data = client.get(f"/topic_entity_tag/{entity_id}").json()
             assert entity_data["validation_by_professional_biocurator"] in ["validated_right", "validated_right_self"]
+
+    def test_revalidation_on_delete(self, test_reference, test_mod, auth_headers, db): # noqa
+        """
+        Test that when a validating tag is deleted, the validated tag's validation status is correctly updated.
+
+        Scenario:
+        1. Create Tag A (more generic, will be validated)
+        2. Create Tag B (more specific, validates Tag A as "validated_right")
+        3. Create Tag C (more specific, also validates Tag A as "validated_right")
+        4. Delete Tag B
+        5. Verify Tag A is still validated by Tag C
+        6. Delete Tag C
+        7. Verify Tag A is no longer validated
+        """
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+
+            # Setup hierarchy based on mock data structure
+            def mock_ancestors_side_effect(onto_node):
+                ancestors_map = {
+                    "ATP:0000079": ["ATP:0000009", "ATP:0000002", "ATP:0000001"],
+                    "ATP:0000082": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+                    "ATP:0000083": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+                    "ATP:0000084": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"]
+                }
+                return ancestors_map.get(onto_node, [])
+            mock_get_ancestors.side_effect = mock_ancestors_side_effect
+
+            def mock_descendants_side_effect(onto_node):
+                descendants_map = {
+                    "ATP:0000009": ["ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"],
+                    "ATP:0000079": ["ATP:0000082", "ATP:0000083", "ATP:0000084"]
+                }
+                return descendants_map.get(onto_node, [])
+            mock_get_descendants.side_effect = mock_descendants_side_effect
+
+            # Mock the ateam curies mapping to prevent DB connections
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            # Create a curator source with validation capability
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = source_resp.json()
+
+            # Tag A: Generic tag that will be validated
+            tag_a_generic = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # Generic topic (phenotype)
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334"
+            }
+            tag_a_resp = client.post(url="/topic_entity_tag/", json=tag_a_generic, headers=auth_headers)
+            tag_a_id = tag_a_resp.json()["topic_entity_tag_id"]
+
+            # Verify Tag A starts as not validated
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
+
+            # Tag B: Specific tag that validates Tag A
+            tag_b_specific = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # More specific topic (genetic phenotype)
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334"
+            }
+            tag_b_resp = client.post(url="/topic_entity_tag/", json=tag_b_specific, headers=auth_headers)
+            tag_b_id = tag_b_resp.json()["topic_entity_tag_id"]
+
+            # Verify Tag A is now validated by Tag B
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validated_right"
+            assert tag_b_id in tag_a_data.get("validating_tags", [])
+
+            # Tag C: Another specific tag that also validates Tag A
+            tag_c_specific = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000082",  # different specific topic (RNAi phenotype)
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "note": "Additional validating tag",
+            }
+            tag_c_resp = client.post(url="/topic_entity_tag/", json=tag_c_specific, headers=auth_headers)
+            tag_c_id = tag_c_resp.json()["topic_entity_tag_id"]
+
+            # Verify Tag A is validated by both Tag B and Tag C
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validated_right"
+            validating_tags = tag_a_data.get("validating_tags", [])
+            assert tag_b_id in validating_tags
+            assert tag_c_id in validating_tags
+            assert len(validating_tags) == 2
+
+            # Delete Tag B
+            delete_resp = client.delete(f"/topic_entity_tag/{tag_b_id}", headers=auth_headers)
+            assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
+
+            # Verify Tag A is still validated, but only by Tag C
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validated_right"
+            validating_tags = tag_a_data.get("validating_tags", [])
+            assert tag_b_id not in validating_tags
+            assert tag_c_id in validating_tags
+            assert len(validating_tags) == 1
+
+            # Delete Tag C
+            delete_resp = client.delete(f"/topic_entity_tag/{tag_c_id}", headers=auth_headers)
+            assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
+
+            # Verify Tag A is no longer validated
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
+            validating_tags = tag_a_data.get("validating_tags", [])
+            assert len(validating_tags) == 0
+
+    def test_revalidation_on_delete_with_conflicting_validations(self, test_reference, test_mod, auth_headers, db): # noqa
+        """
+        Test revalidation when deleting a tag that causes validation conflicts.
+
+        Scenario:
+        1. Create Tag A (generic, will be validated)
+        2. Create Tag B (specific, negated=False, validates Tag A as "validated_right")
+        3. Create Tag C (specific, negated=True, validates Tag A as "validated_wrong")
+        4. Verify Tag A has validation_conflict
+        5. Delete Tag B
+        6. Verify Tag A is now "validated_wrong" (only Tag C remains)
+        """
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+
+            # Setup hierarchy based on mock data structure
+            def mock_ancestors_side_effect(onto_node):
+                ancestors_map = {
+                    "ATP:0000079": ["ATP:0000009", "ATP:0000002", "ATP:0000001"],
+                    "ATP:0000082": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+                    "ATP:0000083": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"],
+                    "ATP:0000084": ["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"]
+                }
+                return ancestors_map.get(onto_node, [])
+            mock_get_ancestors.side_effect = mock_ancestors_side_effect
+
+            def mock_descendants_side_effect(onto_node):
+                descendants_map = {
+                    "ATP:0000009": ["ATP:0000079", "ATP:0000080", "ATP:0000081", "ATP:0000082", "ATP:0000083", "ATP:0000084"],
+                    "ATP:0000079": ["ATP:0000082", "ATP:0000083", "ATP:0000084"]
+                }
+                return descendants_map.get(onto_node, [])
+            mock_get_descendants.side_effect = mock_descendants_side_effect
+
+            # Mock the ateam curies mapping to prevent DB connections
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+
+            # Create curator source
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = source_resp.json()
+
+            # Tag A: Generic tag
+            tag_a = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # Generic topic (phenotype)
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334"
+            }
+            tag_a_resp = client.post(url="/topic_entity_tag/", json=tag_a, headers=auth_headers)
+            tag_a_id = tag_a_resp.json()["topic_entity_tag_id"]
+
+            # Tag B: Specific positive tag
+            tag_b = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # Specific topic (genetic phenotype)
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
+            }
+            tag_b_resp = client.post(url="/topic_entity_tag/", json=tag_b, headers=auth_headers)
+            tag_b_id = tag_b_resp.json()["topic_entity_tag_id"]
+
+            # Tag C: Specific negative tag
+            tag_c = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000079",  # Specific topic
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": True,
+                "data_novelty": "ATP:0000334",
+                "created_by": "WBPerson2",
+                "date_created": "2020-01-02"
+            }
+            client.post(url="/topic_entity_tag/", json=tag_c, headers=auth_headers)
+
+            # Verify Tag A has validation conflict
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validation_conflict"
+            validating_tags = tag_a_data.get("validating_tags", [])
+            assert tag_b_id in validating_tags
+
+            # Delete Tag B (positive validation)
+            delete_resp = client.delete(f"/topic_entity_tag/{tag_b_id}", headers=auth_headers)
+            assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
+
+            # Verify Tag A is now validated_right_self (only negative validation on a more specific topic remains)
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
+            validating_tags = tag_a_data.get("validating_tags", [])
+            assert len(validating_tags) == 0
