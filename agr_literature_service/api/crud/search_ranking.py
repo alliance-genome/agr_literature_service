@@ -45,7 +45,7 @@ def apply_balanced_recency_boost(es_body: Dict[str, Any], field: str = "date_pub
             "query": base_query,
             "functions": [
                 # Future-dated papers
-                {"filter": {"range": {field: {"gt": "now"}}}, "weight": 6.0},
+                {"filter": {"range": {field: {"gt": "now"}}}, "weight": 2.5},
 
                 # Smooth decay (≈ halves each ~365 days; ignore first 2 weeks)
                 {"gauss": {field: {"origin": "now", "scale": "365d", "offset": "14d", "decay": 0.5}}},
