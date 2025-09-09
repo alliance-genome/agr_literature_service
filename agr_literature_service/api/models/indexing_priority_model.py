@@ -3,16 +3,12 @@ from sqlalchemy import UniqueConstraint, CheckConstraint, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy import Integer, String, Float
 from agr_literature_service.api.database.base import Base
-from agr_literature_service.api.database.versioning import enable_versioning
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models import ReferenceModel, ModModel
-
-enable_versioning()
 
 
 class IndexingPriorityModel(Base, AuditedModel):
     __tablename__ = "indexing_priority"
-    __versioned__: Dict = {}
 
     __table_args__ = (
         UniqueConstraint(
