@@ -62,7 +62,5 @@ def _set_created_and_updated(mapper, connection, target):
 @event.listens_for(AuditedModel, "before_update", propagate=True)
 def _set_updated(mapper, connection, target):
     now = datetime.now(tz=pytz.timezone("UTC"))
-    if target.date_updated is None:
-        target.date_updated = now
-    if target.updated_by is None:
-        target.updated_by = get_default_user_value()
+    target.date_updated = now
+    target.updated_by = get_default_user_value()
