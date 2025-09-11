@@ -286,7 +286,7 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
     reference_id = topic_entity_tag.reference_id
     db.delete(topic_entity_tag)
     db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=True, validation_values_only=True)
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False, validation_values_only=False)
 
 
 def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
