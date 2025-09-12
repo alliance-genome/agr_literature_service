@@ -7,10 +7,7 @@ from sqlalchemy import Column, Integer, String, inspect
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
-from agr_literature_service.api.user import (
-    set_global_user_id,
-    get_global_user_id,
-)
+from agr_literature_service.api.user import set_global_user_id
 
 from ..fixtures import db  # noqa: F401
 
@@ -58,24 +55,6 @@ def _create_tables(db): # noqa
     # Clean up rows for isolation, but keep the table to avoid DDL churn
     db.query(AuditedDummy).delete()
     db.commit()
-
-
-@pytest.fixture(autouse=True)
-def _reset_global_user(db): # noqa
-    from typing import Optional
-    prev: Optional[str] = get_global_user_id()
-    try:
-        set_global_user_id(db, None)  # type: ignore[arg-type]
-    except Exception:
-        set_global_user_id(db, "default_user")
-    yield
-    if prev is None:
-        try:
-            set_global_user_id(db, None)  # type: ignore[arg-type]
-        except Exception:
-            set_global_user_id(db, "default_user")
-    else:
-        set_global_user_id(db, prev)
 
 
 def test_insert_autostamps_when_no_global_user(db): # noqa
