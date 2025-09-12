@@ -68,6 +68,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     if source.secondary_data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
+        topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
     else:
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
