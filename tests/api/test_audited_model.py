@@ -159,7 +159,7 @@ def test_update_overwrites_even_if_manual_values_set(db): # noqa
     db.commit()
     db.refresh(obj)
 
-    assert obj.date_updated >= manual_dt
+    assert _to_utc(obj.date_updated) >= _to_utc(manual_dt)
     assert _is_recent(obj.date_updated)
     assert obj.updated_by == "MANUAL_CREATOR"
 
