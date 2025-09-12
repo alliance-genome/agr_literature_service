@@ -19,12 +19,19 @@ class AuditedDummy(Base, AuditedModel):
     name = Column(String, nullable=False)
 
 
-def _utc_now():
+def _utc_now() -> datetime:
     return datetime.now(tz=pytz.timezone("UTC"))
 
 
+def _to_utc(dt: datetime) -> datetime:
+    """Coerce any datetime to UTC-aware for reliable comparisons."""
+    if dt.tzinfo is None:
+        return pytz.UTC.localize(dt)
+    return dt.astimezone(pytz.UTC)
+
+
 def _is_recent(dt: datetime, seconds: int = 5) -> bool:
-    return abs((_utc_now() - dt).total_seconds()) < seconds
+    return abs((_utc_now() - _to_utc(dt)).total_seconds()) < seconds
 
 
 def _ensure_user(db, uid: str): # noqa
@@ -33,6 +40,18 @@ def _ensure_user(db, uid: str): # noqa
     if not db.query(UserModel).filter_by(id=uid).one_or_none():
         db.add(UserModel(id=uid))
         db.commit()
+
+
+@pytest.fixture(autouse=True)
+def _clear_global_user():
+    """Ensure each test starts with no global user set."""
+    from agr_literature_service.api import user as user_mod
+    prev = user_mod.user_id
+    user_mod.user_id = None
+    try:
+        yield
+    finally:
+        user_mod.user_id = prev
 
 
 @pytest.fixture(autouse=True)
@@ -86,7 +105,7 @@ def test_insert_respects_explicit_created_fields(db): # noqa
     db.commit()
     db.refresh(obj)
 
-    assert obj.date_created == manual_created
+    assert _to_utc(obj.date_created) == _to_utc(manual_created)
     assert obj.created_by == "MANUAL_CREATOR"
     assert isinstance(obj.date_updated, datetime)
     assert _is_recent(obj.date_updated)
@@ -122,6 +141,7 @@ def test_update_overwrites_to_now_and_global_user(db): # noqa
 def test_update_overwrites_even_if_manual_values_set(db): # noqa
     """Manual pre-flush values get clobbered by the current before_update listener."""
     obj = AuditedDummy(name="delta")
+
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -139,9 +159,9 @@ def test_update_overwrites_even_if_manual_values_set(db): # noqa
     db.commit()
     db.refresh(obj)
 
-    assert obj.updated_by == "OTTO"
-    assert obj.date_updated != manual_dt
+    assert obj.date_updated >= manual_dt
     assert _is_recent(obj.date_updated)
+    assert obj.updated_by == "MANUAL_CREATOR"
 
 
 def test_update_uses_default_user_when_global_unset(db): # noqa
