@@ -1,11 +1,9 @@
 # generated with AI help
 from datetime import datetime, timedelta
-from typing import Optional
 
 import pytz
 import pytest
-from sqlalchemy import Column, Integer, String
-
+from sqlalchemy import Column, Integer, String, inspect
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
@@ -40,31 +38,37 @@ def _ensure_user(db, uid: str): # noqa
         db.commit()
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(autouse=True)
 def _create_tables(db): # noqa
-    """Create the table and ensure required users exist for FK checks."""
-    Base.metadata.create_all(bind=db.get_bind(), tables=[AuditedDummy.__table__])
+    """
+    Ensure the test table exists for each test function and that required users exist.
+    Function-scoped to match the function-scoped `db` fixture.
+    """
+    engine = db.get_bind()
+    insp = inspect(engine)
+    if not insp.has_table(AuditedDummy.__tablename__):
+        Base.metadata.create_all(bind=engine, tables=[AuditedDummy.__table__])
 
+    # Make sure FK targets exist
     for uid in ("default_user", "OTTO", "MANUAL_CREATOR"):
         _ensure_user(db, uid)
 
     yield
 
-    Base.metadata.drop_all(bind=db.get_bind(), tables=[AuditedDummy.__table__])
+    # Clean up rows for isolation, but keep the table to avoid DDL churn
+    db.query(AuditedDummy).delete()
+    db.commit()
 
 
 @pytest.fixture(autouse=True)
 def _reset_global_user(db): # noqa
-    """Reset global user between tests to avoid leakage."""
+    from typing import Optional
     prev: Optional[str] = get_global_user_id()
-
     try:
         set_global_user_id(db, None)  # type: ignore[arg-type]
     except Exception:
         set_global_user_id(db, "default_user")
-
     yield
-
     if prev is None:
         try:
             set_global_user_id(db, None)  # type: ignore[arg-type]
