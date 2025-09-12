@@ -1,4 +1,4 @@
-# tests/api/test_audited_model.py
+# generated with AI help
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -13,6 +13,8 @@ from agr_literature_service.api.user import (
     set_global_user_id,
     get_global_user_id,
 )
+
+from ..fixtures import db  # noqa: F401
 
 
 class AuditedDummy(Base, AuditedModel):
@@ -30,7 +32,7 @@ def _is_recent(dt: datetime, seconds: int = 5) -> bool:
     return abs((_utc_now() - dt).total_seconds()) < seconds
 
 
-def _ensure_user(db, uid: str):
+def _ensure_user(db, uid: str): # noqa
     if uid is None:
         return
     if not db.query(UserModel).filter_by(id=uid).one_or_none():
@@ -39,7 +41,7 @@ def _ensure_user(db, uid: str):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def _create_tables(db):
+def _create_tables(db): # noqa
     """Create the table and ensure required users exist for FK checks."""
     Base.metadata.create_all(bind=db.get_bind(), tables=[AuditedDummy.__table__])
 
@@ -52,7 +54,7 @@ def _create_tables(db):
 
 
 @pytest.fixture(autouse=True)
-def _reset_global_user(db):
+def _reset_global_user(db): # noqa
     """Reset global user between tests to avoid leakage."""
     prev: Optional[str] = get_global_user_id()
 
@@ -72,7 +74,7 @@ def _reset_global_user(db):
         set_global_user_id(db, prev)
 
 
-def test_insert_autostamps_when_no_global_user(db):
+def test_insert_autostamps_when_no_global_user(db): # noqa
     """Insert with no fields set -> stamps dates and default user."""
     obj = AuditedDummy(name="alpha")
     db.add(obj)
@@ -87,7 +89,7 @@ def test_insert_autostamps_when_no_global_user(db):
     assert obj.updated_by == "default_user"
 
 
-def test_insert_respects_explicit_created_fields(db):
+def test_insert_respects_explicit_created_fields(db): # noqa
     """Explicit created fields on insert are kept; updated fields auto-stamped."""
     manual_created = _utc_now() - timedelta(days=10)
     _ensure_user(db, "MANUAL_CREATOR")
@@ -108,7 +110,7 @@ def test_insert_respects_explicit_created_fields(db):
     assert obj.updated_by == "default_user"
 
 
-def test_update_overwrites_to_now_and_global_user(db):
+def test_update_overwrites_to_now_and_global_user(db): # noqa
     """
     Current listener behavior on UPDATE:
       - date_updated := now
@@ -134,7 +136,7 @@ def test_update_overwrites_to_now_and_global_user(db):
     assert _is_recent(obj.date_updated)
 
 
-def test_update_overwrites_even_if_manual_values_set(db):
+def test_update_overwrites_even_if_manual_values_set(db): # noqa
     """Manual pre-flush values get clobbered by the current before_update listener."""
     obj = AuditedDummy(name="delta")
     db.add(obj)
@@ -159,7 +161,7 @@ def test_update_overwrites_even_if_manual_values_set(db):
     assert _is_recent(obj.date_updated)
 
 
-def test_update_uses_default_user_when_global_unset(db):
+def test_update_uses_default_user_when_global_unset(db): # noqa
     """If global user is unset, updated_by falls back to 'default_user'."""
     obj = AuditedDummy(name="echo")
     db.add(obj)
