@@ -1,4 +1,5 @@
 from typing import Dict, Any, List, Optional, cast
+import re
 
 # =========================== Boost policy (central config) ===========================
 
@@ -388,11 +389,20 @@ def compute_minimum_should_match(query: str) -> str:
     return "100%"  # short queries still require full coverage
 
 
+# Strip a trailing */? (common user prefix wildcard) before building analyzer-based
+# queries and let phrase_prefix do the actual prefix match
+def strip_trailing_wildcards(q: str) -> str:
+    # remove one or more trailing * or ?
+    return re.sub(r'[\*\?]+$', '', q or '').strip()
+
+
 def add_simple_text_field_query(es_body: dict, field: str, q: str, partial_match: bool = True):
     """
     Analyzer-based per-field query. No query_string.
     Works even when q contains ':' or other punctuation.
     """
+    q = strip_trailing_wildcards(q)
+
     should = [
         {"match_phrase": {field: {"query": q, "slop": 1, "boost": BOOST_SINGLE_FIELD_PHRASE}}},
         {"match": {field: {
@@ -435,7 +445,9 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
     Keeps boosts and is safe for punctuation like ':'.
     Adds an exact title keyword fallback to help full-title pastes.
     """
-    q = (q or "").strip()
+    raw = (q or "").strip()
+    q_core = strip_trailing_wildcards(raw)
+
     must: List[Dict[str, Any]] = []
     should: List[Dict[str, Any]] = []
     rescore: Optional[Dict[str, Any]] = None
@@ -443,7 +455,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
     # Primary: analyzer-based best_fields with MSM (no query_string)
     must.append({
         "multi_match": {
-            "query": q,
+            "query": q_core,
             "fields": _fields_with_boost(BOOST_BEST_FIELDS),
             "type": "best_fields",
             "operator": "or",
@@ -455,7 +467,7 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
     # Phrase boost across text fields
     should.append({
         "multi_match": {
-            "query": q,
+            "query": q_core,
             "fields": _fields_with_boost(BOOST_PHRASE_FIELDS),
             "type": "phrase",
             "slop": 1,
@@ -465,14 +477,14 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
     # Gentle prefix help
     should.append({
         "multi_match": {
-            "query": q,
+            "query": q_core,
             "fields": _fields_with_boost(BOOST_PREFIX_FIELDS),
             "type": "phrase_prefix",
         }
     })
 
     # Exact title fallback (helps "All" mode for full-title pastes)
-    should.append({"term": {"title.keyword": {"value": q, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
+    should.append({"term": {"title.keyword": {"value": q_core, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
 
     return {"must": must, "should": should, "rescore": rescore, "uses_rescore": False}
 
