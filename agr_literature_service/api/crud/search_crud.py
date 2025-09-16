@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
 import re
+import unicodedata
 from datetime import datetime, date, time, timezone
 
 from elasticsearch import Elasticsearch
@@ -252,7 +253,8 @@ def search_references(
     # 1) ALL fields (or None)
     if query and (query_fields == "All" or query_fields is None):
         q_raw = (query or "").strip()
-        q_free = strip_orcid_prefix_for_free_text(q_raw)
+        q_norm = normalize_user_query(q_raw)
+        q_free = strip_orcid_prefix_for_free_text(q_norm)
 
         bundle = build_all_text_query(q_free, size_result_count, include_id_author_helpers=True)
         for m in bundle["must"]:
@@ -270,8 +272,9 @@ def search_references(
 
     # 2) Single-field text: Title / Abstract / Keyword / Citation
     elif query and query_fields in TEXT_FIELDS:
-        add_simple_text_field_query(es_body, TEXT_FIELDS[query_fields], query, partial_match)
-
+        qn = normalize_user_query(query)
+        add_simple_text_field_query(es_body, TEXT_FIELDS[query_fields], qn, partial_match)
+        
     # 3) Author search
     elif query and query_fields == "Author":
         q = (query or "").strip()
@@ -878,3 +881,18 @@ def nested_orcid_exact(core_lower: str) -> dict:
             "score_mode": "max",
         }
     }
+
+
+# example input: "  Yeast：   cell   cycle　"
+# example output: "Yeast: cell cycle"
+# Changes made:
+# Full-width colon (：) → standard ASCII colon (:)
+# Full-width space (　) → normal space
+# Multiple spaces collapsed into one
+# Leading/trailing spaces trimmed
+def normalize_user_query(s: str) -> str:
+    if not s:
+        return s
+    s = unicodedata.normalize("NFKC", s)   # fixes full-width punctuation like '：'
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s

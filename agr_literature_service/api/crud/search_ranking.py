@@ -1,5 +1,91 @@
 from typing import Dict, Any, List, Optional, cast
 
+# =========================== Boost policy (central config) ===========================
+
+# Boost Set: BOOST_PHRASE_FIELDS
+# Query Type (ES): multi_match "phrase" match_phrase
+# Match Style: Exact phrase, same order (tight match)
+# Example Query → Match Example:
+#     "oxidative stress response" → matches title “Oxidative stress response in yeast”
+# Use Case: Reward exact or near-exact phrases (titles, keywords, known terms)
+BOOST_PHRASE_FIELDS: Dict[str, float] = {
+    "title": 6.0,
+    "keywords": 5.0,
+    "abstract": 3.0,
+    "citation": 2.0,
+}
+
+# Boost Set: BOOST_BEST_FIELDS
+# Query Type (ES): multi_match "best_fields"
+# Match Style: Bag-of-words, order not required; uses MSM (minimum_should_match) %
+# Example Query → Match Example:
+#     "oxidative stress response" → matches title “Response to oxidative stress in yeast”
+# Use Case: General search, supports flexible token order and partial overlap
+BOOST_BEST_FIELDS: Dict[str, float] = {
+    "title": 5.0,
+    "keywords": 2.0,
+    "abstract": 2.0,
+    "citation": 1.0,
+}
+
+# Boost Set: BOOST_PREFIX_FIELDS
+# Query Type (ES): multi_match "phrase_prefix" match_phrase_prefix
+# Match Style: Prefix expansion of last token
+# Example Query → Match Example:
+#     "bioelectroca" → matches title “Bioelectrocatalysis for hydrogen production”
+# Use Case: Type-ahead / partial typing before full query entered
+BOOST_PREFIX_FIELDS: Dict[str, float] = {
+    "title": 2.0,
+    "keywords": 1.0,
+    "abstract": 1.0,
+    "citation": 1.0,
+}
+
+# Boost Constant: BOOST_EXACT_TITLE_KEYWORD
+# Query Type (ES): term on title.keyword
+# Match Style: Exact literal match (no analysis)
+# Example Query → Match Example:
+#     Paste full title "Aerobic mild bioelectrocatalysis: Disentangling dual redox pathways..."
+#        → matches document whose title.keyword is exactly that string
+# Use Case: User pastes full title literally; ensures exact match bubbles to the top
+BOOST_EXACT_TITLE_KEYWORD: float = 6.0
+
+
+# Boost Constant: BOOST_SINGLE_FIELD_MATCH
+# Query Type (ES): match with OR + MSM (minimum_should_match)
+# Match Style: Token-based, word order not required
+# Example Query → Match Example:
+#     Field=Title, query "Disentangling redox pathways"
+#        → matches title containing all tokens, any order
+# Use Case: Single-field search (Title, Abstract, Keywords) where recall matters;
+#           fallback to token matches
+BOOST_SINGLE_FIELD_MATCH: float = 2.0
+
+# Boost Constant: BOOST_SINGLE_FIELD_PHRASE
+# Query Type (ES): match_phrase
+# Match Style: Exact phrase within one field
+# Example Query → Match Example:
+#     Field=Abstract, query "hydrogen evolution reaction"
+#        → matches abstract sentence with that phrase
+# Use Case: User wants phrase-level precision inside one field
+#           (stronger than match, weaker than literal keyword)
+BOOST_SINGLE_FIELD_PHRASE: float = 4.0
+
+# Boost Constant: BOOST_SINGLE_FIELD_PREFIX
+# Query Type (ES): match_phrase_prefix
+# Match Style: Prefix expansion inside one field
+# Example Query → Match Example:
+#     Field=Keyword, query "transgen" → matches keyword "transgenic allele"
+# Use Case: Type-ahead within a chosen field; ensures partial typing still returns
+#           useful results, but with low weight
+BOOST_SINGLE_FIELD_PREFIX: float = 1.2
+
+
+def _fields_with_boost(mapping: Dict[str, float]) -> List[str]:
+    """Convert {"title": 5.0, ...} -> ["title^5.0", ...] for ES field lists."""
+    return [f"{f}^{w}" for f, w in mapping.items()]
+
+
 # --------------------------- Public constants ---------------------------
 
 TEXT_FIELDS = {
@@ -9,7 +95,8 @@ TEXT_FIELDS = {
     "Citation": "citation",
 }
 
-PHRASE_FIELDS = ["title^6", "keywords^5", "abstract^3", "citation^2"]
+# Keep these exported for any callers that rely on them
+PHRASE_FIELDS = _fields_with_boost(BOOST_PHRASE_FIELDS)
 ALL_TEXT_FIELDS = ["title", "keywords", "abstract", "citation"]
 
 
@@ -286,17 +373,43 @@ def strip_orcid_prefix_for_free_text(q: str) -> str:
     return re.sub(r'(?i)^\s*orcid:\s*', '', q or '').strip()
 
 
-def add_simple_text_field_query(es_body: Dict[str, Any], field_name: str, query: str, partial: bool) -> None:
-    q = f"{query}*" if partial else query
-    es_body["query"]["bool"]["must"].append({
-        "simple_query_string": {
-            "fields": [field_name],
+def compute_minimum_should_match(query: str) -> str:
+    """
+    Compute an appropriate minimum_should_match threshold string
+    based on the length (in tokens) of the query.
+    """
+    n = len((query or "").split())
+    if n >= 16:
+        return "70%"
+    if n >= 10:
+        return "75%"
+    if n >= 6:
+        return "80%"
+    return "100%"  # short queries still require full coverage
+
+
+def add_simple_text_field_query(es_body: dict, field: str, q: str, partial_match: bool = True):
+    """
+    Analyzer-based per-field query. No query_string.
+    Works even when q contains ':' or other punctuation.
+    """
+    should = [
+        {"match_phrase": {field: {"query": q, "slop": 1, "boost": BOOST_SINGLE_FIELD_PHRASE}}},
+        {"match": {field: {
             "query": q,
-            "analyze_wildcard": True,
-            "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE",
-            "default_operator": "and",
-        }
-    })
+            "operator": "or",
+            "minimum_should_match": compute_minimum_should_match(q),
+            "boost": BOOST_SINGLE_FIELD_MATCH,
+        }}},
+    ]
+    if partial_match:
+        should.append({"match_phrase_prefix": {field: {"query": q, "boost": BOOST_SINGLE_FIELD_PREFIX}}})
+
+    # Exact field fallback only for Title (useful for full-title pastes)
+    if field == "title":
+        should.append({"term": {"title.keyword": {"value": q, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
+
+    es_body["query"]["bool"]["must"].append({"bool": {"should": should, "minimum_should_match": 1}})
 
 
 def build_id_xref_author_helpers(phrase: str, *, include_author: bool = True) -> List[Dict[str, Any]]:
@@ -316,44 +429,52 @@ def build_id_xref_author_helpers(phrase: str, *, include_author: bool = True) ->
     return helpers
 
 
-def build_all_text_query(
-    q_free: str,
-    size_result_count: int,
-    *,
-    include_id_author_helpers: bool = True
-) -> Dict[str, Any]:
-    is_quoted = len(q_free) >= 2 and q_free[0] == '"' and q_free[-1] == '"'
-    phrase = q_free[1:-1].strip() if is_quoted else q_free
+def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_helpers: bool = False):
+    """
+    Analyzer-based multi-field query (no query_string).
+    Keeps boosts and is safe for punctuation like ':'.
+    Adds an exact title keyword fallback to help full-title pastes.
+    """
+    q = (q or "").strip()
+    must: List[Dict[str, Any]] = []
+    should: List[Dict[str, Any]] = []
+    rescore: Optional[Dict[str, Any]] = None
 
-    id_shoulds = build_id_xref_author_helpers(phrase, include_author=include_id_author_helpers)
-
-    res: Dict[str, Any] = {"must": [], "should": [], "rescore": None, "uses_rescore": False}
-
-    if is_quoted and len(phrase.split()) >= 2:
-        res["must"].append({
-            "multi_match": {"type": "phrase", "query": phrase, "slop": 1, "fields": PHRASE_FIELDS}
-        })
-        res["should"].extend(id_shoulds)
-        res["rescore"] = rescore_exact_phrase(phrase, PHRASE_FIELDS, size_result_count, weight=20.0)
-        res["uses_rescore"] = True
-    else:
-        exact_phrase_should = {
-            "multi_match": {"type": "phrase", "query": phrase, "slop": 1, "fields": PHRASE_FIELDS, "boost": 9.0}
+    # Primary: analyzer-based best_fields with MSM (no query_string)
+    must.append({
+        "multi_match": {
+            "query": q,
+            "fields": _fields_with_boost(BOOST_BEST_FIELDS),
+            "type": "best_fields",
+            "operator": "or",
+            "minimum_should_match": compute_minimum_should_match(q),
+            "tie_breaker": 0.1,
         }
-        prefix_should = {
-            "simple_query_string": {
-                "fields": ALL_TEXT_FIELDS,
-                "query": phrase + "*",
-                "analyze_wildcard": True,
-                "flags": "PHRASE|PREFIX|WHITESPACE|OR|AND|ESCAPE",
-                "default_operator": "and"
-            }
+    })
+
+    # Phrase boost across text fields
+    should.append({
+        "multi_match": {
+            "query": q,
+            "fields": _fields_with_boost(BOOST_PHRASE_FIELDS),
+            "type": "phrase",
+            "slop": 1,
         }
-        res["must"].append({"bool": {"should": [exact_phrase_should, prefix_should] + id_shoulds,
-                                     "minimum_should_match": 1}})
-        res["rescore"] = rescore_exact_phrase(phrase, PHRASE_FIELDS, size_result_count, weight=18.0)
-        res["uses_rescore"] = True
-    return res
+    })
+
+    # Gentle prefix help
+    should.append({
+        "multi_match": {
+            "query": q,
+            "fields": _fields_with_boost(BOOST_PREFIX_FIELDS),
+            "type": "phrase_prefix",
+        }
+    })
+
+    # Exact title fallback (helps "All" mode for full-title pastes)
+    should.append({"term": {"title.keyword": {"value": q, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
+
+    return {"must": must, "should": should, "rescore": rescore, "uses_rescore": False}
 
 
 # --------------------------- Scoring + Sorting policy ---------------------------
