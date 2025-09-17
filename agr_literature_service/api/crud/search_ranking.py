@@ -393,31 +393,46 @@ def compute_minimum_should_match(query: str) -> str:
 # queries and let phrase_prefix do the actual prefix match
 def strip_trailing_wildcards(q: str) -> str:
     # remove one or more trailing * or ?
-    return re.sub(r'[\*\?]+$', '', q or '').strip()
+    return re.sub(r'[\*\?]+$', '', (q or '').strip())
 
 
 def add_simple_text_field_query(es_body: dict, field: str, q: str, partial_match: bool = True):
     """
-    Analyzer-based per-field query. No query_string.
-    Works even when q contains ':' or other punctuation.
+    Purpose: Build a per-field query (e.g., Title-only search).
+    Example: User chooses “Title” and types "boo*" => "boo" is passed into:
+       * match_phrase on title
+       * match on title (tokens)
+       * match_phrase_prefix on title
+       * term on title.keyword
+    So Book 1 and Book 2 titles match via the prefix clause.
     """
-    q = strip_trailing_wildcards(q)
+    # Sanitize query: Strip trailing * → turns "boo*" into "boo" so we can use prefix
+    # expansion safely.
+    q_core = strip_trailing_wildcards(q)
 
+    # 1. Phrase match: match_phrase → looks for the exact sequence of words in the field
+    #    ("hydrogen evolution reaction" in abstract).
+    # 2. Token match: match with minimum_should_match → finds documents containing most
+    #    or all tokens, in any order.
     should = [
-        {"match_phrase": {field: {"query": q, "slop": 1, "boost": BOOST_SINGLE_FIELD_PHRASE}}},
+        {"match_phrase": {field: {"query": q_core, "slop": 1, "boost": BOOST_SINGLE_FIELD_PHRASE}}},
         {"match": {field: {
-            "query": q,
+            "query": q_core,
             "operator": "or",
-            "minimum_should_match": compute_minimum_should_match(q),
+            "minimum_should_match": compute_minimum_should_match(q_core),
             "boost": BOOST_SINGLE_FIELD_MATCH,
         }}},
     ]
-    if partial_match:
-        should.append({"match_phrase_prefix": {field: {"query": q, "boost": BOOST_SINGLE_FIELD_PREFIX}}})
 
-    # Exact field fallback only for Title (useful for full-title pastes)
+    # 3. Optional prefix: If partial_match=True, add match_phrase_prefix → "transgen" matches
+    #    "transgenic allele".
+    if partial_match:
+        should.append({"match_phrase_prefix": {field: {"query": q_core, "boost": BOOST_SINGLE_FIELD_PREFIX}}})
+
+    # 4. Exact title fallback: If searching Title, add term query on title.keyword → exact
+    #    literal match (good for full-title pastes).
     if field == "title":
-        should.append({"term": {"title.keyword": {"value": q, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
+        should.append({"term": {"title.keyword": {"value": q_core, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
 
     es_body["query"]["bool"]["must"].append({"bool": {"should": should, "minimum_should_match": 1}})
 
@@ -439,12 +454,19 @@ def build_id_xref_author_helpers(phrase: str, *, include_author: bool = True) ->
     return helpers
 
 
-def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_helpers: bool = False):
+def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_helpers: bool = True):
     """
-    Analyzer-based multi-field query (no query_string).
-    Keeps boosts and is safe for punctuation like ':'.
-    Adds an exact title keyword fallback to help full-title pastes.
+    Build an all-fields query (Title + Abstract + Keywords + Citation). This is the default search
+    if the user doesn’t pick a single field.
+    Example: User searches "Jane Doe" with no field restriction:
+      * best_fields → might hit tokens "Jane" and "Doe" in title/abstract/etc. (unlikely).
+      * phrase → not found in title/abstract.
+      * prefix → not found.
+      * ID/Author helpers → nested author match on authors.name matches exactly →
+        document 2 is returned.
     """
+
+    # Sanitize query
     raw = (q or "").strip()
     q_core = strip_trailing_wildcards(raw)
 
@@ -452,39 +474,50 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
     should: List[Dict[str, Any]] = []
     rescore: Optional[Dict[str, Any]] = None
 
-    # Primary: analyzer-based best_fields with MSM (no query_string)
-    must.append({
+    # best_fields → token bag-of-words, flexible word order
+    best_fields_clause = {
         "multi_match": {
             "query": q_core,
             "fields": _fields_with_boost(BOOST_BEST_FIELDS),
             "type": "best_fields",
             "operator": "or",
-            "minimum_should_match": compute_minimum_should_match(q),
+            "minimum_should_match": compute_minimum_should_match(q_core),
             "tie_breaker": 0.1,
         }
-    })
-
-    # Phrase boost across text fields
-    should.append({
+    }
+    # phrase → tight phrase match
+    phrase_clause = {
         "multi_match": {
             "query": q_core,
             "fields": _fields_with_boost(BOOST_PHRASE_FIELDS),
             "type": "phrase",
             "slop": 1,
         }
-    })
-
-    # Gentle prefix help
-    should.append({
+    }
+    # phrase_prefix → prefix expansion for type-ahead / wildcard queries
+    prefix_clause = {
         "multi_match": {
             "query": q_core,
             "fields": _fields_with_boost(BOOST_PREFIX_FIELDS),
             "type": "phrase_prefix",
         }
+    }
+
+    # Make one MUST that allows any of the three to satisfy it
+    must.append({
+        "bool": {
+            "should": [best_fields_clause, phrase_clause, prefix_clause],
+            "minimum_should_match": 1
+        }
     })
 
-    # Exact title fallback (helps "All" mode for full-title pastes)
+    # title.keyword exact → strong boost if full title pasted.
     should.append({"term": {"title.keyword": {"value": q_core, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
+
+    # ID/Author helpers (curie.keyword, xref.curie.keyword, author names) →
+    # so queries like "Jane Doe" or "PMID:12345" still work in “All”.
+    if include_id_author_helpers:
+        should.extend(build_id_xref_author_helpers(q_core, include_author=True))
 
     return {"must": must, "should": should, "rescore": rescore, "uses_rescore": False}
 
