@@ -503,21 +503,22 @@ def build_all_text_query(q: str, size_result_count: int = 10, include_id_author_
         }
     }
 
-    # Make one MUST that allows any of the three to satisfy it
+    # Build the MUST.should set: any of these can satisfy the MUST
+    must_should: List[Dict[str, Any]] = [best_fields_clause, phrase_clause, prefix_clause]
+
+    # include helpers INSIDE the MUST path so ID/Xref/Author-only queries match
+    if include_id_author_helpers:
+        must_should.extend(build_id_xref_author_helpers(q_core, include_author=True))
+
     must.append({
         "bool": {
-            "should": [best_fields_clause, phrase_clause, prefix_clause],
+            "should": must_should,
             "minimum_should_match": 1
         }
     })
 
     # title.keyword exact → strong boost if full title pasted.
     should.append({"term": {"title.keyword": {"value": q_core, "boost": BOOST_EXACT_TITLE_KEYWORD}}})
-
-    # ID/Author helpers (curie.keyword, xref.curie.keyword, author names) →
-    # so queries like "Jane Doe" or "PMID:12345" still work in “All”.
-    if include_id_author_helpers:
-        should.extend(build_id_xref_author_helpers(q_core, include_author=True))
 
     return {"must": must, "should": should, "rescore": rescore, "uses_rescore": False}
 
