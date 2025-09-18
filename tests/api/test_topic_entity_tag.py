@@ -837,7 +837,7 @@ class TestTopicEntityTag:
 class TestTopicEntityTagMLModelRelationship:
     """Test class for ML model and topic entity tag relationships."""
 
-    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_reference, test_mod, auth_headers):
+    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_reference, test_mod, auth_headers): # noqa
         """Test creating a topic entity tag with a valid ml_model_id."""
         with TestClient(app) as client:
             # First create an ML model
@@ -878,7 +878,7 @@ class TestTopicEntityTagMLModelRelationship:
             tag_result = get_resp.json()
             assert tag_result["ml_model_id"] == ml_model_id
 
-    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_reference, test_mod, auth_headers):
+    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_reference, test_mod, auth_headers): # noqa
         """Test creating a topic entity tag with an invalid ml_model_id."""
         with TestClient(app) as client:
             # Create a topic entity tag source
@@ -902,7 +902,7 @@ class TestTopicEntityTagMLModelRelationship:
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
             assert tag_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, auth_headers):
+    def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, auth_headers): # noqa
         """Test that getting a topic entity tag returns ml_model_version."""
         with TestClient(app) as client:
             # Create an ML model
@@ -944,7 +944,7 @@ class TestTopicEntityTagMLModelRelationship:
             assert "ml_model_version" in tag_result
             assert tag_result["ml_model_version"] == "2.0.0"
 
-    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, auth_headers):
+    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, auth_headers): # noqa
         """Test that getting all reference tags includes ml_model_version."""
         with TestClient(app) as client:
             # Create an ML model
@@ -990,7 +990,7 @@ class TestTopicEntityTagMLModelRelationship:
             assert "ml_model_version" in our_tag
             assert our_tag["ml_model_version"] == "3.0.0"
 
-    def test_database_model_relationship(self, test_reference, test_mod, auth_headers):
+    def test_database_model_relationship(self, test_reference, test_mod, auth_headers): # noqa
         """Test that the database model relationship works correctly."""
         with TestClient(app) as client:
             # Create an ML model
@@ -1772,7 +1772,7 @@ class TestTopicEntityTagMLModelRelationship:
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
 
-    def test_revalidation_on_delete_with_conflicting_validations(self, test_reference, test_mod, auth_headers, db): # noqa
+    def test_revalidation_on_delete_with_conflicting_validations(self, test_reference, test_mod, auth_headers, db):  # noqa
         """
         Test revalidation when deleting a tag that causes validation conflicts.
 
@@ -1893,16 +1893,12 @@ class TestTopicEntityTagMLModelRelationship:
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
 
-
-class TestTopicEntityTagMLModelRelationship:
-    """Test ML model and topic entity tag relationships."""
-
-    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers): # noqa
+    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db):  # noqa
         """Test creating topic entity tag with valid ML model ID via CRUD function."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-        from ..fixtures import db
+        # from ..fixtures import db
 
         with TestClient(app) as client:
             # Create topic entity tag data
@@ -1926,7 +1922,7 @@ class TestTopicEntityTagMLModelRelationship:
             tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
             # Use CRUD function directly to test ml_model_id parameter
-            with db() as session:
+            with db as session:
                 result = create_tag(
                     db=session,
                     topic_entity_tag=tag_schema,
@@ -1943,15 +1939,15 @@ class TestTopicEntityTagMLModelRelationship:
                 tag_data_response = response.json()
                 assert tag_data_response["ml_model_version"] == test_ml_model["version_num"]
 
-    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers): # noqa
+    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers,db): # noqa
         """Test creating topic entity tag with invalid ML model ID raises error."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
         from fastapi import HTTPException
-        from ..fixtures import db
+        # from ..fixtures import db
 
-        with TestClient(app) as client:
+        with TestClient(app) as client:  # noqa
             tag_data = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000122",
@@ -1969,7 +1965,7 @@ class TestTopicEntityTagMLModelRelationship:
             tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
             # Test with invalid ML model ID
-            with db() as session:
+            with db as session:
                 with pytest.raises(HTTPException) as exc_info:
                     create_tag(
                         db=session,
@@ -1980,12 +1976,12 @@ class TestTopicEntityTagMLModelRelationship:
                 assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
                 assert "ML model with ID 99999 not found" in str(exc_info.value.detail)
 
-    def test_create_topic_entity_tag_without_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers): # noqa
+    def test_create_topic_entity_tag_without_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers, db): # noqa
         """Test creating topic entity tag without ML model ID works normally."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-        from ..fixtures import db
+        # from ..fixtures import db
 
         with TestClient(app) as client:
             tag_data = {
@@ -2005,7 +2001,7 @@ class TestTopicEntityTagMLModelRelationship:
             tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
             # Create without ML model ID
-            with db() as session:
+            with db as session:
                 result = create_tag(
                     db=session,
                     topic_entity_tag=tag_schema,
@@ -2021,183 +2017,180 @@ class TestTopicEntityTagMLModelRelationship:
                 tag_data_response = response.json()
                 assert "ml_model_version" not in tag_data_response
 
-    def test_show_topic_entity_tag_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers): # noqa
+    def test_show_topic_entity_tag_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
         """Test show_tag function returns ml_model_version when associated."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, show_tag
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-        from ..fixtures import db
+        # from ..fixtures import db
 
-        with TestClient(app) as client:
-            tag_data = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_id_validation": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                "negated": False,
-                "data_novelty": "ATP:0000334",
-                "created_by": "WBPerson1"
-            }
+        tag_data = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "created_by": "WBPerson1"
+        }
 
-            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+        tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-            with db() as session:
-                # Create with ML model ID
-                result = create_tag(
-                    db=session,
-                    topic_entity_tag=tag_schema,
-                    ml_model_id=test_ml_model["ml_model_id"]
-                )
-                tag_id = result["topic_entity_tag_id"]
+        with db as session:
+            # Create with ML model ID
+            result = create_tag(
+                db=session,
+                topic_entity_tag=tag_schema,
+                ml_model_id=test_ml_model["ml_model_id"]
+            )
+            tag_id = result["topic_entity_tag_id"]
 
-                # Test show_tag function directly
-                tag_details = show_tag(session, tag_id)
-                assert "ml_model_version" in tag_details
-                assert tag_details["ml_model_version"] == test_ml_model["version_num"]
+            # Test show_tag function directly
+            tag_details = show_tag(session, tag_id)
+            assert "ml_model_version" in tag_details
+            assert tag_details["ml_model_version"] == test_ml_model["version_num"]
 
-    def test_show_all_reference_tags_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers): # noqa
+
+    def test_show_all_reference_tags_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
         """Test show_all_reference_tags function returns ml_model_version when associated."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, show_all_reference_tags
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-        from ..fixtures import db
+        # from ..fixtures import db
 
-        with TestClient(app) as client:
-            tag_data = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_id_validation": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                "negated": False,
-                "data_novelty": "ATP:0000334",
-                "created_by": "WBPerson1"
-            }
+        tag_data = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "created_by": "WBPerson1"
+        }
 
-            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+        tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-            with db() as session:
-                # Create with ML model ID
-                create_tag(
-                    db=session,
-                    topic_entity_tag=tag_schema,
-                    ml_model_id=test_ml_model["ml_model_id"]
-                )
+        with db as session:
+            # Create with ML model ID
+            create_tag(
+                db=session,
+                topic_entity_tag=tag_schema,
+                ml_model_id=test_ml_model["ml_model_id"]
+            )
 
-                # Test show_all_reference_tags function
-                all_tags = show_all_reference_tags(session, test_reference.new_ref_curie)
+            # Test show_all_reference_tags function
+            all_tags = show_all_reference_tags(session, test_reference.new_ref_curie)
 
-                # Find our tag with ML model
-                ml_model_tags = [tag for tag in all_tags if "ml_model_version" in tag]
-                assert len(ml_model_tags) > 0
+            # Find our tag with ML model
+            ml_model_tags = [tag for tag in all_tags if "ml_model_version" in tag]
+            assert len(ml_model_tags) > 0
 
-                ml_tag = ml_model_tags[0]
-                assert ml_tag["ml_model_version"] == test_ml_model["version_num"]
+            ml_tag = ml_model_tags[0]
+            assert ml_tag["ml_model_version"] == test_ml_model["version_num"]
 
-    def test_database_model_relationships(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers): # noqa
+
+    def test_database_model_relationships(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
         """Test that database model relationships work correctly."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
         from agr_literature_service.api.models import TopicEntityTagModel, MLModel
-        from ..fixtures import db
 
-        with TestClient(app) as client:
-            tag_data = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_id_validation": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                "negated": False,
-                "data_novelty": "ATP:0000334",
-                "created_by": "WBPerson1"
-            }
+        tag_data = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "created_by": "WBPerson1"
+        }
 
-            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+        tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-            with db() as session:
-                # Create with ML model ID
-                result = create_tag(
-                    db=session,
-                    topic_entity_tag=tag_schema,
-                    ml_model_id=test_ml_model["ml_model_id"]
-                )
-                tag_id = result["topic_entity_tag_id"]
+        with db as session:
+            # Create with ML model ID
+            result = create_tag(
+                db=session,
+                topic_entity_tag=tag_schema,
+                ml_model_id=test_ml_model["ml_model_id"]
+            )
+            tag_id = result["topic_entity_tag_id"]
 
-                # Test database relationships
-                tag_obj = session.query(TopicEntityTagModel).filter(
-                    TopicEntityTagModel.topic_entity_tag_id == tag_id
-                ).first()
+            # Test database relationships
+            tag_obj = session.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == tag_id
+            ).first()
 
-                assert tag_obj is not None
-                assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
+            assert tag_obj is not None
+            assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
 
-                # Test the relationship
-                assert tag_obj.ml_model is not None
-                assert tag_obj.ml_model.version_num == test_ml_model["version_num"]
+            # Test the relationship
+            assert tag_obj.ml_model is not None
+            assert tag_obj.ml_model.version_num == test_ml_model["version_num"]
 
-                # Test foreign key constraint by verifying ML model
-                ml_model_obj = session.query(MLModel).filter(
-                    MLModel.ml_model_id == test_ml_model["ml_model_id"]
-                ).first()
+            # Test foreign key constraint by verifying ML model
+            ml_model_obj = session.query(MLModel).filter(
+                MLModel.ml_model_id == test_ml_model["ml_model_id"]
+            ).first()
 
-                assert ml_model_obj is not None
-                assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
+            assert ml_model_obj is not None
+            assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
 
-    def test_ml_model_deletion_sets_null(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers): # noqa
+
+    def test_ml_model_deletion_sets_null(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
         """Test that deleting ML model sets topic_entity_tag.ml_model_id to NULL."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
         from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
         from agr_literature_service.api.models import TopicEntityTagModel, MLModel
-        from ..fixtures import db
 
-        with TestClient(app) as client:
-            tag_data = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000122",
-                "entity_type": "ATP:0000005",
-                "entity": "WB:WBGene00003001",
-                "entity_id_validation": "alliance",
-                "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-                "negated": False,
-                "data_novelty": "ATP:0000334",
-                "created_by": "WBPerson1"
-            }
+        tag_data = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "created_by": "WBPerson1"
+        }
 
-            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+        tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-            with db() as session:
-                # Create with ML model ID
-                result = create_tag(
-                    db=session,
-                    topic_entity_tag=tag_schema,
-                    ml_model_id=test_ml_model["ml_model_id"]
-                )
-                tag_id = result["topic_entity_tag_id"]
+        with db as session:
+            # Create with ML model ID
+            result = create_tag(
+                db=session,
+                topic_entity_tag=tag_schema,
+                ml_model_id=test_ml_model["ml_model_id"]
+            )
+            tag_id = result["topic_entity_tag_id"]
 
-                # Verify the association exists
-                tag_obj = session.query(TopicEntityTagModel).filter(
-                    TopicEntityTagModel.topic_entity_tag_id == tag_id
-                ).first()
-                assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
+            # Verify the association exists
+            tag_obj = session.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == tag_id
+            ).first()
+            assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
 
-                # Delete the ML model
-                ml_model_obj = session.query(MLModel).filter(
-                    MLModel.ml_model_id == test_ml_model["ml_model_id"]
-                ).first()
-                session.delete(ml_model_obj)
-                session.commit()
+            # Delete the ML model
+            ml_model_obj = session.query(MLModel).filter(
+                MLModel.ml_model_id == test_ml_model["ml_model_id"]
+            ).first()
+            session.delete(ml_model_obj)
+            session.commit()
 
-                # Verify the topic_entity_tag.ml_model_id is now NULL
-                session.refresh(tag_obj)
-                assert tag_obj.ml_model_id is None
+            # Verify the topic_entity_tag.ml_model_id is now NULL
+            session.refresh(tag_obj)
+            assert tag_obj.ml_model_id is None
