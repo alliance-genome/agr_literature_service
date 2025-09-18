@@ -2076,23 +2076,23 @@ class TestTopicEntityTagMLModelRelationship:
 
         tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-        with db as session:
-            # Create with ML model ID
-            create_tag(
-                db=session,
-                topic_entity_tag=tag_schema,
-                ml_model_id=test_ml_model["ml_model_id"]
-            )
 
-            # Test show_all_reference_tags function
-            all_tags = show_all_reference_tags(session, test_reference.new_ref_curie)
+        # Create with ML model ID
+        create_tag(
+            db,
+            topic_entity_tag=tag_schema,
+            ml_model_id=test_ml_model["ml_model_id"]
+        )
 
-            # Find our tag with ML model
-            ml_model_tags = [tag for tag in all_tags if "ml_model_version" in tag]
-            assert len(ml_model_tags) > 0
+        # Test show_all_reference_tags function
+        all_tags = show_all_reference_tags(db, test_reference.new_ref_curie)
 
-            ml_tag = ml_model_tags[0]
-            assert ml_tag["ml_model_version"] == test_ml_model["version_num"]
+        # Find our tag with ML model
+        ml_model_tags = [tag for tag in all_tags if "ml_model_version" in tag]
+        assert len(ml_model_tags) > 0
+
+        ml_tag = ml_model_tags[0]
+        assert ml_tag["ml_model_version"] == test_ml_model["version_num"]
 
 
     def test_database_model_relationships(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
@@ -2117,34 +2117,32 @@ class TestTopicEntityTagMLModelRelationship:
 
         tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-        with db as session:
-            # Create with ML model ID
-            result = create_tag(
-                db=session,
-                topic_entity_tag=tag_schema,
-                ml_model_id=test_ml_model["ml_model_id"]
-            )
-            tag_id = result["topic_entity_tag_id"]
+        result = create_tag(
+            db,
+            topic_entity_tag=tag_schema,
+            ml_model_id=test_ml_model["ml_model_id"]
+        )
+        tag_id = result["topic_entity_tag_id"]
 
-            # Test database relationships
-            tag_obj = session.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == tag_id
-            ).first()
+        # Test database relationships
+        tag_obj = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == tag_id
+        ).first()
 
-            assert tag_obj is not None
-            assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
+        assert tag_obj is not None
+        assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
 
-            # Test the relationship
-            assert tag_obj.ml_model is not None
-            assert tag_obj.ml_model.version_num == test_ml_model["version_num"]
+        # Test the relationship
+        assert tag_obj.ml_model is not None
+        assert tag_obj.ml_model.version_num == test_ml_model["version_num"]
 
-            # Test foreign key constraint by verifying ML model
-            ml_model_obj = session.query(MLModel).filter(
-                MLModel.ml_model_id == test_ml_model["ml_model_id"]
-            ).first()
+        # Test foreign key constraint by verifying ML model
+        ml_model_obj = db.query(MLModel).filter(
+            MLModel.ml_model_id == test_ml_model["ml_model_id"]
+        ).first()
 
-            assert ml_model_obj is not None
-            assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
+        assert ml_model_obj is not None
+        assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
 
 
     def test_ml_model_deletion_sets_null(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
