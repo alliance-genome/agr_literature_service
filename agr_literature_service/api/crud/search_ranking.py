@@ -370,7 +370,6 @@ def author_bucket_sort(order: str = "desc") -> List[Dict[str, Any]]:
 
 
 def strip_orcid_prefix_for_free_text(q: str) -> str:
-    import re
     return re.sub(r'(?i)^\s*orcid:\s*', '', q or '').strip()
 
 
@@ -569,7 +568,6 @@ _STOPWORDS_FOR_GATE = {
 
 
 def _content_tokens_for_gate(q: str) -> list[str]:
-    import re
     return [t for t in re.findall(r"[A-Za-z0-9']+", (q or "").lower())
             if t not in _STOPWORDS_FOR_GATE and len(t) > 1]
 
