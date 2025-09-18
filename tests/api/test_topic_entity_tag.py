@@ -1893,7 +1893,7 @@ class TestTopicEntityTagMLModelRelationship:
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
 
-    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db):  # noqa
+    def test_create_topic_entity_tag_with_valid_ml_model_id_two(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db):  # noqa
         """Test creating topic entity tag with valid ML model ID via CRUD function."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
@@ -1939,7 +1939,7 @@ class TestTopicEntityTagMLModelRelationship:
                 tag_data_response = response.json()
                 assert tag_data_response["ml_model_version"] == test_ml_model["version_num"]
 
-    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers,db): # noqa
+    def test_create_topic_entity_tag_with_invalid_ml_model_id_two(self, test_topic_entity_tag_source, test_reference, auth_headers, db): # noqa
         """Test creating topic entity tag with invalid ML model ID raises error."""
         load_name_to_atp_and_relationships_mock()
         from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
