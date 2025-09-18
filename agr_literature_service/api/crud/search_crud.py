@@ -27,6 +27,7 @@ from agr_literature_service.api.crud.search_ranking import (
     apply_scoring_and_sort,
     build_author_bucket_function_score,
     author_bucket_sort,
+    build_content_gate_filter,
 )
 from agr_literature_service.api.crud.search_filters import (
     apply_all_date_filters,
@@ -256,6 +257,7 @@ def search_references(
         q_norm = normalize_user_query(q_raw)
         q_free = strip_orcid_prefix_for_free_text(q_norm)
 
+        # Build the standard multi-field query bundle
         bundle = build_all_text_query(q_free, size_result_count, include_id_author_helpers=True)
         for m in bundle["must"]:
             es_body["query"]["bool"]["must"].append(m)
@@ -266,9 +268,18 @@ def search_references(
             es_body["rescore"] = bundle["rescore"]
         uses_rescore = bool(bundle.get("uses_rescore"))
 
+        # ORCID support
         core = extract_orcid_core(q_raw)
         if core:
             es_body["query"]["bool"]["should"].append(nested_orcid_exact(core))
+
+        # ---------------------------
+        # Content-gate filter: drop queries that are just stopwords
+        # ---------------------------
+        cg = build_content_gate_filter(q_free)   # from search_ranking.py
+        if cg:
+            ensure_structure(es_body)  # guarantees filter.bool.must exists
+            es_body["query"]["bool"]["filter"]["bool"]["must"].append(cg)
 
     # 2) Single-field text: Title / Abstract / Keyword / Citation
     elif query and query_fields in TEXT_FIELDS:
