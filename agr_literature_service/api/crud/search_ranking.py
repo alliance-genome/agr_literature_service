@@ -562,9 +562,9 @@ def apply_scoring_and_sort(
 
 # Stopwords only for gating/highlighting (does not affect scoring queries).
 _STOPWORDS_FOR_GATE = {
-    "a","an","and","are","as","at","be","been","but","by","for","from","in",
-    "is","it","its","of","on","or","that","the","their","there","these","this",
-    "to","was","were","with","within","without","we","our","you","your"
+    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "for", "from", "in",
+    "is", "it", "its", "of", "on", "or", "that", "the", "their", "there", "these", "this",
+    "to", "was", "were", "with", "within", "without", "we", "our", "you", "your"
 }
 
 
@@ -580,9 +580,12 @@ def _msm_for_content_gate(tokens_count: int) -> str:
       1–2 -> 100%,  3–5 -> 80%,  6–9 -> 70%,  >=10 -> 60%
     """
     n = int(tokens_count)
-    if n <= 2:  return "100%"
-    if n <= 5:  return "80%"
-    if n <= 9:  return "70%"
+    if n <= 2:
+        return "100%"
+    if n <= 5:
+        return "80%"
+    if n <= 9:
+        return "70%"
     return "60%"
 
 
@@ -598,7 +601,7 @@ def build_content_gate_filter(q: str) -> dict | None:
     return {
         "multi_match": {
             "query": " ".join(toks),
-            "fields": ["title","abstract","keywords","citation"],
+            "fields": ["title", "abstract", "keywords", "citation"],
             "type": "best_fields",
             "operator": "or",
             "minimum_should_match": _msm_for_content_gate(len(toks))
