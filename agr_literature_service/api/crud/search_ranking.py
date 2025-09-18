@@ -370,7 +370,6 @@ def author_bucket_sort(order: str = "desc") -> List[Dict[str, Any]]:
 
 
 def strip_orcid_prefix_for_free_text(q: str) -> str:
-    import re
     return re.sub(r'(?i)^\s*orcid:\s*', '', q or '').strip()
 
 
@@ -556,3 +555,53 @@ def apply_scoring_and_sort(
             {"_score": {"order": "desc"}},
             {"curie.keyword": {"order": "asc"}},
         ]
+
+
+# --------------------------- Content-word gating (optional filter) ---------------------------
+
+# Stopwords only for gating/highlighting (does not affect scoring queries).
+_STOPWORDS_FOR_GATE = {
+    "a", "an", "and", "are", "as", "at", "be", "been", "but", "by", "for", "from", "in",
+    "is", "it", "its", "of", "on", "or", "that", "the", "their", "there", "these", "this",
+    "to", "was", "were", "with", "within", "without", "we", "our", "you", "your"
+}
+
+
+def _content_tokens_for_gate(q: str) -> list[str]:
+    return [t for t in re.findall(r"[A-Za-z0-9']+", (q or "").lower())
+            if t not in _STOPWORDS_FOR_GATE and len(t) > 1]
+
+
+def _msm_for_content_gate(tokens_count: int) -> str:
+    """
+    Require a reasonable share of content tokens:
+      1–2 -> 100%,  3–5 -> 80%,  6–9 -> 70%,  >=10 -> 60%
+    """
+    n = int(tokens_count)
+    if n <= 2:
+        return "100%"
+    if n <= 5:
+        return "80%"
+    if n <= 9:
+        return "70%"
+    return "60%"
+
+
+def build_content_gate_filter(q: str) -> dict | None:
+    """
+    Return a filter clause that forces at least some non-stopword tokens from q
+    to appear in the main text fields. Returns None if there are no content tokens.
+    This is a FILTER (does not change scoring).
+    """
+    toks = _content_tokens_for_gate(q)
+    if not toks:
+        return None
+    return {
+        "multi_match": {
+            "query": " ".join(toks),
+            "fields": ["title", "abstract", "keywords", "citation"],
+            "type": "best_fields",
+            "operator": "or",
+            "minimum_should_match": _msm_for_content_gate(len(toks))
+        }
+    }
