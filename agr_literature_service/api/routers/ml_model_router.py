@@ -113,7 +113,7 @@ def destroy(ml_model_id: int,
             response_model=MLModelSchemaShow,
             status_code=200)
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}',
-            response_model=MLModelSchemaShow,
+            response_model=MLModelSchemaShow,1
             status_code=200)
 @router.get('/metadata/{task_type}/{mod_abbreviation}',
             response_model=MLModelSchemaShow,
