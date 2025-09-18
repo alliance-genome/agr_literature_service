@@ -855,7 +855,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "source_evidence_assertion": "ECO:0000305",
                 "source_method": "research_paper_experimental",
                 "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.mod_id
+                "secondary_data_provider_id": test_mod.new_mod_id
             }
             source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
@@ -886,7 +886,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "source_evidence_assertion": "ECO:0000305",
                 "source_method": "research_paper_experimental",
                 "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.mod_id
+                "secondary_data_provider_id": test_mod.new_mod_id
             }
             source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
@@ -920,7 +920,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "source_evidence_assertion": "ECO:0000305",
                 "source_method": "research_paper_experimental",
                 "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.mod_id
+                "secondary_data_provider_id": test_mod.new_mod_id
             }
             source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
@@ -962,7 +962,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "source_evidence_assertion": "ECO:0000305",
                 "source_method": "research_paper_experimental",
                 "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.mod_id
+                "secondary_data_provider_id": test_mod.new_mod_id
             }
             source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
@@ -1008,7 +1008,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "source_evidence_assertion": "ECO:0000305",
                 "source_method": "research_paper_experimental",
                 "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.mod_id
+                "secondary_data_provider_id": test_mod.new_mod_id
             }
             source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
             assert source_resp.status_code == status.HTTP_201_CREATED
