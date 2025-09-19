@@ -55,6 +55,14 @@ logger = logging.getLogger(__name__)
 
 base_path = environ.get("XML_PATH", "")
 
+_PMID_RE = re.compile(r'^\s*(?:PMID:)?(\d+)\s*$')
+
+
+def _numeric_pmid_or_none(val):
+    s = str(val)
+    m = _PMID_RE.match(s)
+    return int(m.group(1)) if m else None
+
 
 def generate_pmid_data(input_path, output_directory, input_mod, base_input_dir=base_path):  # noqa: C901
     """
@@ -171,11 +179,22 @@ def generate_pmid_data(input_path, output_directory, input_mod, base_input_dir=b
     # output set of identifiers that will need XML downloaded
     output_pmid_file = base_path + output_directory + 'inputs/alliance_pmids'
     makedirs(base_path + output_directory + 'inputs', exist_ok=True)
+
+    good_pmids = set()
+    bad_pmids = []
+    for k in pmid_stats:  # k may be 'PMID:12345', '12345', or junk like '0 paper (i)'
+        n = _numeric_pmid_or_none(k)
+        if n is None:
+            bad_pmids.append(k)
+            continue
+        good_pmids.add(n)
+
     with open(output_pmid_file, "w") as pmid_file:
         # for pmid in sorted(pmid_stats.iterkeys(), key=int):	# python 2
-        for pmid in sorted(pmid_stats, key=int):
-            pmid_file.write("%s\n" % (pmid))
-        pmid_file.close()
+        for pmid in sorted(good_pmids):
+            pmid_file.write(f"{pmid}\n")
+    if bad_pmids:
+        logger.info("Skipping %d non-PMID entries in alliance_pmids (examples: %s)", len(bad_pmids), bad_pmids[:5])
 
     # output pmids and the mods that have them
     output_pmid_mods_file = base_path + output_directory + 'pmids_by_mods'
