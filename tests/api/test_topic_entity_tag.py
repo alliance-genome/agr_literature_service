@@ -2081,6 +2081,11 @@ class TestTopicEntityTagMLModelRelationship:
         }
 
         tag_schema = TopicEntityTagSchemaPost(**tag_data)
+        result = create_tag(
+            db,
+            topic_entity_tag=tag_schema
+        )
+        tag_id = result["topic_entity_tag_id"]
 
         # Test show_all_reference_tags function
         all_tags = show_all_reference_tags(db, test_reference.new_ref_curie)
