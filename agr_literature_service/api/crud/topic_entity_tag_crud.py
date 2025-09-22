@@ -98,7 +98,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
                 detail=f"ML model with ID {ml_model_id} not found"
             )
         topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
-        topic_entity_tag_data["ml_model_version"] = ml_model.version_num
 
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id, force_insertion)
@@ -252,11 +251,6 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
             topic_entity_tag_data["entity_name"] = name
-    # Add ML model version if associated with an ML model
-    if topic_entity_tag.ml_model_id:
-        ml_model = db.query(MLModel).filter(MLModel.ml_model_id == topic_entity_tag.ml_model_id).first()
-        if ml_model:
-            topic_entity_tag_data["ml_model_version"] = ml_model.version_num
     if topic_entity_tag.validated_by:
         add_list_of_users_who_validated_tag(topic_entity_tag, topic_entity_tag_data)
         add_list_of_validating_tag_ids(topic_entity_tag, topic_entity_tag_data)

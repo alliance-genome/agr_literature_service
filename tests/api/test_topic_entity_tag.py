@@ -844,9 +844,10 @@ class TestTopicEntityTagMLModelRelationship:
             ml_model_data = {
                 "name": "test_model",
                 "mod_id": test_mod.new_mod_id,
-                "description": "Test ML model",
-                "version": "1.0.0"
+                "task_type": "Test ML model",
+                "version_num": 1
             }
+            print(ml_model_data)
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
             ml_model_id = ml_model_resp.json()["ml_model_id"]
@@ -910,8 +911,8 @@ class TestTopicEntityTagMLModelRelationship:
             ml_model_data = {
                 "name": "test_model_v2",
                 "mod_id": test_mod.new_mod_id,
-                "description": "Test ML model version 2",
-                "version": "2.0.0"
+                "task_type": "Test ML model version 2",
+                "version_num": 2
             }
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
@@ -953,8 +954,8 @@ class TestTopicEntityTagMLModelRelationship:
             ml_model_data = {
                 "name": "test_model_v3",
                 "mod_id": test_mod.new_mod_id,
-                "description": "Test ML model version 3",
-                "version": "3.0.0"
+                "task_type": "Test ML model version 3",
+                "version_num": 3
             }
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
@@ -1000,8 +1001,8 @@ class TestTopicEntityTagMLModelRelationship:
             ml_model_data = {
                 "name": "relationship_test_model",
                 "mod_id": test_mod.new_mod_id,
-                "description": "Test model for relationship",
-                "version": "1.5.0"
+                "task_type": "Test model for relationship",
+                "version_num": 5
             }
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
