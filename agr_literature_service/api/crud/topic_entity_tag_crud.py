@@ -97,7 +97,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"ML model with ID {ml_model_id} not found"
             )
-        topic_entity_tag_data["ml_model_id"] = ml_model_id
+        topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
+        topic_entity_tag_data["ml_model_version"] = ml_model.version_num
 
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id, force_insertion)
