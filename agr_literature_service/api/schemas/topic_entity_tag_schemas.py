@@ -83,6 +83,7 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
     ml_model_id: Optional[int] = None
 
+
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
     """Schema for posting a topic entity tag with reference context."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
@@ -125,6 +126,7 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validating_users: List[str] = Field(default_factory=list)
     validating_tags: List[int] = Field(default_factory=list)
     ml_model_id: Optional[int] = None
+
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
     """Schema for showing a topic entity tag with reference context."""

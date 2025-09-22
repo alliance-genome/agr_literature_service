@@ -89,7 +89,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
                             detail=f"{message}")
 
     # Validate ml_model_id if provided
-    if 'ml_model_id' in topic_entity_tag_data:
+    if 'ml_model_id' in topic_entity_tag_data and topic_entity_tag_data['ml_model_id']:
         ml_model_id = topic_entity_tag_data['ml_model_id']
         ml_model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
         if not ml_model:
