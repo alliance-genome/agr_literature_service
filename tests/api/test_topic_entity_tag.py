@@ -843,6 +843,7 @@ class TestTopicEntityTagMLModelRelationship:
             # First create an ML model
             ml_model_data = {
                 "name": "test_model",
+                "mod_id": test_mod.new_mod_id,
                 "description": "Test ML model",
                 "version": "1.0.0"
             }
@@ -908,6 +909,7 @@ class TestTopicEntityTagMLModelRelationship:
             # Create an ML model
             ml_model_data = {
                 "name": "test_model_v2",
+                "mod_id": test_mod.new_mod_id,
                 "description": "Test ML model version 2",
                 "version": "2.0.0"
             }
@@ -950,6 +952,7 @@ class TestTopicEntityTagMLModelRelationship:
             # Create an ML model
             ml_model_data = {
                 "name": "test_model_v3",
+                "mod_id": test_mod.new_mod_id,
                 "description": "Test ML model version 3",
                 "version": "3.0.0"
             }
@@ -996,6 +999,7 @@ class TestTopicEntityTagMLModelRelationship:
             # Create an ML model
             ml_model_data = {
                 "name": "relationship_test_model",
+                "mod_id": test_mod.new_mod_id,
                 "description": "Test model for relationship",
                 "version": "1.5.0"
             }
@@ -1912,6 +1916,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
+                "ml_model_id": test_ml_model.new_ml_model_id,
                 "data_novelty": "ATP:0000334",
                 "note": "test with ml model",
                 "created_by": "WBPerson1",
@@ -2075,7 +2080,6 @@ class TestTopicEntityTagMLModelRelationship:
         }
 
         tag_schema = TopicEntityTagSchemaPost(**tag_data)
-
 
         # Create with ML model ID
         create_tag(
