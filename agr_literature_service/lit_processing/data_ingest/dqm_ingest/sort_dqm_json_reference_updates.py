@@ -4,6 +4,7 @@ import json
 import sys
 import html
 import logging.config
+import traceback
 import warnings
 from os import environ, makedirs, path
 from dotenv import load_dotenv
@@ -1003,7 +1004,8 @@ if __name__ == "__main__":
         try:
             sort_dqm_references(dqm_path, mod, args['all'])
         except Exception as e:
+            tb = traceback.format_exc()
             send_report(f"{mod} DQM Loading Failed",
-                        f"Error message: {e}")
+                        f"Error message: {e}<p>Traceback:<br>{tb}")
     cleanup_temp_directory("dqm_data")
     logger.info("ending sort_dqm_json_reference_updates.py")
