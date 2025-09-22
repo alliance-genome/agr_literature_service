@@ -2120,7 +2120,7 @@ class TestTopicEntityTagMLModelRelationship:
             "entity": "WB:WBGene00003001",
             "entity_id_validation": "alliance",
             "species": "NCBITaxon:6239",
-            "ml_model_id": test_ml_model['ml_model_id']
+            "ml_model_id": test_ml_model['ml_model_id'],
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
