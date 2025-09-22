@@ -2075,18 +2075,12 @@ class TestTopicEntityTagMLModelRelationship:
             "species": "NCBITaxon:6239",
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
+            "ml_model_id": test_ml_model.new_ml_model_id,
             "data_novelty": "ATP:0000334",
             "created_by": "WBPerson1"
         }
 
         tag_schema = TopicEntityTagSchemaPost(**tag_data)
-
-        # Create with ML model ID
-        create_tag(
-            db,
-            topic_entity_tag=tag_schema,
-            ml_model_id=test_ml_model["ml_model_id"]
-        )
 
         # Test show_all_reference_tags function
         all_tags = show_all_reference_tags(db, test_reference.new_ref_curie)
@@ -2113,6 +2107,7 @@ class TestTopicEntityTagMLModelRelationship:
             "entity": "WB:WBGene00003001",
             "entity_id_validation": "alliance",
             "species": "NCBITaxon:6239",
+            "ml_model_id": test_ml_model.new_ml_model_id,
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
@@ -2123,8 +2118,7 @@ class TestTopicEntityTagMLModelRelationship:
 
         result = create_tag(
             db,
-            topic_entity_tag=tag_schema,
-            ml_model_id=test_ml_model["ml_model_id"]
+            topic_entity_tag=tag_schema
         )
         tag_id = result["topic_entity_tag_id"]
 
@@ -2147,52 +2141,3 @@ class TestTopicEntityTagMLModelRelationship:
 
         assert ml_model_obj is not None
         assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
-
-
-    def test_ml_model_deletion_sets_null(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
-        """Test that deleting ML model sets topic_entity_tag.ml_model_id to NULL."""
-        load_name_to_atp_and_relationships_mock()
-        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
-        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-        from agr_literature_service.api.models import TopicEntityTagModel, MLModel
-
-        tag_data = {
-            "reference_curie": test_reference.new_ref_curie,
-            "topic": "ATP:0000122",
-            "entity_type": "ATP:0000005",
-            "entity": "WB:WBGene00003001",
-            "entity_id_validation": "alliance",
-            "species": "NCBITaxon:6239",
-            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-            "negated": False,
-            "data_novelty": "ATP:0000334",
-            "created_by": "WBPerson1"
-        }
-
-        tag_schema = TopicEntityTagSchemaPost(**tag_data)
-
-        with db as session:
-            # Create with ML model ID
-            result = create_tag(
-                db=session,
-                topic_entity_tag=tag_schema,
-                ml_model_id=test_ml_model["ml_model_id"]
-            )
-            tag_id = result["topic_entity_tag_id"]
-
-            # Verify the association exists
-            tag_obj = session.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == tag_id
-            ).first()
-            assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
-
-            # Delete the ML model
-            ml_model_obj = session.query(MLModel).filter(
-                MLModel.ml_model_id == test_ml_model["ml_model_id"]
-            ).first()
-            session.delete(ml_model_obj)
-            session.commit()
-
-            # Verify the topic_entity_tag.ml_model_id is now NULL
-            session.refresh(tag_obj)
-            assert tag_obj.ml_model_id is None
