@@ -1931,8 +1931,7 @@ class TestTopicEntityTagMLModelRelationship:
                 result = create_tag(
                     db=session,
                     topic_entity_tag=tag_schema,
-                    validate_on_insert=True,
-                    ml_model_id=test_ml_model["ml_model_id"]
+                    validate_on_insert=True
                 )
 
                 assert result["status"] == "success"
@@ -1964,7 +1963,8 @@ class TestTopicEntityTagMLModelRelationship:
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000334",
-                "created_by": "WBPerson1"
+                "created_by": "WBPerson1",
+                "ml_model_id": 99999  # Invalid ID
             }
 
             tag_schema = TopicEntityTagSchemaPost(**tag_data)
@@ -1975,8 +1975,7 @@ class TestTopicEntityTagMLModelRelationship:
                     create_tag(
                         db=session,
                         topic_entity_tag=tag_schema,
-                        validate_on_insert=True,
-                        ml_model_id=99999  # Invalid ID
+                        validate_on_insert=True
                     )
                 assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
                 assert "ML model with ID 99999 not found" in str(exc_info.value.detail)
@@ -2035,6 +2034,7 @@ class TestTopicEntityTagMLModelRelationship:
             "entity_type": "ATP:0000005",
             "entity": "WB:WBGene00003001",
             "entity_id_validation": "alliance",
+            "ml_model_id": test_ml_model["ml_model_id"],
             "species": "NCBITaxon:6239",
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
@@ -2048,8 +2048,7 @@ class TestTopicEntityTagMLModelRelationship:
             # Create with ML model ID
             result = create_tag(
                 db=session,
-                topic_entity_tag=tag_schema,
-                ml_model_id=test_ml_model["ml_model_id"]
+                topic_entity_tag=tag_schema
             )
             tag_id = result["topic_entity_tag_id"]
 
