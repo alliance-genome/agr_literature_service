@@ -843,9 +843,11 @@ class TestTopicEntityTagMLModelRelationship:
             # First create an ML model
             ml_model_data = {
                 "name": "test_model",
-                "mod_id": test_mod.new_mod_id,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "task_type": "Test ML model",
-                "version_num": 1
+                "version_num": 1,
+                "model_type": "type 1",
+                "file_extension": "png"
             }
             print(ml_model_data)
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
@@ -910,9 +912,11 @@ class TestTopicEntityTagMLModelRelationship:
             # Create an ML model
             ml_model_data = {
                 "name": "test_model_v2",
-                "mod_id": test_mod.new_mod_id,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "task_type": "Test ML model version 2",
-                "version_num": 2
+                "version_num": 2,
+                "model_type": "type 1",
+                "file_extension": "png"
             }
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
@@ -953,9 +957,11 @@ class TestTopicEntityTagMLModelRelationship:
             # Create an ML model
             ml_model_data = {
                 "name": "test_model_v3",
-                "mod_id": test_mod.new_mod_id,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "task_type": "Test ML model version 3",
-                "version_num": 3
+                "version_num": 3,
+                "model_type": "type 1",
+                "file_extension": "png"
             }
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
@@ -1000,9 +1006,11 @@ class TestTopicEntityTagMLModelRelationship:
             # Create an ML model
             ml_model_data = {
                 "name": "relationship_test_model",
-                "mod_id": test_mod.new_mod_id,
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
                 "task_type": "Test model for relationship",
-                "version_num": 5
+                "version_num": 5,
+                "model_type": "type 1",
+                "file_extension": "png"
             }
             ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
