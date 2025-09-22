@@ -1916,7 +1916,7 @@ class TestTopicEntityTagMLModelRelationship:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
-                "ml_model_id": test_ml_model.new_ml_model_id,
+                "ml_model_id": test_ml_model['ml_model_id'],
                 "data_novelty": "ATP:0000334",
                 "note": "test with ml model",
                 "created_by": "WBPerson1",
@@ -2075,7 +2075,7 @@ class TestTopicEntityTagMLModelRelationship:
             "species": "NCBITaxon:6239",
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
-            "ml_model_id": test_ml_model.new_ml_model_id,
+            "ml_model_id": test_ml_model['ml_model_id'],
             "data_novelty": "ATP:0000334",
             "created_by": "WBPerson1"
         }
@@ -2086,6 +2086,14 @@ class TestTopicEntityTagMLModelRelationship:
             topic_entity_tag=tag_schema
         )
         tag_id = result["topic_entity_tag_id"]
+
+        # Test database relationships
+        tag_obj = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == tag_id
+        ).first()
+
+        assert tag_obj is not None
+        assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
 
         # Test show_all_reference_tags function
         all_tags = show_all_reference_tags(db, test_reference.new_ref_curie)
@@ -2112,7 +2120,7 @@ class TestTopicEntityTagMLModelRelationship:
             "entity": "WB:WBGene00003001",
             "entity_id_validation": "alliance",
             "species": "NCBITaxon:6239",
-            "ml_model_id": test_ml_model.new_ml_model_id,
+            "ml_model_id": test_ml_model['ml_model_id']
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
