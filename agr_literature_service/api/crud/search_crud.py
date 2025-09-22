@@ -103,7 +103,12 @@ def search_references(
     from_entry = (page - 1) * size_result_count
 
     es_host = config.ELASTICSEARCH_HOST
-    es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
+    es = Elasticsearch(
+        hosts=es_host + ":" + config.ELASTICSEARCH_PORT,
+        timeout=30,  # Increased timeout from default 10s to 30s
+        max_retries=3,  # Add retries for resilience
+        retry_on_timeout=True
+    )
 
     # Base request body
     es_body: Dict[str, Any] = {
