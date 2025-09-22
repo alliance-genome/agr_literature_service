@@ -29,7 +29,6 @@ class TopicEntityTagSourceSchemaCreate(AuditedObjectModelSchema):
     source_evidence_assertion: str = Field(..., min_length=1)
     source_method: str = Field(..., min_length=1)
     validation_type: Optional[constr(min_length=1)] = None  # type: ignore
-    ml_model_id: Optional[int] = None
     description: str
     data_provider: str
     secondary_data_provider_abbreviation: str
@@ -82,7 +81,7 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     note: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
-
+    ml_model_id: Optional[int] = None
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
     """Schema for posting a topic entity tag with reference context."""
@@ -125,7 +124,7 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
     validating_users: List[str] = Field(default_factory=list)
     validating_tags: List[int] = Field(default_factory=list)
-
+    ml_model_id: Optional[int] = None
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
     """Schema for showing a topic entity tag with reference context."""
