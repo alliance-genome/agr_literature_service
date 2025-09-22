@@ -50,7 +50,7 @@ TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True, ml_model_id: Optional[int] = None) -> Dict:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
@@ -87,8 +87,10 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"{message}")
+
     # Validate ml_model_id if provided
-    if ml_model_id is not None:
+    if 'ml_model_id' in topic_entity_tag_data:
+        ml_model_id = topic_entity_tag_data['ml_model_id']
         ml_model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
         if not ml_model:
             raise HTTPException(
