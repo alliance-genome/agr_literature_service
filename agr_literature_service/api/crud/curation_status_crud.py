@@ -145,14 +145,6 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             dt = datetime.strptime(date_str, "%Y-%m-%d")
         if dt < earliest_dt:
             earliest_dt = dt
-
-#         if tet.novel_topic_data:
-#             new_data = True
-#         if tet.negated:
-#             no_data = True
-#         else:
-#             has_data = True
-
         if tet.negated:
             no_data = True
         else:
