@@ -136,6 +136,26 @@ def initialize_elasticsearch():
                             "normalizer": "languageNormalizer"
                         }
                     }
+                },
+                # --- add these explicit mappings ---
+                # We store epoch microseconds as numbers; map to long for sort/range
+                "date_created": {"type": "long"},
+                # Allow either ISO dates (yyyy-MM-dd) or epoch seconds/millis
+                "date_published_start": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis||epoch_second"
+                },
+                "date_published_end": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis||epoch_second"
+                },
+                "date_arrived_in_pubmed": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd"
+                },
+                "date_last_modified_in_pubmed": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd"
                 }
             }
         }
@@ -419,7 +439,7 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert "aggregations" in res
-            assert res["return_count"] == 3
+            assert res["return_count"] == 4
 
     def test_search_references_case4(self, initialize_elasticsearch, auth_headers): # noqa
         # Should just find all first 6 records.

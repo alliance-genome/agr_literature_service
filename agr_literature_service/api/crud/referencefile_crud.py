@@ -425,7 +425,7 @@ def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file
                 if curr_tag_atp_id is None:
                     data = WorkflowTagSchemaPost(
                         workflow_tag_id=wft_tag_atp_id,
-                        mod_abbreviation=mod_abbreviation,
+                        mod_abbreviation=mod,
                         reference_curie=reference_curie
                     )
                     create_wft(db, data)

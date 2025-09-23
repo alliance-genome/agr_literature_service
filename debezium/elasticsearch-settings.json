@@ -284,20 +284,17 @@
       },
       "date_published_start": {
         "type": "date",
-        "format": "date_optional_time||epoch_millis",
-        "null_value": null,
+        "format": "epoch_second||epoch_millis||strict_date_optional_time",
         "ignore_malformed": true
       },
       "date_published_end": {
         "type": "date",
-        "format": "date_optional_time||epoch_millis",
-        "null_value": null,
-        "ignore_malformed": true
+	"format": "epoch_second||epoch_millis||strict_date_optional_time",
+	"ignore_malformed": true
       },
       "date_created": {
         "type": "date",
-        "format": "date_optional_time||epoch_millis",
-        "null_value": null,
+	"format": "epoch_second||epoch_millis||strict_date_optional_time",
         "ignore_malformed": true
       },
       "page_range": {
@@ -372,14 +369,12 @@
       },
       "date_arrived_in_pubmed": {
         "type": "date",
-        "format": "date_optional_time||epoch_millis",
-        "null_value": null,
+	"format": "epoch_second||epoch_millis||strict_date_optional_time",
         "ignore_malformed": true
       },
       "date_last_modified_in_pubmed": {
         "type": "date",
-        "format": "date_optional_time||epoch_millis",
-        "null_value": null,
+	"format": "epoch_second||epoch_millis||strict_date_optional_time",
         "ignore_malformed": true
       },
       "keywords": {

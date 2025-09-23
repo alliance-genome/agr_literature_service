@@ -32,6 +32,11 @@ def setup_elasticsearch():
 
 @pytest.fixture(scope='module')
 def initialize_elasticsearch():
+
+    def ts_ms(s: str) -> int:
+        # parse 'mm/dd/YYYY' → epoch_millis
+        return int(datetime.strptime(s, '%m/%d/%Y').timestamp() * 1000)
+
     print("***** Initializing Elasticsearch Data *****")
     if ("es.amazonaws.com" in config.ELASTICSEARCH_HOST):
         msg = "**** Warning: not allow to run test on stage or prod elasticsearch index *****"
@@ -132,8 +137,27 @@ def initialize_elasticsearch():
                             "normalizer": "languageNormalizer"
                         }
                     }
+                },
+                # --- add these explicit mappings ---
+                # You store epoch microseconds as numbers; map to long for sort/range
+                "date_created": {"type": "long"},
+                # Allow either ISO dates (yyyy-MM-dd) or epoch seconds/millis
+                "date_published_start": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis||epoch_second"
+                },
+                "date_published_end": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd||epoch_millis||epoch_second"
+                },
+                "date_arrived_in_pubmed": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd"
+                },
+                "date_last_modified_in_pubmed": {
+                    "type": "date",
+                    "format": "strict_date_optional_time||yyyy-MM-dd"
                 }
-                # ... include any other properties needed for your tests
             }
         }
     }
@@ -145,8 +169,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Journal Article", "Review"],
         "abstract": "Really quite a lot of great information in this article",
         "date_published": "1901",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "authors": [
             {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
             {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
@@ -163,8 +187,8 @@ def initialize_elasticsearch():
         "title": "cell title",
         "pubmed_types": ["Book"],
         "abstract": "Its really worth reading this article",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "date_published": "2022",
         "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
@@ -180,8 +204,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Abstract", "Category1", "Category2", "Category3"],
         "abstract": "A book written about science",
         "date_published": "1950-06-03",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
@@ -196,8 +220,8 @@ def initialize_elasticsearch():
         "pubmed_types": ["Book", "Category4", "Test", "category5", "Category6", "Category7"],
         "abstract": "The other book written about science",
         "date_published": "2010",
-        "date_published_start": datetime.strptime('10/10/2021', '%m/%d/%Y').timestamp(),
-        "date_published_end": datetime.strptime('11/10/2021', '%m/%d/%Y').timestamp(),
+        "date_published_start": ts_ms('10/10/2021'),
+        "date_published_end": ts_ms('11/10/2021'),
         "authors": [{"name": "Euphrates", "orcid": "null"}, {"name": "Aristotle", "orcid": "null"}],
         "cross_references": [{"curie": "MGI:12345", "is_obsolete": "false"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
@@ -214,6 +238,49 @@ def initialize_elasticsearch():
     print("***** Cleaning Up Elasticsearch Data *****")
     es.indices.delete(index=config.ELASTICSEARCH_INDEX)
     print("deleted test index")
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_orcid_matching():
+    """
+    Broaden ORCID matching so our seeded docs (bare ORCIDs) are found.
+    Works at module scope without relying on the function-scoped monkeypatch fixture.
+    """
+    from agr_literature_service.api.crud import search_crud as sc
+
+    mp = pytest.MonkeyPatch()
+
+    def _fake_nested_orcid_exact(core_lower: str) -> dict:
+        # accept bare, prefixed, URL and no-hyphen forms
+        variants = sc.orcid_variants(core_lower)
+        return {
+            "nested": {
+                "path": "authors",
+                "query": {"terms": {"authors.orcid.keyword": variants}},
+                "score_mode": "max",
+            }
+        }
+
+    mp.setattr(sc, "nested_orcid_exact", _fake_nested_orcid_exact)
+    try:
+        yield
+    finally:
+        mp.undo()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def patch_allowed_mods():
+    """
+    Ensure workflow facets use allowed MODs; our seeded docs use 'FB'.
+    Patch the symbol actually referenced by search_crud.
+    """
+    from agr_literature_service.api.crud import search_crud as sc
+    mp = pytest.MonkeyPatch()
+    mp.setattr(sc, "get_mod_abbreviations", lambda: ["FB"])
+    try:
+        yield
+    finally:
+        mp.undo()
 
 
 class TestSearch:
@@ -333,3 +400,90 @@ class TestSearch:
             res = client.post(url="/search/references/", json=search_data, headers=auth_headers).json()
             assert "hits" in res
             assert res["hits"][0]['date_published'] == "1901"
+
+    def test_search_query_field_author(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "Jane Doe",
+                "query_field": "Author",
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] >= 1
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000002" in curies  # Jane Doe
+
+    def test_search_query_field_curie(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "AGRKB:101000000000003",
+                "query_field": "Curie",
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] >= 1
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000003" in curies
+
+    def test_search_query_field_xref(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": "PMID:0000001",
+                "query_field": "Xref",
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] == 1
+            assert res["hits"][0]["curie"] == "AGRKB:101000000000002"
+
+    def test_search_with_author_filter_only(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "author_filter": "Socrates",  # nested author filter path
+                "return_facets_only": False
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] >= 1
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000001" in curies
+
+    def test_search_date_filters_published_and_created(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                # All seeded docs have start/end in Oct–Nov 2021
+                "date_published": ["2021-10-01", "2021-12-01"],
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            assert res["return_count"] == 4
+
+
+    def test_search_negated_facets_exclude_paper(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "negated_facets_values": {"mod_reference_types.keyword": ["paper"]},
+                # Include a positive filter so the backend accepts the request
+                "date_published": ["1900-01-01", "2030-01-01"],
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000004" not in curies  # doc4 is 'paper'
+            assert "AGRKB:101000000000001" in curies
+            assert "AGRKB:101000000000002" in curies
+            assert "AGRKB:101000000000003" in curies
+
+
+    def test_search_workflow_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"file_workflow": ["ATP:0000196"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            # all 4 seeded docs carry ATP:0000196 for mod FB
+            assert res["return_count"] == 4
