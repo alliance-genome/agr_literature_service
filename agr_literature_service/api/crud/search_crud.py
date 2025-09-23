@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import Dict, List, Any, Optional
 import logging
 import re
+import unicodedata
 from datetime import datetime, date, time, timezone
 
 from elasticsearch import Elasticsearch
@@ -26,6 +27,7 @@ from agr_literature_service.api.crud.search_ranking import (
     apply_scoring_and_sort,
     build_author_bucket_function_score,
     author_bucket_sort,
+    build_content_gate_filter,
 )
 from agr_literature_service.api.crud.search_filters import (
     apply_all_date_filters,
@@ -101,7 +103,12 @@ def search_references(
     from_entry = (page - 1) * size_result_count
 
     es_host = config.ELASTICSEARCH_HOST
-    es = Elasticsearch(hosts=es_host + ":" + config.ELASTICSEARCH_PORT)
+    es = Elasticsearch(
+        hosts=es_host + ":" + config.ELASTICSEARCH_PORT,
+        timeout=30,  # Increased timeout from default 10s to 30s
+        max_retries=3,  # Add retries for resilience
+        retry_on_timeout=True
+    )
 
     # Base request body
     es_body: Dict[str, Any] = {
@@ -252,8 +259,10 @@ def search_references(
     # 1) ALL fields (or None)
     if query and (query_fields == "All" or query_fields is None):
         q_raw = (query or "").strip()
-        q_free = strip_orcid_prefix_for_free_text(q_raw)
+        q_norm = normalize_user_query(q_raw)
+        q_free = strip_orcid_prefix_for_free_text(q_norm)
 
+        # Build the standard multi-field query bundle
         bundle = build_all_text_query(q_free, size_result_count, include_id_author_helpers=True)
         for m in bundle["must"]:
             es_body["query"]["bool"]["must"].append(m)
@@ -264,14 +273,24 @@ def search_references(
             es_body["rescore"] = bundle["rescore"]
         uses_rescore = bool(bundle.get("uses_rescore"))
 
+        # ORCID support
         core = extract_orcid_core(q_raw)
         if core:
             es_body["query"]["bool"]["should"].append(nested_orcid_exact(core))
 
+        # ---------------------------
+        # Content-gate filter: drop queries that are just stopwords
+        # ---------------------------
+        cg = build_content_gate_filter(q_free)   # from search_ranking.py
+        if cg:
+            ensure_structure(es_body)  # guarantees filter.bool.must exists
+            es_body["query"]["bool"]["filter"]["bool"]["must"].append(cg)
+
     # 2) Single-field text: Title / Abstract / Keyword / Citation
     elif query and query_fields in TEXT_FIELDS:
-        add_simple_text_field_query(es_body, TEXT_FIELDS[query_fields], query, partial_match)
-
+        qn = normalize_user_query(query)
+        add_simple_text_field_query(es_body, TEXT_FIELDS[query_fields], qn, partial_match)
+        
     # 3) Author search
     elif query and query_fields == "Author":
         q = (query or "").strip()
@@ -878,3 +897,18 @@ def nested_orcid_exact(core_lower: str) -> dict:
             "score_mode": "max",
         }
     }
+
+
+# example input: "  Yeast：   cell   cycle　"
+# example output: "Yeast: cell cycle"
+# Changes made:
+# Full-width colon (：) → standard ASCII colon (:)
+# Full-width space (　) → normal space
+# Multiple spaces collapsed into one
+# Leading/trailing spaces trimmed
+def normalize_user_query(s: str) -> str:
+    if not s:
+        return s
+    s = unicodedata.normalize("NFKC", s)   # fixes full-width punctuation like '：'
+    s = re.sub(r'\s+', ' ', s).strip()
+    return s

@@ -3,7 +3,7 @@ import pytz
 
 from sqlalchemy import Column, ForeignKey, DateTime, event
 from sqlalchemy.ext.declarative import declared_attr
-
+from sqlalchemy.inspection import inspect as sa_inspect
 from agr_literature_service.api.user import get_global_user_id
 
 
@@ -61,8 +61,17 @@ def _set_created_and_updated(mapper, connection, target):
 
 @event.listens_for(AuditedModel, "before_update", propagate=True)
 def _set_updated(mapper, connection, target):
+    """
+    Only auto-stamp fields that the caller didn't explicitly set.
+    """
     now = datetime.now(tz=pytz.timezone("UTC"))
-    if target.date_updated is None:
+    state = sa_inspect(target)
+
+    # If caller didn't touch date_updated, set it to now
+    if not state.attrs.date_updated.history.has_changes():
         target.date_updated = now
-    if target.updated_by is None:
-        target.updated_by = get_default_user_value()
+
+    # If caller didn't touch updated_by, fill from global user (or default)
+    if not state.attrs.updated_by.history.has_changes():
+        uid = get_global_user_id() or get_default_user_value()
+        target.updated_by = uid
