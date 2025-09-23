@@ -422,7 +422,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
 
     sql_query = """
     SELECT distinct wft.reference_workflow_tag_id, m.abbreviation, wft.workflow_tag_id, wft.updated_by,
-           wft.date_updated::date AS date_updated, u.email
+           wft.date_updated::date AS date_updated, u.email, wft.controlled_note, wft.note
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.mod_id
     JOIN users u ON wft.updated_by = u.id
@@ -929,7 +929,8 @@ def get_reference_workflow_tags_by_mod(
     # startDate: "2024-08-19"
     # endDate:   "2024-08-26"
     query = text(
-        "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, wft.date_updated "
+        "SELECT r.curie AS reference_curie, cr.curie AS cross_reference_curie, "
+        "       wft.date_updated, wft.controlled_note, wft.note "
         "FROM reference r "
         "JOIN cross_reference cr ON r.reference_id = cr.reference_id "
         "JOIN workflow_tag wft ON cr.reference_id = wft.reference_id "

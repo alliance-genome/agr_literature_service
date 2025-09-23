@@ -77,6 +77,16 @@ class WorkflowTagModel(AuditedModel, Base):
         foreign_keys="WorkflowTagModel.mod_id"
     )
 
+    controlled_note = Column(
+        String,
+        nullable=True
+    )
+
+    note = Column(
+        String,
+        nullable=True
+    )
+
     dataset_entries: Mapped[List["DatasetEntryModel"]] = relationship(back_populates="supporting_workflow_tag")  # type: ignore  # noqa
 
     def __str__(self):
