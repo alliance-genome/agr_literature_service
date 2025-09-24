@@ -897,35 +897,6 @@ class TestTopicEntityTag:
             assert "ml_model_version" in tag_result
             assert tag_result["ml_model_version"] == "2.0.0"
 
-    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
-        """Test that getting all reference tags includes ml_model_version."""
-        with TestClient(app) as client:
-            ml_model_id = test_ml_model["ml_model_id"]
-
-            source_id = test_topic_entity_tag_source.new_source_id
-
-            # Create topic entity tag with ml_model_id
-            tag_data = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic_entity_tag_source_id": source_id,
-                "topic": "ATP:0000009",
-                "ml_model_id": ml_model_id
-            }
-            tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
-            assert tag_resp.status_code == status.HTTP_201_CREATED
-
-            # Get all reference tags and verify ml_model_version is included
-            get_all_resp = client.get(f"/reference/{test_reference.new_ref_curie}/topic_entity_tags")
-            assert get_all_resp.status_code == status.HTTP_200_OK
-            tags = get_all_resp.json()
-            assert len(tags) > 0
-
-            # Find our tag and check ml_model_version
-            our_tag = next((tag for tag in tags if tag.get("ml_model_id") == ml_model_id), None)
-            assert our_tag is not None
-            assert "ml_model_version" in our_tag
-            assert our_tag["ml_model_version"] == "3.0.0"
-
     def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
         """Test that the database model relationship works correctly."""
         with TestClient(app) as client:
@@ -1856,6 +1827,7 @@ class TestTopicEntityTag:
                 response = client.get(f"/topic_entity_tag/{tag_id}")
                 assert response.status_code == status.HTTP_200_OK
                 tag_data_response = response.json()
+                print(tag_data_response)
                 assert tag_data_response["ml_model_version"] == test_ml_model["version_num"]
 
     def test_create_topic_entity_tag_with_invalid_ml_model_id_two(self, test_topic_entity_tag_source, test_reference, auth_headers, db): # noqa

@@ -259,6 +259,8 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
         if ml:
             topic_entity_tag_data["ml_model_version"] = ml.version_num
+        else:
+            print(f"Could not find model with id {topic_entity_tag_data["ml_model_id"]}")
     return topic_entity_tag_data
 
 
