@@ -839,12 +839,14 @@ class TestTopicEntityTag:
 
             source_id = test_topic_entity_tag_source.new_source_id
 
+            print(test_ml_model)
+            print(dir(test_ml_model))
             # Create topic entity tag with ml_model_id
             tag_data = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
-                "ml_model_id": test_ml_model.new_ml_model_id,
+                "ml_model_id": test_ml_model["ml_model_id"],
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
             assert tag_resp.status_code == status.HTTP_201_CREATED
@@ -854,7 +856,7 @@ class TestTopicEntityTag:
             get_resp = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp.status_code == status.HTTP_200_OK
             tag_result = get_resp.json()
-            assert tag_result["ml_model_id"] == test_ml_model.ml_model_id
+            assert tag_result["ml_model_id"] == test_ml_model["ml_model_id"]
 
     def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_reference, test_mod, auth_headers, test_topic_entity_tag_source): # noqa
         """Test creating a topic entity tag with an invalid ml_model_id."""
@@ -874,7 +876,7 @@ class TestTopicEntityTag:
     def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, test_ml_model, test_topic_entity_tag_source, auth_headers): # noqa
         """Test that getting a topic entity tag returns ml_model_version."""
         with TestClient(app) as client:
-            ml_model_id = test_ml_model.new_ml_model_id
+            ml_model_id = test_ml_model["ml_model_id"]
             source_id = test_topic_entity_tag_source.new_source_id
 
             # Create topic entity tag with ml_model_id
