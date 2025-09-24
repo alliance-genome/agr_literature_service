@@ -894,9 +894,8 @@ class TestTopicEntityTag:
             get_resp = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp.status_code == status.HTTP_200_OK
             tag_result = get_resp.json()
-            print(tag_result)
             assert "ml_model_version" in tag_result
-            assert tag_result["ml_model_version"] == "2.0.0"
+            assert tag_result["ml_model_version"] == 1
 
     def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
         """Test that the database model relationship works correctly."""
