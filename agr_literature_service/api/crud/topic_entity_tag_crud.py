@@ -255,6 +255,10 @@ def show_tag(db: Session, topic_entity_tag_id: int):
     if topic_entity_tag.validated_by:
         add_list_of_users_who_validated_tag(topic_entity_tag, topic_entity_tag_data)
         add_list_of_validating_tag_ids(topic_entity_tag, topic_entity_tag_data)
+    if 'ml_model_id' in topic_entity_tag_data:
+        ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
+        if ml:
+            topic_entity_tag_data["ml_model_version"] = ml.version_num
     return topic_entity_tag_data
 
 
