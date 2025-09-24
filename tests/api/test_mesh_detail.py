@@ -12,7 +12,7 @@ from .test_reference import test_reference # noqa
 
 test_reference2 = test_reference
 
-MeshTestData = namedtuple('TestMeshData', ['response', 'new_mesh_detail_id', 'related_ref_curie'])
+MeshTestData = namedtuple('MeshTestData', ['response', 'new_mesh_detail_id', 'related_ref_curie'])
 
 
 @pytest.fixture

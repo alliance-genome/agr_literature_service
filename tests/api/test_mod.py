@@ -10,7 +10,7 @@ from agr_literature_service.api.models import ModModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 
-ModTestData = namedtuple('TestModData', ['response', 'new_mod_id', 'new_mod_abbreviation'])
+ModTestData = namedtuple('ModTestData', ['response', 'new_mod_id', 'new_mod_abbreviation'])
 
 
 @pytest.fixture
