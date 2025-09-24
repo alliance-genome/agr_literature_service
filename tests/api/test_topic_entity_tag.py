@@ -937,21 +937,10 @@ class TestTopicEntityTag:
             assert "ml_model_version" in our_tag
             assert our_tag["ml_model_version"] == "3.0.0"
 
-    def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, auth_headers): # noqa
+    def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
         """Test that the database model relationship works correctly."""
         with TestClient(app) as client:
-            # Create an ML model
-            ml_model_data = {
-                "name": "relationship_test_model",
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "task_type": "Test model for relationship",
-                "version_num": 5,
-                "model_type": "type 1",
-                "file_extension": "png"
-            }
-            ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
-            assert ml_model_resp.status_code == status.HTTP_201_CREATED
-            ml_model_id = ml_model_resp.json()["ml_model_id"]
+            ml_model_id = test_ml_model.new_ml_model_id
 
             source_id = test_topic_entity_tag_source.new_source_id
 

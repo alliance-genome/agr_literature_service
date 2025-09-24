@@ -94,7 +94,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         ml_model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
         if not ml_model:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"ML model with ID {ml_model_id} not found"
             )
         topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
