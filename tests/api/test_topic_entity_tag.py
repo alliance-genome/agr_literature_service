@@ -844,7 +844,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
-                "ml_model_id": test_ml_model.model_id
+                "ml_model_id": test_ml_model.new_ml_model_id,
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
             assert tag_resp.status_code == status.HTTP_201_CREATED
@@ -856,20 +856,10 @@ class TestTopicEntityTag:
             tag_result = get_resp.json()
             assert tag_result["ml_model_id"] == test_ml_model.ml_model_id
 
-    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_reference, test_mod, auth_headers): # noqa
+    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_reference, test_mod, auth_headers, test_topic_entity_tag_source): # noqa
         """Test creating a topic entity tag with an invalid ml_model_id."""
         with TestClient(app) as client:
-            # Create a topic entity tag source
-            source_data = {
-                "source_evidence_assertion": "ECO:0000305",
-                "source_method": "research_paper_experimental",
-                "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.new_mod_id
-            }
-            print(source_data)
-            source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
-            assert source_resp.status_code == status.HTTP_201_CREATED
-            source_id = source_resp.json()["topic_entity_tag_source_id"]
+            source_id = test_topic_entity_tag_source.new_source_id
 
             # Try to create topic entity tag with invalid ml_model_id
             tag_data = {
@@ -881,21 +871,11 @@ class TestTopicEntityTag:
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
             assert tag_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, auth_headers): # noqa
+    def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, test_ml_model, test_topic_entity_tag_source, auth_headers): # noqa
         """Test that getting a topic entity tag returns ml_model_version."""
         with TestClient(app) as client:
-            ml_model_id = test_ml_model.ml_model_id
-
-            # Create a topic entity tag source
-            source_data = {
-                "source_evidence_assertion": "ECO:0000305",
-                "source_method": "research_paper_experimental",
-                "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.new_mod_id
-            }
-            source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
-            assert source_resp.status_code == status.HTTP_201_CREATED
-            source_id = source_resp.json()["topic_entity_tag_source_id"]
+            ml_model_id = test_ml_model.new_ml_model_id
+            source_id = test_topic_entity_tag_source.new_source_id
 
             # Create topic entity tag with ml_model_id
             tag_data = {
@@ -915,7 +895,7 @@ class TestTopicEntityTag:
             assert "ml_model_version" in tag_result
             assert tag_result["ml_model_version"] == "2.0.0"
 
-    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, auth_headers): # noqa
+    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, test_topic_entity_tag_source, auth_headers): # noqa
         """Test that getting all reference tags includes ml_model_version."""
         with TestClient(app) as client:
             # Create an ML model
@@ -931,16 +911,7 @@ class TestTopicEntityTag:
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
             ml_model_id = ml_model_resp.json()["ml_model_id"]
 
-            # Create a topic entity tag source
-            source_data = {
-                "source_evidence_assertion": "ECO:0000305",
-                "source_method": "research_paper_experimental",
-                "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.new_mod_id
-            }
-            source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
-            assert source_resp.status_code == status.HTTP_201_CREATED
-            source_id = source_resp.json()["topic_entity_tag_source_id"]
+            source_id = test_topic_entity_tag_source.new_source_id
 
             # Create topic entity tag with ml_model_id
             tag_data = {
@@ -964,7 +935,7 @@ class TestTopicEntityTag:
             assert "ml_model_version" in our_tag
             assert our_tag["ml_model_version"] == "3.0.0"
 
-    def test_database_model_relationship(self, test_reference, test_mod, auth_headers): # noqa
+    def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, auth_headers): # noqa
         """Test that the database model relationship works correctly."""
         with TestClient(app) as client:
             # Create an ML model
@@ -980,16 +951,7 @@ class TestTopicEntityTag:
             assert ml_model_resp.status_code == status.HTTP_201_CREATED
             ml_model_id = ml_model_resp.json()["ml_model_id"]
 
-            # Create a topic entity tag source
-            source_data = {
-                "source_evidence_assertion": "ECO:0000305",
-                "source_method": "research_paper_experimental",
-                "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.new_mod_id
-            }
-            source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
-            assert source_resp.status_code == status.HTTP_201_CREATED
-            source_id = source_resp.json()["topic_entity_tag_source_id"]
+            source_id = test_topic_entity_tag_source.new_source_id
 
             # Create topic entity tag with ml_model_id
             tag_data = {
