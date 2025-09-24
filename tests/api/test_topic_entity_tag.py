@@ -833,24 +833,11 @@ class TestTopicEntityTag:
 
             # Branch compatibility is now handled directly through hierarchy checks
 
-
-class TestTopicEntityTagMLModelRelationship:
-    """Test class for ML model and topic entity tag relationships."""
-
-    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_reference, test_mod, auth_headers, test_ml_model): # noqa
+    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_reference, test_mod, auth_headers, test_ml_model, test_topic_entity_tag_source): # noqa
         """Test creating a topic entity tag with a valid ml_model_id."""
         with TestClient(app) as client:
 
-            # Create a topic entity tag source
-            source_data = {
-                "source_evidence_assertion": "ECO:0000305",
-                "source_method": "research_paper_experimental",
-                "data_provider": "Alliance",
-                "secondary_data_provider_id": test_mod.new_mod_id
-            }
-            source_resp = client.post("/topic_entity_tag_source/", json=source_data, headers=auth_headers)
-            assert source_resp.status_code == status.HTTP_201_CREATED
-            source_id = source_resp.json()["topic_entity_tag_source_id"]
+            source_id = test_topic_entity_tag_source.new_source_id
 
             # Create topic entity tag with ml_model_id
             tag_data = {
