@@ -894,6 +894,7 @@ class TestTopicEntityTag:
             get_resp = client.get(f"/topic_entity_tag/{tag_id}")
             assert get_resp.status_code == status.HTTP_200_OK
             tag_result = get_resp.json()
+            print(tag_result)
             assert "ml_model_version" in tag_result
             assert tag_result["ml_model_version"] == "2.0.0"
 
