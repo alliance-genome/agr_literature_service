@@ -118,7 +118,7 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             "tet_info_date_created": None,
             "tet_info_topic_source": [],
             "tet_info_has_data": False,
-            "tet_info_novel_data": False,
+            "tet_info_new_data": False,
             "tet_info_no_data": False
         }
     # initialize earliest_dt from the very first row
@@ -128,7 +128,7 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     else:
         date_str = str(first_tet.date_created).split()[0]
         earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
-    has_data = novel_data = no_data = False
+    has_data = new_data = no_data = False
     topic_sources = set()
     source_map = {
         'ATP:0000035': 'author',
@@ -145,19 +145,18 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             dt = datetime.strptime(date_str, "%Y-%m-%d")
         if dt < earliest_dt:
             earliest_dt = dt
-
-        if tet.novel_topic_data:
-            novel_data = True
         if tet.negated:
             no_data = True
         else:
             has_data = True
+            if tet.data_novelty in {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}:
+                new_data = True
     topic_added = earliest_dt.strftime("%Y-%m-%d")
     return {
         "tet_info_date_created": topic_added,
         "tet_info_topic_source": sorted(topic_sources),
         "tet_info_has_data": has_data,
-        "tet_info_novel_data": novel_data,
+        "tet_info_new_data": new_data,
         "tet_info_no_data": no_data
     }
 
