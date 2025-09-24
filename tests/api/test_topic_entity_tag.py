@@ -839,7 +839,7 @@ class TestTopicEntityTag:
 
             source_id = test_topic_entity_tag_source.new_source_id
 
-            print(f"reference is {reference}")
+            print(f"reference is {test_reference}")
             # Create topic entity tag with ml_model_id
             tag_data = {
                 "reference_id": test_reference.new_refernce_id,
