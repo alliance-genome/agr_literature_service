@@ -126,6 +126,7 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validating_users: List[str] = Field(default_factory=list)
     validating_tags: List[int] = Field(default_factory=list)
     ml_model_id: Optional[int] = None
+    ml_model_version: Optional[int] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):
