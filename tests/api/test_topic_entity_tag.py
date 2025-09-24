@@ -915,7 +915,7 @@ class TestTopicEntityTag:
             assert tag_resp.status_code == status.HTTP_201_CREATED
 
             # Get all reference tags and verify ml_model_version is included
-            get_all_resp = client.get(f"/reference/{test_reference.reference_id}/topic_entity_tags")
+            get_all_resp = client.get(f"/reference/{test_reference.new_ref_curie}/topic_entity_tags")
             assert get_all_resp.status_code == status.HTTP_200_OK
             tags = get_all_resp.json()
             assert len(tags) > 0
@@ -1969,55 +1969,9 @@ class TestTopicEntityTag:
 
             # Test show_tag function directly
             tag_details = show_tag(session, tag_id)
+            print(tag_details)
             assert "ml_model_version" in tag_details
             assert tag_details["ml_model_version"] == test_ml_model["version_num"]
-
-
-    def test_show_all_reference_tags_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
-        """Test show_all_reference_tags function returns ml_model_version when associated."""
-        load_name_to_atp_and_relationships_mock()
-        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, show_all_reference_tags
-        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
-        # from ..fixtures import db
-
-        tag_data = {
-            "reference_curie": test_reference.new_ref_curie,
-            "topic": "ATP:0000122",
-            "entity_type": "ATP:0000005",
-            "entity": "WB:WBGene00003001",
-            "entity_id_validation": "alliance",
-            "species": "NCBITaxon:6239",
-            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
-            "negated": False,
-            "ml_model_id": test_ml_model['ml_model_id'],
-            "data_novelty": "ATP:0000334",
-            "created_by": "WBPerson1"
-        }
-
-        tag_schema = TopicEntityTagSchemaPost(**tag_data)
-        result = create_tag(
-            db,
-            topic_entity_tag=tag_schema
-        )
-        tag_id = result["topic_entity_tag_id"]
-
-        # Test database relationships
-        tag_obj = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.topic_entity_tag_id == tag_id
-        ).first()
-
-        assert tag_obj is not None
-        assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
-
-        # Test show_all_reference_tags function
-        all_tags = show_all_reference_tags(db, test_reference.new_ref_curie)
-
-        # Find our tag with ML model
-        ml_model_tags = [tag for tag in all_tags if "ml_model_version" in tag]
-        assert len(ml_model_tags) > 0
-
-        ml_tag = ml_model_tags[0]
-        assert ml_tag["ml_model_version"] == test_ml_model["version_num"]
 
 
     def test_database_model_relationships(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
