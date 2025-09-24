@@ -12,7 +12,7 @@ from .test_reference import test_reference # noqa
 
 test_reference2 = test_reference
 
-TestMeshData = namedtuple('TestMeshData', ['response', 'new_mesh_detail_id', 'related_ref_curie'])
+MeshTestData = namedtuple('TestMeshData', ['response', 'new_mesh_detail_id', 'related_ref_curie'])
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def test_mesh_detail(db, auth_headers, test_reference): # noqa
                            "qualifier_term": "Qual1"
                            }
         response = client.post(url="/reference/mesh_detail/", json=new_mesh_detail, headers=auth_headers)
-        yield TestMeshData(response, response.json(), test_reference.new_ref_curie)
+        yield MeshTestData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestMeshDetail:
