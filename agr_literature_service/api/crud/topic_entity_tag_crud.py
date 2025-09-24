@@ -240,6 +240,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
+    print(topic_entity_tag)
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if topic_entity_tag_data["reference_id"]:
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(

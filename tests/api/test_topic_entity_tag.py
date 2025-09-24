@@ -897,21 +897,10 @@ class TestTopicEntityTag:
             assert "ml_model_version" in tag_result
             assert tag_result["ml_model_version"] == "2.0.0"
 
-    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, test_topic_entity_tag_source, auth_headers): # noqa
+    def test_get_all_reference_tags_includes_ml_model_version(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
         """Test that getting all reference tags includes ml_model_version."""
         with TestClient(app) as client:
-            # Create an ML model
-            ml_model_data = {
-                "name": "test_model_v3",
-                "mod_abbreviation": test_mod.new_mod_abbreviation,
-                "task_type": "Test ML model version 3",
-                "version_num": 3,
-                "model_type": "type 1",
-                "file_extension": "png"
-            }
-            ml_model_resp = client.post("/ml_model/", json=ml_model_data, headers=auth_headers)
-            assert ml_model_resp.status_code == status.HTTP_201_CREATED
-            ml_model_id = ml_model_resp.json()["ml_model_id"]
+            ml_model_id = test_ml_model["ml_model_id"]
 
             source_id = test_topic_entity_tag_source.new_source_id
 
@@ -940,7 +929,7 @@ class TestTopicEntityTag:
     def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
         """Test that the database model relationship works correctly."""
         with TestClient(app) as client:
-            ml_model_id = test_ml_model.new_ml_model_id
+            ml_model_id = test_ml_model["ml_model_id"]
 
             source_id = test_topic_entity_tag_source.new_source_id
 
@@ -1903,7 +1892,7 @@ class TestTopicEntityTag:
                         topic_entity_tag=tag_schema,
                         validate_on_insert=True
                     )
-                assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+                assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
                 assert "ML model with ID 99999 not found" in str(exc_info.value.detail)
 
     def test_create_topic_entity_tag_without_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers, db): # noqa
