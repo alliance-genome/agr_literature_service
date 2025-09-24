@@ -241,7 +241,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    print(topic_entity_tag_data)
+    print(f"topic_entity_tag_data start {topic_entity_tag_data}")
     if topic_entity_tag_data["reference_id"]:
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
@@ -261,6 +261,7 @@ def show_tag(db: Session, topic_entity_tag_id: int):
             topic_entity_tag_data["ml_model_version"] = ml.version_num
         else:
             print(f"Could not find model with id {topic_entity_tag_data['ml_model_id']}")
+    print(f"topic_entity_tag_data end {topic_entity_tag_data}")
     return topic_entity_tag_data
 
 
