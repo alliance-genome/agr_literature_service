@@ -57,5 +57,5 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     tet_info_date_created: Optional[str] = None
     tet_info_topic_source: List[str] = Field(default_factory=list)
     tet_info_has_data: bool = False
-    tet_info_novel_data: bool = False
+    tet_info_new_data: bool = False
     tet_info_no_data: bool = False
