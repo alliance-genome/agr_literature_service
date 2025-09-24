@@ -302,6 +302,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
                 "negated": True,
+                "created_by": "curator1",
                 "data_novelty": "ATP:0000334"
             }
             validating_tag_cur_2 = {
@@ -313,6 +314,7 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
                 "negated": False,
+                "created_by": "curator2",
                 "data_novelty": "ATP:0000334",
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
