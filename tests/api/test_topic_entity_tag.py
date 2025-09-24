@@ -1688,3 +1688,121 @@ class TestTopicEntityTag:
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
+
+    def test_negative_automated_vs_positive_curator_validation_issue(self, test_reference, test_mod, auth_headers, db): # noqa
+        """
+        Test specific validation issue where:
+        1. First tag: negated=True, automated source (not validating), topic ATP:0000061, data_novelty ATP:0000335 (generic)
+        2. Second tag: negated=False, professional_biocurator source (validating), same topic ATP:0000061, data_novelty ATP:0000229 (new to field)
+        Expected: Second tag should validate first as "validated_wrong"
+        """
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+
+            # Mock ontology hierarchy - ATP:0000229 (new to field) should be more specific than ATP:0000335 (generic)
+            mock_get_ancestors.side_effect = lambda onto_node=None: {
+                "ATP:0000061": set(),                               # topic - no ancestors (leaf node)
+                "ATP:0000229": {"ATP:0000321", "ATP:0000335"},      # new to field -> new data -> generic
+                "ATP:0000335": set(),                               # generic data novelty root
+                "ATP:0000321": {"ATP:0000335"},                     # new data -> generic
+            }.get(onto_node, set())
+
+            mock_get_descendants.side_effect = lambda onto_node=None: {
+                "ATP:0000061": set(),                               # topic - no descendants
+                "ATP:0000335": {"ATP:0000321", "ATP:0000229"},      # generic -> new data, new to field
+                "ATP:0000321": {"ATP:0000229"},                     # new data -> new to field
+                "ATP:0000229": set(),                               # new to field - no descendants
+            }.get(onto_node, set())
+
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',
+                'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+
+            # Create automated source (not validating other tags)
+            automated_source = {
+                "source_evidence_assertion": "automated_source",
+                "source_method": "not_validating_automated_source",
+                "validation_type": None,  # Not validating other tags
+                "description": "Automated source that doesn't validate other tags",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            automated_source_response = client.post(url="/topic_entity_tag/source/", json=automated_source, headers=auth_headers)
+            assert automated_source_response.status_code == status.HTTP_201_CREATED
+            automated_source_id = automated_source_response.json()
+
+            # Create professional biocurator source (validating)
+            curator_source = {
+                "source_evidence_assertion": "professional_biocurator",
+                "source_method": "validating_professional_biocurator",
+                "validation_type": "professional_biocurator",  # This source validates other tags
+                "description": "Professional biocurator validating source",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            curator_source_response = client.post(url="/topic_entity_tag/source/", json=curator_source, headers=auth_headers)
+            assert curator_source_response.status_code == status.HTTP_201_CREATED
+            curator_source_id = curator_source_response.json()
+
+            # Create first tag: negated from automated source (not validating other tags)
+            first_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": automated_source_id,
+                "negated": True,  # Negated tag
+                "data_novelty": "ATP:0000335",  # Generic data novelty
+                "note": "First automated negated tag"
+            }
+
+            first_response = client.post(url="/topic_entity_tag/", json=first_tag, headers=auth_headers)
+            assert first_response.status_code == status.HTTP_201_CREATED
+            first_tag_id = first_response.json()["topic_entity_tag_id"]
+
+            # Verify first tag was created correctly
+            first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}").json()
+            assert first_tag_data["negated"] is True
+            assert first_tag_data["topic"] == "ATP:0000009"
+            assert first_tag_data["data_novelty"] == "ATP:0000335"
+            # Should initially not be validated
+            assert first_tag_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
+
+            # Create second tag: positive from professional biocurator (validating)
+            second_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",  # Same topic
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": curator_source_id,
+                "negated": False,  # Positive tag
+                "data_novelty": "ATP:0000229",  # More specific data novelty (new to field)
+                "note": "Second curator positive tag"
+            }
+
+            second_response = client.post(url="/topic_entity_tag/", json=second_tag, headers=auth_headers)
+            assert second_response.status_code == status.HTTP_201_CREATED
+            second_tag_id = second_response.json()["topic_entity_tag_id"]
+
+            # Verify second tag was created correctly
+            second_tag_data = client.get(f"/topic_entity_tag/{second_tag_id}").json()
+            assert second_tag_data["negated"] is False
+            assert second_tag_data["topic"] == "ATP:0000009"
+            assert second_tag_data["data_novelty"] == "ATP:0000229"
+
+            # Now check if the first tag was validated as "validated_wrong" by the second tag
+            updated_first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}").json()
+
+            # According to the validation rules:
+            # New tag positive (second), existing tag negative (first) = validate existing (wrong) if existing is more generic
+            # Since both tags have same topic ATP:0000061, and first tag has more generic data_novelty (ATP:0000335),
+            # the first tag should be validated as "validated_wrong"
+            assert updated_first_tag_data["validation_by_professional_biocurator"] == "validated_wrong"
+
+            # Verify that the second tag is in the validating_tags list of the first tag
+            validating_tags = updated_first_tag_data.get("validating_tags", [])
+            assert second_tag_id in validating_tags
