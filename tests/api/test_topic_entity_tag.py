@@ -839,11 +839,9 @@ class TestTopicEntityTag:
 
             source_id = test_topic_entity_tag_source.new_source_id
 
-            print(f"reference is {dir(test_reference)}")
-
             # Create topic entity tag with ml_model_id
             tag_data = {
-                "reference_id": test_reference.new_reference_id,
+                "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
                 "ml_model_id": test_ml_model.model_id
@@ -875,7 +873,7 @@ class TestTopicEntityTag:
 
             # Try to create topic entity tag with invalid ml_model_id
             tag_data = {
-                "reference_id": test_reference.reference_id,
+                "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
                 "ml_model_id": 99999  # Invalid ML model ID
@@ -901,7 +899,7 @@ class TestTopicEntityTag:
 
             # Create topic entity tag with ml_model_id
             tag_data = {
-                "reference_id": test_reference.reference_id,
+                "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
                 "ml_model_id": ml_model_id
@@ -946,7 +944,7 @@ class TestTopicEntityTag:
 
             # Create topic entity tag with ml_model_id
             tag_data = {
-                "reference_id": test_reference.reference_id,
+                "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
                 "ml_model_id": ml_model_id
@@ -995,7 +993,7 @@ class TestTopicEntityTag:
 
             # Create topic entity tag with ml_model_id
             tag_data = {
-                "reference_id": test_reference.reference_id,
+                "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
                 "ml_model_id": ml_model_id
