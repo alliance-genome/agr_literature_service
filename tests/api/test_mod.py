@@ -10,7 +10,7 @@ from agr_literature_service.api.models import ModModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 
-TestModData = namedtuple('TestModData', ['response', 'new_mod_id', 'new_mod_abbreviation'])
+ModTestData = namedtuple('ModTestData', ['response', 'new_mod_id', 'new_mod_abbreviation'])
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def test_mod(db, auth_headers): # noqa
             "full_name": "Test genome database"
         }
         response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-        yield TestModData(response, response.json(), new_mod["abbreviation"])
+        yield ModTestData(response, response.json(), new_mod["abbreviation"])
 
 
 class TestMod:
