@@ -1995,8 +1995,8 @@ class TestTopicEntityTag:
         assert ml_model_obj is not None
         assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
 
-    def test_negative_automated_vs_positive_curator_validation_issue(self, test_reference, test_mod, auth_headers,
-                                                                     db):  # noqa
+    def test_negative_automated_vs_positive_curator_validation_issue(self, test_reference, test_mod,  # noqa
+                                                                     auth_headers, db):  # noqa
         """
         Test specific validation issue where:
         1. First tag: negated=True, automated source (not validating), topic ATP:0000061, data_novelty ATP:0000335 (generic)
@@ -2106,9 +2106,9 @@ class TestTopicEntityTag:
             updated_first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}").json()
 
             # According to the validation rules:
-            # New tag positive (second), existing tag negative (first) = validate existing (wrong) if existing is more generic
-            # Since both tags have same topic ATP:0000061, and first tag has more generic data_novelty (ATP:0000335),
-            # the first tag should be validated as "validated_wrong"
+            # New tag positive (second), existing tag negative (first) = validate existing (wrong) if existing is more
+            # generic. Since both tags have same topic ATP:0000061, and first tag has more generic data_novelty
+            # (ATP:0000335), the first tag should be validated as "validated_wrong"
             assert updated_first_tag_data["validation_by_professional_biocurator"] == "validated_wrong"
 
             # Verify that the second tag is in the validating_tags list of the first tag
