@@ -80,7 +80,7 @@ class TestReferencefileMod:
             assert response.status_code == status.HTTP_200_OK
             ok = False
             for mod in response.json():
-
+                print(f"mod {mod}")
                 if mod["referencefile_mods"][1]["mod_abbreviation"] == "WB":
                     ok = True
             assert ok
