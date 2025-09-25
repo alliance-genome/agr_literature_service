@@ -81,6 +81,7 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     note: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_author: Optional[constr(min_length=1)] = None  # type: ignore
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
+    ml_model_id: Optional[int] = None
 
 
 class TopicEntityTagSchemaPost(TopicEntityTagSchemaCreate):
@@ -124,6 +125,8 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validation_by_professional_biocurator: Optional[constr(min_length=1)] = None  # type: ignore
     validating_users: List[str] = Field(default_factory=list)
     validating_tags: List[int] = Field(default_factory=list)
+    ml_model_id: Optional[int] = None
+    ml_model_version: Optional[int] = None
 
 
 class TopicEntityTagSchemaShow(TopicEntityTagSchemaRelated):

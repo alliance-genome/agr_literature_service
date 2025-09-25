@@ -27,6 +27,7 @@ from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
+from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
 # from agr_literature_service.api.models.audited_model import get_default_user_value, \
 #    disable_set_updated_by_onupdate, disable_set_date_updated_onupdate
@@ -86,6 +87,18 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         message = " ".join(f"{id} is not valid." for id in invalid_atp_ids if id is not None)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"{message}")
+
+    # Validate ml_model_id if provided
+    if 'ml_model_id' in topic_entity_tag_data and topic_entity_tag_data['ml_model_id']:
+        ml_model_id = topic_entity_tag_data['ml_model_id']
+        ml_model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
+        if not ml_model:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"ML model with ID {ml_model_id} not found"
+            )
+        topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
+
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id, force_insertion)
     if duplicate_check_result is not None:
@@ -241,6 +254,10 @@ def show_tag(db: Session, topic_entity_tag_id: int):
     if topic_entity_tag.validated_by:
         add_list_of_users_who_validated_tag(topic_entity_tag, topic_entity_tag_data)
         add_list_of_validating_tag_ids(topic_entity_tag, topic_entity_tag_data)
+    if 'ml_model_id' in topic_entity_tag_data:
+        ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
+        if ml:
+            topic_entity_tag_data["ml_model_version"] = ml.version_num
     return topic_entity_tag_data
 
 
@@ -709,7 +726,8 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
         return jsonable_encoder(distinct_values)
 
     query = db.query(TopicEntityTagModel).options(
-        joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.ml_model)).filter(
         TopicEntityTagModel.reference_id == reference_id)
 
     if column_filter and column_values:
@@ -777,6 +795,9 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
             add_list_of_validating_tag_ids(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
                 tet.topic_entity_tag_source.secondary_data_provider_id]
+            # Add ML model version if associated with an ML model
+            if tet.ml_model:
+                tet_data["ml_model_version"] = tet.ml_model.version_num
             all_tet.append(tet_data)
         curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
         return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
