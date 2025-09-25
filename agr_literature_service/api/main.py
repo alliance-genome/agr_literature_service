@@ -3,6 +3,7 @@ import argparse
 from typing import Any, Dict
 import logging
 import uvicorn
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,9 +31,17 @@ title = "Alliance Literature Service"
 version = "0.1.0"
 description = "This service provides access to the Alliance Bibliographic Corpus and metadata"
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_database()
+    yield
+
+
 app = FastAPI(title=title,
               version=version,
-              description=description)
+              description=description,
+              lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
@@ -58,10 +67,6 @@ def custom_openapi() -> Dict[str, Any]:
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
-
-@app.on_event('startup')
-def init_db():
-    setup_database()
 
 
 app.include_router(resource_router.router)
