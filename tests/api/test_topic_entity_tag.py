@@ -278,6 +278,68 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.json()["validation_by_author"] == "validated_wrong"
 
+    def test_cannot_create_existing_similar_tag_with_negation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",  # manual assertion by professional biocurator, ATP required because it will have an existing_tag in the crud
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            validating_tag_cur_1 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": True,
+                "data_novelty": "ATP:0000334"
+            }
+            validating_tag_cur_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+            }
+            client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
+#             response1 = client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
+#             print("Status code1:", response1.status_code)
+#             print("Response body:", response1.text)
+#             response1.raise_for_status()
+#             response2 = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers)
+#             print("Status code2:", response2.status_code)
+#             print("Response body:", response2.text)
+#             response2.raise_for_status()
+
+#             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
+#                                        headers=auth_headers)
+# TODO  this should return a 201 and check that status is exists
+            response = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
+                                       headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json()["status"] == "exists"
+
+#             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+#             assert response.json()["validation_by_author"] == "not_validated"
+#             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
+#             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
+#             assert response.json()["validation_by_author"] == "not_validated"
+#             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
+
     def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
