@@ -68,7 +68,7 @@ def patch(
     db: Session = db_session,
 ) -> ResponseMessageSchema:
     set_global_user_from_okta(db, user)
-    updates = request.dict(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True)
     return referencefile_mod_crud.patch(db, referencefile_mod_id, updates)
 
 

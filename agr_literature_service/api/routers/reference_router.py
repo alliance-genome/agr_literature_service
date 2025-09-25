@@ -81,7 +81,7 @@ async def patch(curie_or_reference_id: str,
                 user: OktaUser = db_user,
                 db: Session = db_session):
     set_global_user_from_okta(db, user)
-    patch = request.dict(exclude_unset=True)
+    patch = request.model_dump(exclude_unset=True)
     return reference_crud.patch(db, curie_or_reference_id, patch)
 
 

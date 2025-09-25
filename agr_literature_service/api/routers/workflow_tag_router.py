@@ -66,7 +66,7 @@ async def patch(
     db: Session = db_session,
 ) -> int:
     set_global_user_from_okta(db, user)
-    updates = request.dict(exclude_unset=True)
+    updates = request.model_dump(exclude_unset=True)
     # perform the update (this should return the same ID)
     workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
     # return the integer id so FastAPI can validate it

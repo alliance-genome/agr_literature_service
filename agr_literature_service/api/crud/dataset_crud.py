@@ -180,7 +180,7 @@ def patch_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_ty
                   dataset_update: DatasetSchemaUpdate):
     dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                           dataset_type=dataset_type, version=version)
-    for key, value in dataset_update.dict(exclude_unset=True).items():
+    for key, value in dataset_update.model_dump(exclude_unset=True).items():
         setattr(dataset, key, value)
     db.commit()
     db.refresh(dataset)

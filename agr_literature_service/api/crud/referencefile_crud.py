@@ -295,7 +295,7 @@ def merge_referencefiles(db: Session,
     db.delete(losing_referencefile)
 
     if winning_referencefile.reference_id != reference.reference_id:
-        patch(db, winning_referencefile_id, ReferencefileSchemaUpdate(reference_curie=reference.curie).dict(
+        patch(db, winning_referencefile_id, ReferencefileSchemaUpdate(reference_curie=reference.curie).model_dump(
             exclude_unset=True))
 
     db.commit()
@@ -483,7 +483,7 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
 
 
 def create_metadata(db: Session, request: ReferencefileSchemaPost):
-    request_dict = request.dict()
+    request_dict = request.model_dump()
     ref_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == request.reference_curie).one_or_none()
     if ref_obj is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
