@@ -15,7 +15,7 @@ from .test_reference import test_reference # noqa
 
 test_reference2 = test_reference
 
-TestModRefTypeData = namedtuple('TestModRefTypeData', ['response', 'new_mod_ref_type_id', 'related_ref_curie'])
+ModRefTypeTestData = namedtuple('ModRefTypeTestData', ['response', 'new_mod_ref_type_id', 'related_ref_curie'])
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def test_mod_ref_type(db, auth_headers, test_reference, populate_test_mod_refere
             "mod_abbreviation": "ZFIN"
         }
         response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
-        yield TestModRefTypeData(response, response.json(), test_reference.new_ref_curie)
+        yield ModRefTypeTestData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestModReferenceType:

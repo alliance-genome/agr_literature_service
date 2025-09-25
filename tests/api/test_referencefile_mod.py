@@ -13,7 +13,7 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 
 
-TestReferencefileModData = namedtuple('TestReferencefileModData', ['response', 'new_referencefile_mod_id'])
+ReferencefileModTestData = namedtuple('ReferencefileModTestData', ['response', 'new_referencefile_mod_id'])
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def test_referencefile_mod(db, auth_headers, test_referencefile): # noqa
             "mod_abbreviation": "WB"
         }
         response = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
-        yield TestReferencefileModData(response, response.json())
+        yield ReferencefileModTestData(response, response.json())
 
 
 class TestReferencefileMod:

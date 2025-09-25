@@ -9,7 +9,7 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
 
-TestSourceData = namedtuple('TestSourceData', ['response', 'new_source_id'])
+SourceTestData = namedtuple('SourceTestData', ['response', 'new_source_id'])
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
             "created_by": "somebody"
         }
         response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
-        yield TestSourceData(response, response.json())
+        yield SourceTestData(response, response.json())
 
 
 class TestTopicEntityTagSource:

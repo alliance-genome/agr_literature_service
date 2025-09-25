@@ -32,7 +32,7 @@ CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
     {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
      'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
 
-TestReferenceData = namedtuple('TestReferenceData', ['response', 'new_ref_curie'])
+ReferenceTestData = namedtuple('eferenceTestRData', ['response', 'new_ref_curie'])
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def test_reference(db, auth_headers): # noqa
             "language": "MadeUp"
         }
         response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
-        yield TestReferenceData(response, response.json())
+        yield ReferenceTestData(response, response.json())
 
 
 @pytest.fixture
