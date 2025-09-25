@@ -14,6 +14,7 @@ from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
+from .test_ml_model import test_ml_model # noqa
 from ..fixtures import load_name_to_atp_and_relationships_mock
 
 test_reference2 = test_reference
@@ -832,6 +833,99 @@ class TestTopicEntityTag:
 
             # Branch compatibility is now handled directly through hierarchy checks
 
+    def test_create_topic_entity_tag_with_valid_ml_model_id(self, test_reference, test_mod, auth_headers, test_ml_model, test_topic_entity_tag_source): # noqa
+        """Test creating a topic entity tag with a valid ml_model_id."""
+        with TestClient(app) as client:
+
+            source_id = test_topic_entity_tag_source.new_source_id
+
+            print(test_ml_model)
+            print(dir(test_ml_model))
+            # Create topic entity tag with ml_model_id
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic_entity_tag_source_id": source_id,
+                "topic": "ATP:0000009",
+                "ml_model_id": test_ml_model["ml_model_id"],
+            }
+            tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
+            assert tag_resp.status_code == status.HTTP_201_CREATED
+            tag_id = tag_resp.json()["topic_entity_tag_id"]
+
+            # Verify the tag was created with the ML model association
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            assert get_resp.status_code == status.HTTP_200_OK
+            tag_result = get_resp.json()
+            assert tag_result["ml_model_id"] == test_ml_model["ml_model_id"]
+
+    def test_create_topic_entity_tag_with_invalid_ml_model_id(self, test_reference, test_mod, auth_headers, test_topic_entity_tag_source): # noqa
+        """Test creating a topic entity tag with an invalid ml_model_id."""
+        with TestClient(app) as client:
+            source_id = test_topic_entity_tag_source.new_source_id
+
+            # Try to create topic entity tag with invalid ml_model_id
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic_entity_tag_source_id": source_id,
+                "topic": "ATP:0000009",
+                "ml_model_id": 99999  # Invalid ML model ID
+            }
+            tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
+            assert tag_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_get_topic_entity_tag_returns_ml_model_version(self, test_reference, test_mod, test_ml_model, test_topic_entity_tag_source, auth_headers): # noqa
+        """Test that getting a topic entity tag returns ml_model_version."""
+        with TestClient(app) as client:
+            ml_model_id = test_ml_model["ml_model_id"]
+            source_id = test_topic_entity_tag_source.new_source_id
+
+            # Create topic entity tag with ml_model_id
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic_entity_tag_source_id": source_id,
+                "topic": "ATP:0000009",
+                "ml_model_id": ml_model_id
+            }
+            tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
+            assert tag_resp.status_code == status.HTTP_201_CREATED
+            tag_id = tag_resp.json()["topic_entity_tag_id"]
+
+            # Get the tag and verify ml_model_version is returned
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            assert get_resp.status_code == status.HTTP_200_OK
+            tag_result = get_resp.json()
+            assert "ml_model_version" in tag_result
+            assert tag_result["ml_model_version"] == 1
+
+    def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
+        """Test that the database model relationship works correctly."""
+        with TestClient(app) as client:
+            ml_model_id = test_ml_model["ml_model_id"]
+
+            source_id = test_topic_entity_tag_source.new_source_id
+
+            # Create topic entity tag with ml_model_id
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic_entity_tag_source_id": source_id,
+                "topic": "ATP:0000009",
+                "ml_model_id": ml_model_id
+            }
+            tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
+            assert tag_resp.status_code == status.HTTP_201_CREATED
+            tag_id = tag_resp.json()["topic_entity_tag_id"]
+
+            # Test that deleting the ML model sets the foreign key to NULL
+            delete_resp = client.delete(f"/ml_model/{ml_model_id}", headers=auth_headers)
+            assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
+
+            # Verify the tag still exists but ml_model_id is now null
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            assert get_resp.status_code == status.HTTP_200_OK
+            tag_result = get_resp.json()
+            assert tag_result["ml_model_id"] is None
+            assert tag_result.get("ml_model_version") is None
+
     def test_data_novelty_validation_separation(self, test_reference, test_mod, auth_headers): # noqa
         """Test that novel data and existing data tags don't validate each other."""
         load_name_to_atp_and_relationships_mock()
@@ -1568,7 +1662,7 @@ class TestTopicEntityTag:
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
 
-    def test_revalidation_on_delete_with_conflicting_validations(self, test_reference, test_mod, auth_headers, db): # noqa
+    def test_revalidation_on_delete_with_conflicting_validations(self, test_reference, test_mod, auth_headers, db):  # noqa
         """
         Test revalidation when deleting a tag that causes validation conflicts.
 
@@ -1689,7 +1783,220 @@ class TestTopicEntityTag:
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
 
-    def test_negative_automated_vs_positive_curator_validation_issue(self, test_reference, test_mod, auth_headers, db): # noqa
+    def test_create_topic_entity_tag_with_valid_ml_model_id_two(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db):  # noqa
+        """Test creating topic entity tag with valid ML model ID via CRUD function."""
+        load_name_to_atp_and_relationships_mock()
+        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        # from ..fixtures import db
+
+        with TestClient(app) as client:
+            # Create topic entity tag data
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "ml_model_id": test_ml_model['ml_model_id'],
+                "data_novelty": "ATP:0000334",
+                "note": "test with ml model",
+                "created_by": "WBPerson1",
+                "date_created": "2020-01-01"
+            }
+
+            # Create schema object
+            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+
+            # Use CRUD function directly to test ml_model_id parameter
+            with db as session:
+                result = create_tag(
+                    db=session,
+                    topic_entity_tag=tag_schema,
+                    validate_on_insert=True
+                )
+
+                assert result["status"] == "success"
+                tag_id = result["topic_entity_tag_id"]
+
+                # Verify the tag was created with ML model association
+                response = client.get(f"/topic_entity_tag/{tag_id}")
+                assert response.status_code == status.HTTP_200_OK
+                tag_data_response = response.json()
+                print(tag_data_response)
+                assert tag_data_response["ml_model_version"] == test_ml_model["version_num"]
+
+    def test_create_topic_entity_tag_with_invalid_ml_model_id_two(self, test_topic_entity_tag_source, test_reference, auth_headers, db): # noqa
+        """Test creating topic entity tag with invalid ML model ID raises error."""
+        load_name_to_atp_and_relationships_mock()
+        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        from fastapi import HTTPException
+        # from ..fixtures import db
+
+        with TestClient(app) as client:  # noqa
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "created_by": "WBPerson1",
+                "ml_model_id": 99999  # Invalid ID
+            }
+
+            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+
+            # Test with invalid ML model ID
+            with db as session:
+                with pytest.raises(HTTPException) as exc_info:
+                    create_tag(
+                        db=session,
+                        topic_entity_tag=tag_schema,
+                        validate_on_insert=True
+                    )
+                assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+                assert "ML model with ID 99999 not found" in str(exc_info.value.detail)
+
+    def test_create_topic_entity_tag_without_ml_model_id(self, test_topic_entity_tag_source, test_reference, auth_headers, db): # noqa
+        """Test creating topic entity tag without ML model ID works normally."""
+        load_name_to_atp_and_relationships_mock()
+        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        # from ..fixtures import db
+
+        with TestClient(app) as client:
+            tag_data = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "created_by": "WBPerson1"
+            }
+
+            tag_schema = TopicEntityTagSchemaPost(**tag_data)
+
+            # Create without ML model ID
+            with db as session:
+                result = create_tag(
+                    db=session,
+                    topic_entity_tag=tag_schema,
+                    validate_on_insert=True
+                )
+
+                assert result["status"] == "success"
+                tag_id = result["topic_entity_tag_id"]
+
+                # Verify the tag was created without ML model association
+                response = client.get(f"/topic_entity_tag/{tag_id}")
+                assert response.status_code == status.HTTP_200_OK
+                tag_data_response = response.json()
+                assert not tag_data_response["ml_model_version"]
+
+    def test_show_topic_entity_tag_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
+        """Test show_tag function returns ml_model_version when associated."""
+        load_name_to_atp_and_relationships_mock()
+        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, show_tag
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        # from ..fixtures import db
+
+        tag_data = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "ml_model_id": test_ml_model["ml_model_id"],
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "created_by": "WBPerson1"
+        }
+
+        tag_schema = TopicEntityTagSchemaPost(**tag_data)
+
+        with db as session:
+            # Create with ML model ID
+            result = create_tag(
+                db=session,
+                topic_entity_tag=tag_schema
+            )
+            tag_id = result["topic_entity_tag_id"]
+
+            # Test show_tag function directly
+            tag_details = show_tag(session, tag_id)
+            print(tag_details)
+            assert "ml_model_version" in tag_details
+            assert tag_details["ml_model_version"] == test_ml_model["version_num"]
+
+
+    def test_database_model_relationships(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
+        """Test that database model relationships work correctly."""
+        load_name_to_atp_and_relationships_mock()
+        from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+        from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaPost
+        from agr_literature_service.api.models import TopicEntityTagModel, MLModel
+
+        tag_data = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "entity_type": "ATP:0000005",
+            "entity": "WB:WBGene00003001",
+            "entity_id_validation": "alliance",
+            "species": "NCBITaxon:6239",
+            "ml_model_id": test_ml_model['ml_model_id'],
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "created_by": "WBPerson1"
+        }
+
+        tag_schema = TopicEntityTagSchemaPost(**tag_data)
+
+        result = create_tag(
+            db,
+            topic_entity_tag=tag_schema
+        )
+        tag_id = result["topic_entity_tag_id"]
+
+        # Test database relationships
+        tag_obj = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == tag_id
+        ).first()
+
+        assert tag_obj is not None
+        assert tag_obj.ml_model_id == test_ml_model["ml_model_id"]
+
+        # Test the relationship
+        assert tag_obj.ml_model is not None
+        assert tag_obj.ml_model.version_num == test_ml_model["version_num"]
+
+        # Test foreign key constraint by verifying ML model
+        ml_model_obj = db.query(MLModel).filter(
+            MLModel.ml_model_id == test_ml_model["ml_model_id"]
+        ).first()
+
+        assert ml_model_obj is not None
+        assert ml_model_obj.ml_model_id == tag_obj.ml_model_id
+
+    def test_negative_automated_vs_positive_curator_validation_issue(self, test_reference, test_mod, auth_headers,
+                                                                     db):  # noqa
         """
         Test specific validation issue where:
         1. First tag: negated=True, automated source (not validating), topic ATP:0000061, data_novelty ATP:0000335 (generic)
@@ -1701,21 +2008,20 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
-                mock_get_curie_to_name_from_all_tets:
-
+                        mock_get_curie_to_name_from_all_tets:
             # Mock ontology hierarchy - ATP:0000229 (new to field) should be more specific than ATP:0000335 (generic)
             mock_get_ancestors.side_effect = lambda onto_node=None: {
-                "ATP:0000061": set(),                               # topic - no ancestors (leaf node)
-                "ATP:0000229": {"ATP:0000321", "ATP:0000335"},      # new to field -> new data -> generic
-                "ATP:0000335": set(),                               # generic data novelty root
-                "ATP:0000321": {"ATP:0000335"},                     # new data -> generic
+                "ATP:0000061": set(),  # topic - no ancestors (leaf node)
+                "ATP:0000229": {"ATP:0000321", "ATP:0000335"},  # new to field -> new data -> generic
+                "ATP:0000335": set(),  # generic data novelty root
+                "ATP:0000321": {"ATP:0000335"},  # new data -> generic
             }.get(onto_node, set())
 
             mock_get_descendants.side_effect = lambda onto_node=None: {
-                "ATP:0000061": set(),                               # topic - no descendants
-                "ATP:0000335": {"ATP:0000321", "ATP:0000229"},      # generic -> new data, new to field
-                "ATP:0000321": {"ATP:0000229"},                     # new data -> new to field
-                "ATP:0000229": set(),                               # new to field - no descendants
+                "ATP:0000061": set(),  # topic - no descendants
+                "ATP:0000335": {"ATP:0000321", "ATP:0000229"},  # generic -> new data, new to field
+                "ATP:0000321": {"ATP:0000229"},  # new data -> new to field
+                "ATP:0000229": set(),  # new to field - no descendants
             }.get(onto_node, set())
 
             mock_get_curie_to_name_from_all_tets.return_value = {
@@ -1733,7 +2039,8 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            automated_source_response = client.post(url="/topic_entity_tag/source/", json=automated_source, headers=auth_headers)
+            automated_source_response = client.post(url="/topic_entity_tag/source/", json=automated_source,
+                                                    headers=auth_headers)
             assert automated_source_response.status_code == status.HTTP_201_CREATED
             automated_source_id = automated_source_response.json()
 
@@ -1746,7 +2053,8 @@ class TestTopicEntityTag:
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
-            curator_source_response = client.post(url="/topic_entity_tag/source/", json=curator_source, headers=auth_headers)
+            curator_source_response = client.post(url="/topic_entity_tag/source/", json=curator_source,
+                                                  headers=auth_headers)
             assert curator_source_response.status_code == status.HTTP_201_CREATED
             curator_source_id = curator_source_response.json()
 
