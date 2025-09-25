@@ -14,7 +14,7 @@ from .test_reference import test_reference # noqa
 from .test_reference import test_reference as test_reference2 # noqa
 from .test_resource import test_resource # noqa
 
-TestXrefData = namedtuple('TestXrefData', ['response', 'related_ref_curie'])
+XrefTestData = namedtuple('XrefData', ['response', 'related_ref_curie'])
 
 
 @pytest.fixture
@@ -31,7 +31,7 @@ def test_cross_reference(db, auth_headers, test_reference): # noqa
             "pages": ["reference"]
         }
         response = client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
-        yield TestXrefData(response, test_reference.new_ref_curie)
+        yield XrefTestData(response, test_reference.new_ref_curie)
 
 
 class TestCrossRef:

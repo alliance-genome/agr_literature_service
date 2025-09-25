@@ -8,7 +8,7 @@ from agr_literature_service.api.main import app
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 
-TestLicenseData = namedtuple('TestLicenseData', ['response', 'new_copyright_license_id', 'new_license_name'])
+LicenseTestData = namedtuple('LicenseTestData', ['response', 'new_copyright_license_id', 'new_license_name'])
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def test_copyright_license(db, auth_headers): # noqa
             "open_access": True
         }
         response = client.post(url="/copyright_license/", json=new_license, headers=auth_headers)
-        yield TestLicenseData(response, response.json(), new_license["name"])
+        yield LicenseTestData(response, response.json(), new_license["name"])
 
 
 class TestCopyrightLicense:

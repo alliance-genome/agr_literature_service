@@ -15,7 +15,7 @@ from .test_topic_entity_tag import test_topic_entity_tag # noqa
 from .test_reference import test_reference # noqa
 from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 
-TestDatasetData = namedtuple('TestDatasetData', ['response', 'mod_abbreviation', 'data_type',
+DatasetTestData = namedtuple('DatasetTestData', ['response', 'mod_abbreviation', 'data_type',
                                                  'dataset_type', 'version'])
 
 
@@ -36,7 +36,7 @@ def test_dataset(db, test_mod, auth_headers):  # noqa
         }
         response = client.post(url="/datasets/", json=new_dataset, headers=auth_headers)
         new_dataset_metadata = response.json()
-        yield TestDatasetData(response, new_dataset_metadata["mod_abbreviation"], new_dataset_metadata["data_type"],
+        yield DatasetTestData(response, new_dataset_metadata["mod_abbreviation"], new_dataset_metadata["data_type"],
                               new_dataset_metadata["dataset_type"], new_dataset_metadata["version"])
 
 
