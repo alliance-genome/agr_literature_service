@@ -879,7 +879,7 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
         if tet.topic_entity_tag_source.source_evidence_assertion:
             if tet.topic_entity_tag_source.source_evidence_assertion.startswith("ECO:"):
                 source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
-            else:
+            elif tet.topic_entity_tag_source.source_evidence_assertion.startswith("ATP:"):
                 all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
     entity_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=list(all_atp_terms))
     entity_curie_to_name.update(get_map_ateam_curies_to_names(category="ecoterm",
