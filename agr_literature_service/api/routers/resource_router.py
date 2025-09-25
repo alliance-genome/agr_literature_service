@@ -51,7 +51,7 @@ def patch(curie: str,
           user: OktaUser = db_user,
           db: Session = db_session):
     set_global_user_from_okta(db, user)
-    patch = request.dict(exclude_unset=True)
+    patch = request.model_dump(exclude_unset=True)
 
     return resource_crud.patch(db, curie, patch)
 
