@@ -279,14 +279,16 @@ class TestTopicEntityTag:
             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
             assert response.json()["validation_by_author"] == "validated_wrong"
 
-    def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
+    def test_cannot_create_existing_similar_tag_with_negation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
-                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
             mock_get_ancestors.return_value = []
             mock_get_descendants.return_value = []
             curator_source = {
-                "source_evidence_assertion": "curator",
+                "source_evidence_assertion": "ATP:0000036",  # manual assertion by professional biocurator, ATP required because it will have an existing_tag in the crud
                 "source_method": "abc_literature_system",
                 "validation_type": "professional_biocurator",
                 "description": "curator from ABC",
@@ -314,6 +316,54 @@ class TestTopicEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": response.json(),
                 "negated": False,
+                "data_novelty": "ATP:0000334",
+            }
+            client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            response = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
+                                       headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json()["status"] == "exists"
+
+    def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            curator_source = {
+                "source_evidence_assertion": "curator",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            validating_tag_cur_1 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": True,
+                "created_by": "curator1",
+                "data_novelty": "ATP:0000334"
+            }
+            validating_tag_cur_2 = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": response.json(),
+                "negated": False,
+                "created_by": "curator2",
                 "data_novelty": "ATP:0000334",
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
