@@ -1906,7 +1906,6 @@ class TestTopicEntityTag:
                 response = client.get(f"/topic_entity_tag/{tag_id}")
                 assert response.status_code == status.HTTP_200_OK
                 tag_data_response = response.json()
-                assert "ml_model_version" not in tag_data_response
                 assert not tag_data_response["ml_model_version"]
 
     def test_show_topic_entity_tag_with_ml_model_version(self, test_topic_entity_tag_source, test_reference, test_ml_model, auth_headers, db): # noqa
