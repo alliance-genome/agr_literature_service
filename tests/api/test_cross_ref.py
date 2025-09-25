@@ -14,7 +14,7 @@ from .test_reference import test_reference # noqa
 from .test_reference import test_reference as test_reference2 # noqa
 from .test_resource import test_resource # noqa
 
-XrefTestData = namedtuple('XrefData', ['response', 'related_ref_curie'])
+XrefTestData = namedtuple('XrefTestData', ['response', 'related_ref_curie'])
 
 
 @pytest.fixture
