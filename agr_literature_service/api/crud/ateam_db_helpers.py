@@ -2,7 +2,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from os import environ
-from typing import Dict
+from typing import Dict, List
 from sqlalchemy import text
 from fastapi import HTTPException, status
 from sqlalchemy import create_engine
@@ -530,11 +530,13 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> list[str]:
     return results
 
 
-def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
+def load_name_to_atp_and_relationships(start_terms: List = None):
     """
     Add data to atp_to_name and name_to_atp dictionaries.
     From the top curie given go down all children and store the data.
     """
+    if start_terms is None:
+        start_terms = ['ATP:0000177', 'ATP:0000335']
     global atp_to_name, name_to_atp, atp_to_children, atp_to_parent
 
     try:
@@ -580,14 +582,13 @@ def load_name_to_atp_and_relationships(start_term='ATP:0000177'):
                 atp_to_children[parent_curie].append(child_curie)
             else:
                 atp_to_children[parent_curie] = [child_curie]
-    if start_term:
-        parent_list = [start_term]
-        while parent_list:
-            parent = parent_list.pop()
-            if parent in atp_to_children:
-                for child in atp_to_children[parent]:
-                    parent_list.append(child)
-                    atp_to_parent[child] = parent
+    parent_list = start_terms
+    while parent_list:
+        parent = parent_list.pop()
+        if parent in atp_to_children:
+            for child in atp_to_children[parent]:
+                parent_list.append(child)
+                atp_to_parent[child] = parent
 
     logger.debug("ATP global vars successfully loaded")
     return
