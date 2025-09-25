@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Optional
 from sqlalchemy import UniqueConstraint, CheckConstraint, ForeignKey
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from sqlalchemy import Integer, String, Float
