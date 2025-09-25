@@ -2008,7 +2008,7 @@ class TestTopicEntityTag:
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_ancestors") as mock_get_ancestors, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_descendants") as mock_get_descendants, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
-                        mock_get_curie_to_name_from_all_tets:
+                mock_get_curie_to_name_from_all_tets:
             # Mock ontology hierarchy - ATP:0000229 (new to field) should be more specific than ATP:0000335 (generic)
             mock_get_ancestors.side_effect = lambda onto_node=None: {
                 "ATP:0000061": set(),  # topic - no ancestors (leaf node)
