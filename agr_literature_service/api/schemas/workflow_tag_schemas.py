@@ -25,6 +25,8 @@ class WorkflowTagSchemaPost(WorkflowTagSchemaCreate):
 
     reference_curie: str
     date_updated: Optional[datetime] = None
+    curation_tag: Optional[str] = None
+    note: Optional[str] = None
 
 
 class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
@@ -38,11 +40,15 @@ class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
     workflow_tag_id: str
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
+    curation_tag: Optional[str] = None
+    note: Optional[str] = None
 
 
 class WorkflowTagSchemaShow(WorkflowTagSchemaRelated):
     """Schema for showing a workflow tag with its reference context."""
     reference_curie: str
+    curation_tag: Optional[str] = None
+    note: Optional[str] = None
 
 
 class WorkflowTagSchemaUpdate(BaseModel):
@@ -55,6 +61,8 @@ class WorkflowTagSchemaUpdate(BaseModel):
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     workflow_tag_id: Optional[str] = None
+    curation_tag: Optional[str] = None
+    note: Optional[str] = None
 
 
 class WorkflowTransitionSchemaPost(BaseModel):
