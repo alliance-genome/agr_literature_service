@@ -318,29 +318,13 @@ class TestTopicEntityTag:
                 "data_novelty": "ATP:0000334",
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
-#             response1 = client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
-#             print("Status code1:", response1.status_code)
-#             print("Response body:", response1.text)
-#             response1.raise_for_status()
-#             response2 = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2, headers=auth_headers)
-#             print("Status code2:", response2.status_code)
-#             print("Response body:", response2.text)
-#             response2.raise_for_status()
-
-#             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
-#                                        headers=auth_headers)
-# TODO  this should return a 201 and check that status is exists
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
             response = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
                                        headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
             assert response.json()["status"] == "exists"
-
-#             response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
-#             assert response.json()["validation_by_author"] == "not_validated"
-#             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
-#             response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
-#             assert response.json()["validation_by_author"] == "not_validated"
-#             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
 
     def test_validation_wrong(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
