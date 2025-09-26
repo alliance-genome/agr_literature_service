@@ -86,8 +86,6 @@ def upgrade():
         'topic_entity_tag_version',
         sa.Column('ml_model_id_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False)
     )
-    # optional: remove default to match existing pattern
-    op.alter_column('topic_entity_tag_version', 'ml_model_id_mod', server_default=None)
 
 
 def downgrade():
