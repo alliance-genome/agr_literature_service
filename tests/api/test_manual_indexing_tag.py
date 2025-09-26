@@ -126,6 +126,8 @@ class TestManualIndexingTag:
             assert "all_curation_tags" in data
             # the patched dictionary should be present
             assert data["all_curation_tags"] == {
+                "ATP:0000208": "ATP:0000208",
+                "ATP:0000227": "ATP:0000227",
                 "ATP:curation_tag1": "Tag One",
                 "ATP:curation_tag2": "Tag Two",
             }
