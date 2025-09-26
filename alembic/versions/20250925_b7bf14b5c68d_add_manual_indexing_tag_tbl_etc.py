@@ -35,19 +35,11 @@ def upgrade():
         sa.Column('updated_by', sa.String(), sa.ForeignKey('users.id'), nullable=True),
 
         sa.UniqueConstraint('mod_id', 'reference_id', 'curation_tag', name='uq_mod_ref_tag'),
-        sa.CheckConstraint(
-            "curation_tag LIKE 'ATP:%'",
-            name='ck_confval_curation_tag_prefix'
-        ),
-        sa.CheckConstraint(
-            "(confidence_score IS NULL) OR (confidence_score >= 0.0 AND confidence_score <= 1.0)",
-            name='ck_confval_confidence_range'
-        ),
-        sa.CheckConstraint(
-            "(validation_by_biocurator IS NULL OR validation_by_biocurator IN ('right','wrong'))",
-            name='ck_manual_indexing_tag_validation'
-        ),
+        sa.CheckConstraint("curation_tag LIKE 'ATP:%'", name='ck_confval_curation_tag_prefix'),
+        sa.CheckConstraint("(confidence_score IS NULL) OR (confidence_score >= 0.0 AND confidence_score <= 1.0)", name='ck_confval_confidence_range'),
+        sa.CheckConstraint("(validation_by_biocurator IS NULL OR validation_by_biocurator IN ('right','wrong'))", name='ck_manual_indexing_tag_validation'),
     )
+
     op.create_index(op.f('ix_manual_indexing_tag_reference_id'), 'manual_indexing_tag', ['reference_id'], unique=False)
     op.create_index(op.f('ix_manual_indexing_tag_mod_id'), 'manual_indexing_tag', ['mod_id'], unique=False)
     op.create_index(op.f('ix_manual_indexing_tag_curation_tag'), 'manual_indexing_tag', ['curation_tag'], unique=False)
@@ -78,7 +70,7 @@ def upgrade():
     op.add_column('workflow_tag_version', sa.Column('curation_tag_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False))
     op.add_column('workflow_tag_version', sa.Column('note_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False))
 
-    # add ml_model_id to topic_entity_tag_version
+    # --- topic_entity_tag_version: add ml_model_id + mod flag ---
     op.add_column('topic_entity_tag_version', sa.Column('ml_model_id', sa.Integer(), nullable=True))
     op.create_index('ix_topic_entity_tag_version_ml_model_id', 'topic_entity_tag_version', ['ml_model_id'], unique=False)
     op.create_foreign_key(
@@ -89,9 +81,22 @@ def upgrade():
         ['ml_model_id'],
         ondelete='SET NULL'
     )
+    # add *_mod flag (tracked like your workflow_tag_version pattern)
+    op.add_column(
+        'topic_entity_tag_version',
+        sa.Column('ml_model_id_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False)
+    )
+    # optional: remove default to match existing pattern
+    op.alter_column('topic_entity_tag_version', 'ml_model_id_mod', server_default=None)
 
 
 def downgrade():
+    # --- topic_entity_tag_version: drop in reverse order ---
+    op.drop_constraint('fk_topic_entity_tag_version_ml_model', 'topic_entity_tag_version', type_='foreignkey')
+    op.drop_index('ix_topic_entity_tag_version_ml_model_id', table_name='topic_entity_tag_version')
+    op.drop_column('topic_entity_tag_version', 'ml_model_id')
+    op.drop_column('topic_entity_tag_version', 'ml_model_id_mod')
+
     # Revert workflow_tag changes
     op.drop_column('workflow_tag_version', 'note_mod')
     op.drop_column('workflow_tag_version', 'curation_tag_mod')
@@ -112,6 +117,7 @@ def downgrade():
     op.drop_index(op.f('ix_indexing_priority_date_updated'), table_name='indexing_priority')
     op.drop_index(op.f('ix_indexing_priority_date_created'), table_name='indexing_priority')
 
+    # manual_indexing_tag indexes + table
     op.drop_index(op.f('ix_manual_indexing_tag_date_updated'), table_name='manual_indexing_tag')
     op.drop_index(op.f('ix_manual_indexing_tag_date_created'), table_name='manual_indexing_tag')
     op.drop_index(op.f('ix_manual_indexing_tag_curation_tag'), table_name='manual_indexing_tag')
