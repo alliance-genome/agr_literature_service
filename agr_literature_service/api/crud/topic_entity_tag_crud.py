@@ -665,6 +665,23 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"invalid request: {e}")
 
+    # check if an identical tag exists except for the negated boolean
+    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
+        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
+    ).one_or_none()
+    if source.source_method == "abc_literature_system" and source.validation_type == "professional_biocurator":
+        negation_check_data = copy.deepcopy(new_tag_data)
+        negation_check_data.pop('negated', None)  # Ignore negated field for this query
+        similar_tag = db.query(TopicEntityTagModel).filter_by(**negation_check_data).first()
+        if similar_tag and similar_tag.negated != topic_entity_tag_data.get('negated'):
+            tag_data = get_tet_with_names(db, tet=topic_entity_tag_data, curie_or_reference_id=str(reference_id))
+            return {
+                "status": "exists",
+                "message": "A similar tag already exists in the database with the opposite 'negated' value.",
+                "data": tag_data,
+                "conflicting_tag_id": similar_tag.topic_entity_tag_id
+            }
+
     if force_insertion:
         return
     new_tag_data_wo_creator = copy.copy(new_tag_data)
@@ -883,7 +900,7 @@ def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
         if tet.topic_entity_tag_source.source_evidence_assertion:
             if tet.topic_entity_tag_source.source_evidence_assertion.startswith("ECO:"):
                 source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
-            else:
+            elif tet.topic_entity_tag_source.source_evidence_assertion.startswith("ATP:"):
                 all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
     entity_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=list(all_atp_terms))
     entity_curie_to_name.update(get_map_ateam_curies_to_names(category="ecoterm",
