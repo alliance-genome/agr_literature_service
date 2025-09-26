@@ -25,7 +25,7 @@ TestManualIndexingTagData = namedtuple(
 # --- Patch helpers used by CRUD.get_manual_indexing_tag() ---
 #  get_workflow_tags_from_process(process_atp_id) -> List[str]
 def _patch_get_workflow_tags_from_process(process_atp_id: str):
-    # pretend there are two allowed child tags for ATP:0000197 (process id used in code)
+    # pretend there are two allowed child tags for ATP:0000208 (process id used in code)
     return ["ATP:curation_tag1", "ATP:curation_tag2"]
 
 

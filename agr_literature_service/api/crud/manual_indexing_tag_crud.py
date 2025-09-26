@@ -235,10 +235,11 @@ def get_manual_indexing_tag(db: Session, reference_curie: str):
             )
         reference_curie = agrkb_curie
 
-    process_atp_id = "ATP:0000197"
-    curation_tags = get_workflow_tags_from_process(process_atp_id)
-    _, atp_to_name = get_name_to_atp_for_all_children(process_atp_id)
-    curation_tag_to_name = {atp: atp_to_name.get(atp, atp) for atp in curation_tags}
+    curation_tag_to_name = {}
+    for process_atp_id in ["ATP:0000227", "ATP:0000208"]:
+        curation_tags = get_workflow_tags_from_process(process_atp_id)
+        _, atp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+        curation_tag_to_name.update({atp: atp_to_name.get(atp, atp) for atp in curation_tags})
 
     sql = """
         SELECT
