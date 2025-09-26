@@ -10,7 +10,7 @@ from agr_literature_service.api.models import ResourceModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 
-TestResourceData = namedtuple('TestResourceData', ['response', 'new_resource_curie'])
+ResourceTestData = namedtuple('ResourceTestData', ['response', 'new_resource_curie'])
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def test_resource(db, auth_headers): # noqa
             "title": "Bob", "abstract": "3", "open_access": True
         }
         response = client.post(url="/resource/", json=resource_data, headers=auth_headers)
-        yield TestResourceData(response, response.json())
+        yield ResourceTestData(response, response.json())
 
 
 class TestResource:

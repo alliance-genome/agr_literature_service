@@ -18,7 +18,7 @@ from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 
-TestWTData = namedtuple('TestWTData', ['response', 'new_wt_id', 'related_ref_curie', 'related_mod_id',
+WTTestData = namedtuple('WTTestData', ['response', 'new_wt_id', 'related_ref_curie', 'related_mod_id',
                                        'related_mod_abbreviation'])
 
 
@@ -34,7 +34,7 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
                   "workflow_tag_id": "ATP:0001111",
                   }
         response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
-        yield TestWTData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
+        yield WTTestData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_id,
                          test_mod.new_mod_abbreviation)
 
 

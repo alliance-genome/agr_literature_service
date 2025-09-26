@@ -17,7 +17,7 @@ from collections import namedtuple
 
 test_reference2 = test_reference
 
-TestMCAData = namedtuple('TestMCAData', ['response', 'new_mca_id', 'related_ref_curie'])
+MCATestData = namedtuple('MCATestData', ['response', 'new_mca_id', 'related_ref_curie'])
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def test_mca(monkeypatch, db, auth_headers, test_reference, test_mod): # noqa
             "mod_corpus_sort_source": 'mod_pubmed_search'
         }
         response = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
-        yield TestMCAData(response, response.json(), test_reference.new_ref_curie)
+        yield MCATestData(response, response.json(), test_reference.new_ref_curie)
 
 
 class TestModCorpusAssociation:

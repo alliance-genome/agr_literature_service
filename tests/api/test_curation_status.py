@@ -12,7 +12,7 @@ from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
 from .test_reference import test_reference # noqa
 
-TestCurationStatusData = namedtuple('TestCurationStatusData', ['response', 'new_curation_status_id', 'new_reference_curie', 'new_mod_abbreviation'])
+CurationStatusTestData = namedtuple('CurationStatusTestData', ['response', 'new_curation_status_id', 'new_reference_curie', 'new_mod_abbreviation'])
 
 
 def patch_subset(topic=None, mod_abbr: str = ""):
@@ -40,7 +40,7 @@ def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
             "curation_status": "ATP:curation_needed",
         }
         response = client.post(url="/curation_status/", json=new_curation_status, headers=auth_headers)
-        yield TestCurationStatusData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_abbreviation)
+        yield CurationStatusTestData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_abbreviation)
 
 
 class TestCurationStatus:

@@ -14,7 +14,7 @@ test_reference2 = test_reference
 test_reference3 = test_reference
 test_reference4 = test_reference
 
-TestRefComAndCorData = namedtuple('TestRefComAndCorData', ['response', 'new_rcc_id', 'ref_curie_from', 'ref_curie_to'])
+RefComAndCorTestData = namedtuple('RefComAndCorTestData', ['response', 'new_rcc_id', 'ref_curie_from', 'ref_curie_to'])
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def test_ref_cc(db, auth_headers, test_reference, test_reference2): # noqa
                    "reference_relation_type": "CommentOn"
                    }
         response = client.post(url="/reference_relation/", json=new_rcc, headers=auth_headers)
-        yield TestRefComAndCorData(response, response.json(), ref1, ref2)
+        yield RefComAndCorTestData(response, response.json(), ref1, ref2)
 
 
 class TestReferenceRelation:

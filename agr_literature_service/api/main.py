@@ -1,7 +1,11 @@
-from os import environ
+"""Main FastAPI application module."""
 import argparse
-from typing import Any, Dict
 import logging
+import sys
+from contextlib import asynccontextmanager
+from os import environ
+from typing import Any, Dict
+
 import uvicorn
 
 from fastapi import FastAPI
@@ -27,13 +31,22 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 dataset_router, ml_model_router,
                                                 manual_indexing_tag_router)
 
-title = "Alliance Literature Service"
-version = "0.1.0"
-description = "This service provides access to the Alliance Bibliographic Corpus and metadata"
+TITLE = "Alliance Literature Service"
+VERSION = "0.1.0"
+DESCRIPTION = "This service provides access to the Alliance Bibliographic Corpus and metadata"
 
-app = FastAPI(title=title,
-              version=version,
-              description=description)
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Handle application lifespan events."""
+    setup_database()
+    yield
+
+
+app = FastAPI(title=TITLE,
+              version=VERSION,
+              description=DESCRIPTION,
+              lifespan=lifespan)
 
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
@@ -51,18 +64,13 @@ def custom_openapi() -> Dict[str, Any]:
     if app.openapi_schema:
         return app.openapi_schema
     openapi_schema = get_openapi(
-        title=title,
-        version=version,
-        description=description,
+        title=TITLE,
+        version=VERSION,
+        description=DESCRIPTION,
         routes=app.routes,
     )
     app.openapi_schema = openapi_schema
     return app.openapi_schema
-
-
-@app.on_event('startup')
-def init_db():
-    setup_database()
 
 
 app.include_router(resource_router.router)
@@ -98,6 +106,7 @@ app.openapi = custom_openapi  # type: ignore
 
 
 def check_key_envs():
+    """Check that all required environment variables are set."""
     env_to_check = [
         'API_PORT', 'API_SERVER', 'XML_PATH', 'AWS_SECRET_ACCESS_KEY',
         'AWS_ACCESS_KEY_ID', 'OKTA_CLIENT_ID', 'OKTA_CLIENT_SECRET', 'ENV_STATE',
@@ -109,26 +118,28 @@ def check_key_envs():
         value = environ.get(key, "")
         if not value:
             okay_to_continue = False
-            logging.error(f"Environment variable {key} has no value or is blank")
+            logging.error("Environment variable %s has no value or is blank", key)
     if not okay_to_continue:
         logging.error("Exiting initialisation. Please set all envs anf try again.")
     return okay_to_continue
 
 
-def run():
-    """
+def run(parsed_args):
+    """Run the FastAPI application.
 
-    :return:
+    :param parsed_args: Parsed command-line arguments
     """
 
     if not check_key_envs():
-        exit(-1)
+        sys.exit(-1)
 
     # May put back but for now do not see way to have multiple formats
     #  using the logging.basicConfig
-    # LOGGING_CONFIG["formatters"]["default"]["fmt"] = "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
-    # LOGGING_CONFIG["formatters"]["access"]["fmt"] = '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
-    #                                                 '"%(request_line)s" %(status_code)s'
+    # LOGGING_CONFIG["formatters"]["default"]["fmt"] = \
+    #     "%(asctime)s [%(name)s] %(levelprefix)s %(message)s"
+    # LOGGING_CONFIG["formatters"]["access"]["fmt"] = \
+    #     '%(asctime)s [%(name)s] %(levelprefix)s %(client_addr)s - ' \
+    #     '"%(request_line)s" %(status_code)s'
     print(f"run: Database details are {SQLALCHEMY_DATABASE_NOPASS}")
     state = environ.get('ENV_STATE')
     if state == 'test':
@@ -136,17 +147,21 @@ def run():
     else:
         log_level = logging.WARNING
     uvicorn.run("main:app",
-                port=args['port'],
-                host=args['ip_address'],
+                port=parsed_args['port'],
+                host=parsed_args['ip_address'],
                 timeout_keep_alive=5001,
                 log_level=log_level)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--port', type=int, help='Port to run the server on', default=8080, nargs='?')
-    parser.add_argument('-i', '--ip-address', type=str, help='IP address of the host', default='0.0.0.0', nargs='?')
+    parser.add_argument('-p', '--port', type=int,
+                        help='Port to run the server on',
+                        default=8080, nargs='?')
+    parser.add_argument('-i', '--ip-address', type=str,
+                        help='IP address of the host',
+                        default='0.0.0.0', nargs='?')
     parser.add_argument('-v', dest='verbose', action='store_true')
 
     args = vars(parser.parse_args())
-    run()
+    run(args)

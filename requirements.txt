@@ -7,7 +7,7 @@ sqlalchemy==2.0.7            # Upgrade to SQLAlchemy 2.0.x.
 fastapi==0.116.1             # version to match starlette
 fastapi-health==0.4.0        # No update needed.
 uvicorn[standard]==0.23.1    # Updated for compatibility with FastAPI.
-starlette==0.47.1            # 
+starlette==0.47.2            #
 aiofiles==23.1.0             # Updated for better performance.
 alembic==1.14.1              # Upgrade for compatibility with SQLAlchemy 2.0.x.
 async-exit-stack==1.0.1      # No update needed.
@@ -44,8 +44,9 @@ sqlalchemy_schemadisplay==2.0.0 # Upgrade for compatibility with SQLAlchemy 2.0.
 git+https://github.com/alliance-genome/agr_fastapi_okta@v1.3#egg=fastapi_okta # Latest version from the repo.
 
 # HTTP and Networking
-requests==2.31.0             # Updated for bug fixes and improvements.
-urllib3==1.26.17             # Dependabot fix.
+requests==2.32.4             # Updated for bug fixes and improvements.
+urllib3==1.26.17
+# urllib3>=2.5.0               # Dependabot fix. Seems a bit of a jump and failed.
 
 # XML Processing
 bs4==0.0.1                   # No update needed.

@@ -10,7 +10,7 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_resource import test_resource # noqa
 
-TestEditorData = namedtuple('TestEditorData', ['response', 'new_editor_id', 'related_resource_curie'])
+EditorTestData = namedtuple('EditorTestData', ['response', 'new_editor_id', 'related_resource_curie'])
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def test_editor(db, auth_headers, test_resource): # noqa
             "resource_curie": test_resource.new_resource_curie
         }
         response = client.post(url="/editor/", json=new_editor, headers=auth_headers)
-        yield TestEditorData(response, response.json(), test_resource.new_resource_curie)
+        yield EditorTestData(response, response.json(), test_resource.new_resource_curie)
 
 
 class TestEditor:
