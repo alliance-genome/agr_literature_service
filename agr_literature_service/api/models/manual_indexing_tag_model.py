@@ -25,7 +25,7 @@ class ManualIndexingTagModel(Base, AuditedModel):
         ),
         # ATP id format (curation_tag)
         CheckConstraint(
-            "curation_tag IS NULL OR curation_tag LIKE 'ATP:%'",
+            "curation_tag LIKE 'ATP:%'",
             name="ck_confval_curation_tag_prefix",
         ),
         # confidence_score in [0, 1]

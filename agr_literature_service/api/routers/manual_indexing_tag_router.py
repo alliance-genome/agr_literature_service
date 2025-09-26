@@ -125,6 +125,6 @@ def set_manual_indexing_tag(
         db,
         body.reference_curie,
         body.mod_abbreviation,
-        body.manual_indexing_tag,
+        body.curation_tag,
         body.confidence_score,
     )
