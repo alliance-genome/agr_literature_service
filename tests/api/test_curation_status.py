@@ -89,7 +89,7 @@ class TestCurationStatus:
     def test_patch(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
-                "controlled_note": "ATP:cont_note",
+                "curation_tag": "ATP:curation_tag",
                 "note": "some notes"
             }
             url = f"/curation_status/{test_curation_status.new_curation_status_id}"

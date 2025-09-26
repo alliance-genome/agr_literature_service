@@ -194,7 +194,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
     for tet, tet_source in rows:
         topic_tet_list_dict[tet.topic].append((tet, tet_source))
 
-    query = (f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.controlled_note, cs.note, cs.updated_by, "
+    query = (f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, cs.updated_by, "
              f"cs.date_updated, u.email AS updated_by_email "
              f"FROM curation_status cs JOIN users u ON cs.updated_by = u.id WHERE cs.mod_id = {mod_id} AND "
              f"cs.reference_id = {reference_id}")
@@ -205,7 +205,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
         agg_cur_stat_tet_objs[row["topic"]].update({
             "curst_curation_status_id": row["curation_status_id"],
             "curst_curation_status": row["curation_status"],
-            "curst_controlled_note": row["controlled_note"],
+            "curst_curation_tag": row["curation_tag"],
             "curst_note": row["note"],
             "curst_updated_by": row["updated_by"],
             "curst_updated_by_email": row["updated_by_email"],

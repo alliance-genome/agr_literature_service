@@ -20,7 +20,7 @@ class CurationStatusSchemaPost(CurationStatusSchemaBase):
     """Schema for posting a new curation status."""
     topic: str
     curation_status: Optional[str] = None
-    controlled_note: Optional[str] = None
+    curation_tag: Optional[str] = None
     note: Optional[str] = None
 
 
@@ -32,7 +32,7 @@ class CurationStatusSchemaUpdate(BaseModel):
     )
 
     curation_status: Optional[str] = None
-    controlled_note: Optional[str] = None
+    curation_tag: Optional[str] = None
     note: Optional[str] = None
 
 
@@ -45,7 +45,7 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
 
     curst_curation_status_id: Optional[int] = None
     curst_curation_status: Optional[str] = None
-    curst_controlled_note: Optional[str] = None
+    curst_curation_tag: Optional[str] = None
     curst_note: Optional[str] = None
     curst_updated_by: Optional[str] = None
     curst_updated_by_email: Optional[str] = None
