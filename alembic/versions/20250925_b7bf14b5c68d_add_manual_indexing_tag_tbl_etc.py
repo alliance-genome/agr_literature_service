@@ -78,6 +78,18 @@ def upgrade():
     op.add_column('workflow_tag_version', sa.Column('curation_tag_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False))
     op.add_column('workflow_tag_version', sa.Column('note_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False))
 
+    # add ml_model_id to topic_entity_tag_version
+    op.add_column('topic_entity_tag_version', sa.Column('ml_model_id', sa.Integer(), nullable=True))
+    op.create_index('ix_topic_entity_tag_version_ml_model_id', 'topic_entity_tag_version', ['ml_model_id'], unique=False)
+    op.create_foreign_key(
+        'fk_topic_entity_tag_version_ml_model',
+        'topic_entity_tag_version',
+        'ml_model',
+        ['ml_model_id'],
+        ['ml_model_id'],
+        ondelete='SET NULL'
+    )
+
 
 def downgrade():
     # Revert workflow_tag changes
