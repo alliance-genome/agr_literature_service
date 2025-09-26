@@ -47,7 +47,7 @@ class CurationStatusModel(Base, AuditedModel):
         nullable=True
     )
 
-    controlled_note = Column(
+    curation_tag = Column(
         String,
         nullable=True
     )

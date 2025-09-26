@@ -28,7 +28,8 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 workflow_tag_router, topic_entity_tag_router,
                                                 referencefile_router, referencefile_mod_router,
                                                 copyright_license_router, check_router,
-                                                dataset_router, ml_model_router)
+                                                dataset_router, ml_model_router,
+                                                manual_indexing_tag_router)
 
 TITLE = "Alliance Literature Service"
 VERSION = "0.1.0"
@@ -97,6 +98,7 @@ app.include_router(dataset_router.router)
 app.include_router(ml_model_router.router)
 app.include_router(curation_status_router.router)
 app.include_router(indexing_priority_router.router)
+app.include_router(manual_indexing_tag_router.router)
 
 app.add_api_route("/health", health([is_database_online]))
 
