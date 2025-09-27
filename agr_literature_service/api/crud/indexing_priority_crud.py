@@ -20,6 +20,7 @@ from agr_literature_service.api.models import (
 from agr_literature_service.api.schemas.indexing_priority_schemas import IndexingPrioritySchemaPost
 from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
+from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 
 logger = logging.getLogger(__name__)
 
@@ -233,29 +234,9 @@ def show(db: Session, indexing_priority_id: int) -> Dict[str, Any]:
     return data
 
 
-def get_indexing_priority_tag(db: Session, reference_curie: str):
+def get_indexing_priority_tag(db: Session, curie: str):
 
-    # Normalize to AGRKB: curie if the caller passed MOD curie or PMID
-    if not reference_curie.startswith("AGRKB:"):
-        res = db.execute(
-            text("""
-                SELECT r.curie
-                FROM reference AS r
-                JOIN cross_reference AS cr
-                  ON r.reference_id = cr.reference_id
-                WHERE cr.is_obsolete IS FALSE
-                  AND cr.curie = :xref
-                LIMIT 1
-            """),
-            {"xref": reference_curie}
-        )
-        agrkb_curie = res.scalar_one_or_none()
-        if agrkb_curie is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"The XREF {reference_curie} is not in the cross_reference table",
-            )
-        reference_curie = agrkb_curie
+    reference_curie = normalize_reference_curie(db, curie)
 
     process_atp_id = "ATP:0000210"
     priority_tags = get_workflow_tags_from_process(process_atp_id)

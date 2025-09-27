@@ -17,7 +17,7 @@ from agr_literature_service.api.models import (
 from agr_literature_service.api.schemas.manual_indexing_tag_schemas import ManualIndexingTagSchemaPost
 from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
-
+from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 logger = logging.getLogger(__name__)
 
 
@@ -211,30 +211,9 @@ def show(db: Session, manual_indexing_tag_id: int) -> Dict[str, Any]:
     return data
 
 
-def get_manual_indexing_tag(db: Session, reference_curie: str):
+def get_manual_indexing_tag(db: Session, curie: str):
 
-    # Normalize to AGRKB: curie if the caller passed MOD curie or PMID
-    if not reference_curie.startswith("AGRKB:"):
-        res = db.execute(
-            text("""
-                SELECT r.curie
-                FROM reference AS r
-                JOIN cross_reference AS cr
-                  ON r.reference_id = cr.reference_id
-                WHERE cr.is_obsolete IS FALSE
-                  AND cr.curie = :xref
-                LIMIT 1
-            """),
-            {"xref": reference_curie}
-        )
-        agrkb_curie = res.scalar_one_or_none()
-        if agrkb_curie is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"The XREF {reference_curie} is not in the cross_reference table",
-            )
-        reference_curie = agrkb_curie
-
+    reference_curie = normalize_reference_curie(db, curie)
     curation_tag_to_name = {}
     _, atp_to_name = get_name_to_atp_for_all_children("ATP:0000197")
     for process_atp_id in ["ATP:0000227", "ATP:0000208"]:
