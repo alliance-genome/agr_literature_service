@@ -28,7 +28,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_current_workfl
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     has_manual_tet
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, \
-    ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel, CrossReferenceModel
+    ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel
 from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
@@ -37,6 +37,7 @@ from agr_literature_service.api.schemas.referencefile_schemas import Referencefi
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
+from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 
 logger = logging.getLogger(__name__)
 
@@ -323,15 +324,7 @@ def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
 
 
 def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
-    if not metadata["reference_curie"].startswith("AGRKB:101"):
-        ref_curie_res = db.query(ReferenceModel.curie).filter(
-            ReferenceModel.cross_reference.any(CrossReferenceModel.curie == metadata["reference_curie"])).one_or_none()
-        if ref_curie_res is not None:
-            metadata["reference_curie"] = ref_curie_res.curie
-        else:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"The specified curie: {metadata['reference_curie']} is not in the standard Alliance format and no cross references match the specified value.")
-        metadata["reference_curie"] = ref_curie_res.curie
+    metadata["reference_curie"] = normalize_reference_curie(db, metadata["reference_curie"])
     if metadata["mod_abbreviation"]:
         inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
         if not inCorpus:

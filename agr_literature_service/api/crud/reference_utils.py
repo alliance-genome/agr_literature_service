@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session, subqueryload, joinedload
 
 from agr_literature_service.api.models import ReferenceModel, ObsoleteReferenceModel, ReferencefileModel
@@ -139,3 +139,28 @@ def get_reference(db: Session, curie_or_reference_id: str, load_referencefiles: 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with the reference_id or curie {curie_or_reference_id} is not available")
     return reference
+
+
+def normalize_reference_curie(db: Session, curie: str):
+    # Normalize to AGRKB: curie if the caller passed MOD curie or PMID
+    if not curie.startswith("AGRKB:"):
+        res = db.execute(
+            text("""
+                SELECT r.curie
+                FROM reference AS r
+                JOIN cross_reference AS cr
+                  ON r.reference_id = cr.reference_id
+                WHERE cr.is_obsolete IS FALSE
+                  AND cr.curie = :xref
+                LIMIT 1
+            """),
+            {"xref": curie}
+        )
+        agrkb_curie = res.scalar_one_or_none()
+        if agrkb_curie is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"The XREF {curie} is not in the cross_reference table",
+            )
+        curie = agrkb_curie
+    return curie

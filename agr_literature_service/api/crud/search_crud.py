@@ -92,6 +92,24 @@ def search_references(
     if page is None:
         page = 1
 
+    if query and (query_fields == "All" or query_fields is None):
+        if query.upper().startswith("AGRKB:"):
+            query_fields = "Curie"
+        elif ':' in query:
+            curie_prefix_list = get_mod_abbreviations()  # e.g. ["SGD", "WB", "XB", ...]
+            # normalize to a set for easy lookup
+            curie_prefix_list = set(curie_prefix_list)
+
+            # also accept publication and DOI prefixes
+            curie_prefix_list.update({"PMID", "PMCID", "DOI"})
+
+            # special case: Xenbase IDs start with "Xenbase:"
+            curie_prefix_list.add("Xenbase")
+
+            query_prefix = query.split(':', 1)[0]
+            if query_prefix in curie_prefix_list:
+                query_fields = "Xref"
+
     author_filter = (author_filter or "").strip() or None
     author_exact_token_for_boost = None
     uses_rescore = False
