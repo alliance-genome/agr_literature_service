@@ -54,6 +54,18 @@ WORKFLOW_FACETS = [
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
 _ORCID_INPUT = re.compile(r'(?i)^(?:\s*orcid:\s*)?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9Xx]{4})\s*$')
 
+_XREF_BARE_PATTERNS = [
+    re.compile(r"^10\.\d{4,9}/\S+$", re.I),        # DOI
+    re.compile(r"^pmcid:?pmc\d+$", re.I),          # PMCID or PMCID:PMC123456
+    re.compile(r"^pmc\d+$", re.I),                 # bare PMC123456
+    re.compile(r"^wbpaper\d+$", re.I),             # WBPaper00064897
+    re.compile(r"^zdb-[A-Z]+-\d{6}-\d+$", re.I),   # ZDB-PUB-YYYYMM-#
+    re.compile(r"^xb-art-\d+$", re.I),             # XB-ART-59278
+    re.compile(r"^fbrf\d+$", re.I),                # FBrf0076951
+    re.compile(r"^s\d{9}$", re.I),                 # SGD S000339612 / S100000615
+    re.compile(r"^\d{1,}$"),                       # plain numeric (PMID / MGI / RGD, etc.)
+]
+
 
 # flake8: noqa: C901
 def search_references(
@@ -93,9 +105,12 @@ def search_references(
         page = 1
 
     if query and (query_fields == "All" or query_fields is None):
-        if query.upper().startswith("AGRKB:"):
+        if query.upper().startswith("XENBASE:"):
+            query =  query.upper().replace("XENBASE:", "")
+        q_norm = normalize_user_query(query)
+        if q_norm.upper().startswith("AGRKB:"):
             query_fields = "Curie"
-        elif ':' in query:
+        elif ':' in q_norm:
             curie_prefix_list = get_mod_abbreviations()  # e.g. ["SGD", "WB", "XB", ...]
             # normalize to a set for easy lookup
             curie_prefix_list = set(curie_prefix_list)
@@ -103,13 +118,13 @@ def search_references(
             # also accept publication and DOI prefixes
             curie_prefix_list.update({"PMID", "PMCID", "DOI"})
 
-            # special case: Xenbase IDs start with "Xenbase:"
-            curie_prefix_list.add("Xenbase")
-
-            query_prefix = query.split(':', 1)[0]
-            if query_prefix in curie_prefix_list:
+            query_prefix = q_norm.split(':', 1)[0]
+            if query_prefix.upper() in curie_prefix_list:
                 query_fields = "Xref"
-
+        else:
+            if looks_like_xref_id_without_prefix(q_norm):
+                query_fields = "Xref"
+                
     author_filter = (author_filter or "").strip() or None
     author_exact_token_for_boost = None
     uses_rescore = False
@@ -930,3 +945,10 @@ def normalize_user_query(s: str) -> str:
     s = unicodedata.normalize("NFKC", s)   # fixes full-width punctuation like '：'
     s = re.sub(r'\s+', ' ', s).strip()
     return s
+
+
+def looks_like_xref_id_without_prefix(s: str) -> bool:
+    s = (s or "").strip()
+    if ":" in s:
+        return False
+    return any(pat.match(s) for pat in _XREF_BARE_PATTERNS)
