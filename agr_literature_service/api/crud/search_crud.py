@@ -106,7 +106,7 @@ def search_references(
 
     if query and (query_fields == "All" or query_fields is None):
         if query.upper().startswith("XENBASE:"):
-            query =  query.upper().replace("XENBASE:", "")
+            query = query.upper().replace("XENBASE:", "")
         q_norm = normalize_user_query(query)
         if q_norm.upper().startswith("AGRKB:"):
             query_fields = "Curie"
@@ -124,7 +124,7 @@ def search_references(
         else:
             if looks_like_xref_id_without_prefix(q_norm):
                 query_fields = "Xref"
-                
+
     author_filter = (author_filter or "").strip() or None
     author_exact_token_for_boost = None
     uses_rescore = False
