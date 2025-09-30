@@ -444,6 +444,7 @@ def map_curies_to_names(category, curies):
         FROM biologicalentity be
         JOIN slotannotation sa ON be.id = sa.singleagm_id
         WHERE be.primaryexternalid IN :curies
+        AND sa.slotannotationtype = 'AgmFullNameSlotAnnotation'
         """)
 
     elif 'construct' in category:
