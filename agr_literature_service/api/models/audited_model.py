@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Callable
 
 from sqlalchemy import Column, DateTime, String, ForeignKey, event
 from sqlalchemy.ext.declarative import declared_attr
@@ -9,9 +9,12 @@ from sqlalchemy.inspection import inspect as sa_inspect
 
 from agr_literature_service.api.user import get_global_user_id
 
+# mypy-friendly optional parser
+dateutil_parse: Optional[Callable[[str], datetime]]
 try:
-    # Optional helper if non-ISO formats arrive
-    from dateutil import parser as dateutil_parser  # type: ignore
+    # If dateutil is installed, keep the callable; otherwise we'll fall back later
+    from dateutil.parser import parse as _dateutil_parse  # type: ignore[import-not-found]
+    dateutil_parse = _dateutil_parse
 except Exception:  # pragma: no cover
     dateutil_parser = None
 
@@ -23,12 +26,6 @@ def get_default_user_value() -> str:
 
 
 def _parse_to_utc(value: Optional[datetime | str]) -> Optional[datetime]:
-    """
-    Accept datetime | str | None and return tz-aware UTC datetime (or None).
-    - Treat naive datetimes as UTC.
-    - Handles 'YYYY-MM-DD HH:MM:SS(.ffffff)' and ISO-8601 strings.
-    - Falls back to python-dateutil if available.
-    """
     if value is None:
         return None
 
@@ -36,14 +33,15 @@ def _parse_to_utc(value: Optional[datetime | str]) -> Optional[datetime]:
         dt = value
     elif isinstance(value, str):
         s = value.strip()
+        # allow "YYYY-MM-DD HH:MM:SS(.ffffff)" by normalizing to ISO
         if "T" not in s and " " in s:
             s = s.replace(" ", "T", 1)
         try:
             dt = datetime.fromisoformat(s)
         except ValueError:
-            if dateutil_parser is None:
+            if dateutil_parse is None:
                 raise ValueError(f"Unrecognized datetime format: {value!r}")
-            dt = dateutil_parser.parse(value)
+            dt = dateutil_parse(value)
     else:
         raise TypeError(f"Unsupported datetime value type: {type(value)}")
 
