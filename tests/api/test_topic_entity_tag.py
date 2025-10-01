@@ -2171,6 +2171,7 @@ class TestTopicEntityTag:
         """
         Test that when a validating tag is added, the existing tag's validation fields
         are updated but updated_by and date_updated remain unchanged.
+        Also test that a subsequent explicit update correctly updates these fields.
         """
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client, \
@@ -2269,3 +2270,33 @@ class TestTopicEntityTag:
             assert validated_tag.date_created == original_date_created
             assert validated_tag.date_created == expected_date_created, \
                 f"date_created is {validated_tag.date_created} but expected {expected_date_created}"
+
+            # Now perform an explicit update to verify that updated_by and date_updated ARE changed
+            import time
+            time.sleep(1)  # Ensure time has passed for date_updated to change
+
+            update_data = {
+                "note": "Updated note after validation"
+            }
+            update_response = client.patch(f"/topic_entity_tag/{first_tag_id}", json=update_data, headers=auth_headers)
+            assert update_response.status_code == status.HTTP_202_ACCEPTED
+
+            # Refresh the tag and verify updated_by and date_updated WERE changed by the explicit update
+            db.expire(validated_tag)
+            updated_tag = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == first_tag_id
+            ).one()
+
+            # updated_by and date_updated should now be different from the original values
+            assert updated_tag.updated_by != original_updated_by, \
+                "updated_by should have changed after explicit update"
+            assert updated_tag.date_updated != original_date_updated, \
+                "date_updated should have changed after explicit update"
+            assert updated_tag.date_updated > original_date_updated, \
+                f"date_updated should be later than original: {updated_tag.date_updated} > {original_date_updated}"
+
+            # But created_by and date_created should still be unchanged
+            assert updated_tag.created_by == original_created_by, \
+                "created_by should never change"
+            assert updated_tag.date_created == original_date_created, \
+                "date_created should never change"
