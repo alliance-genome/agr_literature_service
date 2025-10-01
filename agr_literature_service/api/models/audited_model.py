@@ -6,12 +6,50 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.inspection import inspect as sa_inspect
 from agr_literature_service.api.user import get_global_user_id
 
+# Internal flag to track if we should skip auto-updating updated_by and date_updated
+# Used during validation operations to prevent changing these fields
+_SKIP_AUTO_UPDATE_FLAG = '_skip_audit_auto_update'
+
 
 def get_default_user_value():
     uid = get_global_user_id()
     if uid is None:
         uid = "default_user"
     return uid
+
+
+def disable_set_updated_by_onupdate(target):
+    """
+    Disable automatic update of updated_by field for the target object.
+    Used during validation to prevent changing the updated_by field.
+    """
+    setattr(target, _SKIP_AUTO_UPDATE_FLAG, True)
+
+
+def enable_set_updated_by_onupdate(target):
+    """
+    Re-enable automatic update of updated_by field for the target object.
+    """
+    if hasattr(target, _SKIP_AUTO_UPDATE_FLAG):
+        delattr(target, _SKIP_AUTO_UPDATE_FLAG)
+
+
+def disable_set_date_updated_onupdate(target):
+    """
+    Disable automatic update of date_updated field for the target object.
+    Used during validation to prevent changing the date_updated field.
+    Note: This uses the same flag as disable_set_updated_by_onupdate since
+    both fields should be disabled/enabled together during validation.
+    """
+    setattr(target, _SKIP_AUTO_UPDATE_FLAG, True)
+
+
+def enable_date_updated_onupdate(target):
+    """
+    Re-enable automatic update of date_updated field for the target object.
+    """
+    if hasattr(target, _SKIP_AUTO_UPDATE_FLAG):
+        delattr(target, _SKIP_AUTO_UPDATE_FLAG)
 
 
 class AuditedModel(object):
@@ -63,7 +101,12 @@ def _set_created_and_updated(mapper, connection, target):
 def _set_updated(mapper, connection, target):
     """
     Only auto-stamp fields that the caller didn't explicitly set.
+    Skip auto-updating if the skip flag is set (e.g., during validation operations).
     """
+    # Check if auto-update should be skipped (e.g., during validation)
+    if hasattr(target, _SKIP_AUTO_UPDATE_FLAG) and getattr(target, _SKIP_AUTO_UPDATE_FLAG):
+        return
+
     now = datetime.now(tz=pytz.timezone("UTC"))
     state = sa_inspect(target)
 
