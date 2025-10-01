@@ -3,7 +3,6 @@ from datetime import datetime
 from unittest.mock import patch
 
 import pytest
-import pytz
 from starlette.testclient import TestClient
 from fastapi import status
 
