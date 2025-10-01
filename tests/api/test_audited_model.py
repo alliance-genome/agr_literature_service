@@ -10,9 +10,9 @@ from sqlalchemy import Column, Integer, String, inspect
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api import user as user_mod  # direct access to request-scoped user
 
-from ..fixtures import db  # noqa: F401
+from ..fixtures import db  # noqa: F401  (Session fixture)
 
 
 # ----------------------------- helpers -----------------------------
@@ -24,6 +24,7 @@ class AuditedDummy(Base, AuditedModel):
 
 
 def _utc_now() -> datetime:
+    # tz-aware "now" in UTC
     return datetime.now(timezone.utc)
 
 
@@ -36,7 +37,7 @@ def _is_recent(dt: datetime, seconds: int = 5) -> bool:
     return abs((_to_utc(_utc_now()) - _to_utc(dt)).total_seconds()) < seconds
 
 
-def _ensure_user(db, uid: Optional[str]):  # noqa
+def _ensure_user(db, uid: Optional[str]) -> None:  # noqa
     if not uid:
         return
     if not db.query(UserModel).filter_by(id=uid).one_or_none():
@@ -48,24 +49,24 @@ def _ensure_user(db, uid: Optional[str]):  # noqa
 
 @pytest.fixture(autouse=True)
 def _reset_user_ctx():
-    """Ensure each test starts/ends with no global user set."""
+    """Ensure each test starts/ends with no global/request user set."""
+    prev = getattr(user_mod, "user_id", None)
+    user_mod.user_id = None
     try:
-        set_global_user_id(None)
-    except TypeError:
-        # Older signatures: best-effort clear
-        set_global_user_id("")  # type: ignore
-    yield
-    try:
-        set_global_user_id(None)
-    except TypeError:
-        set_global_user_id("")  # type: ignore
+        yield
+    finally:
+        user_mod.user_id = prev
 
 
 @pytest.fixture(autouse=True)
 def _create_tables(db):  # noqa
-    """Create table once per test function; ensure FK targets exist."""
+    """
+    Ensure the test table exists for each test and that required users exist.
+    Function-scoped to match the function-scoped `db` fixture.
+    """
     engine = db.get_bind()
     insp = inspect(engine)
+
     if not insp.has_table(AuditedDummy.__tablename__):
         Base.metadata.create_all(bind=engine, tables=[AuditedDummy.__table__])
 
@@ -83,7 +84,12 @@ def _create_tables(db):  # noqa
 # ------------------------------ tests ------------------------------
 
 def test_insert_autostamps_when_no_global_user(db):  # noqa
-    """Insert with no fields set -> stamps dates and default user; date_updated mirrors date_created."""
+    """
+    Insert with no fields set:
+      - stamps date_created and date_updated (recent)
+      - date_updated mirrors date_created
+      - created_by/updated_by are 'default_user'
+    """
     obj = AuditedDummy(name="alpha")
     db.add(obj)
     db.commit()
@@ -93,7 +99,7 @@ def test_insert_autostamps_when_no_global_user(db):  # noqa
     assert isinstance(obj.date_updated, datetime)
     assert _is_recent(obj.date_created)
     assert _is_recent(obj.date_updated)
-    assert obj.date_updated == obj.date_created  # mirror on insert
+    assert obj.date_updated == obj.date_created
     assert obj.created_by == "default_user"
     assert obj.updated_by == "default_user"
 
@@ -119,6 +125,21 @@ def test_insert_respects_explicit_created_fields_and_mirrors_updated(db):  # noq
 
     assert _to_utc(obj.date_created) == _to_utc(manual_created)
     assert obj.created_by == "MANUAL_CREATOR"
+    assert obj.date_updated == obj.date_created
+    assert obj.updated_by == "MANUAL_CREATOR"
+
+
+def test_insert_accepts_string_datetime_and_normalizes(db):  # noqa
+    """
+    If a string datetime is passed on INSERT, it is parsed and normalized to UTC.
+    """
+    s = "2025-06-19 07:57:40.284484"  # naive string, assumed UTC by parser
+    obj = AuditedDummy(name="stringy", date_created=s, created_by="MANUAL_CREATOR")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert isinstance(obj.date_created, datetime)
     assert obj.date_updated == obj.date_created
     assert obj.updated_by == "MANUAL_CREATOR"
 
@@ -160,7 +181,7 @@ def test_later_update_stamps_now_and_global_user(db):  # noqa
     db.commit()
     db.refresh(obj)
 
-    # Consume the skip by doing one no-op business update
+    # Consume the skip by doing one business update
     obj.name = "delta-2"
     db.add(obj)
     db.commit()
@@ -170,7 +191,7 @@ def test_later_update_stamps_now_and_global_user(db):  # noqa
 
     # Now set a request user and perform a real update
     _ensure_user(db, "OTTO")
-    set_global_user_id("OTTO")
+    user_mod.user_id = "OTTO"
 
     obj.name = "delta-3"
     db.add(obj)
@@ -199,8 +220,8 @@ def test_later_update_uses_default_user_when_global_unset(db):  # noqa
 
     prev_updated = obj.date_updated
 
-    # No global user now
-    set_global_user_id(None)
+    # Explicitly clear request user
+    user_mod.user_id = None
 
     obj.name = "echo-3"
     db.add(obj)
