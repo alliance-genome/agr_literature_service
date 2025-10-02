@@ -86,11 +86,24 @@ class AuditedModel(object):
 
 @event.listens_for(AuditedModel, "before_insert", propagate=True)
 def _set_created_and_updated(mapper, connection, target):
+    # If either date is set but not both, set both to the same value
+    if target.date_created is not None and target.date_updated is None:
+        target.date_updated = target.date_created
+    elif target.date_updated is not None and target.date_created is None:
+        target.date_created = target.date_updated
+
     now = datetime.now(tz=pytz.timezone("UTC"))
     if target.date_created is None:
         target.date_created = now
     if target.date_updated is None:
         target.date_updated = now
+
+    # If either user is set but not both, set both to the same value
+    if target.created_by is not None and target.updated_by is None:
+        target.updated_by = target.created_by
+    elif target.updated_by is not None and target.created_by is None:
+        target.created_by = target.updated_by
+
     if target.created_by is None:
         target.created_by = get_default_user_value()
     if target.updated_by is None:
