@@ -105,8 +105,8 @@ def test_insert_respects_explicit_created_fields(db): # noqa
     assert _to_utc(obj.date_created) == _to_utc(manual_created)
     assert obj.created_by == "MANUAL_CREATOR"
     assert isinstance(obj.date_updated, datetime)
-    assert _is_recent(obj.date_updated)
-    assert obj.updated_by == "default_user"
+    assert obj.date_updated == obj.date_created  # date updated automatically set to date_created value if not provided
+    assert obj.updated_by == obj.created_by  # updated_by automatically set to created_by value if not provided
 
 
 def test_update_overwrites_to_now_and_global_user(db): # noqa

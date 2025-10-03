@@ -1,4 +1,5 @@
 from collections import namedtuple
+from datetime import datetime
 from unittest.mock import patch
 
 import pytest
@@ -2164,3 +2165,137 @@ class TestTopicEntityTag:
             # Verify that the second tag is in the validating_tags list of the first tag
             validating_tags = updated_first_tag_data.get("validating_tags", [])
             assert second_tag_id in validating_tags
+
+    def test_validation_does_not_change_updated_by_and_date_updated(self, test_reference, test_mod, auth_headers, db):  # noqa
+        """
+        Test that when a validating tag is added, the existing tag's validation fields
+        are updated but updated_by and date_updated remain unchanged.
+        Also test that a subsequent explicit update correctly updates these fields.
+        """
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants:
+            mock_get_ancestors.return_value = ["ATP:0000061"]
+            mock_get_descendants.return_value = ["ATP:0000009"]
+
+            # Create a curator source for validation
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
+            }
+            source_response = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
+            source_id = source_response.json()
+
+            # Create the first tag with specific created_by and updated_by
+            first_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": "original_creator",
+                "updated_by": "original_updater",
+                "date_created": "2020-01-01T10:00:00+00:00",
+                "date_updated": "2020-01-02T10:00:00+00:00"
+            }
+            first_response = client.post(url="/topic_entity_tag/", json=first_tag, headers=auth_headers)
+            assert first_response.status_code == status.HTTP_201_CREATED
+            first_tag_id = first_response.json()["topic_entity_tag_id"]
+
+            # Get the original updated_by and date_updated values from the database
+            from agr_literature_service.api.models import TopicEntityTagModel
+            original_tag = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == first_tag_id
+            ).one()
+            original_updated_by = original_tag.updated_by
+            original_date_updated = original_tag.date_updated
+            original_created_by = original_tag.created_by
+            original_date_created = original_tag.date_created
+
+            # Verify the original values were set correctly
+            assert original_created_by == "original_creator"
+            assert original_updated_by == "original_updater"
+            # Database stores timezone-naive datetimes
+            expected_date_created = datetime(2020, 1, 1, 10, 0, 0)
+            expected_date_updated = datetime(2020, 1, 2, 10, 0, 0)
+            assert original_date_created == expected_date_created
+            assert original_date_updated == expected_date_updated
+
+            # Create a second tag that will validate the first tag
+            second_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000229",  # More specific data novelty
+                "created_by": "different_creator",
+                "updated_by": "different_updater"
+            }
+            second_response = client.post(url="/topic_entity_tag/", json=second_tag, headers=auth_headers)
+            assert second_response.status_code == status.HTTP_201_CREATED
+
+            # Refresh the first tag from the database
+            db.expire(original_tag)
+            validated_tag = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == first_tag_id
+            ).one()
+
+            # Verify that validation fields were updated
+            assert validated_tag.validation_by_professional_biocurator == "validated_right"
+
+            # CRITICAL: Verify that updated_by and date_updated were NOT changed
+            assert validated_tag.updated_by == original_updated_by, \
+                f"updated_by changed from {original_updated_by} to {validated_tag.updated_by} during validation"
+            assert validated_tag.date_updated == original_date_updated, \
+                f"date_updated changed from {original_date_updated} to {validated_tag.date_updated} during validation"
+            assert validated_tag.date_updated == expected_date_updated, \
+                f"date_updated is {validated_tag.date_updated} but expected {expected_date_updated}"
+
+            # Also verify created_by and date_created remain unchanged
+            assert validated_tag.created_by == original_created_by
+            assert validated_tag.date_created == original_date_created
+            assert validated_tag.date_created == expected_date_created, \
+                f"date_created is {validated_tag.date_created} but expected {expected_date_created}"
+
+            # Now perform an explicit update to verify that updated_by and date_updated ARE changed
+            import time
+            time.sleep(1)  # Ensure time has passed for date_updated to change
+
+            update_data = {
+                "note": "Updated note after validation"
+            }
+            update_response = client.patch(f"/topic_entity_tag/{first_tag_id}", json=update_data, headers=auth_headers)
+            assert update_response.status_code == status.HTTP_202_ACCEPTED
+
+            # Refresh the tag and verify updated_by and date_updated WERE changed by the explicit update
+            db.expire(validated_tag)
+            updated_tag = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == first_tag_id
+            ).one()
+
+            # updated_by and date_updated should now be different from the original values
+            assert updated_tag.updated_by != original_updated_by, \
+                "updated_by should have changed after explicit update"
+            assert updated_tag.date_updated != original_date_updated, \
+                "date_updated should have changed after explicit update"
+            assert updated_tag.date_updated > original_date_updated, \
+                f"date_updated should be later than original: {updated_tag.date_updated} > {original_date_updated}"
+
+            # But created_by and date_created should still be unchanged
+            assert updated_tag.created_by == original_created_by, \
+                "created_by should never change"
+            assert updated_tag.date_created == original_date_created, \
+                "date_created should never change"
