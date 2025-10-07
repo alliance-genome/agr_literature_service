@@ -22,7 +22,6 @@ class PersonModel(Base, AuditedModel):
     # Optional identifiers
     curie = Column(String(), nullable=True, index=True)     # e.g., MATI id
     okta_id = Column(String(), nullable=True, index=True)   # Okta uid
-    orcid = Column(String(), nullable=True, index=True)
 
     # Optional lists
     xrefs = Column(ARRAY(String), nullable=True)            # e.g., ["WBPerson:123", "ZFIN:..."]
@@ -34,7 +33,6 @@ class PersonModel(Base, AuditedModel):
 
     __table_args__ = (
         UniqueConstraint("okta_id", name="uq_person_okta_id"),
-        UniqueConstraint("orcid", name="uq_person_orcid"),
         Index("ix_person_display_name_trigram", "display_name"),
     )
 

@@ -1,7 +1,7 @@
 from typing import Dict
 
 from sqlalchemy import (
-    Column, Integer, String, DateTime, ForeignKey, Index, UniqueConstraint, func
+    Column, Integer, String, DateTime, ForeignKey, Index, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 
@@ -24,8 +24,7 @@ class EmailModel(Base, AuditedModel):
     email_address = Column(String(), nullable=False)
 
     # Timestamps for lifecycle
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    invalidated_at = Column(DateTime(timezone=True), nullable=True)
+    date_invalidated = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("person_id", "email_address", name="uq_email_person_address"),
