@@ -1282,7 +1282,7 @@ def get_recently_sorted_references(db: Session, mod_abbreviation, days, pmid_onl
     reference_id_to_mod_reference_types = get_mod_reference_type_data_for_ref_ids(db, ref_ids)
     reference_id_to_reference_relation_data = get_all_reference_relation_data(db)
     resource_id_to_journal = get_journal_by_resource_id(db)
-    reference_id_to_citation_data = get_citation_data(db)
+    reference_id_to_citation_data = get_citation_data(db, ref_ids)
     reference_id_to_license_data = get_license_data(db)
 
     data: List[Dict[str, Any]] = []
