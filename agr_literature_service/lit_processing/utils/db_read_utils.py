@@ -1,9 +1,10 @@
 from collections import defaultdict
-from sqlalchemy import or_, text
+from sqlalchemy import or_, text, bindparam
 from fastapi.encoders import jsonable_encoder
-from typing import Dict, Tuple, Union, List, Any, TypedDict
+from typing import Dict, Tuple, Union, List, Any, TypedDict, Iterable
 from datetime import datetime, timedelta
 import json
+import re
 
 from sqlalchemy.orm import joinedload, Session
 
@@ -300,17 +301,33 @@ def get_reference_relation_data(db_session: Session, mod, reference_id_list):
     return reference_ids_to_reference_relation_type
 
 
-def get_citation_data(db_session: Session):
-    sql_query = text(
-        "SELECT r.reference_id, c.citation, c.short_citation "
-        "FROM reference r "
-        "JOIN citation c "
-        "  ON r.citation_id = c.citation_id"
-    )
-    return {
-        ref_id: {"citation": citation, "short_citation": short_citation}
-        for ref_id, citation, short_citation in db_session.execute(sql_query)
-    }
+def _normalize_ids(reference_id_list: Iterable[int] | str) -> List[int]:
+    if not reference_id_list:
+        return []
+    if isinstance(reference_id_list, str):
+        # accept "1,2  3, 4"
+        parts = re.split(r"[,\s]+", reference_id_list.strip())
+        return [int(p) for p in parts if p]
+    return [int(x) for x in reference_id_list]
+
+
+def get_citation_data(db_session: Session, reference_id_list) -> Dict[int, dict]:
+    ids = _normalize_ids(reference_id_list)
+    if not ids:
+        return {}
+
+    sql = text("""
+        SELECT r.reference_id,
+               c.citation,
+               COALESCE(c.short_citation, c.citation) AS short_citation
+        FROM reference r
+        JOIN citation c ON r.citation_id = c.citation_id
+        WHERE r.reference_id IN :ref_ids
+        ORDER BY r.reference_id
+    """).bindparams(bindparam("ref_ids", expanding=True))
+
+    rows = db_session.execute(sql, {"ref_ids": ids}).tuples()
+    return {rid: {"citation": cit, "short_citation": short} for rid, cit, short in rows}
 
 
 def get_license_data(db_session: Session):
