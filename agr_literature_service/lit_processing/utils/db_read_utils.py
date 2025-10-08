@@ -311,7 +311,19 @@ def _normalize_ids(reference_id_list: Iterable[int] | str) -> List[int]:
     return [int(x) for x in reference_id_list]
 
 
-def get_citation_data(db_session: Session, reference_id_list) -> Dict[int, dict]:
+def get_citation_data(db_session: Session, reference_id_list=None) -> Dict[int, dict]:
+
+    if reference_id_list is None:
+        sql = text("""
+            SELECT r.reference_id,
+                   c.citation,
+                   COALESCE(c.short_citation, c.citation) AS short_citation
+            FROM reference r
+            JOIN citation c ON r.citation_id = c.citation_id
+        """)
+        rows = db_session.execute(sql)
+        return {rid: {"citation": cit, "short_citation": short} for rid, cit, short in rows}
+
     ids = _normalize_ids(reference_id_list)
     if not ids:
         return {}
