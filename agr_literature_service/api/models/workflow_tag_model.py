@@ -62,7 +62,8 @@ class WorkflowTagModel(AuditedModel, Base):
     workflow_tag_id = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     mod_id = Column(
