@@ -6,7 +6,6 @@ from agr_literature_service.api.database.base import Base
 
 class UserModel(Base):
     __tablename__ = "users"
-    __versioned__: Dict = {}
 
     user_id = Column(Integer, primary_key=True, autoincrement=True)
     id = Column(String, nullable=True, index=True, unique=True)  # legacy
