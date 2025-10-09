@@ -342,59 +342,8 @@ def upgrade():      # noqa: C901
     if not _constraint_exists(conn, "transaction", "transaction_user_id_fkey"):
         op.create_foreign_key("transaction_user_id_fkey", "transaction", "users", ["user_id"], ["user_id"])
 
-    # ----------------------------
-    # users_version adjustments
-    # ----------------------------
-    if not _col_exists(conn, "users_version", "user_id"):
-        op.add_column("users_version", sa.Column("user_id", sa.Integer(), nullable=False))
-    if not _col_exists(conn, "users_version", "automation_username"):
-        op.add_column("users_version", sa.Column("automation_username", sa.String(), nullable=True))
-    if not _col_exists(conn, "users_version", "person_id"):
-        op.add_column("users_version", sa.Column("person_id", sa.Integer(), nullable=True))
-
-    for col in ("id_mod", "automation_username_mod", "person_id_mod"):
-        if not _col_exists(conn, "users_version", col):
-            op.add_column(
-                "users_version",
-                sa.Column(col, sa.Boolean(), server_default=sa.text("false"), nullable=False),
-            )
-
-    # DO NOT alter users_version.id nullability; it's part of the PK in many versioning setups.
-
-    _create_index_if_missing("users_version", ["automation_username"], op.f("ix_users_version_automation_username"))
-    _create_index_if_missing("users_version", ["email"], op.f("ix_users_version_email"))
-    _create_index_if_missing("users_version", ["person_id"], op.f("ix_users_version_person_id"))
-
 
 def downgrade():
-    # users_version
-    op.drop_index(op.f("ix_users_version_person_id"), table_name="users_version")
-    op.drop_index(op.f("ix_users_version_email"), table_name="users_version")
-    op.drop_index(op.f("ix_users_version_automation_username"), table_name="users_version")
-    # do not alter nullability of users_version.id on downgrade either
-    op.drop_column("users_version", "person_id_mod")
-    op.drop_column("users_version", "automation_username_mod")
-    op.drop_column("users_version", "id_mod")
-    op.drop_column("users_version", "person_id")
-    op.drop_column("users_version", "automation_username")
-    op.drop_column("users_version", "user_id")
-
-    # transaction: revert FK to users.id (varchar)
-    if _constraint_exists(op.get_bind(), "transaction", "transaction_user_id_fkey"):
-        op.drop_constraint("transaction_user_id_fkey", "transaction", type_="foreignkey")
-    op.add_column("transaction", sa.Column("user_id_old", sa.VARCHAR(), nullable=True))
-    op.execute(
-        """
-        UPDATE transaction t
-        SET user_id_old = u.id
-        FROM users u
-        WHERE t.user_id IS NOT NULL
-          AND u.user_id = t.user_id
-        """
-    )
-    op.drop_column("transaction", "user_id")
-    op.alter_column("transaction", "user_id_old", new_column_name="user_id", nullable=True)
-    op.create_foreign_key("transaction_user_id_fkey", "transaction", "users", ["user_id"], ["id"])
 
     # users: drop check, FK to person, indexes, and UNIQUE(user_id)
     conn = op.get_bind()
