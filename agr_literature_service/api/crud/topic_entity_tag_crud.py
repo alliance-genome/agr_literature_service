@@ -673,15 +673,16 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
     ).one_or_none()
     if source.source_method == "abc_literature_system" and source.validation_type == "professional_biocurator":
         negation_check_data = copy.deepcopy(new_tag_data)
-        negation_check_data.pop('negated', None)  # Ignore negated field for this query
-        similar_tag = db.query(TopicEntityTagModel).filter_by(**negation_check_data).first()
-        if similar_tag and similar_tag.negated != topic_entity_tag_data.get('negated'):
+        negation_check_data.pop('data_novelty')
+        negation_check_data['negated'] = not negation_check_data['negated']  # look for tags with opposite negated value
+        similar_tags = db.query(TopicEntityTagModel).filter_by(**negation_check_data).all()
+        if similar_tags:
             tag_data = get_tet_with_names(db, tet=topic_entity_tag_data, curie_or_reference_id=str(reference_id))
             return {
                 "status": "exists",
-                "message": "A similar tag already exists in the database with the opposite 'negated' value.",
+                "message": "One or more tags already exist in the database with the opposite 'negated' value.",
                 "data": tag_data,
-                "conflicting_tag_id": similar_tag.topic_entity_tag_id
+                "conflicting_tag_ids": [tag.topic_entity_tag_id for tag in similar_tags]
             }
 
     if force_insertion:
