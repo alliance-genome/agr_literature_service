@@ -151,7 +151,7 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             has_data = True
             if tet.data_novelty in {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}:
                 new_data = True
-    topic_added = earliest_dt.isoformat(timespec='milliseconds')
+    topic_added = earliest_dt.isoformat()
     return {
         "tet_info_date_created": topic_added,
         "tet_info_topic_source": sorted(topic_sources),
@@ -209,7 +209,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
             "curst_note": row["note"],
             "curst_updated_by": row["updated_by"],
             "curst_updated_by_email": row["updated_by_email"],
-            "curst_date_updated": row["date_updated"].isoformat(timespec='milliseconds')
+            "curst_date_updated": row["date_updated"].isoformat()
         })
     topic_to_name = map_curies_to_names('atpterm', agg_cur_stat_tet_objs.keys())
 
