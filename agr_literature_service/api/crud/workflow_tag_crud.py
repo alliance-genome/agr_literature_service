@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from typing import Union, Optional, Dict, Any
 
 from agr_literature_service.api.crud.reference_utils import get_reference
