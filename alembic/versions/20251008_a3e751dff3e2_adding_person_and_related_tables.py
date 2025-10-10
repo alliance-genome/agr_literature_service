@@ -72,7 +72,15 @@ def _create_index_if_missing(table: str, cols, name: str, unique: bool = False):
         op.create_index(name, table, cols, unique=unique)
 
 
-def upgrade():      # noqa: C901
+def upgrade():  # noqa: C901
+    # ---------------------------------------------------------
+    # Clean up any leftover *users_version* objects (idempotent)
+    # ---------------------------------------------------------
+    op.execute("DROP INDEX IF EXISTS ix_users_version_person_id")
+    op.execute("DROP INDEX IF EXISTS ix_users_version_email")
+    op.execute("DROP INDEX IF EXISTS ix_users_version_automation_username")
+    op.execute("DROP TABLE IF EXISTS users_version CASCADE")
+
     # ----------------------------
     # Version tables (email/person/xref)
     # ----------------------------
@@ -81,7 +89,12 @@ def upgrade():      # noqa: C901
         sa.Column("email_id", sa.Integer(), autoincrement=False, nullable=False),
         sa.Column("person_id", sa.Integer(), autoincrement=False, nullable=True),
         sa.Column("email_address", sa.String(), autoincrement=False, nullable=True),
-        sa.Column("date_invalidated", sa.DateTime(timezone=True), autoincrement=False, nullable=True),
+        sa.Column(
+            "date_invalidated",
+            sa.DateTime(timezone=True),
+            autoincrement=False,
+            nullable=True,
+        ),
         sa.Column("date_created", sa.DateTime(), autoincrement=False, nullable=True),
         sa.Column("date_updated", sa.DateTime(), autoincrement=False, nullable=True),
         sa.Column("created_by", sa.String(), autoincrement=False, nullable=True),
@@ -89,21 +102,83 @@ def upgrade():      # noqa: C901
         sa.Column("transaction_id", sa.BigInteger(), autoincrement=False, nullable=False),
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
-        sa.Column("person_id_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("email_address_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_invalidated_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_created_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_updated_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("created_by_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("updated_by_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "person_id_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
+        sa.Column(
+            "email_address_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "date_invalidated_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "date_created_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "date_updated_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_by_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_by_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("email_id", "transaction_id"),
     )
-    op.create_index(op.f("ix_email_version_date_created"), "email_version", ["date_created"], unique=False)
-    op.create_index(op.f("ix_email_version_date_updated"), "email_version", ["date_updated"], unique=False)
-    op.create_index(op.f("ix_email_version_end_transaction_id"), "email_version", ["end_transaction_id"], unique=False)
-    op.create_index(op.f("ix_email_version_operation_type"), "email_version", ["operation_type"], unique=False)
-    op.create_index(op.f("ix_email_version_person_id"), "email_version", ["person_id"], unique=False)
-    op.create_index(op.f("ix_email_version_transaction_id"), "email_version", ["transaction_id"], unique=False)
+    op.create_index(
+        op.f("ix_email_version_date_created"),
+        "email_version",
+        ["date_created"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_version_date_updated"),
+        "email_version",
+        ["date_updated"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_version_end_transaction_id"),
+        "email_version",
+        ["end_transaction_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_version_operation_type"),
+        "email_version",
+        ["operation_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_version_person_id"),
+        "email_version",
+        ["person_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_version_transaction_id"),
+        "email_version",
+        ["transaction_id"],
+        unique=False,
+    )
 
     op.create_table(
         "person",
@@ -122,19 +197,36 @@ def upgrade():      # noqa: C901
         sa.UniqueConstraint("okta_id", name="uq_person_okta_id"),
     )
     op.create_index(op.f("ix_person_curie"), "person", ["curie"], unique=False)
-    op.create_index(op.f("ix_person_date_created"), "person", ["date_created"], unique=False)
-    op.create_index(op.f("ix_person_date_updated"), "person", ["date_updated"], unique=False)
-    op.create_index("ix_person_display_name_trigram", "person", ["display_name"], unique=False)
+    op.create_index(
+        op.f("ix_person_date_created"), "person", ["date_created"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_date_updated"), "person", ["date_updated"], unique=False
+    )
+    op.create_index(
+        "ix_person_display_name_trigram", "person", ["display_name"], unique=False
+    )
     op.create_index(op.f("ix_person_okta_id"), "person", ["okta_id"], unique=False)
 
     op.create_table(
         "person_cross_reference_version",
-        sa.Column("person_cross_reference_id", sa.Integer(), autoincrement=False, nullable=False),
+        sa.Column(
+            "person_cross_reference_id",
+            sa.Integer(),
+            autoincrement=False,
+            nullable=False,
+        ),
         sa.Column("curie", sa.String(), autoincrement=False, nullable=True),
         sa.Column("curie_prefix", sa.String(), autoincrement=False, nullable=True),
         sa.Column("person_id", sa.Integer(), autoincrement=False, nullable=True),
         sa.Column("pages", sa.ARRAY(sa.String()), autoincrement=False, nullable=True),
-        sa.Column("is_obsolete", sa.Boolean(), server_default=sa.text("false"), autoincrement=False, nullable=True),
+        sa.Column(
+            "is_obsolete",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            autoincrement=False,
+            nullable=True,
+        ),
         sa.Column("date_created", sa.DateTime(), autoincrement=False, nullable=True),
         sa.Column("date_updated", sa.DateTime(), autoincrement=False, nullable=True),
         sa.Column("created_by", sa.String(), autoincrement=False, nullable=True),
@@ -143,24 +235,96 @@ def upgrade():      # noqa: C901
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
         sa.Column("curie_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("curie_prefix_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("person_id_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "curie_prefix_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "person_id_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
         sa.Column("pages_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("is_obsolete_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_created_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_updated_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("created_by_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("updated_by_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "is_obsolete_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "date_created_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "date_updated_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_by_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_by_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("person_cross_reference_id", "transaction_id"),
     )
-    op.create_index(op.f("ix_person_cross_reference_version_curie"), "person_cross_reference_version", ["curie"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_curie_prefix"), "person_cross_reference_version", ["curie_prefix"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_date_created"), "person_cross_reference_version", ["date_created"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_date_updated"), "person_cross_reference_version", ["date_updated"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_end_transaction_id"), "person_cross_reference_version", ["end_transaction_id"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_operation_type"), "person_cross_reference_version", ["operation_type"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_person_id"), "person_cross_reference_version", ["person_id"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_version_transaction_id"), "person_cross_reference_version", ["transaction_id"], unique=False)
+    op.create_index(
+        op.f("ix_person_cross_reference_version_curie"),
+        "person_cross_reference_version",
+        ["curie"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_curie_prefix"),
+        "person_cross_reference_version",
+        ["curie_prefix"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_date_created"),
+        "person_cross_reference_version",
+        ["date_created"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_date_updated"),
+        "person_cross_reference_version",
+        ["date_updated"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_end_transaction_id"),
+        "person_cross_reference_version",
+        ["end_transaction_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_operation_type"),
+        "person_cross_reference_version",
+        ["operation_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_person_id"),
+        "person_cross_reference_version",
+        ["person_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_version_transaction_id"),
+        "person_cross_reference_version",
+        ["transaction_id"],
+        unique=False,
+    )
 
     op.create_table(
         "person_version",
@@ -176,23 +340,77 @@ def upgrade():      # noqa: C901
         sa.Column("transaction_id", sa.BigInteger(), autoincrement=False, nullable=False),
         sa.Column("end_transaction_id", sa.BigInteger(), nullable=True),
         sa.Column("operation_type", sa.SmallInteger(), nullable=False),
-        sa.Column("display_name_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "display_name_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
         sa.Column("curie_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("okta_id_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("mod_roles_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_created_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("date_updated_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("created_by_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("updated_by_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "mod_roles_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False
+        ),
+        sa.Column(
+            "date_created_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "date_updated_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_by_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_by_mod",
+            sa.Boolean(),
+            server_default=sa.text("false"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("person_id", "transaction_id"),
     )
     op.create_index(op.f("ix_person_version_curie"), "person_version", ["curie"], unique=False)
-    op.create_index(op.f("ix_person_version_date_created"), "person_version", ["date_created"], unique=False)
-    op.create_index(op.f("ix_person_version_date_updated"), "person_version", ["date_updated"], unique=False)
-    op.create_index(op.f("ix_person_version_end_transaction_id"), "person_version", ["end_transaction_id"], unique=False)
-    op.create_index(op.f("ix_person_version_okta_id"), "person_version", ["okta_id"], unique=False)
-    op.create_index(op.f("ix_person_version_operation_type"), "person_version", ["operation_type"], unique=False)
-    op.create_index(op.f("ix_person_version_transaction_id"), "person_version", ["transaction_id"], unique=False)
+    op.create_index(
+        op.f("ix_person_version_date_created"),
+        "person_version",
+        ["date_created"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_version_date_updated"),
+        "person_version",
+        ["date_updated"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_version_end_transaction_id"),
+        "person_version",
+        ["end_transaction_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_version_okta_id"), "person_version", ["okta_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_version_operation_type"),
+        "person_version",
+        ["operation_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_version_transaction_id"),
+        "person_version",
+        ["transaction_id"],
+        unique=False,
+    )
 
     op.create_table(
         "email",
@@ -217,7 +435,9 @@ def upgrade():      # noqa: C901
 
     op.create_table(
         "person_cross_reference",
-        sa.Column("person_cross_reference_id", sa.Integer(), autoincrement=True, nullable=False),
+        sa.Column(
+            "person_cross_reference_id", sa.Integer(), autoincrement=True, nullable=False
+        ),
         sa.Column("curie", sa.String(), nullable=False),
         sa.Column("curie_prefix", sa.String(), nullable=False),
         sa.Column("person_id", sa.Integer(), nullable=True),
@@ -234,13 +454,40 @@ def upgrade():      # noqa: C901
         sa.UniqueConstraint("curie", name="uq_person_xref_curie"),
         sa.UniqueConstraint("person_id", "curie_prefix", name="uq_person_xref_person_prefix"),
     )
-    op.create_index(op.f("ix_person_cross_reference_curie"), "person_cross_reference", ["curie"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_curie_prefix"), "person_cross_reference", ["curie_prefix"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_date_created"), "person_cross_reference", ["date_created"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_date_updated"), "person_cross_reference", ["date_updated"], unique=False)
-    op.create_index(op.f("ix_person_cross_reference_person_id"), "person_cross_reference", ["person_id"], unique=False)
+    op.create_index(
+        op.f("ix_person_cross_reference_curie"), "person_cross_reference", ["curie"], unique=False
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_curie_prefix"),
+        "person_cross_reference",
+        ["curie_prefix"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_date_created"),
+        "person_cross_reference",
+        ["date_created"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_date_updated"),
+        "person_cross_reference",
+        ["date_updated"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_person_cross_reference_person_id"),
+        "person_cross_reference",
+        ["person_id"],
+        unique=False,
+    )
     op.create_index("ix_person_xref_person_id", "person_cross_reference", ["person_id"], unique=False)
-    op.create_index("ix_person_xref_prefix_curie", "person_cross_reference", ["curie_prefix", "curie"], unique=False)
+    op.create_index(
+        "ix_person_xref_prefix_curie",
+        "person_cross_reference",
+        ["curie_prefix", "curie"],
+        unique=False,
+    )
 
     # ----------------------------
     # USERS table adjustments (data-safe & idempotent)
@@ -249,7 +496,10 @@ def upgrade():      # noqa: C901
 
     # 1) Add user_id as identity (if missing)
     if not _col_exists(conn, "users", "user_id"):
-        op.execute('ALTER TABLE "users" ADD COLUMN "user_id" INTEGER GENERATED BY DEFAULT AS IDENTITY')
+        op.execute(
+            'ALTER TABLE "users" ADD COLUMN "user_id" INTEGER '
+            "GENERATED BY DEFAULT AS IDENTITY"
+        )
 
     # Backfill identity for existing rows (idempotent)
     op.execute(
@@ -263,7 +513,7 @@ def upgrade():      # noqa: C901
     )
     op.alter_column("users", "user_id", nullable=False)
 
-    # 2) Ensure UNIQUE(user_id) for FKs (keep users.id as PK)
+    # 2) Ensure UNIQUE(user_id) for FKs (keep users.id as PK if present)
     if not _constraint_exists(conn, "users", "uq_users_user_id"):
         op.create_unique_constraint("uq_users_user_id", "users", ["user_id"])
 
@@ -274,18 +524,26 @@ def upgrade():      # noqa: C901
         op.add_column("users", sa.Column("person_id", sa.Integer(), nullable=True))
 
     # 4) Indexes on users
-    _create_index_if_missing("users", ["automation_username"], op.f("ix_users_automation_username"))
+    _create_index_if_missing(
+        "users", ["automation_username"], op.f("ix_users_automation_username")
+    )
     _create_index_if_missing("users", ["email"], op.f("ix_users_email"))
     _create_index_if_missing("users", ["person_id"], op.f("ix_users_person_id"))
 
-    # 5) FK users.person_id -> person (SET NULL): drop if exists, then (re)create
+    # 5) FK users.person_id -> person (SET NULL)
     if _constraint_exists(conn, "users", "users_person_id_fkey"):
         op.drop_constraint("users_person_id_fkey", "users", type_="foreignkey")
     if not _constraint_exists(conn, "users", "users_person_id_fkey"):
-        op.create_foreign_key("users_person_id_fkey", "users", "person", ["person_id"], ["person_id"], ondelete="SET NULL")
+        op.create_foreign_key(
+            "users_person_id_fkey",
+            "users",
+            "person",
+            ["person_id"],
+            ["person_id"],
+            ondelete="SET NULL",
+        )
 
-    # 6) CHECK constraint: exactly one of (person_id, automation_username)
-    #    If existing data violate it, create as NOT VALID.
+    # 6) CHECK constraint exactly-one-of
     violations = conn.execute(
         sa.text(
             """
@@ -296,7 +554,9 @@ def upgrade():      # noqa: C901
         )
     ).scalar()
     if violations and int(violations) > 0:
-        if not _constraint_exists(conn, "users", "ck_users_exactly_one_of_person_or_automation"):
+        if not _constraint_exists(
+            conn, "users", "ck_users_exactly_one_of_person_or_automation"
+        ):
             op.execute(
                 """
                 ALTER TABLE users
@@ -306,7 +566,9 @@ def upgrade():      # noqa: C901
                 """
             )
     else:
-        if not _constraint_exists(conn, "users", "ck_users_exactly_one_of_person_or_automation"):
+        if not _constraint_exists(
+            conn, "users", "ck_users_exactly_one_of_person_or_automation"
+        ):
             op.create_check_constraint(
                 "ck_users_exactly_one_of_person_or_automation",
                 "users",
@@ -333,22 +595,24 @@ def upgrade():      # noqa: C901
     if _constraint_exists(conn, "transaction", "transaction_user_id_fkey"):
         op.drop_constraint("transaction_user_id_fkey", "transaction", type_="foreignkey")
 
-    # Swap columns
     if _col_exists(conn, "transaction", "user_id"):
         op.drop_column("transaction", "user_id")
     op.alter_column("transaction", "user_id_new", new_column_name="user_id")
 
-    # Add new FK to users.user_id
     if not _constraint_exists(conn, "transaction", "transaction_user_id_fkey"):
-        op.create_foreign_key("transaction_user_id_fkey", "transaction", "users", ["user_id"], ["user_id"])
+        op.create_foreign_key(
+            "transaction_user_id_fkey", "transaction", "users", ["user_id"], ["user_id"]
+        )
 
 
 def downgrade():
+    conn = op.get_bind()
 
     # users: drop check, FK to person, indexes, and UNIQUE(user_id)
-    conn = op.get_bind()
     if _constraint_exists(conn, "users", "ck_users_exactly_one_of_person_or_automation"):
-        op.drop_constraint("ck_users_exactly_one_of_person_or_automation", "users", type_="check")
+        op.drop_constraint(
+            "ck_users_exactly_one_of_person_or_automation", "users", type_="check"
+        )
     if _constraint_exists(conn, "users", "users_person_id_fkey"):
         op.drop_constraint("users_person_id_fkey", "users", type_="foreignkey")
 
@@ -366,11 +630,24 @@ def downgrade():
     # person_cross_reference
     op.drop_index("ix_person_xref_prefix_curie", table_name="person_cross_reference")
     op.drop_index("ix_person_xref_person_id", table_name="person_cross_reference")
-    op.drop_index(op.f("ix_person_cross_reference_person_id"), table_name="person_cross_reference")
-    op.drop_index(op.f("ix_person_cross_reference_date_updated"), table_name="person_cross_reference")
-    op.drop_index(op.f("ix_person_cross_reference_date_created"), table_name="person_cross_reference")
-    op.drop_index(op.f("ix_person_cross_reference_curie_prefix"), table_name="person_cross_reference")
-    op.drop_index(op.f("ix_person_cross_reference_curie"), table_name="person_cross_reference")
+    op.drop_index(
+        op.f("ix_person_cross_reference_person_id"), table_name="person_cross_reference"
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_date_updated"),
+        table_name="person_cross_reference",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_date_created"),
+        table_name="person_cross_reference",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_curie_prefix"),
+        table_name="person_cross_reference",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_curie"), table_name="person_cross_reference"
+    )
     op.drop_table("person_cross_reference")
 
     # email
@@ -381,24 +658,58 @@ def downgrade():
     op.drop_table("email")
 
     # person_version
-    op.drop_index(op.f("ix_person_version_transaction_id"), table_name="person_version")
-    op.drop_index(op.f("ix_person_version_operation_type"), table_name="person_version")
+    op.drop_index(
+        op.f("ix_person_version_transaction_id"), table_name="person_version"
+    )
+    op.drop_index(
+        op.f("ix_person_version_operation_type"), table_name="person_version"
+    )
     op.drop_index(op.f("ix_person_version_okta_id"), table_name="person_version")
-    op.drop_index(op.f("ix_person_version_end_transaction_id"), table_name="person_version")
-    op.drop_index(op.f("ix_person_version_date_updated"), table_name="person_version")
-    op.drop_index(op.f("ix_person_version_date_created"), table_name="person_version")
+    op.drop_index(
+        op.f("ix_person_version_end_transaction_id"), table_name="person_version"
+    )
+    op.drop_index(
+        op.f("ix_person_version_date_updated"), table_name="person_version"
+    )
+    op.drop_index(
+        op.f("ix_person_version_date_created"), table_name="person_version"
+    )
     op.drop_index(op.f("ix_person_version_curie"), table_name="person_version")
     op.drop_table("person_version")
 
     # person_cross_reference_version
-    op.drop_index(op.f("ix_person_cross_reference_version_transaction_id"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_person_id"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_operation_type"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_end_transaction_id"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_date_updated"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_date_created"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_curie_prefix"), table_name="person_cross_reference_version")
-    op.drop_index(op.f("ix_person_cross_reference_version_curie"), table_name="person_cross_reference_version")
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_transaction_id"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_person_id"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_operation_type"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_end_transaction_id"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_date_updated"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_date_created"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_curie_prefix"),
+        table_name="person_cross_reference_version",
+    )
+    op.drop_index(
+        op.f("ix_person_cross_reference_version_curie"),
+        table_name="person_cross_reference_version",
+    )
     op.drop_table("person_cross_reference_version")
 
     # person
