@@ -421,15 +421,14 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
-    # Optimize: Use ON CONFLICT DO NOTHING to avoid duplicate insert errors
     db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
                     f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-                    f"{validating_tag.topic_entity_tag_id}) ON CONFLICT DO NOTHING"))
+                    f"{validating_tag.topic_entity_tag_id})"))
     if calculate_validation_values:
-        db.flush()  # Flush instead of commit to persist the insert without committing transaction
-        # Refresh the validated_by relationship to include the new validation
-        db.refresh(validated_tag, ['validated_by'])
-        set_validation_values_to_tag(validated_tag)
+        db.commit()
+        validated_tag_obj = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
+        set_validation_values_to_tag(validated_tag_obj)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
