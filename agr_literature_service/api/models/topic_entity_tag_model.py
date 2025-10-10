@@ -79,20 +79,23 @@ class TopicEntityTagModel(AuditedModel, Base):
     topic = Column(
         String(),
         unique=False,
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     # Obtained from A-Team ontology node term-id
     entity_type = Column(
         String(),
         unique=False,
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     entity = Column(
         String(),
         unique=False,
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     entity_id_validation = Column(
@@ -110,7 +113,8 @@ class TopicEntityTagModel(AuditedModel, Base):
     species = Column(
         String(),
         unique=False,
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     display_tag = Column(
@@ -121,7 +125,8 @@ class TopicEntityTagModel(AuditedModel, Base):
     negated = Column(
         Boolean,
         nullable=True,
-        unique=False
+        unique=False,
+        index=True
     )
 
     confidence_score = Column(
@@ -153,7 +158,8 @@ class TopicEntityTagModel(AuditedModel, Base):
     data_novelty = Column(
         String(),
         nullable=True,
-        unique=False
+        unique=False,
+        index=True
     )
 
     validated_by = relationship(
