@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta, date
 from typing import Union, Optional, Dict, Any
-from dateutil.parser import parse
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -423,7 +422,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
 
     sql_query = """
     SELECT distinct wft.reference_workflow_tag_id, m.abbreviation, wft.workflow_tag_id, wft.updated_by,
-           wft.date_updated::date AS date_updated, u.email, wft.curation_tag, wft.note
+           wft.date_updated AS date_updated, u.email, wft.curation_tag, wft.note
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.mod_id
     JOIN users u ON wft.updated_by = u.id
@@ -1368,12 +1367,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             if not mod_abbreviation or tag["abbreviation"] == mod_abbreviation:
                 if not tag.get("email"):
                     tag["email"] = tag["updated_by"]
-                raw_date = tag["date_updated"]
-                if isinstance(raw_date, (datetime, date)):
-                    dt = raw_date
-                else:
-                    dt = parse(raw_date)
-                tag["date_updated"] = dt.isoformat()
+                tag["date_updated"] = tag["date_updated"].isoformat()
                 tags.append(tag)
         result[workflow_name] = {
             "current_workflow_tag": tags,
