@@ -726,7 +726,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         if isinstance(date_range_end, str):
             date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
             new_timestamp = date_range_end_date + timedelta(days=1)
-            date_range_end = new_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            date_range_end = new_timestamp.isoformat()
         if date_option == 'default' or date_option is None:
             where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
@@ -923,9 +923,9 @@ def get_reference_workflow_tags_by_mod(
     curie_prefix = "Xenbase" if mod_abbreviation == 'XB' else mod_abbreviation
 
     if not startDate:
-        startDate = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        startDate = (datetime.now() - timedelta(days=7)).isoformat()
     if not endDate:
-        endDate = datetime.now().strftime('%Y-%m-%d')
+        endDate = datetime.now().isoformat()
     # startDate: "2024-08-19"
     # endDate:   "2024-08-26"
     query = text(
@@ -1372,7 +1372,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
                     dt = raw_date
                 else:
                     dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
-                tag["date_updated"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+                tag["date_updated"] = dt.isoformat()
                 tags.append(tag)
         result[workflow_name] = {
             "current_workflow_tag": tags,
