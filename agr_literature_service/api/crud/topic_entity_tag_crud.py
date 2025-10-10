@@ -470,7 +470,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
             TopicEntityTagModel.negated.isnot(None)
         ).all()
-        logger.info(f"Query for related tags completed")
+        logger.info("Query for related tags completed")
     all_related_tags = related_tags_in_db
     related_tags_in_db = [tag for tag in related_tags_in_db if
                           tag.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id]
