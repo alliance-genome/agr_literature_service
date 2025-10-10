@@ -110,7 +110,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     try:
         db.add(new_db_obj)
         db.commit()
-        db.refresh(new_db_obj)
+        # Optimize: Eagerly load topic_entity_tag_source to avoid lazy loading during validation
+        db.refresh(new_db_obj, ['topic_entity_tag_source'])
 
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_paper_to_mod_if_not_already(db, reference_id, mod_id)
@@ -420,14 +421,15 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
+    # Optimize: Use ON CONFLICT DO NOTHING to avoid duplicate insert errors
     db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
                     f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-                    f"{validating_tag.topic_entity_tag_id})"))
+                    f"{validating_tag.topic_entity_tag_id}) ON CONFLICT DO NOTHING"))
     if calculate_validation_values:
-        db.commit()
-        validated_tag_obj = db.query(TopicEntityTagModel).filter(
-            TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
-        set_validation_values_to_tag(validated_tag_obj)
+        db.flush()  # Flush instead of commit to persist the insert without committing transaction
+        # Refresh the validated_by relationship to include the new validation
+        db.refresh(validated_tag, ['validated_by'])
+        set_validation_values_to_tag(validated_tag)
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
