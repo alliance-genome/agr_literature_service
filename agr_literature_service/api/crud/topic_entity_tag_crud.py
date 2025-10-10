@@ -102,7 +102,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
 
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
-    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id, force_insertion)
+    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
     if duplicate_check_result is not None:
         return duplicate_check_result
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
@@ -477,10 +477,15 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
         db.commit()
     if new_tag_obj.validation_by_professional_biocurator == "validation_conflict" or \
             new_tag_obj.validation_by_author == "validation_conflict":
-        for related_tag in related_tags_in_db:
-            related_tag_obj = db.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == related_tag.topic_entity_tag_id).first()
-            set_validation_values_to_tag(related_tag_obj)
+        # Optimize: Batch load all related tags at once with eager loading
+        related_tag_ids = [related_tag.topic_entity_tag_id for related_tag in related_tags_in_db]
+        if related_tag_ids:
+            related_tag_objs = db.query(TopicEntityTagModel).options(
+                joinedload(TopicEntityTagModel.topic_entity_tag_source),
+                joinedload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.topic_entity_tag_source)
+            ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(related_tag_ids)).all()
+            for related_tag_obj in related_tag_objs:
+                set_validation_values_to_tag(related_tag_obj)
         if commit_changes:
             db.commit()
     return all_related_tags
@@ -612,7 +617,8 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int, force_insertion: bool = False):
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,
+                             reference_id: int, force_insertion: bool = False):
     new_tag_data = copy.copy(topic_entity_tag_data)
     new_tag_data.pop('validation_by_author', None)
     new_tag_data.pop('validation_by_professional_biocurator', None)
@@ -626,7 +632,11 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
     if new_tag_data.get('updated_by', None) is None:
         new_tag_data['updated_by'] = created_by_user
 
-    existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
+    # Optimize: Build a single query with filters instead of filter_by for better performance
+    query = db.query(TopicEntityTagModel)
+    for key, value in new_tag_data.items():
+        query = query.filter(getattr(TopicEntityTagModel, key) == value)
+    existing_tag = query.first()
     if existing_tag:
         existing_date_updated = existing_tag.date_updated
         tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
@@ -667,10 +677,6 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"invalid request: {e}")
 
-    # check if an identical tag exists except for the negated boolean
-    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
-    ).one_or_none()
     if source.source_method == "abc_literature_system" and source.validation_type == "professional_biocurator":
         negation_check_data = copy.deepcopy(new_tag_data)
         negation_check_data.pop('data_novelty')
