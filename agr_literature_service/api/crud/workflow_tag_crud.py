@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta, date
 from typing import Union, Optional, Dict, Any
+from dateutil.parser import parse
 
 from agr_literature_service.api.crud.reference_utils import get_reference
 from agr_literature_service.api.models import WorkflowTagModel, \
@@ -1371,7 +1372,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
                 if isinstance(raw_date, (datetime, date)):
                     dt = raw_date
                 else:
-                    dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
+                    dt = parse(raw_date)
                 tag["date_updated"] = dt.isoformat()
                 tags.append(tag)
         result[workflow_name] = {
