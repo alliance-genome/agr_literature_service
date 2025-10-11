@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import and_, text, func
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from typing import Union, Optional, Dict, Any
 
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -422,7 +422,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
 
     sql_query = """
     SELECT distinct wft.reference_workflow_tag_id, m.abbreviation, wft.workflow_tag_id, wft.updated_by,
-           wft.date_updated::date AS date_updated, u.email, wft.curation_tag, wft.note
+           wft.date_updated AS date_updated, u.email, wft.curation_tag, wft.note
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.mod_id
     JOIN users u ON wft.updated_by = u.id
@@ -726,7 +726,7 @@ def counters(db: Session, mod_abbreviation: str = None, workflow_process_atp_id:
         if isinstance(date_range_end, str):
             date_range_end_date = datetime.strptime(date_range_end, "%Y-%m-%d")
             new_timestamp = date_range_end_date + timedelta(days=1)
-            date_range_end = new_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+            date_range_end = new_timestamp.isoformat()
         if date_option == 'default' or date_option is None:
             where_clauses.append("wt.date_updated BETWEEN :start_date AND :end_date")
             params["start_date"] = date_range_start
@@ -923,9 +923,9 @@ def get_reference_workflow_tags_by_mod(
     curie_prefix = "Xenbase" if mod_abbreviation == 'XB' else mod_abbreviation
 
     if not startDate:
-        startDate = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        startDate = (datetime.now() - timedelta(days=7)).isoformat()
     if not endDate:
-        endDate = datetime.now().strftime('%Y-%m-%d')
+        endDate = datetime.now().isoformat()
     # startDate: "2024-08-19"
     # endDate:   "2024-08-26"
     query = text(
@@ -1367,12 +1367,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             if not mod_abbreviation or tag["abbreviation"] == mod_abbreviation:
                 if not tag.get("email"):
                     tag["email"] = tag["updated_by"]
-                raw_date = tag["date_updated"]
-                if isinstance(raw_date, (datetime, date)):
-                    dt = raw_date
-                else:
-                    dt = datetime.strptime(raw_date, "%Y-%m-%d").date()
-                tag["date_updated"] = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
+                tag["date_updated"] = tag["date_updated"].isoformat()
                 tags.append(tag)
         result[workflow_name] = {
             "current_workflow_tag": tags,
