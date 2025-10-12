@@ -26,7 +26,7 @@ def create_all_tables():
 def create_default_user():
     db = sessionmaker(engine, autoflush=True)
     with db.begin() as session:
-        session.execute(text("INSERT INTO users (id) VALUES ('default_user') ON CONFLICT DO NOTHING"))
+        session.execute(text("INSERT INTO users (id, automation_username) VALUES ('default_user', 'default_user') ON CONFLICT DO NOTHING"))
 
 
 def get_db():
