@@ -20,20 +20,8 @@ def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
     """
     u = db.query(UserModel).filter_by(id=program_name).one_or_none()
     if u is None:
-        # Prefer CRUD if it accepts these keyword args; otherwise fall back to raw ORM.
-        try:
-            u = user_crud.create(
-                db,
-                id=program_name,
-                email=None,
-                automation_username=program_name,
-                person_id=None,
-            )
-        except TypeError:
-            u = UserModel(id=program_name, automation_username=program_name)
-            db.add(u)
-            db.commit()
-            db.refresh(u)
+        # user_crud.create sets automation_username=<id>, person_id=NULL
+        u = user_crud.create(db, program_name, None)
         return u
 
     # If it exists but both fields are NULL, set automation side to satisfy CHECK.
@@ -78,19 +66,8 @@ def set_global_user_from_okta(db: Session, user: OktaUser) -> None:
 
     u = db.query(UserModel).filter_by(id=uid).one_or_none()
     if u is None:
-        try:
-            u = user_crud.create(
-                db,
-                id=uid,
-                email=user_email,
-                automation_username=uid,   # temp until person is linked
-                person_id=None,
-            )
-        except TypeError:
-            u = UserModel(id=uid, automation_username=uid, email=user_email)
-            db.add(u)
-            db.commit()
-            db.refresh(u)
+        # Create as automation user initially; email recorded if present
+        user_crud.create(db, uid, user_email)
         return
 
     updated = False
