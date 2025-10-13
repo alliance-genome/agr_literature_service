@@ -401,6 +401,8 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
     all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
     if not all_workflow_tags_for_process:  # No process set at the moment
         return None
+    # Remove duplicates to optimize the IN clause
+    all_workflow_tags_for_process = list(set(all_workflow_tags_for_process))
     mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first().mod_id
     return db.query(WorkflowTagModel).filter(
         and_(
@@ -418,6 +420,8 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     if not all_workflow_tags_for_process or not reference_id:
         return []
 
+    # Remove duplicates to optimize the IN clause
+    all_workflow_tags_for_process = list(set(all_workflow_tags_for_process))
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_workflow_tags_for_process)
 
     sql_query = """
@@ -1009,6 +1013,8 @@ def is_file_upload_blocked(db: Session, reference_curie: str, mod_abbreviation: 
     }
 
     for job_type, workflow_tags in job_types.items():
+        # Remove duplicates to optimize the IN clause
+        workflow_tags = list(set(workflow_tags))
         rows = db.query(WorkflowTagModel).filter(
             and_(
                 WorkflowTagModel.workflow_tag_id.in_(workflow_tags),
@@ -1068,6 +1074,8 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
     all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
     all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
     all_workflow_tags = all_text_conversion_wft + all_ref_classification_wft + all_entity_extraction_wft
+    # Remove duplicates to optimize the IN clause
+    all_workflow_tags = list(set(all_workflow_tags))
 
     try:
         sql_query = text("""
