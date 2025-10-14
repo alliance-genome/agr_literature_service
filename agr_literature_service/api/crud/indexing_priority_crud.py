@@ -3,7 +3,6 @@ indexing_priority_crud.py
 """
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, date
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
@@ -263,28 +262,13 @@ def get_indexing_priority_tag(db: Session, curie: str):
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
 
-    def _fmt_date(raw):
-        if raw is None:
-            return None
-        if isinstance(raw, datetime):
-            d = raw.date()
-        elif isinstance(raw, date):
-            d = raw
-        else:
-            s = str(raw)
-            try:
-                dt = datetime.fromisoformat(s)
-            except ValueError:
-                dt = datetime.strptime(s[:10], "%Y-%m-%d")
-            d = dt.date()
-        return f"{d.strftime('%B')} {d.day}, {d.year}"
-
     tags = []
     for row in rows:
         d = dict(row)
         code = d.get("indexing_priority")
         d["indexing_priority_name"] = priority_tag_to_name.get(code, code)
-        d["date_updated"] = _fmt_date(d.get("date_updated"))
+        date_updated = d.get("date_updated")
+        d["date_updated"] = date_updated.isoformat() if date_updated else None
         tags.append(d)
 
     return {
