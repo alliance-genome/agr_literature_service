@@ -267,7 +267,8 @@ def get_indexing_priority_tag(db: Session, curie: str):
         d = dict(row)
         code = d.get("indexing_priority")
         d["indexing_priority_name"] = priority_tag_to_name.get(code, code)
-        d["date_updated"] = d.get("date_updated").isoformat()
+        date_updated = d.get("date_updated")
+        d["date_updated"] = date_updated.isoformat() if date_updated else None
         tags.append(d)
 
     return {
