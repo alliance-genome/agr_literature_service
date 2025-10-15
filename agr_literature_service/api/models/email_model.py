@@ -17,7 +17,7 @@ class EmailModel(Base, AuditedModel):
     person = relationship("PersonModel", back_populates="emails")
 
     email_address = Column(String(), nullable=False)
-    date_invalidated = Column(DateTime(timezone=True), nullable=True)
+    date_invalidated = Column(DateTime, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("person_id", "email_address", name="uq_email_person_address"),
