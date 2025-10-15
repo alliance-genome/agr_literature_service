@@ -91,7 +91,7 @@ def upgrade():  # noqa: C901
         sa.Column("email_address", sa.String(), autoincrement=False, nullable=True),
         sa.Column(
             "date_invalidated",
-            sa.DateTime(timezone=True),
+            sa.DateTime(),
             autoincrement=False,
             nullable=True,
         ),
@@ -417,7 +417,7 @@ def upgrade():  # noqa: C901
         sa.Column("email_id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("person_id", sa.Integer(), nullable=False),
         sa.Column("email_address", sa.String(), nullable=False),
-        sa.Column("date_invalidated", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("date_invalidated", sa.DateTime(), nullable=True),
         sa.Column("date_created", sa.DateTime(), nullable=False),
         sa.Column("date_updated", sa.DateTime(), nullable=True),
         sa.Column("created_by", sa.String(), nullable=True),
