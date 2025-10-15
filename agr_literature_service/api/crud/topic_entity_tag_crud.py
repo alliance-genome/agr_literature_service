@@ -21,7 +21,8 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
     get_ancestors, get_descendants, get_map_entity_curies_to_names, \
-    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation
+    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation, \
+    get_user_display_name_map
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
@@ -253,20 +254,20 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
                                             topic_entity_tag_db_obj.validated_by})
 
 
-def show_tag(db: Session, topic_entity_tag_id: int):
+def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
     topic_entity_tag: Optional[TopicEntityTagModel] = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    if topic_entity_tag_data["reference_id"]:
+    if topic_entity_tag_data.get("reference_id"):
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
-    if topic_entity_tag_data["entity"]:
+    if topic_entity_tag_data.get("entity"):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
             topic_entity_tag_data["entity_name"] = name
@@ -277,6 +278,52 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
         if ml:
             topic_entity_tag_data["ml_model_version"] = ml.version_num
+
+    # --- Map users.id -> person.display_name where users.person_id is not null ---
+    user_ids: Set[str] = set()
+
+    # top-level created_by / updated_by
+    if topic_entity_tag_data.get("created_by"):
+        user_ids.add(topic_entity_tag_data["created_by"])
+    if topic_entity_tag_data.get("updated_by"):
+        user_ids.add(topic_entity_tag_data["updated_by"])
+
+    # nested source created_by / updated_by
+    if topic_entity_tag_data.get("topic_entity_tag_source"):
+        src = topic_entity_tag_data["topic_entity_tag_source"]
+        if src.get("created_by"):
+            user_ids.add(src["created_by"])
+        if src.get("updated_by"):
+            user_ids.add(src["updated_by"])
+
+    # validating_users list (derived from validated_by.created_by)
+    validating_user_ids = topic_entity_tag_data.get("validating_users") or []
+    for uid in validating_user_ids:
+        if uid:
+            user_ids.add(uid)
+
+    # Build the map and apply it
+    id_to_display = get_user_display_name_map(db, user_ids)
+
+    # Replace top-level created_by/updated_by
+    for k in ("created_by", "updated_by"):
+        uid = topic_entity_tag_data.get(k)
+        if uid and uid in id_to_display:
+            topic_entity_tag_data[k] = id_to_display[uid]
+
+    # Replace nested source created_by/updated_by
+    if topic_entity_tag_data.get("topic_entity_tag_source"):
+        for k in ("created_by", "updated_by"):
+            uid = topic_entity_tag_data["topic_entity_tag_source"].get(k)
+            if uid and uid in id_to_display:
+                topic_entity_tag_data["topic_entity_tag_source"][k] = id_to_display[uid]
+
+    # Replace validating_users list items with display names where available
+    if validating_user_ids:
+        topic_entity_tag_data["validating_users"] = [
+            id_to_display.get(uid, uid) for uid in validating_user_ids
+        ]
+
     return topic_entity_tag_data
 
 
@@ -757,11 +804,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     return None
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
-                            page_size: int = None, count_only: bool = False,
-                            sort_by: str = None, desc_sort: bool = False,
-                            column_only: str = None, column_filter: str = None,
-                            column_values: str = None):
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -843,12 +886,39 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 
+        # build a bulk map of users.id -> person.display_name
+        page_q = query.offset((page - 1) * page_size if page_size else None).limit(page_size)
+        rows = page_q.all()
+        user_ids: Set[str] = set()
+        for tet in rows:
+            if tet.created_by:
+                user_ids.add(tet.created_by)
+            if tet.updated_by:
+                user_ids.add(tet.updated_by)
+            if tet.topic_entity_tag_source:
+                if tet.topic_entity_tag_source.created_by:
+                    user_ids.add(tet.topic_entity_tag_source.created_by)
+                if tet.topic_entity_tag_source.updated_by:
+                    user_ids.add(tet.topic_entity_tag_source.updated_by)
+        id_to_display_name = get_user_display_name_map(db, user_ids)
+
         mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
         all_tet = []
-        for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
+        for tet in rows:
             tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
+            # Replace top-level created_by/updated_by if we have a display name
+            for k in ("created_by", "updated_by"):
+                uid = tet_data.get(k)
+                if uid and uid in id_to_display_name:
+                    tet_data[k] = id_to_display_name[uid]
+            # Nested source object: replace created_by/updated_by if present
+            if "topic_entity_tag_source" in tet_data and tet_data["topic_entity_tag_source"]:
+                for k in ("created_by", "updated_by"):
+                    uid = tet_data["topic_entity_tag_source"].get(k)
+                    if uid and uid in id_to_display_name:
+                        tet_data["topic_entity_tag_source"][k] = id_to_display_name[uid]
             add_list_of_users_who_validated_tag(tet, tet_data)
             add_list_of_validating_tag_ids(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
