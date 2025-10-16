@@ -49,6 +49,7 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     curst_note: Optional[str] = None
     curst_updated_by: Optional[str] = None
     curst_updated_by_email: Optional[str] = None
+    curst_updated_by_name: Optional[str] = None
     curst_date_updated: Optional[str] = None
 
     topic_curie: str

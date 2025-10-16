@@ -59,6 +59,7 @@ class IndexingPrioritySchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     indexing_priority: str
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
     date_updated: Optional[datetime] = None  # include for output
 
 
