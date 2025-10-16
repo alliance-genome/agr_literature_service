@@ -16,7 +16,8 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas.manual_indexing_tag_schemas import ManualIndexingTagSchemaPost
 from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
+    add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 logger = logging.getLogger(__name__)
 
@@ -197,17 +198,7 @@ def show(db: Session, manual_indexing_tag_id: int) -> Dict[str, Any]:
         data["mod_abbreviation"] = ""
     data.pop("mod_id", None)
 
-    # add email
-    sql_query_str = """
-        SELECT email
-        FROM users
-        WHERE id = :okta_id
-    """
-    result = db.execute(text(sql_query_str), {"okta_id": data.get("updated_by")})
-    row = result.fetchone()
-    data["updated_by_email"] = data.get("updated_by") if row is None else row[0]
-    if not data.get("updated_by_email"):
-        data["updated_by_email"] = data.get("updated_by")
+    add_email_and_name(db, data)
     return data
 
 
@@ -229,21 +220,31 @@ def get_manual_indexing_tag(db: Session, curie: str):
         curation_tag_to_name[process_atp_id] = atp_to_name.get(process_atp_id, process_atp_id)
 
     sql = """
-        SELECT
-            mit.manual_indexing_tag_id,
-            mit.curation_tag,
-            mit.confidence_score,
-            mit.validation_by_biocurator,
-            mit.date_updated,
-            r.curie AS reference_curie,
-            m.abbreviation AS mod_abbreviation,
-            COALESCE(u.email, mit.updated_by) AS updated_by_email,
-            mit.updated_by
-        FROM manual_indexing_tag mit
-        JOIN reference r ON r.reference_id = mit.reference_id
-        JOIN mod m ON m.mod_id = mit.mod_id
-        LEFT JOIN users u ON u.id = mit.updated_by
-        WHERE r.curie = :ref_curie
+    SELECT
+        mit.manual_indexing_tag_id,
+        mit.curation_tag,
+        mit.confidence_score,
+        mit.validation_by_biocurator,
+        mit.date_updated,
+        r.curie AS reference_curie,
+        m.abbreviation AS mod_abbreviation,
+        COALESCE(e.email_address, mit.updated_by) AS updated_by_email,
+        COALESCE(p.display_name, mit.updated_by) AS updated_by_name,
+        mit.updated_by
+    FROM manual_indexing_tag mit
+    JOIN reference r ON r.reference_id = mit.reference_id
+    JOIN mod m ON m.mod_id = mit.mod_id
+    LEFT JOIN users u  ON u.id = mit.updated_by
+    LEFT JOIN person p ON p.person_id = u.person_id
+    LEFT JOIN LATERAL (
+        SELECT em.email_address
+        FROM email em
+        WHERE em.person_id = u.person_id
+        AND em.date_invalidated IS NULL
+        ORDER BY em.email_id ASC
+        LIMIT 1
+    ) e ON TRUE
+    WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
 

@@ -194,10 +194,18 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
     for tet, tet_source in rows:
         topic_tet_list_dict[tet.topic].append((tet, tet_source))
 
-    query = (f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, cs.updated_by, "
-             f"cs.date_updated, u.email AS updated_by_email "
-             f"FROM curation_status cs JOIN users u ON cs.updated_by = u.id WHERE cs.mod_id = {mod_id} AND "
-             f"cs.reference_id = {reference_id}")
+    query = (
+        f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, "
+        f"cs.updated_by, cs.date_updated, "
+        f"e.email_address AS updated_by_email, "
+        f"p.display_name AS updated_by_name "
+        f"FROM curation_status cs "
+        f"JOIN users u ON cs.updated_by = u.id "
+        f"LEFT JOIN email e ON u.person_id = e.person_id "
+        f"LEFT JOIN person p ON u.person_id = p.person_id "
+        f"WHERE cs.mod_id = {mod_id} AND cs.reference_id = {reference_id}"
+    )
+
     res = db.execute(text(query)).mappings().fetchall()
     for row in res:
         if row["topic"] not in agg_cur_stat_tet_objs:
@@ -209,6 +217,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
             "curst_note": row["note"],
             "curst_updated_by": row["updated_by"],
             "curst_updated_by_email": row["updated_by_email"],
+            "curst_updated_by_name": row["updated_by_name"],
             "curst_date_updated": row["date_updated"].isoformat()
         })
     topic_to_name = map_curies_to_names('atpterm', agg_cur_stat_tet_objs.keys())
