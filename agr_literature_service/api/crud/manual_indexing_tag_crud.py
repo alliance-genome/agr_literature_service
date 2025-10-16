@@ -198,7 +198,7 @@ def show(db: Session, manual_indexing_tag_id: int) -> Dict[str, Any]:
         data["mod_abbreviation"] = ""
     data.pop("mod_id", None)
 
-    add_email_and_name(db, data)
+    data = add_email_and_name(db, data)
     return data
 
 

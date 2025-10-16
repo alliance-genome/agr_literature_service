@@ -220,7 +220,7 @@ def show(db: Session, indexing_priority_id: int) -> Dict[str, Any]:
         data["mod_abbreviation"] = ""
     data.pop("mod_id", None)
 
-    add_email_and_name(db, data)
+    data = add_email_and_name(db, data)
 
     return data
 

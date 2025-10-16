@@ -622,9 +622,9 @@ def show(db: Session, reference_workflow_tag_id: int):
         workflow_tag_data["mod_abbreviation"] = ""
     del workflow_tag_data["mod_id"]
 
-    add_email_and_name(db, workflow_tag_data)
+    data = add_email_and_name(db, workflow_tag_data)
 
-    return workflow_tag_data
+    return data
 
 
 def add_email_and_name(db: Session, data: dict) -> dict:
@@ -662,6 +662,7 @@ def add_email_and_name(db: Session, data: dict) -> dict:
 
     data["updated_by_name"] = updated_by_name
     data["updated_by_email"] = updated_by_email
+    return data
 
 
 def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> list:
