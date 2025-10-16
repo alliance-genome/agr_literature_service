@@ -25,5 +25,5 @@ class EmailModel(Base, AuditedModel):
     )
 
     def __str__(self) -> str:
-        status = "invalid" if self.date_invalidated else "active"  # <-- fixed attribute name
+        status = "invalid" if self.date_invalidated else "active"
         return f"{self.email_address} [{status}]"
