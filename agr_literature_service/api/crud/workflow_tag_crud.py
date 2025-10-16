@@ -627,22 +627,41 @@ def show(db: Session, reference_workflow_tag_id: int):
     return workflow_tag_data
 
 
-def add_email_and_name(db: Session, data):
-
-    sql_query_str = """
-        SELECT p.display_name, e.email_address
-        FROM person p, email e
-        WHERE p.okta_id = :okta_id
-        AND p.person_id = e.person_id
+def add_email_and_name(db: Session, data: dict) -> dict:
     """
-    result = db.execute(text(sql_query_str), {"okta_id": data.get("updated_by")})
-    row = result.fetchone()
-    data["updated_by_name"] = data.get("updated_by") if row is None else row[0]
-    data["updated_by_email"] = data.get("updated_by") if row is None else row[1]
-    if not data.get("updated_by_email"):
-        data["updated_by_email"] = data.get("updated_by")
-    if not data.get("updated_by_name"):
-        data["updated_by_name"] = data.get("updated_by")
+    Populate `updated_by_name` and `updated_by_email` based on the user's okta_id.
+    Skip invalidated emails and use the earliest valid one.
+    Fallback to okta_id if no valid record is found.
+    """
+    okta_id = data.get("updated_by")
+    if not okta_id:
+        data.setdefault("updated_by_name", None)
+        data.setdefault("updated_by_email", None)
+        return data
+
+    row = db.execute(
+        text("""
+            SELECT
+                COALESCE(p.display_name, :okta_id)  AS display_name,
+                COALESCE(em.email_address, :okta_id) AS email_address
+            FROM person p
+            LEFT JOIN email em ON em.person_id = p.person_id
+            WHERE p.okta_id = :okta_id
+              AND em.date_invalidated IS NULL
+            ORDER BY em.email_id ASC
+            LIMIT 1
+        """),
+        {"okta_id": okta_id},
+    ).fetchone()
+
+    if row:
+        updated_by_name, updated_by_email = row
+    else:
+        updated_by_name = okta_id
+        updated_by_email = okta_id
+
+    data["updated_by_name"] = updated_by_name
+    data["updated_by_email"] = updated_by_email
 
 
 def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> list:
