@@ -1,16 +1,12 @@
 from typing import Optional
-
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 
 class AuditedObjectModelSchema(BaseModel):
-    """Base schema providing audit fields."""
-    model_config = ConfigDict(
-        extra='forbid',        # forbid unexpected fields
-        from_attributes=True    # allow ORM object -> model
-    )
+    model_config = ConfigDict(extra="ignore", from_attributes=True)
 
-    date_created: Optional[str] = None
-    date_updated: Optional[str] = None
+    date_created: Optional[datetime] = None
+    date_updated: Optional[datetime] = None
     created_by: Optional[str] = None
     updated_by: Optional[str] = None
