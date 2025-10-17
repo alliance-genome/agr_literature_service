@@ -11,7 +11,7 @@
     "database.password": "${PSQL_PASSWORD}",
     "database.dbname" : "${PSQL_DATABASE}",
     "database.server.name": "abc",
-    "table.include.list": "public.reference_relation,public.mesh_detail,public.resource",
+    "table.include.list": "public.reference_relation,public.mesh_detail",
     "database.history.kafka.bootstrap.servers": "dbz_kafka:9092",
     "decimal.handling.mode" : "string",
     "poll.interval.ms": "500",
