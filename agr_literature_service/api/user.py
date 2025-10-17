@@ -1,58 +1,133 @@
 from typing import Optional
+
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud import user_crud
 from agr_literature_service.api.models.user_model import UserModel
 
-# still Optional here, since we may not have set it yet
-user_id: Optional[str] = None
+# String primary key (users.id) of the "current user" for this process/request
+_current_user_id: Optional[str] = None
 
 
-def set_global_user_id(db: Session, id: str):
+def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
     """
-    Manually set the global user_id (e.g. from a path parameter).
+    Ensure an automation/system user exists:
+      users.id = program_name (string PK)
+      users.automation_username = program_name
+      users.person_id = NULL
+    This satisfies the CHECK: (person_id IS NULL) <> (automation_username IS NULL)
     """
-    global user_id
-    user_id = id
-    add_user_if_not_exists(db, id)
+    u = db.query(UserModel).filter_by(id=program_name).one_or_none()
+    if u is None:
+        # user_crud.create sets automation_username=<id>, person_id=NULL
+        u = user_crud.create(db, program_name, None)
+        return u
+
+    # If it exists but both fields are NULL, set automation side to satisfy CHECK.
+    if u.person_id is None and u.automation_username is None:
+        u.automation_username = program_name
+        db.add(u)
+        db.commit()
+        db.refresh(u)
+    return u
 
 
-def add_user_if_not_exists(db: Session, user_id: str):
+def set_global_user_id(db: Session, id: str) -> None:
     """
-    Create the user record if it doesn't already exist.
+    Manually set the global users.id (e.g., script/program name).
+    Treated as an automation user.
     """
-    if not db.query(UserModel).filter(UserModel.id == user_id).first():
-        user_crud.create(db, user_id)
+    global _current_user_id
+    _current_user_id = id
+    _ensure_automation_user(db, id)
 
 
-def set_global_user_from_okta(db: Session, user: OktaUser):
+def add_user_if_not_exists(db: Session, user_id: str) -> None:
     """
-    Pull the user ID/email from Okta and make sure our DB has a matching UserModel.
+    Back-compat helper. New IDs are treated as automation users.
     """
-    global user_id
+    _ensure_automation_user(db, user_id)
+
+
+def set_global_user_from_okta(db: Session, user: OktaUser) -> None:
+    """
+    Ensure a user row for this Okta principal.
+    Until a Person is linked, keep automation_username = uid (and person_id = NULL)
+    to satisfy the CHECK. When you later link a Person, set automation_username = NULL.
+    """
+    global _current_user_id
     uid: str = user.uid if user.uid else user.cid
-    user_id = uid
+    _current_user_id = uid
 
     user_email: Optional[str] = None
     if user.email and user.email != uid and "@" in user.email:
         user_email = user.email
 
-    existing = db.query(UserModel).filter_by(id=uid).one_or_none()
-    if existing is None:
-        # now `uid` is definitely a str, never Optional[str]
-        if user_email is not None:
-            # pass both uid and email (email is narrowed to str here)
-            user_crud.create(db, uid, user_email)
-        else:
-            # only pass the uid
-            user_crud.create(db, uid)
-    elif existing.email != user_email:
-        existing.email = user_email
-        db.add(existing)
+    u = db.query(UserModel).filter_by(id=uid).one_or_none()
+    if u is None:
+        # Create as automation user initially; email recorded if present
+        user_crud.create(db, uid, user_email)
+        return
+
+    updated = False
+
+    # Keep email synced
+    if u.email != user_email:
+        u.email = user_email
+        updated = True
+
+    # If neither side is set, set automation side to satisfy CHECK
+    if u.person_id is None and u.automation_username is None:
+        u.automation_username = uid
+        updated = True
+
+    # If already person-linked, clear automation_username
+    if u.person_id is not None and u.automation_username is not None:
+        u.automation_username = None
+        updated = True
+
+    if updated:
+        db.add(u)
         db.commit()
-        db.refresh(existing)
+        db.refresh(u)
 
 
 def get_global_user_id() -> Optional[str]:
-    return user_id
+    """Return the current users.id (string PK), or None."""
+    return _current_user_id
+
+
+def get_current_user_pk(db: Session) -> Optional[int]:
+    """
+    Return the integer users.user_id for the current user (creating the automation
+    user if necessary). Use this when inserting into the `transaction` table.
+    """
+    if _current_user_id is None:
+        return None
+    u = _ensure_automation_user(db, _current_user_id)
+    return getattr(u, "user_id", None)
+
+
+def link_user_to_person(db: Session, user_id_str: str, person_id: int) -> None:
+    """
+    Switch a user from 'automation mode' to 'person-backed' mode:
+      person_id = <id>, automation_username = NULL
+    This keeps the CHECK constraint valid.
+    """
+    u = db.query(UserModel).filter_by(id=user_id_str).one_or_none()
+    if u is None:
+        u = _ensure_automation_user(db, user_id_str)
+
+    changed = False
+    if u.person_id != person_id:
+        u.person_id = person_id
+        changed = True
+    if u.automation_username is not None:
+        u.automation_username = None
+        changed = True
+
+    if changed:
+        db.add(u)
+        db.commit()
+        db.refresh(u)

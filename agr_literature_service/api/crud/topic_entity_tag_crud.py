@@ -21,7 +21,8 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
     get_ancestors, get_descendants, get_map_entity_curies_to_names, \
-    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation
+    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation, \
+    get_user_display_name_map
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
@@ -53,6 +54,7 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
+    logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
@@ -60,15 +62,18 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="reference_curie not within topic_entity_tag_data")
+    logger.info("Getting reference_id from curie")
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     topic_entity_tag_data["reference_id"] = reference_id
     force_insertion = topic_entity_tag_data.pop("force_insertion", None)
     index_wft = topic_entity_tag_data.pop("index_wft", None)
+    logger.info("Querying topic_entity_tag_source")
     source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
         TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
     ).one_or_none()
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
+    logger.info("Setting display_tag/species based on data provider")
     if source.secondary_data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
         if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
@@ -78,6 +83,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     else:
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
+    logger.info("Validating ATP IDs")
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
     if 'display_tag' in topic_entity_tag_data and topic_entity_tag_data['display_tag'] is not None:
         atp_ids.append(topic_entity_tag_data['display_tag'])
@@ -92,6 +98,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
 
     # Validate ml_model_id if provided
     if 'ml_model_id' in topic_entity_tag_data and topic_entity_tag_data['ml_model_id']:
+        logger.info("Validating ML model ID")
         ml_model_id = topic_entity_tag_data['ml_model_id']
         ml_model = db.query(MLModel).filter(MLModel.ml_model_id == ml_model_id).first()
         if not ml_model:
@@ -101,22 +108,33 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
             )
         topic_entity_tag_data["ml_model_id"] = ml_model.ml_model_id
 
+    logger.info("Adding audited object users")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
-    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, reference_id, force_insertion)
+    logger.info("Checking for duplicate tags")
+    duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
     if duplicate_check_result is not None:
+        logger.info("Duplicate tag found, returning early")
         return duplicate_check_result
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
+        logger.info("Adding new tag to database")
         db.add(new_db_obj)
         db.commit()
-        db.refresh(new_db_obj)
+        logger.info("Tag committed, refreshing with topic_entity_tag_source")
+        # Optimize: Eagerly load topic_entity_tag_source to avoid lazy loading during validation
+        db.refresh(new_db_obj, ['topic_entity_tag_source'])
 
+        logger.info("Adding paper to MOD if needed")
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
         add_paper_to_mod_if_not_already(db, reference_id, mod_id)
+        logger.info("Updating manual indexing workflow tag")
         update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
+            logger.info("Starting tag validation")
             validate_tags(db=db, new_tag_obj=new_db_obj)
+            logger.info("Tag validation completed")
+        logger.info("create_tag completed successfully")
         return {
             "status": "success",
             "message": "New tag created successfully.",
@@ -236,20 +254,20 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
                                             topic_entity_tag_db_obj.validated_by})
 
 
-def show_tag(db: Session, topic_entity_tag_id: int):
+def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
     topic_entity_tag: Optional[TopicEntityTagModel] = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    if topic_entity_tag_data["reference_id"]:
+    if topic_entity_tag_data.get("reference_id"):
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
-    if topic_entity_tag_data["entity"]:
+    if topic_entity_tag_data.get("entity"):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
             topic_entity_tag_data["entity_name"] = name
@@ -260,6 +278,52 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
         if ml:
             topic_entity_tag_data["ml_model_version"] = ml.version_num
+
+    # --- Map users.id -> person.display_name where users.person_id is not null ---
+    user_ids: Set[str] = set()
+
+    # top-level created_by / updated_by
+    if topic_entity_tag_data.get("created_by"):
+        user_ids.add(topic_entity_tag_data["created_by"])
+    if topic_entity_tag_data.get("updated_by"):
+        user_ids.add(topic_entity_tag_data["updated_by"])
+
+    # nested source created_by / updated_by
+    if topic_entity_tag_data.get("topic_entity_tag_source"):
+        src = topic_entity_tag_data["topic_entity_tag_source"]
+        if src.get("created_by"):
+            user_ids.add(src["created_by"])
+        if src.get("updated_by"):
+            user_ids.add(src["updated_by"])
+
+    # validating_users list (derived from validated_by.created_by)
+    validating_user_ids = topic_entity_tag_data.get("validating_users") or []
+    for uid in validating_user_ids:
+        if uid:
+            user_ids.add(uid)
+
+    # Build the map and apply it
+    id_to_display = get_user_display_name_map(db, user_ids)
+
+    # Replace top-level created_by/updated_by
+    for k in ("created_by", "updated_by"):
+        uid = topic_entity_tag_data.get(k)
+        if uid and uid in id_to_display:
+            topic_entity_tag_data[k] = id_to_display[uid]
+
+    # Replace nested source created_by/updated_by
+    if topic_entity_tag_data.get("topic_entity_tag_source"):
+        for k in ("created_by", "updated_by"):
+            uid = topic_entity_tag_data["topic_entity_tag_source"].get(k)
+            if uid and uid in id_to_display:
+                topic_entity_tag_data["topic_entity_tag_source"][k] = id_to_display[uid]
+
+    # Replace validating_users list items with display names where available
+    if validating_user_ids:
+        topic_entity_tag_data["validating_users"] = [
+            id_to_display.get(uid, uid) for uid in validating_user_ids
+        ]
+
     return topic_entity_tag_data
 
 
@@ -420,14 +484,17 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
+    logger.info(f"Adding validation: tag {validated_tag.topic_entity_tag_id} validated by tag {validating_tag.topic_entity_tag_id}")
     db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
                     f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
                     f"{validating_tag.topic_entity_tag_id})"))
     if calculate_validation_values:
+        logger.info("Committing validation insert and recalculating validation values")
         db.commit()
         validated_tag_obj = db.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.topic_entity_tag_id == validated_tag.topic_entity_tag_id).first()
         set_validation_values_to_tag(validated_tag_obj)
+        logger.info(f"Validation values updated for tag {validated_tag.topic_entity_tag_id}")
 
 
 def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_tag: bool = True,
@@ -450,6 +517,7 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
             TopicEntityTagSourceModel.secondary_data_provider_id == new_tag_obj.topic_entity_tag_source.secondary_data_provider_id,
             TopicEntityTagModel.negated.isnot(None)
         ).all()
+        logger.info("Query for related tags completed")
     all_related_tags = related_tags_in_db
     related_tags_in_db = [tag for tag in related_tags_in_db if
                           tag.topic_entity_tag_id != new_tag_obj.topic_entity_tag_id]
@@ -459,29 +527,43 @@ def validate_tags(db: Session, new_tag_obj: TopicEntityTagModel, validate_new_ta
     if len(related_tags_in_db) > 0 and new_tag_obj.negated is not None:
         # Validate existing tags
         if new_tag_obj.topic_entity_tag_source.validation_type is not None:
+            logger.info(f"Validating existing tags with new tag (negated={new_tag_obj.negated})")
             if new_tag_obj.negated is False:
                 validate_tags_already_in_db_with_positive_tag(db, new_tag_obj, related_tags_in_db,
                                                               calculate_validation_values=calculate_validation_values)
             else:
                 validate_tags_already_in_db_with_negative_tag(db, new_tag_obj, related_tags_in_db,
                                                               calculate_validation_values=calculate_validation_values)
+            logger.info("Existing tag validation completed")
         # Validate current tag with existing ones
         if validate_new_tag:
             related_validating_tags_in_db = [related_tag for related_tag in related_tags_in_db if
                                              related_tag.validation_type is not None]
+            logger.info(f"Validating new tag with {len(related_validating_tags_in_db)} existing validating tags")
             validate_new_tag_with_existing_tags(db, new_tag_obj, related_validating_tags_in_db,
                                                 calculate_validation_values=calculate_validation_values)
+            logger.info("New tag validation completed")
     if calculate_validation_values:
+        logger.info("Calculating validation values for new tag")
         set_validation_values_to_tag(new_tag_obj)
     if commit_changes:
+        logger.info("Committing validation changes")
         db.commit()
     if new_tag_obj.validation_by_professional_biocurator == "validation_conflict" or \
             new_tag_obj.validation_by_author == "validation_conflict":
-        for related_tag in related_tags_in_db:
-            related_tag_obj = db.query(TopicEntityTagModel).filter(
-                TopicEntityTagModel.topic_entity_tag_id == related_tag.topic_entity_tag_id).first()
-            set_validation_values_to_tag(related_tag_obj)
+        logger.info("Validation conflict detected, batch loading related tags for revalidation")
+        # Optimize: Batch load all related tags at once with eager loading
+        related_tag_ids = [related_tag.topic_entity_tag_id for related_tag in related_tags_in_db]
+        if related_tag_ids:
+            related_tag_objs = db.query(TopicEntityTagModel).options(
+                joinedload(TopicEntityTagModel.topic_entity_tag_source),
+                joinedload(TopicEntityTagModel.validated_by).joinedload(TopicEntityTagModel.topic_entity_tag_source)
+            ).filter(TopicEntityTagModel.topic_entity_tag_id.in_(related_tag_ids)).all()
+            logger.info(f"Setting validation values for {len(related_tag_objs)} conflicting tags")
+            for related_tag_obj in related_tag_objs:
+                set_validation_values_to_tag(related_tag_obj)
         if commit_changes:
+            logger.info("Committing conflict resolution changes")
             db.commit()
     return all_related_tags
 
@@ -612,7 +694,9 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference_id: int, force_insertion: bool = False):
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,
+                             reference_id: int, force_insertion: bool = False):
+    logger.info("Starting duplicate tag check")
     new_tag_data = copy.copy(topic_entity_tag_data)
     new_tag_data.pop('validation_by_author', None)
     new_tag_data.pop('validation_by_professional_biocurator', None)
@@ -626,7 +710,12 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
     if new_tag_data.get('updated_by', None) is None:
         new_tag_data['updated_by'] = created_by_user
 
-    existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data).first()
+    logger.info("Checking for exact duplicate with same creator")
+    # Optimize: Build a single query with filters instead of filter_by for better performance
+    query = db.query(TopicEntityTagModel)
+    for key, value in new_tag_data.items():
+        query = query.filter(getattr(TopicEntityTagModel, key) == value)
+    existing_tag = query.first()
     if existing_tag:
         existing_date_updated = existing_tag.date_updated
         tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
@@ -667,10 +756,6 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"invalid request: {e}")
 
-    # check if an identical tag exists except for the negated boolean
-    source: TopicEntityTagSourceModel = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.topic_entity_tag_source_id == topic_entity_tag_data["topic_entity_tag_source_id"]
-    ).one_or_none()
     if source.source_method == "abc_literature_system" and source.validation_type == "professional_biocurator":
         negation_check_data = copy.deepcopy(new_tag_data)
         negation_check_data.pop('data_novelty')
@@ -719,11 +804,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, reference
     return None
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
-                            page_size: int = None, count_only: bool = False,
-                            sort_by: str = None, desc_sort: bool = False,
-                            column_only: str = None, column_filter: str = None,
-                            column_values: str = None):
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -805,12 +886,39 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 
+        # build a bulk map of users.id -> person.display_name
+        page_q = query.offset((page - 1) * page_size if page_size else None).limit(page_size)
+        rows = page_q.all()
+        user_ids: Set[str] = set()
+        for tet in rows:
+            if tet.created_by:
+                user_ids.add(tet.created_by)
+            if tet.updated_by:
+                user_ids.add(tet.updated_by)
+            if tet.topic_entity_tag_source:
+                if tet.topic_entity_tag_source.created_by:
+                    user_ids.add(tet.topic_entity_tag_source.created_by)
+                if tet.topic_entity_tag_source.updated_by:
+                    user_ids.add(tet.topic_entity_tag_source.updated_by)
+        id_to_display_name = get_user_display_name_map(db, user_ids)
+
         mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
         all_tet = []
-        for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
+        for tet in rows:
             tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
+            # Replace top-level created_by/updated_by if we have a display name
+            for k in ("created_by", "updated_by"):
+                uid = tet_data.get(k)
+                if uid and uid in id_to_display_name:
+                    tet_data[k] = id_to_display_name[uid]
+            # Nested source object: replace created_by/updated_by if present
+            if "topic_entity_tag_source" in tet_data and tet_data["topic_entity_tag_source"]:
+                for k in ("created_by", "updated_by"):
+                    uid = tet_data["topic_entity_tag_source"].get(k)
+                    if uid and uid in id_to_display_name:
+                        tet_data["topic_entity_tag_source"][k] = id_to_display_name[uid]
             add_list_of_users_who_validated_tag(tet, tet_data)
             add_list_of_validating_tag_ids(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[

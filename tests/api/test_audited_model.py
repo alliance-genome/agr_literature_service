@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, inspect
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
+from agr_literature_service.api.crud import user_crud
 from agr_literature_service.api.user import set_global_user_id
 
 from ..fixtures import db  # noqa: F401
@@ -34,21 +35,21 @@ def _is_recent(dt: datetime, seconds: int = 5) -> bool:
 def _ensure_user(db, uid: str): # noqa
     if uid is None:
         return
-    if not db.query(UserModel).filter_by(id=uid).one_or_none():
-        db.add(UserModel(id=uid))
-        db.commit()
+    u = db.query(UserModel).filter_by(id=uid).one_or_none()
+    if u is None:
+        user_crud.create(db, uid, None)
 
 
 @pytest.fixture(autouse=True)
 def _clear_global_user():
     """Ensure each test starts with no global user set."""
     from agr_literature_service.api import user as user_mod
-    prev = user_mod.user_id
-    user_mod.user_id = None
+    prev = user_mod._current_user_id
+    user_mod._current_user_id = None
     try:
         yield
     finally:
-        user_mod.user_id = prev
+        user_mod._current_user_id = prev
 
 
 @pytest.fixture(autouse=True)
