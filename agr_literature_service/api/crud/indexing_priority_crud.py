@@ -18,7 +18,8 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas.indexing_priority_schemas import IndexingPrioritySchemaPost
 from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
+    add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 
 logger = logging.getLogger(__name__)
@@ -219,17 +220,8 @@ def show(db: Session, indexing_priority_id: int) -> Dict[str, Any]:
         data["mod_abbreviation"] = ""
     data.pop("mod_id", None)
 
-    # add email
-    sql_query_str = """
-        SELECT email
-        FROM users
-        WHERE id = :okta_id
-    """
-    result = db.execute(text(sql_query_str), {"okta_id": data.get("updated_by")})
-    row = result.fetchone()
-    data["updated_by_email"] = data.get("updated_by") if row is None else row[0]
-    if not data.get("updated_by_email"):
-        data["updated_by_email"] = data.get("updated_by")
+    data = add_email_and_name(db, data)
+
     return data
 
 
@@ -243,22 +235,32 @@ def get_indexing_priority_tag(db: Session, curie: str):
     priority_tag_to_name = {atp: atp_to_name.get(atp, atp) for atp in priority_tags}
 
     sql = """
-        SELECT
-            ip.indexing_priority_id,
-            ip.indexing_priority,
-            ip.confidence_score,
-            ip.validation_by_biocurator,
-            ip.date_updated,
-            ip.source_id,
-            r.curie AS reference_curie,
-            m.abbreviation AS mod_abbreviation,
-            COALESCE(u.email, ip.updated_by) AS updated_by_email,
-            ip.updated_by
-        FROM indexing_priority ip
-        JOIN reference r ON r.reference_id = ip.reference_id
-        JOIN mod m ON m.mod_id = ip.mod_id
-        LEFT JOIN users u ON u.id = ip.updated_by
-        WHERE r.curie = :ref_curie
+    SELECT
+        ip.indexing_priority_id,
+        ip.indexing_priority,
+        ip.confidence_score,
+        ip.validation_by_biocurator,
+        ip.date_updated,
+        ip.source_id,
+        r.curie AS reference_curie,
+        m.abbreviation AS mod_abbreviation,
+        COALESCE(e.email_address, ip.updated_by) AS updated_by_email,
+        COALESCE(p.display_name, ip.updated_by) AS updated_by_name,
+        ip.updated_by
+    FROM indexing_priority ip
+    JOIN reference r ON r.reference_id = ip.reference_id
+    JOIN mod m ON m.mod_id = ip.mod_id
+    LEFT JOIN users u  ON u.id = ip.updated_by
+    LEFT JOIN person p ON p.person_id = u.person_id
+    LEFT JOIN LATERAL (
+        SELECT em.email_address
+        FROM email em
+        WHERE em.person_id = u.person_id
+        AND em.date_invalidated IS NULL
+        ORDER BY em.email_id ASC
+        LIMIT 1
+    ) e ON TRUE
+    WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
 
