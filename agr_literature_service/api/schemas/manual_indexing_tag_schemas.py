@@ -66,6 +66,7 @@ class ManualIndexingTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validation_by_biocurator: Optional[ValidationByBiocurator] = None
 
     updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
     date_updated: Optional[datetime] = None  # for output convenience
 
     @field_validator("curation_tag")

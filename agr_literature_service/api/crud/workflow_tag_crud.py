@@ -425,11 +425,28 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_workflow_tags_for_process)
 
     sql_query = """
-    SELECT distinct wft.reference_workflow_tag_id, m.abbreviation, wft.workflow_tag_id, wft.updated_by,
-           wft.date_updated AS date_updated, u.email, wft.curation_tag, wft.note
+    SELECT DISTINCT
+        wft.reference_workflow_tag_id,
+        m.abbreviation,
+        wft.workflow_tag_id,
+        COALESCE(e.email_address, wft.updated_by) AS updated_by_email,
+        COALESCE(p.display_name, wft.updated_by) AS updated_by_name,
+        wft.updated_by,
+        wft.date_updated AS date_updated,
+        wft.curation_tag,
+        wft.note
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.mod_id
-    JOIN users u ON wft.updated_by = u.id
+    LEFT JOIN users u ON wft.updated_by = u.id
+    LEFT JOIN person p ON p.person_id = u.person_id
+    LEFT JOIN LATERAL (
+        SELECT em.email_address
+        FROM email em
+        WHERE em.person_id = u.person_id
+        AND em.date_invalidated IS NULL
+        ORDER BY em.email_id ASC
+        LIMIT 1
+    ) e ON TRUE
     WHERE wft.reference_id = :reference_id
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
@@ -604,20 +621,48 @@ def show(db: Session, reference_workflow_tag_id: int):
     else:
         workflow_tag_data["mod_abbreviation"] = ""
     del workflow_tag_data["mod_id"]
-    ## add email address for updated_by
-    sql_query_str = """
-        SELECT email
-        FROM users
-        WHERE id = :okta_id
-    """
-    sql_query = text(sql_query_str)
-    result = db.execute(sql_query, {'okta_id': workflow_tag_data["updated_by"]})
-    row = result.fetchone()
-    workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"] if row is None else row[0]
-    if not workflow_tag_data["updated_by_email"]:
-        workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"]
 
-    return workflow_tag_data
+    data = add_email_and_name(db, workflow_tag_data)
+
+    return data
+
+
+def add_email_and_name(db: Session, data: dict) -> dict:
+    """
+    Populate `updated_by_name` and `updated_by_email` based on the user's okta_id.
+    Skip invalidated emails and use the earliest valid one.
+    Fallback to okta_id if no valid record is found.
+    """
+    okta_id = data.get("updated_by")
+    if not okta_id:
+        data.setdefault("updated_by_name", None)
+        data.setdefault("updated_by_email", None)
+        return data
+
+    row = db.execute(
+        text("""
+            SELECT
+                COALESCE(p.display_name, :okta_id)  AS display_name,
+                COALESCE(em.email_address, :okta_id) AS email_address
+            FROM person p
+            LEFT JOIN email em ON em.person_id = p.person_id
+            WHERE p.okta_id = :okta_id
+              AND em.date_invalidated IS NULL
+            ORDER BY em.email_id ASC
+            LIMIT 1
+        """),
+        {"okta_id": okta_id},
+    ).fetchone()
+
+    if row:
+        updated_by_name, updated_by_email = row
+    else:
+        updated_by_name = okta_id
+        updated_by_email = okta_id
+
+    data["updated_by_name"] = updated_by_name
+    data["updated_by_email"] = updated_by_email
+    return data
 
 
 def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> list:
@@ -1373,8 +1418,6 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         tags = []
         for tag in all_tags:
             if not mod_abbreviation or tag["abbreviation"] == mod_abbreviation:
-                if not tag.get("email"):
-                    tag["email"] = tag["updated_by"]
                 tag["date_updated"] = tag["date_updated"].isoformat()
                 tags.append(tag)
         result[workflow_name] = {
