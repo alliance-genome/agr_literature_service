@@ -59,7 +59,6 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         dataset_id=request.dataset_id,
         production=request.production,
         species=request.species,
-        novel_topic_data=request.novel_topic_data,
         novel_topic_qualifier=request.novel_topic_qualifier,
         negated=request.negated
     )
@@ -151,7 +150,6 @@ def get_model_schema_from_orm(model: MLModel):
         "ml_model_id": model.ml_model_id,
         "production": model.production,
         "species": model.species,
-        "novel_topic_data": model.novel_topic_data,
         "novel_topic_qualifier": model.novel_topic_qualifier,
         "negated": model.negated
     }

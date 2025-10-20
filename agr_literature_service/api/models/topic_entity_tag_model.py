@@ -147,14 +147,6 @@ class TopicEntityTagModel(AuditedModel, Base):
         unique=False
     )
 
-    novel_topic_data = Column(
-        Boolean,
-        nullable=False,
-        unique=False,
-        default=False,
-        server_default='false'
-    )
-
     data_novelty = Column(
         String(),
         nullable=True,

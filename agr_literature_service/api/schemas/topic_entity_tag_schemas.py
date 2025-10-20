@@ -1,3 +1,4 @@
+
 from typing import Optional, List
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, constr, confloat
@@ -62,7 +63,7 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for creating a topic entity tag."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
-    @field_validator('negated', 'novel_topic_data', mode='before')
+    @field_validator('negated', mode='before')
     def convert_none_to_false(cls, v):
         return v if v is not None else False
 
@@ -75,7 +76,6 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     topic_entity_tag_source_id: int
     negated: Optional[bool] = False
-    novel_topic_data: Optional[bool] = False
     data_novelty: Optional[constr(min_length=1)] = None  # type: ignore
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore
@@ -97,7 +97,7 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for related topic entity tags with audit fields."""
     model_config = ConfigDict(extra='ignore', from_attributes=True)
 
-    @field_validator('negated', 'novel_topic_data', mode='before')
+    @field_validator('negated', mode='before')
     def convert_none_to_false(cls, v):
         return v if v is not None else False
 
@@ -117,7 +117,6 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     topic_entity_tag_source_id: int
     topic_entity_tag_source: Optional[TopicEntityTagSourceSchemaShow] = None
     negated: Optional[bool] = False
-    novel_topic_data: Optional[bool] = False
     data_novelty: Optional[str] = None
     confidence_level: Optional[str] = None
     note: Optional[str] = None
@@ -138,7 +137,7 @@ class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     """Schema for updating a topic entity tag."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
-    @field_validator('negated', 'novel_topic_data', mode='before')
+    @field_validator('negated', mode='before')
     def convert_none_to_false(cls, v):
         return v if v is not None else False
 
@@ -150,7 +149,6 @@ class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     negated: Optional[bool] = False
-    novel_topic_data: Optional[bool] = False
     data_novelty: Optional[constr(min_length=1)] = None  # type: ignore
     confidence_level: Optional[constr(min_length=1)] = None  # type: ignore
     note: Optional[constr(min_length=1)] = None  # type: ignore

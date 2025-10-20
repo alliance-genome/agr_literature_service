@@ -85,13 +85,6 @@ class MLModel(Base):
         default=True
     )
 
-    novel_topic_data: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=True,
-        default=False
-    )
-
-    # This will eventually replace novel_topic_data
     novel_topic_qualifier = Column(
         String,
         nullable=True

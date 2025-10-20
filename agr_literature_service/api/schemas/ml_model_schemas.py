@@ -23,7 +23,6 @@ class MLModelSchemaBase(BaseModel):
     dataset_id: Optional[int] = None
     production: Optional[bool] = None
     negated: Optional[bool] = None
-    novel_topic_data: Optional[bool] = None
     novel_topic_qualifier: Optional[str] = None
     species: Optional[str] = None
 

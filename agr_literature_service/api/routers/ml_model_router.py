@@ -45,7 +45,6 @@ def upload_model(
         db: Session = db_session,
         production: bool = False,
         negated: bool = True,
-        novel_topic_data: bool = False,
         novel_topic_qualifier: str = None,
         species: str = None):
     model_data = None
@@ -64,7 +63,6 @@ def upload_model(
             "dataset_id": dataset_id,
             "production": production,
             "negated": negated,
-            "novel_topic_data": novel_topic_data,
             "novel_topic_qualifier": novel_topic_qualifier,
             "species": species
         }
@@ -91,7 +89,6 @@ def upload_model(
         dataset_id=model_data["dataset_id"],
         production=model_data["production"],
         negated=model_data["negated"],
-        novel_topic_data=model_data["novel_topic_data"],
         novel_topic_qualifier=model_data["novel_topic_qualifier"],
         species=model_data["species"]
     )
