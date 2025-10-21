@@ -149,7 +149,7 @@ class TopicEntityTagModel(AuditedModel, Base):
 
     data_novelty = Column(
         String(),
-        nullable=True,
+        nullable=False,
         unique=False,
         index=True
     )
