@@ -43,7 +43,6 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                 "dataset_id": None,
                 "production": True,
                 "negated": True,
-                "novel_topic_data": False,
                 "novel_topic_qualifier": "ATP:0000062",
                 "species": None
             }
