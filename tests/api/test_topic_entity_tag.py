@@ -938,7 +938,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
-                "data_novelty":	"ATP:0000335",
+                "data_novelty": "ATP:0000335",
                 "ml_model_id": ml_model_id
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
@@ -964,7 +964,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
-                "data_novelty":	"ATP:0000335",
+                "data_novelty": "ATP:0000335",
                 "ml_model_id": ml_model_id
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
