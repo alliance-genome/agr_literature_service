@@ -45,12 +45,39 @@ from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_
 
 logger = logging.getLogger(__name__)
 
+# Cache for descendants of ATP:0000142 so we don't recompute every request
+_CHILDREN_OF_ENTITY = None
 
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
+
+
+def _init_children_of_entity():
+    global _CHILDREN_OF_ENTITY
+    if _CHILDREN_OF_ENTITY is None:
+        _CHILDREN_OF_ENTITY = set(get_descendants('ATP:0000142'))
+
+
+def _compute_data_novelty_for_row(row_dict: dict, source) -> str:
+    """Derive ATP:0000334 or ATP:0000335 for a given tag based on source & topic/entity_type."""
+    if source.secondary_data_provider.abbreviation == "SGD":
+        if row_dict.get('entity_type') and row_dict.get('topic') == row_dict['entity_type']:
+            return 'ATP:0000334'
+        return 'ATP:0000335'
+
+    # Non-SGD: ABC-specific entity-only detection, else default to non-entity
+    children_of_entity = _CHILDREN_OF_ENTITY or set(get_descendants('ATP:0000142'))
+    if source.source_method == "abc_literature_system":
+        is_entity_only = (
+            row_dict.get('entity_type') and row_dict.get('topic') in children_of_entity
+        )
+        return 'ATP:0000334' if is_entity_only else 'ATP:0000335'
+
+    # Fallback for other sources
+    return 'ATP:0000335'
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
@@ -76,12 +103,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     logger.info("Setting display_tag/species based on data provider")
     if source.secondary_data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
-        if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
-            topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
-        else:
-            topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
+        topic_entity_tag_data['data_novelty'] = _compute_data_novelty_for_row(topic_entity_tag_data, source)
     else:
         check_and_set_species(topic_entity_tag_data)
+        if topic_entity_tag_data.get('data_novelty') is None:
+            topic_entity_tag_data['data_novelty'] = _compute_data_novelty_for_row(topic_entity_tag_data, source)
+
     # check atp ID's validity
     logger.info("Validating ATP IDs")
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
