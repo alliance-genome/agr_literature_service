@@ -85,7 +85,7 @@ class MLModel(Base):
         default=True
     )
 
-    novel_topic_qualifier = Column(
+    data_novelty = Column(
         String,
         nullable=True
     )

@@ -59,7 +59,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         dataset_id=request.dataset_id,
         production=request.production,
         species=request.species,
-        novel_topic_qualifier=request.novel_topic_qualifier,
+        data_novelty=request.data_novelty,
         negated=request.negated
     )
     try:
@@ -150,7 +150,7 @@ def get_model_schema_from_orm(model: MLModel):
         "ml_model_id": model.ml_model_id,
         "production": model.production,
         "species": model.species,
-        "novel_topic_qualifier": model.novel_topic_qualifier,
+        "data_novelty": model.data_novelty,
         "negated": model.negated
     }
     return MLModelSchemaShow(**model_data)
