@@ -81,6 +81,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         else:
             topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
     else:
+        if topic_entity_tag_data.get('data_novelty') is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The 'data_novelty' is not passed in")
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
     logger.info("Validating ATP IDs")
