@@ -5,6 +5,7 @@
     "tasks.max": "1",
     "slot.name": "debezium_resource",
     "publication.name": "debezium_resource",
+    "publication.autocreate.mode": "filtered",
     "database.hostname": "${PSQL_HOST}",
     "database.port": "${PSQL_PORT}",
     "database.user": "${PSQL_USERNAME}",
