@@ -26,7 +26,7 @@
     "database.query.timeout.ms": "300000",
     "database.connectTimeout": "30000",
     "database.socketTimeout": "30000",
-    "heartbeat.interval.ms": "300000",
+    "heartbeat.interval.ms": "10000",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "debezium.errors.resource",
     "errors.deadletterqueue.topic.replication.factor": "1",
