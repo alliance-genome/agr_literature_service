@@ -9,7 +9,6 @@ services:
       POSTGRES_USER: ${PSQL_USERNAME}
       POSTGRES_PASSWORD: ${PSQL_PASSWORD}
       POSTGRES_DB: ${PSQL_DATABASE}
-      POSTGRES_MAX_WAL_SENDERS: 20
     shm_size: '1g'
     volumes:
       - "agr-literature-pg-data:/var/lib/postgresql/data"
