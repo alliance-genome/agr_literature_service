@@ -11,7 +11,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic_list
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
     TopicEntityTagSourceModel
@@ -173,9 +173,13 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database.")
 
     # create empty return objects with topics from atp subsets as keys
+    """
     agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic["curie"]: {} for topic in
                                                         search_topic(topic=None, mod_abbr=mod_abbreviation)}
-
+    """
+    agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {
+        topic["curie"]: {} for topic in search_topic_list(topic=None, mod_abbr=mod_abbreviation)
+    }
     # add tet info to the objects
     query = (
         db.query(TopicEntityTagModel, TopicEntityTagSourceModel)
