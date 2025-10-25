@@ -29,7 +29,6 @@
     "poll.interval.ms": "1500",
     "max.queue.size": "32768",
     "max.batch.size": "4096",
-    "snapshot.mode": "never",
     "errors.tolerance": "all",
     "errors.deadletterqueue.topic.name": "debezium.errors.mod",
     "errors.deadletterqueue.topic.replication.factor": "1",
