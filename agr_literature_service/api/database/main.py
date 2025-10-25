@@ -60,8 +60,8 @@ def drop_open_db_sessions(db):
              FROM pg_stat_activity
              WHERE datname = current_database()
              AND pid <> pg_backend_pid()
-             AND application_name NOT LIKE 'debezium%'
-             AND backend_type != 'walsender';'''
+             AND backend_type NOT IN ('walsender', 'logical replication worker')
+             AND application_name != 'PostgreSQL JDBC Driver';'''
     db.execute(text(com))
     db.commit()  # commit after executing the SQL
     print(f"Closing {db}")
