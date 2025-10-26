@@ -1,36 +1,22 @@
-# ateam_db_helpers.py
-
+import logging
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
 from typing import Dict, List, Optional, Iterable
 import cachetools.func
-import logging
-
-# Client library (your refactored multi-source client)
-from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
-
-
-# for testing
 from sqlalchemy import text, bindparam
-# for testing
-
+from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-# List of valid prefix identifiers for curies
 curie_prefix_list = ["FB", "MGI", "RGD", "SGD", "WB", "XenBase", "ZFIN"]
-
-# Topic tag for ATP ontology (kept for compatibility)
 topic_category_atp = "ATP:0000002"
 
-# In-memory ATP caches
 atp_to_name: Dict[str, str] = {}
 name_to_atp: Dict[str, str] = {}
 atp_to_parent: Dict[str, str] = {}
 atp_to_children: Dict[str, List[str]] = {}
 
-# Lazily-initialized shared client
 _client: Optional[AGRCurationAPIClient] = None
 
 
@@ -40,10 +26,6 @@ def _get_client() -> AGRCurationAPIClient:
         _client = AGRCurationAPIClient()
     return _client
 
-
-# -----------------------------
-# Public API used by endpoints
-# -----------------------------
 
 def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONResponse:
     """
@@ -59,29 +41,23 @@ def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONR
 
     try:
         data: List[Dict[str, object]] = []
-
-        # CURIEs → basic info
         if curie_list:
             curie_rows = cli.map_entity_curies_to_info(entity_type=entity_type_lc, entity_curies=curie_list)
             data.extend(
                 {"entity_curie": r["entity_curie"], "is_obsolete": r["is_obsolete"], "entity": r["entity"]}
                 for r in curie_rows
             )
-
-        # Names → CURIEs (requires taxon for most types)
         if name_list:
             name_rows = cli.map_entity_names_to_curies(entity_type=entity_type_lc, entity_names=name_list, taxon=taxon)
             data.extend(
                 {"entity_curie": r["entity_curie"], "is_obsolete": r["is_obsolete"], "entity": r["entity"]}
                 for r in name_rows
             )
-
     except AGRAPIError as e:
-        # Keep old behavior: 422 for unknown entity_type; 502 for other client errors
         if "Unknown entity_type" in str(e):
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown entity_type '{entity_type}'")
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"Unknown entity_type '{entity_type}'")
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Mapping failed: {e}")
-
     return JSONResponse(content=jsonable_encoder(data))
 
 
@@ -161,42 +137,41 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
         raise HTTPException(status_code=502, detail=f"Ontology traversal failed: {e}")
 
 
-# ---------- ATP name hydration helper ----------
+# ---------- ATP name fetching helpers ----------
 
-def _hydrate_atp_names(missing_curies: List[str]) -> None:
+def _fetch_atp_names(missing_curies: List[str]) -> None:
     """
-    Fill atp_to_name/name_to_atp for any ATP curies not in cache by asking the client.
-    If the client doesn't expose get_ontology_names_by_curies, we just skip (graceful no-op).
+    Populate atp_to_name and name_to_atp for any uncached ATP curses by querying the client
+    (if possible). Before the client provides a direct method, use this fallback approach.
     """
     if not missing_curies:
         return
     cli = _get_client()
     try:
-        # Prefer the dedicated DB lookup if available
+        # If the client provides a helper, call it; otherwise silently skip.
         if hasattr(cli, "get_ontology_names_by_curies"):
             curie_to_name = cli.get_ontology_names_by_curies(missing_curies)  # type: ignore[attr-defined]
             for curie, name in (curie_to_name or {}).items():
                 atp_to_name[curie] = name
                 name_to_atp[name] = curie
     except Exception as e:
-        logger.warning("ATP name hydration failed for %s: %s", missing_curies, e)
+        logger.debug("ATP name fetching via client helper failed for %s: %s", missing_curies, e)
 
 
-def _hydrate_atp_names_for_curie_list(curies: list[str]) -> None:
+def _fetch_atp_names_for_curie_list(curies: List[str]) -> None:
     """
-    Ensure atp_to_name is filled for given ATP curies.
-    Uses the client's DB session to read ontologyterm (ATPTerm).
-    No-ops if DB is unavailable.
+    Ensure atp_to_name is filled for given ATP curies by directly querying ontologyterm (ATPTerm).
     """
     missing = [c for c in curies if c and c not in atp_to_name]
     if not missing:
         return
+    # Try through the client's DB session (if available)
     try:
         cli = _get_client()
-        dbm = cli._get_db_methods()            # uses env DB config
+        dbm = cli._get_db_methods()
         session = dbm._create_session()
     except Exception as e:
-        logger.debug("ATP hydration: DB session unavailable: %s", e)
+        logger.debug("ATP fetching: DB session unavailable: %s", e)
         return
     try:
         sql = text("""
@@ -210,36 +185,32 @@ def _hydrate_atp_names_for_curie_list(curies: list[str]) -> None:
             atp_to_name[curie] = name
             name_to_atp[name] = curie
     except Exception as e:
-        logger.debug("ATP hydration query failed: %s", e)
+        logger.debug("ATP fetching query failed: %s", e)
     finally:
         session.close()
 
 
 def map_curies_to_names(category: str, curies: Iterable[str]) -> Dict[str, str]:
-    """
-    Map CURIEs -> display names. Handles ATP locally; delegates others to client,
-    with API fallback when DB mapping fails/returns empty.
-    """
     curie_list = [c for c in curies if c]
     if not curie_list:
         return {}
     cat_raw = (category or "").strip()
     cat_norm = cat_raw.replace(" ", "").lower()
 
-    # Treat any 'atpterm' OR category starting with 'ATP:' as ATP
+    # Treat 'atpterm'/'atp' or a category that is an ATP CURIE as ATP
     if cat_norm in {"atpterm", "atp"} or cat_raw.upper().startswith("ATP:"):
         _ensure_atp_loaded()
-        _hydrate_atp_names_for_curie_list(curie_list)  # best-effort
+        _fetch_atp_names_for_curie_list(curie_list)
         return {c: atp_to_name.get(c, c) for c in curie_list}
 
-    # Non-ATP: try client DB mapping, then API fallback
+    # Non-ATP
     cli = _get_client()
     try:
         result = cli.map_curies_to_names(category=cat_raw, curies=curie_list)
         if result:
             return result
     except AGRAPIError as e:
-        logger.debug("DB mapping failed/unavailable: %s", e)
+        logger.debug("DB mapping failed/unavailable for category=%r: %s", cat_raw, e)
 
 
 # -----------------------------
@@ -251,7 +222,7 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> List[str]:
     """
     Use ATP children + subset filter from search_atp_topics(mod_abbr) to find jobs.
     - If name is an ATP:curie, treat it as the parent.
-    - Else, look for "<name> needed" in ATP names (your existing convention).
+    - Else, look for "<name> needed" in ATP names.
     Returns [parent, ...allowed child curies in subset...]
     """
     if not atp_to_parent or not atp_to_children:
@@ -307,7 +278,7 @@ def _ensure_atp_loaded():
 
 def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     """
-    Build ATP maps (name<->curie, children, parent) **without direct SQL**,
+    Build ATP maps (name <-> curie, children, parent) **without direct SQL**,
     by traversing via client.get_atp_descendants() from a set of roots.
 
     Note: client.get_atp_descendants returns all descendants (not just immediate children).
@@ -315,7 +286,6 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     descendants to ensure ancestors/descendants queries and name mappings work.
     """
     if start_terms is None:
-        # Defaults from your previous module
         start_terms = ['ATP:0000177', 'ATP:0000335']
 
     cli = _get_client()
@@ -329,8 +299,8 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     frontier = list(start_terms)
     seen = set(frontier)
 
-    # Optional: hydrate root names (best-effort)
-    _hydrate_atp_names(frontier)
+    # Optional: fetch root names
+    _fetch_atp_names(frontier)
 
     while frontier:
         parent = frontier.pop()
@@ -378,7 +348,7 @@ def atp_to_name_subset(curies: List[str]) -> Dict[str, str]:
     _ensure_atp_loaded()
     missing = [c for c in curies if c not in atp_to_name]
     if missing:
-        _hydrate_atp_names(missing)
+        _fetch_atp_names(missing)
     return {c: atp_to_name.get(c, c) for c in curies}
 
 
@@ -386,7 +356,6 @@ def atp_to_name_subset(curies: List[str]) -> Dict[str, str]:
 def atp_get_all_descendents(curie: str) -> List[str]:
     """
     Return all descendant ATP curies for the given curie.
-    No exceptions; returns [] if none.
     """
     try:
         _, subset_atp_to_name = get_name_to_atp_for_all_children(curie)
@@ -401,7 +370,6 @@ def atp_get_all_ancestors(curie: str) -> List[str]:
     Climb parent pointers we built. For strict ancestry, we can fall back to the client.
     """
     if not atp_to_parent:
-        # precise ancestors via client
         try:
             return _get_client().search_ontology_ancestors_or_descendants(ontology_node=curie, direction="ancestors")
         except AGRAPIError:
@@ -424,15 +392,21 @@ def atp_get_name(atp_id: str) -> Optional[str]:
             load_name_to_atp_and_relationships()
         except HTTPException:
             return None
-    # If still missing, try a one-off hydration
     if atp_id not in atp_to_name:
-        _hydrate_atp_names([atp_id])
+        _fetch_atp_names([atp_id])
     return atp_to_name.get(atp_id)
 
 
 def atp_return_invalid_ids(atp_ids: List[str]) -> List[str]:
+    """
+    Validate ATP IDs using the ATP cache, fetching any missing ATP IDs first.
+    This covers ATP IDs for entity_type == pathway/complex too.
+    """
     _ensure_atp_loaded()
-    return [a for a in atp_ids if a not in atp_to_name]
+    need_fetching = [a for a in (atp_ids or []) if a and a not in atp_to_name]
+    if need_fetching:
+        _fetch_atp_names_for_curie_list(need_fetching)
+    return [a for a in (atp_ids or []) if a and a not in atp_to_name]
 
 
 def get_name_to_atp_for_all_children(workflow_parent: str):
@@ -440,7 +414,6 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
     Return ALL descendants for an ATP term as two dicts:
       subset_name_to_atp:  {<name>: <ATP:curie>, ...}
       subset_atp_to_name:  {<ATP:curie>: <name>, ...}
-
     This always returns a 2-tuple (possibly both empty dicts).
     """
     _ensure_atp_loaded()
@@ -448,10 +421,8 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
     subset_name_to_atp: Dict[str, str] = {}
     subset_atp_to_name: Dict[str, str] = {}
 
-    # Start from known children (if any); otherwise return empty tuple
     frontier = list(atp_to_children.get(workflow_parent, []))
     if not frontier:
-        # Try a best-effort: if we don't know children yet, attempt hydration via client
         try:
             desc = _get_client().get_atp_descendants(ancestor_curie=workflow_parent) or []
             for node in desc:
@@ -468,7 +439,6 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
     if not frontier:
         return subset_name_to_atp, subset_atp_to_name
 
-    # BFS over our cached graph
     seen = set(frontier)
     while frontier:
         curie = frontier.pop()
