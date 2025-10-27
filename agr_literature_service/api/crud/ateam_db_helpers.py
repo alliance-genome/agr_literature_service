@@ -28,6 +28,18 @@ def _get_client() -> AGRCurationAPIClient:
         # This avoids test-time failures when AGR_API_BASE_URL is unset/empty.
         base_url = os.getenv("AGR_API_BASE_URL") or "http://localhost"
         _client = AGRCurationAPIClient(base_url=base_url)
+        # Ensure a valid URL is present for clients that validate config via Pydantic.
+        # The client doesn't take `base_url=` in __init__, so seed env before creating it.
+        if not os.getenv("AGR_API_BASE_URL") and not os.getenv("AGR_API_URL"):
+            os.environ["AGR_API_BASE_URL"] = "http://localhost"
+            os.environ.setdefault("AGR_API_URL", "http://localhost")
+        try:
+            _client = AGRCurationAPIClient()
+        except Exception as e:
+            logging.info(e)
+            os.environ.setdefault("AGR_API_BASE_URL", "http://localhost")
+            os.environ.setdefault("AGR_API_URL", "http://localhost")
+            _client = AGRCurationAPIClient()
     return _client
 
 
