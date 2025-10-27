@@ -1,4 +1,5 @@
 import logging
+import os
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
@@ -23,7 +24,10 @@ _client: Optional[AGRCurationAPIClient] = None
 def _get_client() -> AGRCurationAPIClient:
     global _client
     if _client is None:
-        _client = AGRCurationAPIClient()
+        # Use env override if provided; otherwise default to a valid URL to satisfy Pydantic.
+        # This avoids test-time failures when AGR_API_BASE_URL is unset/empty.
+        base_url = os.getenv("AGR_API_BASE_URL") or "http://localhost"
+        _client = AGRCurationAPIClient(base_url=base_url)
     return _client
 
 
