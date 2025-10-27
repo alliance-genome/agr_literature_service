@@ -2,7 +2,7 @@ import logging
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, List, Optional, Iterable, Tuple
 import cachetools.func
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
@@ -61,7 +61,7 @@ def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONR
     return JSONResponse(content=jsonable_encoder(data))
 
 
-def classify_entity_list(entity_list: str) -> (List[str], List[str]):
+def classify_entity_list(entity_list: str) -> Tuple[List[str], List[str]]:
     """Split raw entity_list into separate lists for names and curies."""
     entity_name_list: List[str] = []
     entity_curie_list: List[str] = []
@@ -211,6 +211,42 @@ def map_curies_to_names(category: str, curies: Iterable[str]) -> Dict[str, str]:
             return result
     except AGRAPIError as e:
         logger.debug("DB mapping failed/unavailable for category=%r: %s", cat_raw, e)
+
+    # Fall back to identity mapping for unknown categories.
+    return {c: c for c in curie_list}
+
+
+def create_ateam_db_session():
+    """
+    provide this so lit-processing programs can still use this function.
+    """
+    try:
+        cli = _get_client()
+        dbm = cli._get_db_methods()
+        return dbm._create_session()
+    except Exception as e:
+        raise RuntimeError("DB session unavailable via client") from e
+
+
+def search_for_entity_curies(
+    entity_type: str,
+    entity_list: str,
+    taxon: Optional[str] = None
+) -> List[str]:
+    """
+    Returns a flat list of CURIE strings resolved from names and/or CURIEs.
+    """
+    entity_type_lc = (entity_type or "").lower()
+    names, curies = classify_entity_list(entity_list)
+    cli = _get_client()
+    out: List[str] = []
+    if curies:
+        rows = cli.map_entity_curies_to_info(entity_type=entity_type_lc, entity_curies=curies) or []
+        out.extend([r["entity_curie"] for r in rows])
+    if names:
+        rows = cli.map_entity_names_to_curies(entity_type=entity_type_lc, entity_names=names, taxon=taxon) or []
+        out.extend([r["entity_curie"] for r in rows])
+    return out
 
 
 # -----------------------------
