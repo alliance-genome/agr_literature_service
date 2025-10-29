@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from typing import Dict, List, Optional, Iterable, Tuple
 import cachetools.func
 from sqlalchemy import text, bindparam
+from pydantic_core import ValidationError  # pydantic v2 core
 from agr_curation_api import APIConfig, AGRCurationAPIClient, AGRAPIError  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -25,16 +26,43 @@ os.environ.setdefault("AGR_API_URL", "http://localhost")
 _client: Optional[AGRCurationAPIClient] = None
 
 
+"""
 def _get_client() -> AGRCurationAPIClient:
     global _client
-    """
-    if _client is None:
-        _client = AGRCurationAPIClient()
-    return _client
-    """
     if _client is None:
         api_config = APIConfig()  # type: ignore
         _client = AGRCurationAPIClient(api_config)
+    return _client
+"""
+
+
+def _get_client() -> AGRCurationAPIClient:
+    global _client
+    if _client is not None:
+        return _client
+
+    # prefer explicit env; if blank/missing, use a safe local default
+    base = (os.getenv("ATEAM_API_URL") or "").strip() or "http://localhost:8000"
+
+    try:
+        cfg = APIConfig(base_url=base)  # type: ignore[arg-type]
+    except ValidationError as e:
+        raise RuntimeError(
+            "Invalid ATEAM_API_URL for AGRCurationAPIClient. "
+            "Set ATEAM_API_URL to a valid http(s) URL (e.g., http://localhost:8000)."
+        ) from e
+
+    try:
+        _client = AGRCurationAPIClient(cfg)  # type: ignore[arg-type]
+    except TypeError:
+        # Fallback: pass as kwargs (pydantic v2 prefers .model_dump())
+        _client = AGRCurationAPIClient(**cfg.model_dump())
+    except ValidationError as e:
+        raise RuntimeError(
+            "Failed to initialize AGRCurationAPIClient due to invalid config. "
+            "Check ATEAM_API_URL and related settings."
+        ) from e
+
     return _client
 
 
