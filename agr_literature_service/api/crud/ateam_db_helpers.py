@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from typing import Dict, List, Optional, Iterable, Tuple
 import cachetools.func
 from sqlalchemy import text, bindparam
-from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
+from agr_curation_api import APIConfig, AGRCurationAPIClient, AGRAPIError  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,14 @@ _client: Optional[AGRCurationAPIClient] = None
 
 def _get_client() -> AGRCurationAPIClient:
     global _client
+    """
     if _client is None:
         _client = AGRCurationAPIClient()
+    return _client
+    """
+    if if _client is None:
+        api_config = APIConfig()  # type: ignore
+        _client = AGRCurationAPIClient(api_config)
     return _client
 
 
