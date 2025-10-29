@@ -32,7 +32,7 @@ def _get_client() -> AGRCurationAPIClient:
         _client = AGRCurationAPIClient()
     return _client
     """
-    if if _client is None:
+    if _client is None:
         api_config = APIConfig()  # type: ignore
         _client = AGRCurationAPIClient(api_config)
     return _client
