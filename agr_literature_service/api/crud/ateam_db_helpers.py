@@ -127,12 +127,24 @@ def search_species(species: str) -> JSONResponse:
 def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants: str) -> List[str]:
     """
     Return a list of ancestor or descendant curies for the given ontology node.
-    Uses client.search_ontology_ancestors_or_descendants.
+
+    Uses cached ATP ontology data when available (ATP: terms),
+    otherwise calls client.search_ontology_ancestors_or_descendants().
     """
+    # ATPs are cached locally, so skip client call if applicable
+    if ontology_node.startswith("ATP:"):
+        if ancestors_or_descendants == "descendants":
+            return atp_get_all_descendents(ontology_node)
+        return atp_get_all_ancestors(ontology_node)
+
+    # For non-ATP ontology nodes, use the client API
     cli = _get_client()
     direction = "descendants" if ancestors_or_descendants == "descendants" else "ancestors"
     try:
-        return cli.search_ontology_ancestors_or_descendants(ontology_node=ontology_node, direction=direction)
+        return cli.search_ontology_ancestors_or_descendants(
+            ontology_node=ontology_node,
+            direction=direction
+        )
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"Ontology traversal failed: {e}")
 
