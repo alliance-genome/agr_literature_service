@@ -1,3 +1,4 @@
+import os
 import logging
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -17,14 +18,36 @@ name_to_atp: Dict[str, str] = {}
 atp_to_parent: Dict[str, str] = {}
 atp_to_children: Dict[str, List[str]] = {}
 
-_client: Optional[AGRCurationAPIClient] = None
+_shared_client: Optional[AGRCurationAPIClient] = None
 
 
-def _get_client() -> AGRCurationAPIClient:
-    global _client
-    if _client is None:
-        _client = AGRCurationAPIClient()
-    return _client
+def _env_url(key: str) -> Optional[str]:
+    v = os.getenv(key, "").strip()
+    return v or None
+
+
+def _build_client() -> AGRCurationAPIClient:
+    blue = _env_url("BLUE_API_BASE_URL")
+    cur = _env_url("CURATION_API_BASE_URL")
+    if not blue or not cur:
+        # Don't pass "" into Pydantic; make tests patch before first use.
+        raise RuntimeError(
+            "Missing BLUE_API_BASE_URL / CURATION_API_BASE_URL; "
+            "tests should monkeypatch `_get_shared_client`."
+        )
+    # Construct the real client with non-empty strings only
+    return AGRCurationAPIClient(
+        blue_api_base_url=blue,
+        curation_api_base_url=cur,
+        # add other required args here if the client needs them
+    )
+
+
+def _get_shared_client() -> AGRCurationAPIClient:
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = _build_client()
+    return _shared_client
 
 
 def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONResponse:
@@ -37,7 +60,7 @@ def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONR
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Missing entity_type")
 
     name_list, curie_list = classify_entity_list(entity_list)
-    cli = _get_client()
+    cli = _get_shared_client()
 
     try:
         data: List[Dict[str, object]] = []
@@ -82,7 +105,7 @@ def classify_entity_list(entity_list: str) -> Tuple[List[str], List[str]]:
 
 def search_topic(topic: Optional[str] = None, mod_abbr: Optional[str] = None) -> JSONResponse:
     """Search ATP ontology via client (supports MOD subset filter)."""
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         rows = cli.search_atp_topics(topic=topic, mod_abbr=mod_abbr, limit=10)
     except AGRAPIError as e:
@@ -94,7 +117,7 @@ def search_topic(topic: Optional[str] = None, mod_abbr: Optional[str] = None) ->
 
 def search_topic_list(topic: Optional[str] = None, mod_abbr: Optional[str] = None, limit: int = 10) -> List[dict]:
     """Return [{'curie':..., 'name':...}, ...] instead of a JSONResponse (for internal callers)."""
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         rows = cli.search_atp_topics(topic=topic, mod_abbr=mod_abbr, limit=limit) or []
         return [{"curie": r["curie"], "name": r["name"]} for r in rows]
@@ -104,7 +127,7 @@ def search_topic_list(topic: Optional[str] = None, mod_abbr: Optional[str] = Non
 
 def search_atp_descendants(ancestor_curie: str) -> JSONResponse:
     """Return descendants (curie, name) of an ATP node via client."""
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         rows = cli.get_atp_descendants(ancestor_curie=ancestor_curie)
     except AGRAPIError as e:
@@ -115,7 +138,7 @@ def search_atp_descendants(ancestor_curie: str) -> JSONResponse:
 
 def search_species(species: str) -> JSONResponse:
     """Search NCBITaxonTerm via client (by name or CURIE)."""
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         rows = cli.search_species(species=species, limit=10)
     except AGRAPIError as e:
@@ -129,7 +152,7 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
     Return a list of ancestor or descendant curies for the given ontology node.
     Uses client.search_ontology_ancestors_or_descendants.
     """
-    cli = _get_client()
+    cli = _get_shared_client()
     direction = "descendants" if ancestors_or_descendants == "descendants" else "ancestors"
     try:
         return cli.search_ontology_ancestors_or_descendants(ontology_node=ontology_node, direction=direction)
@@ -146,7 +169,7 @@ def _fetch_atp_names(missing_curies: List[str]) -> None:
     """
     if not missing_curies:
         return
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         # If the client provides a helper, call it; otherwise silently skip.
         if hasattr(cli, "get_ontology_names_by_curies"):
@@ -167,7 +190,7 @@ def _fetch_atp_names_for_curie_list(curies: List[str]) -> None:
         return
     # Try through the client's DB session (if available)
     try:
-        cli = _get_client()
+        cli = _get_shared_client()
         dbm = cli._get_db_methods()
         session = dbm._create_session()
     except Exception as e:
@@ -204,7 +227,7 @@ def map_curies_to_names(category: str, curies: Iterable[str]) -> Dict[str, str]:
         return {c: atp_to_name.get(c, c) for c in curie_list}
 
     # Non-ATP
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         result = cli.map_curies_to_names(category=cat_raw, curies=curie_list)
         if result:
@@ -221,7 +244,7 @@ def create_ateam_db_session():
     provide this so lit-processing programs can still use this function.
     """
     try:
-        cli = _get_client()
+        cli = _get_shared_client()
         dbm = cli._get_db_methods()
         return dbm._create_session()
     except Exception as e:
@@ -238,7 +261,7 @@ def search_for_entity_curies(
     """
     entity_type_lc = (entity_type or "").lower()
     names, curies = classify_entity_list(entity_list)
-    cli = _get_client()
+    cli = _get_shared_client()
     out: List[str] = []
     if curies:
         rows = cli.map_entity_curies_to_info(entity_type=entity_type_lc, entity_curies=curies) or []
@@ -283,7 +306,7 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> List[str]:
                 stack.append(ch)
 
     # Filter by MOD subset using client.search_atp_topics(mod_abbr=...)
-    cli = _get_client()
+    cli = _get_shared_client()
     try:
         subset_topics = cli.search_atp_topics(mod_abbr=mod_abbreviation) or []
         allowed = {r["curie"] for r in subset_topics}
@@ -324,7 +347,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     if start_terms is None:
         start_terms = ['ATP:0000177', 'ATP:0000335']
 
-    cli = _get_client()
+    cli = _get_shared_client()
 
     # Clear and (re)build
     atp_to_name.clear()
@@ -407,7 +430,7 @@ def atp_get_all_ancestors(curie: str) -> List[str]:
     """
     if not atp_to_parent:
         try:
-            return _get_client().search_ontology_ancestors_or_descendants(ontology_node=curie, direction="ancestors")
+            return _get_shared_client().search_ontology_ancestors_or_descendants(ontology_node=curie, direction="ancestors")
         except AGRAPIError:
             pass
 
@@ -460,7 +483,7 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
     frontier = list(atp_to_children.get(workflow_parent, []))
     if not frontier:
         try:
-            desc = _get_client().get_atp_descendants(ancestor_curie=workflow_parent) or []
+            desc = _get_shared_client().get_atp_descendants(ancestor_curie=workflow_parent) or []
             for node in desc:
                 cur = node["curie"]
                 nm = node["name"]
