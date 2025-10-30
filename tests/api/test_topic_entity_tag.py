@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, defaultdict, deque
 from datetime import datetime
 from unittest.mock import patch
 
@@ -23,24 +23,99 @@ test_reference2 = test_reference
 
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
 
+# --- minimal ATP ontology for tests ---
+# Root branch "entity" (ATP:0000142) with a few children often used in your validations
+ATP_ENTITY = "ATP:0000142"
+ATP_GENE = "ATP:0000027"
+ATP_ALLELE = "ATP:0000090"
+ATP_STRAIN = "ATP:0000116"
+ATP_SPECIES = "ATP:0000107"
+ATP_TRANSGENE = "ATP:0000110"
+ATP_ANTIBODY = "ATP:0000123"
+
+# Parent -> children adjacency
+_ATP_ADJ = {
+    ATP_ENTITY: {ATP_GENE, ATP_ALLELE, ATP_STRAIN, ATP_SPECIES, ATP_TRANSGENE, ATP_ANTIBODY},
+    # add a couple of “grandchildren” so ancestor/descendant checks have depth
+    ATP_GENE: set(),     # extend if your code expects deeper checks
+    ATP_ALLELE: set(),
+    ATP_STRAIN: set(),
+    ATP_SPECIES: set(),
+    ATP_TRANSGENE: set(),
+    ATP_ANTIBODY: set(),
+}
+
+# Build reverse edges for ancestors
+_ATP_REV = defaultdict(set)
+for p, kids in _ATP_ADJ.items():
+    for c in kids:
+        _ATP_REV[c].add(p)
+
+
+def _descendants(term):
+    seen, q = set(), deque([term])
+    while q:
+        t = q.popleft()
+        for ch in _ATP_ADJ.get(t, ()):
+            if ch not in seen:
+                seen.add(ch)
+                q.append(ch)
+    return seen
+
+
+def _ancestors(term):
+    seen, q = set(), deque([term])
+    while q:
+        t = q.popleft()
+        for par in _ATP_REV.get(t, ()):
+            if par not in seen:
+                seen.add(par)
+                q.append(par)
+    return seen
+
+
+def _search_ontology_ancestors_or_descendants(*, category: str, terms, **kwargs):
+    """
+    Mimic the AGR curation API method your code calls.
+    Return shape: {term: {'ancestors': [...], 'descendants': [...]}}
+    """
+    if category != "ATP":
+        # keep it simple; your code uses ATP
+        return {t: {'ancestors': [], 'descendants': []} for t in terms}
+    out = {}
+    for t in terms:
+        out[t] = {
+            'ancestors': list(_ancestors(t)),
+            'descendants': list(_descendants(t)),
+        }
+    return out
+
+
+@pytest.fixture(autouse=True)
+def _mock_shared_client(monkeypatch):
+    """
+    Provide a fake client for ateam_db_helpers._get_shared_client()
+    with the ontology method your code expects.
+    Add other minimal stubs as needed by tests.
+    """
+    fake = SimpleNamespace(
+        # The method your stack trace complains about:
+        search_ontology_ancestors_or_descendants=_search_ontology_ancestors_or_descendants,
+
+        # Commonly used stubs (extend as your tests/code require):
+        search_topics=lambda *a, **k: ["gene", "allele", "strain", "species", "transgene", "antibody"],
+        validate_topic_entity_tag=lambda *a, **k: {"ok": True},
+        get_ml_model=lambda *a, **k: {"version_num": 1},  # if any test asks for model version
+    )
+
+    import agr_literature_service.api.crud.ateam_db_helpers as helpers
+    monkeypatch.setattr(helpers, "_get_shared_client", lambda: fake)
+
 
 @pytest.fixture(autouse=True)
 def _env_urls(monkeypatch):
     monkeypatch.setenv("BLUE_API_BASE_URL", "http://localhost:8000")
     monkeypatch.setenv("CURATION_API_BASE_URL", "http://localhost:8001")
-
-
-@pytest.fixture(autouse=True)
-def _mock_curation_client(monkeypatch):
-    FakeClient = SimpleNamespace(
-        # add only the methods your code calls in these tests
-        search_topics=lambda *a, **k: ["gene", "allele"],
-        validate_topic_entity_tag=lambda *a, **k: {"ok": True},
-        # ...etc
-    )
-    # Patch the factory/getter in your ateam_db_helpers
-    import agr_literature_service.api.crud.ateam_db_helpers as helpers
-    monkeypatch.setattr(helpers, "_get_shared_client", lambda: FakeClient)
 
 
 @pytest.fixture
