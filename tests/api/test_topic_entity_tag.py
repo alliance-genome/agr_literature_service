@@ -19,8 +19,6 @@ from .test_topic_entity_tag_source import test_topic_entity_tag_source # noqa
 from .test_ml_model import test_ml_model # noqa
 from ..fixtures import load_name_to_atp_and_relationships_mock
 
-os.environ['AGR_API_BASE_URL'] = 'http://test-api.example.com'
-
 test_reference2 = test_reference
 
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
