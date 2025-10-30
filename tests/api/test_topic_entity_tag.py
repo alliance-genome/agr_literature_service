@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
-from types import SimpleNamespace
+from types import SimpleNamespace, Dict, Set, DefaultDict
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
@@ -22,22 +22,18 @@ from ..fixtures import load_name_to_atp_and_relationships_mock
 test_reference2 = test_reference
 
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
+ATP_ENTITY: str = "ATP:0000142"
+ATP_GENE: str = "ATP:0000027"
+ATP_ALLELE: str = "ATP:0000090"
+ATP_STRAIN: str = "ATP:0000116"
+ATP_SPECIES: str = "ATP:0000107"
+ATP_TRANSGENE: str = "ATP:0000110"
+ATP_ANTIBODY: str = "ATP:0000123"
 
-# --- minimal ATP ontology for tests ---
-# Root branch "entity" (ATP:0000142) with a few children often used in your validations
-ATP_ENTITY = "ATP:0000142"
-ATP_GENE = "ATP:0000027"
-ATP_ALLELE = "ATP:0000090"
-ATP_STRAIN = "ATP:0000116"
-ATP_SPECIES = "ATP:0000107"
-ATP_TRANSGENE = "ATP:0000110"
-ATP_ANTIBODY = "ATP:0000123"
-
-# Parent -> children adjacency
-_ATP_ADJ = {
+# Parent -> children adjacency (typed)
+_ATP_ADJ: Dict[str, Set[str]] = {
     ATP_ENTITY: {ATP_GENE, ATP_ALLELE, ATP_STRAIN, ATP_SPECIES, ATP_TRANSGENE, ATP_ANTIBODY},
-    # add a couple of “grandchildren” so ancestor/descendant checks have depth
-    ATP_GENE: set(),     # extend if your code expects deeper checks
+    ATP_GENE: set(),
     ATP_ALLELE: set(),
     ATP_STRAIN: set(),
     ATP_SPECIES: set(),
@@ -45,8 +41,8 @@ _ATP_ADJ = {
     ATP_ANTIBODY: set(),
 }
 
-# Build reverse edges for ancestors
-_ATP_REV = defaultdict(set)
+# Build reverse edges for ancestors (typed)
+_ATP_REV: DefaultDict[str, Set[str]] = defaultdict(set)
 for p, kids in _ATP_ADJ.items():
     for c in kids:
         _ATP_REV[c].add(p)
