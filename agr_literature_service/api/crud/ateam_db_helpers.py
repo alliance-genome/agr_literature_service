@@ -538,32 +538,98 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
 class _StubClient:
     """Tiny stand-in for AGRCurationAPIClient used in unit tests."""
 
+    # --- Minimal ATP tree used by tests ---
+    _names = {
+        "ATP:0000009": "phenotype",
+        "ATP:0000079": "genetic phenotype",
+        "ATP:0000082": "RNAi phenotype",
+        "ATP:0000083": "mutant phenotype",
+        "ATP:0000084": "overexpression phenotype",
+        "ATP:0000068": "generic_topic_0068",
+        "ATP:0000071": "specific_topic_0071",
+        "ATP:0000122": "topic_0122",
+    }
+    _desc = {
+        "ATP:0000009": ["ATP:0000079", "ATP:0000082", "ATP:0000083", "ATP:0000084"],
+        "ATP:0000068": ["ATP:0000071"],
+        "ATP:0000079": [],
+        "ATP:0000082": [],
+        "ATP:0000083": [],
+        "ATP:0000084": [],
+        "ATP:0000071": [],
+        "ATP:0000122": [],
+    }
+
+    # Precompute ancestors for quick lookup
+    _anc = {}
+    for parent, kids in _desc.items():
+        for k in kids:
+            _anc.setdefault(k, set()).add(parent)
+    # transitively close ancestors
+    changed = True
+    while changed:
+        changed = False
+        for node, parents in list(_anc.items()):
+            new_parents = set(parents)
+            for p in list(parents):
+                new_parents |= _anc.get(p, set())
+            if new_parents != parents:
+                _anc[node] = new_parents
+                changed = True
+
     # --- entity mapping ---
     def map_entity_curies_to_info(self, *, entity_type: str, entity_curies: List[str]) -> List[Dict[str, Any]]:
-        # Echo back CURIEs as valid/non-obsolete; good enough for validation tests.
         return [{"entity_curie": c.upper(), "is_obsolete": False, "entity": c.upper()} for c in (entity_curies or [])]
 
     def map_entity_names_to_curies(self, *, entity_type: str, entity_names: List[str], taxon: Optional[str] = None) -> List[Dict[str, Any]]:
-        # In tests you usually pass CURIEs; for names just no-op to avoid surprises.
+        # If names show up, just echo them back as CURIEs won't exist; safe no-op for these tests.
         return []
 
     # --- ATP / ontology helpers ---
     def search_atp_topics(self, *, topic: Optional[str] = None, mod_abbr: Optional[str] = None, limit: int = 10):
-        return []
+        # Return the small set so subset filtering doesn't drop all candidates
+        items = [{"curie": cur, "name": self._names.get(cur, cur)} for cur in self._names.keys()]
+        if topic:
+            t = topic.lower()
+            items = [x for x in items if t in x["curie"].lower() or t in x["name"].lower()]
+        return items[:limit]
 
     def get_atp_descendants(self, *, ancestor_curie: str):
-        return []  # your tests mock/load ATP maps separately
+        kids = self._desc.get(ancestor_curie, [])
+        # For “all descendants”, include children + their descendants (flattened)
+        out = []
+        seen = set()
+        stack = list(kids)
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            out.append({"curie": cur, "name": self._names.get(cur, cur)})
+            stack.extend(self._desc.get(cur, []))
+        return out
 
     def search_species(self, *, species: str, limit: int = 10):
         return []
 
     def search_ontology_ancestors_or_descendants(self, *, ontology_node: str, direction: str):
-        return []  # let tests patch ancestry where needed
+        if direction == "ancestors":
+            return list(self._anc.get(ontology_node, []))
+        # descendants (flat list of all descendants’ curies)
+        out = []
+        seen = set()
+        stack = list(self._desc.get(ontology_node, []))
+        while stack:
+            cur = stack.pop()
+            if cur in seen:
+                continue
+            seen.add(cur)
+            out.append(cur)
+            stack.extend(self._desc.get(cur, []))
+        return out
 
-    # --- generic mapping used by map_curies_to_names fallback ---
     def map_curies_to_names(self, *, category: str, curies: List[str]) -> Dict[str, str]:
-        return {c: c for c in (curies or [])}
+        return {c: self._names.get(c, c) for c in (curies or [])}
 
-    # Some code paths might try this; make it clearly unavailable in stub
     def _get_db_methods(self):
         raise RuntimeError("DB methods unavailable in test stub client")
