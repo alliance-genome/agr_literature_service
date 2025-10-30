@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
-from types import SimpleNamespace, Dict, Set, DefaultDict
+from types import SimpleNamespace
+from typing import Dict, Set, DefaultDict
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
