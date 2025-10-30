@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
+from types import SimpleNamespace
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
@@ -23,8 +24,26 @@ test_reference2 = test_reference
 TETTestData = namedtuple('TETTestData', ['response', 'new_tet_id', 'related_ref_curie'])
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
+def _env_urls(monkeypatch):
+    monkeypatch.setenv("BLUE_API_BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("CURATION_API_BASE_URL", "http://localhost:8001")
 
+
+@pytest.fixture(autouse=True)
+def _mock_curation_client(monkeypatch):
+    FakeClient = SimpleNamespace(
+        # add only the methods your code calls in these tests
+        search_topics=lambda *a, **k: ["gene", "allele"],
+        validate_topic_entity_tag=lambda *a, **k: {"ok": True},
+        # ...etc
+    )
+    # Patch the factory/getter in your ateam_db_helpers
+    import agr_literature_service.api.crud.ateam_db_helpers as helpers
+    monkeypatch.setattr(helpers, "_get_shared_client", lambda: FakeClient)
+
+
+@pytest.fixture
 def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
     load_name_to_atp_and_relationships_mock()
     with TestClient(app) as client:
