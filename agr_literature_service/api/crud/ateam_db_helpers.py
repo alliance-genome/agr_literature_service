@@ -3,7 +3,7 @@ import os
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
-from typing import Dict, List, Optional, Iterable, Tuple, Any
+from typing import Dict, List, Optional, Iterable, Tuple, Any, Set
 import cachetools.func
 from sqlalchemy import text, bindparam
 from pydantic_core import ValidationError  # pydantic v2 core
@@ -63,12 +63,6 @@ def _get_client() -> AGRCurationAPIClient:
         ) from e
 
     return _client
-
-
-def _set_client_for_tests(fake_client: Optional[AGRCurationAPIClient]) -> None:
-    """Allow tests to inject a fully mocked client if desired."""
-    global _client_override
-    _client_override = fake_client
 
 
 def map_entity_to_curie(entity_type: str, entity_list: str, taxon: str) -> JSONResponse:
@@ -538,8 +532,8 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
 class _StubClient:
     """Tiny stand-in for AGRCurationAPIClient used in unit tests."""
 
-    # --- Minimal ATP tree used by tests ---
-    _names = {
+    # --- Minimal ATP tree used by tests (typed) ---
+    _names: Dict[str, str] = {
         "ATP:0000009": "phenotype",
         "ATP:0000079": "genetic phenotype",
         "ATP:0000082": "RNAi phenotype",
@@ -549,7 +543,8 @@ class _StubClient:
         "ATP:0000071": "specific_topic_0071",
         "ATP:0000122": "topic_0122",
     }
-    _desc = {
+
+    _desc: Dict[str, List[str]] = {
         "ATP:0000009": ["ATP:0000079", "ATP:0000082", "ATP:0000083", "ATP:0000084"],
         "ATP:0000068": ["ATP:0000071"],
         "ATP:0000079": [],
@@ -560,65 +555,82 @@ class _StubClient:
         "ATP:0000122": [],
     }
 
-    # Precompute ancestors for quick lookup
-    _anc = {}
-    for parent, kids in _desc.items():
-        for k in kids:
-            _anc.setdefault(k, set()).add(parent)
-    # transitively close ancestors
-    changed = True
-    while changed:
-        changed = False
-        for node, parents in list(_anc.items()):
-            new_parents = set(parents)
-            for p in list(parents):
-                new_parents |= _anc.get(p, set())
-            if new_parents != parents:
-                _anc[node] = new_parents
-                changed = True
+    @staticmethod
+    def _compute_ancestors(desc: Dict[str, List[str]]) -> Dict[str, Set[str]]:
+        anc: Dict[str, Set[str]] = {}
+        # direct parents
+        for parent, kids in desc.items():
+            for k in kids:
+                anc.setdefault(k, set()).add(parent)
+        # transitive closure
+        changed = True
+        while changed:
+            changed = False
+            for node, parents in list(anc.items()):
+                new_parents = set(parents)
+                for p in list(parents):
+                    new_parents |= anc.get(p, set())
+                if new_parents != parents:
+                    anc[node] = new_parents
+                    changed = True
+        return anc
 
-    # --- entity mapping ---
-    def map_entity_curies_to_info(self, *, entity_type: str, entity_curies: List[str]) -> List[Dict[str, Any]]:
-        return [{"entity_curie": c.upper(), "is_obsolete": False, "entity": c.upper()} for c in (entity_curies or [])]
+    _anc: Dict[str, Set[str]] = _compute_ancestors.__func__(_desc)  # type: ignore[misc]
 
-    def map_entity_names_to_curies(self, *, entity_type: str, entity_names: List[str], taxon: Optional[str] = None) -> List[Dict[str, Any]]:
-        # If names show up, just echo them back as CURIEs won't exist; safe no-op for these tests.
+    # --- entity mapping (typed) ---
+    def map_entity_curies_to_info(
+        self, *, entity_type: str, entity_curies: List[str]
+    ) -> List[Dict[str, Any]]:
+        return [
+            {"entity_curie": c.upper(), "is_obsolete": False, "entity": c.upper()}
+            for c in (entity_curies or [])
+        ]
+
+    def map_entity_names_to_curies(
+        self, *, entity_type: str, entity_names: List[str], taxon: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        # Safe no-op for tests that don’t depend on name→curie.
         return []
 
-    # --- ATP / ontology helpers ---
-    def search_atp_topics(self, *, topic: Optional[str] = None, mod_abbr: Optional[str] = None, limit: int = 10):
-        # Return the small set so subset filtering doesn't drop all candidates
-        items = [{"curie": cur, "name": self._names.get(cur, cur)} for cur in self._names.keys()]
+    # --- ATP / ontology helpers (typed) ---
+    def search_atp_topics(
+        self, *, topic: Optional[str] = None, mod_abbr: Optional[str] = None, limit: int = 10
+    ) -> List[Dict[str, str]]:
+        items: List[Dict[str, str]] = [
+            {"curie": cur, "name": self._names.get(cur, cur)} for cur in self._names.keys()
+        ]
         if topic:
             t = topic.lower()
             items = [x for x in items if t in x["curie"].lower() or t in x["name"].lower()]
         return items[:limit]
 
-    def get_atp_descendants(self, *, ancestor_curie: str):
-        kids = self._desc.get(ancestor_curie, [])
-        # For “all descendants”, include children + their descendants (flattened)
-        out = []
-        seen = set()
-        stack = list(kids)
+    def get_atp_descendants(self, *, ancestor_curie: str) -> List[Dict[str, str]]:
+        # Return all descendants as list of {curie, name}
+        out: List[Dict[str, str]] = []
+        seen: Set[str] = set()
+        stack: List[str] = list(self._desc.get(ancestor_curie, []))
         while stack:
             cur = stack.pop()
             if cur in seen:
                 continue
             seen.add(cur)
             out.append({"curie": cur, "name": self._names.get(cur, cur)})
+            # extend with children (typed)
             stack.extend(self._desc.get(cur, []))
         return out
 
-    def search_species(self, *, species: str, limit: int = 10):
+    def search_species(self, *, species: str, limit: int = 10) -> List[Dict[str, str]]:
         return []
 
-    def search_ontology_ancestors_or_descendants(self, *, ontology_node: str, direction: str):
+    def search_ontology_ancestors_or_descendants(
+        self, *, ontology_node: str, direction: str
+    ) -> List[str]:
         if direction == "ancestors":
-            return list(self._anc.get(ontology_node, []))
-        # descendants (flat list of all descendants’ curies)
-        out = []
-        seen = set()
-        stack = list(self._desc.get(ontology_node, []))
+            return list(self._anc.get(ontology_node, set()))
+        # descendants: flat list
+        out: List[str] = []
+        seen: Set[str] = set()
+        stack: List[str] = list(self._desc.get(ontology_node, []))
         while stack:
             cur = stack.pop()
             if cur in seen:
@@ -631,5 +643,5 @@ class _StubClient:
     def map_curies_to_names(self, *, category: str, curies: List[str]) -> Dict[str, str]:
         return {c: self._names.get(c, c) for c in (curies or [])}
 
-    def _get_db_methods(self):
+    def _get_db_methods(self) -> Any:
         raise RuntimeError("DB methods unavailable in test stub client")
