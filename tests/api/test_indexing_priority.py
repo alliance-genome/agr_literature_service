@@ -336,10 +336,10 @@ class TestIndexingPriorityCRUD:
         out = ip_crud.get_indexing_priority_tag(db, ref_curie)
         assert "current_priority_tag" in out
         assert "all_priority_tags" in out
-        assert isinstance(out["current_priority_tag"], list)
+        assert isinstance(out["current_priority_tag"], dict)
         assert len(out["current_priority_tag"]) >= 1
 
-        row = out["current_priority_tag"][0]
+        row = out["current_priority_tag"]
         for key in [
             "indexing_priority_id",
             "indexing_priority",

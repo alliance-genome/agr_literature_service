@@ -11,7 +11,8 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic_list
+from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
     TopicEntityTagSourceModel
@@ -34,6 +35,7 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
                             detail="reference_curie not within curation_status_data")
     try:
         # get ref_id from curie
+        reference_curie = normalize_reference_curie(db, reference_curie)
         ref_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
         curation_status_data["reference_id"] = ref_id
         # look up mod
@@ -174,7 +176,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
 
     # create empty return objects with topics from atp subsets as keys
     agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic["curie"]: {} for topic in
-                                                        search_topic(topic=None, mod_abbr=mod_abbreviation)}
+                                                        search_topic_list(topic=None, mod_abbr=mod_abbreviation)}
 
     # add tet info to the objects
     query = (

@@ -41,7 +41,7 @@ pydot==1.4.2                 # No update needed.
 sqlalchemy_schemadisplay==2.0.0 # Upgrade for compatibility with SQLAlchemy 2.0.x.
 
 # GitHub Dependency
-git+https://github.com/alliance-genome/agr_fastapi_okta@v1.3#egg=fastapi_okta # Latest version from the repo.
+# git+https://github.com/alliance-genome/agr_fastapi_okta@v1.3#egg=fastapi_okta # Latest version from the repo.
 
 # HTTP and Networking
 requests==2.32.4             # Updated for bug fixes and improvements.
@@ -57,3 +57,5 @@ numpy<2.0                    # Required for Elasticsearch 7.13.4 compatibility
 retry==0.9.2                 # No update needed.
 cachetools==5.3.1            # Updated for better performance.
 lxml==4.9.4
+fastapi-okta==1.4.0
+agr-curation-api-client==0.7.0

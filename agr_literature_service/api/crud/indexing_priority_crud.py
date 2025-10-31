@@ -274,7 +274,7 @@ def get_indexing_priority_tag(db: Session, curie: str):
         tags.append(d)
 
     return {
-        "current_priority_tag": tags,
+        "current_priority_tag": tags[0],
         "all_priority_tags": priority_tag_to_name,
     }
 
