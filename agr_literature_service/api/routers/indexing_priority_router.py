@@ -92,10 +92,6 @@ def show(
 
 
 @router.get(
-    "/get_priority_tag/{reference_curie}",
-    status_code=status.HTTP_200_OK,
-)
-@router.get(
     "/get_priority_tag/{reference_curie}/{mod_abbreviation}",
     status_code=status.HTTP_200_OK,
 )
@@ -104,8 +100,8 @@ def get_indexing_priority_tag(
     mod_abbreviation: Optional[str] = None,
     db: Session = db_session,
 ):
-    if mod_abbreviation and mod_abbreviation != 'ZFIN':
-        return []
+    if mod_abbreviation != 'ZFIN':
+        return {}
     return indexing_priority_crud.get_indexing_priority_tag(
         db, reference_curie
     )
