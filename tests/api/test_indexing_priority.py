@@ -339,7 +339,7 @@ class TestIndexingPriorityCRUD:
         assert isinstance(out["current_priority_tag"], dict)
         assert len(out["current_priority_tag"]) >= 1
 
-        row = out["current_priority_tag"][0]
+        row = out["current_priority_tag"]
         for key in [
             "indexing_priority_id",
             "indexing_priority",
