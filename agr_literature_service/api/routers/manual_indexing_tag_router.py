@@ -92,10 +92,6 @@ def show(
 
 
 @router.get(
-    "/get_manual_indexing_tag/{reference_curie}",
-    status_code=status.HTTP_200_OK,
-)
-@router.get(
     "/get_manual_indexing_tag/{reference_curie}/{mod_abbreviation}",
     status_code=status.HTTP_200_OK,
 )
@@ -104,10 +100,8 @@ def get_manual_indexing_tag(
     mod_abbreviation: Optional[str] = None,
     db: Session = db_session,
 ):
-    if mod_abbreviation and mod_abbreviation != 'ZFIN':
-        return []
     return manual_indexing_tag_crud.get_manual_indexing_tag(
-        db, reference_curie
+        db, reference_curie, mod_abbreviation
     )
 
 
