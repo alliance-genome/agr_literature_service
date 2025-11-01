@@ -1,6 +1,3 @@
-"""
-manual_indexing_tag_crud.py
-"""
 import logging
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
@@ -258,9 +255,8 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
         d["curation_tag_name"] = curation_tag_to_name.get(code, code)
         d["date_updated"] = d["date_updated"].isoformat()
         tags.append(d)
-
     return {
-        "current_curation_tag": tags[0],
+        "current_curation_tag": tags[0] if tags else {},
         "all_curation_tags": curation_tag_to_name,
     }
 
