@@ -200,9 +200,6 @@ def show(db: Session, manual_indexing_tag_id: int) -> Dict[str, Any]:
 
 def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
 
-    if mod_abbreviation not in ["FB", "WB", "ZFIN"]:
-        return {}
-
     reference_curie = normalize_reference_curie(db, curie)
     curation_tag_to_name = {}
     _, atp_to_name = get_name_to_atp_for_all_children("ATP:0000197")
@@ -255,10 +252,12 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
         d["curation_tag_name"] = curation_tag_to_name.get(code, code)
         d["date_updated"] = d["date_updated"].isoformat()
         tags.append(d)
-    return {
-        "current_curation_tag": tags[0] if tags else {},
-        "all_curation_tags": curation_tag_to_name,
-    }
+    if tags:
+        return {
+            "current_curation_tag": tags[0],
+            "all_curation_tags": curation_tag_to_name,
+        }
+    return {}
 
 
 def set_manual_indexing_tag(
