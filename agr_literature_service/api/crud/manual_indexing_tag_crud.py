@@ -251,7 +251,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
             continue
         code = d.get("curation_tag")
         d["curation_tag_name"] = curation_tag_to_name.get(code, code)
-        d["date_updated"] = d["date_updated"].isoformat()
+        d["date_updated"] = d["date_updated"].isoformat() if d["date_updated"] else None
         tags.append(d)
     if tags:
         return {
