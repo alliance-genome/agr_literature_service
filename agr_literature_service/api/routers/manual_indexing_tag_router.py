@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import manual_indexing_tag_crud
