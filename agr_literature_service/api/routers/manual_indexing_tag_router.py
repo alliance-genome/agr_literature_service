@@ -97,7 +97,7 @@ def show(
 )
 def get_manual_indexing_tag(
     reference_curie: str,
-    mod_abbreviation: Optional[str] = None,
+    mod_abbreviation: str,
     db: Session = db_session,
 ):
     return manual_indexing_tag_crud.get_manual_indexing_tag(
