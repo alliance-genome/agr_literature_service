@@ -1,6 +1,3 @@
-"""
-indexing_priority_crud.py
-"""
 import logging
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
@@ -274,7 +271,7 @@ def get_indexing_priority_tag(db: Session, curie: str):
         tags.append(d)
 
     return {
-        "current_priority_tag": tags[0],
+        "current_priority_tag": tags[0] if tags else {},
         "all_priority_tags": priority_tag_to_name,
     }
 

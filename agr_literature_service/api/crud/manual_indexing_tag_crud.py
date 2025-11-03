@@ -1,9 +1,5 @@
-"""
-manual_indexing_tag_crud.py
-"""
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, date
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
@@ -202,7 +198,7 @@ def show(db: Session, manual_indexing_tag_id: int) -> Dict[str, Any]:
     return data
 
 
-def get_manual_indexing_tag(db: Session, curie: str):
+def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
 
     reference_curie = normalize_reference_curie(db, curie)
     curation_tag_to_name = {}
@@ -226,6 +222,7 @@ def get_manual_indexing_tag(db: Session, curie: str):
         mit.confidence_score,
         mit.validation_by_biocurator,
         mit.date_updated,
+        mit.note,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
         COALESCE(e.email_address, mit.updated_by) AS updated_by_email,
@@ -247,35 +244,21 @@ def get_manual_indexing_tag(db: Session, curie: str):
     WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
-
-    def _fmt_date(raw):
-        if raw is None:
-            return None
-        if isinstance(raw, datetime):
-            d = raw.date()
-        elif isinstance(raw, date):
-            d = raw
-        else:
-            s = str(raw)
-            try:
-                dt = datetime.fromisoformat(s)
-            except ValueError:
-                dt = datetime.strptime(s[:10], "%Y-%m-%d")
-            d = dt.date()
-        return f"{d.strftime('%B')} {d.day}, {d.year}"
-
     tags = []
     for row in rows:
         d = dict(row)
+        if d["mod_abbreviation"] != mod_abbreviation:
+            continue
         code = d.get("curation_tag")
         d["curation_tag_name"] = curation_tag_to_name.get(code, code)
-        d["date_updated"] = _fmt_date(d.get("date_updated"))
+        d["date_updated"] = d["date_updated"].isoformat() if d["date_updated"] else None
         tags.append(d)
-
-    return {
-        "current_curation_tag": tags,
-        "all_curation_tags": curation_tag_to_name,
-    }
+    if tags:
+        return {
+            "current_curation_tag": tags[0],
+            "all_curation_tags": curation_tag_to_name,
+        }
+    return {}
 
 
 def set_manual_indexing_tag(

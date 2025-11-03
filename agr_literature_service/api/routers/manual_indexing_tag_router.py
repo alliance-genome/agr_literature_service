@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import manual_indexing_tag_crud
@@ -92,22 +91,16 @@ def show(
 
 
 @router.get(
-    "/get_manual_indexing_tag/{reference_curie}",
-    status_code=status.HTTP_200_OK,
-)
-@router.get(
     "/get_manual_indexing_tag/{reference_curie}/{mod_abbreviation}",
     status_code=status.HTTP_200_OK,
 )
 def get_manual_indexing_tag(
     reference_curie: str,
-    mod_abbreviation: Optional[str] = None,
+    mod_abbreviation: str,
     db: Session = db_session,
 ):
-    if mod_abbreviation and mod_abbreviation != 'ZFIN':
-        return []
     return manual_indexing_tag_crud.get_manual_indexing_tag(
-        db, reference_curie
+        db, reference_curie, mod_abbreviation
     )
 
 
