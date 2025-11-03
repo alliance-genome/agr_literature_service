@@ -222,6 +222,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
         mit.confidence_score,
         mit.validation_by_biocurator,
         mit.date_updated,
+        mit.note,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
         COALESCE(e.email_address, mit.updated_by) AS updated_by_email,
