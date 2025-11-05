@@ -18,9 +18,7 @@ from agr_literature_service.api.models import (
     ReferenceModel,
     ResourceDescriptorModel
 )
-
-
-# from agr_literature_service.api.models.cross_reference_model import sgd_id_seq
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def set_curie_prefix(xref_db_obj: CrossReferenceModel):
@@ -41,6 +39,10 @@ def get_cross_reference(db: Session, curie_or_id: str) -> CrossReferenceModel:
 
 def create(db: Session, cross_reference, mod_abbreviation=None) -> int:
     cross_reference_data = jsonable_encoder(cross_reference)
+    if "created_by" in cross_reference_data and cross_reference_data["created_by"] is not None:
+        cross_reference_data["created_by"] = map_to_user_id(cross_reference_data["created_by"], db)
+    if "updated_by" in cross_reference_data and cross_reference_data["updated_by"] is not None:
+        cross_reference_data["updated_by"] = map_to_user_id(cross_reference_data["updated_by"], db)
     db_obj = create_obj(db, CrossReferenceModel, cross_reference_data)
     set_curie_prefix(db_obj)
 
@@ -83,6 +85,10 @@ def destroy(db: Session, cross_reference_id: int) -> None:
 
 def patch(db: Session, cross_reference_id: int, cross_reference_update) -> dict:
     cross_reference_data = jsonable_encoder(cross_reference_update)
+    if "created_by" in cross_reference_data and cross_reference_data["created_by"] is not None:
+        cross_reference_data["created_by"] = map_to_user_id(cross_reference_data["created_by"], db)
+    if "updated_by" in cross_reference_data and cross_reference_data["updated_by"] is not None:
+        cross_reference_data["updated_by"] = map_to_user_id(cross_reference_data["updated_by"], db)
     cross_reference_db_obj = get_cross_reference(db, str(cross_reference_id))
     add_reference_resource(db, cross_reference_db_obj, cross_reference_update, non_fatal=True)
     for field, value in cross_reference_data.items():

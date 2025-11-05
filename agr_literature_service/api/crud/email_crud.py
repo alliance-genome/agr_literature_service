@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import EmailModel, PersonModel
 from agr_literature_service.api.crud.person_crud import normalize_email
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,11 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> E
         )
 
     data = jsonable_encoder(payload)
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
+
     if "email_address" not in data or not data["email_address"]:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -88,6 +94,11 @@ def patch(db: Session, email_id: int, patch_dict: Dict[str, Any]) -> Dict[str, A
         )
 
     data = jsonable_encoder(patch_dict)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     if "email_address" in data and data["email_address"] is not None:
         new_addr = normalize_email(data["email_address"])

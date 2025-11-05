@@ -9,6 +9,7 @@ from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.dataset_model import DatasetModel, DatasetEntryModel
 from agr_literature_service.api.schemas.dataset_schema import DatasetSchemaPost, \
     DatasetSchemaDownload, DatasetSchemaUpdate, DatasetSchemaShow, DatasetEntrySchemaPost
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def get_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_type: str,
@@ -39,6 +40,10 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> DatasetSchemaShow
         DatasetModel.dataset_type == dataset.dataset_type
     ).order_by(DatasetModel.version.desc()).first()
     new_version = max_version.version + 1 if max_version else 1
+
+    created_by = map_to_user_id(dataset.created_by, db) if getattr(dataset, "created_by", None) else None
+    updated_by = map_to_user_id(dataset.updated_by, db) if getattr(dataset, "updated_by", None) else None
+
     db_dataset = DatasetModel(
         mod_id=mod.mod_id,
         data_type=dataset.data_type,
@@ -46,7 +51,9 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> DatasetSchemaShow
         title=dataset.title,
         description=dataset.description,
         version=new_version,
-        frozen=False
+        frozen=False,
+        created_by=created_by,
+        updated_by=updated_by
     )
     db.add(db_dataset)
     try:
@@ -180,8 +187,18 @@ def patch_dataset(db: Session, mod_abbreviation: str, data_type: str, dataset_ty
                   dataset_update: DatasetSchemaUpdate):
     dataset = get_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                           dataset_type=dataset_type, version=version)
-    for key, value in dataset_update.model_dump(exclude_unset=True).items():
+
+    update_data = dataset_update.model_dump(exclude_unset=True)
+
+    # --- Map created_by / updated_by if present ---
+    if "created_by" in update_data and update_data["created_by"] is not None:
+        update_data["created_by"] = map_to_user_id(update_data["created_by"], db)
+    if "updated_by" in update_data and update_data["updated_by"] is not None:
+        update_data["updated_by"] = map_to_user_id(update_data["updated_by"], db)
+
+    for key, value in update_data.items():
         setattr(dataset, key, value)
+
     db.commit()
     db.refresh(dataset)
 

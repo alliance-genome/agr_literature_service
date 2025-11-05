@@ -19,6 +19,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, \
     ModModel, WorkflowTagModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -34,6 +35,11 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     """
 
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association)
+
+    if "created_by" in mod_corpus_association_data and mod_corpus_association_data["created_by"] is not None:
+        mod_corpus_association_data["created_by"] = map_to_user_id(mod_corpus_association_data["created_by"], db)
+    if "updated_by" in mod_corpus_association_data and mod_corpus_association_data["updated_by"] is not None:
+        mod_corpus_association_data["updated_by"] = map_to_user_id(mod_corpus_association_data["updated_by"], db)
 
     reference_curie = mod_corpus_association_data["reference_curie"]
     del mod_corpus_association_data["reference_curie"]
@@ -125,6 +131,12 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
     :return:
     """
     mod_corpus_association_data = jsonable_encoder(mod_corpus_association_update)
+
+    if "created_by" in mod_corpus_association_data and mod_corpus_association_data["created_by"] is not None:
+        mod_corpus_association_data["created_by"] = map_to_user_id(mod_corpus_association_data["created_by"], db)
+    if "updated_by" in mod_corpus_association_data and mod_corpus_association_data["updated_by"] is not None:
+        mod_corpus_association_data["updated_by"] = map_to_user_id(mod_corpus_association_data["updated_by"], db)
+
     mod_corpus_association_db_obj: ModCorpusAssociationModel = db.query(ModCorpusAssociationModel).filter(ModCorpusAssociationModel.mod_corpus_association_id == mod_corpus_association_id).first()
     if not mod_corpus_association_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

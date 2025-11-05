@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
 from agr_literature_service.api.models import EditorModel, ResourceModel
 from agr_literature_service.api.schemas import EditorSchemaPost
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def create(db: Session, editor: EditorSchemaPost) -> int:
@@ -25,10 +26,10 @@ def create(db: Session, editor: EditorSchemaPost) -> int:
 
     editor_data = jsonable_encoder(editor)
 
-    # orcid = None
-    # if "orcid" in editor_data:
-    #    orcid = editor_data["orcid"]
-    #    del editor_data["orcid"]
+    if "created_by" in editor_data and editor_data["created_by"] is not None:
+        editor_data["created_by"] = map_to_user_id(editor_data["created_by"], db)
+    if "updated_by" in editor_data and editor_data["updated_by"] is not None:
+        editor_data["updated_by"] = map_to_user_id(editor_data["updated_by"], db)
 
     db_obj = create_obj(db, EditorModel, editor_data)
     db.add(db_obj)
@@ -66,6 +67,12 @@ def patch(db: Session, editor_id: int, editor_update) -> dict:
     """
 
     editor_data = jsonable_encoder(editor_update)
+
+    if "created_by" in editor_data and editor_data["created_by"] is not None:
+        editor_data["created_by"] = map_to_user_id(editor_data["created_by"], db)
+    if "updated_by" in editor_data and editor_data["updated_by"] is not None:
+        editor_data["updated_by"] = map_to_user_id(editor_data["updated_by"], db)
+
     editor_db_obj = db.query(EditorModel).filter(EditorModel.editor_id == editor_id).first()
     if not editor_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

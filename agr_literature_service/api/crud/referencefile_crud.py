@@ -38,6 +38,7 @@ from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagS
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,11 @@ def patch(db: Session, referencefile_id: int, request):
         request["display_name"] = find_first_available_display_name(display_name=request["display_name"],
                                                                     file_extension=request["file_extension"],
                                                                     reference_curie=request["reference_curie"], db=db)
+    if "created_by" in request and request["created_by"] is not None:
+        request["created_by"] = map_to_user_id(request["created_by"], db)
+    if "updated_by" in request and request["updated_by"] is not None:
+        request["updated_by"] = map_to_user_id(request["updated_by"], db)
+
     if "reference_curie" in request:
         res = db.query(ReferenceModel.reference_id).filter(
             ReferenceModel.curie == request["reference_curie"]).one_or_none()
@@ -477,6 +483,12 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
 
 def create_metadata(db: Session, request: ReferencefileSchemaPost):
     request_dict = request.model_dump()
+
+    if "created_by" in request_dict and request_dict["created_by"] is not None:
+        request_dict["created_by"] = map_to_user_id(request_dict["created_by"], db)
+    if "updated_by" in request_dict and request_dict["updated_by"] is not None:
+        request_dict["updated_by"] = map_to_user_id(request_dict["updated_by"], db)
+
     ref_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == request.reference_curie).one_or_none()
     if ref_obj is None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

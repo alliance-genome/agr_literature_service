@@ -18,6 +18,7 @@ from agr_literature_service.api.models import CurationStatusModel, ReferenceMode
     TopicEntityTagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
@@ -27,8 +28,11 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     :param curation_status:
     :return:
     """
-
     curation_status_data = jsonable_encoder(curation_status)
+    if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
+        curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
+    if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
+        curation_status_data["updated_by"] = map_to_user_id(curation_status_data["updated_by"], db)
     reference_curie = curation_status_data.pop("reference_curie", None)
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -81,6 +85,10 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> dict:
     """
 
     curation_status_data = curation_status_update.model_dump(exclude_unset=True)
+    if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
+        curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
+    if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
+        curation_status_data["updated_by"] = map_to_user_id(curation_status_data["updated_by"], db)
     curation_status_db_obj = db.query(CurationStatusModel).filter(CurationStatusModel.curation_status_id == curation_status_id).first()
     if not curation_status_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
