@@ -57,10 +57,13 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:      # noqa: C901
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    if topic_entity_tag_data.get("created_by"):
-        topic_entity_tag_data["created_by"] = map_to_user_id(topic_entity_tag_data["created_by"], db)
-    if topic_entity_tag_data.get("updated_by"):
-        topic_entity_tag_data["updated_by"] = map_to_user_id(topic_entity_tag_data["updated_by"], db)
+    for k in ("created_by", "updated_by"):
+    if k in topic_entity_tag_data:
+        mapped = map_to_user_id(topic_entity_tag_data[k], db)
+        if mapped is None:
+            topic_entity_tag_data.pop(k)
+        else:
+            topic_entity_tag_data[k] = mapped
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
@@ -122,11 +125,6 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     if duplicate_check_result is not None:
         logger.info("Duplicate tag found, returning early")
         return duplicate_check_result
-
-    if not topic_entity_tag_data.get("created_by"):
-        topic_entity_tag_data["created_by"] = get_default_user_value()
-    if not topic_entity_tag_data.get("updated_by"):
-        topic_entity_tag_data["updated_by"] = topic_entity_tag_data["created_by"]
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
