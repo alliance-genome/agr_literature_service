@@ -26,3 +26,15 @@ markers = [
     "webtest",
     "debezium: marks tests as requiring Debezium infrastructure"
 ]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if False:",
+    "@(abc\\.)?abstractmethod",
+]
