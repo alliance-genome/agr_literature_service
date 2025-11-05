@@ -134,7 +134,7 @@ app.add_api_route("/health", health([is_database_online]))
 app.openapi = custom_openapi  # type: ignore
 
 
-def check_key_envs():
+def check_key_envs():  # pragma: no cover
     """Check that all required environment variables are set."""
     env_to_check = [
         'API_PORT', 'API_SERVER', 'XML_PATH', 'AWS_SECRET_ACCESS_KEY',
@@ -153,7 +153,7 @@ def check_key_envs():
     return okay_to_continue
 
 
-def run(parsed_args):
+def run(parsed_args):  # pragma: no cover
     """Run the FastAPI application.
 
     :param parsed_args: Parsed command-line arguments
@@ -182,7 +182,7 @@ def run(parsed_args):
                 log_level=log_level)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', type=int,
                         help='Port to run the server on',
