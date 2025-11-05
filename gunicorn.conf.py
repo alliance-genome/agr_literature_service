@@ -60,6 +60,12 @@ def pre_exec(server):
 
 def on_starting(server):
     """Called just before the master process is initialized."""
+    # Configure logging for uvicorn.access
+    import logging
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.setLevel(logging.INFO)
+    access_logger.propagate = True  # Ensure logs propagate to root logger
+
     server.log.info("Initializing database...")
     from agr_literature_service.api.database.setup import setup_database
     setup_database()

@@ -2,12 +2,13 @@
 import argparse
 import logging
 import sys
+import time
 from os import environ
 from typing import Any, Dict
 
 import uvicorn
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
@@ -44,6 +45,40 @@ app.add_middleware(CORSMiddleware,
                    allow_origins=["*"],
                    allow_methods=["*"],
                    allow_headers=["*"])
+
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with timing information."""
+    import os
+    start_time = time.time()
+
+    # Process the request
+    response = await call_next(request)
+
+    # Calculate duration
+    process_time = time.time() - start_time
+
+    # Check if we should log based on LOG_LEVEL
+    log_level = environ.get('LOG_LEVEL', 'info').lower()
+    should_log = log_level in ('debug', 'info')
+
+    if should_log:
+        # Log the request - use print to ensure it goes to stdout
+        log_message = (
+            f'[PID:{os.getpid()}] {request.client.host}:{request.client.port} - '
+            f'"{request.method} {request.url.path}" '
+            f'{response.status_code} '
+            f'- {process_time:.3f}s'
+        )
+        print(log_message, flush=True)
+
+        # Also try with logging
+        logger = logging.getLogger("uvicorn.access")
+        logger.info(log_message)
+
+    return response
 
 
 def custom_openapi() -> Dict[str, Any]:
