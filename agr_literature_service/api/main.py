@@ -2,7 +2,6 @@
 import argparse
 import logging
 import sys
-from contextlib import asynccontextmanager
 from os import environ
 from typing import Any, Dict
 
@@ -15,7 +14,6 @@ from fastapi_health import health
 
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_NOPASS
 from agr_literature_service.api.database.main import is_database_online
-from agr_literature_service.api.database.setup import setup_database
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
                                                 cross_reference_router, curation_status_router,
                                                 database_router, editor_router,
@@ -37,17 +35,9 @@ VERSION = "0.1.0"
 DESCRIPTION = "This service provides access to the Alliance Bibliographic Corpus and metadata"
 
 
-@asynccontextmanager
-async def lifespan(app_instance: FastAPI):
-    """Handle application lifespan events."""
-    setup_database()
-    yield
-
-
 app = FastAPI(title=TITLE,
               version=VERSION,
-              description=DESCRIPTION,
-              lifespan=lifespan)
+              description=DESCRIPTION)
 
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,

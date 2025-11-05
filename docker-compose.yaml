@@ -113,6 +113,8 @@ services:
       REPLY_TO: "${REPLY_TO}"
       ATEAM_API_URL: "${ATEAM_API_URL}"
       SGD_API_URL: "${SGD_API_URL}"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
+      LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
     hostname: literature_api
     networks:
       - agr-literature
