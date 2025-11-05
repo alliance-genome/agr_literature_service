@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from agr_literature_service.api.models import PersonModel, EmailModel, PersonCrossReferenceModel
 from agr_literature_service.api.schemas import PersonSchemaCreate
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +19,11 @@ def normalize_email(s: str) -> str:
 
 def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
     data: Dict[str, Any] = jsonable_encoder(payload)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     # Basic uniqueness checks on okta_id (if provided)
     okta_id = data.get("okta_id")
@@ -109,6 +115,11 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
         )
 
     data = jsonable_encoder(patch_dict)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     # enforce okta_id uniqueness if it’s provided
     if "okta_id" in data and data["okta_id"] is not None:

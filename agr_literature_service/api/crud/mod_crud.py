@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.schemas import ModSchemaPost
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def create(db: Session, mod: ModSchemaPost):
@@ -21,6 +22,12 @@ def create(db: Session, mod: ModSchemaPost):
     """
 
     mod_data = jsonable_encoder(mod)
+
+    if "created_by" in mod_data and mod_data["created_by"] is not None:
+        mod_data["created_by"] = map_to_user_id(mod_data["created_by"], db)
+    if "updated_by" in mod_data and mod_data["updated_by"] is not None:
+        mod_data["updated_by"] = map_to_user_id(mod_data["updated_by"], db)
+
     mod_db_obj = ModModel(**mod_data)
     db.add(mod_db_obj)
     db.commit()
@@ -58,6 +65,12 @@ def patch(db: Session, mod_id: int, mod_update):
     """
 
     mod_data = jsonable_encoder(mod_update)
+
+    if "created_by" in mod_data and mod_data["created_by"] is not None:
+        mod_data["created_by"] = map_to_user_id(mod_data["created_by"], db)
+    if "updated_by" in mod_data and mod_data["updated_by"] is not None:
+        mod_data["updated_by"] = map_to_user_id(mod_data["updated_by"], db)
+
     mod_db_obj = db.query(ModModel).filter(ModModel.mod_id == mod_id).first()
     if not mod_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,

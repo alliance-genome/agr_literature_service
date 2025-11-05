@@ -6,6 +6,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import PersonModel, PersonCrossReferenceModel
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,12 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
         raise HTTPException(status_code=404, detail=f"Person with person_id {person_id} not found")
 
     data = jsonable_encoder(payload)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
+
     curie = (data.get("curie") or "").strip()
     if not curie:
         raise HTTPException(status_code=422, detail="curie is required")
@@ -104,6 +111,11 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
         raise HTTPException(status_code=404, detail=f"PersonCrossReference with id {person_cross_reference_id} not found")
 
     data = jsonable_encoder(patch_dict)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     if "curie" in data and data["curie"] is not None:
         new_curie = data["curie"].strip()

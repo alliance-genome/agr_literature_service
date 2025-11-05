@@ -42,6 +42,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,10 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
+    if "created_by" in topic_entity_tag_data and topic_entity_tag_data["created_by"] is not None:
+        topic_entity_tag_data["created_by"] = map_to_user_id(topic_entity_tag_data["created_by"], db)
+    if "updated_by" in topic_entity_tag_data and topic_entity_tag_data["updated_by"] is not None:
+        topic_entity_tag_data["updated_by"] = map_to_user_id(topic_entity_tag_data["updated_by"], db)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
@@ -337,6 +342,10 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
+    if "created_by" in patch_data_dict and patch_data_dict["created_by"] is not None:
+        patch_data_dict["created_by"] = map_to_user_id(patch_data_dict["created_by"], db)
+    if "updated_by" in patch_data_dict and patch_data_dict["updated_by"] is not None:
+        patch_data_dict["updated_by"] = map_to_user_id(patch_data_dict["updated_by"], db)
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
