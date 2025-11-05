@@ -57,9 +57,9 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    if "created_by" in topic_entity_tag_data and topic_entity_tag_data["created_by"] is not None:
+    if topic_entity_tag_data.get("created_by"):
         topic_entity_tag_data["created_by"] = map_to_user_id(topic_entity_tag_data["created_by"], db)
-    if "updated_by" in topic_entity_tag_data and topic_entity_tag_data["updated_by"] is not None:
+    if topic_entity_tag_data.get("updated_by"):
         topic_entity_tag_data["updated_by"] = map_to_user_id(topic_entity_tag_data["updated_by"], db)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
@@ -342,9 +342,9 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
-    if "created_by" in patch_data_dict and patch_data_dict["created_by"] is not None:
+    if patch_data_dict.get("created_by"):
         patch_data_dict["created_by"] = map_to_user_id(patch_data_dict["created_by"], db)
-    if "updated_by" in patch_data_dict and patch_data_dict["updated_by"] is not None:
+    if patch_data_dict.get("updated_by"):
         patch_data_dict["updated_by"] = map_to_user_id(patch_data_dict["updated_by"], db)
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
