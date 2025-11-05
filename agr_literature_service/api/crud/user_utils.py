@@ -112,9 +112,9 @@ def map_to_user_id(identifier: str, db: Session) -> str:
     """
     # --- Normalize input ---
     if identifier is None:
-        return None
+        return ""
     if isinstance(identifier, str) and not identifier.strip():
-        return None
+        return ""
 
     ident = identifier.strip()
 
