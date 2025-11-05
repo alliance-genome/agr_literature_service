@@ -41,8 +41,8 @@ def create_dataset(db: Session, dataset: DatasetSchemaPost) -> DatasetSchemaShow
     ).order_by(DatasetModel.version.desc()).first()
     new_version = max_version.version + 1 if max_version else 1
 
-    created_by = map_to_user_id(dataset.created_by, db) if getattr(dataset, "created_by", None) else None
-    updated_by = map_to_user_id(dataset.updated_by, db) if getattr(dataset, "updated_by", None) else None
+    created_by = map_to_user_id(dataset.created_by, db) if dataset.created_by else None
+    updated_by = map_to_user_id(dataset.updated_by, db) if dataset.updated_by else None
 
     db_dataset = DatasetModel(
         mod_id=mod.mod_id,
