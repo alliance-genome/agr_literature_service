@@ -110,8 +110,11 @@ def map_to_user_id(identifier: str, db: Session) -> str:
     Returns: users.id (text)
     Raises:  HTTPException(422) if empty or not found.
     """
-    if not identifier or not identifier.strip():
-        raise HTTPException(status_code=422, detail="created_by/updated_by is empty")
+    # --- Normalize input ---
+    if identifier is None:
+        return None
+    if isinstance(identifier, str) and not identifier.strip():
+        return None
 
     ident = identifier.strip()
 
