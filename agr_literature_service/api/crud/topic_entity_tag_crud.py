@@ -54,7 +54,7 @@ TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:      # noqa: C901
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if topic_entity_tag_data.get("created_by"):
