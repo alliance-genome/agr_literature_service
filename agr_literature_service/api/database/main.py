@@ -13,7 +13,14 @@ from agr_literature_service.api.triggers.triggers import add_sql_triggers_functi
 
 metadata = MetaData()
 
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"options": "-c timezone=utc"},
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_recycle=3600,   # Recycle connections after 1 hour
+    pool_size=10,        # Connection pool size
+    max_overflow=20      # Max overflow connections
+)
 # In SQLAlchemy 2.x, sessionmaker(bind=engine) is deprecated.
 # Remove bind argument, bind engine directly
 SessionLocal = sessionmaker(engine, autoflush=True)
