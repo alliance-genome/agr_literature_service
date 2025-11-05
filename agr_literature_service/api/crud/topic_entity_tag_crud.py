@@ -58,12 +58,12 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     for k in ("created_by", "updated_by"):
-    if k in topic_entity_tag_data:
-        mapped = map_to_user_id(topic_entity_tag_data[k], db)
-        if mapped is None:
-            topic_entity_tag_data.pop(k)
-        else:
-            topic_entity_tag_data[k] = mapped
+        if k in topic_entity_tag_data:
+            mapped = map_to_user_id(topic_entity_tag_data[k], db)
+            if mapped is None:
+                topic_entity_tag_data.pop(k)
+            else:
+                topic_entity_tag_data[k] = mapped
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
