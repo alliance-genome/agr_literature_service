@@ -19,6 +19,7 @@ from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                MeshDetailModel, ResourceModel)
 from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 from agr_literature_service.global_utils import get_next_resource_curie
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def create(db: Session, resource: ResourceSchemaPost):
@@ -50,6 +51,10 @@ def create(db: Session, resource: ResourceSchemaPost):
                 continue
             for obj in value:
                 obj_data = jsonable_encoder(obj)
+                if "created_by" in obj_data and obj_data["created_by"] is not None:
+                    obj_data["created_by"] = map_to_user_id(obj_data["created_by"], db)
+                if "updated_by" in obj_data and obj_data["updated_by"] is not None:
+                    obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                 db_obj = None
                 if field == 'editors':
                     db_obj = create_obj(db, EditorModel, obj_data, non_fatal=True)
@@ -144,6 +149,11 @@ def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, 
         update_dict = resource_update
     else:
         update_dict = {}
+
+    if "created_by" in update_dict and update_dict["created_by"] is not None:
+        update_dict["created_by"] = map_to_user_id(update_dict["created_by"], db)
+    if "updated_by" in update_dict and update_dict["updated_by"] is not None:
+        update_dict["updated_by"] = map_to_user_id(update_dict["updated_by"], db)
 
     for field, value in update_dict.items():
         setattr(resource_db_obj, field, value)

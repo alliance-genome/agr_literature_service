@@ -18,6 +18,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,11 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
     Create a new indexing_priority entry and return its ID.
     """
     data: Dict[str, Any] = jsonable_encoder(indexing_priority_tag)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     reference_curie: str = data.pop("reference_curie")
     mod_abbreviation: str = data.pop("mod_abbreviation")
@@ -139,6 +145,11 @@ def patch(db: Session, indexing_priority_id: int, indexing_priority_update: Dict
     to be a dict from `model_dump(exclude_unset=True)` (router enforces Pydantic v2).
     """
     data: Dict[str, Any] = jsonable_encoder(indexing_priority_update)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     obj = (
         db.query(IndexingPriorityModel)

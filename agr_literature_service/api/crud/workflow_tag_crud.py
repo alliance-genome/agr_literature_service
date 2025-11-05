@@ -33,6 +33,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     get_jobs_to_run,
     atp_to_name
 )
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
@@ -493,6 +494,12 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     """
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
+
+    if "created_by" in workflow_tag_data and workflow_tag_data["created_by"] is not None:
+        workflow_tag_data["created_by"] = map_to_user_id(workflow_tag_data["created_by"], db)
+    if "updated_by" in workflow_tag_data and workflow_tag_data["updated_by"] is not None:
+        workflow_tag_data["updated_by"] = map_to_user_id(workflow_tag_data["updated_by"], db)
+
     reference_curie = workflow_tag_data["reference_curie"]
     del workflow_tag_data["reference_curie"]
     mod_abbreviation = workflow_tag_data["mod_abbreviation"]
@@ -564,6 +571,12 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
     :return:
     """
     workflow_tag_data = jsonable_encoder(workflow_tag_update)
+
+    if "created_by" in workflow_tag_data and workflow_tag_data["created_by"] is not None:
+        workflow_tag_data["created_by"] = map_to_user_id(workflow_tag_data["created_by"], db)
+    if "updated_by" in workflow_tag_data and workflow_tag_data["updated_by"] is not None:
+        workflow_tag_data["updated_by"] = map_to_user_id(workflow_tag_data["updated_by"], db)
+
     workflow_tag_db_obj = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag_db_obj:

@@ -10,6 +10,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.reference_resource import add, create_obj, stripout
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.models import (
     AuthorModel,
     ReferenceModel
@@ -31,6 +32,11 @@ def create(db: Session, author: AuthorSchemaPost):
     # if "orcid" in author_data:
     #    orcid = author_data["orcid"]
     #    del author_data["orcid"]
+
+    if "created_by" in author_data and author_data["created_by"] is not None:
+        author_data["created_by"] = map_to_user_id(author_data["created_by"], db)
+    if "updated_by" in author_data and author_data["updated_by"] is not None:
+        author_data["updated_by"] = map_to_user_id(author_data["updated_by"], db)
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
 
@@ -74,6 +80,11 @@ def patch(db: Session, author_id: int, author_patch) -> dict:
             "reference_curie" in author_data and author_data["reference_curie"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Only supply either resource_curie or reference_curie")
+
+    if "created_by" in author_data and author_data["created_by"] is not None:
+        author_data["created_by"] = map_to_user_id(author_data["created_by"], db)
+    if "updated_by" in author_data and author_data["updated_by"] is not None:
+        author_data["updated_by"] = map_to_user_id(author_data["updated_by"], db)
 
     author_db_obj = db.query(AuthorModel).filter(AuthorModel.author_id == author_id).first()
     if not author_db_obj:
