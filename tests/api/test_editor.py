@@ -99,3 +99,10 @@ class TestEditor:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/editor/{test_editor.new_editor_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_patch_nonexistent_editor(self, auth_headers): # noqa
+        """Test patching a non-existent editor returns 404."""
+        with TestClient(app) as client:
+            xml = {'first_name': "Test Name"}
+            response = client.patch(url="/editor/-1", json=xml, headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND

@@ -120,8 +120,7 @@ class TestCrossRef:
             with db.begin():
                 db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
                                 "VALUES ('XREF2', 'Madeup2', 'http://www.bob2.com/[%s]')"))
-                db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                                "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')"))
+                # XREF is already inserted by test_cross_reference fixture, no need to insert again
             new_cross_ref = {
                 "curie": "XREF2:123456",
                 "reference_curie": test_reference.new_ref_curie,

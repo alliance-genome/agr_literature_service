@@ -2,20 +2,19 @@
 import argparse
 import logging
 import sys
-from contextlib import asynccontextmanager
+import time
 from os import environ
 from typing import Any, Dict
 
 import uvicorn
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi_health import health
 
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_NOPASS
 from agr_literature_service.api.database.main import is_database_online
-from agr_literature_service.api.database.setup import setup_database
 from agr_literature_service.api.routers import (author_router, bulk_downloads_router,
                                                 cross_reference_router, curation_status_router,
                                                 database_router, editor_router,
@@ -37,23 +36,49 @@ VERSION = "0.1.0"
 DESCRIPTION = "This service provides access to the Alliance Bibliographic Corpus and metadata"
 
 
-@asynccontextmanager
-async def lifespan(app_instance: FastAPI):
-    """Handle application lifespan events."""
-    setup_database()
-    yield
-
-
 app = FastAPI(title=TITLE,
               version=VERSION,
-              description=DESCRIPTION,
-              lifespan=lifespan)
+              description=DESCRIPTION)
 
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
                    allow_origins=["*"],
                    allow_methods=["*"],
                    allow_headers=["*"])
+
+
+# Add request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with timing information."""
+    import os
+    start_time = time.time()
+
+    # Process the request
+    response = await call_next(request)
+
+    # Calculate duration
+    process_time = time.time() - start_time
+
+    # Check if we should log based on LOG_LEVEL
+    log_level = environ.get('LOG_LEVEL', 'info').lower()
+    should_log = log_level in ('debug', 'info')
+
+    if should_log:
+        # Log the request - use print to ensure it goes to stdout
+        log_message = (
+            f'[PID:{os.getpid()}] {request.client.host}:{request.client.port} - '
+            f'"{request.method} {request.url.path}" '
+            f'{response.status_code} '
+            f'- {process_time:.3f}s'
+        )
+        print(log_message, flush=True)
+
+        # Also try with logging
+        logger = logging.getLogger("uvicorn.access")
+        logger.info(log_message)
+
+    return response
 
 
 def custom_openapi() -> Dict[str, Any]:
@@ -109,7 +134,7 @@ app.add_api_route("/health", health([is_database_online]))
 app.openapi = custom_openapi  # type: ignore
 
 
-def check_key_envs():
+def check_key_envs():  # pragma: no cover
     """Check that all required environment variables are set."""
     env_to_check = [
         'API_PORT', 'API_SERVER', 'XML_PATH', 'AWS_SECRET_ACCESS_KEY',
@@ -128,7 +153,7 @@ def check_key_envs():
     return okay_to_continue
 
 
-def run(parsed_args):
+def run(parsed_args):  # pragma: no cover
     """Run the FastAPI application.
 
     :param parsed_args: Parsed command-line arguments
@@ -157,7 +182,7 @@ def run(parsed_args):
                 log_level=log_level)
 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  # pragma: no cover
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', type=int,
                         help='Port to run the server on',

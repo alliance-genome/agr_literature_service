@@ -38,7 +38,14 @@ def db() -> Generator[Session, None, None]:
         msg = "***** Warning: not allowed to run test on stage or prod database *****"
         pytest.exit(msg)
     else:
-        engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+        engine = create_engine(
+            SQLALCHEMY_DATABASE_URL,
+            connect_args={"options": "-c timezone=utc"},
+            pool_pre_ping=True,  # Verify connections before using them
+            pool_recycle=3600,   # Recycle connections after 1 hour
+            pool_size=10,        # Connection pool size
+            max_overflow=20      # Max overflow connections
+        )
 
         initialize()
         db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session

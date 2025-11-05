@@ -150,6 +150,12 @@ class TestDataset:
             response = client.get(url="/datasets/NONEXISTENT/INVALID/FAKE/")
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_show_dataset_wrong(self):
+        """Test retrieving metadata for a non-existent dataset."""
+        with TestClient(app) as client:
+            response = client.get(url="/datasets/metadata/NONEXISTENT/INVALID/FAKE/1.0/")
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_update_dataset(self, db, auth_headers, test_dataset):  # noqa
         with TestClient(app) as client:
             updated_dataset = {
