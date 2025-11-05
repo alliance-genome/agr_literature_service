@@ -122,6 +122,11 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     if duplicate_check_result is not None:
         logger.info("Duplicate tag found, returning early")
         return duplicate_check_result
+
+    if not topic_entity_tag_data.get("created_by"):
+        topic_entity_tag_data["created_by"] = get_default_user_value()
+    if not topic_entity_tag_data.get("updated_by"):
+        topic_entity_tag_data["updated_by"] = topic_entity_tag_data["created_by"]
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
