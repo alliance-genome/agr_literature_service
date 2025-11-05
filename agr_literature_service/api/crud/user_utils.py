@@ -111,7 +111,7 @@ def map_to_user_id(identifier: str, db: Session) -> str:
     Raises:  HTTPException(422) if empty or not found.
     """
     if not identifier or not identifier.strip():
-        raise HTTPException(status_code=422, detail="created_by/updated_by is empty")
+        return ""
 
     ident = identifier.strip()
 
@@ -130,6 +130,7 @@ def map_to_user_id(identifier: str, db: Session) -> str:
     # 3) name (full display_name or initials+last)
     users_id = db.execute(_SQL_MATCH_NAME, {"id_raw": ident}).scalar_one_or_none()
     if not users_id:
+        """
         raise HTTPException(
             status_code=422,
             detail=(
@@ -138,4 +139,6 @@ def map_to_user_id(identifier: str, db: Session) -> str:
                 "or initials+last (e.g., 'G. D. Smith', 'G. Williams')."
             ),
         )
+        """
+        return ident
     return users_id
