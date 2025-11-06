@@ -115,11 +115,13 @@ services:
       SGD_API_URL: "${SGD_API_URL}"
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
       LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
+      DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
     hostname: literature_api
     networks:
       - agr-literature
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
+      - "${DEBEZIUM_STATUS_PATH:-agr-literature-debezium-status}:/var/lib/debezium_status"
     ports:
       - "${API_PORT}:8080"
 
@@ -356,8 +358,11 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
+      DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
     networks:
       - agr-literature
+    volumes:
+      - "${DEBEZIUM_STATUS_PATH:-agr-literature-debezium-status}:/var/lib/debezium_status"
     command:
       /setup.sh
 
@@ -450,6 +455,7 @@ volumes:
   agr-literature-pgadmin-data:
   agr-literature-es-data:
   agr-logs:
+  agr-literature-debezium-status:
 
 networks:
   agr-literature:

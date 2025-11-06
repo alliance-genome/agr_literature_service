@@ -187,3 +187,67 @@ def show_environments():
         res[test_env] = environ.get(test_env)
 
     return res
+
+
+def get_debezium_reindex_status():
+    """
+    Read the Debezium reindex status from the shared status file.
+    Returns the current reindexing status including progress and ETA.
+    """
+    status_file = "/var/lib/debezium_status/reindex_status.json"
+    metrics_file = "/var/lib/debezium_status/reindex_metrics.json"
+
+    result = {
+        "is_reindexing": False,
+        "status": "unknown",
+        "message": "Status file not found - Debezium may not have been initialized yet"
+    }
+
+    try:
+        if path.exists(status_file):
+            with open(status_file, 'r') as f:
+                status_data = json.load(f)
+
+            result = {
+                "is_reindexing": status_data.get("is_reindexing", False),
+                "status": "active" if status_data.get("is_reindexing") else "completed",
+                "phase": status_data.get("phase", "unknown"),
+                "started_at": status_data.get("started_at"),
+                "current_phase_started_at": status_data.get("current_phase_started_at"),
+                "estimated_completion_at": status_data.get("estimated_completion_at"),
+                "progress_percentage": status_data.get("progress_percentage", 0),
+                "phase_details": status_data.get("phase_details", {})
+            }
+
+            # Add historical metrics if available
+            if path.exists(metrics_file):
+                try:
+                    with open(metrics_file, 'r') as mf:
+                        metrics_data = json.load(mf)
+                        result["historical_metrics"] = {
+                            "average_duration_seconds": metrics_data.get("averages", {}).get("total_duration_seconds"),
+                            "average_reindex_duration_seconds": metrics_data.get("averages", {}).get("reindex_duration_seconds"),
+                            "completed_runs_count": len(metrics_data.get("completed_runs", []))
+                        }
+                except Exception as e:
+                    logger.warning(f"Error reading metrics file: {e}")
+
+        else:
+            result["message"] = "No reindex status available - Debezium has not been started yet"
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Error parsing status file: {e}")
+        result = {
+            "is_reindexing": False,
+            "status": "error",
+            "message": f"Error parsing status file: {str(e)}"
+        }
+    except Exception as e:
+        logger.error(f"Error reading Debezium status: {e}")
+        result = {
+            "is_reindexing": False,
+            "status": "error",
+            "message": f"Error reading status: {str(e)}"
+        }
+
+    return result
