@@ -155,7 +155,8 @@ start_reindex() {
     local source_index=$3
     local dest_index=$4
 
-    echo "Starting reindex from $source_index to $dest_index"
+    # Log to stderr to avoid polluting return value
+    echo "Starting reindex from $source_index to $dest_index" >&2
 
     # Execute reindex and capture the task ID
     local reindex_response=$(curl -s -X POST \
@@ -172,7 +173,27 @@ start_reindex() {
         return 1
     fi
 
-    echo "Reindex task created with ID: $task_id for $dest_index"
+    echo "Reindex task created with ID: $task_id for $dest_index" >&2
+
+    # Wait briefly and verify task is queryable
+    sleep 1
+    local task_check=$(curl -s "http://${es_host}:${es_port}/_tasks/${task_id}")
+    local task_exists=$(echo "$task_check" | jq -r 'has("task") or has("completed")')
+
+    if [[ "$task_exists" != "true" ]]; then
+        echo "Warning: Task $task_id was created but not immediately queryable. Waiting..." >&2
+        sleep 2
+        # Try one more time
+        task_check=$(curl -s "http://${es_host}:${es_port}/_tasks/${task_id}")
+        task_exists=$(echo "$task_check" | jq -r 'has("task") or has("completed")')
+        if [[ "$task_exists" != "true" ]]; then
+            echo "Error: Task $task_id is not queryable after waiting" >&2
+            echo "null"
+            return 1
+        fi
+    fi
+
+    # Return only the task ID to stdout
     echo "$task_id"
     return 0
 }
@@ -195,6 +216,12 @@ poll_multiple_reindex_tasks() {
     local private_completed=false
     local public_completed=false
 
+    # Initialize progress tracking variables
+    local private_created=0
+    local private_total=0
+    local public_created=0
+    local public_total=0
+
     while [[ $attempt -lt $max_attempts ]]; do
         sleep 5
 
@@ -207,8 +234,8 @@ poll_multiple_reindex_tasks() {
                 echo "Private index reindex completed"
                 private_completed=true
             else
-                local private_created=$(echo "$private_response" | jq -r '.task.status.created // 0')
-                local private_total=$(echo "$private_response" | jq -r '.task.status.total // 0')
+                private_created=$(echo "$private_response" | jq -r '.task.status.created // 0')
+                private_total=$(echo "$private_response" | jq -r '.task.status.total // 0')
                 if [[ $private_total -gt 0 ]]; then
                     local private_pct=$((private_created * 100 / private_total))
                     echo "Private index progress: $private_created/$private_total ($private_pct%)"
@@ -225,8 +252,8 @@ poll_multiple_reindex_tasks() {
                 echo "Public index reindex completed"
                 public_completed=true
             else
-                local public_created=$(echo "$public_response" | jq -r '.task.status.created // 0')
-                local public_total=$(echo "$public_response" | jq -r '.task.status.total // 0')
+                public_created=$(echo "$public_response" | jq -r '.task.status.created // 0')
+                public_total=$(echo "$public_response" | jq -r '.task.status.total // 0')
                 if [[ $public_total -gt 0 ]]; then
                     local public_pct=$((public_created * 100 / public_total))
                     echo "Public index progress: $public_created/$public_total ($public_pct%)"
