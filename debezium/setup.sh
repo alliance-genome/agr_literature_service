@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Source the status manager functions
+source /status_manager.sh
+
 # Configure sleep timings based on environment
 if [[ "${ENV_STATE}" == "test" ]]; then
     # Test environment - much shorter sleeps for smaller datasets
@@ -17,6 +20,9 @@ else
     echo "Running in PRODUCTION mode with full sleep timings"
 fi
 
+# Track timing for metrics
+SETUP_START=$(date +%s)
+
 export INDEX_NAME_FINAL="${DEBEZIUM_INDEX_NAME}"
 export PUBLIC_INDEX_NAME_FINAL="public_${INDEX_NAME_FINAL}"
 
@@ -29,6 +35,9 @@ else
     export INDEX_NAME_CURRENT="${INDEX_NAME_FINAL}_temp"
     export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_NAME_FINAL}_temp"
 fi
+
+# Set initial reindexing status
+set_reindex_status "setup" "{\"env_state\": \"${ENV_STATE}\"}"
 
 # Delete and create both private and public indexes
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
@@ -65,6 +74,13 @@ export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_CURRENT}"
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
 
+# Track setup completion
+SETUP_END=$(date +%s)
+SETUP_DURATION=$((SETUP_END - SETUP_START))
+
+# Update status to data processing phase
+set_reindex_status "data_processing" "{\"phase\": \"waiting_for_kafka_data\"}"
+
 # Wait for data processing with intelligent polling for test mode
 if [[ "${ENV_STATE}" == "test" ]]; then
     sleep ${DATA_PROCESSING_SLEEP}
@@ -96,9 +112,20 @@ fi
 
 echo "Final counts - Private index: ${new_index_doc_count} docs, Public index: ${public_index_doc_count} docs"
 
+# Track data processing completion
+DATA_PROCESSING_END=$(date +%s)
+DATA_PROCESSING_DURATION=$((DATA_PROCESSING_END - SETUP_END))
+
 if [[ "${ENV_STATE}" == "test" ]]; then
     # Test mode - indexes are already final, no promotion needed
     echo "Test mode: Setup complete with final indexes"
+
+    # Mark as completed
+    set_reindex_status "completed" "{\"message\": \"Test mode - no reindex needed\"}"
+
+    # Save metrics
+    save_completion_metrics "$(jq -r '.started_at' /var/lib/debezium_status/reindex_status.json)" \
+        "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" 0 "$new_index_doc_count"
 else
     # Production mode - promote temporary indexes to final if they have data
     if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]
@@ -107,15 +134,41 @@ else
       curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink
       curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-public
 
-      # Promote private index
+      # Update status to reindexing phase
+      REINDEX_START=$(date +%s)
+      set_reindex_status "reindexing" "{\"phase\": \"promoting_indexes\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
+
+      # Prepare private index
+      echo "Preparing private index..."
       curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_FINAL}
       curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_FINAL} -d @/elasticsearch-settings.json
-      curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${INDEX_NAME_CURRENT}\"}, \"dest\": {\"index\": \"${INDEX_NAME_FINAL}\"}}"
-      
-      # Promote public index
+
+      # Prepare public index
+      echo "Preparing public index..."
       curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_FINAL}
       curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_FINAL} -d @/elasticsearch-settings-public.json
-      curl -i -X POST -H "Accept:application/json" -H "Content-Type: application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_reindex?pretty -d"{\"source\": {\"index\": \"${PUBLIC_INDEX_NAME_CURRENT}\"}, \"dest\": {\"index\": \"${PUBLIC_INDEX_NAME_FINAL}\"}}"
+
+      # Start both reindex operations in parallel
+      echo "Starting parallel reindex operations..."
+      PRIVATE_TASK_ID=$(start_reindex "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}" "${INDEX_NAME_FINAL}")
+      PUBLIC_TASK_ID=$(start_reindex "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_NAME_CURRENT}" "${PUBLIC_INDEX_NAME_FINAL}")
+
+      # Verify both tasks started successfully
+      if [[ "$PRIVATE_TASK_ID" == "null" ]] || [[ "$PUBLIC_TASK_ID" == "null" ]]; then
+        echo "Error: Failed to start one or more reindex tasks"
+        echo "Private task ID: $PRIVATE_TASK_ID"
+        echo "Public task ID: $PUBLIC_TASK_ID"
+        exit 1
+      fi
+
+      # Poll both tasks in parallel
+      poll_multiple_reindex_tasks "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" \
+        "$PRIVATE_TASK_ID" "${INDEX_NAME_FINAL}" \
+        "$PUBLIC_TASK_ID" "${PUBLIC_INDEX_NAME_FINAL}"
+
+      # Track reindex completion
+      REINDEX_END=$(date +%s)
+      REINDEX_DURATION=$((REINDEX_END - REINDEX_START))
 
       # Create permanent connectors
       export SINK_NAME="elastic-sink"
@@ -124,9 +177,18 @@ else
       export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_FINAL}"
       curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
       curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
+
+      # Mark as completed
+      set_reindex_status "completed" "{\"message\": \"Reindex completed successfully\", \"total_documents\": $new_index_doc_count}"
+
+      # Save metrics
+      save_completion_metrics "$(jq -r '.started_at' /var/lib/debezium_status/reindex_status.json)" \
+          "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" "$REINDEX_DURATION" "$new_index_doc_count"
     fi
 
     # Clean up temporary connectors (only in production mode)
     curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-temp
     curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-public-temp
 fi
+
+echo "Debezium setup completed successfully!"

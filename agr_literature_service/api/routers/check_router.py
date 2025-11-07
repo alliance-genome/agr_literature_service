@@ -61,3 +61,21 @@ def check_duplicate_orcids():
 def show_environments():
     res = check_crud.show_environments()
     return {'envs': res}
+
+
+@router.get('/debezium_status',
+            status_code=200)
+def get_debezium_reindex_status():
+    """
+    Get the current status of Debezium Elasticsearch reindexing.
+
+    Returns:
+        - is_reindexing: boolean indicating if reindexing is currently in progress
+        - status: current status (active, completed, error, unknown)
+        - phase: current phase (setup, data_processing, reindexing, completed)
+        - progress_percentage: estimated completion percentage (0-100)
+        - estimated_completion_at: ISO 8601 timestamp of estimated completion
+        - phase_details: additional details about the current phase
+        - historical_metrics: average durations from previous runs (if available)
+    """
+    return check_crud.get_debezium_reindex_status()
