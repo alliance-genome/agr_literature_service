@@ -240,14 +240,14 @@ def get_debezium_reindex_status():
         result = {
             "is_reindexing": False,
             "status": "error",
-            "message": f"Error parsing status file: {str(e)}"
+            "message": "Error parsing status file"
         }
     except Exception as e:
         logger.error(f"Error reading Debezium status: {e}")
         result = {
             "is_reindexing": False,
             "status": "error",
-            "message": f"Error reading status: {str(e)}"
+            "message": "Error reading status"
         }
 
     return result
