@@ -63,7 +63,8 @@ EOF
 
             # Calculate ETA if we have historical data
             if [[ -f "${METRICS_FILE}" ]] && [[ "$phase" != "completed" ]]; then
-                local avg_duration=$(jq -r '.averages.total_duration_seconds // 0' "${METRICS_FILE}")
+                # Get average duration and convert to integer (floor)
+                local avg_duration=$(jq -r '.averages.total_duration_seconds // 0 | floor' "${METRICS_FILE}")
                 if [[ "$avg_duration" -gt 0 ]]; then
                     local elapsed=$(seconds_since "$started_at")
                     local remaining=$((avg_duration - elapsed))
