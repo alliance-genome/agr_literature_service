@@ -1,6 +1,6 @@
 from os import environ, makedirs, path
 import json
-from typing import List, Dict, Set, Tuple
+from typing import List, Dict, Set, Tuple, Iterable, Optional
 
 from sqlalchemy import or_, and_, text
 from sqlalchemy.engine import Result
@@ -151,39 +151,89 @@ def move_mod_papers_into_corpus(db_session: Session, mod, mod_id, mod_reference_
     # db_session.rollback()
 
 
-def change_mod_curie_status(db_session: Session, mod, mod_curie_set, mod_curie_to_pmid, logger=None):  # pragma: no cover
+def change_mod_curie_status(db_session: Session, mod, mod_curie_set, mod_curie_to_pmid, logger=None, chunk_size: int = 200):  # pragma: no cover # noqa: C901
 
     curie_prefix = mod
     if mod == 'XB':
         curie_prefix = "Xenbase"
     mod_reference_id_set = set()
     mod_curie_set_in_db = set()
-    try:
-        for x in db_session.query(CrossReferenceModel).filter_by(
-                curie_prefix=curie_prefix).all():
-            if x.reference_id is None:
+    problematic = []
+    planned_changes = []
+    for x in db_session.query(CrossReferenceModel).filter_by(curie_prefix=curie_prefix).all():
+        if x.reference_id is None:
+            continue
+        if x.curie in mod_curie_set:
+            mod_reference_id_set.add(x.reference_id)
+            mod_curie_set_in_db.add(x.curie)
+            if x.is_obsolete is True:
+                planned_changes.append((x.curie, x.reference_id, False))
+        elif x.is_obsolete is False:
+            if _is_prepublication_pipeline(db_session, x.reference_id):
                 continue
-            if x.curie in mod_curie_set:
-                mod_reference_id_set.add(x.reference_id)
-                mod_curie_set_in_db.add(x.curie)
-                if x.is_obsolete is True:
-                    x.is_obsolete = False
-                    db_session.add(x)
-                    if logger:
-                        logger.info(f"Changing {mod} curie to valid for {x.curie}")
-            elif x.is_obsolete is False:
-                if _is_prepublication_pipeline(db_session, x.reference_id):
-                    continue
-                x.is_obsolete = True
-                db_session.add(x)
-                if logger:
-                    logger.info(f"Changing {mod} curie to obsolete for {x.curie}")
-    except Exception as e:
-        if logger:
-            logger.info(f"An error occurred when changing is_obsolete for {mod} curie. error={e}")
+            planned_changes.append((x.curie, x.reference_id, True))
 
-    db_session.commit()
-    # db_session.rollback()
+    # Helper to apply a single change (refetch object after rollback)
+    def _apply_one(curie: str, ref_id: int, new_is_obsolete: bool) -> bool:
+        try:
+            obj = (
+                db_session.query(CrossReferenceModel)
+                .filter_by(curie=curie, reference_id=ref_id, curie_prefix=curie_prefix)
+                .one_or_none()
+            )
+            if obj is None:
+                return True  # nothing to do; treat as success
+            if obj.is_obsolete != new_is_obsolete:
+                obj.is_obsolete = new_is_obsolete
+                db_session.add(obj)
+            db_session.commit()
+            if logger:
+                state = "valid" if new_is_obsolete is False else "obsolete"
+                logger.info(f"Changing {mod} curie to {state} for {curie}")
+            return True
+        except Exception as e:
+            db_session.rollback()
+            if logger:
+                logger.info(f"Failed updating {mod} curie {curie} (ref {ref_id}): {e}")
+            return False
+
+    # Process in chunks; on chunk failure, retry per-item to isolate problematic curies
+    for i in range(0, len(planned_changes), chunk_size):
+        chunk = planned_changes[i:i + chunk_size]
+        try:
+            for curie, ref_id, new_is_obsolete in chunk:
+                obj = (
+                    db_session.query(CrossReferenceModel)
+                    .filter_by(curie=curie, reference_id=ref_id, curie_prefix=curie_prefix)
+                    .one_or_none()
+                )
+                if obj is None:
+                    continue
+                if obj.is_obsolete != new_is_obsolete:
+                    obj.is_obsolete = new_is_obsolete
+                    db_session.add(obj)
+
+            db_session.commit()
+            if logger:
+                logger.info(f"{mod}: committed curie status updates chunk {i//chunk_size + 1} "
+                            f"({len(chunk)} changes).")
+
+        except Exception as e:
+            db_session.rollback()
+            if logger:
+                logger.warning(f"{mod}: rollback chunk {i//chunk_size + 1} ({len(chunk)} changes): {e}")
+                logger.info(f"{mod}: retrying chunk {i//chunk_size + 1} item-by-item to isolate failures.")
+
+            for curie, ref_id, new_is_obsolete in chunk:
+                ok = _apply_one(curie, ref_id, new_is_obsolete)
+                if not ok:
+                    problematic.append(curie)
+
+    if len(problematic) > 0:
+        results = fix_problematic_mod_curies(db_session, mod, problematic, mod_curie_to_pmid, logger)
+        for c, status in results:
+            if logger:
+                logger.info(f"{c}: {status}")
 
     mod_id = _get_mod_id_by_mod(db_session, mod)
     mod_curies_not_in_db = mod_curie_set - mod_curie_set_in_db
@@ -200,6 +250,127 @@ def change_mod_curie_status(db_session: Session, mod, mod_curie_set, mod_curie_t
         logger.info("Adding mod PubMed papers with a conflict DOI/PMCID into corpus...")
     add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_not_in_db,
                                  mod_curie_to_pmid, logger)
+
+
+def _ref_id_by_pmid(db_session: Session, pmid_like: str):  # pragma: no cover
+    """Resolve a PMID or 'PMID:####' to reference_id via cross_reference."""
+    pmid_curie = pmid_like if pmid_like.startswith("PMID:") else f"PMID:{pmid_like}"
+    row = db_session.execute(
+        text("SELECT reference_id FROM cross_reference WHERE curie = :c LIMIT 1"),
+        {"c": pmid_curie},
+    ).fetchone()
+    return row[0] if row and row[0] is not None else None
+
+
+def fix_problematic_mod_curies(db_session: Session, mod: str, problematic_curies: Iterable[str], mod_curie_to_pmid: Dict[str, str], logger=None):  # pragma: no cover # noqa: C901
+    """
+    Here’s how fix_problematic_mod_curies() makes that decision in order:
+    For each problematic MOD curie (say FB:FBrf0263191), it looks in mod_curie_to_pmid -
+    which came from the DQM file — to see if that curie is linked to a PMID (for example "PMID:39876543").
+
+    If a PMID is found, it runs a small query to resolve that PMID to the reference_id in our database:
+    SELECT reference_id FROM cross_reference WHERE curie = 'PMID:39876543'
+
+    That reference_id becomes the target reference that this MOD curie should belong to.
+
+    Among all rows in cross_reference with curie = 'FB:FBrf0263191', it:
+
+    Picks one (the one already pointing to the target reference_id),
+
+    Sets is_obsolete = False for that row,
+
+    And marks any other rows with the same curie is_obsolete = True (unless prepub).
+
+    If no PMID link exists in mod_curie_to_pmid, it falls back to:
+
+    keeping whichever row is currently active, or
+
+    any existing row if all are obsolete.
+
+    For example:
+
+    “FB:FBrf0263191 corresponds to PMID:39876543”
+    and our DB’s cross_reference table has
+    one row curie='PMID:39876543' → reference_id=1156523,
+    then the function will ensure that the row with FB:FBrf0263191 now points to
+    reference_id=1156523 and has is_obsolete=False.
+
+    All other rows with that same curie will be marked obsolete, so we end up with one clean,
+    active mapping consistent with the DQM + PubMed data.
+    """
+    curie_prefix = "Xenbase" if mod == "XB" else mod
+    results: List[Tuple[str, str]] = []
+
+    for curie in problematic_curies:
+        try:
+            # Get all rows for this curie under this MOD prefix
+            rows = (db_session.query(CrossReferenceModel)
+                    .filter_by(curie=curie, curie_prefix=curie_prefix)
+                    .all())
+
+            if not rows:
+                results.append((curie, "skipped: no rows found"))
+                continue
+
+            # Determine target reference_id
+            target_ref_id: Optional[int] = None
+
+            # 1) Prefer PMID mapping if available
+            pmid = mod_curie_to_pmid.get(curie)
+            if pmid:
+                target_ref_id = _ref_id_by_pmid(db_session, pmid)
+
+            # 2) Else keep current active owner if any
+            if target_ref_id is None:
+                active_rows = [r for r in rows if r.is_obsolete is False]
+                if active_rows:
+                    target_ref_id = active_rows[0].reference_id
+
+            # 3) Else fallback to any row’s ref_id
+            if target_ref_id is None:
+                target_ref_id = next((r.reference_id for r in rows if r.reference_id is not None), None)
+
+            if target_ref_id is None:
+                results.append((curie, "skipped: could not resolve target reference_id"))
+                continue
+
+            # Pick a keeper row (prefer one already pointing to target, else any obsolete row, else first)
+            keeper = None
+            for r in rows:
+                if r.reference_id == target_ref_id:
+                    keeper = r
+                    break
+            if keeper is None:
+                keeper = next((r for r in rows if r.is_obsolete), rows[0])
+
+            # Re-point keeper to target & activate
+            keeper.reference_id = target_ref_id
+            keeper.is_obsolete = False
+            db_session.add(keeper)
+
+            # Obsolete all other rows for this curie (respect prepub)
+            for r in rows:
+                if r is keeper:
+                    continue
+                if r.is_obsolete is False:
+                    if _is_prepublication_pipeline(db_session, r.reference_id):
+                        # leave it alone if prepub
+                        continue
+                    r.is_obsolete = True
+                    db_session.add(r)
+
+            db_session.commit()
+            if logger:
+                logger.info(f"Fixed {curie}: active ref_id={target_ref_id}, others set obsolete where allowed")
+            results.append((curie, f"fixed: active ref_id={target_ref_id}"))
+
+        except Exception as e:
+            db_session.rollback()
+            if logger:
+                logger.warning(f"Failed to fix {curie}: {e}")
+            results.append((curie, f"failed: {e}"))
+
+    return results
 
 
 def add_not_loaded_pubmed_papers(db_session: Session, mod, mod_id, mod_curies_to_load, mod_curie_to_pmid, logger):  # pragma: no cover
