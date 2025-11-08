@@ -344,8 +344,8 @@ def fix_problematic_mod_curies(db_session: Session, mod: str, problematic_curies
                 keeper = next((r for r in rows if r.is_obsolete), rows[0])
 
             # Re-point keeper to target & activate
-            keeper.reference_id = target_ref_id
-            keeper.is_obsolete = False
+            keeper.reference_id = target_ref_id  # type: ignore
+            keeper.is_obsolete = False  # type: ignore
             db_session.add(keeper)
 
             # Obsolete all other rows for this curie (respect prepub)
