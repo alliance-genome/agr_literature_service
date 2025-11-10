@@ -589,10 +589,10 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
 
     # reorder SEA buckets to desired sequence
     desired_order = [
-        "automated assertion",
+        "automated",
         "machine learning method evidence used in automatic assertion",
         "string-matching method evidence used in automatic assertion",
-        "manual assertion",
+        "manual",
         "documented statement evidence used in manual assertion by author",
         "documented statement evidence used in manual assertion by professional biocurator",
     ]
@@ -850,9 +850,9 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
         key_u = bucket["key"].upper()
         curie_name = curie_to_name_map.get(key_u, "Unknown")
         if key_u == "ECO:0006155":
-            curie_name = "manual assertion"
+            curie_name = "manual"
         elif key_u == "ECO:0007669":
-            curie_name = "automated assertion"
+            curie_name = "automated"
         bucket["name"] = curie_name
 
 
