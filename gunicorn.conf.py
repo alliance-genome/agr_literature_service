@@ -38,6 +38,10 @@ user = None
 group = None
 tmp_upload_dir = None
 
+# Preload application code before worker processes are forked
+# This ensures on_starting hook completes before workers spawn
+preload_app = True
+
 # SSL (if needed)
 # keyfile = None
 # certfile = None
@@ -50,7 +54,9 @@ def pre_fork(server, worker):  # noqa: ARG001
 
 def post_fork(server, worker):
     """Called just after a worker has been forked."""
-    server.log.info("Worker spawned (pid: %s)", worker.pid)
+    msg = f"Worker spawned (pid: {worker.pid})"
+    server.log.info(msg)
+    print(msg, flush=True)
 
 
 def pre_exec(server):
@@ -66,15 +72,19 @@ def on_starting(server):
     access_logger.setLevel(logging.INFO)
     access_logger.propagate = True  # Ensure logs propagate to root logger
 
-    server.log.info("Initializing database...")
+    server.log.info("Starting database initialization (preload_app=True)...")
+    print("Starting database initialization (preload_app=True)...", flush=True)
     from agr_literature_service.api.database.setup import setup_database
     setup_database()
-    server.log.info("Database initialized successfully")
+    server.log.info("Database initialization completed successfully")
+    print("Database initialization completed successfully", flush=True)
 
 
 def when_ready(server):
     """Called just after the server is started."""
-    server.log.info("Server is ready. Spawning workers")
+    msg = f"Server is ready. Spawning {server.cfg.workers} workers"
+    server.log.info(msg)
+    print(msg, flush=True)
 
 
 def worker_int(worker):
