@@ -38,6 +38,10 @@ user = None
 group = None
 tmp_upload_dir = None
 
+# Preload application code before worker processes are forked
+# This ensures on_starting hook completes before workers spawn
+preload_app = True
+
 # SSL (if needed)
 # keyfile = None
 # certfile = None
