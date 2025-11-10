@@ -128,3 +128,8 @@ from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated
 )
 from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
+from .person_setting_schemas import (
+    PersonSettingSchemaCreate,
+    PersonSettingSchemaUpdate,
+    PersonSettingSchemaShow
+)
