@@ -47,28 +47,46 @@ logger = logging.getLogger(__name__)
 
 
 def initialize():
-    # logging.basicConfig(filename='/mnt/d/alliance/agr_literature_service/python.log',level=logging.DEBUG)
-    logger.debug('Initialising models')
-    print('Initialising models')
+    import os
+    pid = os.getpid()
+
+    logger.info(f'[PID:{pid}] Initializing database models...')
+    print(f'[PID:{pid}] Initializing database models...')
+
     try:
+        logger.info(f'[PID:{pid}] Configuring SQLAlchemy mappers...')
         configure_mappers()
-        print('Mappers initialized')
+        logger.info(f'[PID:{pid}] Mappers configured successfully')
+        print(f'[PID:{pid}] Mappers configured successfully')
     except Exception as e:
-        logger.error('configure Mappers Error: ' + str(type(e)))
-        logger.error(e)
+        logger.error(f'[PID:{pid}] Configure mappers error: {type(e).__name__}: {e}')
+        raise
 
     try:
+        logger.info(f'[PID:{pid}] Creating database tables...')
         create_all_tables()
-        print('Tables created')
+        logger.info(f'[PID:{pid}] Tables created successfully')
+        print(f'[PID:{pid}] Tables created successfully')
     except Exception as e:
-        logger.error('Create all tables Error: ' + str(type(e)))
-        logger.error(e)
-    create_default_user()
-    print('Default user created')
+        logger.error(f'[PID:{pid}] Create tables error: {type(e).__name__}: {e}')
+        raise
 
     try:
-        create_all_triggers()
-        logger.debug("Triggers updated successfully")
+        logger.info(f'[PID:{pid}] Creating default user...')
+        create_default_user()
+        logger.info(f'[PID:{pid}] Default user created successfully')
+        print(f'[PID:{pid}] Default user created successfully')
     except Exception as e:
-        logger.error('Create triggers Error: ' + str(type(e)))
-        logger.error(e)
+        logger.error(f'[PID:{pid}] Create default user error: {type(e).__name__}: {e}')
+        raise
+
+    try:
+        logger.info(f'[PID:{pid}] Creating database triggers...')
+        create_all_triggers()
+        logger.info(f'[PID:{pid}] Triggers created successfully')
+        print(f'[PID:{pid}] Triggers created successfully')
+    except Exception as e:
+        logger.error(f'[PID:{pid}] Create triggers error: {type(e).__name__}: {e}')
+        raise
+
+    logger.info(f'[PID:{pid}] Database initialization completed')
