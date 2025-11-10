@@ -22,6 +22,7 @@ class PersonModel(Base, AuditedModel):
     # Only keep these relationships
     emails = relationship("EmailModel", back_populates="person", cascade="all, delete-orphan")
     cross_references = relationship("PersonCrossReferenceModel", back_populates="person", cascade="all, delete-orphan")
+    settings = relationship("PersonSettingModel", back_populates="person", cascade="all, delete-orphan")
 
     __table_args__ = (
         UniqueConstraint("okta_id", name="uq_person_okta_id"),
