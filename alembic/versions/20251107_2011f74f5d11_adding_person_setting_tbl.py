@@ -29,6 +29,10 @@ def upgrade():
             nullable=False,
             server_default=sa.text("'{}'::jsonb"),
         ),
+        sa.Column("date_created", sa.DateTime(), nullable=False),
+        sa.Column("date_updated", sa.DateTime(), nullable=True),
+        sa.Column("created_by", sa.String(), nullable=True),
+        sa.Column("updated_by", sa.String(), nullable=True),
     )
 
     # Composite lookup index (person_id, component_name)
