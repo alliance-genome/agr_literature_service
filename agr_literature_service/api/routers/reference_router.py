@@ -122,14 +122,30 @@ def destroy(curie_or_reference_id: str,
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+# @router.patch('/{curie_or_reference_id}',
+#               status_code=status.HTTP_202_ACCEPTED,
+#               response_model=ResponseMessageSchema)
+# async def patch(curie_or_reference_id: str,
+#                 request: ReferenceSchemaUpdate,
+#                 user: OktaUser = db_user,
+#                 db: Session = db_session):
+#     set_global_user_from_okta(db, user)
+#     patch = request.model_dump(exclude_unset=True)
+#     return reference_crud.patch(db, curie_or_reference_id, patch)
+
+
+# probably broken and needs global_user
 @router.patch('/{curie_or_reference_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
 async def patch(curie_or_reference_id: str,
                 request: ReferenceSchemaUpdate,
-                user: OktaUser = db_user,
+                user: Dict[str, Any] = Security(get_current_user_swagger),
                 db: Session = db_session):
-    set_global_user_from_okta(db, user)
+#     set_global_user_from_okta(db, user)
+# don't know how global_user works instead do ?
+# from agr_literature_service.api.crud.user_utils import map_to_user_id
+#     global _current_user_id = map_to_user_id(user["email"], db)
     patch = request.model_dump(exclude_unset=True)
     return reference_crud.patch(db, curie_or_reference_id, patch)
 
