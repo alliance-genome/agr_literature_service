@@ -1,4 +1,4 @@
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Any
 
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
@@ -15,6 +15,8 @@ from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSc
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
 from agr_literature_service.api.user import set_global_user_from_okta
+
+from agr_cognito_auth import get_current_user, require_groups
 
 import datetime
 import logging
@@ -37,6 +39,53 @@ s3_session = Depends(s3_auth)
 
 running_processes_dumps_ondemand: Union[dict, None] = None
 lock_dumps_ondemand = None
+
+
+# Cognito stuff to test
+# @router.post('/')
+# async def create_reference(
+#     request: ReferenceSchemaPost,
+#     user: Dict[str, Any] = Depends(get_current_user),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     Create a new reference.
+# 
+#     Requires authentication with valid Cognito token.
+#     """
+#     # Set user context from Cognito token
+#     set_global_user_from_cognito(db, user)
+# 
+#     # Create reference
+#     return reference_crud.create(db, request)
+# 
+# 
+# @router.get('/me')
+# async def get_current_user_info(
+#     user: Dict[str, Any] = Depends(get_current_user)
+# ):
+#     """Get information about the currently authenticated user."""
+#     return {
+#         "user_id": user["sub"],
+#         "email": user["email"],
+#         "name": user["name"],
+#         "groups": user["cognito:groups"]
+#     }
+# 
+# 
+# @router.post('/admin/bulk-import')	# sample thing ?  I don't know why claude made this up
+# async def bulk_import_references(
+#     file: UploadFile,
+#     user: Dict[str, Any] = Depends(require_groups("SuperAdmin", "WBStaff")),
+#     db: Session = Depends(get_db)
+# ):
+#     """
+#     Bulk import references (admin only).
+# 
+#     Requires user to be in SuperAdmin or WBStaff group.
+#     """
+#     # Only users with required groups can access this endpoint
+#     ...
 
 
 @router.post('/',
