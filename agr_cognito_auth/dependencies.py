@@ -1,7 +1,12 @@
 """FastAPI dependencies for Cognito authentication."""
 from typing import Dict, Any
-from fastapi import Request, HTTPException, Depends
+from fastapi import Request, HTTPException, Depends, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
+
+
+bearer_scheme = HTTPBearer(auto_error=True)
+
 
 from .cognito_auth import CognitoAuth
 from .config import CognitoConfig
@@ -46,6 +51,18 @@ async def get_token_from_request(request: Request) -> str:
     )
 
 
+async def get_current_user_swagger(
+    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+    cognito: CognitoAuth = Depends(get_cognito_auth)
+) -> Dict[str, Any]:
+    token = credentials.credentials
+    try:
+        return cognito.validate_token(token)
+    except JWTError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid or expired token: {e}")
+
+
+# this might never get used if get_current_user_swagger is all we need
 async def get_current_user(
     token: str = Depends(get_token_from_request),
     cognito: CognitoAuth = Depends(get_cognito_auth)

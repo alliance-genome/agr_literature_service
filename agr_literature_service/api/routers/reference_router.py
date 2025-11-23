@@ -16,7 +16,7 @@ from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSc
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
 from agr_literature_service.api.user import set_global_user_from_okta
 
-from agr_cognito_auth import get_current_user, require_groups
+from agr_cognito_auth import get_current_user_swagger, get_current_user, require_groups
 
 import datetime
 import logging
@@ -62,7 +62,7 @@ lock_dumps_ondemand = None
 
 @router.get('/whoami')
 async def get_current_user_info(
-    user: Dict[str, Any] = Depends(get_current_user)
+    user: Dict[str, Any] = Security(get_current_user_swagger)
 ):
     """Get information about the currently authenticated user."""
     return {
