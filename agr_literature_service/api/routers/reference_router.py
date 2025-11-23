@@ -58,21 +58,21 @@ lock_dumps_ondemand = None
 # 
 #     # Create reference
 #     return reference_crud.create(db, request)
-# 
-# 
-# @router.get('/me')
-# async def get_current_user_info(
-#     user: Dict[str, Any] = Depends(get_current_user)
-# ):
-#     """Get information about the currently authenticated user."""
-#     return {
-#         "user_id": user["sub"],
-#         "email": user["email"],
-#         "name": user["name"],
-#         "groups": user["cognito:groups"]
-#     }
-# 
-# 
+
+
+@router.get('/whoami')
+async def get_current_user_info(
+    user: Dict[str, Any] = Depends(get_current_user)
+):
+    """Get information about the currently authenticated user."""
+    return {
+        "user_id": user["sub"],
+        "email": user["email"],
+        "name": user["name"],
+        "groups": user["cognito:groups"]
+    }
+
+
 # @router.post('/admin/bulk-import')	# sample thing ?  I don't know why claude made this up
 # async def bulk_import_references(
 #     file: UploadFile,
