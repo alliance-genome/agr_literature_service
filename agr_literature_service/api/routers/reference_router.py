@@ -45,7 +45,7 @@ lock_dumps_ondemand = None
 # @router.post('/')
 # async def create_reference(
 #     request: ReferenceSchemaPost,
-#     user: Dict[str, Any] = Depends(get_current_user),
+#     user: Dict[str, Any] = Security(get_current_user_swagger)
 #     db: Session = Depends(get_db)
 # ):
 #     """
