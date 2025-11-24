@@ -14,9 +14,9 @@ from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_okta, set_global_user_from_cognito
 
-from agr_cognito_auth import get_current_user_swagger, get_current_user, require_groups
+from agr_cognito_auth import get_cognito_user_swagger, get_cognito_user, require_groups
 
 import datetime
 import logging
@@ -61,8 +61,8 @@ lock_dumps_ondemand = None
 
 
 @router.get('/whoami')
-async def get_current_user_info(
-    user: Dict[str, Any] = Security(get_current_user_swagger)
+def get_current_user_info(
+    user: Dict[str, Any] = Security(get_cognito_user_swagger)
 ):
     """Get information about the currently authenticated user."""
     return {
@@ -92,9 +92,10 @@ async def get_current_user_info(
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def create(request: ReferenceSchemaPost,
-           user: OktaUser = db_user,
+           user: Dict[str, Any] = Security(get_cognito_user_swagger),
            db: Session = db_session):
-    set_global_user_from_okta(db, user)
+
+    set_global_user_from_cognito(db, user)
     return reference_crud.create(db, request)
 
 
@@ -140,7 +141,7 @@ def destroy(curie_or_reference_id: str,
               response_model=ResponseMessageSchema)
 async def patch(curie_or_reference_id: str,
                 request: ReferenceSchemaUpdate,
-                user: Dict[str, Any] = Security(get_current_user_swagger),
+                user: Dict[str, Any] = Security(get_cognito_user_swagger),
                 db: Session = db_session):
 #     set_global_user_from_okta(db, user)
 # don't know how global_user works instead do ?

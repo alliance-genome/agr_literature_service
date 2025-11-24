@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi_okta import OktaUser
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud import user_crud
@@ -48,6 +49,35 @@ def add_user_if_not_exists(db: Session, user_id: str) -> None:
     Back-compat helper. New IDs are treated as automation users.
     """
     _ensure_automation_user(db, user_id)
+
+
+def set_global_user_from_cognito(db: Session, cognito_user: Dict[str, Any]) -> None:
+    """
+    Set the global user from a Cognito token.
+    Looks up user by email via email table join on person_id using raw SQL.
+    """
+    global _current_user_id
+    user_email: Optional[str] = cognito_user.get("email", "")
+
+    if not user_email:
+        raise ValueError("Cognito user does not have an associated email address.")
+
+    # Query using raw SQL to avoid circular import with EmailModel
+    sql = text("""
+        SELECT u.id
+        FROM users u
+        JOIN email e ON u.person_id = e.person_id
+        WHERE e.email_address = :email
+        LIMIT 1
+    """)
+
+    result = db.execute(sql, {"email": user_email}).fetchone()
+
+    if result is None:
+        raise ValueError(f"No user found with email address: {user_email}")
+
+    # Set the global user ID from the query result
+    _current_user_id = result[0]
 
 
 def set_global_user_from_okta(db: Session, user: OktaUser) -> None:

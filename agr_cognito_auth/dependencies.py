@@ -24,7 +24,7 @@ def get_cognito_auth() -> CognitoAuth:
     return _cognito_auth
 
 
-async def get_token_from_request(request: Request) -> str:
+def get_token_from_request(request: Request) -> str:
     """
     Extract JWT token from request.
 
@@ -51,7 +51,7 @@ async def get_token_from_request(request: Request) -> str:
     )
 
 
-async def get_current_user_swagger(
+def get_cognito_user_swagger(
     credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
     cognito: CognitoAuth = Depends(get_cognito_auth)
 ) -> Dict[str, Any]:
@@ -63,7 +63,7 @@ async def get_current_user_swagger(
 
 
 # this might never get used if get_current_user_swagger is all we need
-async def get_current_user(
+def get_cognito_user(
     token: str = Depends(get_token_from_request),
     cognito: CognitoAuth = Depends(get_cognito_auth)
 ) -> Dict[str, Any]:
@@ -103,7 +103,7 @@ def require_groups(*required_groups: str):
         ):
             return {"message": "Admin action performed"}
     """
-    async def check_groups(user: Dict = Depends(get_current_user)) -> Dict:
+    def check_groups(user: Dict = Depends(get_cognito_user)) -> Dict:
         user_groups = set(user.get("cognito:groups", []))
         required = set(required_groups)
 
