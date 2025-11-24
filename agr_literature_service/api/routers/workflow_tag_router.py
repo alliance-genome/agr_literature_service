@@ -1,18 +1,19 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from fastapi_okta import OktaUser
+
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import workflow_tag_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (
     WorkflowTagSchemaShow,
     WorkflowTagSchemaUpdate,
     WorkflowTagSchemaPost,
 )
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 
 router = APIRouter(
@@ -22,7 +23,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post(
@@ -32,10 +32,10 @@ db_user = Security(auth.get_user)
 )
 def create(
     request: WorkflowTagSchemaPost,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ) -> int:
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     new_id = workflow_tag_crud.create(db, request)
     return new_id
 
@@ -46,10 +46,10 @@ def create(
 )
 def destroy(
     reference_workflow_tag_id: int,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     workflow_tag_crud.destroy(db, reference_workflow_tag_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -62,10 +62,10 @@ def destroy(
 async def patch(
     reference_workflow_tag_id: int,
     request: WorkflowTagSchemaUpdate,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ) -> int:
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
     # perform the update (this should return the same ID)
     workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
@@ -155,10 +155,10 @@ def show_versions(
 )
 def transition_to_workflow_status(
     request: WorkflowTransitionSchemaPost,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.transition_to_workflow_status(
         db=db,
         curie_or_reference_id=request.curie_or_reference_id,
@@ -176,10 +176,10 @@ def get_current_workflow_status(
     curie_or_reference_id: str,
     mod_abbreviation: str,
     workflow_process_atp_id: str,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_current_workflow_status(
         db=db,
         curie_or_reference_id=curie_or_reference_id,

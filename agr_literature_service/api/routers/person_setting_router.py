@@ -1,49 +1,49 @@
-from typing import List
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, Response, Security, status
-from fastapi_okta import OktaUser
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import person_setting_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (
     PersonSettingSchemaCreate,
     PersonSettingSchemaUpdate,
     PersonSettingSchemaShow,
     ResponseMessageSchema,
 )
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 
 router = APIRouter(prefix="/person_setting", tags=["PersonSetting"])
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PersonSettingSchemaShow)
 def create(
     request: PersonSettingSchemaCreate,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ):
     """
     Create a person_setting record.
     """
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return person_setting_crud.create(db, request)
 
 
 @router.delete("/{person_setting_id}", status_code=status.HTTP_204_NO_CONTENT)
 def destroy(
     person_setting_id: int,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ):
     """
     Delete a person_setting row by internal ID.
     """
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     person_setting_crud.destroy(db, person_setting_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -56,13 +56,13 @@ def destroy(
 def patch(
     person_setting_id: int,
     request: PersonSettingSchemaUpdate,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session,
 ):
     """
     Patch a person_setting row by internal ID.
     """
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
     return person_setting_crud.patch(db, person_setting_id, patch_data)
 

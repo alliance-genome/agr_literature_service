@@ -2,7 +2,6 @@ from typing import Union, List, Dict, Any
 
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
-from fastapi_okta import OktaUser
 from sqlalchemy.orm import Session
 from multiprocessing import Process, Manager, Lock
 
@@ -10,13 +9,12 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud, reference_crud
 from agr_literature_service.api.s3 import download
 from agr_literature_service.api.deps import s3_auth
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
-from agr_literature_service.api.user import set_global_user_from_okta, set_global_user_from_cognito
+from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger, get_cognito_user, require_groups
+from agr_cognito_auth import get_cognito_user_swagger
 
 import datetime
 import logging
@@ -34,30 +32,10 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 s3_session = Depends(s3_auth)
 
 running_processes_dumps_ondemand: Union[dict, None] = None
 lock_dumps_ondemand = None
-
-
-# Cognito stuff to test
-# @router.post('/')
-# async def create_reference(
-#     request: ReferenceSchemaPost,
-#     user: Dict[str, Any] = Security(get_current_user_swagger)
-#     db: Session = Depends(get_db)
-# ):
-#     """
-#     Create a new reference.
-# 
-#     Requires authentication with valid Cognito token.
-#     """
-#     # Set user context from Cognito token
-#     set_global_user_from_cognito(db, user)
-# 
-#     # Create reference
-#     return reference_crud.create(db, request)
 
 
 @router.get('/whoami')
@@ -71,21 +49,6 @@ def get_current_user_info(
         "name": user["name"],
         "groups": user["cognito:groups"]
     }
-
-
-# @router.post('/admin/bulk-import')	# sample thing ?  I don't know why claude made this up
-# async def bulk_import_references(
-#     file: UploadFile,
-#     user: Dict[str, Any] = Depends(require_groups("SuperAdmin", "WBStaff")),
-#     db: Session = Depends(get_db)
-# ):
-#     """
-#     Bulk import references (admin only).
-# 
-#     Requires user to be in SuperAdmin or WBStaff group.
-#     """
-#     # Only users with required groups can access this endpoint
-#     ...
 
 
 @router.post('/',
@@ -104,9 +67,9 @@ def create(request: ReferenceSchemaPost,
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def add(request: ReferenceSchemaAddPmid,
-        user: OktaUser = db_user,
+        user: Dict[str, Any] = Security(get_cognito_user_swagger),
         db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     mod_curie = request.mod_curie
     if mod_curie is None:
         mod_curie = ''
@@ -116,26 +79,13 @@ def add(request: ReferenceSchemaAddPmid,
 @router.delete('/{curie_or_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie_or_reference_id: str,
-            user: OktaUser = db_user,
+            user: Dict[str, Any] = Security(get_cognito_user_swagger),
             db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     reference_crud.destroy(db, curie_or_reference_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-# @router.patch('/{curie_or_reference_id}',
-#               status_code=status.HTTP_202_ACCEPTED,
-#               response_model=ResponseMessageSchema)
-# async def patch(curie_or_reference_id: str,
-#                 request: ReferenceSchemaUpdate,
-#                 user: OktaUser = db_user,
-#                 db: Session = db_session):
-#     set_global_user_from_okta(db, user)
-#     patch = request.model_dump(exclude_unset=True)
-#     return reference_crud.patch(db, curie_or_reference_id, patch)
-
-
-# probably broken and needs global_user
 @router.patch('/{curie_or_reference_id}',
               status_code=status.HTTP_202_ACCEPTED,
               response_model=ResponseMessageSchema)
@@ -143,10 +93,7 @@ async def patch(curie_or_reference_id: str,
                 request: ReferenceSchemaUpdate,
                 user: Dict[str, Any] = Security(get_cognito_user_swagger),
                 db: Session = db_session):
-#     set_global_user_from_okta(db, user)
-# don't know how global_user works instead do ?
-# from agr_literature_service.api.crud.user_utils import map_to_user_id
-#     global _current_user_id = map_to_user_id(user["email"], db)
+    set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
     return reference_crud.patch(db, curie_or_reference_id, patch)
 
@@ -154,20 +101,20 @@ async def patch(curie_or_reference_id: str,
 @router.get('/dumps/latest/{mod}',
             status_code=200)
 def download_data_by_mod(mod: str,
-                         user: OktaUser = db_user,
+                         user: Dict[str, Any] = Security(get_cognito_user_swagger),
                          db: Session = db_session):
 
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return download.get_json_file(mod)
 
 
 @router.get('/dumps/{filename}',
             status_code=200)
 def download_data_by_filename(filename: str,
-                              user: OktaUser = db_user,
+                              user: Dict[str, Any] = Security(get_cognito_user_swagger),
                               db: Session = db_session):
 
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return download.get_json_file(None, filename)
 
 
@@ -186,10 +133,10 @@ def dump_data_process_wrapper(running_processes_dict, lock, mod: str, email: str
 def generate_data_ondemand(mod: str,
                            email: str,
                            ui_root_url: str,
-                           user: OktaUser = db_user,
+                           user: Dict[str, Any] = Security(get_cognito_user_swagger),
                            db: Session = db_session):
 
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     global running_processes_dumps_ondemand
     global lock_dumps_ondemand
     if not running_processes_dumps_ondemand:
@@ -256,9 +203,9 @@ def show_versions(curie_or_reference_id: str,
              status_code=201)
 def merge_references(old_curie: str,
                      new_curie: str,
-                     user: OktaUser = db_user,
+                     user: Dict[str, Any] = Security(get_cognito_user_swagger),
                      db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return reference_crud.merge_references(db, old_curie, new_curie)
 
 
@@ -266,10 +213,10 @@ def merge_references(old_curie: str,
              status_code=201)
 def add_license(curie: str,
                 license: str,
-                user: OktaUser = db_user,
+                user: Dict[str, Any] = Security(get_cognito_user_swagger),
                 db: Session = db_session):
 
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return reference_crud.add_license(db, curie, license)
 
 
@@ -300,9 +247,9 @@ def download_tracker_table(mod_abbreviation: str,
 def get_bib_info(curie: str,
                  mod_abbreviation: str,
                  return_format: str = 'txt',
-                 user: OktaUser = db_user,
+                 user: Dict[str, Any] = Security(get_cognito_user_swagger),
                  db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
 
 
@@ -315,9 +262,9 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                   species: str = None,
                                   from_reference_id: int = None,
                                   page_size: int = 1000,
-                                  user: OktaUser = db_user,
+                                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
                                   db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return reference_crud.get_textpresso_reference_list(db, mod_abbreviation,
                                                         files_updated_from_date,
                                                         reference_type,
@@ -330,10 +277,10 @@ def get_textpresso_reference_list(mod_abbreviation: str,
              status_code=201)
 def add_to_corpus(mod_abbreviation: str,
                   reference_curie: str,
-                  user: OktaUser = db_user,
+                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
                   db: Session = db_session):
 
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return reference_crud.add_to_corpus(db, mod_abbreviation, reference_curie)
 
 
