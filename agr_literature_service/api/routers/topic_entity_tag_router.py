@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud, \
     ateam_db_helpers, topic_entity_tag_utils
-from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
+from agr_cognito_auth import get_mod_access
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
@@ -60,7 +60,7 @@ def delete_tag(topic_entity_tag_id,
                user: Dict[str, Any] = Security(get_cognito_user_swagger),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_okta_mod_access(user))
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_mod_access(user))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

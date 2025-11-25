@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.deps import s3_auth
-from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
+from agr_cognito_auth import get_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
@@ -80,7 +80,7 @@ def file_upload(reference_curie: str = None,
 
             curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/' \\
              -H 'accept: application/json' \\
-             -H 'Authorization: Bearer <okta_token>' \\
+             -H 'Authorization: Bearer <auth_token>' \\
              -H 'Content-Type: multipart/form-data' \\
              -F 'file=@test2.txt;type=text/plain' \\
              -F 'metadata_file=@metadata_file.txt;type=text/plain'
@@ -91,7 +91,7 @@ def file_upload(reference_curie: str = None,
 
             curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=AGRKB:101000000000001&display_name=test&file_class=main&file_publication_status=final&file_extension=txt&pdf_type=null&is_annotation=false' \\
              -H 'accept: application/json' \\
-             -H 'Authorization: Bearer <okta_token>' \\
+             -H 'Authorization: Bearer <auth_token>' \\
              -H 'Content-Type: multipart/form-data' \\
              -F 'file=@test2.txt;type=text/plain' \\
              -F 'metadata_file='
@@ -132,7 +132,7 @@ def download_file(referencefile_id: int,
                   user: Dict[str, Any] = Security(get_cognito_user_swagger),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return referencefile_crud.download_file(db, referencefile_id, get_okta_mod_access(user))
+    return referencefile_crud.download_file(db, referencefile_id, get_mod_access(user))
 
 
 @router.get('/additional_files_tarball/{reference_id}',
@@ -141,7 +141,7 @@ def download_additional_files_tarball(reference_id: int,
                                       user: Dict[str, Any] = Security(get_cognito_user_swagger),
                                       db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_okta_mod_access(user))
+    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user))
 
 
 @router.delete('/{referencefile_id}',
@@ -150,7 +150,7 @@ def delete(referencefile_id: int,
            user: Dict[str, Any] = Security(get_cognito_user_swagger),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    referencefile_crud.destroy(db, referencefile_id, get_okta_mod_access(user))
+    referencefile_crud.destroy(db, referencefile_id, get_mod_access(user))
     return 'success'
 
 

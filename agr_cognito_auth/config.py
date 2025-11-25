@@ -21,3 +21,29 @@ class CognitoConfig:
 
         self.issuer = f"https://cognito-idp.{self.region}.amazonaws.com/{self.user_pool_id}"
         self.jwks_url = f"{self.issuer}/.well-known/jwks.json"
+
+
+class CognitoAdminConfig:
+    """Configuration for Cognito admin/machine-to-machine authentication.
+
+    Used for API unit tests and service-to-service communication.
+    """
+
+    def __init__(
+        self,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+        token_url: Optional[str] = None
+    ):
+        self.client_id = client_id or os.getenv("COGNITO_ADMIN_CLIENT_ID")
+        self.client_secret = client_secret or os.getenv("COGNITO_ADMIN_CLIENT_SECRET")
+        self.token_url = token_url or os.getenv(
+            "COGNITO_TOKEN_URL",
+            "https://auth.alliancegenome.org/oauth2/token"
+        )
+        self.scope = "curation-api/admin"
+
+        if not self.client_id:
+            raise ValueError("COGNITO_ADMIN_CLIENT_ID must be set in environment or passed to CognitoAdminConfig")
+        if not self.client_secret:
+            raise ValueError("COGNITO_ADMIN_CLIENT_SECRET must be set in environment or passed to CognitoAdminConfig")
