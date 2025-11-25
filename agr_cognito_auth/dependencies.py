@@ -1,19 +1,15 @@
 """FastAPI dependencies for Cognito authentication."""
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from fastapi import Request, HTTPException, Depends, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 
+from .cognito_auth import CognitoAuth
 
 bearer_scheme = HTTPBearer(auto_error=True)
 
-
-from .cognito_auth import CognitoAuth
-from .config import CognitoConfig
-
-
 # Global instance (initialized once at startup)
-_cognito_auth: CognitoAuth = None
+_cognito_auth: Optional[CognitoAuth] = None
 
 
 def get_cognito_auth() -> CognitoAuth:

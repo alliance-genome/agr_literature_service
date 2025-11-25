@@ -264,7 +264,7 @@ async def bulk_upload_archive(
 
     # 3. create a new bulk‐upload job
     job_id = upload_manager.create_job(
-        user_id=user.cid,
+        user_id=user.get("cognito:username") or user.get("sub", "unknown"),
         mod_abbreviation=mod_abbreviation,
         filename=archive.filename or "archive.unknown",
     )

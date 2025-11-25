@@ -180,9 +180,10 @@ def revalidate_all_tags(email: str = None,
                         validation_values_only: bool = False,
                         user: Dict[str, Any] = Security(get_cognito_user_swagger),
                         db: Session = db_session):
-    if not user.groups or "SuperAdmin" not in user.groups:
+    user_groups = user.get("cognito:groups", [])
+    if not user_groups or "SuperAdmin" not in user_groups:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Only users in the okta 'SuperAdmin' group are allowed to perform this request.")
+                            detail="Only users in the 'SuperAdmin' group are allowed to perform this request.")
     set_global_user_from_cognito(db, user)
     global revalidate_all_tags_already_running
     if email is None:

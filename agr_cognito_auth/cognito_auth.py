@@ -146,6 +146,9 @@ def get_admin_token(config: Optional[CognitoAdminConfig] = None, force_refresh: 
     # Get configuration
     cfg = config or CognitoAdminConfig()
 
+    if not cfg.token_url:
+        raise ValueError("COGNITO_TOKEN_URL environment variable is not set")
+
     logger.info("Requesting new Cognito admin token")
     response = requests.post(
         cfg.token_url,
