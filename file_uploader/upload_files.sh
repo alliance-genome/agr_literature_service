@@ -20,13 +20,14 @@ if [[ ! -d "$FILES_FOLDER" ]]; then
   exit 1
 fi
 
-# request okta access token
+# request cognito access token
 generate_access_token () {
-  OKTA_ACCESS_TOKEN=$(curl -s --request POST --url https://${OKTA_DOMAIN}/v1/token \
+  COGNITO_ACCESS_TOKEN=$(curl -s --request POST --url ${COGNITO_TOKEN_URL} \
     --header 'accept: application/json' \
     --header 'cache-control: no-cache' \
     --header 'content-type: application/x-www-form-urlencoded' \
-    --data "grant_type=client_credentials&scope=admin&client_id=${OKTA_CLIENT_ID}&client_secret=${OKTA_CLIENT_SECRET}" \
+    --user "${COGNITO_ADMIN_CLIENT_ID}:${COGNITO_ADMIN_CLIENT_SECRET}" \
+    --data "grant_type=client_credentials&scope=curation-api/admin" \
       | jq '.access_token' | tr -d '"')
 }
 
@@ -50,7 +51,7 @@ upload_file () {
   fi
   response=$(curl -s --request POST --url ${url} \
     -H 'accept: application/json' \
-    -H "Authorization: Bearer ${OKTA_ACCESS_TOKEN}" \
+    -H "Authorization: Bearer ${COGNITO_ACCESS_TOKEN}" \
     -H 'Content-Type: multipart/form-data' \
     -F "file=@\"${filepath}\";type=text/plain")
 
@@ -171,7 +172,7 @@ process_file() {
 export -f process_file
 
 generate_access_token
-export OKTA_ACCESS_TOKEN
+export COGNITO_ACCESS_TOKEN
 export MOD
 export TEST_EXTRACTION
 
