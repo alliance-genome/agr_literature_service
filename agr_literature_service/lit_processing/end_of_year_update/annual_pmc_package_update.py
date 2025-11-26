@@ -14,7 +14,7 @@ import csv
 import argparse
 from datetime import datetime
 from os import path, listdir, makedirs
-from typing import Dict, Any, Iterable, Tuple, List, Set
+from typing import Dict, Any, Iterable, Tuple, List
 from sqlalchemy import text
 from collections import defaultdict
 from fastapi import HTTPException
@@ -116,11 +116,11 @@ def annual_pmc_package_update(mapping_file: str, batch_size: int = 500, dry_run:
     stats: Dict[str, Any] = {
         'total_pmids': len(pmids_to_check),
         'batches_processed': 0,
-        'pmids_with_updates': set(),        # type: Set[str]
-        'pmids_with_removals': set(),       # type: Set[str]
-        'pmids_with_additions': set(),      # type: Set[str]
-        'pmids_unchanged': set(),           # type: Set[str]
-        'errors': [],                       # type: List[str]
+        'pmids_with_updates': set(),
+        'pmids_with_removals': set(),
+        'pmids_with_additions': set(),
+        'pmids_unchanged': set(),
+        'errors': [],
         'start_time': start_time
     }
 
