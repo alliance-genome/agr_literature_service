@@ -38,19 +38,6 @@ running_processes_dumps_ondemand: Union[dict, None] = None
 lock_dumps_ondemand = None
 
 
-@router.get('/whoami')
-def get_current_user_info(
-    user: Dict[str, Any] = Security(get_cognito_user_swagger)
-):
-    """Get information about the currently authenticated user."""
-    return {
-        "user_id": user["sub"],
-        "email": user["email"],
-        "name": user["name"],
-        "groups": user["cognito:groups"]
-    }
-
-
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=str)

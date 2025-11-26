@@ -65,6 +65,19 @@ def patch(
     return person_crud.patch(db, person_id, patch_data)
 
 
+@router.get('/whoami')
+def get_user_info_from_cognito(
+    user: Dict[str, Any] = Security(get_cognito_user_swagger)
+):
+    """Get information about the currently authenticated user."""
+    return {
+        "user_id": user["sub"],
+        "email": user["email"],
+        "name": user["name"],
+        "groups": user["cognito:groups"]
+    }
+
+
 @router.get(
     "/{person_id}",
     response_model=PersonSchemaShow,
