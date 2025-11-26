@@ -168,20 +168,6 @@ def show(db: Session, person_id: int) -> PersonModel:
     return obj
 
 
-def get_by_okta_id(db: Session, okta_id: str) -> Optional[PersonModel]:
-    if not okta_id:
-        return None
-    return (
-        db.query(PersonModel)
-        .options(
-            joinedload(PersonModel.emails),
-            joinedload(PersonModel.cross_references),
-        )
-        .filter(PersonModel.okta_id == okta_id)
-        .first()
-    )
-
-
 def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
     if not email:
         return None
