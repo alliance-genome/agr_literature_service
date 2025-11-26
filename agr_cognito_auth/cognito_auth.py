@@ -54,15 +54,22 @@ class CognitoAuth:
             token_use = unverified_claims.get("token_use")
 
             if token_use == "id":
-                # ID token: validate with audience check
+                # ID token: decode without automatic audience check, then validate manually
+                # This supports tokens from multiple clients in the same user pool
+                # (e.g., UI client + API client)
                 decoded_token = jwt.decode(
                     token,
                     signing_key.key,
                     algorithms=["RS256"],
-                    audience=self.config.client_id,
                     issuer=self.config.issuer,
-                    options={"verify_at_hash": False}
+                    options={"verify_aud": False, "verify_at_hash": False}
                 )
+                # Manually validate audience against allowed client IDs
+                token_audience = decoded_token.get("aud")
+                if token_audience not in self.config.allowed_client_ids:
+                    raise JWTError(
+                        f"Invalid audience: '{token_audience}' not in allowed clients"
+                    )
                 return self._extract_id_token_info(decoded_token)
 
             elif token_use == "access":
