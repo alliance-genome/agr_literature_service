@@ -2,7 +2,7 @@ import logging
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
-from typing import Dict, List, Optional, Iterable, Tuple
+from typing import Dict, List, Optional, Iterable, Tuple, Union
 import cachetools.func
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
@@ -134,7 +134,7 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
     # ATPs are cached locally, so skip client call if applicable
     if ontology_node.startswith("ATP:"):
         if ancestors_or_descendants == "descendants":
-            return atp_get_all_descendents(ontology_node)
+            return atp_get_all_descendants(ontology_node)
         return atp_get_all_ancestors(ontology_node)
 
     # For non-ATP ontology nodes, use the client API
@@ -326,17 +326,11 @@ def _ensure_atp_loaded():
 
 def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     """
-    Build ATP maps (name <-> curie, children, parent) **without direct SQL**,
-    by traversing via client.get_atp_descendants() from a set of roots.
-
-    Note: client.get_atp_descendants returns all descendants (not just immediate children).
-    We approximate parent/child by linking the current frontier node as parent of all returned
-    descendants to ensure ancestors/descendants queries and name mappings work.
+    Build ATP maps (name <-> curie, children, parent) by BFS traversal
+    from root terms using _get_atp_children for consistent caching.
     """
     if start_terms is None:
         start_terms = ['ATP:0000177', 'ATP:0000335']
-
-    cli = _get_client()
 
     # Clear and (re)build
     atp_to_name.clear()
@@ -344,36 +338,19 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     atp_to_children.clear()
     atp_to_parent.clear()
 
+    # Fetch root names
+    _fetch_atp_names(start_terms)
+
+    # BFS traversal using shared helper
     frontier = list(start_terms)
     seen = set(frontier)
 
-    # Optional: fetch root names
-    _fetch_atp_names(frontier)
-
     while frontier:
         parent = frontier.pop()
-        try:
-            descendants = cli.get_atp_descendants(ancestor_curie=parent) or []
-        except AGRAPIError as e:
-            logger.warning("Failed to load ATP descendants for %s: %s", parent, e)
-            continue
-
-        children_curie_list: List[str] = []
-        for node in descendants:
-            curie = node["curie"]
-            nm = node["name"]
-            atp_to_name[curie] = nm
-            name_to_atp[nm] = curie
-            if curie not in atp_to_parent:
-                atp_to_parent[curie] = parent
-            children_curie_list.append(curie)
-            if curie not in seen:
-                seen.add(curie)
-                frontier.append(curie)
-
-        if children_curie_list:
-            # Deduplicate while preserving any prior children recorded
-            atp_to_children[parent] = list({*atp_to_children.get(parent, []), *children_curie_list})
+        for child_curie in _get_atp_children(parent):
+            if child_curie not in seen:
+                seen.add(child_curie)
+                frontier.append(child_curie)
 
     logger.debug("ATP global vars successfully loaded via client traversal")
 
@@ -401,13 +378,19 @@ def atp_to_name_subset(curies: List[str]) -> Dict[str, str]:
 
 
 @cachetools.func.ttl_cache(ttl=24 * 60 * 60)
-def atp_get_all_descendents(curie: str) -> List[str]:
+def atp_get_all_descendants(curie: str, direct_children_only: bool = False, include_self: bool = False,
+                            include_names: bool = False) -> Union[List[str], List[Dict[str, str]]]:
     """
     Return all descendant ATP curies for the given curie.
     """
     try:
-        _, subset_atp_to_name = get_name_to_atp_for_all_children(curie)
-        return list(subset_atp_to_name.keys())
+        _, subset_atp_to_name = get_name_to_atp_for_descendants(curie, direct_children_only)
+        if include_self:
+            subset_atp_to_name[curie] = atp_get_name(curie)
+        if include_names:
+            return [{"curie": c, "name": n} for c, n in subset_atp_to_name.items()]
+        else:
+            return list(subset_atp_to_name.keys())
     except Exception as e:
         logger.warning("Failed to fetch ATP descendants for %s: %s", curie, e)
         return []
@@ -457,7 +440,31 @@ def atp_return_invalid_ids(atp_ids: List[str]) -> List[str]:
     return [a for a in (atp_ids or []) if a and a not in atp_to_name]
 
 
-def get_name_to_atp_for_all_children(workflow_parent: str):
+def _get_atp_children(parent_curie: str) -> List[str]:
+    """Fetch and cache direct children for an ATP term. Returns list of child curies."""
+    if parent_curie in atp_to_children:
+        return atp_to_children[parent_curie]
+    try:
+        children = _get_client().get_atp_descendants(
+            ancestor_curie=parent_curie, direct_children_only=True
+        ) or []
+    except AGRAPIError:
+        return []
+
+    child_curies = []
+    for child in children:
+        curie, name = child["curie"], child["name"]
+        atp_to_name[curie] = name
+        name_to_atp[name] = curie
+        atp_to_parent.setdefault(curie, parent_curie)
+        child_curies.append(curie)
+
+    if child_curies:
+        atp_to_children[parent_curie] = child_curies
+    return child_curies
+
+
+def get_name_to_atp_for_descendants(atp_curie: str, direct_children_only: bool = False):
     """
     Return ALL descendants for an ATP term as two dicts:
       subset_name_to_atp:  {<name>: <ATP:curie>, ...}
@@ -466,37 +473,31 @@ def get_name_to_atp_for_all_children(workflow_parent: str):
     """
     _ensure_atp_loaded()
 
-    subset_name_to_atp: Dict[str, str] = {}
+    direct_children = _get_atp_children(atp_curie)
+    if not direct_children:
+        return {}, {}
+
+    if direct_children_only:
+        return (
+            {atp_to_name[ch]: ch for ch in direct_children},
+            {ch: atp_to_name[ch] for ch in direct_children}
+        )
+
+    # BFS traversal to collect all descendants
     subset_atp_to_name: Dict[str, str] = {}
+    subset_name_to_atp: Dict[str, str] = {}
+    frontier = list(direct_children)
+    seen = set(direct_children)
 
-    frontier = list(atp_to_children.get(workflow_parent, []))
-    if not frontier:
-        try:
-            desc = _get_client().get_atp_descendants(ancestor_curie=workflow_parent) or []
-            for node in desc:
-                cur = node["curie"]
-                nm = node["name"]
-                atp_to_name[cur] = nm
-                name_to_atp[nm] = cur
-                atp_to_parent.setdefault(cur, workflow_parent)
-                atp_to_children.setdefault(workflow_parent, []).append(cur)
-            frontier = list(atp_to_children.get(workflow_parent, []))
-        except AGRAPIError:
-            pass
-
-    if not frontier:
-        return subset_name_to_atp, subset_atp_to_name
-
-    seen = set(frontier)
     while frontier:
-        curie = frontier.pop()
-        name = atp_to_name.get(curie, curie)
-        subset_atp_to_name[curie] = name
-        subset_name_to_atp[name] = curie
-        children = atp_to_children.get(curie, [])
-        for ch in children:
-            if ch not in seen:
-                seen.add(ch)
-                frontier.append(ch)
+        current_curie = frontier.pop()
+        current_name = atp_to_name.get(current_curie, current_curie)
+        subset_atp_to_name[current_curie] = current_name
+        subset_name_to_atp[current_name] = current_curie
+
+        for child_curie in _get_atp_children(current_curie):
+            if child_curie not in seen:
+                seen.add(child_curie)
+                frontier.append(child_curie)
 
     return subset_name_to_atp, subset_atp_to_name

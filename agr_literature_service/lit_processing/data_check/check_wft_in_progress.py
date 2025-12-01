@@ -82,7 +82,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.api.models import WorkflowTagModel
 from agr_literature_service.lit_processing.utils.report_utils import send_report
-from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents, job_change_atp_code
+from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants, job_change_atp_code
 from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 
 
@@ -179,9 +179,9 @@ def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: m
     start_date = get_date_weeks_ago(phase['time limit in weeks'])
 
     if failed:
-        children = atp_get_all_descendents(phase['failed wft'])
+        children = atp_get_all_descendants(phase['failed wft'])
     else:
-        children = atp_get_all_descendents(phase['in_progress wft'])
+        children = atp_get_all_descendants(phase['in_progress wft'])
     if debug:
         print(f"children: {children}")
     wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(children),

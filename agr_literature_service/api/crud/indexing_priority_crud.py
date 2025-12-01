@@ -14,7 +14,7 @@ from agr_literature_service.api.models import (
     TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.schemas.indexing_priority_schemas import IndexingPrioritySchemaPost
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_descendants
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
@@ -239,7 +239,7 @@ def get_indexing_priority_tag(db: Session, curie: str):
 
     process_atp_id = "ATP:0000210"
     priority_tags = get_workflow_tags_from_process(process_atp_id)
-    _, atp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+    _, atp_to_name = get_name_to_atp_for_descendants(process_atp_id)
     priority_tag_to_name = {atp: atp_to_name.get(atp, atp) for atp in priority_tags}
 
     sql = """

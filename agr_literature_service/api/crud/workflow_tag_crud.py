@@ -26,8 +26,8 @@ from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
 from agr_literature_service.api.crud.ateam_db_helpers import (
-    get_name_to_atp_for_all_children,
-    atp_get_all_descendents,
+    get_name_to_atp_for_descendants,
+    atp_get_all_descendants,
     atp_get_all_ancestors,
     atp_get_parent,
     get_jobs_to_run,
@@ -84,7 +84,7 @@ def get_workflow_process_from_tag(workflow_tag_atp_id: str):
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
-    return atp_get_all_descendents(workflow_process_atp_id)
+    return atp_get_all_descendants(workflow_process_atp_id)
     # return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
@@ -1227,7 +1227,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     }
 
     # get list of ALL ATPs under this parent
-    name_to_atp, atp_to_name = get_name_to_atp_for_all_children(workflow_parent)
+    name_to_atp, atp_to_name = get_name_to_atp_for_descendants(workflow_parent)
     # remove overall paper statuses from general overall ATPs
     for atp in overall_paper_status[workflow_parent].keys():
         del atp_to_name[atp]
@@ -1423,7 +1423,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         workflow_tags = get_workflow_tags_from_process(process_atp_id)
         if not workflow_tags:
             continue
-        _, tp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+        _, tp_to_name = get_name_to_atp_for_descendants(process_atp_id)
         all_workflow_tags = {}
         for wft in workflow_tags:
             all_workflow_tags[wft] = atp_to_name.get(wft, wft)

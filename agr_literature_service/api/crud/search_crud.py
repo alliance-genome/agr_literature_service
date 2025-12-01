@@ -11,7 +11,7 @@ from agr_literature_service.api.config import config
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
-from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents
+from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants
 from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
 
 from agr_literature_service.api.crud.search_ranking import (
@@ -865,7 +865,7 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
 
 
 def get_atp_ids(root_atp_ids: List[str]) -> List[str]:
-    return [child for root in root_atp_ids for child in atp_get_all_descendents(root)]
+    return [child for root in root_atp_ids for child in atp_get_all_descendants(root)]
 
 
 # --------------------------- ORCID helpers (kept local) ---------------------------
