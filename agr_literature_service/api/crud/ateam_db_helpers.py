@@ -393,7 +393,8 @@ def atp_get_all_descendants(curie: str, direct_children_only: bool = False, incl
             return list(subset_atp_to_name.keys())
     except Exception as e:
         logger.warning("Failed to fetch ATP descendants for %s: %s", curie, e)
-        return []
+        result: List[str] = []
+        return result
 
 
 def atp_get_all_ancestors(curie: str) -> List[str]:
