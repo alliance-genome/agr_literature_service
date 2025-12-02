@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 import logging
 import re
 import unicodedata
@@ -865,7 +865,8 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
 
 
 def get_atp_ids(root_atp_ids: List[str]) -> List[str]:
-    return [child for root in root_atp_ids for child in atp_get_all_descendants(root)]
+    # When include_names=False (default), atp_get_all_descendants returns List[str]
+    return [child for root in root_atp_ids for child in cast(List[str], atp_get_all_descendants(root))]
 
 
 # --------------------------- ORCID helpers (kept local) ---------------------------

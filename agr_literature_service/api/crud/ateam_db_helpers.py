@@ -4,7 +4,7 @@ from agr_curation_api.models import OntologyTermResult
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
-from typing import Dict, List, Optional, Iterable, Tuple, Union
+from typing import Dict, List, Optional, Iterable, Tuple, Union, cast
 import cachetools.func
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
@@ -136,7 +136,8 @@ def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants
     # ATPs are cached locally, so skip client call if applicable
     if ontology_node.startswith("ATP:"):
         if ancestors_or_descendants == "descendants":
-            return atp_get_all_descendants(ontology_node)
+            # When include_names=False (default), returns List[str]
+            return cast(List[str], atp_get_all_descendants(ontology_node))
         return atp_get_all_ancestors(ontology_node)
 
     # For non-ATP ontology nodes, use the client API
@@ -379,7 +380,6 @@ def atp_to_name_subset(curies: List[str]) -> Dict[str, str]:
     return {c: atp_to_name.get(c, c) for c in curies}
 
 
-@cachetools.func.ttl_cache(ttl=24 * 60 * 60)
 def atp_get_all_descendants(curie: str, direct_children_only: bool = False, include_self: bool = False,
                             include_names: bool = False) -> Union[List[str], List[Dict[str, str]]]:
     """
