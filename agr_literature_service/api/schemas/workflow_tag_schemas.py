@@ -25,6 +25,9 @@ class WorkflowTagSchemaPost(WorkflowTagSchemaCreate):
 
     reference_curie: str
     date_updated: Optional[datetime] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    date_created: Optional[datetime] = None
     curation_tag: Optional[str] = None
     note: Optional[str] = None
 
