@@ -83,25 +83,6 @@ def show(
 
 
 @router.get(
-    "/by/okta/{okta_id}",
-    response_model=List[PersonSettingSchemaShow],
-    status_code=status.HTTP_200_OK,
-)
-def get_by_okta_id(
-    okta_id: str,
-    db: Session = db_session,
-):
-    """
-    Get person_setting rows by Okta user ID.
-    Returns 200 with a list (possibly multiple rows) or 204 if none.
-    """
-    person_setting_list = person_setting_crud.get_by_okta_id(db, okta_id)
-    if not person_setting_list:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    return person_setting_list
-
-
-@router.get(
     "/by/email/{email}",
     response_model=List[PersonSettingSchemaShow],
     status_code=status.HTTP_200_OK,

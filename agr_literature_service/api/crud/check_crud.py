@@ -37,7 +37,8 @@ def check_ateam_api():
             return resp_obj
     except Exception as e:
         logger.error(f"Exception checking ateam api: {e}")
-        return {}
+        # return {}
+        return {"status": "SKIPPED until A-team cognito authentication is in place"}
 
 
 def check_database(db: Session):
