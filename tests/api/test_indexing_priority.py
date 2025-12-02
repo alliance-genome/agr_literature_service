@@ -28,14 +28,14 @@ def patch_ip_helpers(monkeypatch):
     """
     Make ip_crud independent of seeded ATP/workflow data:
       - get_workflow_tags_from_process -> fixed list of ATP codes
-      - get_name_to_atp_for_all_children -> fixed name map
+      - get_name_to_atp_for_descendants -> fixed name map
       - wft_patch -> simple in-DB update of WorkflowTagModel.workflow_tag_id
     """
     def _fake_get_workflow_tags_from_process(process_atp_id):
         # Pretend the process ATP:0000210 has these two child tags
         return ["ATP:0000211", "ATP:0000212"]
 
-    def _fake_get_name_to_atp_for_all_children(process_atp_id):
+    def _fake_get_name_to_atp_for_descendants(process_atp_id):
         # ip_crud only uses the 2nd return (atp_to_name)
         name_to_atp = {}
         atp_to_name = {
@@ -45,7 +45,7 @@ def patch_ip_helpers(monkeypatch):
         return name_to_atp, atp_to_name
 
     monkeypatch.setattr(ip_crud, "get_workflow_tags_from_process", _fake_get_workflow_tags_from_process)
-    monkeypatch.setattr(ip_crud, "get_name_to_atp_for_all_children", _fake_get_name_to_atp_for_all_children)
+    monkeypatch.setattr(ip_crud, "get_name_to_atp_for_descendants", _fake_get_name_to_atp_for_descendants)
 
     yield
     # nothing to unpatch explicitly (monkeypatch handles teardown)

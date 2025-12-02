@@ -29,8 +29,8 @@ def _patch_get_workflow_tags_from_process(process_atp_id: str):
     return ["ATP:curation_tag1", "ATP:curation_tag2"]
 
 
-#  get_name_to_atp_for_all_children(process_atp_id) -> (name_to_atp, atp_to_name)
-def _patch_get_name_to_atp_for_all_children(process_atp_id: str):
+#  get_name_to_atp_for_descendants(process_atp_id) -> (name_to_atp, atp_to_name)
+def _patch_get_name_to_atp_for_descendants(process_atp_id: str):
     name_to_atp = {"Tag One": "ATP:curation_tag1", "Tag Two": "ATP:curation_tag2"}
     atp_to_name = {"ATP:curation_tag1": "Tag One", "ATP:curation_tag2": "Tag Two"}
     return name_to_atp, atp_to_name
@@ -105,8 +105,8 @@ class TestManualIndexingTag:
             assert r2.status_code == status.HTTP_404_NOT_FOUND
 
     @patch(
-        "agr_literature_service.api.crud.manual_indexing_tag_crud.get_name_to_atp_for_all_children",
-        _patch_get_name_to_atp_for_all_children,
+        "agr_literature_service.api.crud.manual_indexing_tag_crud.get_name_to_atp_for_descendants",
+        _patch_get_name_to_atp_for_descendants,
     )
     @patch(
         "agr_literature_service.api.crud.manual_indexing_tag_crud.get_workflow_tags_from_process",
