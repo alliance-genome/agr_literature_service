@@ -659,7 +659,8 @@ def add_email_and_name(db: Session, data: dict) -> dict:
                 COALESCE(em.email_address, :user_id) AS email_address
             FROM person p
             LEFT JOIN email em ON em.person_id = p.person_id
-            WHERE p.okta_id = :user_id
+            JOIN users u ON u.person_id = p.person_id
+            WHERE u.id = :user_id
               AND em.date_invalidated IS NULL
             ORDER BY em.email_id ASC
             LIMIT 1
