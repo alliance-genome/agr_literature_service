@@ -25,16 +25,6 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    # Basic uniqueness checks on okta_id (if provided)
-    okta_id = data.get("okta_id")
-    if okta_id:
-        exists = db.query(PersonModel.person_id).filter(PersonModel.okta_id == okta_id).first()
-        if exists:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Person with okta_id '{okta_id}' already exists",
-            )
-
     # Create the Person row first
     emails_data = data.pop("emails", None)
     xrefs_data = data.pop("cross_references", None)
@@ -121,27 +111,13 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    # enforce okta_id uniqueness if it’s provided
-    if "okta_id" in data and data["okta_id"] is not None:
-        exists = (
-            db.query(PersonModel.person_id)
-            .filter(PersonModel.okta_id == data["okta_id"])
-            .filter(PersonModel.person_id != person_id)
-            .first()
-        )
-        if exists:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Another person already has okta_id '{data['okta_id']}'",
-            )
-
     # update only scalar/column fields; skip relationship fields
     RELATIONSHIP_FIELDS = {"emails", "cross_references"}
     for field, _value in list(data.items()):
         if field in RELATIONSHIP_FIELDS:
             data.pop(field, None)
 
-    ALLOWED = {"display_name", "curie", "okta_id", "mod_roles"}
+    ALLOWED = {"display_name", "curie", "mod_roles"}
     for field, value in data.items():
         if field in ALLOWED:
             setattr(obj, field, value)
