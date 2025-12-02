@@ -1351,7 +1351,7 @@ def get_recently_deleted_references(db: Session, mod_abbreviation, days):
         data.append({
             "pmid": x[0],
             "updated_by_email": x[1],
-            "updated_by_okta_id": x[2]
+            "updated_by_user_id": x[2]
         })
 
     return {
