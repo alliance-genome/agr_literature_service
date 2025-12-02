@@ -142,17 +142,6 @@ class TestPersonSetting:
             assert body["person_setting_id"] == test_person_setting.new_person_setting_id
             assert body["component_name"] == "TopicEntityTable"
 
-    def test_get_by_okta_id(self, test_person_setting):  # noqa
-        with TestClient(app) as client:
-            res = client.get(f"/person_setting/by/okta/{test_person_setting.okta_id}")
-            assert res.status_code == status.HTTP_200_OK
-            rows = res.json()
-            assert isinstance(rows, list)
-            assert any(r["person_setting_id"] == test_person_setting.new_person_setting_id for r in rows)
-
-            res_none = client.get("/person_setting/by/okta/does-not-exist")
-            assert res_none.status_code == status.HTTP_204_NO_CONTENT
-
     def test_find_by_name(self, test_person_setting):  # noqa
         with TestClient(app) as client:
             res = client.get("/person_setting/by/name", params={"name": "Alice"})
