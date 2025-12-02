@@ -3,7 +3,6 @@ from os import environ
 from typing import Dict, List, Set
 import requests
 from cachetools import TTLCache
-from cachetools.func import ttl_cache
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -225,7 +224,6 @@ def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
     return id_name_mapping
 
 
-@ttl_cache(maxsize=128, ttl=60 * 60)
 def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
     """
 
