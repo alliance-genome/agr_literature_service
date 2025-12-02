@@ -1,4 +1,6 @@
 import logging
+
+from agr_curation_api.models import OntologyTermResult
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
@@ -161,11 +163,11 @@ def _fetch_atp_names(missing_curies: List[str]) -> None:
     cli = _get_client()
     try:
         # If the client provides a helper, call it; otherwise silently skip.
-        if hasattr(cli, "get_ontology_names_by_curies"):
-            curie_to_name = cli.get_ontology_names_by_curies(missing_curies)  # type: ignore[attr-defined]
-            for curie, name in (curie_to_name or {}).items():
-                atp_to_name[curie] = name
-                name_to_atp[name] = curie
+        curie_to_name = cli.get_ontology_terms(missing_curies)  # type: ignore[attr-defined]
+        ontology_term: OntologyTermResult
+        for curie, ontology_term in (curie_to_name or {}).items():
+            atp_to_name[curie] = ontology_term.name
+            name_to_atp[ontology_term.name] = curie
     except Exception as e:
         logger.debug("ATP name fetching via client helper failed for %s: %s", missing_curies, e)
 
