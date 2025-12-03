@@ -63,7 +63,17 @@ def mock_load_name_to_atp_and_relationships():
         'ATP:0000166': ['ATP:task1_needed', 'ATP:task2_needed', 'ATP:task3_needed'],
         'ATP:0000178': ['ATP:task1_in_progress', 'ATP:task2_in_progress', 'ATP:task3_in_progress'],
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
-        'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete']
+        'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete'],
+
+        # Leaf nodes (no children) - needed to prevent API calls during tests
+        'ATP:0000175': [], 'ATP:0000174': [], 'ATP:0000173': [],
+        'ATP:0000141': [], 'ATP:0000135': [], 'ATP:0000139': [], 'ATP:0000134': [],
+        'ATP:0000164': [], 'ATP:0000163': [], 'ATP:0000162': [],
+        'ATP:fileuploadinprogress': [], 'ATP:fileuploadcomplete': [], 'ATP:fileuploadfailed': [],
+        'ATP:task1_needed': [], 'ATP:task2_needed': [], 'ATP:task3_needed': [],
+        'ATP:task1_in_progress': [], 'ATP:task2_in_progress': [], 'ATP:task3_in_progress': [],
+        'ATP:task1_failed': [], 'ATP:task2_failed': [], 'ATP:task3_failed': [],
+        'ATP:task1_complete': [], 'ATP:task2_complete': [], 'ATP:task3_complete': []
     }
     workflow_parent = {}
     atp_to_name = {}
