@@ -225,6 +225,14 @@ def entity_validation(taxon: str,
     return ateam_db_helpers.map_entity_to_curie(entity_type, entity_list, taxon)
 
 
+@router.get('/map_curie_to_name/{category}/{curie}',
+            status_code=200)
+def map_curie_to_name(category: str,
+                      curie: str):
+    mapping = ateam_db_helpers.map_curies_to_names(category, [curie])
+    return mapping.get(curie, curie)
+
+
 @router.get('/search_topic/{topic}',
             status_code=200)
 def search_topic(topic: str,
