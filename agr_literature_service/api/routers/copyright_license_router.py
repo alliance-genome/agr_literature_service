@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, Security, status
-from fastapi_okta import OktaUser
+from typing import Dict, Any
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import copyright_license_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import CopyrightLicenseSchemaPost
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/copyright_license",
@@ -16,16 +18,15 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create(request: CopyrightLicenseSchemaPost,
-           user: OktaUser = db_user,
+           user: Dict[str, Any] = Security(get_cognito_user_swagger),
            db: Session = db_session) -> int:
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     new_id = copyright_license_crud.create(db, request)
     return new_id
 

@@ -196,20 +196,6 @@ def show(db: Session, person_setting_id: int) -> PersonSettingModel:
 
 
 # ---------- Lookup helpers used by router ----------
-
-def get_by_okta_id(db: Session, okta_id: str) -> List[PersonSettingModel]:
-    if not okta_id:
-        return []
-    return (
-        db.query(PersonSettingModel)
-        .join(PersonModel, PersonModel.person_id == PersonSettingModel.person_id)
-        .options(joinedload(PersonSettingModel.person))
-        .filter(PersonModel.okta_id == okta_id)
-        .order_by(PersonSettingModel.component_name.asc(), PersonSettingModel.setting_name.asc())
-        .all()
-    )
-
-
 def get_by_email(db: Session, email: str) -> List[PersonSettingModel]:
     if not email:
         return []

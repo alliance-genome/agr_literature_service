@@ -1,20 +1,21 @@
 from multiprocessing import Process, Value
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Any
 
 from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
-from fastapi_okta import OktaUser
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud, \
     ateam_db_helpers, topic_entity_tag_utils
-from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
+from agr_cognito_auth import get_mod_access
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/topic_entity_tag",
@@ -24,14 +25,13 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 revalidate_all_tags_already_running = Value('b', False)
 
 
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=Dict)
-def create_tag(request: TopicEntityTagSchemaPost, user: OktaUser = db_user, db: Session = db_session):
-    set_global_user_from_okta(db, user)
+def create_tag(request: TopicEntityTagSchemaPost, user: Dict[str, Any] = Security(get_cognito_user_swagger), db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.create_tag(db, request)
 
 
@@ -48,19 +48,19 @@ def show_tag(topic_entity_tag_id: int,
               response_model=ResponseMessageSchema)
 def patch_tag(topic_entity_tag_id: int,
               request: TopicEntityTagSchemaUpdate,
-              user: OktaUser = db_user,
+              user: Dict[str, Any] = Security(get_cognito_user_swagger),
               db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
 
 
 @router.delete('/{topic_entity_tag_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_tag(topic_entity_tag_id,
-               user: OktaUser = db_user,
+               user: Dict[str, Any] = Security(get_cognito_user_swagger),
                db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_okta_mod_access(user))
+    set_global_user_from_cognito(db, user)
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_mod_access(user))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -68,18 +68,18 @@ def delete_tag(topic_entity_tag_id,
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create_source(request: TopicEntityTagSourceSchemaCreate,
-                  user: OktaUser = db_user,
+                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
                   db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.create_source(db, request)
 
 
 @router.delete('/source/{topic_entity_tag_source_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_source(topic_entity_tag_source_id,
-                  user: OktaUser = db_user,
+                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
                   db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     topic_entity_tag_crud.destroy_source(db, topic_entity_tag_source_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -89,9 +89,9 @@ def delete_source(topic_entity_tag_source_id,
               response_model=ResponseMessageSchema)
 def patch_source(topic_entity_tag_source_id,
                  request: TopicEntityTagSourceSchemaUpdate,
-                 user: OktaUser = db_user,
+                 user: Dict[str, Any] = Security(get_cognito_user_swagger),
                  db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
 
 
@@ -178,12 +178,13 @@ def revalidate_all_tags(email: str = None,
                         delete_all_tags_first: bool = False,
                         curie_or_reference_id: str = None,
                         validation_values_only: bool = False,
-                        user: OktaUser = db_user,
+                        user: Dict[str, Any] = Security(get_cognito_user_swagger),
                         db: Session = db_session):
-    if not user.groups or "SuperAdmin" not in user.groups:
+    user_groups = user.get("cognito:groups", [])
+    if not user_groups or "SuperAdmin" not in user_groups:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
-                            detail="Only users in the okta 'SuperAdmin' group are allowed to perform this request.")
-    set_global_user_from_okta(db, user)
+                            detail="Only users in the 'SuperAdmin' group are allowed to perform this request.")
+    set_global_user_from_cognito(db, user)
     global revalidate_all_tags_already_running
     if email is None:
         return {
@@ -208,9 +209,9 @@ def revalidate_all_tags(email: str = None,
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_manual_tags(reference_curie,
                        mod_abbreviation,
-                       user: OktaUser = db_user,
+                       user: Dict[str, Any] = Security(get_cognito_user_swagger),
                        db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     topic_entity_tag_utils.delete_manual_tets(db, reference_curie, mod_abbreviation)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -224,6 +225,14 @@ def entity_validation(taxon: str,
     return ateam_db_helpers.map_entity_to_curie(entity_type, entity_list, taxon)
 
 
+@router.get('/map_curie_to_name/{category}/{curie}',
+            status_code=200)
+def map_curie_to_name(category: str,
+                      curie: str):
+    mapping = ateam_db_helpers.map_curies_to_names(category, [curie])
+    return mapping.get(curie, curie)
+
+
 @router.get('/search_topic/{topic}',
             status_code=200)
 def search_topic(topic: str,
@@ -231,10 +240,15 @@ def search_topic(topic: str,
     return ateam_db_helpers.search_topic(topic, mod_abbr)
 
 
+@router.get('/search_descendants/{ancestor_curie}/{direct_children_only}/{include_self}/{include_names}',
+            status_code=200)
 @router.get('/search_descendants/{ancestor_curie}',
             status_code=200)
-def search_descendants(ancestor_curie: str):
-    return ateam_db_helpers.atp_get_all_descendents(ancestor_curie)
+def search_descendants(ancestor_curie: str,
+                       direct_children_only: bool = False,
+                       include_self: bool = False,
+                       include_names: bool = False):
+    return ateam_db_helpers.atp_get_all_descendants(ancestor_curie, direct_children_only, include_self, include_names)
 
 
 @router.get('/search_species/{species}',

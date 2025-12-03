@@ -1,7 +1,6 @@
 from fastapi import APIRouter
-from fastapi_okta import Okta
+from agr_cognito_auth import CognitoAuth, CognitoConfig
 
-from agr_literature_service.api.config import config
 import logging
 
 logger = logging.getLogger(__name__)
@@ -9,8 +8,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=['Authentication'])
 
 try:
-    auth = Okta(domain=config.OKTA_DOMAIN,
-                api_audience=config.OKTA_API_AUDIENCE
-                )
+    cognito_config = CognitoConfig()
+    auth = CognitoAuth(cognito_config)
 except Exception as e:
     logger.error(f"Authentication failed: Exception {e}")

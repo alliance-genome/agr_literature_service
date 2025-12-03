@@ -9,7 +9,7 @@ from fastapi import status
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
-from fastapi_okta.okta_utils import get_authentication_token
+from agr_cognito_auth import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa

@@ -26,8 +26,8 @@ from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
 from agr_literature_service.api.crud.ateam_db_helpers import (
-    get_name_to_atp_for_all_children,
-    atp_get_all_descendents,
+    get_name_to_atp_for_descendants,
+    atp_get_all_descendants,
     atp_get_all_ancestors,
     atp_get_parent,
     get_jobs_to_run,
@@ -84,7 +84,7 @@ def get_workflow_process_from_tag(workflow_tag_atp_id: str):
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
-    return atp_get_all_descendents(workflow_process_atp_id)
+    return atp_get_all_descendants(workflow_process_atp_id)
     # return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
@@ -642,12 +642,12 @@ def show(db: Session, reference_workflow_tag_id: int):
 
 def add_email_and_name(db: Session, data: dict) -> dict:
     """
-    Populate `updated_by_name` and `updated_by_email` based on the user's okta_id.
+    Populate `updated_by_name` and `updated_by_email` based on the user's user_id.
     Skip invalidated emails and use the earliest valid one.
-    Fallback to okta_id if no valid record is found.
+    Fallback to user_id if no valid record is found.
     """
-    okta_id = data.get("updated_by")
-    if not okta_id:
+    user_id = data.get("updated_by")
+    if not user_id:
         data.setdefault("updated_by_name", None)
         data.setdefault("updated_by_email", None)
         return data
@@ -655,23 +655,24 @@ def add_email_and_name(db: Session, data: dict) -> dict:
     row = db.execute(
         text("""
             SELECT
-                COALESCE(p.display_name, :okta_id)  AS display_name,
-                COALESCE(em.email_address, :okta_id) AS email_address
+                COALESCE(p.display_name, :user_id)  AS display_name,
+                COALESCE(em.email_address, :user_id) AS email_address
             FROM person p
             LEFT JOIN email em ON em.person_id = p.person_id
-            WHERE p.okta_id = :okta_id
+            JOIN users u ON u.person_id = p.person_id
+            WHERE u.id = :user_id
               AND em.date_invalidated IS NULL
             ORDER BY em.email_id ASC
             LIMIT 1
         """),
-        {"okta_id": okta_id},
+        {"user_id": user_id},
     ).fetchone()
 
     if row:
         updated_by_name, updated_by_email = row
     else:
-        updated_by_name = okta_id
-        updated_by_email = okta_id
+        updated_by_name = user_id
+        updated_by_email = user_id
 
     data["updated_by_name"] = updated_by_name
     data["updated_by_email"] = updated_by_email
@@ -1227,7 +1228,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     }
 
     # get list of ALL ATPs under this parent
-    name_to_atp, atp_to_name = get_name_to_atp_for_all_children(workflow_parent)
+    name_to_atp, atp_to_name = get_name_to_atp_for_descendants(workflow_parent)
     # remove overall paper statuses from general overall ATPs
     for atp in overall_paper_status[workflow_parent].keys():
         del atp_to_name[atp]
@@ -1423,7 +1424,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         workflow_tags = get_workflow_tags_from_process(process_atp_id)
         if not workflow_tags:
             continue
-        _, tp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+        _, tp_to_name = get_name_to_atp_for_descendants(process_atp_id)
         all_workflow_tags = {}
         for wft in workflow_tags:
             all_workflow_tags[wft] = atp_to_name.get(wft, wft)

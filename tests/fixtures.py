@@ -156,7 +156,26 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000189': ['ATP:task1_failed', 'ATP:task2_failed', 'ATP:task3_failed'],
         'ATP:0000169': ['ATP:task1_complete', 'ATP:task2_complete', 'ATP:task3_complete'],
         'ATP:0000335': ['ATP:0000334', 'ATP:0000321'],
-        'ATP:0000321': ['ATP:0000228', 'ATP:0000229']
+        'ATP:0000321': ['ATP:0000228', 'ATP:0000229'],
+
+        # Leaf nodes (no children) - needed to prevent API calls during tests
+        'ATP:0000080': [], 'ATP:0000081': [], 'ATP:0000086': [], 'ATP:0000087': [], 'ATP:0000033': [],
+        'ATP:0000082': [], 'ATP:0000083': [], 'ATP:0000084': [],
+        'ATP:0000034': [], 'ATP:0000100': [],
+        'ATP:0000175': [], 'ATP:0000174': [], 'ATP:0000173': [],
+        'ATP:0000141': [], 'ATP:0000135': [], 'ATP:0000139': [], 'ATP:0000134': [],
+        'ATP:0000168': [], 'ATP:0000167': [], 'ATP:0000170': [], 'ATP:0000171': [],
+        'ATP:0000164': [], 'ATP:0000163': [], 'ATP:0000162': [],
+        'ATP:0000274': [], 'ATP:0000275': [], 'ATP:0000276': [], 'ATP:0000336': [], 'ATP:0000343': [],
+        'ATP:0000123': [],
+        'ATP:0000069': [], 'ATP:0000070': [], 'ATP:0000071': [],
+        'ATP:fileuploadinprogress': [], 'ATP:fileuploadcomplete': [], 'ATP:fileuploadfailed': [],
+        'ATP:task1_needed': [], 'ATP:task2_needed': [], 'ATP:task3_needed': [],
+        'ATP:task1_in_progress': [], 'ATP:task2_in_progress': [], 'ATP:task3_in_progress': [],
+        'ATP:task1_failed': [], 'ATP:task2_failed': [], 'ATP:task3_failed': [],
+        'ATP:task1_complete': [], 'ATP:task2_complete': [], 'ATP:task3_complete': [],
+        'ATP:0000334': [],
+        'ATP:0000228': [], 'ATP:0000229': []
     }
 
     atp_to_name = {

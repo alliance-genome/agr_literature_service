@@ -1,9 +1,10 @@
 import pytest
 
-from fastapi_okta.okta_utils import get_authentication_token, generate_headers
+from agr_cognito_auth import get_authentication_token, generate_headers
 
 
 @pytest.fixture(scope="session")
 def auth_headers():
-    print("***** Generating Okta token *****")
+    """Session-scoped fixture for Cognito admin token headers."""
+    print("***** Generating Cognito admin token *****")
     yield generate_headers(get_authentication_token())

@@ -21,11 +21,13 @@ class GlobalConfig(BaseSettings):
     AWS_SECRET_ACCESS_KEY: Optional[str] = Field(None, env="AWS_SECRET_ACCESS_KEY")
     AWS_ACCESS_KEY_ID: Optional[str] = Field(None, env="AWS_ACCESS_KEY_ID")
 
-    OKTA_DOMAIN: str = Field(..., env="OKTA_DOMAIN")
-    OKTA_API_AUDIENCE: str = Field(..., env="OKTA_API_AUDIENCE")
-
-    OKTA_CLIENT_ID: Optional[str] = Field(None, env="OKTA_CLIENT_ID")
-    OKTA_CLIENT_SECRET: Optional[str] = Field(None, env="OKTA_CLIENT_SECRET")
+    # Cognito authentication settings
+    COGNITO_REGION: Optional[str] = Field(None, env="COGNITO_REGION")
+    COGNITO_USER_POOL_ID: Optional[str] = Field(None, env="COGNITO_USER_POOL_ID")
+    COGNITO_CLIENT_ID: Optional[str] = Field(None, env="COGNITO_CLIENT_ID")
+    COGNITO_ADMIN_CLIENT_ID: Optional[str] = Field(None, env="COGNITO_ADMIN_CLIENT_ID")
+    COGNITO_ADMIN_CLIENT_SECRET: Optional[str] = Field(None, env="COGNITO_ADMIN_CLIENT_SECRET")
+    COGNITO_TOKEN_URL: Optional[str] = Field(None, env="COGNITO_TOKEN_URL")
 
     PSQL_USERNAME: str = Field(..., env="PSQL_USERNAME")
     PSQL_PASSWORD: str = Field(..., env="PSQL_PASSWORD")

@@ -11,7 +11,7 @@ from agr_literature_service.api.models import (
     ReferenceModel,
 )
 from agr_literature_service.api.schemas.manual_indexing_tag_schemas import ManualIndexingTagSchemaPost
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_descendants
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
@@ -214,7 +214,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
 
     reference_curie = normalize_reference_curie(db, curie)
     curation_tag_to_name = {}
-    _, atp_to_name = get_name_to_atp_for_all_children("ATP:0000197")
+    _, atp_to_name = get_name_to_atp_for_descendants("ATP:0000197")
     for process_atp_id in ["ATP:0000227", "ATP:0000208"]:
         curation_tags = get_workflow_tags_from_process(process_atp_id)
         # _, atp_to_name = get_name_to_atp_for_all_children(process_atp_id)

@@ -37,15 +37,17 @@ jobs:
           PSQL_PORT: 5432
           PSQL_DATABASE: literature-test
           PYTHONPATH: agr_literature_service/lit_processing/
-          OKTA_DOMAIN: 'dev-30456587.okta.com/oauth2/default'
-          OKTA_API_AUDIENCE: 'api://default'
           RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
           ELASTICSEARCH_HOST: localhost
           ELASTICSEARCH_PORT: 9200
           ELASTICSEARCH_INDEX: references_index
           XML_PATH: ${GITHUB_WORKSPACE}/tests/tmp/
-          OKTA_CLIENT_ID: ${{ secrets.okta_client_id }}
-          OKTA_CLIENT_SECRET: ${{ secrets.okta_client_secret }}
+          COGNITO_REGION: us-east-1
+          COGNITO_USER_POOL_ID: us-east-1_d3eK6SYpI
+          COGNITO_CLIENT_ID: ${{ secrets.cognito_client_id }}
+          COGNITO_ADMIN_CLIENT_ID: ${{ secrets.cognito_admin_client_id }}
+          COGNITO_ADMIN_CLIENT_SECRET: ${{ secrets.cognito_admin_client_secret }}
+          COGNITO_TOKEN_URL: 'https://auth.alliancegenome.org/oauth2/token'
         run: |
           docker compose --env-file .env.test down -v
           docker compose --env-file .env.test up -d postgres

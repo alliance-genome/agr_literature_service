@@ -29,7 +29,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_ma
     has_manual_tet
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, \
     ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel
-from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
+from agr_cognito_auth import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \
@@ -213,22 +213,22 @@ def patch(db: Session, referencefile_id: int, request):
     return {"message": messageEnum.updated}
 
 
-def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
+def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
     referencefile: ReferencefileModel = read_referencefile_db_obj(db, referencefile_id)
     reference_id = referencefile.reference_id
     file_class = referencefile.file_class
     file_publication_status = referencefile.file_publication_status
     pdf_type = referencefile.pdf_type
     all_mods = set()
-    if mod_access == OktaAccess.ALL_ACCESS:
+    if mod_access == ModAccess.ALL_ACCESS:
         remove_from_s3_and_db(db, referencefile)
-    elif mod_access != OktaAccess.NO_ACCESS:
+    elif mod_access != ModAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:
             if referencefile_mod.mod_id is None:
                 all_mods.add('PMC')
             else:
                 all_mods.add(referencefile_mod.mod.abbreviation)
-                if referencefile_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access]:
+                if referencefile_mod.mod.abbreviation == MOD_ACCESS_ABBR[mod_access]:
                     destroy_mod_association(db, referencefile_mod.referencefile_mod_id)
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -236,7 +236,7 @@ def destroy(db: Session, referencefile_id: int, mod_access: OktaAccess):
 
     if file_class == 'main' and file_publication_status == 'final' and pdf_type == 'pdf':
         cleanup_wft_tet_tags_for_deleted_main_pdf(db, reference_id, all_mods,
-                                                  OKTA_ACCESS_MOD_ABBR[mod_access])
+                                                  MOD_ACCESS_ABBR[mod_access])
 
 
 def cleanup_wft_tet_tags_for_deleted_main_pdf(db: Session, reference_id, all_mods, access_level, change_file_status=False):
@@ -477,7 +477,7 @@ def cleanup_old_pdf_file(db: Session, ref_curie: str, mod_abbreviation):  # prag
 
             # Delete the temp files and older final files
             for file_id in temp_files_to_delete:
-                destroy(db, file_id, [okta_access for okta_access, mod_abbr in OKTA_ACCESS_MOD_ABBR.items() if
+                destroy(db, file_id, [access for access, mod_abbr in MOD_ACCESS_ABBR.items() if
                                       mod_abbr == mod_abbreviation][0])
 
 
@@ -597,7 +597,7 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
     return md5sum
 
 
-def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess,  # pragma: no cover
+def download_file(db: Session, referencefile_id: int, mod_access: ModAccess,  # pragma: no cover
                   use_in_api: bool = True):  # pragma: no cover
     referencefile = read_referencefile_db_obj(db, referencefile_id)
 
@@ -606,9 +606,9 @@ def download_file(db: Session, referencefile_id: int, mod_access: OktaAccess,  #
         user_permission = referencefile.reference.copyright_license.open_access
 
     if user_permission is False:
-        if mod_access != OktaAccess.NO_ACCESS:
-            if mod_access == OktaAccess.ALL_ACCESS or any(
-                    ref_file_mod.mod.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access] if ref_file_mod.mod is not None else
+        if mod_access != ModAccess.NO_ACCESS:
+            if mod_access == ModAccess.ALL_ACCESS or any(
+                    ref_file_mod.mod.abbreviation == MOD_ACCESS_ABBR[mod_access] if ref_file_mod.mod is not None else
                     True for ref_file_mod in referencefile.referencefile_mods):
                 user_permission = True
 
@@ -639,7 +639,7 @@ def cleanup(file_path):
     os.remove(file_path)
 
 
-def download_additional_files_tarball(db: Session, reference_id, mod_access: OktaAccess):
+def download_additional_files_tarball(db: Session, reference_id, mod_access: ModAccess):
     ref_curie = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == reference_id).one_or_none()
     if not ref_curie:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -660,7 +660,7 @@ def download_additional_files_tarball(db: Session, reference_id, mod_access: Okt
                     or_(
                         ReferencefileModAssociationModel.mod == None, # noqa
                         ReferencefileModAssociationModel.mod.has(
-                            ModModel.abbreviation == OKTA_ACCESS_MOD_ABBR[mod_access])
+                            ModModel.abbreviation == MOD_ACCESS_ABBR[mod_access])
                     )
                 )
             )

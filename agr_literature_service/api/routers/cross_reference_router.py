@@ -1,18 +1,19 @@
-from typing import List
+from typing import List, Dict, Any
 
 from fastapi import APIRouter, Depends, Response, Security, status
-from fastapi_okta import OktaUser
+
 from sqlalchemy.orm import Session
 from starlette.responses import PlainTextResponse
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud
 from agr_literature_service.api.crud.utils import patterns_check
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
                                                 ResponseMessageSchema, CrossReferenceSchemaShow)
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/cross_reference",
@@ -21,25 +22,24 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create(request: CrossReferenceSchemaPost,
-           user: OktaUser = db_user,
+           user: Dict[str, Any] = Security(get_cognito_user_swagger),
            db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return cross_reference_crud.create(db, request)
 
 
 @router.delete('/{cross_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(cross_reference_id: int,
-            user: OktaUser = db_user,
+            user: Dict[str, Any] = Security(get_cognito_user_swagger),
             db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     cross_reference_crud.destroy(db, cross_reference_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -49,9 +49,9 @@ def destroy(cross_reference_id: int,
               response_model=ResponseMessageSchema)
 async def patch(cross_reference_id: int,
                 request: CrossReferenceSchemaUpdate,
-                user: OktaUser = db_user,
+                user: Dict[str, Any] = Security(get_cognito_user_swagger),
                 db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
     return cross_reference_crud.patch(db, cross_reference_id, patch)
 

@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from fastapi_okta import OktaUser
+from typing import Dict, Any
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import resource_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (ResourceSchemaPost,
                                                 ResourceSchemaShow, ResourceSchemaUpdate,
                                                 ResponseMessageSchema)
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/resource",
@@ -18,7 +20,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post('/',
@@ -26,9 +27,9 @@ db_user = Security(auth.get_user)
 
              response_model=str)
 def create(request: ResourceSchemaPost,
-           user: OktaUser = db_user,
+           user: Dict[str, Any] = Security(get_cognito_user_swagger),
            db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return resource_crud.create(db, request)
 
 
@@ -36,9 +37,9 @@ def create(request: ResourceSchemaPost,
 
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: OktaUser = db_user,
+            user: Dict[str, Any] = Security(get_cognito_user_swagger),
             db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     resource_crud.destroy(db, curie)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -48,9 +49,9 @@ def destroy(curie: str,
               response_model=ResponseMessageSchema)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
-          user: OktaUser = db_user,
+          user: Dict[str, Any] = Security(get_cognito_user_swagger),
           db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
 
     return resource_crud.patch(db, curie, patch)

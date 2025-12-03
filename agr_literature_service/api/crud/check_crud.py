@@ -15,7 +15,7 @@ from os import environ, path
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from fastapi_okta.okta_utils import get_authentication_token
+from agr_cognito_auth import get_authentication_token
 
 import logging
 
@@ -37,7 +37,8 @@ def check_ateam_api():
             return resp_obj
     except Exception as e:
         logger.error(f"Exception checking ateam api: {e}")
-        return {}
+        # return {}
+        return {"status": "SKIPPED until A-team cognito authentication is in place"}
 
 
 def check_database(db: Session):

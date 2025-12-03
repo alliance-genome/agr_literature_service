@@ -1,16 +1,17 @@
 import json
 from json import JSONDecodeError
-from typing import Union
+from typing import Union, Dict, Any
 
 from fastapi import APIRouter, Depends, Response, Security, status, UploadFile, File, HTTPException
-from fastapi_okta import OktaUser
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import ml_model_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas.ml_model_schemas import MLModelSchemaPost, MLModelSchemaShow
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_auth import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/ml_model",
@@ -20,7 +21,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post("/upload",
@@ -41,7 +41,7 @@ def upload_model(
         dataset_id: int = None,
         file: UploadFile = File(...),  # noqa: B008
         model_data_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
-        user: OktaUser = db_user,
+        user: Dict[str, Any] = Security(get_cognito_user_swagger),
         db: Session = db_session,
         production: bool = False,
         negated: bool = True,
@@ -92,16 +92,16 @@ def upload_model(
         data_novelty=model_data["data_novelty"],
         species=model_data["species"]
     )
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)
 
 
 @router.delete('/{ml_model_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(ml_model_id: int,
-            user: OktaUser = db_user,
+            user: Dict[str, Any] = Security(get_cognito_user_swagger),
             db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     ml_model_crud.destroy(db, ml_model_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

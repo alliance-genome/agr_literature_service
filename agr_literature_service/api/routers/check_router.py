@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, Security
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import check_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (AteamApiSchemaShow, DatabaseSchemaShow, EnvironmentsSchemaShow)
 
 router = APIRouter(
@@ -13,7 +12,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.get('/ateamapi',

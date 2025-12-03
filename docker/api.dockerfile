@@ -8,6 +8,7 @@ RUN apk update && apk add --no-cache git gcc musl-dev postgresql-dev libffi-dev
 WORKDIR /usr/local/bin/src/literature
 RUN mkdir -p /usr/local/bin/src/literature/agr_literature_service
 ADD ./agr_literature_service /usr/local/bin/src/literature/agr_literature_service
+ADD ./agr_cognito_auth /usr/local/bin/src/literature/agr_cognito_auth
 COPY ./requirements.txt .
 COPY ./logging.conf .
 COPY ./gunicorn.conf.py .
