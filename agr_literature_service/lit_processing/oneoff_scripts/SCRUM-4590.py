@@ -29,6 +29,10 @@ def do_it(db_session):
 
     print(f"del_set = {len(del_set)}")
     print(f"del_list = {len(del_list)}")
+    if not del_list:
+        print("No deletions needed")
+        exit()
+
     print(f"del list first={del_list[0]}, last={del_list[-1]}")
     print(datetime.datetime.now())
 
@@ -37,7 +41,7 @@ def do_it(db_session):
         batch_tets = del_list[i:i + large_batch_size]
         print(f"batch_num {batch_num} {datetime.datetime.now()}")
         tets = ', '.join(batch_tets)
-        query = f"""DELETE fROM topic_entity_tag_version where topic_entity_tag_id in ({tets})"""
+        query = f"""DELETE FROM topic_entity_tag_version WHERE topic_entity_tag_id IN ({tets})"""
         db_session.execute(text(query))
         db_session.commit()
 
