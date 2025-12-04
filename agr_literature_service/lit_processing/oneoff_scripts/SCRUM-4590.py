@@ -35,7 +35,7 @@ def do_it(db_session):
     large_batch_size = 500
     for batch_num, i in enumerate(range(0, len(del_list), large_batch_size), start=1):
         batch_tets = del_list[i:i + large_batch_size]
-        print(f"batch_num {batch_num} {datetime.datetime.now()}");
+        print(f"batch_num {batch_num} {datetime.datetime.now()}")
         tets = ', '.join(batch_tets)
         query = f"""DELETE fROM topic_entity_tag_version where topic_entity_tag_id in ({tets})"""
         db_session.execute(text(query))
