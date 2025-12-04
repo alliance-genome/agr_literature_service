@@ -8,7 +8,7 @@
 
 import logging.config
 from os import path
-from agr_cognito_auth import get_authentication_token, generate_headers
+from agr_cognito_py import get_authentication_token, generate_headers
 import requests
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../logging.conf')

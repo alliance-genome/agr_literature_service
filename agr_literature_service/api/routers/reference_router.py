@@ -14,7 +14,7 @@ from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSc
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
 from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 
 import datetime
 import logging

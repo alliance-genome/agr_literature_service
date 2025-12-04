@@ -7,7 +7,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import resource_descriptor_crud
 from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/resource_descriptor",

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import reference_crud, resource_crud
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/bulk_download",

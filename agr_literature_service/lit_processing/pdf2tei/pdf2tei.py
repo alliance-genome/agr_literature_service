@@ -12,7 +12,7 @@ from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_refe
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
-from agr_cognito_auth import ModAccess
+from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 

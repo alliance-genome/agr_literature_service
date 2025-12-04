@@ -29,7 +29,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_ma
     has_manual_tet
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, \
     ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel
-from agr_cognito_auth import ModAccess, MOD_ACCESS_ABBR
+from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaPost, \

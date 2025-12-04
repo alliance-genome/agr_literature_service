@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.deps import s3_auth
-from agr_cognito_auth import get_mod_access
+from agr_cognito_py import get_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
@@ -24,7 +24,7 @@ from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 
 logger = logging.getLogger(__name__)
 
