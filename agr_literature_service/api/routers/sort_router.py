@@ -1,9 +1,8 @@
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Security, Depends
+from fastapi import APIRouter, Depends
 from typing import List
 
 from agr_literature_service.api import database
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.crud import sort_crud
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow
 
@@ -15,7 +14,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.get('/need_review',

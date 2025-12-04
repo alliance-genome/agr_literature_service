@@ -29,8 +29,8 @@ def _patch_get_workflow_tags_from_process(process_atp_id: str):
     return ["ATP:curation_tag1", "ATP:curation_tag2"]
 
 
-#  get_name_to_atp_for_all_children(process_atp_id) -> (name_to_atp, atp_to_name)
-def _patch_get_name_to_atp_for_all_children(process_atp_id: str):
+#  get_name_to_atp_for_descendants(process_atp_id) -> (name_to_atp, atp_to_name)
+def _patch_get_name_to_atp_for_descendants(process_atp_id: str):
     name_to_atp = {"Tag One": "ATP:curation_tag1", "Tag Two": "ATP:curation_tag2"}
     atp_to_name = {"ATP:curation_tag1": "Tag One", "ATP:curation_tag2": "Tag Two"}
     return name_to_atp, atp_to_name
@@ -105,8 +105,8 @@ class TestManualIndexingTag:
             assert r2.status_code == status.HTTP_404_NOT_FOUND
 
     @patch(
-        "agr_literature_service.api.crud.manual_indexing_tag_crud.get_name_to_atp_for_all_children",
-        _patch_get_name_to_atp_for_all_children,
+        "agr_literature_service.api.crud.manual_indexing_tag_crud.get_name_to_atp_for_descendants",
+        _patch_get_name_to_atp_for_descendants,
     )
     @patch(
         "agr_literature_service.api.crud.manual_indexing_tag_crud.get_workflow_tags_from_process",
@@ -118,36 +118,27 @@ class TestManualIndexingTag:
         Ensures we get both 'current_curation_tag' (the DB row) and 'all_curation_tags' (patched).
         """
         with TestClient(app) as client:
-            url = f"/manual_indexing_tag/get_manual_indexing_tag/{test_manual_indexing_tag.new_reference_curie}"
+            url = (
+                f"/manual_indexing_tag/get_manual_indexing_tag/"
+                f"{test_manual_indexing_tag.new_reference_curie}/"
+                f"{test_manual_indexing_tag.new_mod_abbreviation}"
+            )
             r = client.get(url, headers=auth_headers)
             assert r.status_code == status.HTTP_200_OK, r.text
             data = r.json()
+
             assert "current_curation_tag" in data
-            assert "all_curation_tags" in data
-            # the patched dictionary should be present
+            assert isinstance(data["current_curation_tag"], dict)
+            assert data["current_curation_tag"]["curation_tag"] == "ATP:curation_tag1"
+            assert data["current_curation_tag"]["reference_curie"] == test_manual_indexing_tag.new_reference_curie
+            assert data["current_curation_tag"]["mod_abbreviation"] == test_manual_indexing_tag.new_mod_abbreviation
+
             assert data["all_curation_tags"] == {
                 "ATP:0000208": "ATP:0000208",
                 "ATP:0000227": "ATP:0000227",
                 "ATP:curation_tag1": "Tag One",
                 "ATP:curation_tag2": "Tag Two",
             }
-            # and we should see our current/created row reflected
-            current = data["current_curation_tag"]
-            assert isinstance(current, list) and len(current) >= 1
-            assert any(row["curation_tag"] == "ATP:curation_tag1" for row in current)
-
-    def test_get_manual_indexing_tag_with_non_zfin_mod_returns_empty(self, test_manual_indexing_tag, auth_headers):  # noqa
-        """
-        Router short-circuits to [] when a non-ZFIN mod_abbreviation path param is provided.
-        """
-        with TestClient(app) as client:
-            url = (
-                f"/manual_indexing_tag/get_manual_indexing_tag/"
-                f"{test_manual_indexing_tag.new_reference_curie}/WB"
-            )
-            r = client.get(url, headers=auth_headers)
-            assert r.status_code == status.HTTP_200_OK, r.text
-            assert r.json() == []
 
     @pytest.mark.xfail(reason="Router uses body.manual_indexing_tag instead of body.curation_tag")
     def test_set_manual_indexing_tag_endpoint(self, test_reference, test_mod, auth_headers):  # noqa

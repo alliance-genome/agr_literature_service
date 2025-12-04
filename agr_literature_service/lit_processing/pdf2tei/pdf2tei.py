@@ -12,7 +12,7 @@ from agr_literature_service.api.crud.referencefile_crud import get_main_pdf_refe
 from agr_literature_service.api.crud.workflow_tag_crud import get_jobs, job_change_atp_code
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
-from agr_literature_service.api.routers.okta_utils import OktaAccess
+from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 
@@ -66,7 +66,7 @@ def main():
             ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
                 ReferencefileModel.referencefile_id == ref_file_id_to_convert).one()
             file_content = download_file(db=db, referencefile_id=ref_file_id_to_convert,
-                                         mod_access=OktaAccess.ALL_ACCESS, use_in_api=False)
+                                         mod_access=ModAccess.ALL_ACCESS, use_in_api=False)
             response = convert_pdf_with_grobid(file_content)
             # Check the response
             if response.status_code == 200:

@@ -1,9 +1,5 @@
-"""
-manual_indexing_tag_crud.py
-"""
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime, date
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
@@ -15,9 +11,12 @@ from agr_literature_service.api.models import (
     ReferenceModel,
 )
 from agr_literature_service.api.schemas.manual_indexing_tag_schemas import ManualIndexingTagSchemaPost
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_descendants
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
+    add_email_and_name
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
+from agr_literature_service.api.crud.user_utils import map_to_user_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,6 +43,11 @@ def create(db: Session, manual_indexing_tag: ManualIndexingTagSchemaPost) -> int
     Create a new manual_indexing_tag entry and return its ID.
     """
     data: Dict[str, Any] = jsonable_encoder(manual_indexing_tag)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     reference_curie: str = data.pop("reference_curie")
     mod_abbreviation: str = data.pop("mod_abbreviation")
@@ -119,6 +123,11 @@ def destroy(db: Session, manual_indexing_tag_id: int) -> None:
 def patch(db: Session, manual_indexing_tag_id: int, manual_indexing_tag_update: Dict[str, Any]) -> None:
 
     data: Dict[str, Any] = jsonable_encoder(manual_indexing_tag_update)
+
+    if "created_by" in data and data["created_by"] is not None:
+        data["created_by"] = map_to_user_id(data["created_by"], db)
+    if "updated_by" in data and data["updated_by"] is not None:
+        data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     obj = (
         db.query(ManualIndexingTagModel)
@@ -197,25 +206,15 @@ def show(db: Session, manual_indexing_tag_id: int) -> Dict[str, Any]:
         data["mod_abbreviation"] = ""
     data.pop("mod_id", None)
 
-    # add email
-    sql_query_str = """
-        SELECT email
-        FROM users
-        WHERE id = :okta_id
-    """
-    result = db.execute(text(sql_query_str), {"okta_id": data.get("updated_by")})
-    row = result.fetchone()
-    data["updated_by_email"] = data.get("updated_by") if row is None else row[0]
-    if not data.get("updated_by_email"):
-        data["updated_by_email"] = data.get("updated_by")
+    data = add_email_and_name(db, data)
     return data
 
 
-def get_manual_indexing_tag(db: Session, curie: str):
+def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
 
     reference_curie = normalize_reference_curie(db, curie)
     curation_tag_to_name = {}
-    _, atp_to_name = get_name_to_atp_for_all_children("ATP:0000197")
+    _, atp_to_name = get_name_to_atp_for_descendants("ATP:0000197")
     for process_atp_id in ["ATP:0000227", "ATP:0000208"]:
         curation_tags = get_workflow_tags_from_process(process_atp_id)
         # _, atp_to_name = get_name_to_atp_for_all_children(process_atp_id)
@@ -229,52 +228,49 @@ def get_manual_indexing_tag(db: Session, curie: str):
         curation_tag_to_name[process_atp_id] = atp_to_name.get(process_atp_id, process_atp_id)
 
     sql = """
-        SELECT
-            mit.manual_indexing_tag_id,
-            mit.curation_tag,
-            mit.confidence_score,
-            mit.validation_by_biocurator,
-            mit.date_updated,
-            r.curie AS reference_curie,
-            m.abbreviation AS mod_abbreviation,
-            COALESCE(u.email, mit.updated_by) AS updated_by_email,
-            mit.updated_by
-        FROM manual_indexing_tag mit
-        JOIN reference r ON r.reference_id = mit.reference_id
-        JOIN mod m ON m.mod_id = mit.mod_id
-        LEFT JOIN users u ON u.id = mit.updated_by
-        WHERE r.curie = :ref_curie
+    SELECT
+        mit.manual_indexing_tag_id,
+        mit.curation_tag,
+        mit.confidence_score,
+        mit.validation_by_biocurator,
+        mit.date_updated,
+        mit.note,
+        r.curie AS reference_curie,
+        m.abbreviation AS mod_abbreviation,
+        COALESCE(e.email_address, mit.updated_by) AS updated_by_email,
+        COALESCE(p.display_name, mit.updated_by) AS updated_by_name,
+        mit.updated_by
+    FROM manual_indexing_tag mit
+    JOIN reference r ON r.reference_id = mit.reference_id
+    JOIN mod m ON m.mod_id = mit.mod_id
+    LEFT JOIN users u  ON u.id = mit.updated_by
+    LEFT JOIN person p ON p.person_id = u.person_id
+    LEFT JOIN LATERAL (
+        SELECT em.email_address
+        FROM email em
+        WHERE em.person_id = u.person_id
+        AND em.date_invalidated IS NULL
+        ORDER BY em.email_id ASC
+        LIMIT 1
+    ) e ON TRUE
+    WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
-
-    def _fmt_date(raw):
-        if raw is None:
-            return None
-        if isinstance(raw, datetime):
-            d = raw.date()
-        elif isinstance(raw, date):
-            d = raw
-        else:
-            s = str(raw)
-            try:
-                dt = datetime.fromisoformat(s)
-            except ValueError:
-                dt = datetime.strptime(s[:10], "%Y-%m-%d")
-            d = dt.date()
-        return f"{d.strftime('%B')} {d.day}, {d.year}"
-
     tags = []
     for row in rows:
         d = dict(row)
+        if d["mod_abbreviation"] != mod_abbreviation:
+            continue
         code = d.get("curation_tag")
         d["curation_tag_name"] = curation_tag_to_name.get(code, code)
-        d["date_updated"] = _fmt_date(d.get("date_updated"))
+        d["date_updated"] = d["date_updated"].isoformat() if d["date_updated"] else None
         tags.append(d)
-
-    return {
-        "current_curation_tag": tags,
-        "all_curation_tags": curation_tag_to_name,
-    }
+    if tags:
+        return {
+            "current_curation_tag": tags[0],
+            "all_curation_tags": curation_tag_to_name,
+        }
+    return {}
 
 
 def set_manual_indexing_tag(

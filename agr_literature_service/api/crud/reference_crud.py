@@ -46,12 +46,10 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
                                                CitationModel)
-from agr_literature_service.api.routers.okta_utils import OktaAccess
+from agr_cognito_py import ModAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
     TopicEntityTagSchemaPost
 from agr_literature_service.global_utils import get_next_reference_curie
-# from agr_literature_service.api.crud.workflow_tag_crud import \
-#    get_workflow_tags_from_process
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import \
     get_meta_data, get_reference_col_names, generate_json_data
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_references_single_mod import \
@@ -62,6 +60,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
     get_journal_by_resource_id, get_citation_data, get_license_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +105,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             db_objs = []
             for obj in value:
                 obj_data = jsonable_encoder(obj)
+                if "created_by" in obj_data and obj_data["created_by"] is not None:
+                    obj_data["created_by"] = map_to_user_id(obj_data["created_by"], db)
+                if "updated_by" in obj_data and obj_data["updated_by"] is not None:
+                    obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                 db_obj = None
                 if field in ["authors"]:
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
@@ -157,6 +160,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             if value is not None:
                 for obj in value:
                     obj_data = jsonable_encoder(obj)
+                    if "created_by" in obj_data and obj_data["created_by"] is not None:
+                        obj_data["created_by"] = map_to_user_id(obj_data["created_by"], db)
+                    if "updated_by" in obj_data and obj_data["updated_by"] is not None:
+                        obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                     obj_data["reference_curie"] = curie
                     try:
                         create_mod_corpus_association(db, obj_data)
@@ -183,6 +190,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             if value is not None:
                 for obj in value:
                     obj_data = jsonable_encoder(obj)
+                    if "created_by" in obj_data and obj_data["created_by"] is not None:
+                        obj_data["created_by"] = map_to_user_id(obj_data["created_by"], db)
+                    if "updated_by" in obj_data and obj_data["updated_by"] is not None:
+                        obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                     obj_data["reference_curie"] = curie
                     try:
                         if "reference_workflow_tag_id" in obj_data and obj_data["reference_workflow_tag_id"]:
@@ -196,6 +207,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             if value is not None:
                 for obj in value:
                     obj_data = obj.model_dump(exclude_unset=True)
+                    if "created_by" in obj_data and obj_data["created_by"] is not None:
+                        obj_data["created_by"] = map_to_user_id(obj_data["created_by"], db)
+                    if "updated_by" in obj_data and obj_data["updated_by"] is not None:
+                        obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                     obj_data["reference_curie"] = curie
                     obj_data["force_insertion"] = True
                     try:
@@ -228,7 +243,7 @@ def destroy(db: Session, curie_or_reference_id: str):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
     for referencefile in reference.referencefiles:
-        destroy_referencefile(db, referencefile.referencefile_id, OktaAccess.ALL_ACCESS)
+        destroy_referencefile(db, referencefile.referencefile_id, ModAccess.ALL_ACCESS)
     db.delete(reference)
     db.commit()
 
@@ -245,6 +260,12 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     """
 
     reference_data = jsonable_encoder(reference_update)
+
+    if "created_by" in reference_data and reference_data["created_by"] is not None:
+        reference_data["created_by"] = map_to_user_id(reference_data["created_by"], db)
+    if "updated_by" in reference_data and reference_data["updated_by"] is not None:
+        reference_data["updated_by"] = map_to_user_id(reference_data["updated_by"], db)
+
     # logger.debug("reference_data = {}".format(reference_data))
     reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
     reference_db_obj = db.query(ReferenceModel).filter(or_(
@@ -1330,7 +1351,7 @@ def get_recently_deleted_references(db: Session, mod_abbreviation, days):
         data.append({
             "pmid": x[0],
             "updated_by_email": x[1],
-            "updated_by_okta_id": x[2]
+            "updated_by_user_id": x[2]
         })
 
     return {

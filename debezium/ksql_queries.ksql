@@ -26,7 +26,7 @@ CREATE TABLE reference (
     pubmed_abstract_languages array<string>,
     pubmed_publication_status string,
     pubmed_types array<string>,
-    resource_id bigint,
+    resource_id string,
     title string,
     volume string
   ) WITH (
@@ -724,7 +724,7 @@ CREATE TABLE reference_with_resource AS
     reference_with_citation.SHORT_CITATION,
     resource.title \"RESOURCE_TITLE\"
     FROM reference_with_citation reference_with_citation
-    LEFT OUTER JOIN resource resource ON cast(reference_with_citation.resource_id as string) = resource.resource_id
+    LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
     EMIT CHANGES;
 
 CREATE TABLE reference_joined WITH (
@@ -794,6 +794,7 @@ CREATE TABLE reference_with_copyright AS
     reference_with_resource.date_created,
     reference_with_resource.keywords,
     reference_with_resource.CITATION,
+    reference_with_resource.SHORT_CITATION,
     copyright_license.open_access,
     copyright_license.name \"copyright_license\"
     FROM reference_with_resource reference_with_resource
@@ -825,6 +826,7 @@ CREATE TABLE public_reference_joined WITH (
     reference_with_copyright.date_created \"date_created\",
     reference_with_copyright.keywords \"keywords\",
     reference_with_copyright.CITATION \"citation\",
+    reference_with_copyright.SHORT_CITATION \"short_citation\",
     reference_with_copyright.open_access \"open_access\",
     reference_with_copyright.\"copyright_license\" \"copyright_license\",
     cross_references.cross_references \"cross_references\",

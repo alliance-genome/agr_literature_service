@@ -1,4 +1,5 @@
 from typing import Optional, Literal
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_validator, confloat
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
@@ -65,7 +66,8 @@ class ManualIndexingTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     validation_by_biocurator: Optional[ValidationByBiocurator] = None
 
     updated_by_email: Optional[str] = None
-    date_updated: Optional[str] = None  # for output convenience
+    updated_by_name: Optional[str] = None
+    date_updated: Optional[datetime] = None  # for output convenience
 
     @field_validator("curation_tag")
     def _check_atp_prefix_optional(cls, v: Optional[str]) -> Optional[str]:

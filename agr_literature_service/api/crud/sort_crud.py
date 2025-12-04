@@ -181,24 +181,29 @@ def get_mod_curators(db: Session, mod_abbreviation):
     _, one_month_ago, _ = get_past_to_present_date_range(30)
 
     sql_query_str = """
-        SELECT u.id, u.email
-        FROM users u
-        INNER JOIN mod_corpus_association mca ON mca.updated_by = u.id
-        INNER JOIN mod m ON mca.mod_id = m.mod_id
-        WHERE mca.corpus IS NOT NULL
-        AND m.abbreviation = :mod_abbreviation
-        AND u.email is NOT NULL
-        AND mca.date_updated >= :one_month_ago
+    SELECT DISTINCT
+        u.id,
+        e.email_address AS email,
+        p.display_name AS name
+    FROM mod_corpus_association mca
+    JOIN mod m ON m.mod_id = mca.mod_id
+    LEFT JOIN users u ON u.id = mca.updated_by
+    LEFT JOIN person p ON p.person_id = u.person_id
+    LEFT JOIN email e ON e.person_id = u.person_id
+    WHERE mca.corpus IS NOT NULL
+    AND m.abbreviation = :mod_abbreviation
+    AND mca.date_updated >= :one_month_ago
+    AND p.display_name IS NOT NULL
     """
     sql_query = text(sql_query_str)
     result = db.execute(sql_query, {
         'mod_abbreviation': mod_abbreviation,
         'one_month_ago': one_month_ago
     })
-    return {row[1]: row[0] for row in result}
+    return {row[2]: row[1] for row in result}, {row[1]: row[0] for row in result}
 
 
-def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, curator_okta_id, day):
+def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, curator_id, day):
 
     _, start_date, end_date = get_past_to_present_date_range(day)
 
@@ -220,9 +225,9 @@ def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, cura
         "end_date": end_date
     }
 
-    if curator_okta_id is not None:
-        sql_query_str += " AND mcav.updated_by = :curator_okta_id"
-        params["curator_okta_id"] = curator_okta_id
+    if curator_id is not None:
+        sql_query_str += " AND mcav.updated_by = :curator_id"
+        params["curator_id"] = curator_id
 
     sql_query_str += " ORDER BY mcav.date_updated DESC"
 
@@ -236,11 +241,13 @@ def get_recently_sorted_reference_ids(db: Session, mod_abbreviation, count, cura
     return reference_ids
 
 
-def show_recently_sorted(db: Session, mod_abbreviation, count, curator, day):
+def show_recently_sorted(db: Session, mod_abbreviation, count, curator_email, day):
 
-    email_to_okta_id_mapping = get_mod_curators(db, mod_abbreviation)
+    name_to_email_mapping, email_to_id_mapping = get_mod_curators(db, mod_abbreviation)
 
-    reference_ids = get_recently_sorted_reference_ids(db, mod_abbreviation, count, curator, day)
+    reference_ids = get_recently_sorted_reference_ids(db, mod_abbreviation, count,
+                                                      email_to_id_mapping.get(curator_email),
+                                                      day)
 
     references_query = (
         db.query(ReferenceModel)
@@ -255,6 +262,6 @@ def show_recently_sorted(db: Session, mod_abbreviation, count, curator, day):
     references = references_query.all()
     data = show_sort_result(references, mod_abbreviation, db)
     return {
-        "curator_data": email_to_okta_id_mapping,
+        "curator_data": name_to_email_mapping,
         "data": data
     }

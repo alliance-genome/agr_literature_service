@@ -7,14 +7,13 @@ from typing import Union, List, Any, Dict
 from fastapi import APIRouter, Depends, Security, status, File, UploadFile, \
     BackgroundTasks, HTTPException
 from fastapi.responses import PlainTextResponse
-from fastapi_okta import OktaUser
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import referencefile_crud
 from agr_literature_service.api.deps import s3_auth
-from agr_literature_service.api.routers.authentication import auth
-from agr_literature_service.api.routers.okta_utils import get_okta_mod_access
+from agr_cognito_py import get_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
@@ -23,7 +22,9 @@ from agr_literature_service.api.schemas.referencefile_schemas import Referencefi
 from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_py import get_cognito_user_swagger
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 s3_session = Depends(s3_auth)
 
 
@@ -55,7 +55,7 @@ def file_upload(reference_curie: str = None,
                 upload_if_already_converted: bool = False,
                 file: UploadFile = File(...),  # noqa: B008
                 metadata_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
-                user: OktaUser = db_user,
+                user: Dict[str, Any] = Security(get_cognito_user_swagger),
                 db: Session = db_session):
     """
 
@@ -80,7 +80,7 @@ def file_upload(reference_curie: str = None,
 
             curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/' \\
              -H 'accept: application/json' \\
-             -H 'Authorization: Bearer <okta_token>' \\
+             -H 'Authorization: Bearer <auth_token>' \\
              -H 'Content-Type: multipart/form-data' \\
              -F 'file=@test2.txt;type=text/plain' \\
              -F 'metadata_file=@metadata_file.txt;type=text/plain'
@@ -91,7 +91,7 @@ def file_upload(reference_curie: str = None,
 
             curl -X 'POST' 'http://localhost:8080/reference/referencefile/file_upload/?reference_curie=AGRKB:101000000000001&display_name=test&file_class=main&file_publication_status=final&file_extension=txt&pdf_type=null&is_annotation=false' \\
              -H 'accept: application/json' \\
-             -H 'Authorization: Bearer <okta_token>' \\
+             -H 'Authorization: Bearer <auth_token>' \\
              -H 'Content-Type: multipart/form-data' \\
              -F 'file=@test2.txt;type=text/plain' \\
              -F 'metadata_file='
@@ -99,7 +99,7 @@ def file_upload(reference_curie: str = None,
     """
     if is_annotation is None:
         is_annotation = False
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     metadata = None
     if reference_curie and display_name and file_class and file_publication_status:
         metadata = {
@@ -129,28 +129,28 @@ def file_upload(reference_curie: str = None,
 @router.get('/download_file/{referencefile_id}',
             status_code=status.HTTP_200_OK)
 def download_file(referencefile_id: int,
-                  user: OktaUser = db_user,
+                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
                   db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    return referencefile_crud.download_file(db, referencefile_id, get_okta_mod_access(user))
+    set_global_user_from_cognito(db, user)
+    return referencefile_crud.download_file(db, referencefile_id, get_mod_access(user))
 
 
 @router.get('/additional_files_tarball/{reference_id}',
             status_code=status.HTTP_200_OK)
 def download_additional_files_tarball(reference_id: int,
-                                      user: OktaUser = db_user,
+                                      user: Dict[str, Any] = Security(get_cognito_user_swagger),
                                       db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_okta_mod_access(user))
+    set_global_user_from_cognito(db, user)
+    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user))
 
 
 @router.delete('/{referencefile_id}',
                response_model=str)
 def delete(referencefile_id: int,
-           user: OktaUser = db_user,
+           user: Dict[str, Any] = Security(get_cognito_user_swagger),
            db: Session = db_session):
-    set_global_user_from_okta(db, user)
-    referencefile_crud.destroy(db, referencefile_id, get_okta_mod_access(user))
+    set_global_user_from_cognito(db, user)
+    referencefile_crud.destroy(db, referencefile_id, get_mod_access(user))
     return 'success'
 
 
@@ -184,9 +184,9 @@ def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
               response_model=ResponseMessageSchema)
 def patch(referencefile_id: int,
           request: ReferencefileSchemaUpdate,
-          user: OktaUser = db_user,
+          user: Dict[str, Any] = Security(get_cognito_user_swagger),
           db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return referencefile_crud.patch(db, referencefile_id, request.model_dump(exclude_unset=True))
 
 
@@ -195,9 +195,9 @@ def patch(referencefile_id: int,
 def merge_referencefiles(curie_or_reference_id: str,
                          losing_referencefile_id: int,
                          winning_referencefile_id: int,
-                         user: OktaUser = db_user,
+                         user: Dict[str, Any] = Security(get_cognito_user_swagger),
                          db: Session = db_session):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return referencefile_crud.merge_referencefiles(db, curie_or_reference_id, losing_referencefile_id, winning_referencefile_id)
 
 
@@ -212,7 +212,7 @@ async def bulk_upload_archive(
     mod_abbreviation: str,
     background_tasks: BackgroundTasks,
     archive: UploadFile = _ArchiveParam,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session
 ):
     """
@@ -233,7 +233,7 @@ async def bulk_upload_archive(
     logger.info(f"bulk_upload_archive called with mod_abbreviation={mod_abbreviation}")
 
     # 1. authenticate
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
 
     # 2. validate archive structure
     try:
@@ -264,7 +264,7 @@ async def bulk_upload_archive(
 
     # 3. create a new bulk‐upload job
     job_id = upload_manager.create_job(
-        user_id=user.cid,
+        user_id=user.get("cognito:username") or user.get("sub", "unknown"),
         mod_abbreviation=mod_abbreviation,
         filename=archive.filename or "archive.unknown",
     )
@@ -353,7 +353,7 @@ def get_bulk_upload_history(
              response_model=dict)
 def validate_bulk_upload_archive(
     archive: UploadFile = File(...),
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session
 ):
     # Validate archive structure without uploading.

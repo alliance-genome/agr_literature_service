@@ -6,7 +6,7 @@ import argparse
 from os import environ, path
 from sqlalchemy import text
 from dotenv import load_dotenv
-from fastapi_okta.okta_utils import get_authentication_token, generate_headers
+from agr_cognito_py import get_authentication_token, generate_headers
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import WorkflowTagModel

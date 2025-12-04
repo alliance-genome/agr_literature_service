@@ -9,7 +9,7 @@ from fastapi import status
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
-from fastapi_okta.okta_utils import get_authentication_token
+from agr_cognito_py import get_authentication_token
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
@@ -209,6 +209,7 @@ class TestTopicEntityTag:
                         "entity": "WB:WBGene00003001",
                         "entity_id_validation": "alliance",
                         "species": "NCBITaxon:6239",
+                        "data_novelty": 'ATP:0000335',
                         "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id
                     }
                 ]
@@ -897,6 +898,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
+                "data_novelty": "ATP:0000335",
                 "ml_model_id": test_ml_model["ml_model_id"],
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
@@ -919,6 +921,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
+                "data_novelty": "ATP:0000335",
                 "ml_model_id": 99999  # Invalid ML model ID
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
@@ -935,6 +938,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
+                "data_novelty": "ATP:0000335",
                 "ml_model_id": ml_model_id
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
@@ -960,6 +964,7 @@ class TestTopicEntityTag:
                 "reference_curie": test_reference.new_ref_curie,
                 "topic_entity_tag_source_id": source_id,
                 "topic": "ATP:0000009",
+                "data_novelty": "ATP:0000335",
                 "ml_model_id": ml_model_id
             }
             tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)

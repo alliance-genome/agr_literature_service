@@ -13,7 +13,7 @@ import logging
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
 from agr_literature_service.api.models import WorkflowTransitionModel
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_all_children
+from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_descendants
 
 
 logging.basicConfig(format='%(message)s')
@@ -26,7 +26,7 @@ def generate_transitions(db_session, parent_atp):
     failed = {}
     in_progress = {}
     mods = {}
-    name_to_atp, atp_to_name = get_name_to_atp_for_all_children(parent_atp)
+    name_to_atp, atp_to_name = get_name_to_atp_for_descendants(parent_atp)
 
     tags = get_workflow_tags_from_process(parent_atp)
     wfts = db_session.query(WorkflowTransitionModel).filter(

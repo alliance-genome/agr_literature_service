@@ -84,8 +84,9 @@ services:
       XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/data_ingest/tmp/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
-      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      COGNITO_ADMIN_CLIENT_ID: "${COGNITO_ADMIN_CLIENT_ID}"
+      COGNITO_ADMIN_CLIENT_SECRET: "${COGNITO_ADMIN_CLIENT_SECRET}"
+      COGNITO_TOKEN_URL: "${COGNITO_TOKEN_URL}"
       ENV_STATE: "${ENV_STATE}"
       ID_MATI_URL: "${ID_MATI_URL}"
       PSQL_USERNAME: "${PSQL_USERNAME}"
@@ -100,8 +101,14 @@ services:
       PERSISTENT_STORE_DB_NAME: "${PERSISTENT_STORE_DB_NAME}"
       RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
       HOST: "${HOST}"
+      COGNITO_REGION: "${COGNITO_REGION}"
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
+      COGNITO_ALLOWED_CLIENT_IDS: "${COGNITO_ALLOWED_CLIENT_IDS}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       ELASTICSEARCH_HOST: "${ELASTICSEARCH_HOST}"
       ELASTICSEARCH_PORT: "${ELASTICSEARCH_PORT}"
       ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
@@ -113,11 +120,15 @@ services:
       REPLY_TO: "${REPLY_TO}"
       ATEAM_API_URL: "${ATEAM_API_URL}"
       SGD_API_URL: "${SGD_API_URL}"
+      GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
+      LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
+      DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
     hostname: literature_api
     networks:
       - agr-literature
     volumes:
       - "${LOG_PATH}:/var/log/automated_scripts"
+      - "${DEBEZIUM_STATUS_PATH:-agr-literature-debezium-status}:/var/lib/debezium_status"
     ports:
       - "${API_PORT}:8080"
 
@@ -137,13 +148,19 @@ services:
       XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/data_ingest/tmp/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
-      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      COGNITO_ADMIN_CLIENT_ID: "${COGNITO_ADMIN_CLIENT_ID}"
+      COGNITO_ADMIN_CLIENT_SECRET: "${COGNITO_ADMIN_CLIENT_SECRET}"
+      COGNITO_TOKEN_URL: "${COGNITO_TOKEN_URL}"
       ENV_STATE: "${ENV_STATE}"
       ID_MATI_URL: "${ID_MATI_URL}"
       HOST: "${HOST}"
+      COGNITO_REGION: "${COGNITO_REGION}"
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       PSQL_USERNAME: "${PSQL_USERNAME}"
       PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
@@ -171,13 +188,19 @@ services:
       XML_PATH: "/usr/src/app/agr_literature_service/lit_processing/data_ingest/tmp/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
-      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      COGNITO_ADMIN_CLIENT_ID: "${COGNITO_ADMIN_CLIENT_ID}"
+      COGNITO_ADMIN_CLIENT_SECRET: "${COGNITO_ADMIN_CLIENT_SECRET}"
+      COGNITO_TOKEN_URL: "${COGNITO_TOKEN_URL}"
       ENV_STATE: "${ENV_STATE}"
       ID_MATI_URL: "${ID_MATI_URL}"
       HOST: "${HOST}"
+      COGNITO_REGION: "${COGNITO_REGION}"
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       PSQL_USERNAME: "${PSQL_USERNAME}"
       PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
@@ -235,13 +258,20 @@ services:
       XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/tests/tmp/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
-      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      COGNITO_ADMIN_CLIENT_ID: "${COGNITO_ADMIN_CLIENT_ID}"
+      COGNITO_ADMIN_CLIENT_SECRET: "${COGNITO_ADMIN_CLIENT_SECRET}"
+      COGNITO_TOKEN_URL: "${COGNITO_TOKEN_URL}"
       ENV_STATE: "${ENV_STATE}"
       ID_MATI_URL: "${ID_MATI_URL}"
       HOST: "${HOST}"
+      COGNITO_REGION: "${COGNITO_REGION}"
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
+      COGNITO_ALLOWED_CLIENT_IDS: "${COGNITO_ALLOWED_CLIENT_IDS}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       PSQL_USERNAME: "${PSQL_USERNAME}"
       PSQL_PASSWORD: "${PSQL_PASSWORD}"
       PSQL_HOST: "${PSQL_HOST}"
@@ -274,8 +304,9 @@ services:
       XML_PATH: "/usr/local/bin/src/literature/agr_literature_service/lit_processing/data_ingest/tmp/"
       AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
       AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
-      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
-      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
+      COGNITO_ADMIN_CLIENT_ID: "${COGNITO_ADMIN_CLIENT_ID}"
+      COGNITO_ADMIN_CLIENT_SECRET: "${COGNITO_ADMIN_CLIENT_SECRET}"
+      COGNITO_TOKEN_URL: "${COGNITO_TOKEN_URL}"
       ENV_STATE: "${ENV_STATE}"
       ID_MATI_URL: "${ID_MATI_URL}"
       ATEAM_API_URL: "${ATEAM_API_URL}"
@@ -289,8 +320,14 @@ services:
       ELASTICSEARCH_INDEX: "${ELASTICSEARCH_INDEX}"
       RESOURCE_DESCRIPTOR_URL: "${RESOURCE_DESCRIPTOR_URL}"
       HOST: "${HOST}"
+      COGNITO_REGION: "${COGNITO_REGION}"
+      COGNITO_USER_POOL_ID: "${COGNITO_USER_POOL_ID}"
+      COGNITO_CLIENT_ID: "${COGNITO_CLIENT_ID}"
+      COGNITO_ALLOWED_CLIENT_IDS: "${COGNITO_ALLOWED_CLIENT_IDS}"
       OKTA_DOMAIN: "${OKTA_DOMAIN}"
       OKTA_API_AUDIENCE: "${OKTA_API_AUDIENCE}"
+      OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
+      OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       REG: "${REG}"
     ports:
       - "${API_PORT}:8080"
@@ -354,8 +391,11 @@ services:
       PSQL_HOST: "${PSQL_HOST}"
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
+      DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
     networks:
       - agr-literature
+    volumes:
+      - "${DEBEZIUM_STATUS_PATH:-agr-literature-debezium-status}:/var/lib/debezium_status"
     command:
       /setup.sh
 
@@ -395,13 +435,14 @@ services:
     tty: true
 
   jenkins:
-    image: jenkins/jenkins:2.346.1-lts-jdk11
+    image: jenkins/jenkins:2.540-jdk21
     volumes:
       - /usr/share/jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker
       - /usr/local/bin/docker-compose:/usr/bin/docker-compose
-      - /usr/share/agr_env_files/.env.rdsdev_4001:/usr/share/agr_env_files/.env
+      - /usr/share/agr_env_files/.env.rdsdev_4001:/usr/share/agr_env_files/.env.api
+      - /usr/share/agr_env_files/.env.dev_3001:/usr/share/agr_env_files/.env.ui
     ports:
       - "49001:8080"
       - "50000:50000"
@@ -418,10 +459,12 @@ services:
       context: .
       dockerfile: docker/file_uploader.dockerfile
     environment:
-      - OKTA_DOMAIN=$OKTA_DOMAIN
-      - OKTA_API_AUDIENCE=$OKTA_API_AUDIENCE
-      - OKTA_CLIENT_ID=$OKTA_CLIENT_ID
-      - OKTA_CLIENT_SECRET=$OKTA_CLIENT_SECRET
+      - COGNITO_REGION=$COGNITO_REGION
+      - COGNITO_USER_POOL_ID=$COGNITO_USER_POOL_ID
+      - COGNITO_CLIENT_ID=$COGNITO_CLIENT_ID
+      - COGNITO_ADMIN_CLIENT_ID=$COGNITO_ADMIN_CLIENT_ID
+      - COGNITO_ADMIN_CLIENT_SECRET=$COGNITO_ADMIN_CLIENT_SECRET
+      - COGNITO_TOKEN_URL=$COGNITO_TOKEN_URL
       - API_PORT=$API_PORT
       - API_SERVER=$API_SERVER
 
@@ -448,6 +491,7 @@ volumes:
   agr-literature-pgadmin-data:
   agr-literature-es-data:
   agr-logs:
+  agr-literature-debezium-status:
 
 networks:
   agr-literature:

@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, cast
 import logging
 import re
 import unicodedata
@@ -11,7 +11,7 @@ from agr_literature_service.api.config import config
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
-from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendents
+from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants
 from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
 
 from agr_literature_service.api.crud.search_ranking import (
@@ -589,12 +589,12 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
 
     # reorder SEA buckets to desired sequence
     desired_order = [
-        "automated assertion",
-        "machine learning method evidence used in automatic assertion",
-        "string-matching method evidence used in automatic assertion",
-        "manual assertion",
-        "documented statement evidence used in manual assertion by author",
-        "documented statement evidence used in manual assertion by professional biocurator",
+        "automated",
+        "machine learning",
+        "string matching",
+        "manual",
+        "author",
+        "professional biocurator",
     ]
     buckets = source_evidence_assertions.get("buckets", [])
     by_name = {b.get("name"): b for b in buckets}
@@ -850,14 +850,23 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
         key_u = bucket["key"].upper()
         curie_name = curie_to_name_map.get(key_u, "Unknown")
         if key_u == "ECO:0006155":
-            curie_name = "manual assertion"
+            curie_name = "manual"
         elif key_u == "ECO:0007669":
-            curie_name = "automated assertion"
+            curie_name = "automated"
+        elif key_u == "ECO:0008004":
+            curie_name = "machine learning"
+        elif key_u == "ECO:0008021":
+            curie_name = "string matching"
+        elif key_u == "ATP:0000035":
+            curie_name = "author"
+        elif key_u == "ATP:0000036":
+            curie_name = "professional biocurator"
         bucket["name"] = curie_name
 
 
 def get_atp_ids(root_atp_ids: List[str]) -> List[str]:
-    return [child for root in root_atp_ids for child in atp_get_all_descendents(root)]
+    # When include_names=False (default), atp_get_all_descendants returns List[str]
+    return [child for root in root_atp_ids for child in cast(List[str], atp_get_all_descendants(root))]
 
 
 # --------------------------- ORCID helpers (kept local) ---------------------------

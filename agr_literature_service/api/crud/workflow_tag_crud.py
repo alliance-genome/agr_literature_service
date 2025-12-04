@@ -26,13 +26,14 @@ from agr_literature_service.api.crud.workflow_transition_requirements import (
     ADMISSIBLE_WORKFLOW_TRANSITION_REQUIREMENT_FUNCTIONS)
 from agr_literature_service.api.crud.workflow_transition_actions.process_action import (process_action)
 from agr_literature_service.api.crud.ateam_db_helpers import (
-    get_name_to_atp_for_all_children,
-    atp_get_all_descendents,
+    get_name_to_atp_for_descendants,
+    atp_get_all_descendants,
     atp_get_all_ancestors,
     atp_get_parent,
     get_jobs_to_run,
     atp_to_name
 )
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
@@ -83,7 +84,7 @@ def get_workflow_process_from_tag(workflow_tag_atp_id: str):
 
 
 def get_workflow_tags_from_process(workflow_process_atp_id: str):
-    return atp_get_all_descendents(workflow_process_atp_id)
+    return atp_get_all_descendants(workflow_process_atp_id)
     # return get_parent_or_children(workflow_process_atp_id, parent_or_children="children")
 
 
@@ -425,11 +426,28 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=all_workflow_tags_for_process)
 
     sql_query = """
-    SELECT distinct wft.reference_workflow_tag_id, m.abbreviation, wft.workflow_tag_id, wft.updated_by,
-           wft.date_updated AS date_updated, u.email, wft.curation_tag, wft.note
+    SELECT DISTINCT
+        wft.reference_workflow_tag_id,
+        m.abbreviation,
+        wft.workflow_tag_id,
+        COALESCE(e.email_address, wft.updated_by) AS updated_by_email,
+        COALESCE(p.display_name, wft.updated_by) AS updated_by_name,
+        wft.updated_by,
+        wft.date_updated AS date_updated,
+        wft.curation_tag,
+        wft.note
     FROM workflow_tag wft
     JOIN mod m ON wft.mod_id = m.mod_id
-    JOIN users u ON wft.updated_by = u.id
+    LEFT JOIN users u ON wft.updated_by = u.id
+    LEFT JOIN person p ON p.person_id = u.person_id
+    LEFT JOIN LATERAL (
+        SELECT em.email_address
+        FROM email em
+        WHERE em.person_id = u.person_id
+        AND em.date_invalidated IS NULL
+        ORDER BY em.email_id ASC
+        LIMIT 1
+    ) e ON TRUE
     WHERE wft.reference_id = :reference_id
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
@@ -476,6 +494,12 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     """
 
     workflow_tag_data = jsonable_encoder(workflow_tag)
+
+    if "created_by" in workflow_tag_data and workflow_tag_data["created_by"] is not None:
+        workflow_tag_data["created_by"] = map_to_user_id(workflow_tag_data["created_by"], db)
+    if "updated_by" in workflow_tag_data and workflow_tag_data["updated_by"] is not None:
+        workflow_tag_data["updated_by"] = map_to_user_id(workflow_tag_data["updated_by"], db)
+
     reference_curie = workflow_tag_data["reference_curie"]
     del workflow_tag_data["reference_curie"]
     mod_abbreviation = workflow_tag_data["mod_abbreviation"]
@@ -547,6 +571,12 @@ def patch(db: Session, reference_workflow_tag_id: int, workflow_tag_update):
     :return:
     """
     workflow_tag_data = jsonable_encoder(workflow_tag_update)
+
+    if "created_by" in workflow_tag_data and workflow_tag_data["created_by"] is not None:
+        workflow_tag_data["created_by"] = map_to_user_id(workflow_tag_data["created_by"], db)
+    if "updated_by" in workflow_tag_data and workflow_tag_data["updated_by"] is not None:
+        workflow_tag_data["updated_by"] = map_to_user_id(workflow_tag_data["updated_by"], db)
+
     workflow_tag_db_obj = db.query(WorkflowTagModel).\
         filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id).first()
     if not workflow_tag_db_obj:
@@ -604,20 +634,49 @@ def show(db: Session, reference_workflow_tag_id: int):
     else:
         workflow_tag_data["mod_abbreviation"] = ""
     del workflow_tag_data["mod_id"]
-    ## add email address for updated_by
-    sql_query_str = """
-        SELECT email
-        FROM users
-        WHERE id = :okta_id
-    """
-    sql_query = text(sql_query_str)
-    result = db.execute(sql_query, {'okta_id': workflow_tag_data["updated_by"]})
-    row = result.fetchone()
-    workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"] if row is None else row[0]
-    if not workflow_tag_data["updated_by_email"]:
-        workflow_tag_data["updated_by_email"] = workflow_tag_data["updated_by"]
 
-    return workflow_tag_data
+    data = add_email_and_name(db, workflow_tag_data)
+
+    return data
+
+
+def add_email_and_name(db: Session, data: dict) -> dict:
+    """
+    Populate `updated_by_name` and `updated_by_email` based on the user's user_id.
+    Skip invalidated emails and use the earliest valid one.
+    Fallback to user_id if no valid record is found.
+    """
+    user_id = data.get("updated_by")
+    if not user_id:
+        data.setdefault("updated_by_name", None)
+        data.setdefault("updated_by_email", None)
+        return data
+
+    row = db.execute(
+        text("""
+            SELECT
+                COALESCE(p.display_name, :user_id)  AS display_name,
+                COALESCE(em.email_address, :user_id) AS email_address
+            FROM person p
+            LEFT JOIN email em ON em.person_id = p.person_id
+            JOIN users u ON u.person_id = p.person_id
+            WHERE u.id = :user_id
+              AND em.date_invalidated IS NULL
+            ORDER BY em.email_id ASC
+            LIMIT 1
+        """),
+        {"user_id": user_id},
+    ).fetchone()
+
+    if row:
+        updated_by_name, updated_by_email = row
+    else:
+        updated_by_name = user_id
+        updated_by_email = user_id
+
+    data["updated_by_name"] = updated_by_name
+    data["updated_by_email"] = updated_by_email
+    return data
 
 
 def show_by_reference_mod_abbreviation(db: Session, reference_curie: str, mod_abbreviation: str) -> list:
@@ -1169,7 +1228,7 @@ def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: st
     }
 
     # get list of ALL ATPs under this parent
-    name_to_atp, atp_to_name = get_name_to_atp_for_all_children(workflow_parent)
+    name_to_atp, atp_to_name = get_name_to_atp_for_descendants(workflow_parent)
     # remove overall paper statuses from general overall ATPs
     for atp in overall_paper_status[workflow_parent].keys():
         del atp_to_name[atp]
@@ -1365,7 +1424,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         workflow_tags = get_workflow_tags_from_process(process_atp_id)
         if not workflow_tags:
             continue
-        _, tp_to_name = get_name_to_atp_for_all_children(process_atp_id)
+        _, tp_to_name = get_name_to_atp_for_descendants(process_atp_id)
         all_workflow_tags = {}
         for wft in workflow_tags:
             all_workflow_tags[wft] = atp_to_name.get(wft, wft)
@@ -1373,8 +1432,6 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         tags = []
         for tag in all_tags:
             if not mod_abbreviation or tag["abbreviation"] == mod_abbreviation:
-                if not tag.get("email"):
-                    tag["email"] = tag["updated_by"]
                 tag["date_updated"] = tag["date_updated"].isoformat()
                 tags.append(tag)
         result[workflow_name] = {

@@ -419,7 +419,7 @@ class TestWorkflowTag:
         ), patch(
             "agr_literature_service.api.crud.workflow_tag_crud.get_workflow_tags_from_process"
         ) as mock_get_workflow_tags, patch(
-            "agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_all_children"
+            "agr_literature_service.api.crud.workflow_tag_crud.get_name_to_atp_for_descendants"
         ) as mock_get_name_to_atp, patch(
             "agr_literature_service.api.crud.workflow_tag_crud.atp_to_name"
         ) as mock_atp_to_name, patch(

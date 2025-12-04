@@ -11,12 +11,14 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic_list
+from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
     TopicEntityTagSourceModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
 def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
@@ -26,14 +28,18 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     :param curation_status:
     :return:
     """
-
     curation_status_data = jsonable_encoder(curation_status)
+    if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
+        curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
+    if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
+        curation_status_data["updated_by"] = map_to_user_id(curation_status_data["updated_by"], db)
     reference_curie = curation_status_data.pop("reference_curie", None)
     if reference_curie is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="reference_curie not within curation_status_data")
     try:
         # get ref_id from curie
+        reference_curie = normalize_reference_curie(db, reference_curie)
         ref_id = db.query(ReferenceModel).filter_by(curie=reference_curie).one().reference_id
         curation_status_data["reference_id"] = ref_id
         # look up mod
@@ -79,6 +85,10 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> dict:
     """
 
     curation_status_data = curation_status_update.model_dump(exclude_unset=True)
+    if "created_by" in curation_status_data and curation_status_data["created_by"] is not None:
+        curation_status_data["created_by"] = map_to_user_id(curation_status_data["created_by"], db)
+    if "updated_by" in curation_status_data and curation_status_data["updated_by"] is not None:
+        curation_status_data["updated_by"] = map_to_user_id(curation_status_data["updated_by"], db)
     curation_status_db_obj = db.query(CurationStatusModel).filter(CurationStatusModel.curation_status_id == curation_status_id).first()
     if not curation_status_db_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -174,7 +184,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
 
     # create empty return objects with topics from atp subsets as keys
     agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic["curie"]: {} for topic in
-                                                        search_topic(topic=None, mod_abbr=mod_abbreviation)}
+                                                        search_topic_list(topic=None, mod_abbr=mod_abbreviation)}
 
     # add tet info to the objects
     query = (
@@ -194,10 +204,18 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
     for tet, tet_source in rows:
         topic_tet_list_dict[tet.topic].append((tet, tet_source))
 
-    query = (f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, cs.updated_by, "
-             f"cs.date_updated, u.email AS updated_by_email "
-             f"FROM curation_status cs JOIN users u ON cs.updated_by = u.id WHERE cs.mod_id = {mod_id} AND "
-             f"cs.reference_id = {reference_id}")
+    query = (
+        f"SELECT cs.curation_status_id, cs.topic, cs.curation_status, cs.curation_tag, cs.note, "
+        f"cs.updated_by, cs.date_updated, "
+        f"e.email_address AS updated_by_email, "
+        f"p.display_name AS updated_by_name "
+        f"FROM curation_status cs "
+        f"JOIN users u ON cs.updated_by = u.id "
+        f"LEFT JOIN email e ON u.person_id = e.person_id "
+        f"LEFT JOIN person p ON u.person_id = p.person_id "
+        f"WHERE cs.mod_id = {mod_id} AND cs.reference_id = {reference_id}"
+    )
+
     res = db.execute(text(query)).mappings().fetchall()
     for row in res:
         if row["topic"] not in agg_cur_stat_tet_objs:
@@ -209,6 +227,7 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
             "curst_note": row["note"],
             "curst_updated_by": row["updated_by"],
             "curst_updated_by_email": row["updated_by_email"],
+            "curst_updated_by_name": row["updated_by_name"],
             "curst_date_updated": row["date_updated"].isoformat()
         })
     topic_to_name = map_curies_to_names('atpterm', agg_cur_stat_tet_objs.keys())

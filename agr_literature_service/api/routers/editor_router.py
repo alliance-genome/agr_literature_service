@@ -1,17 +1,19 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from fastapi_okta import OktaUser
+from typing import Dict, Any
+
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import editor_crud
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.schemas import (
     EditorSchemaCreate,
     EditorSchemaPost,
     EditorSchemaShow,
     ResponseMessageSchema
 )
-from agr_literature_service.api.user import set_global_user_from_okta
+from agr_literature_service.api.user import set_global_user_from_cognito
+
+from agr_cognito_py import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/editor",
@@ -20,7 +22,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post(
@@ -30,10 +31,10 @@ db_user = Security(auth.get_user)
 )
 def create(
     request: EditorSchemaCreate,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session
 ) -> int:
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     return editor_crud.create(db, request)
 
 
@@ -43,10 +44,10 @@ def create(
 )
 def destroy(
     editor_id: int,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session
 ):
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     editor_crud.destroy(db, editor_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -59,10 +60,10 @@ def destroy(
 def patch(
     editor_id: int,
     request: EditorSchemaPost,
-    user: OktaUser = db_user,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
     db: Session = db_session
 ) -> ResponseMessageSchema:
-    set_global_user_from_okta(db, user)
+    set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
     result = editor_crud.patch(db, editor_id, patch_data)
     return ResponseMessageSchema.model_validate(result)

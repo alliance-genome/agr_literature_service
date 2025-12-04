@@ -1,5 +1,5 @@
 """
-# generate an okta token and request reference curie from mati.  first test getting the latest,
+# generate an authentication token and request reference curie from mati.  first test getting the latest,
 # then create one new one.  for batch request higher 'value' and add to first.curie, probably
 # also validate against last.curie
 # python mati_sample.py
@@ -8,7 +8,7 @@
 
 import logging.config
 from os import path
-from fastapi_okta.okta_utils import get_authentication_token, generate_headers
+from agr_cognito_py import get_authentication_token, generate_headers
 import requests
 
 log_file_path = path.join(path.dirname(path.abspath(__file__)), '../../../logging.conf')

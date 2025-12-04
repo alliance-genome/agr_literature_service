@@ -1,8 +1,7 @@
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Security, Depends
+from fastapi import APIRouter, Depends
 
 from agr_literature_service.api import database
-from agr_literature_service.api.routers.authentication import auth
 from agr_literature_service.api.crud import search_crud
 from agr_literature_service.api.schemas import FacetsOptionsSchema
 
@@ -14,7 +13,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-db_user = Security(auth.get_user)
 
 
 @router.post("/references/",

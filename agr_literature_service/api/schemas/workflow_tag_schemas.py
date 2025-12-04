@@ -25,6 +25,9 @@ class WorkflowTagSchemaPost(WorkflowTagSchemaCreate):
 
     reference_curie: str
     date_updated: Optional[datetime] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    date_created: Optional[datetime] = None
     curation_tag: Optional[str] = None
     note: Optional[str] = None
 
@@ -40,6 +43,7 @@ class WorkflowTagSchemaRelated(AuditedObjectModelSchema):
     workflow_tag_id: str
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
+    updated_by_name: Optional[str] = None
     curation_tag: Optional[str] = None
     note: Optional[str] = None
 

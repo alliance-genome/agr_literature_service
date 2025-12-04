@@ -49,7 +49,7 @@ class TestCurationStatus:
         with TestClient(app):
             assert test_curation_status.response.status_code == status.HTTP_201_CREATED
 
-    @patch("agr_literature_service.api.crud.curation_status_crud.search_topic", patch_subset)
+    @patch("agr_literature_service.api.crud.curation_status_crud.search_topic_list", patch_subset)
     @patch("agr_literature_service.api.crud.curation_status_crud.map_curies_to_names", patch_map_curies_to_names)
     def test_show_aggregated_curation_status_and_tet_info(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:

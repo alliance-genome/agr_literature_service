@@ -21,7 +21,8 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
     check_and_set_sgd_display_tag, check_and_set_species, add_audited_object_users_if_not_exist, \
     get_ancestors, get_descendants, get_map_entity_curies_to_names, \
-    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation
+    id_to_name_cache, get_map_ateam_curies_to_names, get_mod_id_from_mod_abbreviation, \
+    get_user_display_name_map
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
@@ -34,13 +35,14 @@ from agr_literature_service.api.models.audited_model import (
     disable_set_updated_by_onupdate,
     disable_set_date_updated_onupdate
 )
-from agr_literature_service.api.routers.okta_utils import OktaAccess, OKTA_ACCESS_MOD_ABBR
+from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
+from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,10 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
+    if "created_by" in topic_entity_tag_data and topic_entity_tag_data["created_by"] is not None:
+        topic_entity_tag_data["created_by"] = map_to_user_id(topic_entity_tag_data["created_by"], db)
+    if "updated_by" in topic_entity_tag_data and topic_entity_tag_data["updated_by"] is not None:
+        topic_entity_tag_data["updated_by"] = map_to_user_id(topic_entity_tag_data["updated_by"], db)
     if topic_entity_tag_data["entity"] is None:
         topic_entity_tag_data["entity_type"] = None
     reference_curie = topic_entity_tag_data.pop("reference_curie", None)
@@ -80,6 +86,8 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
         else:
             topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
     else:
+        if topic_entity_tag_data.get('data_novelty') is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The 'data_novelty' is not passed in")
         check_and_set_species(topic_entity_tag_data)
     # check atp ID's validity
     logger.info("Validating ATP IDs")
@@ -253,20 +261,20 @@ def add_list_of_validating_tag_ids(topic_entity_tag_db_obj: TopicEntityTagModel,
                                             topic_entity_tag_db_obj.validated_by})
 
 
-def show_tag(db: Session, topic_entity_tag_id: int):
+def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
     topic_entity_tag: Optional[TopicEntityTagModel] = db.query(TopicEntityTagModel).get(topic_entity_tag_id)
     if not topic_entity_tag:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
-    if topic_entity_tag_data["reference_id"]:
+    if topic_entity_tag_data.get("reference_id"):
         topic_entity_tag_data["reference_curie"] = db.query(ReferenceModel).filter(
             ReferenceModel.reference_id == topic_entity_tag_data["reference_id"]).first().curie
         del topic_entity_tag_data["reference_id"]
     topic_entity_tag_data[
         "topic_entity_tag_source_id"] = topic_entity_tag.topic_entity_tag_source.topic_entity_tag_source_id
-    if topic_entity_tag_data["entity"]:
+    if topic_entity_tag_data.get("entity"):
         name = id_to_name_cache.get(topic_entity_tag_data["entity"])
         if name:
             topic_entity_tag_data["entity_name"] = name
@@ -277,6 +285,52 @@ def show_tag(db: Session, topic_entity_tag_id: int):
         ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
         if ml:
             topic_entity_tag_data["ml_model_version"] = ml.version_num
+
+    # --- Map users.id -> person.display_name where users.person_id is not null ---
+    user_ids: Set[str] = set()
+
+    # top-level created_by / updated_by
+    if topic_entity_tag_data.get("created_by"):
+        user_ids.add(topic_entity_tag_data["created_by"])
+    if topic_entity_tag_data.get("updated_by"):
+        user_ids.add(topic_entity_tag_data["updated_by"])
+
+    # nested source created_by / updated_by
+    if topic_entity_tag_data.get("topic_entity_tag_source"):
+        src = topic_entity_tag_data["topic_entity_tag_source"]
+        if src.get("created_by"):
+            user_ids.add(src["created_by"])
+        if src.get("updated_by"):
+            user_ids.add(src["updated_by"])
+
+    # validating_users list (derived from validated_by.created_by)
+    validating_user_ids = topic_entity_tag_data.get("validating_users") or []
+    for uid in validating_user_ids:
+        if uid:
+            user_ids.add(uid)
+
+    # Build the map and apply it
+    id_to_display = get_user_display_name_map(db, user_ids)
+
+    # Replace top-level created_by/updated_by
+    for k in ("created_by", "updated_by"):
+        uid = topic_entity_tag_data.get(k)
+        if uid and uid in id_to_display:
+            topic_entity_tag_data[k] = id_to_display[uid]
+
+    # Replace nested source created_by/updated_by
+    if topic_entity_tag_data.get("topic_entity_tag_source"):
+        for k in ("created_by", "updated_by"):
+            uid = topic_entity_tag_data["topic_entity_tag_source"].get(k)
+            if uid and uid in id_to_display:
+                topic_entity_tag_data["topic_entity_tag_source"][k] = id_to_display[uid]
+
+    # Replace validating_users list items with display names where available
+    if validating_user_ids:
+        topic_entity_tag_data["validating_users"] = [
+            id_to_display.get(uid, uid) for uid in validating_user_ids
+        ]
+
     return topic_entity_tag_data
 
 
@@ -288,6 +342,10 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
+    if "created_by" in patch_data_dict and patch_data_dict["created_by"] is not None:
+        patch_data_dict["created_by"] = map_to_user_id(patch_data_dict["created_by"], db)
+    if "updated_by" in patch_data_dict and patch_data_dict["updated_by"] is not None:
+        patch_data_dict["updated_by"] = map_to_user_id(patch_data_dict["updated_by"], db)
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
@@ -296,7 +354,7 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
     return {"message": "updated"}
 
 
-def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
+def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     topic_entity_tag: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
         TopicEntityTagModel.topic_entity_tag_id == topic_entity_tag_id).one_or_none()
     if topic_entity_tag is None:
@@ -305,21 +363,21 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: OktaAccess):
                                    f"is not available")
 
     """
-    If a tag is created by a curator via the API or UI, then `created_by` is set to `okta_user_id`.
+    If a tag is created by a curator via the API or UI, then `created_by` is set to `user_id`.
     This allows us to set `created_by_mod` based on the mod to which `created_by` is associated,
     assuming person data is available in the database. However, if the tag is added by a script,
-    `created_by` is set to `curator_id` (which is not an `okta_user_id`). In this case, we set
+    `created_by` is set to `curator_id`. In this case, we set
     `created_by_mod` based on the mod in the `topic_entity_tag_source` table.
     Currently, `created_by_mod` always defaults to the mod in the `topic_entity_tag_source` table,
-    as we lack the database data to map each user's `okta_id` to a mod.
+    as we lack the database data to map each user's id to a mod.
     """
-    user_mod = OKTA_ACCESS_MOD_ABBR[mod_access]
+    user_mod = MOD_ACCESS_ABBR[mod_access]
     created_by_mod = topic_entity_tag.topic_entity_tag_source.secondary_data_provider.abbreviation
     """
     fixed HTTP_403_Forbidden to HTTP_404_NOT_FOUND in following code since mypy complains
     about "HTTP_403_Forbidden" not found
     """
-    if mod_access != OktaAccess.ALL_ACCESS and user_mod != created_by_mod:
+    if mod_access != ModAccess.ALL_ACCESS and user_mod != created_by_mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"You do not have permission to delete topic_entity_tag with the topic_entity_tag_id {topic_entity_tag_id} created by {created_by_mod}")
 
@@ -757,11 +815,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     return None
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
-                            page_size: int = None, count_only: bool = False,
-                            sort_by: str = None, desc_sort: bool = False,
-                            column_only: str = None, column_filter: str = None,
-                            column_values: str = None):
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -843,12 +897,39 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1,
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 
+        # build a bulk map of users.id -> person.display_name
+        page_q = query.offset((page - 1) * page_size if page_size else None).limit(page_size)
+        rows = page_q.all()
+        user_ids: Set[str] = set()
+        for tet in rows:
+            if tet.created_by:
+                user_ids.add(tet.created_by)
+            if tet.updated_by:
+                user_ids.add(tet.updated_by)
+            if tet.topic_entity_tag_source:
+                if tet.topic_entity_tag_source.created_by:
+                    user_ids.add(tet.topic_entity_tag_source.created_by)
+                if tet.topic_entity_tag_source.updated_by:
+                    user_ids.add(tet.topic_entity_tag_source.updated_by)
+        id_to_display_name = get_user_display_name_map(db, user_ids)
+
         mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
         all_tet = []
-        for tet in query.offset((page - 1) * page_size if page_size else None).limit(page_size).all():
+        for tet in rows:
             tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
             if "validated_by" in tet_data:
                 del tet_data["validated_by"]
+            # Replace top-level created_by/updated_by if we have a display name
+            for k in ("created_by", "updated_by"):
+                uid = tet_data.get(k)
+                if uid and uid in id_to_display_name:
+                    tet_data[k] = id_to_display_name[uid]
+            # Nested source object: replace created_by/updated_by if present
+            if "topic_entity_tag_source" in tet_data and tet_data["topic_entity_tag_source"]:
+                for k in ("created_by", "updated_by"):
+                    uid = tet_data["topic_entity_tag_source"].get(k)
+                    if uid and uid in id_to_display_name:
+                        tet_data["topic_entity_tag_source"][k] = id_to_display_name[uid]
             add_list_of_users_who_validated_tag(tet, tet_data)
             add_list_of_validating_tag_ids(tet, tet_data)
             tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[

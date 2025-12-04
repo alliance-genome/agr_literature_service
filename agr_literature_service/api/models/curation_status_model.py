@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
@@ -55,6 +55,12 @@ class CurationStatusModel(Base, AuditedModel):
     note = Column(
         String,
         nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            'topic', 'reference_id', 'mod_id',
+            name='curation_status_unique'),
     )
 
     def __str__(self):

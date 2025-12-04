@@ -1,9 +1,8 @@
 import logging
 from os import environ
-from typing import Dict, List
+from typing import Dict, List, Set
 import requests
 from cachetools import TTLCache
-from cachetools.func import ttl_cache
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -225,7 +224,6 @@ def fallback_id_to_name_mapping(curies_category, curie_list, id_name_mapping):
     return id_name_mapping
 
 
-@ttl_cache(maxsize=128, ttl=60 * 60)
 def _get_ancestors_or_descendants(onto_node: str, ancestors_or_descendants: str = 'ancestors') -> List[str]:
     """
 
@@ -421,3 +419,31 @@ def has_manual_tet(db: Session, curie_or_reference_id: str, mod_abbreviation: st
     if len(rows) > 0:
         return True
     return False
+
+
+def get_user_display_name_map(db: Session, user_ids: Set[str]) -> Dict[str, str]:
+    """
+    Return a mapping of users.id -> person.display_name for users who have a non-null person_id.
+    """
+    id_to_display_name: Dict[str, str] = {}
+    if not user_ids:
+        return id_to_display_name
+
+    ids_list = [uid for uid in user_ids if uid]
+    if not ids_list:
+        return id_to_display_name
+
+    placeholders = ", ".join([f":uid{i}" for i in range(len(ids_list))])
+    params = {f"uid{i}": ids_list[i] for i in range(len(ids_list))}
+
+    sql = text(f"""
+        SELECT u.id AS user_id, p.display_name
+        FROM users u
+        JOIN person p ON p.person_id = u.person_id
+        WHERE u.person_id IS NOT NULL
+          AND u.id IN ({placeholders})
+    """)
+    for row in db.execute(sql, params).mappings().fetchall():
+        id_to_display_name[row["user_id"]] = row["display_name"]
+
+    return id_to_display_name

@@ -121,3 +121,15 @@ from agr_literature_service.api.schemas.curation_status_schemas import (
     CurationStatusSchemaBase,
     CurationStatusSchemaPost,
     CurationStatusSchemaUpdate)
+
+from .email_schemas import EmailSchemaCreate, EmailSchemaUpdate, EmailSchemaShow, EmailSchemaRelated
+from .person_cross_reference_schemas import (
+    PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaUpdate,
+    PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated
+)
+from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
+from .person_setting_schemas import (
+    PersonSettingSchemaCreate,
+    PersonSettingSchemaUpdate,
+    PersonSettingSchemaShow
+)
