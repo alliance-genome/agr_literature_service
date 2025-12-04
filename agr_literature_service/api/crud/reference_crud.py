@@ -46,7 +46,7 @@ from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
                                                ResourceModel,
                                                CopyrightLicenseModel,
                                                CitationModel)
-from agr_cognito_auth import ModAccess
+from agr_cognito_py import ModAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
     TopicEntityTagSchemaPost
 from agr_literature_service.global_utils import get_next_reference_curie

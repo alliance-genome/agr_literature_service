@@ -64,3 +64,6 @@ agr-curation-api-client==0.7.8
 # JWT support
 PyJWT>=2.8.0
 cryptography>=41.0.0         # PyJWT can handle RS256 and other asymmetric algorithms
+
+# AGR Cognito Authentication
+agr-cognito-py==0.1.0        # AWS Cognito authentication for AGR services

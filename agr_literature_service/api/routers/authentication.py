@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from agr_cognito_auth import CognitoAuth, CognitoConfig
+from agr_cognito_py import CognitoAuth, CognitoConfig
 
 import logging
 

@@ -15,7 +15,7 @@ from agr_literature_service.api.schemas.referencefile_mod_schemas import (
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 from agr_literature_service.api.crud import referencefile_mod_crud, referencefile_mod_utils
 
 logger = logging.getLogger(__name__)

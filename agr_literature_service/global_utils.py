@@ -5,7 +5,7 @@ import requests
 from sqlalchemy import text
 # from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
 #    create_postgres_session
-from agr_cognito_auth import (
+from agr_cognito_py import (
     get_authentication_token,
     generate_headers
 )

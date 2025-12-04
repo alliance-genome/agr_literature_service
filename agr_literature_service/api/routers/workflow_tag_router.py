@@ -13,7 +13,7 @@ from agr_literature_service.api.schemas import (
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 
 router = APIRouter(

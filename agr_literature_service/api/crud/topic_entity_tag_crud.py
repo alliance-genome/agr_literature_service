@@ -35,7 +35,7 @@ from agr_literature_service.api.models.audited_model import (
     disable_set_updated_by_onupdate,
     disable_set_date_updated_onupdate
 )
-from agr_cognito_auth import ModAccess, MOD_ACCESS_ABBR
+from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
                                                                          TopicEntityTagSourceSchemaCreate,
