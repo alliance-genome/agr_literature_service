@@ -435,7 +435,7 @@ services:
     tty: true
 
   jenkins:
-    image: jenkins/jenkins:2.479.1
+    image: jenkins/jenkins:2.540-jdk21
     volumes:
       - /usr/share/jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
