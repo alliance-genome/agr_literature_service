@@ -441,7 +441,8 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/bin/docker:/usr/bin/docker
       - /usr/local/bin/docker-compose:/usr/bin/docker-compose
-      - /usr/share/agr_env_files/.env.rdsdev_4001:/usr/share/agr_env_files/.env
+      - /usr/share/agr_env_files/.env.rdsdev_4001:/usr/share/agr_env_files/.env.api
+      - /usr/share/agr_env_files/.env.dev_3001:/usr/share/agr_env_files/.env.ui
     ports:
       - "49001:8080"
       - "50000:50000"
