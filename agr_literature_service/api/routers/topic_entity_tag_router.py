@@ -8,14 +8,14 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud, \
     ateam_db_helpers, topic_entity_tag_utils
-from agr_cognito_auth import get_mod_access
+from agr_cognito_py import get_mod_access
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_cognito
 
-from agr_cognito_auth import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/topic_entity_tag",

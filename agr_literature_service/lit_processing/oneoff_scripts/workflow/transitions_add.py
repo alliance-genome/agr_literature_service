@@ -1,5 +1,5 @@
 import json
-from agr_cognito_auth import get_authentication_token
+from agr_cognito_py import get_authentication_token
 import urllib.request
 import argparse
 import logging

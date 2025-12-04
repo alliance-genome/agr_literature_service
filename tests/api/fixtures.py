@@ -1,6 +1,6 @@
 import pytest
 
-from agr_cognito_auth import get_authentication_token, generate_headers
+from agr_cognito_py import get_authentication_token, generate_headers
 
 
 @pytest.fixture(scope="session")
