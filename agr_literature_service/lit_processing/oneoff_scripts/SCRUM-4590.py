@@ -45,6 +45,7 @@ def do_it(db_session):
         db_session.execute(text(query))
         db_session.commit()
 
+
 if __name__ == "__main__":
     db_session: Session = create_postgres_session(False)
     do_it(db_session)
