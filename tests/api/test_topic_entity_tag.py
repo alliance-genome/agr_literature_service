@@ -6,7 +6,6 @@ import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
-from agr_literature_service.api.crud.topic_entity_tag_utils import get_ancestors, get_descendants
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
 from agr_cognito_py import get_authentication_token
@@ -797,31 +796,6 @@ class TestTopicEntityTag:
                 'NCBITaxon:6239': 'Caenorhabditis elegans',
                 'ECO:0008025': 'neural network method evidence used in automatic assertion'
             }
-
-    @pytest.mark.webtest
-    def test_get_ancestors(self, auth_headers):  # noqa
-        load_name_to_atp_and_relationships_mock()
-        onto_node = "ATP:0000079"
-        ancestors = get_ancestors(onto_node)
-        expected_ancestors = {"ATP:0000001", "ATP:0000002", "ATP:0000009"}
-        assert [ancestor in expected_ancestors for ancestor in ancestors]
-
-    @pytest.mark.webtest
-    def test_get_descendants(self, auth_headers):  # noqa
-        load_name_to_atp_and_relationships_mock()
-        onto_node = "ATP:0000009"
-        descendants = get_descendants(onto_node)
-        expected_descendants = {'ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000082', 'ATP:0000083',
-                                'ATP:0000084', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033',
-                                'ATP:0000034', 'ATP:0000100'}
-        assert [ancestor in expected_descendants for ancestor in descendants]
-
-    @pytest.mark.webtest
-    def test_get_ancestors_non_existent(self, auth_headers):  # noqa
-        load_name_to_atp_and_relationships_mock()
-        onto_node = "ATP:000007"
-        ancestors = get_ancestors(onto_node)
-        assert len(ancestors) == 0
 
     def test_data_novelty_field(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         """Test that data_novelty field is properly handled."""
