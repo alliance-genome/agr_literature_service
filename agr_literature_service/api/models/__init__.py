@@ -23,8 +23,9 @@ from agr_literature_service.api.models.resource_descriptor_models import (
 from agr_literature_service.api.models.resource_model import ResourceModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.models.person_model import PersonModel
-from agr_literature_service.api.models.email_model import EmailModel
 from agr_literature_service.api.models.person_cross_reference_model import PersonCrossReferenceModel
+from agr_literature_service.api.models.email_model import EmailModel
+from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel
 from agr_literature_service.api.models.workflow_tag_topic_model import WorkflowTagTopicModel

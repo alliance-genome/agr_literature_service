@@ -135,6 +135,21 @@ class ReferenceRelationSchemaRelations(BaseModel):
     from_references: Optional[List[ReferenceRelationSchemaRelated]] = None
 
 
+class ReferenceEmailSchemaRelated(BaseModel):
+    """Schema for emails associated with a reference via reference_email."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True,
+    )
+
+    reference_email_id: int
+    email_id: int
+    email_address: str
+    person_id: Optional[int] = None
+    primary: Optional[bool] = None
+    date_invalidated: Optional[str] = None
+
+
 class ReferenceSchemaShow(AuditedObjectModelSchema):
     """Schema for showing full reference details with relationships and metadata."""
     model_config = ConfigDict(
@@ -181,6 +196,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     copyright_license_last_updated_by: Optional[str] = None
     invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
+    emails: Optional[List[ReferenceEmailSchemaRelated]] = None
     reference_relations: ReferenceRelationSchemaRelations = Field(default_factory=ReferenceRelationSchemaRelations)
     citation: Optional[str] = None
     citation_short: Optional[str] = None
