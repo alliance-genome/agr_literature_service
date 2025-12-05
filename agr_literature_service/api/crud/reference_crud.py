@@ -338,7 +338,7 @@ def get_reference_emails(db: Session, curie_or_reference_id: str):
     return results
 
 
-def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresses: List[str]) -> dict:
+def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresses: List[str]):
     """
     Replace the set of emails attached to a reference (via reference_email)
     using a list of email *addresses* (strings).
@@ -410,7 +410,7 @@ def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresse
     db.commit()
 
 
-def add_reference_email(db: Session, curie_or_reference_id: str, email_address: str) -> dict:
+def add_reference_email(db: Session, curie_or_reference_id: str, email_address: str):
     """
     Add a single email association to a reference.
     - Reuse active EmailModel if exists.
@@ -464,7 +464,7 @@ def add_reference_email(db: Session, curie_or_reference_id: str, email_address: 
         db.commit()
 
 
-def delete_reference_email(db: Session, curie_or_reference_id: str, reference_email_id: int) -> dict:
+def delete_reference_email(db: Session, curie_or_reference_id: str, reference_email_id: int):
     """
     Remove one reference_email row linking a reference to an email.
     """
