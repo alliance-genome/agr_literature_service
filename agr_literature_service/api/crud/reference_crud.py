@@ -66,6 +66,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_journal_by_resource_id, get_citation_data, get_license_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud.person_crud import normalize_email
 
 logger = logging.getLogger(__name__)
 
@@ -359,26 +360,37 @@ def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresse
     # Normalize and dedupe addresses
     cleaned: List[str] = []
     seen: set[str] = set()
+
     for addr in email_addresses:
         if addr is None:
             continue
-        email_str = addr.strip()
-        if not email_str:
+        raw = addr.strip()
+        if not raw:
             continue
-        if email_str in seen:
+
+        # Normalize (lowercase, validate)
+        try:
+            norm = normalize_email(raw)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid email address '{raw}': {exc}",
+            )
+
+        if norm in seen:
             continue
-        seen.add(email_str)
-        cleaned.append(email_str)
+        seen.add(norm)
+        cleaned.append(norm)
 
     resolved_email_ids: List[int] = []
 
-    for email_address in cleaned:
-        # Prefer an active email row with this address
+    for normalized_email in cleaned:
+        # Prefer an active email row with this normalized address
         email_obj: Optional[EmailModel] = (
             db.query(EmailModel)
             .filter(
                 and_(
-                    EmailModel.email_address == email_address,
+                    EmailModel.email_address == normalized_email,
                     EmailModel.date_invalidated.is_(None),
                 )
             )
@@ -389,7 +401,7 @@ def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresse
         if email_obj is None:
             # No active row; create a new one with person_id = NULL, primary = NULL
             email_obj = EmailModel(
-                email_address=email_address,
+                email_address=normalized_email,
                 person_id=None,
                 primary=None,
                 date_invalidated=None,
@@ -420,27 +432,43 @@ def add_reference_email(db: Session, curie_or_reference_id: str, email_address: 
     reference = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
 
-    email_address = email_address.strip()
-    if not email_address:
+    if email_address is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Email address cannot be blank"
+            detail="Email address cannot be null",
         )
 
-    # Look for an active email row
-    email_obj = (
+    raw = email_address.strip()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Email address cannot be blank",
+        )
+    # Normalize (lowercase, validate)
+    try:
+        normalized_email = normalize_email(raw)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid email address '{raw}': {exc}",
+        )
+
+    # Look for an active email row by normalized address
+    email_obj: Optional[EmailModel] = (
         db.query(EmailModel)
         .filter(
-            EmailModel.email_address == email_address,
-            EmailModel.date_invalidated.is_(None),
+            and_(
+                EmailModel.email_address == normalized_email,
+                EmailModel.date_invalidated.is_(None),
+            )
         )
+        .order_by(EmailModel.email_id)
         .first()
     )
-
     # Create if missing
     if email_obj is None:
         email_obj = EmailModel(
-            email_address=email_address,
+            email_address=normalized_email,
             person_id=None,
             primary=None,
             date_invalidated=None,
@@ -458,9 +486,7 @@ def add_reference_email(db: Session, curie_or_reference_id: str, email_address: 
         .first()
     )
     if not exists:
-        # Add the association
-        ref_email = ReferenceEmailModel(reference_id=ref_id, email_id=email_obj.email_id)
-        db.add(ref_email)
+        db.add(ReferenceEmailModel(reference_id=ref_id, email_id=email_obj.email_id))
         db.commit()
 
 
