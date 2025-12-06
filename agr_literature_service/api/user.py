@@ -1,5 +1,4 @@
 from typing import Optional, Dict, Any
-
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -18,7 +17,8 @@ def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
       users.person_id = NULL
     This satisfies the CHECK: (person_id IS NULL) <> (automation_username IS NULL)
     """
-    u = db.query(UserModel).filter_by(id=program_name).one_or_none()
+    # Use .first() instead of .one_or_none() to avoid MultipleResultsFound
+    u = db.query(UserModel).filter_by(id=program_name).first()
     if u is None:
         # user_crud.create sets automation_username=<id>, person_id=NULL
         u = user_crud.create(db, program_name, None)
@@ -80,6 +80,7 @@ def set_global_user_from_cognito(db: Session, cognito_user: Dict[str, Any]) -> N
         FROM users u
         JOIN email e ON u.person_id = e.person_id
         WHERE e.email_address = :email
+        ORDER BY u.id
         LIMIT 1
     """)
 
@@ -114,7 +115,8 @@ def link_user_to_person(db: Session, user_id_str: str, person_id: int) -> None:
       person_id = <id>, automation_username = NULL
     This keeps the CHECK constraint valid.
     """
-    u = db.query(UserModel).filter_by(id=user_id_str).one_or_none()
+    # Again, use .first() to be resilient to accidental duplicates.
+    u = db.query(UserModel).filter_by(id=user_id_str).first()
     if u is None:
         u = _ensure_automation_user(db, user_id_str)
 

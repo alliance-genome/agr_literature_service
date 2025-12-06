@@ -11,7 +11,8 @@ from agr_literature_service.api.s3 import download
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
                                                 ReferenceSchemaUpdate, ResponseMessageSchema)
-from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid
+from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid, \
+    ReferenceEmailSchemaRelated
 from agr_literature_service.api.user import set_global_user_from_cognito
 
 from agr_cognito_py import get_cognito_user_swagger
@@ -184,6 +185,86 @@ def show(curie_or_reference_id: str,
 def show_versions(curie_or_reference_id: str,
                   db: Session = db_session):
     return reference_crud.show_changesets(db, curie_or_reference_id)
+
+
+@router.get(
+    "/{curie_or_reference_id}/emails",
+    status_code=200,
+    response_model=List[ReferenceEmailSchemaRelated],
+)
+def get_reference_emails(
+    curie_or_reference_id: str,
+    db: Session = db_session,
+):
+    """
+    Get all emails associated with a given reference.
+    """
+    return reference_crud.get_reference_emails(db, curie_or_reference_id)
+
+
+# Fully replace the associations
+@router.put(
+    "/{curie_or_reference_id}/emails",
+    status_code=status.HTTP_200_OK,
+)
+def set_reference_emails(
+    curie_or_reference_id: str,
+    email_addresses: List[str],
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    db: Session = db_session,
+):
+    """
+    Replace the set of emails associated with this reference.
+
+    Body should be a JSON array of email addresses, e.g.:
+
+        ["foo@example.org", "bar@lab.edu"]
+    """
+    set_global_user_from_cognito(db, user)
+    reference_crud.set_reference_emails(db, curie_or_reference_id, email_addresses)
+    return {"message": "updated"}
+
+
+@router.post(
+    "/{curie_or_reference_id}/emails",
+    status_code=status.HTTP_201_CREATED,
+)
+def add_reference_email(
+    curie_or_reference_id: str,
+    email_address: str,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    db: Session = db_session,
+):
+    """
+    Append a single email to this reference.
+    Body should be a plain string (email address), e.g.:
+
+        "foo@example.org"
+    """
+    set_global_user_from_cognito(db, user)
+    reference_crud.add_reference_email(db, curie_or_reference_id, email_address)
+    return {"message": "added"}
+
+
+@router.delete(
+    "/{curie_or_reference_id}/emails/{reference_email_id}",
+    status_code=status.HTTP_200_OK,
+)
+def delete_reference_email(
+    curie_or_reference_id: str,
+    reference_email_id: int,
+    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    db: Session = db_session,
+):
+    """
+    Remove one specific email from this reference.
+
+    Example:
+      DELETE /reference/AGRKB:12345/emails/77
+    """
+    set_global_user_from_cognito(db, user)
+    reference_crud.delete_reference_email(db, curie_or_reference_id, reference_email_id)
+    return {"message": "deleted"}
 
 
 @router.post('/merge/{old_curie}/{new_curie}',
