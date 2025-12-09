@@ -28,6 +28,7 @@ omit =
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py
 
 	agr_literature_service/lit_processing/data_check/*
+	agr_literature_service/lit_processing/data_export/dump_database.py
 
         # to be added back when we have unit tests for them
         agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py
