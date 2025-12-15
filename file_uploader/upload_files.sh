@@ -69,7 +69,7 @@ upload_file () {
   else
     upload_status="error"
   fi
-  if [[ "${response}" == "{\"detail\":\"Expired token\"}" ]]; then
+  if [[ "${response}" == "{\"detail\":\"Invalid or expired token: Signature has expired.\"}" ]]; then
     echo "INFO: Access token expired, requesting a new one"
     generate_access_token
     upload_file
