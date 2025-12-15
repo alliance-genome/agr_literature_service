@@ -213,10 +213,14 @@ def add_paper_to_mod_if_not_already(db: Session, reference_id, mod_id):
         mca_db_obj.mod_corpus_sort_source = "manual_creation"
         db.add(mca_db_obj)
     if add_wft_141_bool:
-        new_wft = WorkflowTagModel(reference_id=reference_id,
-                                   mod_id=mod_id,
-                                   workflow_tag_id='ATP:0000141')
-        db.add(new_wft)
+        wft = db.query(WorkflowTagModel).filter_by(
+            reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141'
+        ).one_or_none()
+        if not wft:
+            new_wft = WorkflowTagModel(reference_id=reference_id,
+                                       mod_id=mod_id,
+                                       workflow_tag_id='ATP:0000141')
+            db.add(new_wft)
     db.commit()
 
 
