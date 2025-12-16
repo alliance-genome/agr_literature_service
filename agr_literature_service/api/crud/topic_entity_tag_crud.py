@@ -269,7 +269,7 @@ def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, 
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail=f"An error: {e} occurred when adding {reference_curie} into corpus/adding file needed tag")
+                            detail=f"An error: '{e}' occurred when adding {reference_curie} into corpus/adding file needed tag")
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
