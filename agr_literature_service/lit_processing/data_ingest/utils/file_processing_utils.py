@@ -176,7 +176,7 @@ def get_pmids_from_exclude_list(mod=None):
         # "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt"
         # "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt"
         mod_to_fp_pmids_url = {
-            "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
+            "WB": "https://caltech-curation.textpressolab.com/files/pub/agr_upload/pap_papers/rejected_pmids",
             "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
         }
         if mod in mod_false_positive_file:
