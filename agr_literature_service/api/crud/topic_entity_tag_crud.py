@@ -29,7 +29,8 @@ from agr_literature_service.api.models import (
     ReferenceModel, TopicEntityTagSourceModel, ModModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
-from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process
+from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
+    get_current_workflow_status
 from agr_literature_service.api.models.audited_model import (
     get_default_user_value,
     disable_set_updated_by_onupdate,
@@ -134,7 +135,9 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
 
         logger.info("Adding paper to MOD if needed")
         mod_id = get_mod_id_from_mod_abbreviation(db, source.secondary_data_provider.abbreviation)
-        add_paper_to_mod_if_not_already(db, reference_id, mod_id)
+        add_paper_to_mod_if_not_already(db, reference_curie, reference_id,
+                                        source.secondary_data_provider.abbreviation,
+                                        mod_id)
         logger.info("Updating manual indexing workflow tag")
         update_manual_indexing_workflow_tag(db, mod_id, reference_id, index_wft)
         if validate_on_insert:
@@ -158,7 +161,7 @@ def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference
 
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     mod_id = get_mod_id_from_mod_abbreviation(db, mod_abbreviation)
-    add_paper_to_mod_if_not_already(db, reference_id, mod_id)
+    add_paper_to_mod_if_not_already(db, reference_curie, reference_id, mod_abbreviation, mod_id)
     update_manual_indexing_workflow_tag(db, mod_id, reference_id, "ATP:0000275", uid)
 
 
@@ -195,33 +198,78 @@ def update_manual_indexing_workflow_tag(db: Session, mod_id, reference_id, index
         db.commit()
 
 
-def add_paper_to_mod_if_not_already(db: Session, reference_id, mod_id):
+def add_paper_to_mod_if_not_already(db: Session, reference_curie, reference_id, mod_abbreviation, mod_id):
+    try:
+        add_wft_141 = False
 
-    add_wft_141_bool = False
-    mca_db_obj = db.query(ModCorpusAssociationModel).filter_by(
-        mod_id=mod_id, reference_id=reference_id).one_or_none()
-    if mca_db_obj is None:
-        add_wft_141_bool = True
-        new_mca = ModCorpusAssociationModel(reference_id=reference_id,
-                                            mod_id=mod_id,
-                                            corpus=True,
-                                            mod_corpus_sort_source='manual_creation')
-        db.add(new_mca)
-    elif not mca_db_obj.corpus:
-        add_wft_141_bool = True
-        mca_db_obj.corpus = True
-        mca_db_obj.mod_corpus_sort_source = "manual_creation"
-        db.add(mca_db_obj)
-    if add_wft_141_bool:
-        wft = db.query(WorkflowTagModel).filter_by(
-            reference_id=reference_id, mod_id=mod_id, workflow_tag_id='ATP:0000141'
-        ).one_or_none()
-        if not wft:
-            new_wft = WorkflowTagModel(reference_id=reference_id,
-                                       mod_id=mod_id,
-                                       workflow_tag_id='ATP:0000141')
-            db.add(new_wft)
-    db.commit()
+        mca_db_obj = (
+            db.query(ModCorpusAssociationModel)
+            .filter_by(mod_id=mod_id, reference_id=reference_id)
+            .one_or_none()
+        )
+
+        if mca_db_obj is None:
+            add_wft_141 = True
+            new_mca = ModCorpusAssociationModel(
+                reference_id=reference_id,
+                mod_id=mod_id,
+                corpus=True,
+                mod_corpus_sort_source="manual_creation",
+            )
+            db.add(new_mca)
+
+            logger.info(
+                "Created ModCorpusAssociation (reference_id=%s, mod_id=%s)",
+                reference_id,
+                mod_id,
+            )
+
+        elif not mca_db_obj.corpus:
+            add_wft_141 = True
+            mca_db_obj.corpus = True
+            mca_db_obj.mod_corpus_sort_source = "manual_creation"
+            db.add(mca_db_obj)
+
+            logger.info(
+                "Updated ModCorpusAssociation to corpus=True "
+                "(reference_id=%s, mod_id=%s)",
+                reference_id,
+                mod_id,
+            )
+
+        if add_wft_141:
+            current_status = get_current_workflow_status(
+                db,
+                reference_curie,
+                "ATP:0000140",
+                mod_abbreviation,
+            )
+
+            if current_status is None:
+                """
+                transition_to_workflow_status(
+                    db,
+                    reference_curie,
+                    mod_abbreviation,
+                    "ATP:0000141",
+                )
+                """
+                new_wft = WorkflowTagModel(reference_id=reference_id,
+                                           mod_id=mod_id,
+                                           workflow_tag_id='ATP:0000141')
+                db.add(new_wft)
+                logger.info(
+                    "Transitioned workflow status to ATP:0000141 "
+                    "(reference=%s, mod=%s)",
+                    reference_curie,
+                    mod_abbreviation,
+                )
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail=f"An error: {e} occurred when adding {reference_curie} into corpus/adding file needed tag")
 
 
 def calculate_validation_value_for_tag(topic_entity_tag_db_obj: TopicEntityTagModel, validation_type: str):
