@@ -9,6 +9,9 @@ from os import environ, path, listdir, remove
 import html
 import re
 
+import boto3  # type: ignore
+from botocore.exceptions import ClientError  # type: ignore
+
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 init_tmp_dir()
@@ -97,6 +100,25 @@ def download_file(url, file):
             fh.write(data)
     except Exception as e:
         logger.error("Error downloading the file: " + file + ". Error=" + str(e))
+
+
+def download_s3_file(bucket, key, file):
+    """
+    Download a file from S3 bucket using IAM instance credentials.
+
+    :param bucket: S3 bucket name
+    :param key: S3 object key (path within bucket)
+    :param file: Local file path to save to
+    :return: True on success, False on failure
+    """
+    try:
+        logger.info(f"Downloading s3://{bucket}/{key}")
+        s3 = boto3.client('s3')
+        s3.download_file(bucket, key, file)
+        return True
+    except ClientError as e:
+        logger.error(f"Error downloading S3 file: {bucket}/{key}. Error={str(e)}")
+        return False
 
 
 def gunzip_file(file_with_path, to_file_dir):
