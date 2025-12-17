@@ -116,7 +116,8 @@ def download_dqm_s3_file(mod, s3_config, datatype):  # pragma: no cover
 
     if key.endswith('.gz'):
         gzip_json_file = json_file + ".gz"
-        download_s3_file(bucket, key, gzip_json_file)
+        if not download_s3_file(bucket, key, gzip_json_file):
+            return
         try:
             with gzip.open(gzip_json_file, 'rb') as f_in:
                 with open(json_file, 'wb') as f_out:
