@@ -199,7 +199,7 @@ def get_mod_curators(db: Session, mod_abbreviation):
     result = db.execute(sql_query, {
         'mod_abbreviation': mod_abbreviation,
         'one_month_ago': one_month_ago
-    })
+    }).fetchall()
     return {row[2]: row[1] for row in result}, {row[1]: row[0] for row in result}
 
 
