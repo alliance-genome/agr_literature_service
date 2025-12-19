@@ -41,6 +41,7 @@ def do_it(session):
                 VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', {tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
             print(cmd)
             # db_session.execute(text(cmd))
+    # FB and WB already have a transition which will need updating, so just others here.
     mod_to_id = {'ZFIN': 3, 'SGD': 4, 'XB': 7}
     trans = [
         ['ATP:0000162', 'ATP:0000163', ['proceed_on_value::all::email extraction'],
@@ -57,6 +58,7 @@ def do_it(session):
             # db_session.execute(text(cmd))
 
     # BUT we want to update these ones and add new 'proceed_on_value::all::email extraction' to actions list.
+    # For FB and WB anyway.
     # [ 'ATP:0000162', 'ATP:0000163',  ['proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction'], 'on_success'],
     # [ 'ATP:0000198', 'ATP:0000163',  ['proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction'], 'on_success']
 
