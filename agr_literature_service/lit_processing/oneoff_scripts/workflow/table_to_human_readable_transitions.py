@@ -51,10 +51,10 @@ def print_transitions(db: Session, comma_format, mod_only: str, debug: bool):  #
     try:
         query = r"""
         select workflow_transition_id, mod_id, transition_from, transition_to, requirements, transition_type, actions, condition
-          from workflow_transition"""
+          from workflow_transition """
         if mod_only:
-            query += f" where mod_id = '{mod_ids[mod_only]}'"
-        query += "order by condition, transition_from, transition_to"
+            query += f" where mod_id = '{mod_ids[mod_only]}' "
+        query += " order by condition, transition_from, transition_to "
         trans = db.execute(text(query)).mappings().fetchall()
         start = '{'
         end = '}'
@@ -64,7 +64,9 @@ def print_transitions(db: Session, comma_format, mod_only: str, debug: bool):  #
             if debug:
                 print(f"DEBUG: tran: {tran}")
             if comma_format:
-                print(f"'{mod_abbrs[tran['mod_id']]}', '{atp_get_name(tran['transition_from'])}', '{atp_get_name(tran['transition_to'])}', ",
+                tfrom = atp_get_name(tran['transition_from']) or tran['transition_from']
+                tto = atp_get_name(tran['transition_to']) or tran['transition_to']
+                print(f"'{mod_abbrs[tran['mod_id']]}', '{tfrom}', '{tto}', ",
                       f"'{tran['requirements']}', '{tran['actions']}', '{tran['condition']}'")
             else:
                 print(f"""
