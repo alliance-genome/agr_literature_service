@@ -35,7 +35,11 @@ def dump_database(dump_type="ondemand"):  # noqa: C901
     if dump_type == 'cron' and env_state == 'prod':
         s3_filename = lastweek_bucket + file_name
         upload_file_to_s3(file_name, s3_bucket, s3_filename)
-        ## upload file to monthly bucket if it is first day of the month
+        # upload to latest bucket (overwrites previous latest)
+        latest_file_name = database + "_latest.sql"
+        s3_filename_latest = latest_bucket + latest_file_name
+        upload_file_to_s3(file_name, s3_bucket, s3_filename_latest)
+        # upload file to monthly bucket if it is first day of the month
         todayDate = date.today()
         if todayDate.day == 1:
             s3_filename_monthly = monthly_bucket + file_name

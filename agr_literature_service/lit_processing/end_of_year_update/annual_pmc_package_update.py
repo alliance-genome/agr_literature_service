@@ -616,19 +616,40 @@ def add_file(db, pmid, file_name, md5sum, old_file_class, pmcid, reference_id, r
             logger,
         )
 
-    if referencefile_id and referencefile_ids_added:
-        refFileMods = db.query(ReferencefileModAssociationModel).filter_by(referencefile_id=referencefile_id).all()
-        if not refFileMods:
-            logger.info(f"{pmid}: adding referencefile_mod row for {file_name} - referencefile_id = {referencefile_id}")
-            insert_referencefile_mod_for_pmc(
-                db,
-                pmid,
-                file_name,
-                referencefile_id,
-                logger,
-            )
-    if referencefile_id:
-        referencefile_ids_added.add(referencefile_id)
+    if not referencefile_id:
+        return
+
+    if referencefile_id in referencefile_ids_added:
+        logger.info(
+            f"{pmid}: referencefile_mod already handled in this batch for "
+            f"referencefile_id={referencefile_id}; skipping."
+        )
+
+    existing_mod = (
+        db.query(ReferencefileModAssociationModel)
+        .filter_by(referencefile_id=referencefile_id)
+        .first()
+    )
+
+    if existing_mod:
+        logger.info(
+            f"{pmid}: referencefile_mod already exists in DB for "
+            f"referencefile_id={referencefile_id}; skipping insert."
+        )
+    else:
+        logger.info(
+            f"{pmid}: adding referencefile_mod row for {file_name} - "
+            f"referencefile_id = {referencefile_id}"
+        )
+        insert_referencefile_mod_for_pmc(
+            db,
+            pmid,
+            file_name,
+            referencefile_id,
+            logger,
+        )
+
+    referencefile_ids_added.add(referencefile_id)
 
 
 def destroy_file(db, pmid, file_name, md5sum, file_class, pmids_for_retracted_papers):

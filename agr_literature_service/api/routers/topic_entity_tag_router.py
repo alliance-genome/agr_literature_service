@@ -1,21 +1,19 @@
 from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any
 
+from agr_cognito_py import get_cognito_user_swagger
+from agr_cognito_py import get_mod_access
 from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
-
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud, \
-    ateam_db_helpers, topic_entity_tag_utils
-from agr_cognito_py import get_mod_access
+    topic_entity_tag_utils
 from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
 
 router = APIRouter(
     prefix="/topic_entity_tag",
@@ -217,44 +215,6 @@ def delete_manual_tags(reference_curie,
 
 
 # Use :path so entity_list can include slashes.
-@router.get('/entity_validation/{taxon}/{entity_type}/{entity_list:path}',
-            status_code=200)
-def entity_validation(taxon: str,
-                      entity_type: str,
-                      entity_list: str):
-    return ateam_db_helpers.map_entity_to_curie(entity_type, entity_list, taxon)
-
-
-@router.get('/map_curie_to_name/{category}/{curie}',
-            status_code=200)
-def map_curie_to_name(category: str,
-                      curie: str):
-    mapping = ateam_db_helpers.map_curies_to_names(category, [curie])
-    return mapping.get(curie, curie)
-
-
-@router.get('/search_topic/{topic}',
-            status_code=200)
-def search_topic(topic: str,
-                 mod_abbr: str = None):
-    return ateam_db_helpers.search_topic(topic, mod_abbr)
-
-
-@router.get('/search_descendants/{ancestor_curie}/{direct_children_only}/{include_self}/{include_names}',
-            status_code=200)
-@router.get('/search_descendants/{ancestor_curie}',
-            status_code=200)
-def search_descendants(ancestor_curie: str,
-                       direct_children_only: bool = False,
-                       include_self: bool = False,
-                       include_names: bool = False):
-    return ateam_db_helpers.atp_get_all_descendants(ancestor_curie, direct_children_only, include_self, include_names)
-
-
-@router.get('/search_species/{species}',
-            status_code=200)
-def search_species(species: str):
-    return ateam_db_helpers.search_species(species)
 
 
 @router.post('/set_no_tet_status/{mod_abbreviation}/{reference_curie}/{uid}',

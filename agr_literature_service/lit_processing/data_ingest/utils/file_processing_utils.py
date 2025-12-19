@@ -9,6 +9,9 @@ from os import environ, path, listdir, remove
 import html
 import re
 
+import boto3  # type: ignore
+from botocore.exceptions import ClientError  # type: ignore
+
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 init_tmp_dir()
@@ -99,6 +102,25 @@ def download_file(url, file):
         logger.error("Error downloading the file: " + file + ". Error=" + str(e))
 
 
+def download_s3_file(bucket, key, file):
+    """
+    Download a file from S3 bucket using IAM instance credentials.
+
+    :param bucket: S3 bucket name
+    :param key: S3 object key (path within bucket)
+    :param file: Local file path to save to
+    :return: True on success, False on failure
+    """
+    try:
+        logger.info(f"Downloading s3://{bucket}/{key}")
+        s3 = boto3.client('s3')
+        s3.download_file(bucket, key, file)
+        return True
+    except ClientError as e:
+        logger.error(f"Error downloading S3 file: {bucket}/{key}. Error={str(e)}")
+        return False
+
+
 def gunzip_file(file_with_path, to_file_dir):
 
     try:
@@ -176,7 +198,7 @@ def get_pmids_from_exclude_list(mod=None):
         # "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt"
         # "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt"
         mod_to_fp_pmids_url = {
-            "WB": "https://tazendra.caltech.edu/~postgres/agr/lit/WB_false_positive_pmids",
+            "WB": "https://caltech-curation.textpressolab.com/files/pub/agr_upload/pap_papers/rejected_pmids",
             "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
         }
         if mod in mod_false_positive_file:

@@ -36,16 +36,21 @@ from agr_literature_service.api.crud.workflow_tag_crud import (
 )
 from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status, \
     get_current_workflow_status, is_file_upload_blocked
-from agr_literature_service.api.models import (AuthorModel, CrossReferenceModel,
-                                               MeshDetailModel,
-                                               ModModel,
-                                               ModCorpusAssociationModel,
-                                               ObsoleteReferenceModel,
-                                               ReferenceRelationModel,
-                                               ReferenceModel,
-                                               ResourceModel,
-                                               CopyrightLicenseModel,
-                                               CitationModel)
+from agr_literature_service.api.models import (
+    AuthorModel,
+    CrossReferenceModel,
+    MeshDetailModel,
+    ModModel,
+    ModCorpusAssociationModel,
+    ObsoleteReferenceModel,
+    ReferenceRelationModel,
+    ReferenceModel,
+    ResourceModel,
+    CopyrightLicenseModel,
+    CitationModel,
+    EmailModel,
+    ReferenceEmailModel,
+)
 from agr_cognito_py import ModAccess
 from agr_literature_service.api.schemas import ReferenceSchemaPost, ModReferenceTypeSchemaRelated, \
     TopicEntityTagSchemaPost
@@ -61,6 +66,7 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_journal_by_resource_id, get_citation_data, get_license_data
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud.person_crud import normalize_email
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +302,220 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     return {"message": "updated"}
 
 
+def get_reference_emails(db: Session, curie_or_reference_id: str):
+    """
+    Return list of emails associated with a reference via reference_email.
+    """
+    reference: ReferenceModel = get_reference(db, curie_or_reference_id)
+    ref_id = reference.reference_id
+
+    ref_email_rows = (
+        db.query(ReferenceEmailModel)
+        .join(EmailModel, ReferenceEmailModel.email_id == EmailModel.email_id)
+        .filter(ReferenceEmailModel.reference_id == ref_id)
+        .order_by(ReferenceEmailModel.reference_email_id)
+        .all()
+    )
+
+    results: List[Dict[str, Any]] = []
+    for ref_email in ref_email_rows:
+        email = ref_email.email  # relationship on ReferenceEmailModel
+        if not email:
+            continue
+        results.append(
+            {
+                "reference_email_id": ref_email.reference_email_id,
+                "email_id": email.email_id,
+                "email_address": email.email_address,
+                "person_id": email.person_id,
+                "primary": email.primary,
+                "date_invalidated": (
+                    email.date_invalidated.isoformat()
+                    if email.date_invalidated
+                    else None
+                ),
+            }
+        )
+    return results
+
+
+def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresses: List[str]):
+    """
+    Replace the set of emails attached to a reference (via reference_email)
+    using a list of email *addresses* (strings).
+
+    For each address:
+      - Try to find an active EmailModel row (date_invalidated IS NULL).
+      - If found, reuse it.
+      - If not found, create a new EmailModel with person_id = NULL and primary = NULL.
+
+    Then:
+      - Delete existing reference_email rows for this reference.
+      - Insert new reference_email rows for each resolved email_id.
+    """
+
+    reference = get_reference(db, curie_or_reference_id)
+    ref_id = reference.reference_id
+
+    # Normalize and dedupe addresses
+    cleaned: List[str] = []
+    seen: set[str] = set()
+
+    for addr in email_addresses:
+        if addr is None:
+            continue
+        raw = addr.strip()
+        if not raw:
+            continue
+
+        # Normalize (lowercase, validate)
+        try:
+            norm = normalize_email(raw)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid email address '{raw}': {exc}",
+            )
+
+        if norm in seen:
+            continue
+        seen.add(norm)
+        cleaned.append(norm)
+
+    resolved_email_ids: List[int] = []
+
+    for normalized_email in cleaned:
+        # Prefer an active email row with this normalized address
+        email_obj: Optional[EmailModel] = (
+            db.query(EmailModel)
+            .filter(
+                and_(
+                    EmailModel.email_address == normalized_email,
+                    EmailModel.date_invalidated.is_(None),
+                )
+            )
+            .order_by(EmailModel.email_id)
+            .first()
+        )
+
+        if email_obj is None:
+            # No active row; create a new one with person_id = NULL, primary = NULL
+            email_obj = EmailModel(
+                email_address=normalized_email,
+                person_id=None,
+                primary=None,
+                date_invalidated=None,
+            )
+            db.add(email_obj)
+            db.flush()  # get email_id
+
+        resolved_email_ids.append(email_obj.email_id)
+
+    # Replace existing associations
+    db.query(ReferenceEmailModel).filter(
+        ReferenceEmailModel.reference_id == ref_id
+    ).delete(synchronize_session=False)
+
+    for email_id in resolved_email_ids:
+        db.add(ReferenceEmailModel(reference_id=ref_id, email_id=email_id))
+
+    db.commit()
+
+
+def add_reference_email(db: Session, curie_or_reference_id: str, email_address: str):
+    """
+    Add a single email association to a reference.
+    - Reuse active EmailModel if exists.
+    - Otherwise create a new EmailModel (person_id=NULL, primary=NULL).
+    - Add a new reference_email row (unless it already exists).
+    """
+    reference = get_reference(db, curie_or_reference_id)
+    ref_id = reference.reference_id
+
+    if email_address is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Email address cannot be null",
+        )
+
+    raw = email_address.strip()
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Email address cannot be blank",
+        )
+    # Normalize (lowercase, validate)
+    try:
+        normalized_email = normalize_email(raw)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid email address '{raw}': {exc}",
+        )
+
+    # Look for an active email row by normalized address
+    email_obj: Optional[EmailModel] = (
+        db.query(EmailModel)
+        .filter(
+            and_(
+                EmailModel.email_address == normalized_email,
+                EmailModel.date_invalidated.is_(None),
+            )
+        )
+        .order_by(EmailModel.email_id)
+        .first()
+    )
+    # Create if missing
+    if email_obj is None:
+        email_obj = EmailModel(
+            email_address=normalized_email,
+            person_id=None,
+            primary=None,
+            date_invalidated=None,
+        )
+        db.add(email_obj)
+        db.flush()
+
+    # Check if already associated
+    exists = (
+        db.query(ReferenceEmailModel)
+        .filter(
+            ReferenceEmailModel.reference_id == ref_id,
+            ReferenceEmailModel.email_id == email_obj.email_id,
+        )
+        .first()
+    )
+    if not exists:
+        db.add(ReferenceEmailModel(reference_id=ref_id, email_id=email_obj.email_id))
+        db.commit()
+
+
+def delete_reference_email(db: Session, curie_or_reference_id: str, reference_email_id: int):
+    """
+    Remove one reference_email row linking a reference to an email.
+    """
+    reference = get_reference(db, curie_or_reference_id)
+    ref_id = reference.reference_id
+
+    row = (
+        db.query(ReferenceEmailModel)
+        .filter(
+            ReferenceEmailModel.reference_id == ref_id,
+            ReferenceEmailModel.reference_email_id == reference_email_id,
+        )
+        .first()
+    )
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Reference email link {reference_email_id} not found for this reference"
+        )
+
+    db.delete(row)
+    db.commit()
+
+
 def show_all_references_external_ids(db: Session):
     """
 
@@ -505,6 +725,29 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                                                                reference_relation.reference_relation_id)
         del reference_relation_data["reference_curie_to"]
         reference_relations_data["from_references"].append(reference_relation_data)
+
+    # emails associated with this reference
+    if hasattr(reference, "reference_emails") and reference.reference_emails:
+        emails_data = []
+        for ref_email in reference.reference_emails:
+            email = ref_email.email
+            if not email:
+                continue
+            emails_data.append(
+                {
+                    "reference_email_id": ref_email.reference_email_id,
+                    "email_id": email.email_id,
+                    "email_address": email.email_address,
+                    "person_id": email.person_id,
+                    "primary": email.primary,
+                    "date_invalidated": (
+                        email.date_invalidated.isoformat()
+                        if email.date_invalidated
+                        else None
+                    ),
+                }
+            )
+        reference_data["emails"] = emails_data
 
     reference_data["reference_relations"] = reference_relations_data
     # logger.debug("returning {}".format(reference_data))

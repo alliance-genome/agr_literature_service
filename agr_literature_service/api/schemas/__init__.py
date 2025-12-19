@@ -133,3 +133,9 @@ from .person_setting_schemas import (
     PersonSettingSchemaUpdate,
     PersonSettingSchemaShow
 )
+from .reference_email_schemas import (
+    ReferenceEmailSchemaCreate,
+    ReferenceEmailSchemaUpdate,
+    ReferenceEmailSchemaShow,
+    ReferenceEmailSchemaRelated,
+)

@@ -428,6 +428,17 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
                                       f"AND is_obsolete is False")).fetchall()
     valid_reference_ids = {row[0] for row in cr_rows}
 
+    # NEW: for FB only, detect references that have *any* FB curie at all
+    ref_ids_with_any_mod_curie = set()
+    if mod == "FB":
+        any_rows = db_session.execute(text(f"""
+            SELECT DISTINCT reference_id
+            FROM cross_reference
+            WHERE curie_prefix = '{curie_prefix}'
+              AND reference_id IS NOT NULL
+        """)).fetchall()
+        ref_ids_with_any_mod_curie = {row[0] for row in any_rows}
+
     mca_rows = db_session.execute(text(f"SELECT mca.mod_corpus_association_id, mca.reference_id "
                                        f"FROM mod_corpus_association mca, reference r "
                                        f"WHERE mca.mod_id = {mod_id} "
@@ -437,19 +448,26 @@ def move_obsolete_papers_out_of_corpus(db_session: Session, mod, mod_id, curie_p
     try:
         # update those that are no longer valid
         for assoc_id, ref_id in mca_rows:
-            if ref_id not in valid_reference_ids:
-                db_session.execute(
-                    text("""
-                     UPDATE mod_corpus_association
-                        SET corpus = False
-                     WHERE mod_corpus_association_id = :assoc_id
-                    """),
-                    {"assoc_id": assoc_id}
-                )
+            if ref_id in valid_reference_ids:
+                continue
+            # NEW: FB exception — don't move out if there is no FB curie row at all
+            if mod == "FB" and ref_id not in ref_ids_with_any_mod_curie:
                 if logger:
-                    logger.info(
-                        f"Moving {mod} paper out of corpus for assoc_id={assoc_id}"
-                    )
+                    logger.info(f"FB: keeping reference_id={ref_id} in corpus (no FB cross_reference curie exists).")
+                continue
+
+            db_session.execute(
+                text("""
+                    UPDATE mod_corpus_association
+                       SET corpus = False
+                    WHERE mod_corpus_association_id = :assoc_id
+                """),
+                {"assoc_id": assoc_id}
+            )
+            if logger:
+                logger.info(
+                    f"Moving {mod} paper out of corpus for assoc_id={assoc_id}"
+                )
         db_session.commit()
     except Exception as e:
         db_session.rollback()
@@ -473,6 +491,8 @@ def mark_not_in_mod_papers_as_out_of_corpus(mod, missing_papers_in_mod, logger=N
 
     # xref_id: MOD database ID, eg. SGD:00000000005
     for (xref_id, agr, pmid) in missing_papers_in_mod:
+        if mod == "FB" and not xref_id:
+            continue
         try:
             cr = db_session.query(CrossReferenceModel).filter_by(curie=xref_id, is_obsolete=False).one_or_none()
             if cr and _is_prepublication_pipeline(db_session, cr.reference_id):

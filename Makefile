@@ -189,3 +189,6 @@ run-debezium-start-test-env:
 	# Run Debezium setup and wait for completion
 	@echo "Running Debezium setup (this will wait for completion)..."
 	docker-compose --env-file .env.test up --build dbz_setup
+
+sync-prod-to-develop:
+	./agr_literature_service/lit_processing/oneoff_scripts/sync_prod_to_develop.sh

@@ -251,6 +251,8 @@ class ReferenceModel(Base, AuditedModel):
         "CitationModel"
     )
 
+    reference_emails = relationship("ReferenceEmailModel", back_populates="reference")
+
     def __str__(self):
         """
         Overwrite the default output.
