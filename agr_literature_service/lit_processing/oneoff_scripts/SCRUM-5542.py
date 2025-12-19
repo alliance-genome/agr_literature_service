@@ -1,6 +1,5 @@
 
 import datetime
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 import pytz
@@ -16,8 +15,9 @@ import pytz
 
 ## on start ?
 # 'FB', 'ATP:0000354', 'ATP:0000357',  'None', '['sub_task_in_progress::email extraction']', 'on_start'
+# After tei conversion “email extraction needed” wf tags added to references  for FB, WB, ZFIN, SGD, XB
 
-#After tei conversion “email extraction needed” wf tags added to references  for FB, WB, ZFIN, SGD, XB
+
 def do_it(session):
     mod_to_id = {'FB': 1, 'WB': 2, 'ZFIN': 3, 'SGD': 4, 'XB': 7}
 
@@ -36,7 +36,7 @@ def do_it(session):
     ]
     for mod_id in mod_to_id.values():
         for tran in trans:
-            cmd = f"""INSERT INTO workflow_transition 
+            cmd = f"""INSERT INTO workflow_transition
                  (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
                 VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', {tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
             print(cmd)
