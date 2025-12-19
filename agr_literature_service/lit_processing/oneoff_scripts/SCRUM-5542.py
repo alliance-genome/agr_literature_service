@@ -27,7 +27,7 @@ def do_it(session):
         ['ATP:0000357', 'ATP:0000355', ['sub_task_complete::email extraction'], 'on_success'],
         # from needed
         ['ATP:0000358', 'ATP:0000356', ['sub_task_failed::email extraction'], 'on_failed'],
-        ['ATP:0000358', 'ATP:0000355', ['sub_task_complete:email extraction'], 'on_success'],
+        ['ATP:0000358', 'ATP:0000355', ['sub_task_complete::email extraction'], 'on_success'],
         # from failed
         ['ATP:0000356', 'ATP:0000358', ['sub_task_retry::email extraction'], 'on_retry'],
         # on start
