@@ -65,7 +65,7 @@ def print_transitions(db: Session, comma_format, mod_only: str, debug: bool):  #
                 print(f"DEBUG: tran: {tran}")
             if comma_format:
                 tfrom = atp_get_name(tran['transition_from']) or tran['transition_from']
-                tto =  atp_get_name(tran['transition_to']) or tran['transition_to']
+                tto = atp_get_name(tran['transition_to']) or tran['transition_to']
                 print(f"'{mod_abbrs[tran['mod_id']]}', '{tfrom}', '{tto}', ",
                       f"'{tran['requirements']}', '{tran['actions']}', '{tran['condition']}'")
             else:
