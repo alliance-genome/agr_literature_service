@@ -19,6 +19,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 # After tei conversion “email extraction needed” wf tags added to references  for FB, WB, ZFIN, SGD, XB
 testing = False
 
+
 def do_it(session):
     mod_to_id = {'FB': 1, 'WB': 2, 'ZFIN': 3, 'SGD': 4, 'XB': 7}
 
