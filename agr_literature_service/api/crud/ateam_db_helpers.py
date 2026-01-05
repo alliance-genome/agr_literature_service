@@ -5,7 +5,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
 from typing import Dict, List, Optional, Iterable, Tuple, Union, cast
-import cachetools.func
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
 from sqlalchemy.orm import Session
