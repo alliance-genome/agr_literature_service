@@ -25,7 +25,14 @@ jobs_types: Dict[str, Dict[str, str] | Dict[str, str]] = {
         'in_progress': 'ATP:0000190',
         'complete': 'ATP:0000174',
         'failed': 'ATP:0000187',
-        'needed': 'ATP:0000173'}
+        'needed': 'ATP:0000173'},
+    'email extraction': {
+        'main': 'ATP:0000354',
+        'in_progress': 'ATP:0000357',
+        'complete': 'ATP:0000355',
+        'failed': 'ATP:0000356',
+        'needed': 'ATP:0000358'
+    }
 }
 
 
