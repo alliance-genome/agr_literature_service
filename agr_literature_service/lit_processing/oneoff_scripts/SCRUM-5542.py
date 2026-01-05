@@ -17,7 +17,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 ## on start ?
 # 'FB', 'ATP:0000354', 'ATP:0000357',  'None', '['sub_task_in_progress::email extraction']', 'on_start'
 # After tei conversion “email extraction needed” wf tags added to references  for FB, WB, ZFIN, SGD, XB
-
+testing = False
 
 def do_it(session):
     mod_to_id = {'FB': 1, 'WB': 2, 'ZFIN': 3, 'SGD': 4, 'XB': 7}
@@ -41,7 +41,8 @@ def do_it(session):
                  (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
                 VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', ARRAY{tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
             print(cmd)
-            # db_session.execute(text(cmd))
+            if not testing:
+                db_session.execute(text(cmd))
     # FB and WB already have a transition which will need updating, so just others here.
     mod_to_id = {'ZFIN': 3, 'SGD': 4, 'XB': 7}
     trans = [
@@ -56,7 +57,8 @@ def do_it(session):
                  (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
                 VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', ARRAY{tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
             print(cmd)
-            # db_session.execute(text(cmd))
+            if not testing:
+                db_session.execute(text(cmd))
 
     # BUT we want to update these ones and add new 'proceed_on_value::all::email extraction' to actions list.
     # For FB and WB anyway.
@@ -76,9 +78,13 @@ def do_it(session):
                   SET actions  = array_append(actions, {new_cond})
                   WHERE workflow_transition_id = {wt_id[0]} """
         print(cmd)
-        # db_session.execute(text(cmd))
+        if not testing:
+            db_session.execute(text(cmd))
 
 
 if __name__ == "__main__":
     db_session: Session = create_postgres_session(False)
     do_it(db_session)
+    if not testing:
+        db_session.commit()
+    db_session.close()
