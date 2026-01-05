@@ -63,8 +63,8 @@ def do_it(session):
     # [ 'ATP:0000162', 'ATP:0000163',  ['proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction'], 'on_success'],
     # [ 'ATP:0000198', 'ATP:0000163',  ['proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction'], 'on_success']
 
-    select_sql = f"""SELECT workflow_transition_id FROM workflow_transition
-                       WHERE mod_id IN (1, 2) AND 
+    select_sql = """SELECT workflow_transition_id FROM workflow_transition
+                       WHERE mod_id IN (1, 2) AND
                           transition_from IN ('ATP:0000198', 'ATP:0000162') AND
                           transition_to = 'ATP:0000163' """
     ids = db_session.execute(text(select_sql))
@@ -72,11 +72,12 @@ def do_it(session):
     new_cond = "'proceed_on_value::all::email extraction'"
     for wt_id in ids:
         print(wt_id[0])
-        cmd = f"""UPDATE workflow_transition 
+        cmd = f"""UPDATE workflow_transition
                   SET actions  = array_append(actions, {new_cond})
                   WHERE workflow_transition_id = {wt_id[0]} """
         print(cmd)
         # db_session.execute(text(cmd))
+
 
 if __name__ == "__main__":
     db_session: Session = create_postgres_session(False)
