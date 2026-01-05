@@ -79,7 +79,7 @@ def sub_task_in_progress(db: Session, current_workflow_tag_db_obj: WorkflowTagMo
         mess = f"Possible Error: main flow status = {main_status_obj.workflow_tag_id} Unknown"
         raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
                             detail=mess)
-    db.commit()
+    # Note: commit is handled by the caller (workflow_tag_crud.py)
 
 
 def sub_task_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
@@ -112,7 +112,7 @@ def sub_task_retry(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, a
         main_status_obj.workflow_tag_id = jobs_types[checktype]['failed']
     else:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['in_progress']
-    db.commit()
+    # Note: commit is handled by the caller (workflow_tag_crud.py)
 
 
 def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
@@ -176,7 +176,7 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     # the main task's status.
     if not cur:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['complete']
-    db.commit()
+    # Note: commit is handled by the caller (workflow_tag_crud.py)
 
 
 def sub_task_failed(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, args: list):
@@ -198,4 +198,4 @@ def sub_task_failed(db: Session, current_workflow_tag_db_obj: WorkflowTagModel, 
                             detail=mess)
 
     main_status_obj.workflow_tag_id = jobs_types[checktype]['failed']
-    db.commit()
+    # Note: commit is handled by the caller (workflow_tag_crud.py)
