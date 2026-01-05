@@ -1,8 +1,9 @@
 
 import datetime
 from sqlalchemy.orm import Session
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 import pytz
+from sqlalchemy import text
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 ## from in_progress
 # 'FB', 'ATP:0000357', 'ATP:0000356',  'None', '['sub_task_failed::email extraction']', 'on_failed'
@@ -38,7 +39,7 @@ def do_it(session):
         for tran in trans:
             cmd = f"""INSERT INTO workflow_transition
                  (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
-                VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', {tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
+                VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', ARRAY{tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
             print(cmd)
             # db_session.execute(text(cmd))
     # FB and WB already have a transition which will need updating, so just others here.
@@ -53,7 +54,7 @@ def do_it(session):
         for tran in trans:
             cmd = f"""INSERT INTO workflow_transition
                  (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
-                VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', {tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
+                VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', ARRAY{tran[2]}, 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
             print(cmd)
             # db_session.execute(text(cmd))
 
@@ -62,6 +63,20 @@ def do_it(session):
     # [ 'ATP:0000162', 'ATP:0000163',  ['proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction'], 'on_success'],
     # [ 'ATP:0000198', 'ATP:0000163',  ['proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction'], 'on_success']
 
+    select_sql = f"""SELECT workflow_transition_id FROM workflow_transition
+                       WHERE mod_id IN (1, 2) AND 
+                          transition_from IN ('ATP:0000198', 'ATP:0000162') AND
+                          transition_to = 'ATP:0000163' """
+    ids = db_session.execute(text(select_sql))
+    # new_cond = "'proceed_on_value::category::research_article::reference classification', 'proceed_on_value::category::research_article::curation classification', 'proceed_on_value::category::research_article::entity extraction', 'proceed_on_value::all::email extraction'"
+    new_cond = "'proceed_on_value::all::email extraction'"
+    for wt_id in ids:
+        print(wt_id[0])
+        cmd = f"""UPDATE workflow_transition 
+                  SET actions  = array_append(actions, {new_cond})
+                  WHERE workflow_transition_id = {wt_id[0]} """
+        print(cmd)
+        # db_session.execute(text(cmd))
 
 if __name__ == "__main__":
     db_session: Session = create_postgres_session(False)
