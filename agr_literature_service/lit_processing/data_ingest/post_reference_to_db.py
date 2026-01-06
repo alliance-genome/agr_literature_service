@@ -70,9 +70,17 @@ def read_data_and_load_references(db_session, json_data, journal_to_resource_id,
     for entry in json_data:
 
         primaryId = set_primaryId(entry)
-        crossRef = db_session.query(CrossReferenceModel).filter_by(
-            curie=primaryId, is_obsolete=False).one_or_none()
-        if crossRef:
+        existing_xrefs = db_session.query(CrossReferenceModel).filter_by(
+            curie=primaryId).all()
+        if existing_xrefs:
+            # If there is at least one non-obsolete PMID, skip silently (current behavior)
+            if any(not x.is_obsolete for x in existing_xrefs):
+                continue
+            # Otherwise, PMID exists but is invalid/obsolete → warn and skip
+            log.info(
+                f"{primaryId}: PMID already exists in database but is marked obsolete. "
+                f"Skipping ingestion."
+            )
             continue
 
         try:
@@ -168,13 +176,13 @@ def insert_mod_reference_types(db_session, primaryId, reference_id, mod_ref_type
         found[(reference_id, x['source'], x['referenceType'])] = 1
         # Skip insertion if "Meeting_abstract" is present and referenceType is "Experimental" or "Not_experimental"
         if meeting_abstract_present and x['referenceType'] in ["Experimental", "Not_experimental"]:
-            log.info(primaryId + ": SKIP MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " due to presence of 'Meeting_abstract'")
+            log.info(primaryId + ": SKIP MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + str(x['source']) + ", reference_type = " + str(x['referenceType']) + " due to presence of 'Meeting_abstract'")
             continue
         try:
             insert_mod_reference_type_into_db(db_session, pubmed_types, x['source'], x['referenceType'], reference_id)
-            log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'])
+            log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + str(x['source']) + ", reference_type = " + str(x['referenceType']))
         except Exception as e:
-            log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + x['source'] + ", reference_type = " + x['referenceType'] + " " + str(e))
+            log.info(primaryId + ": INSERT MOD_REFERENCE_TYPE: for reference_id = " + str(reference_id) + ", source = " + str(x['source']) + ", reference_type = " + str(x['referenceType']) + " " + str(e))
 
 
 def insert_reference_relations(db_session, primaryId, reference_id, reference_relations_from_json):
@@ -263,19 +271,25 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
         found[curie] = 1
 
         try:
-            cross_ref = None
-            if c.get('pages'):
-                cross_ref = CrossReferenceModel(curie=curie,
-                                                curie_prefix=curie.split(":")[0],
-                                                reference_id=reference_id,
-                                                pages=c['pages'])
+            row = db_session.query(CrossReferenceModel).filter_by(curie=curie, is_obsolete=False).one_or_none()
+            if row:
+                row.reference_id = reference_id
+                db_session.add(row)
+                log.info(primaryId + ": UPDATE CROSS_REFERENCE: " + curie)
             else:
-                cross_ref = CrossReferenceModel(curie=curie,
-                                                curie_prefix=curie.split(":")[0],
-                                                reference_id=reference_id)
-            db_session.add(cross_ref)
-            foundXREF += 1
-            log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie)
+                cross_ref = None
+                if c.get('pages'):
+                    cross_ref = CrossReferenceModel(curie=curie,
+                                                    curie_prefix=curie.split(":")[0],
+                                                    reference_id=reference_id,
+                                                    pages=c['pages'])
+                else:
+                    cross_ref = CrossReferenceModel(curie=curie,
+                                                    curie_prefix=curie.split(":")[0],
+                                                    reference_id=reference_id)
+                db_session.add(cross_ref)
+                foundXREF += 1
+                log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie)
         except Exception as e:
             log.info(primaryId + ": INSERT CROSS_REFERENCE: " + curie + " failed: " + str(e))
     return foundXREF

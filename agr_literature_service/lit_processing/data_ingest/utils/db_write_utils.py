@@ -1,8 +1,9 @@
 from os import environ, makedirs, path
 import json
-from typing import List, Dict, Set, Tuple, Iterable, Optional
+import re
+from typing import List, Dict, Set, Tuple, Iterable, Optional, Any
 
-from sqlalchemy import or_, and_, text
+from sqlalchemy import or_, and_, text, false
 from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,17 @@ batch_size_for_commit = 250
 file_upload_process_atp_id = "ATP:0000140"  # file upload
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
+
+# One "Lastname, Initials" pair.
+# - last: anything up to a comma (handles hyphens, apostrophes, spaces like "van der Ven")
+# - init: one or more letter groups like "P.Y." or "D.Y.R." or "J"
+PAIR_RE = re.compile(
+    r"""
+    (?P<last>[^,]+?)\s*,\s*
+    (?P<init>(?:[A-Za-z]\.){1,5}|[A-Za-z]{1,5})
+    """,
+    re.VERBOSE,
+)
 
 
 def add_file_uploaded_workflow(db_session: Session, curie_or_reference_id, mod=None, transition_type="automated", logger=None):  # pragma: no cover
@@ -152,88 +164,111 @@ def move_mod_papers_into_corpus(db_session: Session, mod, mod_id, mod_reference_
 
 
 def change_mod_curie_status(db_session: Session, mod, mod_curie_set, mod_curie_to_pmid, logger=None, chunk_size: int = 200):  # pragma: no cover # noqa: C901
-
     curie_prefix = mod
     if mod == 'XB':
         curie_prefix = "Xenbase"
+
     mod_reference_id_set = set()
     mod_curie_set_in_db = set()
     problematic = []
-    planned_changes = []
-    for x in db_session.query(CrossReferenceModel).filter_by(curie_prefix=curie_prefix).all():
+
+    # Use a dictionary for activations to ensure we only try to
+    # activate ONE record per unique CURIE string.
+    activations_map = {}
+    to_obsolete = []
+
+    # 1. Categorize all changes
+    # Use a list for the initial query to avoid session state issues
+    existing_records = db_session.query(CrossReferenceModel).filter_by(curie_prefix=curie_prefix).all()
+
+    for x in existing_records:
         if x.reference_id is None:
             continue
+
         if x.curie in mod_curie_set:
             mod_reference_id_set.add(x.reference_id)
             mod_curie_set_in_db.add(x.curie)
+
+            # If this record is currently obsolete but should be active
             if x.is_obsolete is True:
-                planned_changes.append((x.curie, x.reference_id, False))
+                # This ensures if multiple rows exist for the same curie,
+                # only the last one found in the loop is targeted for activation.
+                activations_map[x.curie] = x.reference_id
+
         elif x.is_obsolete is False:
+            # If it's active in DB but NOT in our new set, mark for obsolescence
             if _is_prepublication_pipeline(db_session, x.reference_id):
                 continue
-            planned_changes.append((x.curie, x.reference_id, True))
+            to_obsolete.append((x.curie, x.reference_id))
 
-    # Helper to apply a single change (refetch object after rollback)
-    def _apply_one(curie: str, ref_id: int, new_is_obsolete: bool) -> bool:
+    # 2. PHASE 1: Obsolete records first
+    # This "clears the deck" for the unique index idx_curie
+    if logger:
+        logger.info(f"Phase 1: Obsoleting {len(to_obsolete)} records for {mod}")
+
+    for i in range(0, len(to_obsolete), chunk_size):
+        chunk = to_obsolete[i:i + chunk_size]
         try:
-            obj = (
-                db_session.query(CrossReferenceModel)
-                .filter_by(curie=curie, reference_id=ref_id, curie_prefix=curie_prefix)
-                .one_or_none()
-            )
-            if obj is None:
-                return True  # nothing to do; treat as success
-            if obj.is_obsolete != new_is_obsolete:
-                obj.is_obsolete = new_is_obsolete
-                db_session.add(obj)
+            for curie, ref_id in chunk:
+                obj = db_session.query(CrossReferenceModel).filter_by(
+                    curie=curie, reference_id=ref_id, curie_prefix=curie_prefix
+                ).one_or_none()
+                if obj:
+                    obj.is_obsolete = True
             db_session.commit()
-            if logger:
-                state = "valid" if new_is_obsolete is False else "obsolete"
-                logger.info(f"Changing {mod} curie to {state} for {curie}")
-            return True
         except Exception as e:
             db_session.rollback()
             if logger:
-                logger.info(f"Failed updating {mod} curie {curie} (ref {ref_id}): {e}")
-            return False
+                logger.warning(f"Obsolete chunk failed, retrying item-by-item: {e}")
+            for curie, ref_id in chunk:
+                try:
+                    obj = db_session.query(CrossReferenceModel).filter_by(
+                        curie=curie, reference_id=ref_id, curie_prefix=curie_prefix
+                    ).one_or_none()
+                    if obj:
+                        obj.is_obsolete = True
+                        db_session.commit()
+                except Exception:
+                    db_session.rollback()
 
-    # Process in chunks; on chunk failure, retry per-item to isolate problematic curies
-    for i in range(0, len(planned_changes), chunk_size):
-        chunk = planned_changes[i:i + chunk_size]
+    # 3. PHASE 2: Activate records
+    # Now we process the dictionary to ensure unique activation per curie
+    to_activate = list(activations_map.items())
+    if logger:
+        logger.info(f"Phase 2: Activating {len(to_activate)} records for {mod}")
+
+    for curie, ref_id in to_activate:
         try:
-            for curie, ref_id, new_is_obsolete in chunk:
-                obj = (
-                    db_session.query(CrossReferenceModel)
-                    .filter_by(curie=curie, reference_id=ref_id, curie_prefix=curie_prefix)
-                    .one_or_none()
-                )
-                if obj is None:
-                    continue
-                if obj.is_obsolete != new_is_obsolete:
-                    obj.is_obsolete = new_is_obsolete
-                    db_session.add(obj)
+            # CRITICAL SAFETY: Before activating this specific row,
+            # force-obsolete ANY other row that might be active for this curie.
+            # This handles "squatter" rows not caught in Phase 1.
+            db_session.query(CrossReferenceModel).filter(
+                CrossReferenceModel.curie == curie,
+                CrossReferenceModel.is_obsolete.is_(false()),
+                CrossReferenceModel.reference_id != ref_id
+            ).update({"is_obsolete": True}, synchronize_session='fetch')
+
+            db_session.flush()
+
+            # Now activate the specific target record
+            target = db_session.query(CrossReferenceModel).filter_by(
+                curie=curie, reference_id=ref_id, curie_prefix=curie_prefix
+            ).one_or_none()
+
+            if target:
+                target.is_obsolete = False
+                db_session.flush()
 
             db_session.commit()
-            if logger:
-                logger.info(f"{mod}: committed curie status updates chunk {i//chunk_size + 1} "
-                            f"({len(chunk)} changes).")
-
         except Exception as e:
             db_session.rollback()
+            problematic.append(curie)
             if logger:
-                logger.warning(f"{mod}: rollback chunk {i//chunk_size + 1} ({len(chunk)} changes): {e}")
-                logger.info(f"{mod}: retrying chunk {i//chunk_size + 1} item-by-item to isolate failures.")
+                logger.error(f"Failed to activate {curie} for ref {ref_id}: {e}")
 
-            for curie, ref_id, new_is_obsolete in chunk:
-                ok = _apply_one(curie, ref_id, new_is_obsolete)
-                if not ok:
-                    problematic.append(curie)
-
-    if len(problematic) > 0:
-        results = fix_problematic_mod_curies(db_session, mod, problematic, mod_curie_to_pmid, logger)
-        for c, status in results:
-            if logger:
-                logger.info(f"{c}: {status}")
+    # 4. Final Processing & Corpus Migration
+    if problematic:
+        fix_problematic_mod_curies(db_session, mod, problematic, mod_curie_to_pmid, logger)
 
     mod_id = _get_mod_id_by_mod(db_session, mod)
     mod_curies_not_in_db = mod_curie_set - mod_curie_set_in_db
@@ -247,9 +282,8 @@ def change_mod_curie_status(db_session: Session, mod, mod_curie_set, mod_curie_t
     move_obsolete_papers_out_of_corpus(db_session, mod, mod_id, curie_prefix, logger)
 
     if logger:
-        logger.info("Adding mod PubMed papers with a conflict DOI/PMCID into corpus...")
-    add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_not_in_db,
-                                 mod_curie_to_pmid, logger)
+        logger.info("Adding mod PubMed papers with conflict into corpus...")
+    add_not_loaded_pubmed_papers(db_session, mod, mod_id, mod_curies_not_in_db, mod_curie_to_pmid, logger)
 
 
 def _ref_id_by_pmid(db_session: Session, pmid_like: str):  # pragma: no cover
@@ -660,7 +694,42 @@ def _write_log_message(reference_id, log_message, pmid, logger, fw):  # pragma: 
         fw.write(log_message + "\n")
 
 
-def update_authors(db_session: Session, reference_id, author_list_in_db: List[Dict[str, str]], author_list_in_json: List[Dict[str, str]], pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
+def looks_like_multiple_authors_in_one_name(name: str) -> bool:
+    if not name or not isinstance(name, str):
+        return False
+
+    # Fast prefilter: multi-author strings almost always have commas and "and"/extra comma separators
+    if "," not in name:
+        return False
+
+    pairs = list(PAIR_RE.finditer(name))
+    # If we see 2+ distinct pairs, it’s almost certainly multiple authors in one field
+    return len(pairs) >= 2
+
+
+def replace_authors_from_json(db_session, reference_id: int, authors_from_json: List[Author]):
+
+    # delete existing authors
+    db_session.query(AuthorModel)\
+        .filter(AuthorModel.reference_id == reference_id)\
+        .delete(synchronize_session=False)
+
+    # reinsert from PubMed JSON
+    for idx, author in enumerate(authors_from_json, start=1):
+        db_author = AuthorModel(
+            reference_id=reference_id,
+            order=idx,
+            name=author.name,
+            first_name=author.first_name,
+            last_name=author.last_name,
+            first_initial=author.first_initial,
+            orcid=author.orcid,
+            affiliations=author.affiliations,
+        )
+        db_session.add(db_author)
+
+
+def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
 
@@ -680,9 +749,33 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: List[Di
 
     if author_list_in_json is None:
         author_list_in_json = []
+    if author_list_in_db is None:
+        author_list_in_db = []
 
     authors_from_json = Author.load_list_of_authors_from_json_dict_list(author_list_in_json)
+
     authors_from_db = Author.load_list_of_authors_from_db_dict_list(author_list_in_db)
+
+    if any(
+        looks_like_multiple_authors_in_one_name(author.name)
+        for author in authors_from_db
+        if author and author.name
+    ):
+        replace_authors_from_json(
+            db_session,
+            reference_id,
+            authors_from_json
+        )
+        db_session.flush()
+
+        _write_log_message(
+            reference_id,
+            ": WARNING merged author string detected in DB; replaced authors from PubMed",
+            pmid,
+            logger,
+            fw
+        )
+        return []
 
     if authors_lists_are_equal(authors_from_json, authors_from_db):
         return []
@@ -1303,7 +1396,7 @@ def _get_curator_email_who_added_reference_relation(db_session: Session, referen
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND u.id = t.user_id")).mappings().fetchall()
+                                   f"AND u.user_id = t.user_id")).mappings().fetchall()
     if len(rows) == 0:
         return None
     for row in rows:
@@ -1316,12 +1409,13 @@ def _is_reference_relation_added_by_mod_dqm(db_session: Session, reference_id_fr
 
     user_id = "sort_dqm_json_reference_updates"
     rows = db_session.execute(text(f"SELECT * "
-                                   f"FROM reference_relation_version rcc, transaction t "
+                                   f"FROM reference_relation_version rcc, transaction t, users u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
                                    f"AND rcc.reference_relation_type = '{type}' "
                                    f"AND rcc.transaction_id = t.id "
-                                   f"AND t.user_id = '{user_id}'")).fetchall()
+                                   f"AND t.user_id = u.user_id "
+                                   f"AND u.id = '{user_id}'")).fetchall()
     if len(rows) > 0:
         return True
     return False
@@ -1486,9 +1580,16 @@ def _prefix_xref_identifier(identifier, prefix):  # pragma: no cover
     return identifier
 
 
-def _check_xref_existence(db_session: Session, model, curie):  # pragma: no cover
-    """Checks if an entry exists in the database."""
-    return db_session.query(model).filter_by(curie=curie, is_obsolete=False).one_or_none()
+def _check_xref_existence(db_session: Session, model, curie):
+    """
+    Return ALL cross_reference rows with this curie,
+    including obsolete and NULL is_obsolete values.
+    """
+    return (
+        db_session.query(model)
+        .filter(model.curie == curie)
+        .all()
+    )
 
 
 def _update_doi(db_session: Session, fw, pmid, reference_id, old_doi, new_doi):  # pragma: no cover
@@ -1524,12 +1625,24 @@ def _insert_doi(db_session: Session, fw, pmid, reference_id, doi, logger=None): 
 
     ## for some reason, we need to add this check to make sure it is not in db
     doi_curie = _prefix_xref_identifier(doi, 'DOI')
-    x = _check_xref_existence(db_session, CrossReferenceModel, doi_curie)
-    if x:
-        if x.reference_id != reference_id:
-            if logger:
-                logger.info(f"new {doi_curie} for PMID:{pmid} is associated with another paper in the database: reference_id={x.reference_id}")
+    rows = _check_xref_existence(db_session, CrossReferenceModel, doi_curie)
+
+    # Exists for this reference?
+    rows_for_ref = [r for r in rows if r.reference_id == reference_id]
+    if rows_for_ref:
+        x = rows_for_ref[0]
+        if x.is_obsolete is True:
+            x.is_obsolete = False
+            db_session.add(x)
         return
+
+    # Exists for another reference?
+    rows_other_refs = [r for r in rows if r.reference_id != reference_id]
+    if rows_other_refs:
+        # conflict
+        logger.info(f"new {doi_curie} for PMID:{pmid} is associated with another paper in the database: reference_id={x.reference_id}")
+        return
+
     x = db_session.query(CrossReferenceModel).filter_by(
         curie_prefix="DOI", reference_id=reference_id, is_obsolete=False).one_or_none()
     if x:
@@ -1582,14 +1695,24 @@ def _insert_pmcid(db_session: Session, fw, pmid, reference_id, pmcid, logger=Non
 
     ## for some reason, we need to add this check to make sure it is not in db
     curie = _prefix_xref_identifier(pmcid, 'PMCID')
-    x = _check_xref_existence(db_session, CrossReferenceModel, curie)
-    if x:
-        if x.reference_id != reference_id:
-            if logger:
-                logger.info(f"The new PMCID:{pmcid} for PMID:{pmid} is associated with another paper in the database: reference_id={x.reference_id}")
-            return
-        if x.reference_id == reference_id:
-            return
+    rows = _check_xref_existence(db_session, CrossReferenceModel, curie)
+
+    # Exists for this reference?
+    rows_for_ref = [r for r in rows if r.reference_id == reference_id]
+    if rows_for_ref:
+        x = rows_for_ref[0]
+        if x.is_obsolete is True:
+            x.is_obsolete = False
+            db_session.add(x)
+        return
+
+    # Exists for another reference?
+    rows_other_refs = [r for r in rows if r.reference_id != reference_id]
+    if rows_other_refs:
+        # conflict
+        logger.info(f"new {curie} for PMID:{pmid} is associated with another paper in the database: reference_id={x.reference_id}")
+        return
+
     x = db_session.query(CrossReferenceModel).filter_by(
         curie_prefix="PMCID", reference_id=reference_id, is_obsolete=False).one_or_none()
     if x:

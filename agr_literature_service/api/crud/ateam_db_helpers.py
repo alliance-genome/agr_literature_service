@@ -5,9 +5,11 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, status
 from typing import Dict, List, Optional, Iterable, Tuple, Union, cast
-import cachetools.func
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
+from sqlalchemy.orm import Session
+
+from agr_literature_service.api.models import WorkflowTagTopicModel
 
 logger = logging.getLogger(__name__)
 
@@ -268,8 +270,7 @@ def search_for_entity_curies(
 # Jobs/subset logic (uses client)
 # -----------------------------
 
-@cachetools.func.ttl_cache(ttl=12 * 60 * 60)
-def get_jobs_to_run(name: str, mod_abbreviation: str) -> List[str]:
+def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> List[str]:
     """
     Use ATP children + subset filter from search_atp_topics(mod_abbr) to find jobs.
     - If name is an ATP:curie, treat it as the parent.
@@ -301,12 +302,16 @@ def get_jobs_to_run(name: str, mod_abbreviation: str) -> List[str]:
     cli = _get_client()
     try:
         subset_topics = cli.search_atp_topics(mod_abbr=mod_abbreviation) or []
-        allowed = {r["curie"] for r in subset_topics}
+        allowed_topics = {r["curie"] for r in subset_topics}
+        workflow_topic = {row[0]: row[1] for row in db.query(WorkflowTagTopicModel.workflow_tag, WorkflowTagTopicModel.
+                                                             topic).all()}
+        candidate_topic = {candidate_wf: workflow_topic[candidate_wf] for candidate_wf in candidates if candidate_wf in
+                           workflow_topic}
     except AGRAPIError as e:
         raise HTTPException(status_code=502, detail=f"Failed to load subset topics for {mod_abbreviation}: {e}")
 
     results = [atp_parent_id]
-    results.extend([c for c in candidates if c in allowed])
+    results.extend([c for c in candidates if c in candidate_topic and candidate_topic[c] in allowed_topics])
     return results
 
 
