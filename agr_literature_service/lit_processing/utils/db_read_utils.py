@@ -457,6 +457,7 @@ def get_pmid_to_reference_id_for_papers_not_associated_with_mod(db_session: Sess
         reference_id_to_pmid[x.reference_id] = pmid
 
 
+"""
 def get_pmid_to_reference_id(db_session: Session, mod, pmid_to_reference_id, reference_id_to_pmid):
     query = db_session.query(CrossReferenceModel)
     query = query.join(ReferenceModel.cross_reference)
@@ -466,6 +467,26 @@ def get_pmid_to_reference_id(db_session: Session, mod, pmid_to_reference_id, ref
     for x in query.filter(ModModel.abbreviation == mod).all():
         if x.is_obsolete is True:
             continue
+        pmid = x.curie.replace('PMID:', '')
+        pmid_to_reference_id[pmid] = x.reference_id
+        reference_id_to_pmid[x.reference_id] = pmid
+"""
+
+
+def get_pmid_to_reference_id(db_session: Session, mod, pmid_to_reference_id, reference_id_to_pmid):
+    rows = (
+        db_session.query(CrossReferenceModel)
+        .join(ReferenceModel.cross_reference)
+        .join(ReferenceModel.mod_corpus_association)
+        .join(ModCorpusAssociationModel.mod)
+        .filter(ModModel.abbreviation == mod)
+        .filter(CrossReferenceModel.curie.like('PMID:%'))
+        .filter(CrossReferenceModel.is_obsolete.is_(False))
+        .filter(ModCorpusAssociationModel.corpus.is_(True))
+        .all()
+    )
+
+    for x in rows:
         pmid = x.curie.replace('PMID:', '')
         pmid_to_reference_id[pmid] = x.reference_id
         reference_id_to_pmid[x.reference_id] = pmid
