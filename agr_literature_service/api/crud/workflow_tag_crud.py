@@ -385,12 +385,11 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
 
         else:
             current_workflow_tag_db_obj.workflow_tag_id = new_workflow_tag_atp_id  # type: ignore
-        db.commit()
         # So new tag has been set.
         # Now do the necessary actions if they are specified.
         if transition and transition.actions:
             process_transition_actions(db, transition, current_workflow_tag_db_obj)
-            db.commit()
+        db.commit()
     else:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="Workflow status transition not supported")
@@ -1327,7 +1326,7 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
 
-    curie_list = get_jobs_to_run(workflow_name, mod.abbreviation)
+    curie_list = get_jobs_to_run(workflow_name, mod.abbreviation, db)
     result = {}
     for curie in curie_list:
         result[atp_to_name[curie]] = curie
