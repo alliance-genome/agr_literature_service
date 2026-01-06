@@ -3,6 +3,7 @@ import json
 import os
 from unittest.mock import patch, Mock
 
+from sqlalchemy.orm import Session
 from starlette import status
 from starlette.testclient import TestClient
 
@@ -93,7 +94,7 @@ def convert_pdf_with_grobid_mock(file_content):
     return mock_response
 
 
-def mock_get_jobs_to_run(name: str, mod_abbreviation: str):
+def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session):
     results = {'ATP:0000162': ['ATP:0000162']}
     return results[name]
 
