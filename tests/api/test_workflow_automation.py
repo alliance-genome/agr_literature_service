@@ -89,7 +89,7 @@ def mock_load_name_to_atp_and_relationships():
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 
-def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session):
+def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session): # noqa
     results = {'reference classification': ['ATP:0000166',
                                             'ATP:task1_needed',
                                             'ATP:task2_needed'],
