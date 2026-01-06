@@ -94,7 +94,7 @@ def convert_pdf_with_grobid_mock(file_content):
     return mock_response
 
 
-def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session):
+def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session): # noqa
     results = {'ATP:0000162': ['ATP:0000162']}
     return results[name]
 
