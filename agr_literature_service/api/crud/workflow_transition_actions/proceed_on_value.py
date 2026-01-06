@@ -51,10 +51,10 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                             detail=f"Method {checktype} not supported")
 
     if call_process:
-        for atp in get_jobs_to_run(new_atp, current_workflow_tag_db_obj.mod.abbreviation):
+        for atp in get_jobs_to_run(new_atp, current_workflow_tag_db_obj.mod.abbreviation, db):
             #  Add new wft for this ref and mod
             wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
                                    mod=current_workflow_tag_db_obj.mod,
                                    workflow_tag_id=atp)
             db.add(wtm)
-        db.commit()
+        # Note: commit is handled by the caller (workflow_tag_crud.py)
