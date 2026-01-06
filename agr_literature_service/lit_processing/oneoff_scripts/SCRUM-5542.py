@@ -64,6 +64,7 @@ def do_it(session):
                 if not testing:
                     db_session.execute(text(cmd))
 
+
 if __name__ == "__main__":
     db_session: Session = create_postgres_session(False)
     do_it(db_session)
