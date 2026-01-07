@@ -21,7 +21,7 @@ jobs_types: Dict[str, Dict[str, str] | Dict[str, str]] = {
         'failed': 'ATP:0000315',
         'needed': 'ATP:0000313'},
     'entity extraction': {
-        'main': 'ATP:00001672',
+        'main': 'ATP:0000172',
         'in_progress': 'ATP:0000190',
         'complete': 'ATP:0000174',
         'failed': 'ATP:0000187',
