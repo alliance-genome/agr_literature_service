@@ -23,7 +23,7 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
     """
     checktype = args[0]
     check_value = args[1]
-    new_atp = args[2]
+    new_atp = args[2] if len(args) > 2 else args[1]
 
     call_process = False
     if checktype == "category":  # Check reference category is "Research article"
