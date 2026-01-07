@@ -25,15 +25,15 @@ def do_it(session):
 
     trans = [
         # from in_progress
-        ['ATP:0000357', 'ATP:0000356', 'sub_task_failed::email extraction', 'on_failed'],
-        ['ATP:0000357', 'ATP:0000355', 'sub_task_complete::email extraction', 'on_success'],
+        ['ATP:0000357', 'ATP:0000356', None, 'on_failed'],
+        ['ATP:0000357', 'ATP:0000355', None, 'on_success'],
         # from needed
-        ['ATP:0000358', 'ATP:0000356', 'sub_task_failed::email extraction', 'on_failed'],
-        ['ATP:0000358', 'ATP:0000355', 'sub_task_complete::email extraction', 'on_success'],
+        ['ATP:0000358', 'ATP:0000356', None, 'on_failed'],
+        ['ATP:0000358', 'ATP:0000355', None, 'on_success'],
         # from failed
-        ['ATP:0000356', 'ATP:0000358', 'sub_task_retry::email extraction', 'on_retry'],
+        ['ATP:0000356', 'ATP:0000358', None, 'on_retry'],
         # on start
-        ['ATP:0000354', 'ATP:0000357', 'sub_task_in_progress::email extraction', 'on_start'],
+        ['ATP:0000354', 'ATP:0000357', None, 'on_start'],
         #
         ['ATP:0000162', 'ATP:0000163', 'proceed_on_value::all::email extraction', 'on_success'],
         ['ATP:0000198', 'ATP:0000163', 'proceed_on_value::all::email extraction', 'on_success']
@@ -50,16 +50,23 @@ def do_it(session):
             print(f"mod {mod_id} tran {tran} ids {ids}")
             if len(ids):
                 for wt_id in ids:
-                    cmd = f"""UPDATE workflow_transition
-                              SET actions  = array_append(actions, '{tran[2]}')
-                              WHERE workflow_transition_id = {wt_id[0]} """
-                    print(cmd)
-                    if not testing:
-                        db_session.execute(text(cmd))
+                    if tran[2]:
+                        cmd = f"""UPDATE workflow_transition
+                                  SET actions  = array_append(actions, '{tran[2]}')
+                                  WHERE workflow_transition_id = {wt_id[0]} """
+                        print(cmd)
+                        if not testing:
+                            db_session.execute(text(cmd))
             else:
-                cmd = f"""INSERT INTO workflow_transition
-                     (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
-                    VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', ARRAY['{tran[2]}'], 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
+                if tran[2]:
+                    cmd = f"""INSERT INTO workflow_transition
+                         (mod_id, transition_from, transition_to, actions, transition_type, condition, date_created)
+                        VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', ARRAY['{tran[2]}'], 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
+                else:
+                    cmd = f"""INSERT INTO workflow_transition
+                         (mod_id, transition_from, transition_to, transition_type, condition, date_created)
+                        VALUES ({mod_id}, '{tran[0]}', '{tran[1]}', 'any', '{tran[3]}', '{datetime.datetime.now(tz=pytz.timezone('UTC'))}')"""
+
                 print(cmd)
                 if not testing:
                     db_session.execute(text(cmd))
