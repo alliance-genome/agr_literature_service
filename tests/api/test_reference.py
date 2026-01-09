@@ -146,7 +146,7 @@ class TestReference:
             assert response.status_code == status.HTTP_202_ACCEPTED
 
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}",
-                                      headers=auth_headers).json()
+                                     headers=auth_headers).json()
             print(updated_ref)
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"

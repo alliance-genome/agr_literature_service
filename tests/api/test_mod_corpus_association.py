@@ -74,7 +74,7 @@ class TestModCorpusAssociation:
             assert patch_response.status_code == status.HTTP_202_ACCEPTED
             assert client.get(url=f"/reference/mod_corpus_association/"
                                   f"{test_mca.new_mca_id}",
-                             headers=auth_headers).json()["mod_corpus_sort_source"] == "assigned_for_review"
+                                  headers=auth_headers).json()["mod_corpus_sort_source"] == "assigned_for_review"
 
             # add changeset tests
             response = client.get(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}/versions",
