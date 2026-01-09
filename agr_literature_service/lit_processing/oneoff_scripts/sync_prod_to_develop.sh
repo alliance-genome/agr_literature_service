@@ -86,7 +86,7 @@ test_db_connection() {
     local label="$6"
 
     echo "Testing connection to ${label} database..."
-    if PGPASSWORD="$password" psql -h "$host" -p "$port" -U "$user" -d "$dbname" -c "SELECT 1;" > /dev/null 2>&1; then
+    if PGPASSWORD="$password" psql -h "$host" -p "$port" -U "$user" -d "$dbname" -c "SELECT 1;"; then
         print_success "Connection to ${label} database successful!"
         return 0
     else
@@ -143,6 +143,7 @@ sync_database() {
         -Fc \
         --no-owner \
         --no-acl \
+        --verbose \
         -f "$DUMP_FILE"
 
     if [[ ! -f "$DUMP_FILE" ]]; then
@@ -155,6 +156,15 @@ sync_database() {
 
     echo ""
     echo "Step 2/3: Dropping and recreating destination database schema..."
+
+    # Drop publications (they exist at database level, not schema level)
+    echo "Dropping existing publications..."
+    PGPASSWORD="$DEST_DB_PASSWORD" psql \
+        -h "$DEST_DB_HOST" \
+        -p "$DEST_DB_PORT" \
+        -U "$DEST_DB_USER" \
+        -d "$DEST_DB_NAME" \
+        -c "DO \$\$ DECLARE pub RECORD; BEGIN FOR pub IN SELECT pubname FROM pg_publication LOOP EXECUTE 'DROP PUBLICATION IF EXISTS ' || quote_ident(pub.pubname); END LOOP; END \$\$;"
 
     # Drop all tables and recreate schema
     PGPASSWORD="$DEST_DB_PASSWORD" psql \
@@ -170,6 +180,7 @@ sync_database() {
     echo "Step 3/3: Restoring dump to destination database..."
     echo "This may take a while..."
 
+    RESTORE_EXIT_CODE=0
     PGPASSWORD="$DEST_DB_PASSWORD" pg_restore \
         -h "$DEST_DB_HOST" \
         -p "$DEST_DB_PORT" \
@@ -177,8 +188,22 @@ sync_database() {
         -d "$DEST_DB_NAME" \
         --no-owner \
         --no-acl \
-        --single-transaction \
-        "$DUMP_FILE" || true  # pg_restore may return non-zero even on success with warnings
+        --verbose \
+        "$DUMP_FILE" || RESTORE_EXIT_CODE=$?
+
+    if [[ $RESTORE_EXIT_CODE -ne 0 ]]; then
+        print_warning "pg_restore exited with code ${RESTORE_EXIT_CODE} (may include warnings)"
+    fi
+
+    # Verify restore by checking table counts
+    echo ""
+    echo "Verifying restore - checking table row counts..."
+    PGPASSWORD="$DEST_DB_PASSWORD" psql \
+        -h "$DEST_DB_HOST" \
+        -p "$DEST_DB_PORT" \
+        -U "$DEST_DB_USER" \
+        -d "$DEST_DB_NAME" \
+        -c "SELECT schemaname, relname as table_name, n_live_tup as row_count FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 20;"
 
     print_success "Database restore completed!"
 
