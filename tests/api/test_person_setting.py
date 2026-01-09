@@ -61,9 +61,9 @@ def test_person_setting(db, auth_headers, seeded_person):  # noqa
 
 class TestPersonSetting:
 
-    def test_get_bad_person_setting(self):
+    def test_get_bad_person_setting(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get("/person_setting/-1")
+            response = client.get("/person_setting/-1", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_person_setting(self, db, test_person_setting):  # noqa
@@ -127,30 +127,33 @@ class TestPersonSetting:
             assert res.status_code == status.HTTP_202_ACCEPTED
             assert res.json().get("message") == "updated"
 
-            fetched = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}")
+            fetched = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}",
+                                headers=auth_headers)
             assert fetched.status_code == status.HTTP_200_OK
             body = fetched.json()
             assert body["person_setting_id"] == test_person_setting.new_person_setting_id
             assert body["default_setting"] is True
             assert "status" in str(body.get("json_settings"))
 
-    def test_show_person_setting(self, test_person_setting):  # noqa
+    def test_show_person_setting(self, test_person_setting, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}")
+            response = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             body = response.json()
             assert body["person_setting_id"] == test_person_setting.new_person_setting_id
             assert body["component_name"] == "TopicEntityTable"
 
-    def test_find_by_name(self, test_person_setting):  # noqa
+    def test_find_by_name(self, test_person_setting, auth_headers):  # noqa
         with TestClient(app) as client:
-            res = client.get("/person_setting/by/name", params={"name": "Alice"})
+            res = client.get("/person_setting/by/name", params={"name": "Alice"}, headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             rows = res.json()
             assert isinstance(rows, list)
             assert any(r["person_setting_id"] == test_person_setting.new_person_setting_id for r in rows)
 
-            res_empty = client.get("/person_setting/by/name", params={"name": "ZZZ_NOT_FOUND"})
+            res_empty = client.get("/person_setting/by/name", params={"name": "ZZZ_NOT_FOUND"},
+                                   headers=auth_headers)
             assert res_empty.status_code == status.HTTP_200_OK
             assert res_empty.json() == []
 
@@ -162,7 +165,8 @@ class TestPersonSetting:
             )
             assert res.status_code == status.HTTP_204_NO_CONTENT
 
-            res = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}")
+            res = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}",
+                             headers=auth_headers)
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
             res = client.delete(

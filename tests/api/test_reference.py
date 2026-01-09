@@ -73,7 +73,7 @@ class TestReference:
             assert db_obj.title == "Bob"
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
-            response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["title"] == "Bob"
             # create again with same title, category
@@ -122,16 +122,16 @@ class TestReference:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
-    def test_show_reference(self, auth_headers, test_reference): # noqa
+    def test_show_reference(self, auth_headers, test_reference):  # noqa
         with TestClient(app) as client:
-            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             added_ref = get_response.json()
             assert added_ref["title"] == "Bob"
             assert added_ref["category"] == 'thesis'
             assert added_ref["abstract"] == '3'
 
             # Lookup 1 that does not exist
-            res = client.get(url="/reference/does_not_exist")
+            res = client.get(url="/reference/does_not_exist", headers=auth_headers)
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
     def test_update_reference(self, auth_headers, test_reference, test_resource): # noqa
@@ -145,7 +145,8 @@ class TestReference:
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 
-            updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}").json()
+            updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}",
+                                      headers=auth_headers).json()
             print(updated_ref)
             assert updated_ref["title"] == "new title"
             assert updated_ref["category"] == "book"
@@ -160,7 +161,8 @@ class TestReference:
             updated_fields = {"title": "new title", "category": "book", "language": "New"}
             client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields, headers=auth_headers)
             # client.post(url=f"/reference/citationupdate/{test_reference.new_ref_curie}", headers=auth_headers)
-            response = client.get(url=f"/reference/{test_reference.new_ref_curie}/versions")
+            response = client.get(url=f"/reference/{test_reference.new_ref_curie}/versions",
+                                  headers=auth_headers)
             transactions = response.json()
             assert transactions[0]['changeset']['curie'][1] == test_reference.new_ref_curie
             assert transactions[0]['changeset']['title'][1] == "Bob"
@@ -174,7 +176,7 @@ class TestReference:
         with TestClient(app) as client:
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_204_NO_CONTENT
-            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert get_response.status_code == status.HTTP_404_NOT_FOUND
             delete_response = client.delete(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert delete_response.status_code == status.HTTP_404_NOT_FOUND
@@ -197,7 +199,7 @@ class TestReference:
             }
             new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
             # fetch the new record.
-            response = client.get(url=f"/reference/{new_curie}").json()
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['category'] == 'research_article'
             reference_obj = db.query(ReferenceModel).filter(
                 ReferenceModel.curie == new_curie).first()
@@ -281,7 +283,7 @@ class TestReference:
 
             new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
             # fetch the new record.
-            response = client.get(url=f"/reference/{new_curie}").json()
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['abstract'] == 'The Hippo (Hpo) pathway is a conserved tumor suppressor pathway'
             assert response['category'] == 'research_article'
             assert response['date_published_start'] == '2022-10-01'
@@ -308,7 +310,7 @@ class TestReference:
             assert author.first_name == 'S.'
 
             # Fetch the citation again to make sure it's populated
-            response = client.get(url=f"/reference/{new_curie}").json()
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
 
             # need to check if citation is created
             assert response['citation'] == "D. Wu; S. Wu, () Some test 001 title.  433(4):538--541"
@@ -402,29 +404,29 @@ class TestReference:
             assert response_patch3.status_code == status.HTTP_202_ACCEPTED
 
             # fetch the new record.
-            res = client.get(url=f"/reference/{response1.json()}").json()
+            res = client.get(url=f"/reference/{response1.json()}", headers=auth_headers).json()
             assert res['category'] == 'other'
 
             # merge 1 into 2
             response_merge1 = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
                                           headers=auth_headers)
             assert response_merge1.status_code == status.HTTP_201_CREATED
-            response_ref2 = client.get(url=f"/reference/{response2.json()}")
+            response_ref2 = client.get(url=f"/reference/{response2.json()}", headers=auth_headers)
             # old: False new: True merged: True
             assert response_ref2.json()['prepublication_pipeline']
             # merge 2 into 3
             response_merge2 = client.post(url=f"/reference/merge/{response2.json()}/{response3.json()}",
                                           headers=auth_headers)
             assert response_merge2.status_code == status.HTTP_201_CREATED
-            response_ref3 = client.get(url=f"/reference/{response3.json()}")
+            response_ref3 = client.get(url=f"/reference/{response3.json()}", headers=auth_headers)
             # old: True new: False merge: True
             assert response_ref3.json()['prepublication_pipeline']
 
             # So now if we look up ref_obj we should get ref3_obj
             # and if we lookup ref2_obj we should get ref3_obj
-            response_ref1 = client.get(url=f"/reference/{response1.json()}")
+            response_ref1 = client.get(url=f"/reference/{response1.json()}", headers=auth_headers)
             assert response_ref1.json()['curie'] == response3.json()
-            response_ref2 = client.get(url=f"/reference/{response2.json()}")
+            response_ref2 = client.get(url=f"/reference/{response2.json()}", headers=auth_headers)
             assert response_ref2.json()['curie'] == response3.json()
 
             ##########################################################################
@@ -607,7 +609,8 @@ class TestReference:
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
             assert response2.status_code == 201
 
-            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response1.json()}")
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response1.json()}",
+                                      headers=auth_headers)
             # assert get_response.status_code == status.HTTP_200_OK
             print(get_response.status_code)
             print(get_response.text)
@@ -616,7 +619,8 @@ class TestReference:
             print(tets)
             assert len(tets) == 2
 
-            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}")
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}",
+                                      headers=auth_headers)
             # assert get_response.status_code == status.HTTP_200_OK
             print(get_response.status_code)
             print(get_response.text)
@@ -629,7 +633,8 @@ class TestReference:
                                          headers=auth_headers)
             assert response_merge.status_code == status.HTTP_201_CREATED
             print(response_merge.text)
-            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}")
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}",
+                                      headers=auth_headers)
             # assert get_response.status_code == status.HTTP_200_OK
             print(get_response.status_code)
             print(get_response.text)
@@ -735,12 +740,13 @@ class TestReference:
                                          headers=auth_headers)
             logger.info(f"merging refs took {datetime.datetime.now() - start_time}")
             assert response_merge.status_code == status.HTTP_201_CREATED
-            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}").json()
+            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}",
+                              headers=auth_headers).json()
             assert len(tets) == num_tags_per_ref * 2
 
-    def test_show_mod_reference_types_by_mod(self, populate_test_mod_reference_types): # noqa
+    def test_show_mod_reference_types_by_mod(self, populate_test_mod_reference_types, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/mod_reference_type/by_mod/WB")
+            response = client.get(url="/reference/mod_reference_type/by_mod/WB", headers=auth_headers)
             assert response.status_code == 200
             wb_ref_types = response.json()
             assert len(wb_ref_types) > 0
@@ -869,7 +875,7 @@ class TestReference:
             response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/{test_copyright_license.new_license_name}",
                                    headers=auth_headers)
         print(response)
-        response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+        response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         print(response.json())
         assert response.json()["copyright_license_name"] == test_copyright_license.new_license_name
@@ -881,7 +887,7 @@ class TestReference:
         with TestClient(app) as client:
             response = client.post(url=f"/reference/add_license/{test_reference.new_ref_curie}/No+license",
                                    headers=auth_headers)
-        response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+        response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         print(response.json())
         assert response.json()["copyright_license_name"] is None
@@ -922,7 +928,7 @@ class TestReference:
             new_curie = new_curie_response.text
             if new_curie.startswith('"') and new_curie.endswith('"'):
                 new_curie = new_curie[1:-1]
-            response = client.get(url=f"/reference/{new_curie}").json()
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['mod_corpus_associations'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
             xrefs_ok = 0
             for xref in response['cross_references']:
@@ -951,7 +957,7 @@ class TestReference:
             new_curie = new_curie_response.text
             if new_curie.startswith('"') and new_curie.endswith('"'):
                 new_curie = new_curie[1:-1]
-            response = client.get(url=f"/reference/{new_curie}").json()
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['mod_corpus_associations'][0]['mod_abbreviation'] == "WB"
             xrefs_ok = 0
             for xref in response['cross_references']:

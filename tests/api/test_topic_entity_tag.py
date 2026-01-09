@@ -48,10 +48,10 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
 
 class TestTopicEntityTag:
 
-    def test_create(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_create(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.json()["created_by"] == "WBPerson1"
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
@@ -92,9 +92,9 @@ class TestTopicEntityTag:
             response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_show(self, test_topic_entity_tag): # noqa
+    def test_show(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             resp_data = response.json()
             expected_fields = {
@@ -129,23 +129,23 @@ class TestTopicEntityTag:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers,
                                     json=patch_data)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             resp_data = response.json()
             for key, value in patch_data.items():
                 assert resp_data[key] == value
 
-    def test_destroy(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_destroy(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_tet_creates_mca_and_workflow(self, db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             assert test_reference.response.status_code == status.HTTP_201_CREATED
-            response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
             assert res['workflow_tags'] == []
@@ -166,7 +166,7 @@ class TestTopicEntityTag:
                 "date_created": "2020-01-01"
             }
             client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-            new_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            new_response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert new_response.status_code == status.HTTP_200_OK
             res = new_response.json()
             assert res['workflow_tags'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
@@ -222,7 +222,7 @@ class TestTopicEntityTag:
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
-            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
+            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert len(response.json()) > 0
 
@@ -271,13 +271,15 @@ class TestTopicEntityTag:
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id
             ).one()
             assert len(tag_obj.validated_by) == 2
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                  headers=auth_headers)
             assert response.json()["validation_by_author"] == "validated_wrong"
 
     def test_cannot_create_existing_similar_tag_with_negation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
@@ -370,10 +372,11 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
                                        headers=auth_headers).json()["topic_entity_tag_id"]
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                  headers=auth_headers)
             assert response.json()["validation_by_author"] == "not_validated"
             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
-            response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
+            response = client.get(f"/topic_entity_tag/{cur_2_tag_id}", headers=auth_headers)
             assert response.json()["validation_by_author"] == "not_validated"
             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
 

@@ -34,9 +34,10 @@ class TestReferencefileMod:
     def test_create_referencefile_mod(self, test_referencefile_mod): # noqa
         assert test_referencefile_mod.response.status_code == status.HTTP_201_CREATED
 
-    def test_show_referencefile_mod(self, test_referencefile_mod):
+    def test_show_referencefile_mod(self, test_referencefile_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}")
+            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
 
     def test_patch_referencefile_mod(self, db, test_referencefile_mod, auth_headers): # noqa
@@ -48,33 +49,39 @@ class TestReferencefileMod:
                                         f"{test_referencefile_mod.new_referencefile_mod_id}",
                                     json=patch_referencefile_mod, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}")
+            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}",
+                                  headers=auth_headers)
             assert response.json()["mod_abbreviation"] == patch_referencefile_mod["mod_abbreviation"]
 
-    def test_destroy_referencefile_mod(self, test_referencefile_mod, auth_headers): # noqa
+    def test_destroy_referencefile_mod(self, test_referencefile_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}")
+            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}",
+                                  headers=auth_headers)
             referencefile_id = response.json()['referencefile_id']
             response = client.delete(url=f"/reference/referencefile_mod/"
                                          f"{test_referencefile_mod.new_referencefile_mod_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}")
+            response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
-            response_file = client.get(url=f"/reference/referencefile/{referencefile_id}")
+            response_file = client.get(url=f"/reference/referencefile/{referencefile_id}", headers=auth_headers)
             for referencefile_mod in response_file.json()["referencefile_mods"]:
                 referencefile_mod_id = referencefile_mod["referencefile_mod_id"]
                 response = client.delete(url=f"/reference/referencefile_mod/"
                                              f"{referencefile_mod_id}", headers=auth_headers)
                 assert response.status_code == status.HTTP_204_NO_CONTENT
-            response_file = client.get(url=f"/reference/referencefile/{referencefile_id}")
+            response_file = client.get(url=f"/reference/referencefile/{referencefile_id}", headers=auth_headers)
             assert response_file.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_show_reference_referencefiles_referencefile_mods(self, db, test_referencefile_mod): # noqa
+    def test_show_reference_referencefiles_referencefile_mods(self, db, test_referencefile_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response_file_mod = client.get(url=f"/reference/referencefile_mod/"
-                                           f"{test_referencefile_mod.new_referencefile_mod_id}")
-            response_file = client.get(url=f"/reference/referencefile/{response_file_mod.json()['referencefile_id']}")
-            response = client.get(url=f"/reference/referencefile/show_all/{response_file.json()['reference_curie']}")
+                                           f"{test_referencefile_mod.new_referencefile_mod_id}",
+                                           headers=auth_headers)
+            response_file = client.get(url=f"/reference/referencefile/{response_file_mod.json()['referencefile_id']}",
+                                       headers=auth_headers)
+            response = client.get(url=f"/reference/referencefile/show_all/{response_file.json()['reference_curie']}",
+                                  headers=auth_headers)
             print(response)
             print(response.json())
             assert response.status_code == status.HTTP_200_OK
@@ -85,10 +92,11 @@ class TestReferencefileMod:
                     ok = True
             assert ok
 
-    def test_add_referencefile_to_mod(self, test_referencefile_mod, auth_headers): # noqa
+    def test_add_referencefile_to_mod(self, test_referencefile_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response_file_mod = client.get(url=f"/reference/referencefile_mod/"
-                                               f"{test_referencefile_mod.new_referencefile_mod_id}")
+                                               f"{test_referencefile_mod.new_referencefile_mod_id}",
+                                           headers=auth_headers)
             new_referencefile_mod = {
                 "referencefile_id": int(response_file_mod.json()['referencefile_id']),
                 "mod_abbreviation": "FB"

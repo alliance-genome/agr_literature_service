@@ -35,9 +35,10 @@ class TestTopicEntityTagSource:
         with TestClient(app):
             assert test_topic_entity_tag_source.response.status_code == status.HTTP_201_CREATED
 
-    def test_show_source(self, test_topic_entity_tag_source, test_mod): # noqa
+    def test_show_source(self, test_topic_entity_tag_source, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
+            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res_obj = response.json()
             assert res_obj["source_method"] == "phenotype neural network"
@@ -55,7 +56,8 @@ class TestTopicEntityTagSource:
             response = client.patch(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                     json=patch_data, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
+            response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+                                  headers=auth_headers)
             assert response.json()["source_evidence_assertion"] == "ECO:0008021"
             assert response.json()["created_by"] == "me"
 
@@ -64,5 +66,6 @@ class TestTopicEntityTagSource:
             response = client.delete(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}")
+            response = client.get(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND

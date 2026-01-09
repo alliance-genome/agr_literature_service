@@ -40,9 +40,9 @@ def test_workflow_tag(db, auth_headers, test_reference, test_mod): # noqa
 
 class TestWorkflowTag:
 
-    def test_get_bad_ref_wt(self):
+    def test_get_bad_ref_wt(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/workflow_tag/-1")
+            response = client.get(url="/workflow_tag/-1", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_bad_missing_args(self, test_workflow_tag, auth_headers): # noqa
@@ -94,7 +94,8 @@ class TestWorkflowTag:
             assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
             assert ref_wt_obj.workflow_tag_id == "ATP:0003333"
 
-            transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions").json()
+            transactions = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}/versions",
+                                      headers=auth_headers).json()
             assert transactions[0]['changeset']['workflow_tag_id'][1] == 'ATP:0001111'
             assert not transactions[0]['changeset']['mod_id'][0]
             assert transactions[1]['changeset']['workflow_tag_id'][0] == 'ATP:0001111'
@@ -109,25 +110,25 @@ class TestWorkflowTag:
             # assert response is response
             # TODO uncomment this test after fixing the api
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
+            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.json()["mod_abbreviation"] == ""
 
-    def test_show_ref_wt(self, test_workflow_tag): # noqa
+    def test_show_ref_wt(self, test_workflow_tag, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
+            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
             assert res['reference_curie'] == test_workflow_tag.related_ref_curie
             assert res['workflow_tag_id'] == 'ATP:0001111'
             assert res['mod_abbreviation'] == test_workflow_tag.related_mod_abbreviation
 
-    def test_destroy_ref_wt(self, test_workflow_tag, auth_headers): # noqa
+    def test_destroy_ref_wt(self, test_workflow_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
 
             # It should now give an error on lookup.
-            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}")
+            response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.
