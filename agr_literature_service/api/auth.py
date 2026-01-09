@@ -6,7 +6,7 @@ This module provides authentication decorators and dependencies that allow:
 - VPN requests: GET methods skip auth by default, mutations require auth
 
 Decorators:
-- @skip_auth_for_vpn: Skip auth for VPN requests on non-GET endpoints
+- @skip_auth_on_vpn: Skip auth for VPN requests on non-GET endpoints
 - @enforce_auth: Always require auth, even for VPN GET requests
 """
 
@@ -31,7 +31,7 @@ def skip_auth_on_vpn(func: Callable) -> Callable:
 
     Example:
         @router.post('/show_all')
-        @skip_auth_for_vpn
+        @skip_auth_on_vpn
         def show_all(...):
             ...
     """
