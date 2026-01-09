@@ -14,10 +14,10 @@ import os
 from ipaddress import ip_address, ip_network
 from typing import Any, Callable, Dict, List, Optional
 
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from agr_cognito_py import get_cognito_user_swagger
+from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
 
 
 # =============================================================================
@@ -151,7 +151,9 @@ class VPNAwareCognitoAuth:
             return None
 
         # Auth required - validate with Cognito
-        return await get_cognito_user_swagger(request)
+        if credentials is None:
+            raise HTTPException(status_code=401, detail="Missing authentication token")
+        return get_cognito_user_swagger(credentials, get_cognito_auth())
 
     def _should_skip_auth(
         self,
