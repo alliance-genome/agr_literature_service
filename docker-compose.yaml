@@ -123,6 +123,7 @@ services:
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
       LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
       DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
+      INTERNAL_CIDR_RANGES: "${INTERNAL_CIDR_RANGES}"
     hostname: literature_api
     networks:
       - agr-literature
