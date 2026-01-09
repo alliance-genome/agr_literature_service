@@ -1,0 +1,193 @@
+"""
+VPN-aware authentication module for the AGR Literature Service.
+
+This module provides authentication decorators and dependencies that allow:
+- External requests: Always require Cognito authentication
+- VPN requests: GET methods skip auth by default, mutations require auth
+
+Decorators:
+- @skip_auth_for_vpn: Skip auth for VPN requests on non-GET endpoints
+- @enforce_auth: Always require auth, even for VPN GET requests
+"""
+
+import os
+from ipaddress import ip_address, ip_network
+from typing import Any, Callable, Dict, List, Optional
+
+from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from agr_cognito_py import get_cognito_user_swagger
+
+
+# =============================================================================
+# Route decorators - use these to flag special auth behavior
+# =============================================================================
+
+def skip_auth_for_vpn(func: Callable) -> Callable:
+    """
+    Decorator to skip auth for VPN requests on non-GET endpoints.
+    Use this for POST/PATCH/DELETE endpoints that should be open on VPN.
+
+    Example:
+        @router.post('/show_all')
+        @skip_auth_for_vpn
+        def show_all(...):
+            ...
+    """
+    setattr(func, "_skip_auth_for_vpn", True)  # noqa: B010
+    return func
+
+
+def enforce_auth(func: Callable) -> Callable:
+    """
+    Decorator to always require auth, even for VPN GET requests.
+    Use this for sensitive GET endpoints that need protection.
+
+    Example:
+        @router.get('/sensitive_data')
+        @enforce_auth
+        def get_sensitive_data(...):
+            ...
+    """
+    setattr(func, "_enforce_auth", True)  # noqa: B010
+    return func
+
+
+# =============================================================================
+# VPN detection utilities
+# =============================================================================
+
+def get_internal_cidr_ranges() -> List[str]:
+    """Get internal CIDR ranges from environment variable.
+
+    Set INTERNAL_CIDR_RANGES environment variable with comma-separated CIDR ranges.
+    Example: INTERNAL_CIDR_RANGES=10.0.0.0/8,172.16.0.0/12
+    """
+    ranges = os.environ.get("INTERNAL_CIDR_RANGES", "")
+    if not ranges:
+        return []
+    return [r.strip() for r in ranges.split(",") if r.strip()]
+
+
+def get_client_ip(request: Request) -> Optional[str]:
+    """Extract client IP from request, handling load balancer scenarios.
+
+    AWS ALB/NLB sets X-Forwarded-For header with the client IP.
+    The first IP in the chain is the original client.
+    """
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    if request.client:
+        return request.client.host
+    return None
+
+
+def is_internal_request(request: Request) -> bool:
+    """Check if request originates from internal VPN/VPC network.
+
+    Returns True if the client IP is within any of the configured CIDR ranges.
+    Returns False if no CIDR ranges are configured or if IP doesn't match.
+    """
+    cidr_ranges = get_internal_cidr_ranges()
+    if not cidr_ranges:
+        return False
+
+    client_ip = get_client_ip(request)
+    if not client_ip:
+        return False
+
+    try:
+        client_addr = ip_address(client_ip)
+        for cidr in cidr_ranges:
+            if client_addr in ip_network(cidr):
+                return True
+    except ValueError:
+        # Invalid IP address format
+        return False
+
+    return False
+
+
+# =============================================================================
+# Authentication dependency
+# =============================================================================
+
+class VPNAwareCognitoAuth:
+    """
+    Authentication dependency with VPN-aware bypass logic.
+
+    Default behavior:
+    - External requests: Always require Cognito auth
+    - VPN GET requests: Skip auth
+    - VPN non-GET requests: Require auth
+
+    Override with decorators:
+    - @skip_auth_for_vpn: Skip auth for VPN on non-GET endpoints
+    - @enforce_auth: Always require auth, even for VPN GET
+    """
+
+    def __init__(self):
+        self.http_bearer = HTTPBearer(auto_error=False)
+
+    async def __call__(
+        self,
+        request: Request,
+        credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
+    ) -> Optional[Dict[str, Any]]:
+        # Get route endpoint to check for decorator flags
+        route = request.scope.get("route")
+        endpoint = route.endpoint if route else None
+
+        # Check decorator flags
+        skip_for_vpn = getattr(endpoint, "_skip_auth_for_vpn", False)
+        force_auth = getattr(endpoint, "_enforce_auth", False)
+
+        # Determine if auth should be skipped
+        should_skip = self._should_skip_auth(request, skip_for_vpn, force_auth)
+
+        if should_skip:
+            return None
+
+        # Auth required - validate with Cognito
+        return await get_cognito_user_swagger(request)
+
+    def _should_skip_auth(
+        self,
+        request: Request,
+        skip_for_vpn: bool,
+        force_auth: bool
+    ) -> bool:
+        """
+        Determine if authentication should be skipped.
+
+        Rules:
+        - External requests: NEVER skip
+        - @enforce_auth: NEVER skip
+        - VPN + GET: Skip (default)
+        - VPN + @skip_auth_for_vpn: Skip
+        - VPN + non-GET (no decorator): Require auth
+        """
+        # External requests always require auth
+        if not is_internal_request(request):
+            return False
+
+        # @enforce_auth always requires auth
+        if force_auth:
+            return False
+
+        # VPN GET requests skip auth by default
+        if request.method == "GET":
+            return True
+
+        # VPN non-GET with @skip_auth_for_vpn skips auth
+        if skip_for_vpn:
+            return True
+
+        # VPN non-GET requests require auth by default
+        return False
+
+
+# The dependency instance to use in routes
+get_authenticated_user = VPNAwareCognitoAuth()

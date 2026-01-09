@@ -50,14 +50,20 @@ def add_user_if_not_exists(db: Session, user_id: str) -> None:
     _ensure_automation_user(db, user_id)
 
 
-def set_global_user_from_cognito(db: Session, cognito_user: Dict[str, Any]) -> None:
+def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, Any]]) -> None:
     """
     Set the global user from a Cognito token.
 
     For ID tokens (user login): Looks up user by email via email table join.
     For access tokens (service accounts): Uses 'default_user' and creates if needed.
+    For None (VPN bypass): Sets current user to None (anonymous access).
     """
     global _current_user_id
+
+    # VPN bypass - no authenticated user (anonymous access)
+    if cognito_user is None:
+        _current_user_id = None
+        return
 
     # Check if this is a service account (access token from client_credentials flow)
     token_type = cognito_user.get("token_type")

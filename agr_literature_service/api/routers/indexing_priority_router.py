@@ -12,8 +12,7 @@ from agr_literature_service.api.schemas.indexing_priority_schemas import (
     IndexingPrioritySchemaPost,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(
     prefix="/indexing_priority",
@@ -38,7 +37,7 @@ class SetPriorityBody(BaseModel):
 )
 def create(
     request: IndexingPrioritySchemaPost,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -53,7 +52,7 @@ def create(
 )
 def destroy(
     indexing_priority_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -69,7 +68,7 @@ def destroy(
 async def patch(
     indexing_priority_id: int,
     request: IndexingPrioritySchemaUpdate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -86,7 +85,9 @@ async def patch(
 def show(
     indexing_priority_id: int,
     db: Session = db_session,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> IndexingPrioritySchemaShow:
+    set_global_user_from_cognito(db, user)
     data = indexing_priority_crud.show(db, indexing_priority_id)
     return IndexingPrioritySchemaShow.model_validate(data)
 
@@ -99,7 +100,9 @@ def get_indexing_priority_tag(
     reference_curie: str,
     mod_abbreviation: Optional[str] = None,
     db: Session = db_session,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ):
+    set_global_user_from_cognito(db, user)
     if mod_abbreviation != 'ZFIN':
         return {}
     return indexing_priority_crud.get_indexing_priority_tag(
@@ -113,7 +116,7 @@ def get_indexing_priority_tag(
 )
 def set_priority(
     body: SetPriorityBody,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)

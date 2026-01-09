@@ -1,7 +1,6 @@
 from multiprocessing import Process, Value
-from typing import List, Dict, Union, Any
+from typing import List, Dict, Union, Any, Optional
 
-from agr_cognito_py import get_cognito_user_swagger
 from agr_cognito_py import get_mod_access
 from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
 from sqlalchemy.orm import Session
@@ -14,6 +13,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEnt
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_cognito
+from agr_literature_service.api.auth import get_authenticated_user, enforce_auth
 
 router = APIRouter(
     prefix="/topic_entity_tag",
@@ -28,7 +28,9 @@ revalidate_all_tags_already_running = Value('b', False)
 
 
 @router.post('/', status_code=status.HTTP_201_CREATED, response_model=Dict)
-def create_tag(request: TopicEntityTagSchemaPost, user: Dict[str, Any] = Security(get_cognito_user_swagger), db: Session = db_session):
+def create_tag(request: TopicEntityTagSchemaPost,
+               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+               db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.create_tag(db, request)
 
@@ -37,7 +39,9 @@ def create_tag(request: TopicEntityTagSchemaPost, user: Dict[str, Any] = Securit
             response_model=TopicEntityTagSchemaShow,
             status_code=200)
 def show_tag(topic_entity_tag_id: int,
+             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
 
@@ -46,7 +50,7 @@ def show_tag(topic_entity_tag_id: int,
               response_model=ResponseMessageSchema)
 def patch_tag(topic_entity_tag_id: int,
               request: TopicEntityTagSchemaUpdate,
-              user: Dict[str, Any] = Security(get_cognito_user_swagger),
+              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
               db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
@@ -55,10 +59,10 @@ def patch_tag(topic_entity_tag_id: int,
 @router.delete('/{topic_entity_tag_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_tag(topic_entity_tag_id,
-               user: Dict[str, Any] = Security(get_cognito_user_swagger),
+               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_mod_access(user))
+    topic_entity_tag_crud.destroy_tag(db, topic_entity_tag_id, get_mod_access(user) if user else [])
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -66,7 +70,7 @@ def delete_tag(topic_entity_tag_id,
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create_source(request: TopicEntityTagSourceSchemaCreate,
-                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.create_source(db, request)
@@ -75,7 +79,7 @@ def create_source(request: TopicEntityTagSourceSchemaCreate,
 @router.delete('/source/{topic_entity_tag_source_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_source(topic_entity_tag_source_id,
-                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
     topic_entity_tag_crud.destroy_source(db, topic_entity_tag_source_id)
@@ -87,7 +91,7 @@ def delete_source(topic_entity_tag_source_id,
               response_model=ResponseMessageSchema)
 def patch_source(topic_entity_tag_source_id,
                  request: TopicEntityTagSourceSchemaUpdate,
-                 user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
@@ -95,7 +99,9 @@ def patch_source(topic_entity_tag_source_id,
 
 @router.get('/source/all',
             status_code=200)
-def show_all_source(db: Session = db_session):
+def show_all_source(user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                    db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_all_source(db)
 
 
@@ -103,7 +109,9 @@ def show_all_source(db: Session = db_session):
             response_model=TopicEntityTagSourceSchemaShow,
             status_code=200)
 def show_source(topic_entity_tag_source_id: int,
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
 
 
@@ -114,7 +122,9 @@ def show_source_by_name(source_evidence_assertion: str,
                         source_method: str,
                         data_provider: str,
                         secondary_data_provider_abbreviation: str,
+                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                         db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_source_by_name(db, source_evidence_assertion, source_method,
                                                      data_provider, secondary_data_provider_abbreviation)
 
@@ -131,8 +141,10 @@ def show_all_reference_tags(
     count_only: bool = False,
     sort_by: str = None,
     desc_sort: bool = False,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> Union[List[TopicEntityTagSchemaRelated], int]:
+    set_global_user_from_cognito(db, user)
     result = topic_entity_tag_crud.show_all_reference_tags(
         db, curie_or_reference_id,
         page, page_size,
@@ -147,7 +159,9 @@ def show_all_reference_tags(
             status_code=200)
 def get_reference_tags(mod_abbreviation: str,
                        days_updated: int = 7,
+                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                        db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.get_all_topic_entity_tags_by_mod(db, mod_abbreviation, days_updated)
 
 
@@ -155,7 +169,9 @@ def get_reference_tags(mod_abbreviation: str,
             response_model=Dict[str, str],
             status_code=200)
 def get_curie_to_name_from_all_tets(curie_or_reference_id: str,
+                                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                     db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.get_curie_to_name_from_all_tets(db, curie_or_reference_id)
 
 
@@ -172,12 +188,16 @@ def revalidate_tags_process_wrapper(already_running, email: str, delete_all_firs
 
 @router.get('/revalidate_all_tags/',
             status_code=200)
+@enforce_auth
 def revalidate_all_tags(email: str = None,
                         delete_all_tags_first: bool = False,
                         curie_or_reference_id: str = None,
                         validation_values_only: bool = False,
-                        user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                         db: Session = db_session):
+    # user is guaranteed to be non-None due to @enforce_auth decorator
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     user_groups = user.get("cognito:groups", [])
     if not user_groups or "SuperAdmin" not in user_groups:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
@@ -207,7 +227,7 @@ def revalidate_all_tags(email: str = None,
                status_code=status.HTTP_204_NO_CONTENT)
 def delete_manual_tags(reference_curie,
                        mod_abbreviation,
-                       user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                        db: Session = db_session):
     set_global_user_from_cognito(db, user)
     topic_entity_tag_utils.delete_manual_tets(db, reference_curie, mod_abbreviation)
@@ -222,7 +242,9 @@ def delete_manual_tags(reference_curie,
 def set_no_tet_status(mod_abbreviation: str,
                       reference_curie: str,
                       uid: str,
+                      user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                       db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.set_indexing_status_for_no_tet_data(db,
                                                                      mod_abbreviation,
                                                                      reference_curie,

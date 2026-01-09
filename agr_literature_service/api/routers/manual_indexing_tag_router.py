@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -12,8 +12,7 @@ from agr_literature_service.api.schemas.manual_indexing_tag_schemas import (
     ManualIndexingTagSchemaPost,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(
     prefix="/manual_indexing_tag",
@@ -38,7 +37,7 @@ class SetManualIndexingTagBody(BaseModel):
 )
 def create(
     request: ManualIndexingTagSchemaPost,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -53,7 +52,7 @@ def create(
 )
 def destroy(
     manual_indexing_tag_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -69,7 +68,7 @@ def destroy(
 async def patch(
     manual_indexing_tag_id: int,
     request: ManualIndexingTagSchemaUpdate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -86,7 +85,9 @@ async def patch(
 def show(
     manual_indexing_tag_id: int,
     db: Session = db_session,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> ManualIndexingTagSchemaShow:
+    set_global_user_from_cognito(db, user)
     data = manual_indexing_tag_crud.show(db, manual_indexing_tag_id)
     return ManualIndexingTagSchemaShow.model_validate(data)
 
@@ -99,7 +100,9 @@ def get_manual_indexing_tag(
     reference_curie: str,
     mod_abbreviation: str,
     db: Session = db_session,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ):
+    set_global_user_from_cognito(db, user)
     return manual_indexing_tag_crud.get_manual_indexing_tag(
         db, reference_curie, mod_abbreviation
     )
@@ -111,7 +114,7 @@ def get_manual_indexing_tag(
 )
 def set_manual_indexing_tag(
     body: SetManualIndexingTagBody,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -10,8 +10,7 @@ from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
                                                 ModCorpusAssociationSchemaUpdate,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 import logging
 import logging.config
 router = APIRouter(
@@ -28,7 +27,7 @@ db_session: Session = Depends(get_db)
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create(request: ModCorpusAssociationSchemaPost,
-           user: Dict[str, Any] = Security(get_cognito_user_swagger),
+           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session) -> int:
     set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.create(db, request)
@@ -37,7 +36,7 @@ def create(request: ModCorpusAssociationSchemaPost,
 @router.delete('/{mod_corpus_association_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(mod_corpus_association_id: int,
-            user: Dict[str, Any] = Security(get_cognito_user_swagger),
+            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
             db: Session = db_session):
     set_global_user_from_cognito(db, user)
     mod_corpus_association_crud.destroy(db, mod_corpus_association_id)
@@ -49,7 +48,7 @@ def destroy(mod_corpus_association_id: int,
               response_model=ResponseMessageSchema)
 async def patch(mod_corpus_association_id: int,
                 request: ModCorpusAssociationSchemaUpdate,
-                user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session) -> int:
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
@@ -60,7 +59,9 @@ async def patch(mod_corpus_association_id: int,
             response_model=ModCorpusAssociationSchemaShow,
             status_code=200)
 def show(mod_corpus_association_id: int,
+         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.show(db, mod_corpus_association_id)
 
 
@@ -68,12 +69,16 @@ def show(mod_corpus_association_id: int,
             response_model=int,
             status_code=200)
 def show_id(curie: str, mod_abbreviation: str,
+            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
             db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.show_by_reference_mod_abbreviation(db, curie, mod_abbreviation)
 
 
 @router.get('/{mod_corpus_association_id}/versions',
             status_code=200)
 def show_versions(mod_corpus_association_id: int,
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.show_changesets(db, mod_corpus_association_id)

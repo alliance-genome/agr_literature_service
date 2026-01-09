@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, Any
+from typing import Union, List, Dict, Any, Optional
 
 from fastapi import (APIRouter, Depends, HTTPException, Response,
                      Security, status)
@@ -14,8 +14,7 @@ from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSc
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid, \
     ReferenceEmailSchemaRelated
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 import datetime
 import logging
@@ -43,7 +42,7 @@ lock_dumps_ondemand = None
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def create(request: ReferenceSchemaPost,
-           user: Dict[str, Any] = Security(get_cognito_user_swagger),
+           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
@@ -55,7 +54,7 @@ def create(request: ReferenceSchemaPost,
              status_code=status.HTTP_201_CREATED,
              response_model=str)
 def add(request: ReferenceSchemaAddPmid,
-        user: Dict[str, Any] = Security(get_cognito_user_swagger),
+        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session):
     set_global_user_from_cognito(db, user)
     mod_curie = request.mod_curie
@@ -67,7 +66,7 @@ def add(request: ReferenceSchemaAddPmid,
 @router.delete('/{curie_or_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie_or_reference_id: str,
-            user: Dict[str, Any] = Security(get_cognito_user_swagger),
+            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
             db: Session = db_session):
     set_global_user_from_cognito(db, user)
     reference_crud.destroy(db, curie_or_reference_id)
@@ -79,7 +78,7 @@ def destroy(curie_or_reference_id: str,
               response_model=ResponseMessageSchema)
 async def patch(curie_or_reference_id: str,
                 request: ReferenceSchemaUpdate,
-                user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
@@ -89,7 +88,7 @@ async def patch(curie_or_reference_id: str,
 @router.get('/dumps/latest/{mod}',
             status_code=200)
 def download_data_by_mod(mod: str,
-                         user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                          db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
@@ -99,7 +98,7 @@ def download_data_by_mod(mod: str,
 @router.get('/dumps/{filename}',
             status_code=200)
 def download_data_by_filename(filename: str,
-                              user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                               db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
@@ -121,7 +120,7 @@ def dump_data_process_wrapper(running_processes_dict, lock, mod: str, email: str
 def generate_data_ondemand(mod: str,
                            email: str,
                            ui_root_url: str,
-                           user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                            db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
@@ -161,7 +160,9 @@ def generate_data_ondemand(mod: str,
             status_code=200,
             response_model=ReferenceSchemaShow)
 def show_xref(curie_or_cross_reference_id: str,
+              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
               db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     cross_reference = cross_reference_crud.show(db, curie_or_cross_reference_id)
 
     if 'reference_curie' not in cross_reference:
@@ -176,14 +177,18 @@ def show_xref(curie_or_cross_reference_id: str,
             status_code=200,
             response_model=ReferenceSchemaShow)
 def show(curie_or_reference_id: str,
+         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return reference_crud.show(db, curie_or_reference_id)
 
 
 @router.get('/{curie_or_reference_id}/versions',
             status_code=200)
 def show_versions(curie_or_reference_id: str,
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return reference_crud.show_changesets(db, curie_or_reference_id)
 
 
@@ -194,11 +199,13 @@ def show_versions(curie_or_reference_id: str,
 )
 def get_reference_emails(
     curie_or_reference_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
     Get all emails associated with a given reference.
     """
+    set_global_user_from_cognito(db, user)
     return reference_crud.get_reference_emails(db, curie_or_reference_id)
 
 
@@ -210,7 +217,7 @@ def get_reference_emails(
 def set_reference_emails(
     curie_or_reference_id: str,
     email_addresses: List[str],
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
@@ -232,7 +239,7 @@ def set_reference_emails(
 def add_reference_email(
     curie_or_reference_id: str,
     email_address: str,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
@@ -253,7 +260,7 @@ def add_reference_email(
 def delete_reference_email(
     curie_or_reference_id: str,
     reference_email_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
@@ -271,7 +278,7 @@ def delete_reference_email(
              status_code=201)
 def merge_references(old_curie: str,
                      new_curie: str,
-                     user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                      db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return reference_crud.merge_references(db, old_curie, new_curie)
@@ -281,7 +288,7 @@ def merge_references(old_curie: str,
              status_code=201)
 def add_license(curie: str,
                 license: str,
-                user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
@@ -294,7 +301,9 @@ def missing_files(mod_abbreviation: str,
                   order_by: str,
                   page: int,
                   filter: str,
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     missing_files = reference_crud.missing_files(db, mod_abbreviation, order_by, page, filter)
     if not missing_files:
         return []
@@ -306,7 +315,9 @@ def missing_files(mod_abbreviation: str,
 def download_tracker_table(mod_abbreviation: str,
                            order_by: str,
                            filter: str,
+                           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                            db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return reference_crud.download_tracker_table(db, mod_abbreviation, order_by, filter)
 
 
@@ -315,7 +326,7 @@ def download_tracker_table(mod_abbreviation: str,
 def get_bib_info(curie: str,
                  mod_abbreviation: str,
                  return_format: str = 'txt',
-                 user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
@@ -330,7 +341,7 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                   species: str = None,
                                   from_reference_id: int = None,
                                   page_size: int = 1000,
-                                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return reference_crud.get_textpresso_reference_list(db, mod_abbreviation,
@@ -345,7 +356,7 @@ def get_textpresso_reference_list(mod_abbreviation: str,
              status_code=201)
 def add_to_corpus(mod_abbreviation: str,
                   reference_curie: str,
-                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
@@ -356,7 +367,9 @@ def add_to_corpus(mod_abbreviation: str,
             status_code=status.HTTP_200_OK)
 def get_recently_sorted_references(mod_abbreviation: str,
                                    days: int = 7,
+                                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                    db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     references = reference_crud.get_recently_sorted_references(db, mod_abbreviation, days)
 
     return references
@@ -366,7 +379,9 @@ def get_recently_sorted_references(mod_abbreviation: str,
             status_code=status.HTTP_200_OK)
 def get_recently_sorted_pmids(mod_abbreviation: str,
                               days: int = 7,
+                              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                               db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     pmid_only = True
     pmids = reference_crud.get_recently_sorted_references(db, mod_abbreviation,
                                                           days, pmid_only)
@@ -377,7 +392,9 @@ def get_recently_sorted_pmids(mod_abbreviation: str,
             status_code=status.HTTP_200_OK)
 def get_recently_deleted_references(mod_abbreviation: str,
                                     days: int = 7,
+                                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                     db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     references = reference_crud.get_recently_deleted_references(db, mod_abbreviation, days)
 
     return references
@@ -386,7 +403,9 @@ def get_recently_deleted_references(mod_abbreviation: str,
 @router.get('/lock_status/{referenceCurie}',
             status_code=status.HTTP_200_OK)
 def lock_status(referenceCurie: str,
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     lock_details = reference_crud.lock_status(db, referenceCurie)
 
     return lock_details
