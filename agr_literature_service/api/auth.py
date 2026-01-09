@@ -73,12 +73,21 @@ def get_internal_cidr_ranges() -> List[str]:
 def get_client_ip(request: Request) -> Optional[str]:
     """Extract client IP from request, handling load balancer scenarios.
 
-    AWS ALB/NLB sets X-Forwarded-For header with the client IP.
-    The first IP in the chain is the original client.
+    Priority order:
+    1. X-Real-IP: Set by nginx to the direct client IP (most reliable for VPN detection)
+    2. X-Forwarded-For: May contain multiple IPs if behind multiple proxies
+    3. request.client.host: Direct connection IP (often Docker bridge IP)
     """
+    # Prefer X-Real-IP as it's set by nginx to the immediate upstream client
+    real_ip = request.headers.get("X-Real-IP")
+    if real_ip:
+        return real_ip.strip()
+
+    # Fall back to X-Forwarded-For (first IP in chain)
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
+
     if request.client:
         return request.client.host
     return None
