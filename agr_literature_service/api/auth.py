@@ -24,7 +24,7 @@ from agr_cognito_py import get_cognito_user_swagger
 # Route decorators - use these to flag special auth behavior
 # =============================================================================
 
-def skip_auth_for_vpn(func: Callable) -> Callable:
+def skip_auth_on_vpn(func: Callable) -> Callable:
     """
     Decorator to skip auth for VPN requests on non-GET endpoints.
     Use this for POST/PATCH/DELETE endpoints that should be open on VPN.
