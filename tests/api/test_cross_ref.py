@@ -127,7 +127,8 @@ class TestCrossRef:
                 "pages": ["reference"]
             }
             client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
-            response = client.post(url="/cross_reference/show_all", json=["XREF:123456", "XREF2:123456"])
+            response = client.post(url="/cross_reference/show_all", json=["XREF:123456", "XREF2:123456"],
+                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()[0]['curie'] in ["XREF:123456", "XREF2:123456"]
             assert response.json()[1]['curie'] in ["XREF:123456", "XREF2:123456"]
