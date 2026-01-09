@@ -100,20 +100,10 @@ def is_internal_request(request: Request) -> bool:
     Returns False if no CIDR ranges are configured or if IP doesn't match.
     """
     cidr_ranges = get_internal_cidr_ranges()
-    client_ip = get_client_ip(request)
-
-    # Debug logging - remove after testing
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.warning(f"[AUTH DEBUG] X-Forwarded-For: {request.headers.get('X-Forwarded-For')}")
-    logger.warning(f"[AUTH DEBUG] X-Real-IP: {request.headers.get('X-Real-IP')}")
-    logger.warning(f"[AUTH DEBUG] request.client.host: {request.client.host if request.client else 'None'}")
-    logger.warning(f"[AUTH DEBUG] Resolved client_ip: {client_ip}")
-    logger.warning(f"[AUTH DEBUG] CIDR ranges: {cidr_ranges}")
-
     if not cidr_ranges:
         return False
 
+    client_ip = get_client_ip(request)
     if not client_ip:
         return False
 
