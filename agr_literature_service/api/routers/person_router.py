@@ -65,7 +65,6 @@ def patch(
 
 
 @router.get('/whoami')
-@no_read_auth_bypass
 def get_user_info_from_cognito(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user)
 ):
