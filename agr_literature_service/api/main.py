@@ -43,7 +43,7 @@ app = FastAPI(title=TITLE,
               description=DESCRIPTION,
               swagger_ui_parameters={
                   "defaultModelsExpandDepth": -1,  # Hide schemas section by default
-                  "docExpansion": "none",  # Collapse all endpoints by default
+                  "docExpansion": "list",  # Show endpoints, collapse details
                   "filter": True,  # Add search/filter box
                   "tryItOutEnabled": True,  # Enable "Try it out" by default
                   "syntaxHighlight.theme": "monokai",  # Better syntax highlighting
