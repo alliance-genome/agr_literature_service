@@ -136,16 +136,19 @@ async def auth_status(
     client_ip = get_client_ip(request)
     auth_method = "none"
     user_info = None
+    token_provided = credentials is not None
+    token_error = None
 
-    # Check Bearer token
+    # Priority 1: Check Bearer token (highest priority)
     if credentials is not None:
         try:
             user_info = get_cognito_user_swagger(credentials, get_cognito_auth())
             auth_method = "token"
-        except Exception:
-            pass  # Invalid token, continue checking other methods
+        except Exception as e:
+            token_error = str(e)
+            # Invalid token, continue checking other methods
 
-    # Check session cookie
+    # Priority 2: Check session cookie
     if auth_method == "none":
         session_id = request.cookies.get(SESSION_COOKIE_NAME)
         if session_id:
@@ -154,13 +157,15 @@ async def auth_status(
                 user_info = session_user
                 auth_method = "session"
 
-    # Check IP bypass (only if no credentials)
+    # Priority 3: Check IP bypass (only if no valid credentials)
     is_full_bypass = is_skip_all_auth_ip(request)
     is_read_bypass = is_skip_read_auth_ip(request)
 
     if auth_method == "none":
         if is_full_bypass:
             auth_method = "ip_full_bypass"
+            # Full bypass gets default_user
+            user_info = {"sub": "default_user"}
         elif is_read_bypass:
             auth_method = "ip_read_bypass"
 
@@ -169,6 +174,11 @@ async def auth_status(
         "client_ip": client_ip,
         "user_id": user_info.get("sub") if user_info else None,
         "user_email": user_info.get("email") if user_info else None,
+        "token_status": {
+            "provided": token_provided,
+            "valid": auth_method == "token",
+            "error": token_error
+        },
         "ip_bypass_status": {
             "full_bypass": is_full_bypass,
             "read_bypass": is_read_bypass,
