@@ -6,7 +6,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agr_cognito_py import CognitoAuth, CognitoConfig, get_cognito_auth, get_cognito_user_swagger
@@ -119,7 +119,7 @@ async def logout(response: Response):
 @router.get("/status")
 async def auth_status(
     request: Request,
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
+    credentials: Optional[HTTPAuthorizationCredentials] = Security(HTTPBearer(auto_error=False))
 ):
     """
     Check current authentication status.
