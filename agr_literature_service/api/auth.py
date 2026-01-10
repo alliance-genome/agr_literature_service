@@ -74,16 +74,12 @@ def get_client_ip(request: Request) -> Optional[str]:
     """Extract client IP from request, handling load balancer scenarios.
 
     Priority order:
-    1. X-Real-IP: Set by nginx to the direct client IP (most reliable for VPN detection)
-    2. X-Forwarded-For: May contain multiple IPs if behind multiple proxies
-    3. request.client.host: Direct connection IP (often Docker bridge IP)
-    """
-    # Prefer X-Real-IP as it's set by nginx to the immediate upstream client
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
+    1. X-Forwarded-For: First IP is the original client (set by ALB/CloudFront)
+    2. request.client.host: Direct connection IP
 
-    # Fall back to X-Forwarded-For (first IP in chain)
+    Note: X-Real-IP is NOT used because nginx sets it to the ALB's IP,
+    which is always in the VPC range and would bypass auth for all requests.
+    """
     forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
@@ -100,10 +96,20 @@ def is_internal_request(request: Request) -> bool:
     Returns False if no CIDR ranges are configured or if IP doesn't match.
     """
     cidr_ranges = get_internal_cidr_ranges()
+    client_ip = get_client_ip(request)
+
+    # Debug logging - remove after testing
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.warning(f"[AUTH DEBUG] X-Forwarded-For: {request.headers.get('X-Forwarded-For')}")
+    logger.warning(f"[AUTH DEBUG] X-Real-IP: {request.headers.get('X-Real-IP')}")
+    logger.warning(f"[AUTH DEBUG] request.client.host: {request.client.host if request.client else 'None'}")
+    logger.warning(f"[AUTH DEBUG] Resolved client_ip: {client_ip}")
+    logger.warning(f"[AUTH DEBUG] CIDR ranges: {cidr_ranges}")
+
     if not cidr_ranges:
         return False
 
-    client_ip = get_client_ip(request)
     if not client_ip:
         return False
 
