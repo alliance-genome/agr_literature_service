@@ -1,14 +1,18 @@
 """
-VPN-aware authentication module for the AGR Literature Service.
+IP-aware authentication module for the AGR Literature Service.
 
 This module provides authentication decorators and dependencies that allow:
 - External requests: Always require Cognito authentication
-- VPN requests: GET methods skip auth by default, mutations require auth
+- Trusted IP requests: Configurable auth bypass based on IP address
 - Browser session: Cookie-based auth for direct browser access
 
+Environment variables:
+- SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP: Comma-separated IPs/CIDRs that skip auth on GET
+- SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: Comma-separated IPs/CIDRs that skip auth entirely
+
 Decorators:
-- @skip_auth_on_vpn: Skip auth for VPN requests on non-GET endpoints
-- @enforce_auth: Always require auth, even for VPN GET requests
+- @read_auth_bypass: Allow read-level IPs to bypass auth on non-GET endpoints
+- @no_read_auth_bypass: Block read-level IPs from bypassing auth (full-bypass IPs still work)
 """
 
 import os
@@ -23,55 +27,88 @@ from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
 # Session cookie name - must match authentication.py
 SESSION_COOKIE_NAME = "agr_session"
 
+# Default user dict returned when auth is completely bypassed (full-bypass IPs)
+# Mimics an access token structure so set_global_user_from_cognito handles it correctly
+DEFAULT_BYPASS_USER: Dict[str, Any] = {
+    "token_type": "access",
+    "sub": "default_user",
+    "email": "default_user@system",
+    "name": "Default User (IP Bypass)",
+    "cognito:groups": []
+}
+
 
 # =============================================================================
 # Route decorators - use these to flag special auth behavior
 # =============================================================================
 
-def skip_auth_on_vpn(func: Callable) -> Callable:
+def read_auth_bypass(func: Callable) -> Callable:
     """
-    Decorator to skip auth for VPN requests on non-GET endpoints.
-    Use this for POST/PATCH/DELETE endpoints that should be open on VPN.
+    Decorator to allow read-level IPs to bypass auth on non-GET endpoints.
+    Use this for POST/PATCH/DELETE endpoints that should be accessible
+    to IPs in SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP.
 
     Example:
         @router.post('/show_all')
-        @skip_auth_on_vpn
+        @read_auth_bypass
         def show_all(...):
             ...
     """
-    setattr(func, "_skip_auth_for_vpn", True)  # noqa: B010
+    setattr(func, "_read_auth_bypass", True)  # noqa: B010
     return func
 
 
-def enforce_auth(func: Callable) -> Callable:
+def no_read_auth_bypass(func: Callable) -> Callable:
     """
-    Decorator to always require auth, even for VPN GET requests.
-    Use this for sensitive GET endpoints that need protection.
+    Decorator to block read-level IPs from bypassing auth on this endpoint.
+
+    Use this for sensitive endpoints that should require auth even for
+    IPs in SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP. IPs in the full-bypass list
+    (SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP) can still access without auth.
 
     Example:
         @router.get('/sensitive_data')
-        @enforce_auth
+        @no_read_auth_bypass
         def get_sensitive_data(...):
             ...
     """
-    setattr(func, "_enforce_auth", True)  # noqa: B010
+    setattr(func, "_no_read_auth_bypass", True)  # noqa: B010
     return func
 
 
 # =============================================================================
-# VPN detection utilities
+# IP-based auth bypass utilities
 # =============================================================================
 
-def get_internal_cidr_ranges() -> List[str]:
-    """Get internal CIDR ranges from environment variable.
-
-    Set INTERNAL_CIDR_RANGES environment variable with comma-separated CIDR ranges.
-    Example: INTERNAL_CIDR_RANGES=10.0.0.0/8,172.16.0.0/12
-    """
-    ranges = os.environ.get("INTERNAL_CIDR_RANGES", "")
+def _parse_ip_list(env_var: str) -> List[str]:
+    """Parse comma-separated IP/CIDR list from environment variable."""
+    ranges = os.environ.get(env_var, "")
     if not ranges:
         return []
     return [r.strip() for r in ranges.split(",") if r.strip()]
+
+
+def get_read_skip_ip_ranges() -> List[str]:
+    """Get IPs/CIDRs that skip auth on read (GET) endpoints.
+
+    Set SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP with comma-separated IPs or CIDR ranges.
+    Examples:
+        SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP=10.0.0.1
+        SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP=10.0.0.0/8,172.16.0.0/12
+        SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP=192.168.1.100,10.0.0.0/24
+    """
+    return _parse_ip_list("SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP")
+
+
+def get_all_skip_ip_ranges() -> List[str]:
+    """Get IPs/CIDRs that skip auth on ALL endpoints (read and write).
+
+    Set SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP with comma-separated IPs or CIDR ranges.
+    Examples:
+        SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP=10.0.0.1
+        SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP=10.0.0.0/8,172.16.0.0/12
+    """
+    return _parse_ip_list("SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP")
 
 
 def get_client_ip(request: Request) -> Optional[str]:
@@ -93,58 +130,88 @@ def get_client_ip(request: Request) -> Optional[str]:
     return None
 
 
-def is_internal_request(request: Request) -> bool:
-    """Check if request originates from internal VPN/VPC network.
+def _ip_in_ranges(client_ip: Optional[str], ip_ranges: List[str]) -> bool:
+    """Check if client IP is within any of the given IP/CIDR ranges.
 
-    Returns True if the client IP is within any of the configured CIDR ranges.
-    Returns False if no CIDR ranges are configured or if IP doesn't match.
+    Args:
+        client_ip: The client IP address string (or None)
+        ip_ranges: List of IP addresses or CIDR ranges
+
+    Returns:
+        True if client_ip matches any range, False otherwise
     """
-    cidr_ranges = get_internal_cidr_ranges()
-    client_ip = get_client_ip(request)
-
-    # Debug logging - remove after testing
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.warning(f"[AUTH DEBUG] X-Forwarded-For: {request.headers.get('X-Forwarded-For')}")
-    logger.warning(f"[AUTH DEBUG] X-Real-IP: {request.headers.get('X-Real-IP')}")
-    logger.warning(f"[AUTH DEBUG] request.client.host: {request.client.host if request.client else 'None'}")
-    logger.warning(f"[AUTH DEBUG] Resolved client_ip: {client_ip}")
-    logger.warning(f"[AUTH DEBUG] CIDR ranges: {cidr_ranges}")
-
-    if not cidr_ranges:
-        return False
-
-    if not client_ip:
+    if not ip_ranges or not client_ip:
         return False
 
     try:
         client_addr = ip_address(client_ip)
-        for cidr in cidr_ranges:
-            if client_addr in ip_network(cidr):
-                return True
+        for cidr in ip_ranges:
+            try:
+                # strict=False allows host addresses like 10.0.0.5/24
+                if client_addr in ip_network(cidr, strict=False):
+                    return True
+            except ValueError:
+                # Invalid CIDR format, skip this entry
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"[AUTH] Invalid IP/CIDR format: {cidr}")
+                continue
     except ValueError:
-        # Invalid IP address format
+        # Invalid client IP address format
         return False
 
     return False
+
+
+def is_skip_all_auth_ip(request: Request) -> bool:
+    """Check if request should skip ALL authentication (read and write).
+
+    Returns True if client IP matches SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP.
+    """
+    client_ip = get_client_ip(request)
+    ip_ranges = get_all_skip_ip_ranges()
+
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"[AUTH] Checking skip-all auth for IP: {client_ip}, ranges: {ip_ranges}")
+
+    return _ip_in_ranges(client_ip, ip_ranges)
+
+
+def is_skip_read_auth_ip(request: Request) -> bool:
+    """Check if request should skip auth on read (GET) endpoints.
+
+    Returns True if client IP matches SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP.
+    """
+    client_ip = get_client_ip(request)
+    ip_ranges = get_read_skip_ip_ranges()
+
+    # Debug logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.debug(f"[AUTH] Checking skip-read auth for IP: {client_ip}, ranges: {ip_ranges}")
+
+    return _ip_in_ranges(client_ip, ip_ranges)
 
 
 # =============================================================================
 # Authentication dependency
 # =============================================================================
 
-class VPNAwareCognitoAuth:
+class IPAwareCognitoAuth:
     """
-    Authentication dependency with VPN-aware bypass logic.
+    Authentication dependency with IP-based bypass logic.
 
     Default behavior:
     - External requests: Always require Cognito auth (or valid session cookie)
-    - VPN GET requests: Skip auth
-    - VPN non-GET requests: Require auth
+    - SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: Skip auth for all methods (highest priority)
+    - SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + GET: Skip auth
+    - Trusted IP non-GET requests: Require auth
 
     Override with decorators:
-    - @skip_auth_for_vpn: Skip auth for VPN on non-GET endpoints
-    - @enforce_auth: Always require auth, even for VPN GET
+    - @read_auth_bypass: Allow read-level IPs to bypass auth on non-GET endpoints
+    - @no_read_auth_bypass: Block read-level IPs from bypassing (full-bypass still works)
 
     Session cookie support:
     - Call POST /auth/login with Bearer token to get a session cookie
@@ -174,13 +241,18 @@ class VPNAwareCognitoAuth:
         endpoint = route.endpoint if route else None
 
         # Check decorator flags
-        skip_for_vpn = getattr(endpoint, "_skip_auth_for_vpn", False)
-        force_auth = getattr(endpoint, "_enforce_auth", False)
+        read_bypass = getattr(endpoint, "_read_auth_bypass", False)
+        no_read_bypass = getattr(endpoint, "_no_read_auth_bypass", False)
 
-        # Determine if auth should be skipped
-        should_skip = self._should_skip_auth(request, skip_for_vpn, force_auth)
+        # Check auth skip conditions
+        skip_result = self._check_auth_skip(request, read_bypass, no_read_bypass)
 
-        if should_skip:
+        if skip_result == "full_bypass":
+            # Full-bypass IP: return default user (not None)
+            return DEFAULT_BYPASS_USER
+
+        if skip_result == "read_bypass":
+            # Read-bypass IP on allowed endpoint: anonymous access
             return None
 
         # Auth required - first check for session cookie (for direct browser access)
@@ -193,41 +265,48 @@ class VPNAwareCognitoAuth:
             raise HTTPException(status_code=401, detail="Missing authentication token")
         return get_cognito_user_swagger(credentials, get_cognito_auth())
 
-    def _should_skip_auth(
+    def _check_auth_skip(
         self,
         request: Request,
-        skip_for_vpn: bool,
-        force_auth: bool
-    ) -> bool:
+        read_bypass: bool,
+        no_read_bypass: bool
+    ) -> Optional[str]:
         """
-        Determine if authentication should be skipped.
+        Check if authentication should be skipped and return the bypass type.
 
-        Rules:
-        - External requests: NEVER skip
-        - @enforce_auth: NEVER skip
-        - VPN + GET: Skip (default)
-        - VPN + @skip_auth_for_vpn: Skip
-        - VPN + non-GET (no decorator): Require auth
+        Returns:
+            "full_bypass" - IP in SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP (returns default user)
+            "read_bypass" - IP in SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP on allowed endpoint
+            None - Auth required
+
+        Priority order:
+        1. SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: Full bypass (highest priority)
+        2. @no_read_auth_bypass decorator: Block read-level bypass
+        3. SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + GET: Read bypass
+        4. SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + @read_auth_bypass: Read bypass
+        5. Otherwise: Require auth
         """
-        # External requests always require auth
-        if not is_internal_request(request):
-            return False
+        # Full-bypass IPs skip auth on ALL endpoints (highest priority)
+        if is_skip_all_auth_ip(request):
+            return "full_bypass"
 
-        # @enforce_auth always requires auth
-        if force_auth:
-            return False
+        # @no_read_auth_bypass blocks read-level bypass
+        if no_read_bypass:
+            return None
 
-        # VPN GET requests skip auth by default
-        if request.method == "GET":
-            return True
+        # Check if IP should skip read-only auth
+        if is_skip_read_auth_ip(request):
+            # GET requests skip auth
+            if request.method == "GET":
+                return "read_bypass"
 
-        # VPN non-GET with @skip_auth_for_vpn skips auth
-        if skip_for_vpn:
-            return True
+            # Non-GET with @read_auth_bypass decorator skips auth
+            if read_bypass:
+                return "read_bypass"
 
-        # VPN non-GET requests require auth by default
-        return False
+        # All other cases require auth
+        return None
 
 
 # The dependency instance to use in routes
-get_authenticated_user = VPNAwareCognitoAuth()
+get_authenticated_user = IPAwareCognitoAuth()

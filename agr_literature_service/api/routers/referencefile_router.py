@@ -21,7 +21,7 @@ from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_cognito
-from agr_literature_service.api.auth import get_authenticated_user, skip_auth_on_vpn
+from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +174,7 @@ def show_all(curie_or_reference_id: str,
 @router.post('/show_main_pdf_ids_for_curies',
              status_code=status.HTTP_200_OK,
              response_model=dict)
-@skip_auth_on_vpn
+@read_auth_bypass
 def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
                                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                  db: Session = db_session):

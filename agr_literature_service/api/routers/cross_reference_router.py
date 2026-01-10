@@ -12,7 +12,7 @@ from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
                                                 ResponseMessageSchema, CrossReferenceSchemaShow)
 from agr_literature_service.api.user import set_global_user_from_cognito
-from agr_literature_service.api.auth import get_authenticated_user, skip_auth_on_vpn
+from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
 
 router = APIRouter(
     prefix="/cross_reference",
@@ -79,7 +79,7 @@ def autocomplete_search(
 @router.post('/show_all',
              response_model=List[CrossReferenceSchemaShow],
              status_code=200)
-@skip_auth_on_vpn
+@read_auth_bypass
 def show_all(curies: List[str],
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):

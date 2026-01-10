@@ -13,7 +13,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEnt
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_cognito
-from agr_literature_service.api.auth import get_authenticated_user, enforce_auth
+from agr_literature_service.api.auth import get_authenticated_user, no_read_auth_bypass
 
 router = APIRouter(
     prefix="/topic_entity_tag",
@@ -188,14 +188,14 @@ def revalidate_tags_process_wrapper(already_running, email: str, delete_all_firs
 
 @router.get('/revalidate_all_tags/',
             status_code=200)
-@enforce_auth
+@no_read_auth_bypass
 def revalidate_all_tags(email: str = None,
                         delete_all_tags_first: bool = False,
                         curie_or_reference_id: str = None,
                         validation_values_only: bool = False,
                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                         db: Session = db_session):
-    # user is guaranteed to be non-None due to @enforce_auth decorator
+    # user is guaranteed to be non-None due to @no_read_auth_bypass decorator
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     user_groups = user.get("cognito:groups", [])
