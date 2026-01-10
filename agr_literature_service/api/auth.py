@@ -203,11 +203,13 @@ class IPAwareCognitoAuth:
     """
     Authentication dependency with IP-based bypass logic.
 
-    Default behavior:
-    - External requests: Always require Cognito auth (or valid session cookie)
-    - SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: Skip auth for all methods (highest priority)
-    - SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + GET: Skip auth
-    - Trusted IP non-GET requests: Require auth
+    Priority order:
+    1. Bearer token: If provided, always authenticate with it (returns real user)
+    2. Session cookie: If present, use session-based auth
+    3. IP bypass rules: Only checked when no credentials provided
+       - SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: Returns DEFAULT_BYPASS_USER
+       - SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + GET: Returns None (anonymous)
+    4. No credentials and not in bypass: Returns 401 Unauthorized
 
     Override with decorators:
     - @read_auth_bypass: Allow read-level IPs to bypass auth on non-GET endpoints
@@ -236,7 +238,17 @@ class IPAwareCognitoAuth:
         request: Request,
         credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
     ) -> Optional[Dict[str, Any]]:
-        # Get route endpoint to check for decorator flags
+        # Priority 1: If Bearer token is provided, authenticate with it
+        # This takes precedence over IP bypass so authenticated users get their real identity
+        if credentials is not None:
+            return get_cognito_user_swagger(credentials, get_cognito_auth())
+
+        # Priority 2: Check for session cookie (for direct browser access)
+        session_user = self._get_user_from_session_cookie(request)
+        if session_user:
+            return session_user
+
+        # Priority 3: No credentials provided - check IP bypass rules
         route = request.scope.get("route")
         endpoint = route.endpoint if route else None
 
@@ -255,15 +267,8 @@ class IPAwareCognitoAuth:
             # Read-bypass IP on allowed endpoint: anonymous access
             return None
 
-        # Auth required - first check for session cookie (for direct browser access)
-        session_user = self._get_user_from_session_cookie(request)
-        if session_user:
-            return session_user
-
-        # Fall back to Bearer token authentication
-        if credentials is None:
-            raise HTTPException(status_code=401, detail="Missing authentication token")
-        return get_cognito_user_swagger(credentials, get_cognito_auth())
+        # No credentials and not in bypass list - require auth
+        raise HTTPException(status_code=401, detail="Missing authentication token")
 
     def _check_auth_skip(
         self,
