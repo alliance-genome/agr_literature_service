@@ -6,10 +6,15 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agr_cognito_py import CognitoAuth, CognitoConfig, get_cognito_auth, get_cognito_user_swagger
+
+from agr_literature_service.api.auth import (
+    get_client_ip, is_skip_all_auth_ip, is_skip_read_auth_ip,
+    get_all_skip_ip_ranges, get_read_skip_ip_ranges
+)
 
 logger = logging.getLogger(__name__)
 
@@ -112,14 +117,66 @@ async def logout(response: Response):
 
 
 @router.get("/status")
-async def auth_status():
+async def auth_status(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(HTTPBearer(auto_error=False))
+):
     """
     Check current authentication status.
 
-    Returns information about active sessions (for debugging).
+    Returns information about how the request is authenticated:
+    - token: Authenticated via Bearer token
+    - session: Authenticated via session cookie
+    - ip_full_bypass: IP in SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP
+    - ip_read_bypass: IP in SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP
+    - none: Not authenticated
     """
     _cleanup_expired_sessions()
+
+    client_ip = get_client_ip(request)
+    auth_method = "none"
+    user_info = None
+
+    # Check Bearer token
+    if credentials is not None:
+        try:
+            user_info = get_cognito_user_swagger(credentials, get_cognito_auth())
+            auth_method = "token"
+        except Exception:
+            pass  # Invalid token, continue checking other methods
+
+    # Check session cookie
+    if auth_method == "none":
+        session_id = request.cookies.get(SESSION_COOKIE_NAME)
+        if session_id:
+            session_user = get_session_user(session_id)
+            if session_user:
+                user_info = session_user
+                auth_method = "session"
+
+    # Check IP bypass (only if no credentials)
+    is_full_bypass = is_skip_all_auth_ip(request)
+    is_read_bypass = is_skip_read_auth_ip(request)
+
+    if auth_method == "none":
+        if is_full_bypass:
+            auth_method = "ip_full_bypass"
+        elif is_read_bypass:
+            auth_method = "ip_read_bypass"
+
     return {
-        "active_sessions": len(_session_store),
-        "session_expiry_hours": SESSION_EXPIRY_HOURS
+        "auth_method": auth_method,
+        "client_ip": client_ip,
+        "user_id": user_info.get("sub") if user_info else None,
+        "user_email": user_info.get("email") if user_info else None,
+        "ip_bypass_status": {
+            "full_bypass": is_full_bypass,
+            "read_bypass": is_read_bypass,
+            "full_bypass_ranges": get_all_skip_ip_ranges(),
+            "read_bypass_ranges": get_read_skip_ip_ranges()
+        },
+        "session_info": {
+            "active_sessions": len(_session_store),
+            "session_expiry_hours": SESSION_EXPIRY_HOURS
+        }
     }

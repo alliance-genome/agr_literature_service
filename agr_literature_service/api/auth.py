@@ -29,11 +29,10 @@ SESSION_COOKIE_NAME = "agr_session"
 
 # Default user dict returned when auth is completely bypassed (full-bypass IPs)
 # Mimics an access token structure so set_global_user_from_cognito handles it correctly
+# Note: default_user has no person_id in DB, so email and name are null
 DEFAULT_BYPASS_USER: Dict[str, Any] = {
     "token_type": "access",
     "sub": "default_user",
-    "email": "default_user@system",
-    "name": "Default User (IP Bypass)",
     "cognito:groups": []
 }
 
@@ -208,7 +207,7 @@ class IPAwareCognitoAuth:
     2. Session cookie: If present, use session-based auth
     3. IP bypass rules: Only checked when no credentials provided
        - SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: Returns DEFAULT_BYPASS_USER
-       - SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + GET: Returns None (anonymous)
+       - SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP + GET: Returns DEFAULT_BYPASS_USER
     4. No credentials and not in bypass: Returns 401 Unauthorized
 
     Override with decorators:
@@ -259,13 +258,9 @@ class IPAwareCognitoAuth:
         # Check auth skip conditions
         skip_result = self._check_auth_skip(request, read_bypass, no_read_bypass)
 
-        if skip_result == "full_bypass":
-            # Full-bypass IP: return default user (not None)
+        if skip_result in ("full_bypass", "read_bypass"):
+            # Bypass IP: return default user so endpoints have a valid user object
             return DEFAULT_BYPASS_USER
-
-        if skip_result == "read_bypass":
-            # Read-bypass IP on allowed endpoint: anonymous access
-            return None
 
         # No credentials and not in bypass list - require auth
         raise HTTPException(status_code=401, detail="Missing authentication token")

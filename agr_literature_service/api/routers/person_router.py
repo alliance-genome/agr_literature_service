@@ -13,7 +13,7 @@ from agr_literature_service.api.schemas import (
     ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
-from agr_literature_service.api.auth import get_authenticated_user, no_read_auth_bypass
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(prefix="/person", tags=["Person"])
 
@@ -69,15 +69,13 @@ def get_user_info_from_cognito(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user)
 ):
     """Get information about the currently authenticated user."""
-    # user is guaranteed non-None when @no_read_auth_bypass is used
     if user is None:
-        # This shouldn't happen with @no_read_auth_bypass, but satisfy type checker
         return {"error": "Not authenticated"}
     return {
-        "user_id": user["sub"],
-        "email": user["email"],
-        "name": user["name"],
-        "groups": user["cognito:groups"]
+        "user_id": user.get("sub"),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "groups": user.get("cognito:groups", [])
     }
 
 

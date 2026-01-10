@@ -287,12 +287,14 @@ class TestNoReadAuthBypassDecorator:
         with patch.object(auth_module, 'is_skip_all_auth_ip', return_value=True), \
              patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False):
             with TestClient(app) as client:
-                # /person/whoami has @no_read_auth_bypass and returns user info
+                # /person/whoami returns user info
                 response = client.get(url="/person/whoami")
                 assert response.status_code == status.HTTP_200_OK
                 data = response.json()
-                assert data["email"] == "default_user@system"
-                assert data["name"] == "Default User (IP Bypass)"
+                assert data["user_id"] == "default_user"
+                # default_user has no person_id, so email and name are null
+                assert data["email"] is None
+                assert data["name"] is None
 
     def test_no_read_bypass_with_auth_works(self, db, auth_headers):  # noqa
         """Test that @no_read_auth_bypass endpoint works with valid auth."""
