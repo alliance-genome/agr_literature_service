@@ -30,7 +30,8 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 dataset_router, ml_model_router,
                                                 manual_indexing_tag_router, person_router,
                                                 person_cross_reference_router, email_router,
-                                                person_setting_router, ontology_router)
+                                                person_setting_router, ontology_router,
+                                                authentication)
 
 TITLE = "Alliance Literature Service"
 VERSION = "0.1.0"
@@ -39,7 +40,15 @@ DESCRIPTION = "This service provides access to the Alliance Bibliographic Corpus
 
 app = FastAPI(title=TITLE,
               version=VERSION,
-              description=DESCRIPTION)
+              description=DESCRIPTION,
+              swagger_ui_parameters={
+                  "defaultModelsExpandDepth": -1,  # Hide schemas section by default
+                  "docExpansion": "none",  # Collapse all endpoints by default
+                  "filter": True,  # Add search/filter box
+                  "tryItOutEnabled": True,  # Enable "Try it out" by default
+                  "syntaxHighlight.theme": "monokai",  # Better syntax highlighting
+                  "displayRequestDuration": True,  # Show request duration
+              })
 
 app.add_middleware(CORSMiddleware,
                    allow_credentials=True,
@@ -131,6 +140,7 @@ app.include_router(email_router.router)
 app.include_router(person_cross_reference_router.router)
 app.include_router(person_setting_router.router)
 app.include_router(ontology_router.router)
+app.include_router(authentication.router)
 
 app.add_api_route("/health", health([is_database_online]))
 

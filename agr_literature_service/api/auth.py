@@ -4,6 +4,7 @@ VPN-aware authentication module for the AGR Literature Service.
 This module provides authentication decorators and dependencies that allow:
 - External requests: Always require Cognito authentication
 - VPN requests: GET methods skip auth by default, mutations require auth
+- Browser session: Cookie-based auth for direct browser access
 
 Decorators:
 - @skip_auth_on_vpn: Skip auth for VPN requests on non-GET endpoints
@@ -18,6 +19,9 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
+
+# Session cookie name - must match authentication.py
+SESSION_COOKIE_NAME = "agr_session"
 
 
 # =============================================================================
@@ -134,17 +138,31 @@ class VPNAwareCognitoAuth:
     Authentication dependency with VPN-aware bypass logic.
 
     Default behavior:
-    - External requests: Always require Cognito auth
+    - External requests: Always require Cognito auth (or valid session cookie)
     - VPN GET requests: Skip auth
     - VPN non-GET requests: Require auth
 
     Override with decorators:
     - @skip_auth_for_vpn: Skip auth for VPN on non-GET endpoints
     - @enforce_auth: Always require auth, even for VPN GET
+
+    Session cookie support:
+    - Call POST /auth/login with Bearer token to get a session cookie
+    - Then access API endpoints directly in browser without Authorization header
     """
 
     def __init__(self):
         self.http_bearer = HTTPBearer(auto_error=False)
+
+    def _get_user_from_session_cookie(self, request: Request) -> Optional[Dict[str, Any]]:
+        """Check for valid session cookie and return user info if found."""
+        session_id = request.cookies.get(SESSION_COOKIE_NAME)
+        if not session_id:
+            return None
+
+        # Import here to avoid circular imports
+        from agr_literature_service.api.routers.authentication import get_session_user
+        return get_session_user(session_id)
 
     async def __call__(
         self,
@@ -165,7 +183,12 @@ class VPNAwareCognitoAuth:
         if should_skip:
             return None
 
-        # Auth required - validate with Cognito
+        # Auth required - first check for session cookie (for direct browser access)
+        session_user = self._get_user_from_session_cookie(request)
+        if session_user:
+            return session_user
+
+        # Fall back to Bearer token authentication
         if credentials is None:
             raise HTTPException(status_code=401, detail="Missing authentication token")
         return get_cognito_user_swagger(credentials, get_cognito_auth())
