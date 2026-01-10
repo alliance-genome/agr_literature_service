@@ -123,7 +123,8 @@ services:
       GUNICORN_WORKERS: "${GUNICORN_WORKERS:-4}"  # Number of worker processes (default: 4)
       LOG_LEVEL: "${LOG_LEVEL:-info}"  # Gunicorn log level (default: info)
       DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
-      INTERNAL_CIDR_RANGES: "${INTERNAL_CIDR_RANGES}"
+      SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP: "${SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP}"
+      SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: "${SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP}"
     hostname: literature_api
     networks:
       - agr-literature
@@ -330,6 +331,8 @@ services:
       OKTA_CLIENT_ID: "${OKTA_CLIENT_ID}"
       OKTA_CLIENT_SECRET: "${OKTA_CLIENT_SECRET}"
       REG: "${REG}"
+      SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP: "${SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP}"
+      SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP: "${SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP}"
     ports:
       - "${API_PORT}:8080"
     networks:
