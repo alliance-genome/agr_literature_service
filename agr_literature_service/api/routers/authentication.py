@@ -32,7 +32,7 @@ _session_store: Dict[str, Dict] = {}
 
 # Session configuration
 SESSION_COOKIE_NAME = "agr_session"
-SESSION_EXPIRY_HOURS = int(os.environ.get("SESSION_EXPIRY_HOURS", "8"))
+SESSION_EXPIRY_HOURS = int(os.environ.get("SESSION_EXPIRY_HOURS", "48"))
 
 
 def _cleanup_expired_sessions():
