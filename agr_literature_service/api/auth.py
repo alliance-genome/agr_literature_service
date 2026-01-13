@@ -111,7 +111,7 @@ def get_all_skip_ip_ranges() -> List[str]:
 
 
 def get_client_ip(request: Request) -> Optional[str]:
-    """Extract client IP from request, handling load balancer scenarios.
+    """Extract primary client IP from request, handling load balancer scenarios.
 
     Priority order:
     1. X-Forwarded-For: First IP is the original client (set by ALB/CloudFront)
@@ -129,35 +129,66 @@ def get_client_ip(request: Request) -> Optional[str]:
     return None
 
 
-def _ip_in_ranges(client_ip: Optional[str], ip_ranges: List[str]) -> bool:
-    """Check if client IP is within any of the given IP/CIDR ranges.
+def get_all_client_ips(request: Request) -> List[str]:
+    """Extract all possible client IPs from request for whitelist checking.
+
+    Returns both the forwarded IP (original client) and the direct connection IP.
+    This allows whitelisting both external IPs and internal Docker/container IPs.
+
+    Returns:
+        List of unique IP addresses (may be empty, 1, or 2 IPs)
+    """
+    ips = []
+
+    # Get the forwarded IP (original client behind load balancer)
+    forwarded_for = request.headers.get("X-Forwarded-For")
+    if forwarded_for:
+        forwarded_ip = forwarded_for.split(",")[0].strip()
+        if forwarded_ip:
+            ips.append(forwarded_ip)
+
+    # Get the direct connection IP (e.g., Docker container IP)
+    if request.client and request.client.host:
+        direct_ip = request.client.host
+        # Avoid duplicates
+        if direct_ip not in ips:
+            ips.append(direct_ip)
+
+    return ips
+
+
+def _ip_in_ranges(client_ips: List[str], ip_ranges: List[str]) -> bool:
+    """Check if any client IP is within any of the given IP/CIDR ranges.
 
     Args:
-        client_ip: The client IP address string (or None)
+        client_ips: List of client IP address strings
         ip_ranges: List of IP addresses or CIDR ranges
 
     Returns:
-        True if client_ip matches any range, False otherwise
+        True if any client_ip matches any range, False otherwise
     """
-    if not ip_ranges or not client_ip:
+    if not ip_ranges or not client_ips:
         return False
 
-    try:
-        client_addr = ip_address(client_ip)
-        for cidr in ip_ranges:
-            try:
-                # strict=False allows host addresses like 10.0.0.5/24
-                if client_addr in ip_network(cidr, strict=False):
-                    return True
-            except ValueError:
-                # Invalid CIDR format, skip this entry
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"[AUTH] Invalid IP/CIDR format: {cidr}")
-                continue
-    except ValueError:
-        # Invalid client IP address format
-        return False
+    import logging
+    logger = logging.getLogger(__name__)
+
+    for client_ip in client_ips:
+        try:
+            client_addr = ip_address(client_ip)
+            for cidr in ip_ranges:
+                try:
+                    # strict=False allows host addresses like 10.0.0.5/24
+                    if client_addr in ip_network(cidr, strict=False):
+                        return True
+                except ValueError:
+                    # Invalid CIDR format, skip this entry
+                    logger.warning(f"[AUTH] Invalid IP/CIDR format: {cidr}")
+                    continue
+        except ValueError:
+            # Invalid client IP address format, try next IP
+            logger.debug(f"[AUTH] Invalid client IP format: {client_ip}")
+            continue
 
     return False
 
@@ -165,33 +196,35 @@ def _ip_in_ranges(client_ip: Optional[str], ip_ranges: List[str]) -> bool:
 def is_skip_all_auth_ip(request: Request) -> bool:
     """Check if request should skip ALL authentication (read and write).
 
-    Returns True if client IP matches SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP.
+    Returns True if any client IP matches SKIP_AUTH_ON_ALL_ENDPOINTS_FOR_IP.
+    Checks both the forwarded IP and the direct connection IP.
     """
-    client_ip = get_client_ip(request)
+    client_ips = get_all_client_ips(request)
     ip_ranges = get_all_skip_ip_ranges()
 
     # Debug logging
     import logging
     logger = logging.getLogger(__name__)
-    logger.debug(f"[AUTH] Checking skip-all auth for IP: {client_ip}, ranges: {ip_ranges}")
+    logger.debug(f"[AUTH] Checking skip-all auth for IPs: {client_ips}, ranges: {ip_ranges}")
 
-    return _ip_in_ranges(client_ip, ip_ranges)
+    return _ip_in_ranges(client_ips, ip_ranges)
 
 
 def is_skip_read_auth_ip(request: Request) -> bool:
     """Check if request should skip auth on read (GET) endpoints.
 
-    Returns True if client IP matches SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP.
+    Returns True if any client IP matches SKIP_AUTH_ON_READ_ENDPOINTS_FOR_IP.
+    Checks both the forwarded IP and the direct connection IP.
     """
-    client_ip = get_client_ip(request)
+    client_ips = get_all_client_ips(request)
     ip_ranges = get_read_skip_ip_ranges()
 
     # Debug logging
     import logging
     logger = logging.getLogger(__name__)
-    logger.debug(f"[AUTH] Checking skip-read auth for IP: {client_ip}, ranges: {ip_ranges}")
+    logger.debug(f"[AUTH] Checking skip-read auth for IPs: {client_ips}, ranges: {ip_ranges}")
 
-    return _ip_in_ranges(client_ip, ip_ranges)
+    return _ip_in_ranges(client_ips, ip_ranges)
 
 
 # =============================================================================
