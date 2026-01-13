@@ -20,31 +20,42 @@ class TestIPDetection:
 
     def test_ip_in_ranges_with_matching_ip(self):
         """Test that matching IPs are correctly identified."""
-        assert auth_module._ip_in_ranges('10.0.70.11', ['10.0.0.0/8', '172.31.0.0/16']) is True
+        assert auth_module._ip_in_ranges(['10.0.70.11'], ['10.0.0.0/8', '172.31.0.0/16']) is True
 
     def test_ip_in_ranges_with_non_matching_ip(self):
         """Test that non-matching IPs are not identified."""
-        assert auth_module._ip_in_ranges('203.0.113.50', ['10.0.0.0/8', '172.31.0.0/16']) is False
+        assert auth_module._ip_in_ranges(['203.0.113.50'], ['10.0.0.0/8', '172.31.0.0/16']) is False
 
     def test_ip_in_ranges_single_ip_without_cidr(self):
         """Test that single IPs without CIDR notation work."""
-        assert auth_module._ip_in_ranges('10.0.70.11', ['10.0.70.11']) is True
-        assert auth_module._ip_in_ranges('10.0.70.12', ['10.0.70.11']) is False
+        assert auth_module._ip_in_ranges(['10.0.70.11'], ['10.0.70.11']) is True
+        assert auth_module._ip_in_ranges(['10.0.70.12'], ['10.0.70.11']) is False
 
     def test_ip_in_ranges_with_strict_false(self):
         """Test that strict=False allows host addresses in CIDR."""
         # 10.0.0.5/24 would fail with strict=True because host bits are set
-        assert auth_module._ip_in_ranges('10.0.0.100', ['10.0.0.5/24']) is True
+        assert auth_module._ip_in_ranges(['10.0.0.100'], ['10.0.0.5/24']) is True
 
     def test_ip_in_ranges_empty_ranges(self):
         """Test that empty ranges means no match."""
-        assert auth_module._ip_in_ranges('10.0.70.11', []) is False
+        assert auth_module._ip_in_ranges(['10.0.70.11'], []) is False
 
     def test_ip_in_ranges_invalid_cidr_logs_warning(self):
         """Test that invalid CIDR format is handled gracefully."""
         # Invalid CIDR should be skipped, but valid ones should still work
-        assert auth_module._ip_in_ranges('10.0.70.11', ['invalid', '10.0.0.0/8']) is True
-        assert auth_module._ip_in_ranges('10.0.70.11', ['invalid', '192.168.0.0/16']) is False
+        assert auth_module._ip_in_ranges(['10.0.70.11'], ['invalid', '10.0.0.0/8']) is True
+        assert auth_module._ip_in_ranges(['10.0.70.11'], ['invalid', '192.168.0.0/16']) is False
+
+    def test_ip_in_ranges_multiple_client_ips(self):
+        """Test that any matching IP from multiple client IPs triggers a match."""
+        # First IP doesn't match, but second does
+        assert auth_module._ip_in_ranges(['203.0.113.50', '10.0.70.11'], ['10.0.0.0/8']) is True
+        # Neither IP matches
+        assert auth_module._ip_in_ranges(['203.0.113.50', '8.8.8.8'], ['10.0.0.0/8']) is False
+
+    def test_ip_in_ranges_empty_client_ips(self):
+        """Test that empty client IPs list means no match."""
+        assert auth_module._ip_in_ranges([], ['10.0.0.0/8']) is False
 
     def test_is_skip_read_auth_ip(self):
         """Test is_skip_read_auth_ip function."""
