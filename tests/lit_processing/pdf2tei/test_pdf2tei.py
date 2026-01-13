@@ -104,7 +104,7 @@ class TestPdf2TEI:
     @staticmethod
     @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
     def upload_initial_main_reference_file(db, client, test_mod, test_reference, auth_headers): # noqa
-        mod_response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}")
+        mod_response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}", headers=auth_headers)
         mod_abbreviation = mod_response.json()["abbreviation"]
         new_mca = {
             "mod_abbreviation": mod_abbreviation,

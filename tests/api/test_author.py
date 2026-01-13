@@ -32,9 +32,9 @@ def test_author(db, auth_headers, test_reference): # noqa
 
 class TestAuthor:
 
-    def test_get_bad_author(self):
+    def test_get_bad_author(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/author/{-1}")
+            response = client.get(url=f"/author/{-1}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_author(self, db, test_author): # noqa
@@ -54,11 +54,11 @@ class TestAuthor:
             author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
             response = client.patch(url=f"/author/{author.author_id}", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            mod_author = client.get(url=f"/author/{author.author_id}").json()
+            mod_author = client.get(url=f"/author/{author.author_id}", headers=auth_headers).json()
             assert author.author_id == mod_author["author_id"]
             assert mod_author["first_name"] == "003_TUA"
             assert mod_author["orcid"] == "ORCID:4321-4321-4321-321X"
-            res = client.get(url=f"/author/{test_author.new_author_id}/versions").json()
+            res = client.get(url=f"/author/{test_author.new_author_id}/versions", headers=auth_headers).json()
             # Orcid changed from None -> ORCID:1234-1234-1234-123X -> ORCID:4321-4321-4321-321X
             for transaction in res:
                 if not transaction['changeset']['orcid'][0]:
@@ -67,17 +67,17 @@ class TestAuthor:
                     assert transaction['changeset']['orcid'][0] == 'ORCID:1234-1234-1234-123X'
                     assert transaction['changeset']['orcid'][1] == 'ORCID:4321-4321-4321-321X'
 
-    def test_show_author(self, test_author): # noqa
+    def test_show_author(self, test_author, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/author/{test_author.new_author_id}")
+            response = client.get(url=f"/author/{test_author.new_author_id}", headers=auth_headers)
             assert response.json()['orcid'] == "ORCID:1234-1234-1234-123X"
 
-    def test_destroy_author(self, test_author, auth_headers): # noqa
+    def test_destroy_author(self, test_author, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/author/{test_author.new_author_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/author/{test_author.new_author_id}")
+            response = client.get(url=f"/author/{test_author.new_author_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/author/{test_author.new_author_id}", headers=auth_headers)

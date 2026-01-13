@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, Response, Security, status
 
@@ -14,8 +14,7 @@ from agr_literature_service.api.schemas import (
     ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(prefix="/email", tags=["Email"])
 
@@ -32,7 +31,7 @@ db_session: Session = Depends(get_db)
 def create_for_person(
     person_id: int,
     request: EmailSchemaCreate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -47,8 +46,10 @@ def create_for_person(
 )
 def list_for_person(
     person_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return email_crud.list_for_person(db, person_id)
 
 
@@ -60,8 +61,10 @@ def list_for_person(
 )
 def show(
     email_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return email_crud.show(db, email_id)
 
 
@@ -74,7 +77,7 @@ def show(
 def patch(
     email_id: int,
     request: EmailSchemaUpdate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -86,7 +89,7 @@ def patch(
 @router.delete("/{email_id}", status_code=status.HTTP_204_NO_CONTENT)
 def destroy(
     email_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)

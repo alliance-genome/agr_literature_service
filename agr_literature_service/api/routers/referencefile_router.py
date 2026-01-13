@@ -2,7 +2,7 @@ import json
 import io
 import logging
 from json import JSONDecodeError
-from typing import Union, List, Any, Dict
+from typing import Union, List, Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Security, status, File, UploadFile, \
     BackgroundTasks, HTTPException
@@ -17,14 +17,11 @@ from agr_cognito_py import get_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
-# from agr_literature_service.api.utils.bulk_upload_utils import is_pdf_file \
-#    validate_archive_structure, validate_compressed_archive
 from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +52,7 @@ def file_upload(reference_curie: str = None,
                 upload_if_already_converted: bool = False,
                 file: UploadFile = File(...),  # noqa: B008
                 metadata_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
-                user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
     """
 
@@ -129,28 +126,28 @@ def file_upload(reference_curie: str = None,
 @router.get('/download_file/{referencefile_id}',
             status_code=status.HTTP_200_OK)
 def download_file(referencefile_id: int,
-                  user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return referencefile_crud.download_file(db, referencefile_id, get_mod_access(user))
+    return referencefile_crud.download_file(db, referencefile_id, get_mod_access(user) if user else [])
 
 
 @router.get('/additional_files_tarball/{reference_id}',
             status_code=status.HTTP_200_OK)
 def download_additional_files_tarball(reference_id: int,
-                                      user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                                      user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                       db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user))
+    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user) if user else [])
 
 
 @router.delete('/{referencefile_id}',
                response_model=str)
 def delete(referencefile_id: int,
-           user: Dict[str, Any] = Security(get_cognito_user_swagger),
+           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    referencefile_crud.destroy(db, referencefile_id, get_mod_access(user))
+    referencefile_crud.destroy(db, referencefile_id, get_mod_access(user) if user else [])
     return 'success'
 
 
@@ -158,7 +155,9 @@ def delete(referencefile_id: int,
             status_code=status.HTTP_200_OK,
             response_model=ReferencefileSchemaShow)
 def show(referencefile_id: int,
+         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return referencefile_crud.show(db, referencefile_id)
 
 
@@ -166,15 +165,20 @@ def show(referencefile_id: int,
             status_code=status.HTTP_200_OK,
             response_model=List[ReferencefileSchemaRelated])
 def show_all(curie_or_reference_id: str,
+             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return referencefile_crud.show_all(db, curie_or_reference_id)
 
 
 @router.post('/show_main_pdf_ids_for_curies',
              status_code=status.HTTP_200_OK,
              response_model=dict)
+@read_auth_bypass
 def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
+                                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                  db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return referencefile_crud.get_main_pdf_referencefile_ids_for_ref_curies_list(
         db=db, curies=data.curies, mod_abbreviation=data.mod_abbreviation)
 
@@ -184,7 +188,7 @@ def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
               response_model=ResponseMessageSchema)
 def patch(referencefile_id: int,
           request: ReferencefileSchemaUpdate,
-          user: Dict[str, Any] = Security(get_cognito_user_swagger),
+          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
           db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return referencefile_crud.patch(db, referencefile_id, request.model_dump(exclude_unset=True))
@@ -195,7 +199,7 @@ def patch(referencefile_id: int,
 def merge_referencefiles(curie_or_reference_id: str,
                          losing_referencefile_id: int,
                          winning_referencefile_id: int,
-                         user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                          db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return referencefile_crud.merge_referencefiles(db, curie_or_reference_id, losing_referencefile_id, winning_referencefile_id)
@@ -212,7 +216,7 @@ async def bulk_upload_archive(
     mod_abbreviation: str,
     background_tasks: BackgroundTasks,
     archive: UploadFile = _ArchiveParam,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
     """
@@ -263,8 +267,11 @@ async def bulk_upload_archive(
         archive = UploadFile(filename=archive.filename, file=io.BytesIO(data))
 
     # 3. create a new bulk‐upload job
+    user_id: str = "unknown"
+    if user:
+        user_id = str(user.get("cognito:username") or user.get("sub", "unknown"))
     job_id = upload_manager.create_job(
-        user_id=user.get("cognito:username") or user.get("sub", "unknown"),
+        user_id=user_id,
         mod_abbreviation=mod_abbreviation,
         filename=archive.filename or "archive.unknown",
     )
@@ -298,6 +305,7 @@ async def bulk_upload_archive(
 )
 def get_bulk_upload_status(
     job_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
     job = upload_manager.get_job(job_id)

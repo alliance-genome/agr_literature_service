@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -12,8 +12,7 @@ from agr_literature_service.api.schemas import (
     ResponseMessageSchema
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(
     prefix="/editor",
@@ -31,7 +30,7 @@ db_session: Session = Depends(get_db)
 )
 def create(
     request: EditorSchemaCreate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -44,7 +43,7 @@ def create(
 )
 def destroy(
     editor_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
     set_global_user_from_cognito(db, user)
@@ -60,7 +59,7 @@ def destroy(
 def patch(
     editor_id: int,
     request: EditorSchemaPost,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> ResponseMessageSchema:
     set_global_user_from_cognito(db, user)
@@ -76,8 +75,10 @@ def patch(
 )
 def show(
     editor_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> EditorSchemaShow:
+    set_global_user_from_cognito(db, user)
     editor = editor_crud.show(db, editor_id)
     return EditorSchemaShow.model_validate(editor)
 
@@ -88,6 +89,8 @@ def show(
 )
 def show_versions(
     editor_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
+    set_global_user_from_cognito(db, user)
     return editor_crud.show_changesets(db, editor_id)
