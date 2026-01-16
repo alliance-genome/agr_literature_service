@@ -195,7 +195,8 @@ def revalidate_all_tags(email: str = None,
                         validation_values_only: bool = False,
                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                         db: Session = db_session):
-    # user is guaranteed to be non-None due to @no_read_auth_bypass decorator
+    # user is guaranteed to be non-None: get_authenticated_user raises 401 on auth failure
+    # The null check below is defensive but unreachable in practice
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     user_groups = user.get("cognito:groups", [])
