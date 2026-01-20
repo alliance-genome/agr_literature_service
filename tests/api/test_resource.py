@@ -26,9 +26,9 @@ def test_resource(db, auth_headers): # noqa
 
 class TestResource:
 
-    def test_get_bad_resource(self, auth_headers): # noqa
+    def test_get_bad_resource(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            client.get(url="/resource/PMID:VQEVEQRVC")
+            client.get(url="/resource/PMID:VQEVEQRVC", headers=auth_headers)
 
     def test_create_resource(self, auth_headers, test_resource): # noqa
         with TestClient(app) as client:
@@ -51,26 +51,27 @@ class TestResource:
             new_resource = client.post(url="/resource/", json={"title": ""}, headers=auth_headers)
             assert new_resource.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_show_resource(self, auth_headers, test_resource): # noqa
+    def test_show_resource(self, auth_headers, test_resource):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/resource/{test_resource.new_resource_curie}")
+            response = client.get(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             resource = response.json()
             assert resource['title'] == "Bob"
             assert resource['abstract'] == '3'
 
             # Lookup 1 that does not exist
-            response = client.get(url="/resource/does_not_exist")
+            response = client.get(url="/resource/does_not_exist", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_update_resource(self, auth_headers, test_resource): # noqa
+    def test_update_resource(self, auth_headers, test_resource):  # noqa
         with TestClient(app) as client:
             response = client.patch(url=f"/resource/{test_resource.new_resource_curie}", json={"title": "new title"},
                                     headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
 
             # fetch the new record.
-            new_resource = client.get(url=f"/resource/{test_resource.new_resource_curie}").json()
+            new_resource = client.get(url=f"/resource/{test_resource.new_resource_curie}",
+                                      headers=auth_headers).json()
 
             # do we have the new title?
             assert new_resource['title'] == "new title"
@@ -116,7 +117,7 @@ class TestResource:
             curie = response.json()
 
             # fetch the new record.
-            response = client.get(url=f"/resource/{curie}")
+            response = client.get(url=f"/resource/{curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             new_resource = response.json()
             assert new_resource['cross_references'][0]['curie'] == "FB:FBrf0044885"
@@ -146,12 +147,12 @@ class TestResource:
             assert len(res.cross_reference) == 1
 
 
-    def test_delete_resource(self, auth_headers, test_resource): # noqa
+    def test_delete_resource(self, auth_headers, test_resource):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/resource/{test_resource.new_resource_curie}")
+            response = client.get(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.

@@ -28,9 +28,9 @@ def test_mod(db, auth_headers): # noqa
 
 class TestMod:
 
-    def test_get_bad_mod(self):
+    def test_get_bad_mod(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/mod/does_not_exist")
+            response = client.get(url="/mod/does_not_exist", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_mod(self, db, test_mod): # noqa
@@ -47,16 +47,16 @@ class TestMod:
                             }
             response = client.patch(url=f"/mod/{test_mod.new_mod_id}", json=patched_data, headers=auth_headers)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            res = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}").json()
+            res = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}", headers=auth_headers).json()
             assert res["full_name"] == "Test genome database2"
-            transactions = client.get(url=f"/mod/{test_mod.new_mod_id}/versions").json()
+            transactions = client.get(url=f"/mod/{test_mod.new_mod_id}/versions", headers=auth_headers).json()
             assert transactions[0]["changeset"]["full_name"][1] == "Test genome database"
             assert transactions[1]["changeset"]["full_name"][0] == "Test genome database"
             assert transactions[1]["changeset"]["full_name"][1] == "Test genome database2"
 
-    def test_show_mod(self, test_mod): # noqa
+    def test_show_mod(self, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}")
+            response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["full_name"] == "Test genome database"
 

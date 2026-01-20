@@ -13,8 +13,7 @@ from agr_literature_service.api.schemas import (
     ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(prefix="/person", tags=["Person"])
 
@@ -25,7 +24,7 @@ db_session: Session = Depends(get_db)
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PersonSchemaShow)
 def create(
     request: PersonSchemaCreate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
@@ -38,7 +37,7 @@ def create(
 @router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
 def destroy(
     person_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
@@ -57,7 +56,7 @@ def destroy(
 def patch(
     person_id: int,
     request: PersonSchemaUpdate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -67,14 +66,16 @@ def patch(
 
 @router.get('/whoami')
 def get_user_info_from_cognito(
-    user: Dict[str, Any] = Security(get_cognito_user_swagger)
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user)
 ):
     """Get information about the currently authenticated user."""
+    if user is None:
+        return {"error": "Not authenticated"}
     return {
-        "user_id": user["sub"],
-        "email": user["email"],
-        "name": user["name"],
-        "groups": user["cognito:groups"]
+        "user_id": user.get("sub"),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "groups": user.get("cognito:groups", [])
     }
 
 
@@ -85,11 +86,13 @@ def get_user_info_from_cognito(
 )
 def show(
     person_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
     Get a person by internal ID.
     """
+    set_global_user_from_cognito(db, user)
     return person_crud.show(db, person_id)
 
 
@@ -100,12 +103,14 @@ def show(
 )
 def get_by_email(
     email: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
     Get a single person by email (exact match).
     Returns 200 with the person if found; 204 (no content) if not found.
     """
+    set_global_user_from_cognito(db, user)
     person = person_crud.get_by_email(db, email)
     if not person:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -119,10 +124,12 @@ def get_by_email(
 )
 def get_by_name(
     name: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
     Find people by name. Returns a (possibly empty) list.
     Implement the matching strategy (exact/ILIKE) inside person_crud.
     """
+    set_global_user_from_cognito(db, user)
     return person_crud.find_by_name(db, name)

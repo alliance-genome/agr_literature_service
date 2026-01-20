@@ -69,15 +69,18 @@ test_ml_model2 = test_ml_model
 
 class TestMLModel:
 
-    def test_get_bad_model(self, test_mod):  # noqa
+    def test_get_bad_model(self, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/-1")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/-1",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
             response = client.get(
-                url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000062")
+                url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000062",
+                headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
             response = client.get(
-                url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000062")
+                url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000062",
+                headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_upload_model(self, db, test_ml_model, test_mod):  # noqa
@@ -89,29 +92,33 @@ class TestMLModel:
         assert ml_model.version_num == 1
         assert ml_model.data_novelty == "ATP:0000062"
 
-    def test_get_model_metadata(self, test_ml_model, test_mod):  # noqa
+    def test_get_model_metadata(self, test_ml_model, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
 
-    def test_get_latest_model_metadata(self, test_ml_model, test_ml_model2, test_mod):  # noqa
+    def test_get_latest_model_metadata(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == 2
 
-    def test_download_model_file(self, test_ml_model, test_ml_model2, test_mod):  # noqa
+    def test_download_model_file(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1")
+            response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.headers["content-type"] == "application/octet-stream"
             assert response.content == model_file_test_content
 
-    def test_download_latest_model_file(self, test_ml_model, test_mod):  # noqa
+    def test_download_latest_model_file(self, test_ml_model, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
+            response = client.get(url=f"/ml_model/download/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.headers["content-type"] == "application/octet-stream"
 
@@ -120,7 +127,8 @@ class TestMLModel:
             response = client.delete(url=f"/ml_model/{test_ml_model['ml_model_id']}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/ml_models/{test_ml_model['ml_model_id']}", headers=auth_headers)
@@ -128,7 +136,7 @@ class TestMLModel:
 
 # Now try with multiple models. Inserting these via direct sql to avoid files etc,
 # and just the bare minimum needed for testing new version stuff.
-    def test_various_version_model(self, db, test_mod):  # noqa
+    def test_various_version_model(self, db, test_mod, auth_headers):  # noqa
 
         mod = db.query(ModModel).filter_by(abbreviation=test_mod.new_mod_abbreviation).one()
         assert mod.short_name == "AtDB"
@@ -165,28 +173,32 @@ class TestMLModel:
 
         with TestClient(app) as client:
             # fetch by version number
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/10")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/10",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == 10
             assert response.json()["model_type"] == first.model_type
 
             # fetch latest by using NOT specifying the version
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == 12
             assert response.json()["model_type"] == last.model_type
 
             # fetch latest by specifying latest
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/latest")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/latest",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == 12
             assert response.json()["model_type"] == last.model_type
 
             # fetch production version
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/production")
+            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/production",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == prod.version_num

@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, Response, Security, status
 
@@ -12,8 +12,7 @@ from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
                                                 ResponseMessageSchema, CrossReferenceSchemaShow)
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
 
 router = APIRouter(
     prefix="/cross_reference",
@@ -28,7 +27,7 @@ db_session: Session = Depends(get_db)
              status_code=status.HTTP_201_CREATED,
              response_model=int)
 def create(request: CrossReferenceSchemaPost,
-           user: Dict[str, Any] = Security(get_cognito_user_swagger),
+           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return cross_reference_crud.create(db, request)
@@ -37,7 +36,7 @@ def create(request: CrossReferenceSchemaPost,
 @router.delete('/{cross_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(cross_reference_id: int,
-            user: Dict[str, Any] = Security(get_cognito_user_swagger),
+            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
             db: Session = db_session):
     set_global_user_from_cognito(db, user)
     cross_reference_crud.destroy(db, cross_reference_id)
@@ -49,7 +48,7 @@ def destroy(cross_reference_id: int,
               response_model=ResponseMessageSchema)
 async def patch(cross_reference_id: int,
                 request: CrossReferenceSchemaUpdate,
-                user: Dict[str, Any] = Security(get_cognito_user_swagger),
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
@@ -59,7 +58,9 @@ async def patch(cross_reference_id: int,
 @router.get('/{cross_reference_id}/versions',
             status_code=200)
 def show_version(cross_reference_id: int,
+                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return cross_reference_crud.show_changesets(db, cross_reference_id)
 
 
@@ -69,29 +70,39 @@ def autocomplete_search(
         prefix: str,
         query: str,
         return_prefix: bool = False,
+        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)
 
 
 @router.post('/show_all',
              response_model=List[CrossReferenceSchemaShow],
              status_code=200)
+@read_auth_bypass
 def show_all(curies: List[str],
+             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return cross_reference_crud.show_from_curies(db, curies)
 
 
 @router.get('/check/patterns/{datatype}',
             status_code=200,
             )
-def show_patterns_reference(datatype: str):
+def show_patterns_reference(datatype: str,
+                            user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    # No db access needed, user param only for auth enforcement
     return patterns_check.get_patterns()[datatype]
 
 
 @router.get('/check/curie/{datatype}/{curie}',
             status_code=200,
             )
-def check_curie_reference_pattern(datatype: str, curie: str):
+def check_curie_reference_pattern(datatype: str,
+                                  curie: str,
+                                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    # No db access needed, user param only for auth enforcement
     ret = patterns_check.check_pattern(datatype, curie)
     if ret is None:
         return Response(status_code=status.HTTP_400_BAD_REQUEST)
@@ -102,5 +113,7 @@ def check_curie_reference_pattern(datatype: str, curie: str):
             response_model=CrossReferenceSchemaShow,
             status_code=200)
 def show(curie: str,
+         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return cross_reference_crud.show(db, curie)

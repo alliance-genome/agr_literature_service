@@ -95,7 +95,8 @@ class TestCurationStatus:
             url = f"/curation_status/{test_curation_status.new_curation_status_id}"
             response = client.patch(url=url, headers=auth_headers, json=patch_data)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(f"/curation_status/{test_curation_status.new_curation_status_id}")
+            response = client.get(f"/curation_status/{test_curation_status.new_curation_status_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             resp_data = response.json()
             for key, value in patch_data.items():

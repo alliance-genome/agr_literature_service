@@ -54,9 +54,9 @@ class TestCopyrightLicense:
             assert response.status_code == status.HTTP_201_CREATED
             assert isinstance(response.json(), int)
 
-    def test_show_all(self, test_copyright_license): # noqa
+    def test_show_all(self, test_copyright_license, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/copyright_license/all")
+            response = client.get(url="/copyright_license/all", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()[0]["name"] == "test license name"
             assert response.json()[0]["open_access"] is True

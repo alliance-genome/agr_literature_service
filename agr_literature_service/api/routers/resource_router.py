@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -9,8 +9,7 @@ from agr_literature_service.api.schemas import (ResourceSchemaPost,
                                                 ResourceSchemaShow, ResourceSchemaUpdate,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(
     prefix="/resource",
@@ -27,7 +26,7 @@ db_session: Session = Depends(get_db)
 
              response_model=str)
 def create(request: ResourceSchemaPost,
-           user: Dict[str, Any] = Security(get_cognito_user_swagger),
+           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return resource_crud.create(db, request)
@@ -37,7 +36,7 @@ def create(request: ResourceSchemaPost,
 
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie: str,
-            user: Dict[str, Any] = Security(get_cognito_user_swagger),
+            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
             db: Session = db_session):
     set_global_user_from_cognito(db, user)
     resource_crud.destroy(db, curie)
@@ -49,7 +48,7 @@ def destroy(curie: str,
               response_model=ResponseMessageSchema)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
-          user: Dict[str, Any] = Security(get_cognito_user_swagger),
+          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
           db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
@@ -61,12 +60,16 @@ def patch(curie: str,
             status_code=200,
             response_model=ResourceSchemaShow)
 def show(curie: str,
+         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return resource_crud.show(db, curie)
 
 
 @router.get('/{curie}/versions',
             status_code=200)
 def show_versions(curie: str,
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return resource_crud.show_changesets(db, curie)
