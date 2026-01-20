@@ -96,16 +96,6 @@ def upload_model(
     return ml_model_crud.upload(db, request, file)
 
 
-@router.delete('/{ml_model_id}',
-               status_code=status.HTTP_204_NO_CONTENT)
-def destroy(ml_model_id: int,
-            user: Dict[str, Any] = Security(get_cognito_user_swagger),
-            db: Session = db_session):
-    set_global_user_from_cognito(db, user)
-    ml_model_crud.destroy(db, ml_model_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}/{version}',
             response_model=MLModelSchemaShow,
             status_code=200)
