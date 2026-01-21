@@ -2,7 +2,7 @@ from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional
 
 from agr_cognito_py import get_mod_access
-from fastapi import APIRouter, Depends, Response, Security, status, HTTPException
+from fastapi import APIRouter, Depends, Query, Response, Security, status, HTTPException
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
@@ -175,13 +175,18 @@ def get_curie_to_name_from_all_tets(curie_or_reference_id: str,
     return topic_entity_tag_crud.get_curie_to_name_from_all_tets(db, curie_or_reference_id)
 
 
-def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, curie_or_reference_id: str,
+def revalidate_tags_process_wrapper(already_running, email: str,
+                                    delete_all_validation_values_first: bool,
+                                    curie_or_reference_id: str,
                                     validation_values_only: bool):
     try:
         already_running.value = True
-        topic_entity_tag_crud.revalidate_all_tags(email=email, delete_all_first=delete_all_first,
-                                                  curie_or_reference_id=curie_or_reference_id,
-                                                  validation_values_only=validation_values_only)
+        topic_entity_tag_crud.revalidate_all_tags(
+            email=email,
+            delete_all_first=delete_all_validation_values_first,
+            curie_or_reference_id=curie_or_reference_id,
+            validation_values_only=validation_values_only
+        )
     finally:
         already_running.value = False
 
@@ -189,12 +194,29 @@ def revalidate_tags_process_wrapper(already_running, email: str, delete_all_firs
 @router.get('/revalidate_all_tags/',
             status_code=200)
 @no_read_auth_bypass
-def revalidate_all_tags(email: str = None,
-                        delete_all_tags_first: bool = False,
-                        curie_or_reference_id: str = None,
-                        validation_values_only: bool = False,
-                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-                        db: Session = db_session):
+def revalidate_all_tags(
+        email: str = Query(
+            default=None,
+            description="Email address to notify when done. Revalidation runs in the background "
+                        "and can take hours for all tags."
+        ),
+        delete_all_validation_values_first: bool = Query(
+            default=False,
+            description="Set True to clear all existing validation relationships before rebuilding. "
+                        "Use when validation data is corrupted or after schema changes."
+        ),
+        curie_or_reference_id: str = Query(
+            default=None,
+            description="Limit revalidation to a single reference (e.g., 'AGRKB:101000000000001' or "
+                        "'12345'). Use after manually editing tags on one paper."
+        ),
+        validation_values_only: bool = Query(
+            default=False,
+            description="Set True to only rebuild validation relationships without reprocessing "
+                        "tag data. Faster option when tag data is correct but values are stale."
+        ),
+        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+        db: Session = db_session):
     # user is guaranteed to be non-None: get_authenticated_user raises 401 on auth failure
     # The null check below is defensive but unreachable in practice
     if user is None:
@@ -216,8 +238,8 @@ def revalidate_all_tags(email: str = None,
         }
     else:
         p = Process(target=revalidate_tags_process_wrapper,
-                    args=(revalidate_all_tags_already_running, email, delete_all_tags_first, curie_or_reference_id,
-                          validation_values_only))
+                    args=(revalidate_all_tags_already_running, email, delete_all_validation_values_first,
+                          curie_or_reference_id, validation_values_only))
         p.start()
         return {
             "message": "Revalidation of all tags started. You will receive an email when done."
