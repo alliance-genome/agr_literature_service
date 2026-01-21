@@ -122,18 +122,6 @@ class TestMLModel:
             assert response.status_code == status.HTTP_200_OK
             assert response.headers["content-type"] == "application/octet-stream"
 
-    def test_destroy_model(self, test_ml_model, test_mod, auth_headers):  # noqa
-        with TestClient(app) as client:
-            response = client.delete(url=f"/ml_model/{test_ml_model['ml_model_id']}", headers=auth_headers)
-            assert response.status_code == status.HTTP_204_NO_CONTENT
-            # It should now give an error on lookup.
-            response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1",
-                                  headers=auth_headers)
-            assert response.status_code == status.HTTP_404_NOT_FOUND
-            # Deleting it again should give an error as the lookup will fail.
-            response = client.delete(url=f"/ml_models/{test_ml_model['ml_model_id']}", headers=auth_headers)
-            assert response.status_code == status.HTTP_404_NOT_FOUND
-
 # Now try with multiple models. Inserting these via direct sql to avoid files etc,
 # and just the bare minimum needed for testing new version stuff.
     def test_various_version_model(self, db, test_mod, auth_headers):  # noqa

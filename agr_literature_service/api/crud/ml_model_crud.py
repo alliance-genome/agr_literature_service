@@ -44,6 +44,17 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
             latest_version_num = latest_version_num[0]
         request.version_num = latest_version_num + 1
 
+    if request.production:
+        # Check if we have a production one already.
+        query = db.query(MLModel).filter(
+            MLModel.task_type == request.task_type,
+            MLModel.mod_id == mod.mod_id,
+            MLModel.production == 't',
+            MLModel.topic == request.topic
+        )
+        model = query.one_or_none()
+        if model:
+            model.production = False
     # Save metadata to the database
     new_model = MLModel(
         task_type=request.task_type,
@@ -92,9 +103,11 @@ def destroy(db: Session, ml_model_id: int):
         object_key = f"{folder}/{str(model.version_num)}.gz"
         # Delete the file from S3
         s3_client.delete_object(Bucket='agr-literature', Key=object_key)
-        # Delete the model from the database
-        db.delete(model)
-        db.commit()
+        # Do not delete the model from the database
+        # Might be needed for TET references
+        # Deleting the bucket file itself should be enough
+        # db.delete(model)
+        # db.commit()
 
 
 def cleanup(file_path):

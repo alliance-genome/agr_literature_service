@@ -2,7 +2,7 @@ import json
 from json import JSONDecodeError
 from typing import Union, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, Response, Security, status, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, Security, status, UploadFile, File, HTTPException
 
 from sqlalchemy.orm import Session
 
@@ -93,16 +93,6 @@ def upload_model(
     )
     set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)
-
-
-@router.delete('/{ml_model_id}',
-               status_code=status.HTTP_204_NO_CONTENT)
-def destroy(ml_model_id: int,
-            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-            db: Session = db_session):
-    set_global_user_from_cognito(db, user)
-    ml_model_crud.destroy(db, ml_model_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}/{version}',
