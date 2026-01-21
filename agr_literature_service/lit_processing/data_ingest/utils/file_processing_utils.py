@@ -90,16 +90,31 @@ def chunks(list, size):
         yield list[i:i + size]
 
 
-def download_file(url, file):
+def download_file(url, file, *, required=False):
+    """
+    Download file from URL to local path.
 
+    If required=True, raise ExcludeListUnavailableError on failure.
+    Otherwise, log and continue.
+    """
     try:
-        logger.info("Downloading " + url)
+        logger.info("Downloading %s", url)
         req = request.urlopen(url)
         data = req.read()
-        with open(file, 'wb') as fh:
+        with open(file, "wb") as fh:
             fh.write(data)
+        return True
+
     except Exception as e:
-        logger.error("Error downloading the file: " + file + ". Error=" + str(e))
+        logger.error(
+            "Error downloading file %s from %s. Error=%s",
+            file, url, str(e)
+        )
+
+        if required:
+            raise
+
+        return False
 
 
 def download_s3_file(bucket, key, file):
@@ -179,38 +194,78 @@ def classify_pmc_file(file_name, file_extension):
     return "supplement"
 
 
-def get_pmids_from_exclude_list(mod=None):
+class ExcludeListUnavailableError(RuntimeError):
+    """Raised when a required remote exclude PMID list cannot be retrieved."""
+    def __init__(self, mod: str, url: str, error: str):
+        super().__init__(
+            f"[{mod}] Required exclude PMID list is unavailable.\n"
+            f"URL: {url}\n"
+            f"Error: {error}"
+        )
+        self.mod = mod
+        self.url = url
+        self.error = error
 
-    data_path = path.join(path.dirname(path.dirname(path.abspath(__file__))),
-                          "pubmed_ingest", "data_for_pubmed_processing")
+
+def get_pmids_from_exclude_list(mod=None):
+    """
+    Return a set of PMIDs (no 'PMID:' prefix) to exclude.
+
+    For WB and XB:
+      - the remote exclude list is REQUIRED
+      - failure to retrieve it raises ExcludeListUnavailableError
+      - local cached files are NOT used as fallback
+    """
+
+    data_path = path.join(
+        path.dirname(path.dirname(path.abspath(__file__))),
+        "pubmed_ingest",
+        "data_for_pubmed_processing",
+    )
 
     exclude_pmid_file = None
+
+    # Global exclude list (non-fatal)
     if mod is None:
         exclude_pmid_file = path.join(data_path, "pmids_to_excude.txt")
+
     else:
-        # 'SGD': 'SGD_false_positive_pmids.txt'
-        # 'FB': 'FB_false_positive_pmids.txt'
         mod_false_positive_file = {
-            'WB': 'WB_false_positive_pmids.txt',
-            'XB': 'XB_false_positive_pmids.txt',
-            'ZFIN': 'ZFIN_false_positive_pmids.txt'
+            "FB": "FB_false_positive_pmids.txt",
+            "WB": "WB_false_positive_pmids.txt",
+            "XB": "XB_false_positive_pmids.txt",
+            "ZFIN": "ZFIN_false_positive_pmids.txt",
         }
-        # "SGD": "https://sgd-prod-upload.s3.us-west-2.amazonaws.com/latest/SGD_false_positive_pmids.txt"
-        # "FB": "https://ftp.flybase.net/flybase/associated_files/alliance/FB_false_positive_pmids.txt"
         mod_to_fp_pmids_url = {
             "WB": "https://caltech-curation.textpressolab.com/files/pub/agr_upload/pap_papers/rejected_pmids",
-            "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt"
+            "XB": "https://ftp.xenbase.org/pub/DataExchange/AGR/XB_false_positive_pmids.txt",
         }
+
         if mod in mod_false_positive_file:
-            exclude_pmid_file = path.join(data_path, mod_false_positive_file[mod])
+            exclude_pmid_file = path.join(
+                data_path, mod_false_positive_file[mod]
+            )
+
+            # WB / XB: remote file is REQUIRED
             if mod in mod_to_fp_pmids_url:
                 fp_url = mod_to_fp_pmids_url[mod]
-                download_file(fp_url, exclude_pmid_file)
+                try:
+                    download_file(fp_url, exclude_pmid_file, required=True)
+                except Exception as e:
+                    raise ExcludeListUnavailableError(
+                        mod=mod,
+                        url=fp_url,
+                        error=str(e),
+                    ) from e
 
     exclude_pmids = set()
-    if exclude_pmid_file:
-        with open(exclude_pmid_file, "r") as infile_fh:
-            exclude_pmids = {line.rstrip().replace('PMID:', '') for line in infile_fh if line.strip()}
+    if exclude_pmid_file and path.exists(exclude_pmid_file):
+        with open(exclude_pmid_file, "r", encoding="utf-8") as infile_fh:
+            exclude_pmids = {
+                line.strip().replace("PMID:", "")
+                for line in infile_fh
+                if line.strip()
+            }
 
     return exclude_pmids
 

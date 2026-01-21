@@ -21,8 +21,10 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
     update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import save_database_md5data
-from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    get_pmids_from_exclude_list
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import (
+    get_pmids_from_exclude_list,
+    ExcludeListUnavailableError,
+)
 from agr_literature_service.api.database.main import get_db
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import sqlalchemy_load_ref_xref
 from agr_literature_service.lit_processing.utils.report_utils import send_pubmed_search_report
@@ -225,7 +227,21 @@ def query_mods(input_mod, reldate):  # noqa: C901
     for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
-        fp_pmids = get_pmids_from_exclude_list(mod)
+        try:
+            fp_pmids = get_pmids_from_exclude_list(mod)
+        except ExcludeListUnavailableError as e:
+            logger.error("Fatal: required MOD exclude list unavailable; aborting PubMed search run")
+            send_pubmed_search_report(
+                pmids4mod,
+                mods_to_query,
+                log_path=None,
+                log_url=None,
+                not_loaded_pmids4mod=not_loaded_pmids4mod,
+                bad_date_published=[],
+                fatal_error=str(e),
+            )
+            db_session.close()
+            return
         time.sleep(sleep_delay)
         url = mod_esearch_url[mod]
         if environ.get('NCBI_API_KEY'):
