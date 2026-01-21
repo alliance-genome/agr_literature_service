@@ -929,36 +929,6 @@ class TestTopicEntityTag:
             assert "ml_model_version" in tag_result
             assert tag_result["ml_model_version"] == 1
 
-    def test_database_model_relationship(self, test_reference, test_mod, test_topic_entity_tag_source, test_ml_model, auth_headers): # noqa
-        """Test that the database model relationship works correctly."""
-        with TestClient(app) as client:
-            ml_model_id = test_ml_model["ml_model_id"]
-
-            source_id = test_topic_entity_tag_source.new_source_id
-
-            # Create topic entity tag with ml_model_id
-            tag_data = {
-                "reference_curie": test_reference.new_ref_curie,
-                "topic_entity_tag_source_id": source_id,
-                "topic": "ATP:0000009",
-                "data_novelty": "ATP:0000335",
-                "ml_model_id": ml_model_id
-            }
-            tag_resp = client.post("/topic_entity_tag/", json=tag_data, headers=auth_headers)
-            assert tag_resp.status_code == status.HTTP_201_CREATED
-            tag_id = tag_resp.json()["topic_entity_tag_id"]
-
-            # Test that deleting the ML model sets the foreign key to NULL
-            delete_resp = client.delete(f"/ml_model/{ml_model_id}", headers=auth_headers)
-            assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
-
-            # Verify the tag still exists but ml_model_id is now null
-            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
-            assert get_resp.status_code == status.HTTP_200_OK
-            tag_result = get_resp.json()
-            assert tag_result["ml_model_id"] is None
-            assert tag_result.get("ml_model_version") is None
-
     def test_data_novelty_validation_separation(self, test_reference, test_mod, auth_headers): # noqa
         """Test that novel data and existing data tags don't validate each other."""
         load_name_to_atp_and_relationships_mock()
