@@ -175,13 +175,18 @@ def get_curie_to_name_from_all_tets(curie_or_reference_id: str,
     return topic_entity_tag_crud.get_curie_to_name_from_all_tets(db, curie_or_reference_id)
 
 
-def revalidate_tags_process_wrapper(already_running, email: str, delete_all_first: bool, curie_or_reference_id: str,
+def revalidate_tags_process_wrapper(already_running, email: str,
+                                    delete_all_validation_values_first: bool,
+                                    curie_or_reference_id: str,
                                     validation_values_only: bool):
     try:
         already_running.value = True
-        topic_entity_tag_crud.revalidate_all_tags(email=email, delete_all_first=delete_all_first,
-                                                  curie_or_reference_id=curie_or_reference_id,
-                                                  validation_values_only=validation_values_only)
+        topic_entity_tag_crud.revalidate_all_tags(
+            email=email,
+            delete_all_first=delete_all_validation_values_first,
+            curie_or_reference_id=curie_or_reference_id,
+            validation_values_only=validation_values_only
+        )
     finally:
         already_running.value = False
 
