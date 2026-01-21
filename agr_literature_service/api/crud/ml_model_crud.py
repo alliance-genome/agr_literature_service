@@ -49,7 +49,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         query = db.query(MLModel).filter(
             MLModel.task_type == request.task_type,
             MLModel.mod_id == mod.mod_id,
-            MLModel.production == True,
+            MLModel.production == 't',
             MLModel.topic == request.topic
         )
         model = query.one_or_none()

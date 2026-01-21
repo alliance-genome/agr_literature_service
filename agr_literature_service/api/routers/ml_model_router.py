@@ -2,7 +2,7 @@ import json
 from json import JSONDecodeError
 from typing import Union, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, Response, Security, status, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, Security, status, UploadFile, File, HTTPException
 
 from sqlalchemy.orm import Session
 
