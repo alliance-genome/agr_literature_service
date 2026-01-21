@@ -48,10 +48,10 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
 
 class TestTopicEntityTag:
 
-    def test_create(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_create(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             assert test_topic_entity_tag.response.status_code == status.HTTP_201_CREATED
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.json()["created_by"] == "WBPerson1"
 
     def test_create_wrong_source(self, test_topic_entity_tag, auth_headers):  # noqa
@@ -92,9 +92,9 @@ class TestTopicEntityTag:
             response = client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_show(self, test_topic_entity_tag): # noqa
+    def test_show(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             resp_data = response.json()
             expected_fields = {
@@ -129,23 +129,23 @@ class TestTopicEntityTag:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers,
                                     json=patch_data)
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             resp_data = response.json()
             for key, value in patch_data.items():
                 assert resp_data[key] == value
 
-    def test_destroy(self, test_topic_entity_tag, auth_headers): # noqa
+    def test_destroy(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_tet_creates_mca_and_workflow(self, db, auth_headers, test_reference, test_topic_entity_tag_source, test_mod): # noqa
         load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             assert test_reference.response.status_code == status.HTTP_201_CREATED
-            response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             res = response.json()
             assert res['workflow_tags'] == []
@@ -166,7 +166,7 @@ class TestTopicEntityTag:
                 "date_created": "2020-01-01"
             }
             client.post(url="/topic_entity_tag/", json=new_tet, headers=auth_headers)
-            new_response = client.get(url=f"/reference/{test_reference.new_ref_curie}")
+            new_response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
             assert new_response.status_code == status.HTTP_200_OK
             res = new_response.json()
             assert res['workflow_tags'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
@@ -222,7 +222,7 @@ class TestTopicEntityTag:
                 'ATP:0000084': 'overexpression phenotype', 'ATP:0000079': 'genetic phenotype', 'ATP:0000005': 'gene',
                 'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
             }
-            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}")
+            response = client.get(url=f"/topic_entity_tag/by_reference/{new_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert len(response.json()) > 0
 
@@ -271,13 +271,15 @@ class TestTopicEntityTag:
             }
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_1, headers=auth_headers)
             client.post(url="/topic_entity_tag/", json=validating_tag_aut_2, headers=auth_headers)
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             tag_obj: TopicEntityTagModel = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id
             ).one()
             assert len(tag_obj.validated_by) == 2
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                  headers=auth_headers)
             assert response.json()["validation_by_author"] == "validated_wrong"
 
     def test_cannot_create_existing_similar_tag_with_negation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
@@ -370,10 +372,11 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=validating_tag_cur_1, headers=auth_headers)
             cur_2_tag_id = client.post(url="/topic_entity_tag/", json=validating_tag_cur_2,
                                        headers=auth_headers).json()["topic_entity_tag_id"]
-            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}")
+            response = client.get(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                  headers=auth_headers)
             assert response.json()["validation_by_author"] == "not_validated"
             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
-            response = client.get(f"/topic_entity_tag/{cur_2_tag_id}")
+            response = client.get(f"/topic_entity_tag/{cur_2_tag_id}", headers=auth_headers)
             assert response.json()["validation_by_author"] == "not_validated"
             assert response.json()["validation_by_professional_biocurator"] == "validation_conflict"
 
@@ -829,7 +832,7 @@ class TestTopicEntityTag:
             tag_id = create_resp.json()['topic_entity_tag_id']
 
             # Verify the tag returns both fields correctly
-            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
             assert get_resp.status_code == status.HTTP_200_OK
             tag_data = get_resp.json()
             # Check that data_novelty is set correctly
@@ -840,7 +843,7 @@ class TestTopicEntityTag:
             patch_resp = client.patch(f"/topic_entity_tag/{tag_id}", json=patch_data, headers=auth_headers)
             assert patch_resp.status_code == status.HTTP_202_ACCEPTED
             # Verify the update
-            get_resp2 = client.get(f"/topic_entity_tag/{tag_id}")
+            get_resp2 = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
             assert get_resp2.status_code == status.HTTP_200_OK
             tag_data2 = get_resp2.json()
             # Check that data_novelty is updated
@@ -880,7 +883,7 @@ class TestTopicEntityTag:
             tag_id = tag_resp.json()["topic_entity_tag_id"]
 
             # Verify the tag was created with the ML model association
-            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
             assert get_resp.status_code == status.HTTP_200_OK
             tag_result = get_resp.json()
             assert tag_result["ml_model_id"] == test_ml_model["ml_model_id"]
@@ -920,7 +923,7 @@ class TestTopicEntityTag:
             tag_id = tag_resp.json()["topic_entity_tag_id"]
 
             # Get the tag and verify ml_model_version is returned
-            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
             assert get_resp.status_code == status.HTTP_200_OK
             tag_result = get_resp.json()
             assert "ml_model_version" in tag_result
@@ -950,7 +953,7 @@ class TestTopicEntityTag:
             assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
 
             # Verify the tag still exists but ml_model_id is now null
-            get_resp = client.get(f"/topic_entity_tag/{tag_id}")
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
             assert get_resp.status_code == status.HTTP_200_OK
             tag_result = get_resp.json()
             assert tag_result["ml_model_id"] is None
@@ -1013,8 +1016,8 @@ class TestTopicEntityTag:
             novel_tag_id = novel_tag_resp.json()["topic_entity_tag_id"]
 
             # Check validation status - should NOT be validated due to data novelty incompatibility
-            existing_tag_data = client.get(f"/topic_entity_tag/{existing_tag_id}").json()
-            novel_tag_data = client.get(f"/topic_entity_tag/{novel_tag_id}").json()
+            existing_tag_data = client.get(f"/topic_entity_tag/{existing_tag_id}", headers=auth_headers).json()
+            novel_tag_data = client.get(f"/topic_entity_tag/{novel_tag_id}", headers=auth_headers).json()
 
             # Neither tag should validate the other due to incompatible data novelty
             assert existing_tag_data["validation_by_professional_biocurator"] in ["not_validated",
@@ -1074,8 +1077,8 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=specific_novel_data_tag, headers=auth_headers)
 
             # Check validation - generic tag should be validated by specific tag
-            generic_tag_data = client.get(f"/topic_entity_tag/{generic_tag_id}").json()
-            # specific_tag_data = client.get(f"/topic_entity_tag/{specific_tag_id}").json()
+            generic_tag_data = client.get(f"/topic_entity_tag/{generic_tag_id}", headers=auth_headers).json()
+            # specific_tag_data = client.get(f"/topic_entity_tag/{specific_tag_id}", headers=auth_headers).json()
 
             # Generic tag should be validated as correct by the more specific tag
             assert generic_tag_data["validation_by_professional_biocurator"] == "validated_right"
@@ -1147,7 +1150,7 @@ class TestTopicEntityTag:
             specific_id = specific_resp.json()["topic_entity_tag_id"]
 
             # Generic tag should be validated as correct by more specific tag, both y curator
-            generic_data = client.get(f"/topic_entity_tag/{generic_id}").json()
+            generic_data = client.get(f"/topic_entity_tag/{generic_id}", headers=auth_headers).json()
             assert generic_data["validation_by_professional_biocurator"] == "validated_right"
 
             # Test Case 2: Negative specific topic + specific novelty validates positive specific topic + specific novelty
@@ -1174,7 +1177,7 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=negative_specific, headers=auth_headers)
 
             # Positive specific should be validated as wrong by negative specific
-            pos_spec_data = client.get(f"/topic_entity_tag/{pos_spec_id}").json()
+            pos_spec_data = client.get(f"/topic_entity_tag/{pos_spec_id}", headers=auth_headers).json()
             assert pos_spec_data["validation_by_professional_biocurator"] == "validated_wrong"
 
     def test_cross_branch_novelty_incompatibility(self, test_topic_entity_tag, test_reference, test_mod, # noqa
@@ -1233,7 +1236,7 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=novel_data_tag, headers=auth_headers)
 
             # Existing data tag should NOT be validated due to incompatible novelty branches
-            existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
+            existing_data = client.get(f"/topic_entity_tag/{existing_id}", headers=auth_headers).json()
             assert existing_data["validation_by_professional_biocurator"] == "validated_right_self"
 
     def test_mixed_hierarchy_validation_scenarios(self, test_reference, test_mod, auth_headers, db): # noqa
@@ -1290,7 +1293,7 @@ class TestTopicEntityTag:
             sbt_id = sbt_resp.json()["topic_entity_tag_id"]
 
             # Root novelty tag should be validated as correct
-            root_data = client.get(f"/topic_entity_tag/{root_id}").json()
+            root_data = client.get(f"/topic_entity_tag/{root_id}", headers=auth_headers).json()
             assert root_data["validation_by_professional_biocurator"] == "validated_right"
 
             # Clean up for next test
@@ -1322,9 +1325,9 @@ class TestTopicEntityTag:
             # The specific topic + generic novelty should NOT be validated
             # because it's not more generic than generic topic + specific novelty in both dimensions
             # same but reverse for the generic topic + specific novelty
-            st_gn_data = client.get(f"/topic_entity_tag/{st_gn_id}").json()
+            st_gn_data = client.get(f"/topic_entity_tag/{st_gn_id}", headers=auth_headers).json()
             assert st_gn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
-            gt_sn_data = client.get(f"/topic_entity_tag/{gt_sn_id}").json()
+            gt_sn_data = client.get(f"/topic_entity_tag/{gt_sn_id}", headers=auth_headers).json()
             assert gt_sn_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
     def test_negative_tag_hierarchy_validation(self, test_topic_entity_tag_source, test_reference, test_mod, # noqa
@@ -1384,7 +1387,7 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=negative_less_specific, headers=auth_headers)
 
             # Positive specific tag should be validated as wrong by negative less specific
-            pos_data = client.get(f"/topic_entity_tag/{pos_id}").json()
+            pos_data = client.get(f"/topic_entity_tag/{pos_id}", headers=auth_headers).json()
             assert pos_data["validation_by_professional_biocurator"] == "validated_wrong"
 
     def test_comprehensive_novel_data_validation_combinations(self, test_topic_entity_tag, test_reference, # noqa
@@ -1446,7 +1449,7 @@ class TestTopicEntityTag:
             }
             client.post(url="/topic_entity_tag/", json=specific_novel_tag, headers=auth_headers)
 
-            generic_data = client.get(f"/topic_entity_tag/{generic_id}").json()
+            generic_data = client.get(f"/topic_entity_tag/{generic_id}", headers=auth_headers).json()
             assert generic_data["validation_by_professional_biocurator"] == "validated_right"
 
             # Clean up
@@ -1464,7 +1467,7 @@ class TestTopicEntityTag:
             root_id = root_resp.json()["topic_entity_tag_id"]
 
             # This should validate the root tag
-            root_data = client.get(f"/topic_entity_tag/{root_id}").json()
+            root_data = client.get(f"/topic_entity_tag/{root_id}", headers=auth_headers).json()
             assert root_data["validation_by_professional_biocurator"] == "validated_right"
 
             # Clean up
@@ -1482,7 +1485,7 @@ class TestTopicEntityTag:
             existing_id = existing_resp.json()["topic_entity_tag_id"]
 
             # Should NOT validate existing data tag
-            existing_data = client.get(f"/topic_entity_tag/{existing_id}").json()
+            existing_data = client.get(f"/topic_entity_tag/{existing_id}", headers=auth_headers).json()
             assert existing_data["validation_by_professional_biocurator"] in ["not_validated", "validated_right_self"]
 
     def test_entity_only_validation_with_novel_data(self, test_topic_entity_tag, test_reference, test_mod, # noqa
@@ -1547,7 +1550,7 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=mixed_tag, headers=auth_headers)
 
             # Entity-only tag should be validated by mixed tag
-            entity_data = client.get(f"/topic_entity_tag/{entity_id}").json()
+            entity_data = client.get(f"/topic_entity_tag/{entity_id}", headers=auth_headers).json()
             assert entity_data["validation_by_professional_biocurator"] in ["validated_right", "validated_right_self"]
 
     def test_revalidation_on_delete(self, test_reference, test_mod, auth_headers, db): # noqa
@@ -1623,7 +1626,7 @@ class TestTopicEntityTag:
             tag_a_id = tag_a_resp.json()["topic_entity_tag_id"]
 
             # Verify Tag A starts as not validated
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
 
             # Tag B: Specific tag that validates Tag A
@@ -1642,7 +1645,7 @@ class TestTopicEntityTag:
             tag_b_id = tag_b_resp.json()["topic_entity_tag_id"]
 
             # Verify Tag A is now validated by Tag B
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right"
             assert tag_b_id in tag_a_data.get("validating_tags", [])
 
@@ -1663,7 +1666,7 @@ class TestTopicEntityTag:
             tag_c_id = tag_c_resp.json()["topic_entity_tag_id"]
 
             # Verify Tag A is validated by both Tag B and Tag C
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right"
             validating_tags = tag_a_data.get("validating_tags", [])
             assert tag_b_id in validating_tags
@@ -1675,7 +1678,7 @@ class TestTopicEntityTag:
             assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
 
             # Verify Tag A is still validated, but only by Tag C
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right"
             validating_tags = tag_a_data.get("validating_tags", [])
             assert tag_b_id not in validating_tags
@@ -1687,7 +1690,7 @@ class TestTopicEntityTag:
             assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
 
             # Verify Tag A is no longer validated
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
@@ -1798,7 +1801,7 @@ class TestTopicEntityTag:
             client.post(url="/topic_entity_tag/", json=tag_c, headers=auth_headers)
 
             # Verify Tag A has validation conflict
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validation_conflict"
             validating_tags = tag_a_data.get("validating_tags", [])
             assert tag_b_id in validating_tags
@@ -1808,7 +1811,7 @@ class TestTopicEntityTag:
             assert delete_resp.status_code == status.HTTP_204_NO_CONTENT
 
             # Verify Tag A is now validated_right_self (only negative validation on a more specific topic remains)
-            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}").json()
+            tag_a_data = client.get(f"/topic_entity_tag/{tag_a_id}", headers=auth_headers).json()
             assert tag_a_data["validation_by_professional_biocurator"] == "validated_right_self"
             validating_tags = tag_a_data.get("validating_tags", [])
             assert len(validating_tags) == 0
@@ -1854,7 +1857,7 @@ class TestTopicEntityTag:
                 tag_id = result["topic_entity_tag_id"]
 
                 # Verify the tag was created with ML model association
-                response = client.get(f"/topic_entity_tag/{tag_id}")
+                response = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
                 tag_data_response = response.json()
                 print(tag_data_response)
@@ -1933,7 +1936,7 @@ class TestTopicEntityTag:
                 tag_id = result["topic_entity_tag_id"]
 
                 # Verify the tag was created without ML model association
-                response = client.get(f"/topic_entity_tag/{tag_id}")
+                response = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
                 assert response.status_code == status.HTTP_200_OK
                 tag_data_response = response.json()
                 assert not tag_data_response["ml_model_version"]
@@ -2104,7 +2107,7 @@ class TestTopicEntityTag:
             first_tag_id = first_response.json()["topic_entity_tag_id"]
 
             # Verify first tag was created correctly
-            first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}").json()
+            first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}", headers=auth_headers).json()
             assert first_tag_data["negated"] is True
             assert first_tag_data["topic"] == "ATP:0000009"
             assert first_tag_data["data_novelty"] == "ATP:0000335"
@@ -2127,13 +2130,13 @@ class TestTopicEntityTag:
             second_tag_id = second_response.json()["topic_entity_tag_id"]
 
             # Verify second tag was created correctly
-            second_tag_data = client.get(f"/topic_entity_tag/{second_tag_id}").json()
+            second_tag_data = client.get(f"/topic_entity_tag/{second_tag_id}", headers=auth_headers).json()
             assert second_tag_data["negated"] is False
             assert second_tag_data["topic"] == "ATP:0000009"
             assert second_tag_data["data_novelty"] == "ATP:0000229"
 
             # Now check if the first tag was validated as "validated_wrong" by the second tag
-            updated_first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}").json()
+            updated_first_tag_data = client.get(f"/topic_entity_tag/{first_tag_id}", headers=auth_headers).json()
 
             # According to the validation rules:
             # New tag positive (second), existing tag negative (first) = validate existing (wrong) if existing is more

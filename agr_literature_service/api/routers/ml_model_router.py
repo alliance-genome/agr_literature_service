@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Union, Dict, Any
+from typing import Union, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, Response, Security, status, UploadFile, File, HTTPException
 
@@ -10,8 +10,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import ml_model_crud
 from agr_literature_service.api.schemas.ml_model_schemas import MLModelSchemaPost, MLModelSchemaShow
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 
 router = APIRouter(
     prefix="/ml_model",
@@ -41,7 +40,7 @@ def upload_model(
         dataset_id: int = None,
         file: UploadFile = File(...),  # noqa: B008
         model_data_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
-        user: Dict[str, Any] = Security(get_cognito_user_swagger),
+        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session,
         production: bool = False,
         negated: bool = True,
@@ -109,7 +108,9 @@ def get_model_metadata(task_type: str,
                        mod_abbreviation: str,
                        topic: str = None,
                        version: str = None,
-                       db: Session = db_session):
+                       db: Session = db_session,
+                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    set_global_user_from_cognito(db, user)
     return ml_model_crud.get_model_metadata(db, task_type, mod_abbreviation, topic, version)
 
 
@@ -126,5 +127,7 @@ def download_model_file(task_type: str,
                         mod_abbreviation: str,
                         topic: str = None,
                         version: str = None,
-                        db: Session = db_session):
+                        db: Session = db_session,
+                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    set_global_user_from_cognito(db, user)
     return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version)

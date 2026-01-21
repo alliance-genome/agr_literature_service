@@ -31,9 +31,9 @@ def test_editor(db, auth_headers, test_resource): # noqa
 
 class TestEditor:
 
-    def test_get_bad_editor(self):
+    def test_get_bad_editor(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/editor/-1")
+            response = client.get(url="/editor/-1", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_editor(self, db, test_editor): # noqa
@@ -70,7 +70,7 @@ class TestEditor:
             assert mod_editor.orcid == "ORCID:5432-5432-5432-432X"
 
             # test changeset
-            response = client.get(url=f"/editor/{test_editor.new_editor_id}/versions")
+            response = client.get(url=f"/editor/{test_editor.new_editor_id}/versions", headers=auth_headers)
 
             # Orcid changed from None -> ORCID:2345-2345-2345-234X -> ORCID:5432-5432-5432-432X
             transactions = response.json()
@@ -78,9 +78,9 @@ class TestEditor:
             assert transactions[1]['changeset']['orcid'][0] == 'ORCID:2345-2345-2345-234X'
             assert transactions[1]['changeset']['orcid'][1] == 'ORCID:5432-5432-5432-432X'
 
-    def test_show_editor(self, test_editor): # noqa
+    def test_show_editor(self, test_editor, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/editor/{test_editor.new_editor_id}")
+            response = client.get(url=f"/editor/{test_editor.new_editor_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
 
             resp_data = response.json()
@@ -88,12 +88,12 @@ class TestEditor:
             assert resp_data['name'] == '003_TCU'
             assert resp_data['orcid'] == "ORCID:2345-2345-2345-234X"
 
-    def test_destroy_editor(self, test_editor, auth_headers): # noqa
+    def test_destroy_editor(self, test_editor, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/editor/{test_editor.new_editor_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/editor/{test_editor.new_editor_id}")
+            response = client.get(url=f"/editor/{test_editor.new_editor_id}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.

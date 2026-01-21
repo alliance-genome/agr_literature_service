@@ -46,9 +46,9 @@ class TestCrossRef:
         # TODO: versions_updated should have a history of changes, after database remodeled to have a primary key.
         # Remove the above assertion and check that a single object has changed.
 
-    def test_get_bad_xref(self):
+    def test_get_bad_xref(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/cross_reference/does_not_exist")
+            response = client.get(url="/cross_reference/does_not_exist", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_xref(self, db, auth_headers, test_cross_reference, test_resource): # noqa
@@ -108,9 +108,9 @@ class TestCrossRef:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_409_CONFLICT
 
-    def test_show_xref(self, test_cross_reference): # noqa
+    def test_show_xref(self, test_cross_reference, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/cross_reference/XREF:123456")
+            response = client.get(url="/cross_reference/XREF:123456", headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()['curie'] == "XREF:123456"
             assert response.json()['reference_curie'] == test_cross_reference.related_ref_curie
@@ -127,7 +127,8 @@ class TestCrossRef:
                 "pages": ["reference"]
             }
             client.post(url="/cross_reference/", json=new_cross_ref, headers=auth_headers)
-            response = client.post(url="/cross_reference/show_all", json=["XREF:123456", "XREF2:123456"])
+            response = client.post(url="/cross_reference/show_all", json=["XREF:123456", "XREF2:123456"],
+                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             assert response.json()[0]['curie'] in ["XREF:123456", "XREF2:123456"]
             assert response.json()[1]['curie'] in ["XREF:123456", "XREF2:123456"]
@@ -146,7 +147,8 @@ class TestCrossRef:
             assert xref.is_obsolete
             assert xref.pages == ["different"]
 
-            res = client.get(url=f"/cross_reference/{test_cross_reference.response.json()}/versions").json()
+            res = client.get(url=f"/cross_reference/{test_cross_reference.response.json()}/versions",
+                             headers=auth_headers).json()
 
             # Pages      : None -> reference -> different
             # is_obsolete: None -> False -> True
@@ -166,7 +168,7 @@ class TestCrossRef:
             assert response.status_code == status.HTTP_204_NO_CONTENT
 
             # It should now give an error on lookup.
-            response = client.get(url="/cross_reference/XREF:123456")
+            response = client.get(url="/cross_reference/XREF:123456", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.

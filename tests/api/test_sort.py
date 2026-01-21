@@ -15,9 +15,10 @@ from .fixtures import auth_headers # noqa
 
 class TestSort:
 
-    def test_sort_need_review(self, test_mca): # noqa
+    def test_sort_need_review(self, test_mca, auth_headers):  # noqa
         with TestClient(app) as client:
-            res = client.get(url="/sort/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10})
+            res = client.get(url="/sort/need_review", params={"mod_abbreviation": "0015_AtDB", "count": 10},
+                             headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
 
@@ -196,7 +197,8 @@ class TestSort:
                 curie_sorted = new_curie[1:-1]
             curie_sorted_bool = False
 
-            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
+            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10},
+                             headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             for ref in res.json():
                 if ref['curie'] == curie_pp_pmid_wb:
@@ -247,7 +249,8 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
+            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10},
+                             headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
 
@@ -292,7 +295,8 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10})
+            res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10},
+                             headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) > 0
             assert res.json()[0]['pubmed_publication_status'] == "epublish"

@@ -58,10 +58,11 @@ class TestDataset:
         assert dataset.dataset_type == test_dataset_type
 
 
-    def test_show_dataset(self, db, test_dataset, test_mod):  # noqa
+    def test_show_dataset(self, db, test_dataset, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
-                                      f"{test_dataset.dataset_type}/{test_dataset.version}/")
+                                      f"{test_dataset.dataset_type}/{test_dataset.version}/",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             dataset = response.json()
             assert dataset['mod_abbreviation'] == test_mod.new_mod_abbreviation
@@ -86,7 +87,8 @@ class TestDataset:
 
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
                                               f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
-                                              f"{test_dataset.version}/").json()
+                                              f"{test_dataset.version}/",
+                                          headers=auth_headers).json()
             # Verify the addition in the database
             dataset: Type[DatasetModel] = db.query(DatasetModel).filter(
                 DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
@@ -107,7 +109,8 @@ class TestDataset:
             }
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
                                               f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
-                                              f"{test_dataset.version}/").json()
+                                              f"{test_dataset.version}/",
+                                          headers=auth_headers).json()
             response = client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
             response = client.delete(url=f"/datasets/data_entry/{test_dataset.mod_abbreviation}/"
@@ -134,7 +137,8 @@ class TestDataset:
             }
             client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
             response = client.get(url=f"/datasets/download/{test_mod.new_mod_abbreviation}/{test_dataset.data_type}/"
-                                      f"{test_dataset.dataset_type}/{test_dataset.version}")
+                                      f"{test_dataset.dataset_type}/{test_dataset.version}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
             dataset = response.json()
             assert dataset['mod_abbreviation'] == test_mod.new_mod_abbreviation
@@ -145,15 +149,15 @@ class TestDataset:
             assert dataset['data_training'][test_topic_entity_tag.related_ref_curie] == "class_1"
             assert len(dataset['data_testing']) == 0
 
-    def test_download_dataset_wrong(self):
+    def test_download_dataset_wrong(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/datasets/NONEXISTENT/INVALID/FAKE/")
+            response = client.get(url="/datasets/NONEXISTENT/INVALID/FAKE/", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_show_dataset_wrong(self):
+    def test_show_dataset_wrong(self, auth_headers):  # noqa
         """Test retrieving metadata for a non-existent dataset."""
         with TestClient(app) as client:
-            response = client.get(url="/datasets/metadata/NONEXISTENT/INVALID/FAKE/1.0/")
+            response = client.get(url="/datasets/metadata/NONEXISTENT/INVALID/FAKE/1.0/", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_update_dataset(self, db, auth_headers, test_dataset):  # noqa
@@ -169,7 +173,8 @@ class TestDataset:
             assert response.json() == "updated"
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
                                               f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
-                                              f"{test_dataset.version}/").json()
+                                              f"{test_dataset.version}/",
+                                          headers=auth_headers).json()
 
             # Verify the update in the database
             dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
@@ -179,7 +184,8 @@ class TestDataset:
         with TestClient(app) as client:
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
                                               f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
-                                              f"{test_dataset.version}/").json()
+                                              f"{test_dataset.version}/",
+                                          headers=auth_headers).json()
             response = client.delete(url=f"/datasets/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
                                          f"{test_dataset.dataset_type}/{test_dataset.version}/", headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT

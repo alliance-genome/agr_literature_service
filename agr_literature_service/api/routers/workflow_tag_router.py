@@ -12,8 +12,7 @@ from agr_literature_service.api.schemas import (
 )
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTransitionSchemaPost
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud.ateam_db_helpers import atp_get_name
 
 router = APIRouter(
@@ -32,7 +31,7 @@ db_session: Session = Depends(get_db)
 )
 def create(
     request: WorkflowTagSchemaPost,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -46,7 +45,7 @@ def create(
 )
 def destroy(
     reference_workflow_tag_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -62,7 +61,7 @@ def destroy(
 async def patch(
     reference_workflow_tag_id: int,
     request: WorkflowTagSchemaUpdate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -80,8 +79,10 @@ async def patch(
 )
 def show(
     reference_workflow_tag_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> WorkflowTagSchemaShow:
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
@@ -93,11 +94,13 @@ def get_jobs(
     job_string: str,
     limit: int = 1000,
     offset: int = 0,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
     mod_abbreviation: str = None,
     reference: str = None,
     topic: str = None,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_jobs(
         db, job_string, limit, offset,
         mod_abbr=mod_abbreviation,
@@ -144,8 +147,10 @@ def start_job(reference_workflow_tag_id: int, db: Session = db_session):
 )
 def show_versions(
     reference_workflow_tag_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.show_changesets(db, reference_workflow_tag_id)
 
 
@@ -155,7 +160,7 @@ def show_versions(
 )
 def transition_to_workflow_status(
     request: WorkflowTransitionSchemaPost,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -176,7 +181,7 @@ def get_current_workflow_status(
     curie_or_reference_id: str,
     mod_abbreviation: str,
     workflow_process_atp_id: str,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
@@ -199,8 +204,10 @@ def counters(
     date_range_start: str = None,
     date_range_end: str = None,
     date_frequency: str = None,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.counters(
         db=db,
         mod_abbreviation=mod_abbreviation,
@@ -221,8 +228,10 @@ def get_reference_workflow_tags(
     workflow_tag_id: str,
     startDate: str = None,
     endDate: str = None,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_reference_workflow_tags_by_mod(
         db, workflow_tag_id, mod_abbreviation, startDate, endDate
     )
@@ -235,8 +244,10 @@ def get_reference_workflow_tags(
 def get_report_workflow_tags(
     mod_abbreviation: str,
     workflow_tag_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)
 
 
@@ -244,7 +255,12 @@ def get_report_workflow_tags(
     "/workflow_diagram/{mod}",
     status_code=status.HTTP_200_OK,
 )
-def get_report_workflow_diagram(mod: str, db: Session = db_session):
+def get_report_workflow_diagram(
+    mod: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session
+):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_workflow_tag_diagram(mod, db)
 
 
@@ -252,7 +268,10 @@ def get_report_workflow_diagram(mod: str, db: Session = db_session):
     "/get_name/{workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def get_name(workflow_tag_id: str):
+def get_name(
+    workflow_tag_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user)
+):
     return atp_get_name(workflow_tag_id)
 
 
@@ -263,8 +282,10 @@ def get_name(workflow_tag_id: str):
 def get_workflow_tags_subset(
     mod_abbreviation: str,
     workflow_name: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation, db)
 
 
@@ -292,8 +313,10 @@ def set_priority(
 def get_indexing_and_community_workflow_tags(
     reference_curie: str,
     mod_abbreviation: Optional[str] = None,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_indexing_and_community_workflow_tags(
         db, reference_curie, mod_abbreviation
     )

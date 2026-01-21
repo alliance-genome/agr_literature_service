@@ -29,17 +29,18 @@ def test_mesh_detail(db, auth_headers, test_reference): # noqa
 
 class TestMeshDetail:
 
-    def test_get_bad_mesh_detail(self):
+    def test_get_bad_mesh_detail(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/mesh_detail/-1")
+            response = client.get(url="/reference/mesh_detail/-1", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_mesh(self, test_mesh_detail): # noqa
         assert test_mesh_detail.response.status_code == status.HTTP_201_CREATED
 
-    def test_show_mesh(self, db, test_mesh_detail): # noqa
+    def test_show_mesh(self, db, test_mesh_detail, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}")
+            response = client.get(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}",
+                                  headers=auth_headers)
             res = response.json()
             assert res['heading_term'] == "Head1"
             assert res['qualifier_term'] == "Qual1"
@@ -66,13 +67,14 @@ class TestMeshDetail:
             assert mesh_detail_obj.qualifier_term == "Qual2"
 
 
-    def test_destroy_mesh_detail(self, test_mesh_detail, auth_headers): # noqa
+    def test_destroy_mesh_detail(self, test_mesh_detail, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}")
+            response = client.get(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.

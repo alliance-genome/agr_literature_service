@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, Security, status, Response
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 
@@ -14,8 +14,7 @@ from agr_literature_service.api.schemas.referencefile_mod_schemas import (
 )
 from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.user import set_global_user_from_cognito
-
-from agr_cognito_py import get_cognito_user_swagger
+from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud import referencefile_mod_crud, referencefile_mod_utils
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,7 @@ s3_session = Depends(s3_auth)
 )
 def create(
     request: ReferencefileModSchemaPost,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> int:
     set_global_user_from_cognito(db, user)
@@ -53,7 +52,9 @@ def create(
 def show(
     referencefile_mod_id: int,
     db: Session = db_session,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> ReferencefileModSchemaShow:
+    set_global_user_from_cognito(db, user)
     return referencefile_mod_crud.show(db, referencefile_mod_id)
 
 
@@ -65,7 +66,7 @@ def show(
 def patch(
     referencefile_mod_id: int,
     request: ReferencefileModSchemaUpdate,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> ResponseMessageSchema:
     set_global_user_from_cognito(db, user)
@@ -79,7 +80,7 @@ def patch(
 )
 def destroy(
     referencefile_mod_id: int,
-    user: Dict[str, Any] = Security(get_cognito_user_swagger),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)

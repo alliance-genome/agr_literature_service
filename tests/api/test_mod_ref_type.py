@@ -33,9 +33,9 @@ def test_mod_ref_type(db, auth_headers, test_reference, populate_test_mod_refere
 
 class TestModReferenceType:
 
-    def test_get_bad_mrt(self):
+    def test_get_bad_mrt(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url="/reference/mod_reference_type/-1")
+            response = client.get(url="/reference/mod_reference_type/-1", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_mrt(self, db, test_mod_ref_type): # noqa
@@ -61,16 +61,20 @@ class TestModReferenceType:
                                     json=patch_data, headers=auth_headers)
             # check db for mrt
             assert response.status_code == status.HTTP_202_ACCEPTED
-            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}")
+            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
+                                  headers=auth_headers)
             mrt = response.json()
             assert mrt["reference_type"] == "Review"
             assert mrt["reference_curie"] == test_reference2.new_ref_curie
             assert mrt["mod_abbreviation"] == "ZFIN"
 
-            from_id = client.get(url=f"/reference/{test_mod_ref_type.related_ref_curie}").json()["reference_id"]
-            to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}").json()["reference_id"]
+            from_id = client.get(url=f"/reference/{test_mod_ref_type.related_ref_curie}",
+                                 headers=auth_headers).json()["reference_id"]
+            to_id = client.get(url=f"/reference/{test_reference2.new_ref_curie}",
+                               headers=auth_headers).json()["reference_id"]
 
-            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}/versions")
+            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}/versions",
+                                  headers=auth_headers)
             transactions = response.json()
             assert transactions[0]['changeset']['reference_id'][1] == from_id
             mod_referencetype_id_orig = db.execute(text("select mod_referencetype_id from mod_referencetype where mod_id = "
@@ -86,18 +90,20 @@ class TestModReferenceType:
             assert transactions[1]['changeset']['mod_referencetype_id'][1] == mod_referencetype_id_new
 
     # NOTE: BAD... recursion error. NEEDS fixing.
-    def test_show_mrt(self, test_mod_ref_type): # noqa
+    def test_show_mrt(self, test_mod_ref_type, auth_headers):  # noqa
         with TestClient(app) as client:
-            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}")
+            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK
 
-    def test_destroy_mrt(self, test_mod_ref_type, auth_headers): # noqa
+    def test_destroy_mrt(self, test_mod_ref_type, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
                                      headers=auth_headers)
             assert response.status_code == status.HTTP_204_NO_CONTENT
             # It should now give an error on lookup.
-            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}")
+            response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
+                                  headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
             # Deleting it again should give an error as the lookup will fail.
