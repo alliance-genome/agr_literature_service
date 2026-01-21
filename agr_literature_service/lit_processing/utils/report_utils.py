@@ -68,7 +68,7 @@ def _report_unparsable_date_published(bad_date_published, is_pubmed):
     return email_message
 
 
-def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published):
+def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmids4mod, bad_date_published, fatal_error=None):
 
     all_pmids = pmids4mod.get('all')
     if all_pmids is None:
@@ -76,6 +76,18 @@ def send_pubmed_search_report(pmids4mod, mods, log_path, log_url, not_loaded_pmi
 
     email_subject = "PubMed Paper Search Report"
     email_message = ""
+
+    # fatal abort path (e.g. required exclude list URL unavailable)
+    if fatal_error:
+        email_message = (
+            "<h3 style='color:red;'>FATAL ERROR: PubMed search aborted</h3>"
+            "<p><strong>Reason:</strong></p>"
+            f"<pre>{fatal_error}</pre>"
+            "<p>No new papers were retrieved/processed in this run.</p>"
+        )
+        send_report(email_subject, email_message)
+        return
+
     if len(all_pmids) == 0:
         email_message = "No new papers from PubMed Search"
     else:
