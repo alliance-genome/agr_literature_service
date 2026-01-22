@@ -10,3 +10,4 @@ tmp
 .vscode/*
 **/*.gz
 .env.unittest
+.env_pycharm
