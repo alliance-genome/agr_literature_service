@@ -105,13 +105,13 @@ def main():
                 ).filter(
                     ReferenceModel.curie == reference_curie,
                     CrossReferenceModel.curie_prefix == mod_abbreviation
-                ).one()
+                ).one_or_none()
                 error_object = {
                     "reference_curie": reference_curie,
                     "display_name": ref_file_obj.display_name,
                     "file_extension": ref_file_obj.file_extension,
                     "mod_abbreviation": mod_abbreviation,
-                    "mod_cross_ref": mod_cross_ref.curie
+                    "mod_cross_ref": mod_cross_ref.curie if mod_cross_ref else "N/A"
                 }
                 objects_with_errors.append(error_object)
     error_message = ''
