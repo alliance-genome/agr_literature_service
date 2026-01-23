@@ -190,5 +190,5 @@ run-debezium-start-test-env:
 	@echo "Running Debezium setup (this will wait for completion)..."
 	docker-compose --env-file .env.test up --build dbz_setup
 
-sync-prod-to-develop:
-	./agr_literature_service/lit_processing/oneoff_scripts/sync_prod_to_develop.sh
+sync-data:
+	./sync_data.sh $(ARGS)
