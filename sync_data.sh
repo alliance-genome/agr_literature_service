@@ -63,6 +63,20 @@ print_info() {
     echo -e "${BLUE}$1${NC}"
 }
 
+# Function to convert string to uppercase (macOS compatible)
+to_upper() {
+    echo "$1" | tr '[:lower:]' '[:upper:]'
+}
+
+# Function to capitalize first letter (macOS compatible)
+capitalize() {
+    local first_char
+    local rest
+    first_char=$(echo "$1" | cut -c1 | tr '[:lower:]' '[:upper:]')
+    rest=$(echo "$1" | cut -c2-)
+    echo "${first_char}${rest}"
+}
+
 # Parse command line arguments
 parse_args() {
     while [[ $# -gt 0 ]]; do
@@ -280,7 +294,12 @@ get_db_credentials() {
         fi
     fi
 
-    print_header "Enter ${db_type^^} Database Credentials"
+    local db_type_upper
+    local db_type_cap
+    db_type_upper=$(to_upper "$db_type")
+    db_type_cap=$(capitalize "$db_type")
+
+    print_header "Enter ${db_type_upper} Database Credentials"
 
     # Show saved connections if any exist
     local saved_connections=$(get_connection_names)
@@ -312,19 +331,19 @@ get_db_credentials() {
     fi
 
     # Prompt for new credentials
-    read -p "${db_type^} DB Host [localhost]: " db_host
+    read -p "${db_type_cap} DB Host [localhost]: " db_host
     db_host=${db_host:-localhost}
 
-    read -p "${db_type^} DB Port [5432]: " db_port
+    read -p "${db_type_cap} DB Port [5432]: " db_port
     db_port=${db_port:-5432}
 
-    read -p "${db_type^} DB Name [literature]: " db_name
+    read -p "${db_type_cap} DB Name [literature]: " db_name
     db_name=${db_name:-literature}
 
-    read -p "${db_type^} DB Username [postgres]: " db_user
+    read -p "${db_type_cap} DB Username [postgres]: " db_user
     db_user=${db_user:-postgres}
 
-    read -s -p "${db_type^} DB Password: " db_password
+    read -s -p "${db_type_cap} DB Password: " db_password
     echo ""
 
     # Export variables with prefix
