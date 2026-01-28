@@ -231,7 +231,6 @@ def get_pmids_from_exclude_list(mod=None):
 
     else:
         mod_false_positive_file = {
-            "FB": "FB_false_positive_pmids.txt",
             "WB": "WB_false_positive_pmids.txt",
             "XB": "XB_false_positive_pmids.txt",
             "ZFIN": "ZFIN_false_positive_pmids.txt",
