@@ -29,7 +29,9 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     get_agr_for_xref,
     agr_has_xref_of_prefix,
     is_obsolete,
-    add_xref
+    add_xref,
+    find_existing_resource,
+    update_issn_mapping
 )
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 
@@ -63,34 +65,43 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
     Sorts out if the entry is new or an update and calls the appropriate
     function to create or update to the database.
 
+    Uses comprehensive duplicate detection to check:
+    1. primaryId cross-reference
+    2. All cross-references in the entry
+    3. ISSN values (print_issn, online_issn)
+
     :param db_session: db connection
     :param resource_dict: sanitized dqm json entry
     """
-    found = False
     primary_id = resource_dict['primaryId']
-    prefix, identifier, _ = split_identifier(primary_id)
-    logger.info("primary_id %s pubmed %s", primary_id, resource_dict)
+    logger.info("primary_id %s resource_dict %s", primary_id, resource_dict)
 
-    agr = get_agr_for_xref(prefix, identifier)
-    if agr:
+    # Use comprehensive duplicate detection
+    existing = find_existing_resource(resource_dict)
+
+    if existing:
+        agr, resource_id, match_type = existing
+        logger.info(f"Found existing resource {agr} via {match_type} match for {primary_id}")
+
         if agr in resources_to_update:
             message = f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}"
             stat = PROCESSED_FAILED
             process_okay = False
         else:
-            # resources_to_update[agr] = resource_dict
+            # Update existing resource
             process_okay, message = process_update_resource(db_session, resource_dict, agr)
-            logger.info("update primary_id %s db %s", primary_id, agr)
-            found = True
+            logger.info("update primary_id %s db %s (matched via %s)", primary_id, agr, match_type)
             stat = PROCESSED_UPDATED
-    if not found:
+    else:
+        # No existing resource found, create new
         process_okay, message = process_resource_entry(db_session, resource_dict)
         if process_okay:
             if message:
                 logger.info(message)
             else:
                 logger.error(message)
-        stat = PROCESSED_UPDATED
+        stat = PROCESSED_NEW
+
     return stat, process_okay, message
 
 

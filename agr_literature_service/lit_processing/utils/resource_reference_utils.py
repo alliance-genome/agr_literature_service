@@ -19,20 +19,24 @@ ref_xref_obsolete[agr][prefix].add(identifier.lower())
 So ref_xref_valid contains the values where the cross reference is
 NOT obsolete.
 
+issn_to_resource[issn] = agr
+    Maps ISSN values to resource curies for duplicate detection.
+
 It is my hope that the developer does not need to worry about all that goes on here
 but can just call the methods and everything will be taken care off.
 """
 import sys
-from typing import Dict, Union
+from typing import Dict, List, Optional, Tuple, Union
 import logging.config
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ResourceModel, ReferenceModel, CrossReferenceModel
-# from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
 xref_ref: Dict = {}
 ref_xref_valid: Dict = {}
 ref_xref_obsolete: Dict = {}
+issn_to_resource: Dict = {}
 datatype: str = ""
 db_session: Session = create_postgres_session(False)
 
@@ -70,6 +74,7 @@ def reset_xref():
     xref_ref.clear()
     ref_xref_valid.clear()
     ref_xref_obsolete.clear()
+    issn_to_resource.clear()
 
 
 def load_xref_dicts() -> None:
@@ -112,6 +117,40 @@ def load_xref_dicts() -> None:
             update_xref_dicts(result[0], result[1], result[2], result[3])
 
 
+def load_issn_to_resource_dict() -> None:
+    """
+    Load ISSN-to-resource mapping from the database.
+    This maps both print_issn and online_issn to resource curies.
+    """
+    global issn_to_resource
+
+    if datatype != 'resource':
+        return
+
+    print("Loading ISSN-to-resource mapping from database.")
+    query = db_session.query(
+        ResourceModel.curie,
+        ResourceModel.resource_id,
+        ResourceModel.print_issn,
+        ResourceModel.online_issn
+    )
+
+    results = query.all()
+
+    for result in results:
+        curie, resource_id, print_issn, online_issn = result
+        if print_issn and print_issn.strip():
+            issn_key = print_issn.strip()
+            if issn_key not in issn_to_resource:
+                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+        if online_issn and online_issn.strip():
+            issn_key = online_issn.strip()
+            if issn_key not in issn_to_resource:
+                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+
+    print(f"Loaded {len(issn_to_resource)} ISSN mappings.")
+
+
 def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
     """
     Load the 3 dicts with data from the database.
@@ -131,6 +170,10 @@ def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
         raise KeyError(mess)
 
     load_xref_dicts()
+
+    # Also load ISSN mappings for resource duplicate detection
+    if datatype == 'resource':
+        load_issn_to_resource_dict()
 
 
 def dump_xrefs():
@@ -201,3 +244,140 @@ def is_obsolete(agr: str, prefix: str, identifier: str) -> bool:
             if identifier.lower() in ref_xref_obsolete[agr][prefix]:
                 return True
     return False
+
+
+def get_resource_by_issn(issn: str) -> Optional[Dict]:
+    """
+    Look up a resource by ISSN value.
+
+    :param issn: ISSN value (without prefix)
+    :return: Dict with 'curie' and 'resource_id' if found, None otherwise.
+    """
+    if issn and issn.strip():
+        issn_key = issn.strip()
+        if issn_key in issn_to_resource:
+            return issn_to_resource[issn_key]
+    return None
+
+
+def update_issn_mapping(curie: str, resource_id: int, print_issn: str, online_issn: str) -> None:
+    """
+    Update the ISSN-to-resource mapping when a new resource is created.
+
+    :param curie: Resource CURIE (e.g., AGRKB:102000000000001)
+    :param resource_id: Database resource_id
+    :param print_issn: Print ISSN value (can be None)
+    :param online_issn: Online ISSN value (can be None)
+    """
+    global issn_to_resource
+
+    if print_issn and print_issn.strip():
+        issn_key = print_issn.strip()
+        if issn_key not in issn_to_resource:
+            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+
+    if online_issn and online_issn.strip():
+        issn_key = online_issn.strip()
+        if issn_key not in issn_to_resource:
+            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+
+
+def find_existing_resource_by_xrefs(entry: Dict) -> Optional[Tuple[str, int]]:
+    """
+    Check if any cross-reference in the entry matches an existing resource.
+    This checks ALL cross-references, not just the primaryId.
+
+    :param entry: DQM entry with 'crossReferences' list
+    :return: Tuple of (agr_curie, resource_id) if match found, None otherwise.
+    """
+    cross_refs = entry.get('crossReferences', [])
+
+    for xref in cross_refs:
+        if 'id' not in xref:
+            continue
+        curie = xref['id']
+        prefix, identifier, _ = split_identifier(curie, ignore_error=True)
+        if prefix and identifier:
+            agr = get_agr_for_xref(prefix, identifier)
+            if agr:
+                # Found existing resource via cross-reference
+                resource = db_session.query(ResourceModel).filter(
+                    ResourceModel.curie == agr
+                ).first()
+                if resource:
+                    return (agr, resource.resource_id)
+
+    return None
+
+
+def find_existing_resource_by_issn(entry: Dict) -> Optional[Tuple[str, int]]:
+    """
+    Check if the entry's ISSNs match an existing resource.
+
+    :param entry: DQM entry that may have 'printISSN' or 'onlineISSN'
+    :return: Tuple of (agr_curie, resource_id) if match found, None otherwise.
+    """
+    # Check printISSN
+    print_issn = entry.get('printISSN', '')
+    if print_issn:
+        result = get_resource_by_issn(print_issn)
+        if result:
+            return (result['curie'], result['resource_id'])
+
+    # Check onlineISSN
+    online_issn = entry.get('onlineISSN', '')
+    if online_issn:
+        result = get_resource_by_issn(online_issn)
+        if result:
+            return (result['curie'], result['resource_id'])
+
+    # Also check cross-references for ISSN values
+    cross_refs = entry.get('crossReferences', [])
+    for xref in cross_refs:
+        if 'id' not in xref:
+            continue
+        curie = xref['id']
+        prefix, identifier, _ = split_identifier(curie, ignore_error=True)
+        if prefix == 'ISSN' and identifier:
+            result = get_resource_by_issn(identifier)
+            if result:
+                return (result['curie'], result['resource_id'])
+
+    return None
+
+
+def find_existing_resource(entry: Dict) -> Optional[Tuple[str, int, str]]:
+    """
+    Comprehensive check for existing resource using multiple methods:
+    1. Check primaryId cross-reference
+    2. Check all cross-references in the entry
+    3. Check ISSN values
+
+    :param entry: DQM entry
+    :return: Tuple of (agr_curie, resource_id, match_type) if found, None otherwise.
+             match_type is one of: 'primaryId', 'crossReference', 'issn'
+    """
+    # 1. Check primaryId first
+    primary_id = entry.get('primaryId', '')
+    if primary_id:
+        prefix, identifier, _ = split_identifier(primary_id, ignore_error=True)
+        if prefix and identifier:
+            agr = get_agr_for_xref(prefix, identifier)
+            if agr:
+                resource = db_session.query(ResourceModel).filter(
+                    ResourceModel.curie == agr
+                ).first()
+                if resource:
+                    return (agr, resource.resource_id, 'primaryId')
+
+    # 2. Check all cross-references
+    result = find_existing_resource_by_xrefs(entry)
+    if result:
+        return (result[0], result[1], 'crossReference')
+
+    # 3. Check ISSNs
+    result = find_existing_resource_by_issn(entry)
+    if result:
+        return (result[0], result[1], 'issn')
+
+    return None

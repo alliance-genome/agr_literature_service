@@ -18,7 +18,9 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     get_agr_for_xref,
     agr_has_xref_of_prefix,
     add_xref,
-    load_xref_data
+    load_xref_data,
+    find_existing_resource,
+    update_issn_mapping
 )
 
 load_dotenv()
@@ -162,12 +164,21 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
     """Process json and add to db.
     Adds resourses, cross references and editors.
 
+    Uses comprehensive duplicate detection to check:
+    1. primaryId cross-reference
+    2. All cross-references in the entry
+    3. ISSN values (print_issn, online_issn)
+
     :param db_session: database session
     :param entry:      json format of dqm resource
     """
     primary_id = entry['primaryId']
-    prefix, identifier, separator = split_identifier(primary_id)
-    if get_agr_for_xref(prefix, identifier):
+
+    # Use comprehensive duplicate detection
+    existing = find_existing_resource(entry)
+    if existing:
+        agr, resource_id, match_type = existing
+        logger.info(f"Resource already exists: {agr} (matched via {match_type} for {primary_id})")
         return True, ""
 
     new_entry = remap_keys_get_new_entry(entry)
@@ -209,6 +220,15 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             return editor_okay, message
 
         db_session.commit()
+
+        # Update ISSN mapping for future duplicate detection
+        update_issn_mapping(
+            curie,
+            resource_id,
+            new_entry.get('print_issn', ''),
+            new_entry.get('online_issn', '')
+        )
+
         return True, f"{primary_id}\t{curie}\n"
     except Exception as e:
         traceback.print_exc()
