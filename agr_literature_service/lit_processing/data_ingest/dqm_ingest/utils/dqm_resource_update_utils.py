@@ -256,6 +256,9 @@ def compare_xref(agr, resource_id, dqm_entry):
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
         prefix, identifier, separator = split_identifier(curie)
+        if prefix is None or identifier is None:
+            logger.warning(f"Skipping invalid cross-reference '{curie}' - no valid prefix:identifier format")
+            continue
         agr_db_from_xref = get_agr_for_xref(prefix, identifier)
         if agr_db_from_xref == agr:
             # Okay just duplication of same data, so should be okay

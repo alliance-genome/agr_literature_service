@@ -115,13 +115,17 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
                 for cross_ref in entry['crossReferences']:
                     entry_cross_refs.add(cross_ref['id'])
             if entry['primaryId'] not in entry_cross_refs:
-                entry_cross_refs.add(entry['primaryId'])
-                cross_ref = dict()
-                cross_ref['id'] = entry['primaryId']
-                if 'crossReferences' in entry:
-                    entry['crossReferences'].append(cross_ref)
-                else:
-                    entry['crossReferences'] = [cross_ref]
+                # Only add primaryId as cross-reference if it has valid prefix:identifier format
+                primary_id = entry['primaryId']
+                prefix, identifier, _ = split_identifier(primary_id, ignore_error=True)
+                if prefix is not None and identifier is not None:
+                    entry_cross_refs.add(primary_id)
+                    cross_ref = dict()
+                    cross_ref['id'] = primary_id
+                    if 'crossReferences' in entry:
+                        entry['crossReferences'].append(cross_ref)
+                    else:
+                        entry['crossReferences'] = [cross_ref]
 
         update_status, okay, message = process_single_resource(db_session, entry)
         if not okay:

@@ -106,6 +106,9 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
                 new_xref[subkey] = xref[subkey]
         new_xref['resource_id'] = resource_id
         prefix, identifier, _ = split_identifier(new_xref['curie'])
+        if prefix is None or identifier is None:
+            logger.warning(f"Skipping invalid cross-reference '{new_xref.get('curie')}' - no valid prefix:identifier format")
+            continue
         logger.info(f"Processing {prefix} {identifier}")
         xrefs_agr = get_agr_for_xref(prefix, identifier)
         new_xref['curie'] = prefix + ":" + identifier
