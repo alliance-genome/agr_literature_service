@@ -1,3 +1,10 @@
+"""
+Global configuration module for AGR Literature Service.
+
+TEST: Claude Code Review Verification - Jan 30, 2026
+This PR tests the Claude Code v1 migration with actions:read permission fix.
+Please delete this comment block after verifying the review works.
+"""
 from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
