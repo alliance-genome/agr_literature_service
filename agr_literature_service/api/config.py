@@ -1,3 +1,8 @@
+# TEST: Verify Claude posts PR comments after workflow fix
+# This PR tests that the custom workflow in agr_literature_service
+# now correctly instructs Claude to use 'gh pr comment' to post reviews
+# Delete this entire comment block after verification is complete
+# Line 5 for good measure
 from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
