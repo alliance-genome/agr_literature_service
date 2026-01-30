@@ -6,7 +6,7 @@ import traceback
 from sqlalchemy.orm import Session
 
 from os import environ
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -187,7 +187,7 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
 
     new_entry = remap_keys_get_new_entry(entry)
     try:
-        resource_id = None
+        resource_id: Optional[int] = None
         curie = get_next_resource_curie(db_session)
 
         # cross_references and editors done seperately

@@ -30,8 +30,7 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     agr_has_xref_of_prefix,
     is_obsolete,
     add_xref,
-    find_existing_resource,
-    update_issn_mapping
+    find_existing_resource
 )
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
 

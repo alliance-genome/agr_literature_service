@@ -26,7 +26,7 @@ It is my hope that the developer does not need to worry about all that goes on h
 but can just call the methods and everything will be taken care off.
 """
 import sys
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union
 import logging.config
 from sqlalchemy.orm import Session
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
