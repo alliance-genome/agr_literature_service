@@ -20,7 +20,8 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     add_xref,
     load_xref_data,
     find_existing_resource,
-    update_issn_mapping
+    update_issn_mapping,
+    update_title_mapping
 )
 
 load_dotenv()
@@ -230,6 +231,13 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             resource_id,
             new_entry.get('print_issn', ''),
             new_entry.get('online_issn', '')
+        )
+
+        # Update title mapping for future duplicate detection
+        update_title_mapping(
+            curie,
+            resource_id,
+            new_entry.get('title', '')
         )
 
         return True, f"{primary_id}\t{curie}\n"

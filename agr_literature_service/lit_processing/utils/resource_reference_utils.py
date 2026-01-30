@@ -37,6 +37,7 @@ xref_ref: Dict = {}
 ref_xref_valid: Dict = {}
 ref_xref_obsolete: Dict = {}
 issn_to_resource: Dict = {}
+title_to_resource: Dict = {}
 datatype: str = ""
 db_session: Session = create_postgres_session(False)
 
@@ -75,6 +76,7 @@ def reset_xref():
     ref_xref_valid.clear()
     ref_xref_obsolete.clear()
     issn_to_resource.clear()
+    title_to_resource.clear()
 
 
 def load_xref_dicts() -> None:
@@ -151,6 +153,37 @@ def load_issn_to_resource_dict() -> None:
     print(f"Loaded {len(issn_to_resource)} ISSN mappings.")
 
 
+def load_title_to_resource_dict() -> None:
+    """
+    Load title-to-resource mapping from the database.
+    This maps normalized titles to resource curies for duplicate detection.
+    Title matching is used as a fallback when other methods fail.
+    """
+    global title_to_resource
+
+    if datatype != 'resource':
+        return
+
+    print("Loading title-to-resource mapping from database.")
+    query = db_session.query(
+        ResourceModel.curie,
+        ResourceModel.resource_id,
+        ResourceModel.title
+    )
+
+    results = query.all()
+
+    for result in results:
+        curie, resource_id, title = result
+        if title and title.strip():
+            # Normalize title: lowercase and strip whitespace
+            title_key = title.strip().lower()
+            if title_key not in title_to_resource:
+                title_to_resource[title_key] = {'curie': curie, 'resource_id': resource_id}
+
+    print(f"Loaded {len(title_to_resource)} title mappings.")
+
+
 def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
     """
     Load the 3 dicts with data from the database.
@@ -171,9 +204,10 @@ def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
 
     load_xref_dicts()
 
-    # Also load ISSN mappings for resource duplicate detection
+    # Also load ISSN and title mappings for resource duplicate detection
     if datatype == 'resource':
         load_issn_to_resource_dict()
+        load_title_to_resource_dict()
 
 
 def dump_xrefs():
@@ -282,6 +316,52 @@ def update_issn_mapping(curie: str, resource_id: int, print_issn: str, online_is
             issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
 
 
+def get_resource_by_title(title: str) -> Optional[Dict]:
+    """
+    Look up a resource by exact title match (case-insensitive).
+
+    :param title: Title to look up
+    :return: Dict with 'curie' and 'resource_id' if found, None otherwise.
+    """
+    if title and title.strip():
+        title_key = title.strip().lower()
+        if title_key in title_to_resource:
+            return title_to_resource[title_key]
+    return None
+
+
+def update_title_mapping(curie: str, resource_id: int, title: str) -> None:
+    """
+    Update the title-to-resource mapping when a new resource is created.
+
+    :param curie: Resource CURIE (e.g., AGRKB:102000000000001)
+    :param resource_id: Database resource_id
+    :param title: Resource title (can be None)
+    """
+    global title_to_resource
+
+    if title and title.strip():
+        title_key = title.strip().lower()
+        if title_key not in title_to_resource:
+            title_to_resource[title_key] = {'curie': curie, 'resource_id': resource_id}
+
+
+def find_existing_resource_by_title(entry: Dict) -> Optional[Tuple[str, int]]:
+    """
+    Check if the entry's title matches an existing resource.
+    This is used as a fallback when other matching methods fail.
+
+    :param entry: DQM entry that may have 'title'
+    :return: Tuple of (agr_curie, resource_id) if match found, None otherwise.
+    """
+    title = entry.get('title', '')
+    if title:
+        result = get_resource_by_title(title)
+        if result:
+            return (result['curie'], result['resource_id'])
+    return None
+
+
 def find_existing_resource_by_xrefs(entry: Dict) -> Optional[Tuple[str, int]]:
     """
     Check if any cross-reference in the entry matches an existing resource.
@@ -352,10 +432,11 @@ def find_existing_resource(entry: Dict) -> Optional[Tuple[str, int, str]]:
     1. Check primaryId cross-reference
     2. Check all cross-references in the entry
     3. Check ISSN values
+    4. Check exact title match (fallback)
 
     :param entry: DQM entry
     :return: Tuple of (agr_curie, resource_id, match_type) if found, None otherwise.
-             match_type is one of: 'primaryId', 'crossReference', 'issn'
+             match_type is one of: 'primaryId', 'crossReference', 'issn', 'title'
     """
     # 1. Check primaryId first
     primary_id = entry.get('primaryId', '')
@@ -379,5 +460,10 @@ def find_existing_resource(entry: Dict) -> Optional[Tuple[str, int, str]]:
     result = find_existing_resource_by_issn(entry)
     if result:
         return (result[0], result[1], 'issn')
+
+    # 4. Check exact title match (fallback to prevent duplicates with same title)
+    result = find_existing_resource_by_title(entry)
+    if result:
+        return (result[0], result[1], 'title')
 
     return None
