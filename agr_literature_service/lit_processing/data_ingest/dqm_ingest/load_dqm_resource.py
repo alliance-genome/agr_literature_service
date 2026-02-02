@@ -1,6 +1,7 @@
 import json
 import logging
-from os import environ, path
+import traceback
+from os import environ, makedirs, path
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from typing import Dict, Tuple
@@ -18,6 +19,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_reso
     PROCESSED_UPDATED,
     PROCESSED_FAILED
 )
+from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.user import set_global_user_id
 load_dotenv()
 init_tmp_dir()
@@ -182,26 +184,90 @@ if __name__ == "__main__":
 
     mods = ['FB', 'ZFIN']
 
-    try:
-        for mod in mods:
+    # Set up log file path
+    report_file_path = ''
+    log_url = None
+    if environ.get('LOG_PATH'):
+        report_file_path = path.join(environ['LOG_PATH'], 'dqm_load/')
+    if report_file_path and not path.exists(report_file_path):
+        makedirs(report_file_path)
+    if environ.get('LOG_URL'):
+        log_url = environ['LOG_URL'] + "dqm_load/"
+
+    log_filename = path.join(report_file_path, 'dqm_resource_loading.log') if report_file_path else None
+    fh_log = open(log_filename, 'w') if log_filename else None
+
+    mod_results = {}
+    for mod in mods:
+        try:
             pubmed_by_nlm, process_count = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
-            logger.info(f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
+            mod_results[mod] = {
+                'new': process_count[PROCESSED_NEW],
+                'updated': process_count[PROCESSED_UPDATED],
+                'failed': process_count[PROCESSED_FAILED]
+            }
+            log_msg = f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated: {process_count[PROCESSED_UPDATED]}, Problems: {process_count[PROCESSED_FAILED]}"
+            logger.info(log_msg)
+            if fh_log:
+                fh_log.write(log_msg + "\n")
             process_count[PROCESSED_NEW] = 0
             process_count[PROCESSED_UPDATED] = 0
             process_count[PROCESSED_FAILED] = 0
-    except Exception as e:
-        mess = f"Error Loading mod resource {mod} with error {e}"
-        logger.error(mess)
-        print(mess)
-        exit(-1)
+        except Exception as e:
+            tb = traceback.format_exc()
+            mess = f"Error Loading mod resource {mod} with error {e}"
+            logger.error(mess)
+            if fh_log:
+                fh_log.write(f"{mess}\n{tb}\n")
+            send_report(f"{mod} DQM Resource Loading Failed",
+                        f"Error message: {e}<p>Traceback:<br>{tb}")
 
     # Process the nlm ones.
-    for entry_key in pubmed_by_nlm:
-        entry = pubmed_by_nlm[entry_key]
-        update_status, okay, message = process_single_resource(db_session, entry)
-        process_count[update_status] += 1
-        if not okay:
-            logger.warning(message)
-    logger.info(f"NLM: New: {process_count[PROCESSED_NEW]}, Updated {process_count[PROCESSED_UPDATED]}. Problems {process_count[PROCESSED_FAILED]}")
+    try:
+        for entry_key in pubmed_by_nlm:
+            entry = pubmed_by_nlm[entry_key]
+            update_status, okay, message = process_single_resource(db_session, entry)
+            process_count[update_status] += 1
+            if not okay:
+                logger.warning(message)
+                if fh_log:
+                    fh_log.write(f"NLM Warning: {message}\n")
+        mod_results['NLM'] = {
+            'new': process_count[PROCESSED_NEW],
+            'updated': process_count[PROCESSED_UPDATED],
+            'failed': process_count[PROCESSED_FAILED]
+        }
+        log_msg = f"NLM: New: {process_count[PROCESSED_NEW]}, Updated: {process_count[PROCESSED_UPDATED]}, Problems: {process_count[PROCESSED_FAILED]}"
+        logger.info(log_msg)
+        if fh_log:
+            fh_log.write(log_msg + "\n")
+    except Exception as e:
+        tb = traceback.format_exc()
+        logger.error(f"Error processing NLM resources: {e}")
+        if fh_log:
+            fh_log.write(f"Error processing NLM resources: {e}\n{tb}\n")
+        send_report("NLM Resource Loading Failed",
+                    f"Error message: {e}<p>Traceback:<br>{tb}")
+
+    if fh_log:
+        fh_log.close()
+
+    # Send summary report
+    email_subject = "DQM Resource Loading Report"
+    email_message = "<h3>DQM Resource Loading Report</h3>"
+    rows = ""
+    for source, counts in mod_results.items():
+        rows += f"<tr><td>{source}</td><td>{counts['new']}</td><td>{counts['updated']}</td><td>{counts['failed']}</td></tr>"
+    if rows:
+        email_message += "<table><thead><tr><th>Source</th><th>New</th><th>Updated</th><th>Problems</th></tr></thead><tbody>"
+        email_message += rows
+        email_message += "</tbody></table>"
+
+    if log_url:
+        email_message += f"<p>Loading log file is available at <a href={log_url}>{log_url}</a></p>"
+    elif report_file_path:
+        email_message += f"<p>Loading log file is available at {report_file_path}</p>"
+
+    send_report(email_subject, email_message)
 
     logger.info("ending load_dqm_resource.py")
