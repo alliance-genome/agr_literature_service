@@ -142,12 +142,20 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> boo
             dqm_value = dqm_entry[field_camel]
         if field_snake in db_entry:
             db_value = db_entry[field_snake]
+        # Skip if MOD value is None but DB has a value (preserve NLM data)
+        if dqm_value is None and db_value:
+            continue
         if dqm_value != db_value:
             logger.info(f"patch {agr} field {field_snake} from db {db_value} to pm {dqm_value}")
             update_json[field_snake] = dqm_value
     for field_camel in list_fields:
         list_changed = compare_list(db_entry, dqm_entry, field_camel, remap_keys)
         if list_changed[0]:
+            # Skip if MOD value is empty but DB has values (preserve NLM data)
+            dqm_list = list_changed[1] or []
+            db_list = list_changed[2] or []
+            if not dqm_list and db_list:
+                continue
             logger.info(f"patch {agr} field {list_changed[3]} from db {list_changed[2]} to dqm {list_changed[1]}")
             update_json[list_changed[3]] = list_changed[1]
     if update_json:
@@ -272,9 +280,8 @@ def compare_xref(agr, resource_id, dqm_entry):
             # Skip - this is just a duplicate, not a real problem
             pass
         elif agr_db_from_xref:
-            mess = f"Prefix {prefix} is already assigned to another resource {agr_db_from_xref}. Cannot be assigned to more than one."
-            error_mess += mess
-            okay = False
+            # Skip - cross-reference already assigned to another resource
+            pass
         else:
             if is_obsolete(agr, prefix, identifier):
                 pass
