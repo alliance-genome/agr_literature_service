@@ -46,6 +46,7 @@ resources_to_update: Dict = dict()
 PROCESSED_NEW = 0
 PROCESSED_UPDATED = 1
 PROCESSED_FAILED = 2
+PROCESSED_NO_CHANGE = 3
 
 
 logging.basicConfig(format='%(message)s')
@@ -88,9 +89,9 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
             process_okay = False
         else:
             # Update existing resource
-            process_okay, message = process_update_resource(db_session, resource_dict, agr)
+            process_okay, message, actually_updated = process_update_resource(db_session, resource_dict, agr)
             logger.info("update primary_id %s db %s (matched via %s)", primary_id, agr, match_type)
-            stat = PROCESSED_UPDATED
+            stat = PROCESSED_UPDATED if actually_updated else PROCESSED_NO_CHANGE
     else:
         # No existing resource found, create new
         process_okay, message = process_resource_entry(db_session, resource_dict)
@@ -104,13 +105,14 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
     return stat, process_okay, message
 
 
-def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> None:
+def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> bool:
     """
     Update the resource datbase entry from the sanitized dqm entry.
 
     :param db_session: db connection
     :param dqm_entry: sanitized dqm entry in json format
-    "param db_entry: db entry in json format.
+    :param db_entry: db entry in json format.
+    :return: True if actual changes were made, False otherwise
     """
     global simple_fields
     global list_fields
@@ -153,9 +155,11 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> Non
             db_session.query(ResourceModel).filter_by(curie=agr).update(update_json)
             db_session.commit()
             logger.info("The resource row for curie = " + agr + " has been updated.")
+            return True
         except Exception as e:
             logger.error("An error occurred when updating resource row for curie = " + agr + " " + str(e))
-    return
+            return False
+    return False
 
 
 def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
@@ -168,13 +172,14 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     :param db_session: db connection
     :param dqm_entry: sanitixed dqm entry in json format
     :param agr: curie to lookup the resource in the database
+    :return: Tuple of (okay, error_message, actually_updated)
     """
     try:
         db_entry = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).one()
     except NoResultFound:
-        return False, f"Unable to find unique resource with curie {agr}."
+        return False, f"Unable to find unique resource with curie {agr}.", False
     db_entry = jsonable_encoder(db_entry)
-    update_resource(db_session, dqm_entry, db_entry)
+    actually_updated = update_resource(db_session, dqm_entry, db_entry)
     okay = True
     error_message = ""
     if 'crossReferences' in dqm_entry:
@@ -197,7 +202,7 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     #        logger.info("add to %s create_dict %s", agr, create_dict)
     #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
     #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
-    return okay, error_message
+    return okay, error_message, actually_updated
 
 
 def update_resources(db_session, resources_to_update):

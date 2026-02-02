@@ -17,14 +17,15 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_reso
     process_single_resource,
     PROCESSED_NEW,
     PROCESSED_UPDATED,
-    PROCESSED_FAILED
+    PROCESSED_FAILED,
+    PROCESSED_NO_CHANGE
 )
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.user import set_global_user_id
 load_dotenv()
 init_tmp_dir()
 
-process_count = [0, 0, 0]
+process_count = [0, 0, 0, 0]  # [NEW, UPDATED, FAILED, NO_CHANGE]
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -213,6 +214,7 @@ if __name__ == "__main__":
             process_count[PROCESSED_NEW] = 0
             process_count[PROCESSED_UPDATED] = 0
             process_count[PROCESSED_FAILED] = 0
+            process_count[PROCESSED_NO_CHANGE] = 0
         except Exception as e:
             tb = traceback.format_exc()
             mess = f"Error Loading mod resource {mod} with error {e}"
