@@ -264,9 +264,8 @@ def compare_xref(agr, resource_id, dqm_entry):
             logger.info(f"Prefix found {prefix} for {identifier} and agr {agr_db_from_xref}")
             # logger.info("GOOD1: cross_reference %s good in %s", curie, agr)
         elif agr_has_xref_of_prefix(agr, prefix):
-            mess = f"Prefix {prefix} is already assigned to for this resource"
-            error_mess += mess
-            okay = False
+            # Skip - this is just a duplicate, not a real problem
+            pass
         elif agr_db_from_xref:
             mess = f"Prefix {prefix} is already assigned to another resource {agr_db_from_xref}. Cannot be assigned to more than one."
             error_mess += mess

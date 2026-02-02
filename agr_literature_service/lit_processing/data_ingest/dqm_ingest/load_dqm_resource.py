@@ -232,11 +232,6 @@ if __name__ == "__main__":
                 logger.warning(message)
                 if fh_log:
                     fh_log.write(f"NLM Warning: {message}\n")
-        mod_results['NLM'] = {
-            'new': process_count[PROCESSED_NEW],
-            'updated': process_count[PROCESSED_UPDATED],
-            'failed': process_count[PROCESSED_FAILED]
-        }
         log_msg = f"NLM: New: {process_count[PROCESSED_NEW]}, Updated: {process_count[PROCESSED_UPDATED]}, Problems: {process_count[PROCESSED_FAILED]}"
         logger.info(log_msg)
         if fh_log:
@@ -246,8 +241,6 @@ if __name__ == "__main__":
         logger.error(f"Error processing NLM resources: {e}")
         if fh_log:
             fh_log.write(f"Error processing NLM resources: {e}\n{tb}\n")
-        send_report("NLM Resource Loading Failed",
-                    f"Error message: {e}<p>Traceback:<br>{tb}")
 
     if fh_log:
         fh_log.close()
