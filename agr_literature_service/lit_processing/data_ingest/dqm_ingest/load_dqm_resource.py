@@ -109,6 +109,7 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
         nlm = get_nlm_from_xref(entry, nlm_by_issn)
     if nlm != '':
         process_nlm(nlm, entry, pubmed_by_nlm)
+        update_status = PROCESSED_NO_CHANGE  # NLM entries are processed later
     else:
         if 'primaryId' in entry:
             entry_cross_refs = set()
