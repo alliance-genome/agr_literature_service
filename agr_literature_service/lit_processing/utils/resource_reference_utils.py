@@ -26,57 +26,113 @@ It is my hope that the developer does not need to worry about all that goes on h
 but can just call the methods and everything will be taken care off.
 """
 import sys
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, Optional, Tuple, Union, Set, Any
 import logging.config
 from sqlalchemy.orm import Session
+
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ResourceModel, ReferenceModel, CrossReferenceModel
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 
-xref_ref: Dict = {}
-ref_xref_valid: Dict = {}
-ref_xref_obsolete: Dict = {}
-issn_to_resource: Dict = {}
-title_to_resource: Dict = {}
+# --------------------------------------------------------------------------------------
+# Dicts
+# --------------------------------------------------------------------------------------
+# xref_ref[prefix][identifier] = agr
+xref_ref: Dict[str, Dict[str, str]] = {}
+
+# ref_xref_valid[agr][prefix] = identifier   (NOTE: one identifier per prefix in "valid")
+ref_xref_valid: Dict[str, Dict[str, str]] = {}
+
+# ref_xref_obsolete[agr][prefix] = set([identifier.lower(), ...])
+ref_xref_obsolete: Dict[str, Dict[str, Set[str]]] = {}
+
+# Duplicate-detection maps (resources only)
+issn_to_resource: Dict[str, Dict[str, Union[str, int]]] = {}
+title_to_resource: Dict[str, Dict[str, Union[str, int]]] = {}
+
+# NEW: avoid N+1 queries by keeping resource_id in-memory
+agr_to_resource_id: Dict[str, int] = {}
+
 datatype: str = ""
 db_session: Session = create_postgres_session(False)
 
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format= '%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',    # noqa E251
-                    datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format='%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',  # noqa E251
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
 
-def update_xref_dicts(agr: str, prefix: str, identifier: str, is_obsolete: bool = False) -> None:
+def _normalize_identifier(prefix: str, identifier: str) -> str:
     """
-    Update the three dicts.
+    Ensure identifier is stored in dicts WITHOUT the prefix (per module contract).
+    This is defensive: some call sites historically passed the full curie.
     """
-    # prefix, identifier, _ = split_identifier(xref, True)
+    if not identifier:
+        return identifier
+    # If it's already a curie like "ZFIN:ZDB-...", split and keep identifier part.
+    if isinstance(identifier, str) and ":" in identifier:
+        p, ident, _ = split_identifier(identifier, ignore_error=True)
+        if p and ident:
+            # If prefix mismatches, still return ident; it's what downstream expects.
+            return ident
+    return identifier
+
+
+def update_xref_dicts(
+    agr: str,
+    prefix: str,
+    identifier: str,
+    is_obsolete: bool = False,
+    resource_id: Optional[int] = None
+) -> None:
+    """
+    Update the xref tracking dicts.
+    Optionally capture resource_id mapping for resources (avoids N+1 DB queries later).
+    """
+    ident = _normalize_identifier(prefix, identifier)
+
+    # Keep a fast mapping of AGR -> resource_id if provided.
+    if resource_id is not None and agr and datatype == "resource":
+        # Only set if not already present; should be stable.
+        if agr not in agr_to_resource_id:
+            agr_to_resource_id[agr] = int(resource_id)
+
     if is_obsolete is False:
         if agr not in ref_xref_valid:
-            ref_xref_valid[agr] = dict()
-        ref_xref_valid[agr][prefix] = identifier
+            ref_xref_valid[agr] = {}
+        ref_xref_valid[agr][prefix] = ident
+
         if prefix not in xref_ref:
-            xref_ref[prefix] = dict()
-        if identifier not in xref_ref[prefix]:
-            xref_ref[prefix][identifier] = agr
+            xref_ref[prefix] = {}
+        if ident not in xref_ref[prefix]:
+            xref_ref[prefix][ident] = agr
     else:
         if agr not in ref_xref_obsolete:
-            ref_xref_obsolete[agr] = dict()
+            ref_xref_obsolete[agr] = {}
         # a reference and prefix can still have multiple obsolete values
         if prefix not in ref_xref_obsolete[agr]:
             ref_xref_obsolete[agr][prefix] = set()
-        if identifier not in ref_xref_obsolete[agr][prefix]:
-            ref_xref_obsolete[agr][prefix].add(identifier.lower())
+        ref_xref_obsolete[agr][prefix].add(ident.lower())
 
 
-def reset_xref():
+def reset_xref() -> None:
+    """
+    Clear all in-memory tracking dicts.
+
+    NOTE: These dicts are intended to reflect the DB state + in-process inserts.
+    They are bounded by DB size and the number of inserts in the current process.
+    Call reset_xref() if you are running multiple independent loads in the same
+    long-lived python process and want to release memory between runs.
+    """
     xref_ref.clear()
     ref_xref_valid.clear()
     ref_xref_obsolete.clear()
     issn_to_resource.clear()
     title_to_resource.clear()
+    agr_to_resource_id.clear()
 
 
 def load_xref_dicts() -> None:
@@ -100,8 +156,10 @@ def load_xref_dicts() -> None:
 
     elif datatype == 'resource':
         print("Loading resource cross reference db data.")
+        # Minimal change: include ResourceModel.resource_id so we can avoid N+1 later
         query = db_session.query(
             ResourceModel.curie,
+            ResourceModel.resource_id,
             CrossReferenceModel.curie_prefix,
             CrossReferenceModel.curie,
             CrossReferenceModel.is_obsolete
@@ -115,8 +173,14 @@ def load_xref_dicts() -> None:
         results = query.all()
 
         for result in results:
-            print(result)
-            update_xref_dicts(result[0], result[1], result[2], result[3])
+            # reference: (agr, prefix, curie, obsolete)
+            # resource:   (agr, resource_id, prefix, curie, obsolete)
+            if datatype == "resource":
+                agr, resource_id, prefix, curie, obsolete = result
+                update_xref_dicts(agr, prefix, curie, obsolete, resource_id=resource_id)
+            else:
+                agr, prefix, curie, obsolete = result
+                update_xref_dicts(agr, prefix, curie, obsolete)
 
 
 def load_issn_to_resource_dict() -> None:
@@ -141,14 +205,17 @@ def load_issn_to_resource_dict() -> None:
 
     for result in results:
         curie, resource_id, print_issn, online_issn = result
+        if curie and curie not in agr_to_resource_id:
+            agr_to_resource_id[curie] = int(resource_id)
+
         if print_issn and print_issn.strip():
             issn_key = print_issn.strip()
             if issn_key not in issn_to_resource:
-                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
         if online_issn and online_issn.strip():
             issn_key = online_issn.strip()
             if issn_key not in issn_to_resource:
-                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
 
     print(f"Loaded {len(issn_to_resource)} ISSN mappings.")
 
@@ -175,23 +242,30 @@ def load_title_to_resource_dict() -> None:
 
     for result in results:
         curie, resource_id, title = result
+        if curie and curie not in agr_to_resource_id:
+            agr_to_resource_id[curie] = int(resource_id)
+
         if title and title.strip():
             # Normalize title: lowercase and strip whitespace
             title_key = title.strip().lower()
             if title_key not in title_to_resource:
-                title_to_resource[title_key] = {'curie': curie, 'resource_id': resource_id}
+                title_to_resource[title_key] = {'curie': curie, 'resource_id': int(resource_id)}
 
     print(f"Loaded {len(title_to_resource)} title mappings.")
 
 
 def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
     """
-    Load the 3 dicts with data from the database.
+    Load the tracking dicts with data from the database.
     Store the db_session and the datatype so they do not
     have to be passed around all the time.
     """
     global db_session
     global datatype
+
+    # Minimal but important: clear existing dicts so repeated loads in a long-lived
+    # process won't keep growing memory (addresses the review concern).
+    reset_xref()
 
     print(f"lxd db:{db_session} datatype: {load_datatype}")
     db_session = db_session_set
@@ -210,7 +284,7 @@ def load_xref_data(db_session_set: Session, load_datatype: str) -> None:
         load_title_to_resource_dict()
 
 
-def dump_xrefs():
+def dump_xrefs() -> None:
     print(f"xref_ref = {xref_ref}")
     print(f"ref_xref_valid = {ref_xref_valid}")
 
@@ -219,9 +293,7 @@ def agr_has_xref_of_prefix(agr: str, prefix: str) -> bool:
     """
     Return if the agr curie already has an xref of this type.
     """
-    if agr in ref_xref_valid and prefix in ref_xref_valid[agr]:
-        return True
-    return False
+    return bool(agr in ref_xref_valid and prefix in ref_xref_valid[agr])
 
 
 def get_agr_for_xref(prefix: str, identifier: str) -> Union[str, None]:
@@ -231,12 +303,16 @@ def get_agr_for_xref(prefix: str, identifier: str) -> Union[str, None]:
 
     Return: agr curie or None if not found.
     """
-    if prefix in xref_ref and identifier in xref_ref[prefix]:
-        return xref_ref[prefix][identifier]
+    if not prefix or not identifier:
+        return None
+
+    ident = _normalize_identifier(prefix, identifier)
+    if prefix in xref_ref and ident in xref_ref[prefix]:
+        return xref_ref[prefix][ident]
     return None
 
 
-def create_entity(db_session, entry) -> Union[ResourceModel, ReferenceModel]:
+def create_entity(db_session: Session, entry: Dict[str, Any]) -> Union[ResourceModel, ReferenceModel]:
     """
     Create the entity given by the json entry.
     NOTE: Not sure about this one, does not bring much to the table
@@ -252,12 +328,11 @@ def create_entity(db_session, entry) -> Union[ResourceModel, ReferenceModel]:
     return x
 
 
-def add_xref(agr: str, new_xref: Dict) -> None:
+def add_xref(agr: str, new_xref: Dict[str, Any]) -> None:
     """
-    Create xref and update the 3 dicts.
+    Create xref and update the tracking dicts.
     NOTE: new_xref['resource_id'] is used to link to resource
     """
-
     crossRefs = db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).all()
     if len(crossRefs) > 0:
         return
@@ -267,20 +342,29 @@ def add_xref(agr: str, new_xref: Dict) -> None:
         db_session.add(cr)
         db_session.commit()
         logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
-        update_xref_dicts(agr, new_xref['curie_prefix'], new_xref['curie'])
+
+        rid = new_xref.get("resource_id")
+        update_xref_dicts(
+            agr,
+            str(new_xref.get('curie_prefix', '')),
+            str(new_xref.get('curie', '')),
+            is_obsolete=False,
+            resource_id=int(rid) if rid is not None else None
+        )
     except Exception as e:
         logger.error(e)
 
 
 def is_obsolete(agr: str, prefix: str, identifier: str) -> bool:
+    ident = _normalize_identifier(prefix, identifier)
     if agr in ref_xref_obsolete:
         if prefix in ref_xref_obsolete[agr]:
-            if identifier.lower() in ref_xref_obsolete[agr][prefix]:
+            if ident.lower() in ref_xref_obsolete[agr][prefix]:
                 return True
     return False
 
 
-def get_resource_by_issn(issn: str) -> Optional[Dict]:
+def get_resource_by_issn(issn: str) -> Optional[Dict[str, Union[str, int]]]:
     """
     Look up a resource by ISSN value.
 
@@ -305,18 +389,22 @@ def update_issn_mapping(curie: str, resource_id: int, print_issn: str, online_is
     """
     global issn_to_resource
 
+    # Keep this mapping updated too (helps avoid N+1 lookups)
+    if curie and datatype == "resource" and curie not in agr_to_resource_id:
+        agr_to_resource_id[curie] = int(resource_id)
+
     if print_issn and print_issn.strip():
         issn_key = print_issn.strip()
         if issn_key not in issn_to_resource:
-            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
 
     if online_issn and online_issn.strip():
         issn_key = online_issn.strip()
         if issn_key not in issn_to_resource:
-            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': resource_id}
+            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
 
 
-def get_resource_by_title(title: str) -> Optional[Dict]:
+def get_resource_by_title(title: str) -> Optional[Dict[str, Union[str, int]]]:
     """
     Look up a resource by exact title match (case-insensitive).
 
@@ -340,13 +428,17 @@ def update_title_mapping(curie: str, resource_id: int, title: str) -> None:
     """
     global title_to_resource
 
+    # Keep this mapping updated too (helps avoid N+1 lookups)
+    if curie and datatype == "resource" and curie not in agr_to_resource_id:
+        agr_to_resource_id[curie] = int(resource_id)
+
     if title and title.strip():
         title_key = title.strip().lower()
         if title_key not in title_to_resource:
-            title_to_resource[title_key] = {'curie': curie, 'resource_id': resource_id}
+            title_to_resource[title_key] = {'curie': curie, 'resource_id': int(resource_id)}
 
 
-def find_existing_resource_by_title(entry: Dict) -> Optional[Tuple[str, int]]:
+def find_existing_resource_by_title(entry: Dict[str, Any]) -> Optional[Tuple[str, int]]:
     """
     Check if the entry's title matches an existing resource.
     This is used as a fallback when other matching methods fail.
@@ -358,17 +450,16 @@ def find_existing_resource_by_title(entry: Dict) -> Optional[Tuple[str, int]]:
     if title:
         result = get_resource_by_title(title)
         if result:
-            return (result['curie'], result['resource_id'])
+            return (str(result['curie']), int(result['resource_id']))
     return None
 
 
-def find_existing_resource_by_xrefs(entry: Dict) -> Optional[Tuple[str, int]]:
+def find_existing_resource_by_xrefs(entry: Dict[str, Any]) -> Optional[Tuple[str, int]]:
     """
     Check if any cross-reference in the entry matches an existing resource.
     This checks ALL cross-references, not just the primaryId.
 
-    :param entry: DQM entry with 'crossReferences' list
-    :return: Tuple of (agr_curie, resource_id) if match found, None otherwise.
+    PERFORMANCE: Avoid N+1 queries by using agr_to_resource_id (loaded once).
     """
     cross_refs = entry.get('crossReferences', [])
 
@@ -380,36 +471,35 @@ def find_existing_resource_by_xrefs(entry: Dict) -> Optional[Tuple[str, int]]:
         if prefix and identifier:
             agr = get_agr_for_xref(prefix, identifier)
             if agr:
-                # Found existing resource via cross-reference
-                resource = db_session.query(ResourceModel).filter(
-                    ResourceModel.curie == agr
-                ).first()
+                rid = agr_to_resource_id.get(agr)
+                if rid is not None:
+                    return (agr, int(rid))
+                # Fallback only if mapping missing for some reason (should be rare)
+                resource = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).first()
                 if resource:
-                    return (agr, resource.resource_id)
+                    agr_to_resource_id[agr] = int(resource.resource_id)
+                    return (agr, int(resource.resource_id))
 
     return None
 
 
-def find_existing_resource_by_issn(entry: Dict) -> Optional[Tuple[str, int]]:
+def find_existing_resource_by_issn(entry: Dict[str, Any]) -> Optional[Tuple[str, int]]:
     """
     Check if the entry's ISSNs match an existing resource.
-
-    :param entry: DQM entry that may have 'printISSN' or 'onlineISSN'
-    :return: Tuple of (agr_curie, resource_id) if match found, None otherwise.
     """
     # Check printISSN
     print_issn = entry.get('printISSN', '')
     if print_issn:
         result = get_resource_by_issn(print_issn)
         if result:
-            return (result['curie'], result['resource_id'])
+            return (str(result['curie']), int(result['resource_id']))
 
     # Check onlineISSN
     online_issn = entry.get('onlineISSN', '')
     if online_issn:
         result = get_resource_by_issn(online_issn)
         if result:
-            return (result['curie'], result['resource_id'])
+            return (str(result['curie']), int(result['resource_id']))
 
     # Also check cross-references for ISSN values
     cross_refs = entry.get('crossReferences', [])
@@ -421,12 +511,12 @@ def find_existing_resource_by_issn(entry: Dict) -> Optional[Tuple[str, int]]:
         if prefix == 'ISSN' and identifier:
             result = get_resource_by_issn(identifier)
             if result:
-                return (result['curie'], result['resource_id'])
+                return (str(result['curie']), int(result['resource_id']))
 
     return None
 
 
-def find_existing_resource(entry: Dict) -> Optional[Tuple[str, int, str]]:
+def find_existing_resource(entry: Dict[str, Any]) -> Optional[Tuple[str, int, str]]:
     """
     Comprehensive check for existing resource using multiple methods:
     1. Check primaryId cross-reference
@@ -434,9 +524,7 @@ def find_existing_resource(entry: Dict) -> Optional[Tuple[str, int, str]]:
     3. Check ISSN values
     4. Check exact title match (fallback)
 
-    :param entry: DQM entry
-    :return: Tuple of (agr_curie, resource_id, match_type) if found, None otherwise.
-             match_type is one of: 'primaryId', 'crossReference', 'issn', 'title'
+    Returns: (agr_curie, resource_id, match_type)
     """
     # 1. Check primaryId first
     primary_id = entry.get('primaryId', '')
@@ -445,11 +533,14 @@ def find_existing_resource(entry: Dict) -> Optional[Tuple[str, int, str]]:
         if prefix and identifier:
             agr = get_agr_for_xref(prefix, identifier)
             if agr:
-                resource = db_session.query(ResourceModel).filter(
-                    ResourceModel.curie == agr
-                ).first()
+                rid = agr_to_resource_id.get(agr)
+                if rid is not None:
+                    return (agr, int(rid), 'primaryId')
+                # Fallback only if mapping missing
+                resource = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).first()
                 if resource:
-                    return (agr, resource.resource_id, 'primaryId')
+                    agr_to_resource_id[agr] = int(resource.resource_id)
+                    return (agr, int(resource.resource_id), 'primaryId')
 
     # 2. Check all cross-references
     result = find_existing_resource_by_xrefs(entry)
