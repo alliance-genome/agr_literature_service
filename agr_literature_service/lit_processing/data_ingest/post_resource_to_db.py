@@ -181,8 +181,8 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
     # Use comprehensive duplicate detection
     existing = find_existing_resource(entry)
     if existing:
-        agr, resource_id, match_type = existing
-        logger.info(f"Resource already exists: {agr} (matched via {match_type} for {primary_id})")
+        agr, existing_resource_id, match_type = existing
+        logger.info(f"Resource already exists: resource_id={existing_resource_id} {agr} (matched via {match_type} for {primary_id})")
         return True, ""
 
     new_entry = remap_keys_get_new_entry(entry)

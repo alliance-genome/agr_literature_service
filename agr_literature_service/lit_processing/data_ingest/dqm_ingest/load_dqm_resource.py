@@ -127,14 +127,21 @@ def process_nlm(nlm: str, entry: dict, pubmed_by_nlm: dict) -> None:
                 pubmed_by_nlm[nlm][field] = entry[field]
 
 
-def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_issn: dict, mod: str, writer_mod: str) -> Tuple:
+def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_issn: dict, mod: str = "", writer_mod: str = "") -> Tuple:
     """
     Process the original dqm json entry.
     First we "sanitize" the entry and then process it according
     to whether it has nlm in it or not.
 
-    :return: Tuple of (update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts,
-                      xref_additions, failure_kind)
+    Backward compatible behavior:
+      - If called with legacy signature (no mod/writer_mod), return:
+            (update_status, okay, message)
+      - If called with mod/writer_mod, return:
+            (update_status, okay, message, field_changes, missing_prefix_xrefs,
+             xref_conflicts, xref_additions, failure_kind)
+
+    :return: Tuple of (update_status, okay, message, field_changes, missing_prefix_xrefs,
+             xref_conflicts, xref_additions, failure_kind)
     """
     nlm = ''
     update_status = PROCESSED_NO_CHANGE
@@ -146,7 +153,7 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
     xref_additions = []
     failure_kind = "none"
 
-    primary_id = entry.get('primaryId')  # FIX: avoid unbound variable
+    primary_id = entry.get('primaryId')  # avoid unbound variable
 
     if primary_id and primary_id in pubmed_by_nlm:
         nlm = primary_id
@@ -164,6 +171,7 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
                 for cross_ref in entry['crossReferences']:
                     if cross_ref.get('id'):
                         entry_cross_refs.add(cross_ref['id'])
+
             if entry['primaryId'] not in entry_cross_refs:
                 primary_id = entry['primaryId']
                 prefix, identifier, _ = split_identifier(primary_id, ignore_error=True)
@@ -178,6 +186,10 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
             process_single_resource(db_session, entry, mod=mod, writer_mod=writer_mod)
         if not okay:
             logger.warning(message)
+
+    # Legacy mode for unit tests: return only the first 3 values
+    if not mod and not writer_mod:
+        return update_status, okay, message
 
     return update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts, xref_additions, failure_kind
 

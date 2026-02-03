@@ -11,7 +11,7 @@ So no files are read anymore.
 """
 import logging
 import warnings
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from sqlalchemy.orm import Session
 
 from dotenv import load_dotenv
@@ -100,38 +100,58 @@ def _merge_case_insensitive(db_values: List, incoming_values: List) -> List[str]
     return merged
 
 
-def has_nlm_id(db_entry: Dict, dqm_entry: Dict) -> bool:
+def has_nlm_id(db_entry: Dict[str, Any], dqm_entry: Dict[str, Any]) -> bool:
     """
     Robust NLM detection using ONLY the entry shapes we can see here.
+
     NOTE: DB relationships are often not serialized into db_entry, so this is not sufficient alone.
-    In process_update_resource() we OR this with agr_has_xref_of_prefix(agr, 'NLM') (xref cache).
+    In process_update_resource() we OR this with agr_has_xref_of_prefix(agr, "NLM") (xref cache).
+
+    Detection priority:
+      1) NLM cross-references if present (DB-side or DQM-side): "NLM:<id>"
+      2) Explicit NLM field if present in DQM payload (e.g. nlm/nlmId/nlm_id)
+      3) Last-resort heuristic: primaryId matches digits + trailing "R" (e.g. "2985117R")
+         This is a heuristic and may cause false positives; xrefs remain preferred.
     """
-    # Check DB cross-references if present in jsonable_encoder output
+    # ---- 1) Check DB cross-references if present in jsonable_encoder output ----
     db_xrefs = db_entry.get("cross_references") or db_entry.get("crossReferences") or []
     for xr in db_xrefs:
         if isinstance(xr, dict):
+            # Some serialized forms may split prefix vs id
             if str(xr.get("curie_prefix", "")).upper() == "NLM":
                 return True
+
             curie = xr.get("curie") or xr.get("id")
             if isinstance(curie, str) and curie.startswith("NLM:"):
                 return True
+
         elif isinstance(xr, str) and xr.startswith("NLM:"):
             return True
 
-    # Check incoming DQM crossReferences
-    for xr in dqm_entry.get("crossReferences", []) or []:
+    # ---- 2) Check incoming DQM crossReferences ----
+    for xr in (dqm_entry.get("crossReferences") or []):
         if not isinstance(xr, dict):
             continue
-        cid = xr.get("id")
+        cid = xr.get("id") or xr.get("curie")
         if isinstance(cid, str) and cid.startswith("NLM:"):
             return True
 
-    # Check incoming primaryId (NLM-style IDs like 2985117R)
+    # ---- 3) Check explicit NLM field in DQM payload (if present) ----
+    nlm = dqm_entry.get("nlm") or dqm_entry.get("nlmId") or dqm_entry.get("nlm_id")
+    if isinstance(nlm, str) and nlm.strip():
+        return True
+
+    # ---- 4) Last-resort: heuristic on primaryId (e.g., "2985117R") ----
     pid = dqm_entry.get("primaryId")
-    if pid and ":" not in str(pid):
+    if pid is not None:
         s = str(pid).strip()
-        if len(s) > 1 and s[:-1].isdigit() and s[-1].upper() == "R":
-            return True
+
+        # Skip CURIE-like primaryIds (e.g., "ZFIN:...", "MGI:...")
+        if ":" not in s:
+            # Heuristic: digits followed by a trailing R/r.
+            # Conservative min-length reduces accidental matches.
+            if len(s) >= 6 and s[:-1].isdigit() and s[-1] in ("R", "r"):
+                return True
 
     return False
 
