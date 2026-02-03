@@ -6,7 +6,7 @@ import traceback
 from sqlalchemy.orm import Session
 
 from os import environ
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 from dotenv import load_dotenv
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -167,14 +167,7 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
 def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
     """Process json and add to db.
     Adds resourses, cross references and editors.
-
-    Uses comprehensive duplicate detection to check:
-    1. primaryId cross-reference
-    2. All cross-references in the entry
-    3. ISSN values (print_issn, online_issn)
-
-    :param db_session: database session
-    :param entry:      json format of dqm resource
+    ...
     """
     primary_id = entry['primaryId']
 
@@ -187,13 +180,9 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
 
     new_entry = remap_keys_get_new_entry(entry)
     try:
-        resource_id: Optional[int] = None
         curie = get_next_resource_curie(db_session)
 
         # cross_references and editors done seperately
-        # so do not want to pass them to the resource creator
-        # make a copy and deal with them after we have a resource_id
-        # to attach too.
         cross_references = new_entry.get('cross_references', [])
         if "cross_references" in new_entry:
             del new_entry["cross_references"]
@@ -206,20 +195,22 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
         else:
             logger.info(" NOOO iso_abbreviation: Adding resource into database for '" + new_entry['curie'] + "'")
+
         x = ResourceModel(**new_entry)
         db_session.add(x)
         db_session.flush()
-        # db_session.commit()
         db_session.refresh(x)
+
         resource_id = x.resource_id
+        if resource_id is None:
+            # Defensive guard for mypy + runtime sanity
+            raise RuntimeError(f"resource_id is None after flush/refresh for curie={curie}")
 
-        xref_okay, message = process_cross_references(db_session, int(resource_id), curie, cross_references)
-
+        xref_okay, message = process_cross_references(db_session, resource_id, curie, cross_references)
         if not xref_okay:
             return xref_okay, message
 
-        editor_okay, message = process_editors(db_session, int(resource_id), editors)
-
+        editor_okay, message = process_editors(db_session, resource_id, editors)
         if not editor_okay:
             return editor_okay, message
 

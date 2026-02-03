@@ -5,7 +5,7 @@ import traceback
 from os import environ, makedirs, path
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import load_pubmed_resource_basic
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -324,7 +324,7 @@ if __name__ == "__main__":  # noqa: C901
                 fh_log.write(f"{log_msg}\n\n")
 
                 # Log all updated rows (field updates + xref additions), grouped per resource
-                grouped = {}
+                grouped: Dict[Tuple[str, str], Dict[str, List[Any]]] = {}
                 for change in field_changes or []:
                     key = (change.get('agr', 'N/A'), change.get('primary_id', 'N/A'))
                     grouped.setdefault(key, {'fields': [], 'xrefs': []})
