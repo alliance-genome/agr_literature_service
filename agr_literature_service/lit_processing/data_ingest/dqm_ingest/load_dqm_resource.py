@@ -1,3 +1,4 @@
+# load_dqm_resource.py
 import json
 import logging
 import traceback
@@ -15,6 +16,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data i
     download_dqm_resource_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_resource_update_utils import (
     process_single_resource,
+    reset_resources_to_update,
     PROCESSED_NEW,
     PROCESSED_UPDATED,
     PROCESSED_FAILED,
@@ -22,6 +24,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_reso
 )
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.user import set_global_user_id
+
 load_dotenv()
 init_tmp_dir()
 
@@ -31,18 +34,54 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Only record true "unsolved" failures in the Problems section (exclude duplicate/shared/conflict-ish cases)
+UNSOLVED_FAILURE_KINDS = {"invalid", "db_error", "unknown"}
+
+
+def _strip_kind_prefix(msg: str) -> str:
+    if not msg:
+        return msg
+    for tag in ("[invalid]", "[db_error]", "[unknown]"):
+        if msg.startswith(tag):
+            return msg[len(tag):].strip()
+    return msg
+
+
+def _entry_label(entry: Dict) -> str:
+    # Keep this minimal and robust
+    title = entry.get("title")
+    pissn = entry.get("printISSN")
+    oissn = entry.get("onlineISSN")
+
+    xrefs = []
+    for xr in entry.get("crossReferences", []) or []:
+        if isinstance(xr, dict) and xr.get("id"):
+            xrefs.append(xr["id"])
+    xrefs = xrefs[:5]  # avoid huge email lines
+
+    parts = []
+    if title:
+        parts.append(f"title={title}")
+    if pissn:
+        parts.append(f"printISSN={pissn}")
+    if oissn:
+        parts.append(f"onlineISSN={oissn}")
+    if xrefs:
+        parts.append(f"xrefs={xrefs}")
+    return "; ".join(parts) if parts else "no identifiers available"
+
 
 def get_nlm_from_xref(entry: Dict, nlm_by_issn: Dict) -> str:
     """
-    Get the nlm vsalue in the entry if it exists
+    Get the nlm value in the entry if it exists
 
     :param entry: dqm entry in json format
     :param nlm_by_issn: dict of nlm from a issn
     """
     nlm = ''
-    for cross_ref in entry['crossReferences']:
+    for cross_ref in entry.get('crossReferences', []):
         if 'id' in cross_ref:
-            prefix, identifier, separator = split_identifier(cross_ref['id'])
+            prefix, identifier, separator = split_identifier(cross_ref['id'], ignore_error=True)
             if prefix == 'ISSN':
                 if identifier in nlm_by_issn:
                     if len(nlm_by_issn[identifier]) == 1:
@@ -62,13 +101,14 @@ def process_nlm(nlm: str, entry: dict, pubmed_by_nlm: dict) -> None:
                                      'publisher', 'editorsOrAuthors', 'volumes', 'pages', 'abstractOrSummary']
     if nlm in pubmed_by_nlm:
         nlm_cross_refs = set()
-        for cross_ref in pubmed_by_nlm[nlm]['crossReferences']:
-            nlm_cross_refs.add(cross_ref['id'])
+        for cross_ref in pubmed_by_nlm[nlm].get('crossReferences', []):
+            if 'id' in cross_ref:
+                nlm_cross_refs.add(cross_ref['id'])
         if 'crossReferences' in entry:
             for cross_ref in entry['crossReferences']:
-                if cross_ref['id'] not in nlm_cross_refs:
+                if cross_ref.get('id') and cross_ref['id'] not in nlm_cross_refs:
                     nlm_cross_refs.add(cross_ref['id'])
-                    pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
+                    pubmed_by_nlm[nlm].setdefault('crossReferences', []).append(cross_ref)
         if 'primaryId' in entry:
             if entry['primaryId'] not in nlm_cross_refs:
                 # the zfin primaryId is the nlm without the prefix, check if it already exists before adding for other MOD data
@@ -77,7 +117,7 @@ def process_nlm(nlm: str, entry: dict, pubmed_by_nlm: dict) -> None:
                     nlm_cross_refs.add(entry['primaryId'])
                     cross_ref = dict()
                     cross_ref['id'] = entry['primaryId']
-                    pubmed_by_nlm[nlm]['crossReferences'].append(cross_ref)
+                    pubmed_by_nlm[nlm].setdefault('crossReferences', []).append(cross_ref)
         # this causes conflicts if different MODs match an NLM and they send different non-pubmed information
         # whichever mod runs last will have the final value
         for field in resource_fields_not_in_pubmed:
@@ -85,17 +125,14 @@ def process_nlm(nlm: str, entry: dict, pubmed_by_nlm: dict) -> None:
                 pubmed_by_nlm[nlm][field] = entry[field]
 
 
-def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_issn: dict) -> Tuple:
+def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_issn: dict, mod: str, writer_mod: str) -> Tuple:
     """
     Process the original dqm json entry.
-    First we "sanitize the entry and then process it according
-    to wether it has nlm in it or not.
+    First we "sanitize" the entry and then process it according
+    to whether it has nlm in it or not.
 
-    :param db_session: db connection
-    :param entry: dqm entry unaltered in json format
-    :param pubmed_by_nlm: pubmed entry by nlm, pubmed_by_nlm processed at the end.
-    :param nlm_by_issn: dict to look up nlm vis issn
-    :return: Tuple of (update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts)
+    :return: Tuple of (update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts,
+                      xref_additions, failure_kind)
     """
     nlm = ''
     update_status = PROCESSED_NO_CHANGE
@@ -104,85 +141,95 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
     field_changes = []
     missing_prefix_xrefs = []
     xref_conflicts = []
+    xref_additions = []
+    failure_kind = "none"
 
-    if 'primaryId' in entry:
-        primary_id = entry['primaryId']
-    if primary_id in pubmed_by_nlm:
+    primary_id = entry.get('primaryId')  # FIX: avoid unbound variable
+
+    if primary_id and primary_id in pubmed_by_nlm:
         nlm = primary_id
     elif 'crossReferences' in entry:
         nlm = get_nlm_from_xref(entry, nlm_by_issn)
+
     if nlm != '':
         process_nlm(nlm, entry, pubmed_by_nlm)
         update_status = PROCESSED_NO_CHANGE  # NLM entries are processed later
     else:
+        # sanitize: only add primaryId as xref if valid prefix:identifier format
         if 'primaryId' in entry:
             entry_cross_refs = set()
             if 'crossReferences' in entry:
                 for cross_ref in entry['crossReferences']:
-                    entry_cross_refs.add(cross_ref['id'])
+                    if cross_ref.get('id'):
+                        entry_cross_refs.add(cross_ref['id'])
             if entry['primaryId'] not in entry_cross_refs:
-                # Only add primaryId as cross-reference if it has valid prefix:identifier format
                 primary_id = entry['primaryId']
                 prefix, identifier, _ = split_identifier(primary_id, ignore_error=True)
                 if prefix is not None and identifier is not None:
-                    entry_cross_refs.add(primary_id)
-                    cross_ref = dict()
-                    cross_ref['id'] = primary_id
+                    cross_ref = {'id': primary_id}
                     if 'crossReferences' in entry:
                         entry['crossReferences'].append(cross_ref)
                     else:
                         entry['crossReferences'] = [cross_ref]
 
-        update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts = process_single_resource(db_session, entry)
+        update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts, xref_additions, failure_kind = \
+            process_single_resource(db_session, entry, mod=mod, writer_mod=writer_mod)
         if not okay:
             logger.warning(message)
-    return update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts
+
+    return update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts, xref_additions, failure_kind
 
 
-def load_mod_resource(db_session: Session, pubmed_by_nlm: Dict, nlm_by_issn: Dict, mod: str) -> Tuple:
+def load_mod_resource(db_session: Session, pubmed_by_nlm: Dict, nlm_by_issn: Dict, mod: str, writer_mod: str) -> Tuple:
     """
     Load and process MOD resource data.
 
-    :param db_session: db connection
-    :param pubmed_by_nlm: pubmed entry by nlm, pubmed_by_nlm processed at the end.
-    :param nlm_by_issn: dict to look up nlm vis issn
-    :param mod: mod to be processed
     :return: Tuple of (pubmed_by_nlm, process_count, all_field_changes, all_missing_prefix_xrefs,
-             all_xref_conflicts, all_problems)
+             all_xref_conflicts, all_xref_additions, all_problems)
     """
 
     base_path = environ.get('XML_PATH', '')
     all_field_changes: List[Dict] = []
     all_missing_prefix_xrefs: List[str] = []
     all_xref_conflicts: List[str] = []
+    all_xref_additions: List[Dict] = []
     all_problems: List[str] = []
 
     filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
     try:
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
-            for entry in dqm_data['data']:
-                result = process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn)
-                update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts = result
+            for entry in dqm_data.get('data', []):
+                result = process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn, mod, writer_mod)
+                update_status, okay, message, field_changes, missing_prefix_xrefs, xref_conflicts, xref_additions, failure_kind = result
+
                 process_count[update_status] += 1
+
                 if field_changes:
                     all_field_changes.extend(field_changes)
                 if missing_prefix_xrefs:
                     all_missing_prefix_xrefs.extend(missing_prefix_xrefs)
                 if xref_conflicts:
                     all_xref_conflicts.extend(xref_conflicts)
-                if not okay:
-                    primary_id = entry.get('primaryId', 'unknown')
-                    all_problems.append(f"{primary_id}: {message}")
-                    logger.warning(message)
+                if xref_additions:
+                    all_xref_additions.extend(xref_additions)
+
+                # Only record true unsolved failures (exclude duplicates/conflicts/skips)
+                if not okay and failure_kind in UNSOLVED_FAILURE_KINDS:
+                    pid = entry.get('primaryId')
+                    label = pid if pid else _entry_label(entry)
+                    clean_message = _strip_kind_prefix(message)
+                    all_problems.append(f"{label}: [{failure_kind}] {clean_message}")
+                    logger.warning(clean_message)
+
     except IOError:
         # Some mods have no resources so exception here is okay but give message anyway.
         if mod in ['FB', 'ZFIN']:
             logger.error(f"Could not open file {filename}.")
-    return pubmed_by_nlm, process_count, all_field_changes, all_missing_prefix_xrefs, all_xref_conflicts, all_problems
+    return pubmed_by_nlm, process_count, all_field_changes, all_missing_prefix_xrefs, all_xref_conflicts, all_xref_additions, all_problems
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # noqa: C901
     """
     call main start function
     """
@@ -204,6 +251,7 @@ if __name__ == "__main__":
     load_xref_data(db_session, 'resource')
 
     mods = ['FB', 'ZFIN']
+    writer_mod = mods[-1]  # LAST MOD WINS for shared resources
 
     # Set up log file path
     report_file_path = ''
@@ -222,12 +270,16 @@ if __name__ == "__main__":
     all_mod_field_changes = {}
     all_mod_missing_prefix_xrefs = {}
     all_mod_xref_conflicts = {}
+    all_mod_xref_additions = {}
     all_mod_problems = {}
 
     for mod in mods:
         try:
-            result = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
-            pubmed_by_nlm, process_count, field_changes, missing_prefix_xrefs, xref_conflicts, problems = result
+            # IMPORTANT: reset per-mod run lock (prevents FB vs FB flip-flops within a mod)
+            reset_resources_to_update()
+
+            result = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod, writer_mod)
+            pubmed_by_nlm, process_count, field_changes, missing_prefix_xrefs, xref_conflicts, xref_additions, problems = result
             mod_results[mod] = {
                 'new': process_count[PROCESSED_NEW],
                 'updated': process_count[PROCESSED_UPDATED],
@@ -239,6 +291,8 @@ if __name__ == "__main__":
                 all_mod_missing_prefix_xrefs[mod] = missing_prefix_xrefs
             if xref_conflicts:
                 all_mod_xref_conflicts[mod] = xref_conflicts
+            if xref_additions:
+                all_mod_xref_additions[mod] = xref_additions
             if problems:
                 all_mod_problems[mod] = problems
 
@@ -252,14 +306,30 @@ if __name__ == "__main__":
                 fh_log.write(f"{'='*60}\n")
                 fh_log.write(f"{log_msg}\n\n")
 
-                # Log all field updates (old and new values)
-                if field_changes:
-                    fh_log.write(f"--- {mod} Field Updates ({len(field_changes)} changes) ---\n")
-                    for change in field_changes:
-                        fh_log.write(f"  {change.get('agr', 'N/A')} ({change.get('primary_id', 'N/A')})\n")
-                        fh_log.write(f"    Field: {change['field']}\n")
-                        fh_log.write(f"    Old: {change['old_value']}\n")
-                        fh_log.write(f"    New: {change['new_value']}\n\n")
+                # Log all updated rows (field updates + xref additions), grouped per resource
+                grouped = {}
+                for change in field_changes or []:
+                    key = (change.get('agr', 'N/A'), change.get('primary_id', 'N/A'))
+                    grouped.setdefault(key, {'fields': [], 'xrefs': []})
+                    grouped[key]['fields'].append(change)
+                for add in xref_additions or []:
+                    key = (add.get('agr', 'N/A'), add.get('primary_id', 'N/A'))
+                    grouped.setdefault(key, {'fields': [], 'xrefs': []})
+                    grouped[key]['xrefs'].append(add.get('xref'))
+
+                if grouped:
+                    fh_log.write(f"--- {mod} Updated Rows ({len(grouped)} resources changed) ---\n")
+                    for (agr, pid), payload in sorted(grouped.items()):
+                        fh_log.write(f"\n{agr} ({pid})\n")
+                        for ch in payload['fields']:
+                            fh_log.write(f"  Field: {ch.get('field')}\n")
+                            fh_log.write(f"    Old: {ch.get('old_value')}\n")
+                            fh_log.write(f"    New: {ch.get('new_value')}\n")
+                        if payload['xrefs']:
+                            fh_log.write("  Added crossReferences:\n")
+                            for x in payload['xrefs']:
+                                fh_log.write(f"    + {x}\n")
+                    fh_log.write("\n")
 
                 # Log missing prefix xrefs
                 if missing_prefix_xrefs:
@@ -275,9 +345,9 @@ if __name__ == "__main__":
                         fh_log.write(f"  {conflict}\n")
                     fh_log.write("\n")
 
-                # Log problems
+                # Log true unsolved problems only (excludes duplicates/conflicts)
                 if problems:
-                    fh_log.write(f"--- {mod} Problems ({len(problems)}) ---\n")
+                    fh_log.write(f"--- {mod} Unsolved Problems ({len(problems)}) ---\n")
                     for problem in problems:
                         fh_log.write(f"  {problem}\n")
                     fh_log.write("\n")
@@ -301,7 +371,7 @@ if __name__ == "__main__":
     try:
         for entry_key in pubmed_by_nlm:
             entry = pubmed_by_nlm[entry_key]
-            update_status, okay, message, _, _, _ = process_single_resource(db_session, entry)
+            _, okay, message, _, _, _, _, _ = process_single_resource(db_session, entry, mod="", writer_mod="")
             if not okay:
                 logger.warning(message)
     except Exception as e:
@@ -341,13 +411,14 @@ if __name__ == "__main__":
                 email_message += f" ... and {len(conflicts) - 20} more"
             email_message += "</p>"
 
-    # Report problems
+    # Report true unsolved problems only
     if all_mod_problems:
-        email_message += "<p><b>Problems (resources that could not be loaded):</b></p>"
+        email_message += "<p><b>Unsolved problems (resources that could not be loaded):</b></p>"
         for mod, problems in all_mod_problems.items():
-            email_message += f"<p><b>{mod}:</b> {', '.join(problems[:10])}"
+            cleaned = [p.lstrip(": ").strip() for p in problems[:10]]
+            email_message += f"<p><b>{mod}:</b><br>{'<br>'.join(cleaned)}"
             if len(problems) > 10:
-                email_message += f" ... and {len(problems) - 10} more"
+                email_message += f"<br>... and {len(problems) - 10} more"
             email_message += "</p>"
 
     # Add log file link
