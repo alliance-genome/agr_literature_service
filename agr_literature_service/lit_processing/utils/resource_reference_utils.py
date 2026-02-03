@@ -140,7 +140,7 @@ def load_xref_dicts() -> None:
     Search the database and load the dicts.
     """
     query = None
-    print("load_xref_dicts")
+    logger.info("load_xref_dicts")
     if datatype == 'reference':
         # 14 seconds to load all xref through sqlalchemy
         query = db_session.query(
@@ -155,7 +155,7 @@ def load_xref_dicts() -> None:
         )
 
     elif datatype == 'resource':
-        print("Loading resource cross reference db data.")
+        logger.info("Loading resource cross reference db data.")
         # Minimal change: include ResourceModel.resource_id so we can avoid N+1 later
         query = db_session.query(
             ResourceModel.curie,
@@ -193,7 +193,7 @@ def load_issn_to_resource_dict() -> None:
     if datatype != 'resource':
         return
 
-    print("Loading ISSN-to-resource mapping from database.")
+    logger.info("Loading ISSN-to-resource mapping from database.")
     query = db_session.query(
         ResourceModel.curie,
         ResourceModel.resource_id,
