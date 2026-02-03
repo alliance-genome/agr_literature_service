@@ -475,6 +475,7 @@ def find_existing_resource_by_xrefs(entry: Dict[str, Any]) -> Optional[Tuple[str
                 if rid is not None:
                     return (agr, int(rid))
                 # Fallback only if mapping missing for some reason (should be rare)
+                # This cache is process-local; ingestion runs single-process so no locking is required.
                 resource = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).first()
                 if resource:
                     agr_to_resource_id[agr] = int(resource.resource_id)
