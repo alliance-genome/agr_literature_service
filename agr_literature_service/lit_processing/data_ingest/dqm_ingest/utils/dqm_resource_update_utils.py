@@ -254,7 +254,7 @@ def process_single_resource(
         return PROCESSED_FAILED, False, message, [], [], [], [], "invalid"
 
     # Use comprehensive duplicate detection
-    existing = find_existing_resource(resource_dict)
+    existing = find_existing_resource(resource_dict, allow_title_match=False)
 
     if existing:
         agr, resource_id, match_type = existing

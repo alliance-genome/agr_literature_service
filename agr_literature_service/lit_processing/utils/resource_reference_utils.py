@@ -516,15 +516,23 @@ def find_existing_resource_by_issn(entry: Dict[str, Any]) -> Optional[Tuple[str,
     return None
 
 
-def find_existing_resource(entry: Dict[str, Any]) -> Optional[Tuple[str, int, str]]:
+def find_existing_resource(
+    entry: Dict[str, Any],
+    allow_title_match: bool = False
+) -> Optional[Tuple[str, int, str]]:
     """
     Comprehensive check for existing resource using multiple methods:
-    1. Check primaryId cross-reference
-    2. Check all cross-references in the entry
-    3. Check ISSN values
-    4. Check exact title match (fallback)
+      1. Check primaryId cross-reference
+      2. Check all cross-references in the entry
+      3. Check ISSN values
+      4. Check exact title match (OPTIONAL fallback)
 
     Returns: (agr_curie, resource_id, match_type)
+
+    WARNING:
+      Title-only matching can cause false positives (distinct resources sharing a title).
+      For ingest, keep allow_title_match=False unless you are running a controlled
+      dedupe/cleanup workflow.
     """
     # 1. Check primaryId first
     primary_id = entry.get('primaryId', '')
@@ -536,6 +544,7 @@ def find_existing_resource(entry: Dict[str, Any]) -> Optional[Tuple[str, int, st
                 rid = agr_to_resource_id.get(agr)
                 if rid is not None:
                     return (agr, int(rid), 'primaryId')
+
                 # Fallback only if mapping missing
                 resource = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).first()
                 if resource:
@@ -552,9 +561,10 @@ def find_existing_resource(entry: Dict[str, Any]) -> Optional[Tuple[str, int, st
     if result:
         return (result[0], result[1], 'issn')
 
-    # 4. Check exact title match (fallback to prevent duplicates with same title)
-    result = find_existing_resource_by_title(entry)
-    if result:
-        return (result[0], result[1], 'title')
+    # 4. Optional title match fallback
+    if allow_title_match:
+        result = find_existing_resource_by_title(entry)
+        if result:
+            return (result[0], result[1], 'title')
 
     return None
