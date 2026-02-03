@@ -157,7 +157,8 @@ def load_title_to_resource_dict() -> None:
     """
     Load title-to-resource mapping from the database.
     This maps normalized titles to resource curies for duplicate detection.
-    Title matching is used as a fallback when other methods fail.
+    Title matching is used as a fallback when other methods fail,
+    but only when ISSN values are compatible (not conflicting).
     """
     global title_to_resource
 
@@ -168,18 +169,25 @@ def load_title_to_resource_dict() -> None:
     query = db_session.query(
         ResourceModel.curie,
         ResourceModel.resource_id,
-        ResourceModel.title
+        ResourceModel.title,
+        ResourceModel.print_issn,
+        ResourceModel.online_issn
     )
 
     results = query.all()
 
     for result in results:
-        curie, resource_id, title = result
+        curie, resource_id, title, print_issn, online_issn = result
         if title and title.strip():
             # Normalize title: lowercase and strip whitespace
             title_key = title.strip().lower()
             if title_key not in title_to_resource:
-                title_to_resource[title_key] = {'curie': curie, 'resource_id': resource_id}
+                title_to_resource[title_key] = {
+                    'curie': curie,
+                    'resource_id': resource_id,
+                    'print_issn': print_issn.strip() if print_issn else None,
+                    'online_issn': online_issn.strip() if online_issn else None
+                }
 
     print(f"Loaded {len(title_to_resource)} title mappings.")
 
@@ -330,20 +338,28 @@ def get_resource_by_title(title: str) -> Optional[Dict]:
     return None
 
 
-def update_title_mapping(curie: str, resource_id: int, title: str) -> None:
+def update_title_mapping(curie: str, resource_id: int, title: str,
+                         print_issn: str = None, online_issn: str = None) -> None:
     """
     Update the title-to-resource mapping when a new resource is created.
 
     :param curie: Resource CURIE (e.g., AGRKB:102000000000001)
     :param resource_id: Database resource_id
     :param title: Resource title (can be None)
+    :param print_issn: Print ISSN value (can be None)
+    :param online_issn: Online ISSN value (can be None)
     """
     global title_to_resource
 
     if title and title.strip():
         title_key = title.strip().lower()
         if title_key not in title_to_resource:
-            title_to_resource[title_key] = {'curie': curie, 'resource_id': resource_id}
+            title_to_resource[title_key] = {
+                'curie': curie,
+                'resource_id': resource_id,
+                'print_issn': print_issn.strip() if print_issn else None,
+                'online_issn': online_issn.strip() if online_issn else None
+            }
 
 
 def find_existing_resource_by_title(entry: Dict) -> Optional[Tuple[str, int]]:
@@ -351,15 +367,58 @@ def find_existing_resource_by_title(entry: Dict) -> Optional[Tuple[str, int]]:
     Check if the entry's title matches an existing resource.
     This is used as a fallback when other matching methods fail.
 
+    IMPORTANT: Only matches by title if ISSNs are compatible:
+    - If both have ISSNs and they're different → NOT a match (different resources)
+    - If at least one has no ISSN → allow title match (can't disprove it's the same)
+
     :param entry: DQM entry that may have 'title'
     :return: Tuple of (agr_curie, resource_id) if match found, None otherwise.
     """
     title = entry.get('title', '')
-    if title:
-        result = get_resource_by_title(title)
-        if result:
-            return (result['curie'], result['resource_id'])
-    return None
+    if not title:
+        return None
+
+    result = get_resource_by_title(title)
+    if not result:
+        return None
+
+    # Get ISSNs from the incoming entry
+    entry_print_issn = entry.get('printISSN', '').strip() if entry.get('printISSN') else None
+    entry_online_issn = entry.get('onlineISSN', '').strip() if entry.get('onlineISSN') else None
+
+    # Get ISSNs from the matched resource in DB
+    db_print_issn = result.get('print_issn')
+    db_online_issn = result.get('online_issn')
+
+    # Check if entry has any ISSN
+    entry_has_issn = bool(entry_print_issn or entry_online_issn)
+    # Check if DB resource has any ISSN
+    db_has_issn = bool(db_print_issn or db_online_issn)
+
+    # If both have ISSNs, they must match (at least one ISSN in common)
+    if entry_has_issn and db_has_issn:
+        # Collect all ISSNs from entry
+        entry_issns = set()
+        if entry_print_issn:
+            entry_issns.add(entry_print_issn)
+        if entry_online_issn:
+            entry_issns.add(entry_online_issn)
+
+        # Collect all ISSNs from DB resource
+        db_issns = set()
+        if db_print_issn:
+            db_issns.add(db_print_issn)
+        if db_online_issn:
+            db_issns.add(db_online_issn)
+
+        # If no ISSN in common, they're different resources - don't match by title
+        if not entry_issns.intersection(db_issns):
+            logger.info(f"Title match '{title}' rejected: ISSNs differ "
+                        f"(entry: {entry_issns}, db: {db_issns})")
+            return None
+
+    # Either ISSNs match, or at least one has no ISSN - allow title match
+    return (result['curie'], result['resource_id'])
 
 
 def find_existing_resource_by_xrefs(entry: Dict) -> Optional[Tuple[str, int]]:

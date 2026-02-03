@@ -237,7 +237,9 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
         update_title_mapping(
             curie,
             resource_id,
-            new_entry.get('title', '')
+            new_entry.get('title', ''),
+            new_entry.get('print_issn', ''),
+            new_entry.get('online_issn', '')
         )
 
         return True, f"{primary_id}\t{curie}\n"
