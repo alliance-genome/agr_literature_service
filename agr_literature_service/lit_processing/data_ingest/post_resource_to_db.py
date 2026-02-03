@@ -18,7 +18,10 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     get_agr_for_xref,
     agr_has_xref_of_prefix,
     add_xref,
-    load_xref_data
+    load_xref_data,
+    find_existing_resource,
+    update_issn_mapping,
+    update_title_mapping
 )
 
 load_dotenv()
@@ -104,6 +107,9 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
                 new_xref[subkey] = xref[subkey]
         new_xref['resource_id'] = resource_id
         prefix, identifier, _ = split_identifier(new_xref['curie'])
+        if prefix is None or identifier is None:
+            logger.warning(f"Skipping invalid cross-reference '{new_xref.get('curie')}' - no valid prefix:identifier format")
+            continue
         logger.info(f"Processing {prefix} {identifier}")
         xrefs_agr = get_agr_for_xref(prefix, identifier)
         new_xref['curie'] = prefix + ":" + identifier
@@ -161,24 +167,25 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
 def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
     """Process json and add to db.
     Adds resourses, cross references and editors.
-
-    :param db_session: database session
-    :param entry:      json format of dqm resource
+    ...
     """
     primary_id = entry['primaryId']
-    prefix, identifier, separator = split_identifier(primary_id)
-    if get_agr_for_xref(prefix, identifier):
+
+    # Use comprehensive duplicate detection
+    existing = find_existing_resource(entry, allow_title_match=False)
+    if existing:
+        agr, existing_resource_id, match_type = existing
+        logger.info(
+            f"Resource already exists: resource_id={existing_resource_id} {agr} "
+            f"(matched via {match_type} for {primary_id})"
+        )
         return True, ""
 
     new_entry = remap_keys_get_new_entry(entry)
     try:
-        resource_id = None
         curie = get_next_resource_curie(db_session)
 
         # cross_references and editors done seperately
-        # so do not want to pass them to the resource creator
-        # make a copy and deal with them after we have a resource_id
-        # to attach too.
         cross_references = new_entry.get('cross_references', [])
         if "cross_references" in new_entry:
             del new_entry["cross_references"]
@@ -191,24 +198,42 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
         else:
             logger.info(" NOOO iso_abbreviation: Adding resource into database for '" + new_entry['curie'] + "'")
+
         x = ResourceModel(**new_entry)
         db_session.add(x)
         db_session.flush()
-        # db_session.commit()
         db_session.refresh(x)
+
         resource_id = x.resource_id
+        if resource_id is None:
+            # Defensive guard for mypy + runtime sanity
+            raise RuntimeError(f"resource_id is None after flush/refresh for curie={curie}")
 
-        xref_okay, message = process_cross_references(db_session, int(resource_id), curie, cross_references)
-
+        xref_okay, message = process_cross_references(db_session, resource_id, curie, cross_references)
         if not xref_okay:
             return xref_okay, message
 
-        editor_okay, message = process_editors(db_session, int(resource_id), editors)
-
+        editor_okay, message = process_editors(db_session, resource_id, editors)
         if not editor_okay:
             return editor_okay, message
 
         db_session.commit()
+
+        # Update ISSN mapping for future duplicate detection
+        update_issn_mapping(
+            curie,
+            resource_id,
+            new_entry.get('print_issn', ''),
+            new_entry.get('online_issn', '')
+        )
+
+        # Update title mapping for future duplicate detection
+        update_title_mapping(
+            curie,
+            resource_id,
+            new_entry.get('title', '')
+        )
+
         return True, f"{primary_id}\t{curie}\n"
     except Exception as e:
         traceback.print_exc()
