@@ -46,6 +46,7 @@ resources_to_update: Dict = dict()
 PROCESSED_NEW = 0
 PROCESSED_UPDATED = 1
 PROCESSED_FAILED = 2
+PROCESSED_NO_CHANGE = 3
 
 
 logging.basicConfig(format='%(message)s')
@@ -71,12 +72,18 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
 
     :param db_session: db connection
     :param resource_dict: sanitized dqm json entry
+    :return: Tuple of (stat, process_okay, message, field_changes, missing_prefix_xrefs, xref_conflicts)
+             where field_changes is a list of dicts with 'agr', 'field', 'old_value', 'new_value'
     """
     primary_id = resource_dict['primaryId']
     logger.info("primary_id %s resource_dict %s", primary_id, resource_dict)
 
     # Use comprehensive duplicate detection
     existing = find_existing_resource(resource_dict)
+
+    field_changes = []
+    missing_prefix_xrefs = []
+    xref_conflicts = []
 
     if existing:
         agr, resource_id, match_type = existing
@@ -88,9 +95,14 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
             process_okay = False
         else:
             # Update existing resource
-            process_okay, message = process_update_resource(db_session, resource_dict, agr)
+            process_okay, message, actually_updated, changes, missing_prefix_xrefs, xref_conflicts = process_update_resource(db_session, resource_dict, agr)
             logger.info("update primary_id %s db %s (matched via %s)", primary_id, agr, match_type)
-            stat = PROCESSED_UPDATED
+            # Add agr to each field change for logging
+            for change in changes:
+                change['agr'] = agr
+                change['primary_id'] = primary_id
+            field_changes = changes
+            stat = PROCESSED_UPDATED if actually_updated else PROCESSED_NO_CHANGE
     else:
         # No existing resource found, create new
         process_okay, message = process_resource_entry(db_session, resource_dict)
@@ -101,16 +113,18 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
                 logger.error(message)
         stat = PROCESSED_NEW
 
-    return stat, process_okay, message
+    return stat, process_okay, message, field_changes, missing_prefix_xrefs, xref_conflicts
 
 
-def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> None:
+def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> Tuple[bool, List[Dict]]:
     """
-    Update the resource datbase entry from the sanitized dqm entry.
+    Update the resource database entry from the sanitized dqm entry.
 
     :param db_session: db connection
     :param dqm_entry: sanitized dqm entry in json format
-    "param db_entry: db entry in json format.
+    :param db_entry: db entry in json format.
+    :return: Tuple of (actually_updated, field_changes) where field_changes is a list of
+             dicts with 'field', 'old_value', 'new_value'
     """
     global simple_fields
     global list_fields
@@ -132,6 +146,7 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> Non
 
     agr = db_entry['curie']
     update_json = dict()
+    field_changes = []
     for field_camel in simple_fields:
         field_snake = camel_to_snake(field_camel, remap_keys)
         dqm_value = None
@@ -141,21 +156,33 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> Non
         if field_snake in db_entry:
             db_value = db_entry[field_snake]
         if dqm_value != db_value:
-            logger.info(f"patch {agr} field {field_snake} from db {db_value} to pm {dqm_value}")
+            logger.info(f"patch {agr} field {field_snake} from db {db_value} to dqm {dqm_value}")
             update_json[field_snake] = dqm_value
+            field_changes.append({
+                'field': field_snake,
+                'old_value': db_value,
+                'new_value': dqm_value
+            })
     for field_camel in list_fields:
         list_changed = compare_list(db_entry, dqm_entry, field_camel, remap_keys)
         if list_changed[0]:
             logger.info(f"patch {agr} field {list_changed[3]} from db {list_changed[2]} to dqm {list_changed[1]}")
             update_json[list_changed[3]] = list_changed[1]
+            field_changes.append({
+                'field': list_changed[3],
+                'old_value': list_changed[2],
+                'new_value': list_changed[1]
+            })
     if update_json:
         try:
             db_session.query(ResourceModel).filter_by(curie=agr).update(update_json)
             db_session.commit()
             logger.info("The resource row for curie = " + agr + " has been updated.")
+            return True, field_changes
         except Exception as e:
             logger.error("An error occurred when updating resource row for curie = " + agr + " " + str(e))
-    return
+            return False, field_changes
+    return False, field_changes
 
 
 def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
@@ -166,19 +193,23 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     NOTE: Currently editors are not done. This should be addressed at some point.
 
     :param db_session: db connection
-    :param dqm_entry: sanitixed dqm entry in json format
+    :param dqm_entry: sanitized dqm entry in json format
     :param agr: curie to lookup the resource in the database
+    :return: Tuple of (okay, error_message, actually_updated, field_changes,
+             missing_prefix_xrefs, xref_conflicts)
     """
     try:
         db_entry = db_session.query(ResourceModel).filter(ResourceModel.curie == agr).one()
     except NoResultFound:
-        return False, f"Unable to find unique resource with curie {agr}."
+        return False, f"Unable to find unique resource with curie {agr}.", False, [], [], []
     db_entry = jsonable_encoder(db_entry)
-    update_resource(db_session, dqm_entry, db_entry)
+    actually_updated, field_changes = update_resource(db_session, dqm_entry, db_entry)
     okay = True
     error_message = ""
+    missing_prefix_xrefs = []
+    xref_conflicts = []
     if 'crossReferences' in dqm_entry:
-        okay, error_message = compare_xref(agr, db_entry['resource_id'], dqm_entry)
+        okay, error_message, missing_prefix_xrefs, xref_conflicts = compare_xref(agr, db_entry['resource_id'], dqm_entry)
 
     editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
     # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
@@ -197,7 +228,7 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     #        logger.info("add to %s create_dict %s", agr, create_dict)
     #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
     #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
-    return okay, error_message
+    return okay, error_message, actually_updated, field_changes, missing_prefix_xrefs, xref_conflicts
 
 
 def update_resources(db_session, resources_to_update):
@@ -247,30 +278,31 @@ def compare_xref(agr, resource_id, dqm_entry):
     :param agr:
     :param resource_id
     :param dqm_entry:
-    :return:
+    :return: Tuple of (okay, error_message, missing_prefix_xrefs, xref_conflicts)
     """
 
     okay = True
     error_mess = ""
+    missing_prefix_xrefs = []
+    xref_conflicts = []
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
         prefix, identifier, separator = split_identifier(curie)
         if prefix is None or identifier is None:
-            logger.warning(f"Skipping invalid cross-reference '{curie}' - no valid prefix:identifier format")
+            missing_prefix_xrefs.append(curie)
+            logger.warning(f"Cross-reference '{curie}' is missing a valid prefix:identifier format")
             continue
         agr_db_from_xref = get_agr_for_xref(prefix, identifier)
         if agr_db_from_xref == agr:
             # Okay just duplication of same data, so should be okay
             logger.info(f"Prefix found {prefix} for {identifier} and agr {agr_db_from_xref}")
-            # logger.info("GOOD1: cross_reference %s good in %s", curie, agr)
         elif agr_has_xref_of_prefix(agr, prefix):
-            mess = f"Prefix {prefix} is already assigned to for this resource"
-            error_mess += mess
-            okay = False
+            # Skip - this resource already has an xref of this prefix type
+            pass
         elif agr_db_from_xref:
-            mess = f"Prefix {prefix} is already assigned to another resource {agr_db_from_xref}. Cannot be assigned to more than one."
-            error_mess += mess
-            okay = False
+            # Cross-reference already assigned to another resource - report conflict
+            xref_conflicts.append(f"{curie} -> {agr_db_from_xref}")
+            logger.warning(f"Cross-reference {curie} already assigned to {agr_db_from_xref}, cannot add to {agr}")
         else:
             if is_obsolete(agr, prefix, identifier):
                 pass
@@ -288,7 +320,7 @@ def compare_xref(agr, resource_id, dqm_entry):
                     mess = f"An error occurred when adding cross_reference row for curie = {curie} and resource_curie = {agr} Error:{e}"
                     logger.info(mess)
                     error_mess += mess
-    return okay, error_mess
+    return okay, error_mess, missing_prefix_xrefs, xref_conflicts
 
 
 def compare_list(db_entry, dqm_entry, field_camel, remap_keys):
