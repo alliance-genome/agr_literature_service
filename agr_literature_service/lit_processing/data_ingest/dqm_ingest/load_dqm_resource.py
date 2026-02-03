@@ -110,6 +110,7 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
     if nlm != '':
         process_nlm(nlm, entry, pubmed_by_nlm)
         update_status = PROCESSED_NO_CHANGE  # NLM entries are processed later
+        missing_prefix_xrefs = []
     else:
         if 'primaryId' in entry:
             entry_cross_refs = set()
@@ -129,10 +130,10 @@ def process_entry(db_session: Session, entry: dict, pubmed_by_nlm: dict, nlm_by_
                     else:
                         entry['crossReferences'] = [cross_ref]
 
-        update_status, okay, message = process_single_resource(db_session, entry)
+        update_status, okay, message, missing_prefix_xrefs = process_single_resource(db_session, entry)
         if not okay:
             logger.warning(message)
-    return update_status, okay, message
+    return update_status, okay, message, missing_prefix_xrefs
 
 
 def load_mod_resource(db_session: Session, pubmed_by_nlm: Dict, nlm_by_issn: Dict, mod: str) -> Tuple:
@@ -146,21 +147,24 @@ def load_mod_resource(db_session: Session, pubmed_by_nlm: Dict, nlm_by_issn: Dic
     """
 
     base_path = environ.get('XML_PATH', '')
+    all_missing_prefix_xrefs = []
 
     filename = base_path + 'dqm_data/RESOURCE_' + mod + '.json'
     try:
         with open(filename, 'r') as f:
             dqm_data = json.load(f)
             for entry in dqm_data['data']:
-                update_status, okay, message = process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn)
+                update_status, okay, message, missing_prefix_xrefs = process_entry(db_session, entry, pubmed_by_nlm, nlm_by_issn)
                 process_count[update_status] += 1
+                if missing_prefix_xrefs:
+                    all_missing_prefix_xrefs.extend(missing_prefix_xrefs)
                 if not okay:
                     logger.warning(message)
     except IOError:
         # Some mods have no resources so exception here is okay but give message anyway.
         if mod in ['FB', 'ZFIN']:
             logger.error("Could not open file {filename}.")
-    return pubmed_by_nlm, process_count
+    return pubmed_by_nlm, process_count, all_missing_prefix_xrefs
 
 
 if __name__ == "__main__":
@@ -200,18 +204,23 @@ if __name__ == "__main__":
     fh_log = open(log_filename, 'w') if log_filename else None
 
     mod_results = {}
+    all_missing_prefix_xrefs = {}
     for mod in mods:
         try:
-            pubmed_by_nlm, process_count = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
+            pubmed_by_nlm, process_count, missing_prefix_xrefs = load_mod_resource(db_session, pubmed_by_nlm, nlm_by_issn, mod)
             mod_results[mod] = {
                 'new': process_count[PROCESSED_NEW],
                 'updated': process_count[PROCESSED_UPDATED],
                 'failed': process_count[PROCESSED_FAILED]
             }
+            if missing_prefix_xrefs:
+                all_missing_prefix_xrefs[mod] = missing_prefix_xrefs
             log_msg = f"{mod}:  New: {process_count[PROCESSED_NEW]}, Updated: {process_count[PROCESSED_UPDATED]}, Problems: {process_count[PROCESSED_FAILED]}"
             logger.info(log_msg)
             if fh_log:
                 fh_log.write(log_msg + "\n")
+                if missing_prefix_xrefs:
+                    fh_log.write(f"{mod} cross-references missing prefix: {missing_prefix_xrefs}\n")
             process_count[PROCESSED_NEW] = 0
             process_count[PROCESSED_UPDATED] = 0
             process_count[PROCESSED_FAILED] = 0
@@ -227,18 +236,25 @@ if __name__ == "__main__":
 
     # Process the nlm ones.
     try:
+        nlm_missing_prefix_xrefs = []
         for entry_key in pubmed_by_nlm:
             entry = pubmed_by_nlm[entry_key]
-            update_status, okay, message = process_single_resource(db_session, entry)
+            update_status, okay, message, missing_prefix_xrefs = process_single_resource(db_session, entry)
             process_count[update_status] += 1
+            if missing_prefix_xrefs:
+                nlm_missing_prefix_xrefs.extend(missing_prefix_xrefs)
             if not okay:
                 logger.warning(message)
                 if fh_log:
                     fh_log.write(f"NLM Warning: {message}\n")
+        if nlm_missing_prefix_xrefs:
+            all_missing_prefix_xrefs['NLM'] = nlm_missing_prefix_xrefs
         log_msg = f"NLM: New: {process_count[PROCESSED_NEW]}, Updated: {process_count[PROCESSED_UPDATED]}, Problems: {process_count[PROCESSED_FAILED]}"
         logger.info(log_msg)
         if fh_log:
             fh_log.write(log_msg + "\n")
+            if nlm_missing_prefix_xrefs:
+                fh_log.write(f"NLM cross-references missing prefix: {nlm_missing_prefix_xrefs}\n")
     except Exception as e:
         tb = traceback.format_exc()
         logger.error(f"Error processing NLM resources: {e}")
@@ -258,6 +274,15 @@ if __name__ == "__main__":
         email_message += "<table><thead><tr><th>Source</th><th>New</th><th>Updated</th><th>Problems</th></tr></thead><tbody>"
         email_message += rows
         email_message += "</tbody></table>"
+
+    # Report cross-references missing prefix
+    if all_missing_prefix_xrefs:
+        email_message += "<p><b>Cross-references missing valid prefix:identifier format:</b></p>"
+        for mod, xrefs in all_missing_prefix_xrefs.items():
+            email_message += f"<p><b>{mod}:</b> {', '.join(xrefs[:20])}"
+            if len(xrefs) > 20:
+                email_message += f" ... and {len(xrefs) - 20} more"
+            email_message += "</p>"
 
     if log_url:
         email_message += f"<p>Loading log file is available at <a href={log_url}>{log_url}</a></p>"

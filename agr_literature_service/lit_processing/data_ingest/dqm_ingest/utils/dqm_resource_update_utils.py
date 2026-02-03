@@ -87,14 +87,16 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
             message = f"ERROR agr {agr} has multiple values to update {primary_id} {resources_to_update[agr]['primaryId']}"
             stat = PROCESSED_FAILED
             process_okay = False
+            missing_prefix_xrefs = []
         else:
             # Update existing resource
-            process_okay, message, actually_updated = process_update_resource(db_session, resource_dict, agr)
+            process_okay, message, actually_updated, missing_prefix_xrefs = process_update_resource(db_session, resource_dict, agr)
             logger.info("update primary_id %s db %s (matched via %s)", primary_id, agr, match_type)
             stat = PROCESSED_UPDATED if actually_updated else PROCESSED_NO_CHANGE
     else:
         # No existing resource found, create new
         process_okay, message = process_resource_entry(db_session, resource_dict)
+        missing_prefix_xrefs = []
         if process_okay:
             if message:
                 logger.info(message)
@@ -102,7 +104,7 @@ def process_single_resource(db_session: Session, resource_dict: Dict) -> Tuple:
                 logger.error(message)
         stat = PROCESSED_NEW
 
-    return stat, process_okay, message
+    return stat, process_okay, message, missing_prefix_xrefs
 
 
 def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict) -> bool:
@@ -190,8 +192,9 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     actually_updated = update_resource(db_session, dqm_entry, db_entry)
     okay = True
     error_message = ""
+    missing_prefix_xrefs = []
     if 'crossReferences' in dqm_entry:
-        okay, error_message = compare_xref(agr, db_entry['resource_id'], dqm_entry)
+        okay, error_message, missing_prefix_xrefs = compare_xref(agr, db_entry['resource_id'], dqm_entry)
 
     editors_changed = compare_authors_or_editors(db_entry, dqm_entry, 'editors')
     # editor API needs updates.  reference_curie required to post reference authors but for some reason resource_curie not allowed here, cannot connect new editor to resource if resource_curie is not passed in
@@ -210,7 +213,7 @@ def process_update_resource(db_session, dqm_entry, agr) -> Tuple:
     #        logger.info("add to %s create_dict %s", agr, create_dict)
     #        editor_post_url = 'http://localhost:' + api_port + '/editor/'
     #        headers = generic_api_post(live_changes, editor_post_url, headers, create_dict, agr, None, None)
-    return okay, error_message, actually_updated
+    return okay, error_message, actually_updated, missing_prefix_xrefs
 
 
 def update_resources(db_session, resources_to_update):
@@ -260,16 +263,18 @@ def compare_xref(agr, resource_id, dqm_entry):
     :param agr:
     :param resource_id
     :param dqm_entry:
-    :return:
+    :return: Tuple of (okay, error_message, missing_prefix_xrefs)
     """
 
     okay = True
     error_mess = ""
+    missing_prefix_xrefs = []
     for xref in dqm_entry['crossReferences']:
         curie = xref['id']
         prefix, identifier, separator = split_identifier(curie)
         if prefix is None or identifier is None:
-            logger.warning(f"Skipping invalid cross-reference '{curie}' - no valid prefix:identifier format")
+            missing_prefix_xrefs.append(curie)
+            logger.warning(f"Cross-reference '{curie}' is missing a valid prefix:identifier format")
             continue
         agr_db_from_xref = get_agr_for_xref(prefix, identifier)
         if agr_db_from_xref == agr:
@@ -299,7 +304,7 @@ def compare_xref(agr, resource_id, dqm_entry):
                     mess = f"An error occurred when adding cross_reference row for curie = {curie} and resource_curie = {agr} Error:{e}"
                     logger.info(mess)
                     error_mess += mess
-    return okay, error_mess
+    return okay, error_mess, missing_prefix_xrefs
 
 
 def compare_list(db_entry, dqm_entry, field_camel, remap_keys):
