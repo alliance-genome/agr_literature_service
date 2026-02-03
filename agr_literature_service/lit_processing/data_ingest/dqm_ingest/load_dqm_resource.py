@@ -12,6 +12,8 @@ from agr_literature_service.lit_processing.utils.generic_utils import split_iden
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.utils.resource_reference_utils import load_xref_data
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
+    update_resource_pubmed_nlm
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.get_dqm_data import \
     download_dqm_resource_json
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.dqm_resource_update_utils import (
@@ -243,6 +245,9 @@ if __name__ == "__main__":  # noqa: C901
 
     logger.info("Downloading DQM files...")
     download_dqm_resource_json()
+
+    logger.info("Starting PubMed NLM resource update...")
+    update_resource_pubmed_nlm()
 
     logger.info("Loading PubMed NLM resource into memory...")
     pubmed_by_nlm, nlm_by_issn = load_pubmed_resource_basic()
