@@ -33,6 +33,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     get_jobs_to_run,
     atp_to_name
 )
+from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 process_atp_multiple_allowed = [
@@ -505,6 +506,7 @@ def create(db: Session, workflow_tag: WorkflowTagSchemaPost) -> int:
     del workflow_tag_data["mod_abbreviation"]
     workflow_tag_id = workflow_tag_data["workflow_tag_id"]
 
+    reference_curie = normalize_reference_curie(db, reference_curie)
     reference = db.query(ReferenceModel).filter(ReferenceModel.curie == reference_curie).first()
     if not reference:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
