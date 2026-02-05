@@ -1,5 +1,7 @@
 from agr_literature_service.api.models import (
-    WorkflowTagModel
+    WorkflowTagModel,
+    WorkflowTagTopicModel,
+    MLModel
 )
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -51,7 +53,25 @@ def proceed_on_value(db: Session, current_workflow_tag_db_obj: WorkflowTagModel,
                             detail=f"Method {checktype} not supported")
 
     if call_process:
+        mod_id = current_workflow_tag_db_obj.mod_id
+        # Get workflow_tag -> topic mappings
+        workflow_tag_to_topic = {
+            row.workflow_tag: row.topic
+            for row in db.query(WorkflowTagTopicModel).all()
+        }
+        # Get topics that have production models for this MOD
+        topics_with_models = {
+            row.topic for row in db.query(MLModel.topic).filter(
+                MLModel.mod_id == mod_id,
+                MLModel.production == True  # noqa: E712
+            ).distinct().all() if row.topic
+        }
+
         for atp in get_jobs_to_run(new_atp, current_workflow_tag_db_obj.mod.abbreviation, db):
+            # Skip workflow tags that have a topic mapping but no production model
+            topic = workflow_tag_to_topic.get(atp)
+            if topic and topic not in topics_with_models:
+                continue
             #  Add new wft for this ref and mod
             wtm = WorkflowTagModel(reference=current_workflow_tag_db_obj.reference,
                                    mod=current_workflow_tag_db_obj.mod,
