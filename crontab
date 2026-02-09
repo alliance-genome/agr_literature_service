@@ -9,7 +9,7 @@ BASH_ENV=/container.env
 0 11 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_all_mods.py > /var/log/automated_scripts/pubmed_update_references_all_mods.log 2>&1
 0 15 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/full_text/extract_emails.py > /var/log/automated_scripts/extract_emails.log 2>&1
 0 7 * * 6 python3 /usr/src/app/agr_literature_service/lit_processing/data_check/check_wft_in_progress.py > /var/log/automated_scripts/check_wft_in_progress.log 2>&1
-# 0 9 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py > /var/log/automated_scripts/load_dqm_resource.log 2>&1
+0 9 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/load_dqm_resource.py > /var/log/automated_scripts/load_dqm_resource.log 2>&1
 0 8 * * * python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/dqm_ingest/sort_dqm_json_reference_updates.py > /var/log/automated_scripts/sort_dqm_json_reference_updates.log 2>&1
 0 23 * * 3 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py > /var/log/automated_scripts/download_pmc_files.log 2>&1
 0 17 * * 7 python3 /usr/src/app/agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_update_references_by_doi.py > /var/log/automated_scripts/pubmed_update_references_by_doi.log 2>&1
