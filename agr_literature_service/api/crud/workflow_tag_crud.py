@@ -1171,7 +1171,7 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
         # files uploaded
         curr_atp_id = 'ATP:0000134'
         # to ATP:0000139 (file upload in progress) or ATP:0000141 (file needed)
-        new_atp_id = 'ATP:0000139' if len(rows) else 'ATP:0000141'
+        new_atp_id = 'ATP:0000139' if rows[0][0] > 0 else 'ATP:0000141'
         sql_query = text("""
         UPDATE workflow_tag
         SET workflow_tag_id = :new_atp_id
