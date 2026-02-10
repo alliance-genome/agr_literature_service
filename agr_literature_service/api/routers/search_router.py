@@ -1,7 +1,10 @@
+from typing import Any, Dict, Optional
+
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Security
 
 from agr_literature_service.api import database
+from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
 from agr_literature_service.api.crud import search_crud
 from agr_literature_service.api.schemas import FacetsOptionsSchema
 
@@ -17,7 +20,9 @@ db_session: Session = Depends(get_db)
 
 @router.post("/references/",
              status_code=200)
-def search(body: FacetsOptionsSchema):
+@read_auth_bypass
+def search(body: FacetsOptionsSchema,
+           user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
     try:
         result = search_crud.search_references(query=body.query, facets_values=body.facets_values,
                                                negated_facets_values=body.negated_facets_values,

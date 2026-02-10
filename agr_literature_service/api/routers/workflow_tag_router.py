@@ -113,7 +113,12 @@ def get_jobs(
     "/job/failed/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
+def failed_job(
+    reference_workflow_tag_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_failed')
 
 
@@ -121,7 +126,12 @@ def failed_job(reference_workflow_tag_id: int, db: Session = db_session):
     "/job/retry/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
+def retry_job(
+    reference_workflow_tag_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_retry')
 
 
@@ -129,7 +139,12 @@ def retry_job(reference_workflow_tag_id: int, db: Session = db_session):
     "/job/success/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
+def successful_job(
+    reference_workflow_tag_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_success')
 
 
@@ -137,7 +152,12 @@ def successful_job(reference_workflow_tag_id: int, db: Session = db_session):
     "/job/started/{reference_workflow_tag_id}",
     status_code=status.HTTP_200_OK,
 )
-def start_job(reference_workflow_tag_id: int, db: Session = db_session):
+def start_job(
+    reference_workflow_tag_id: int,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.job_change_atp_code(db, reference_workflow_tag_id, 'on_start')
 
 
@@ -297,8 +317,10 @@ def set_priority(
     reference_curie: str,
     mod_abbreviation: str,
     priority: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.set_priority(db, reference_curie, mod_abbreviation, priority)
 
 

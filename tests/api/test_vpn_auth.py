@@ -355,3 +355,154 @@ class TestExternalRequestsAlwaysRequireAuth:
                 assert response.status_code in [
                     status.HTTP_200_OK, status.HTTP_404_NOT_FOUND
                 ]
+
+
+class TestPreviouslyUnprotectedEndpointsRequireAuth:
+    """Tests that previously unprotected endpoints now require authentication.
+
+    All these endpoints were open prior to SCRUM-5767 and must now return
+    401 when accessed without credentials from a non-bypass IP.
+    """
+
+    def _assert_401(self, client, method, url, json_body=None):
+        """Helper: call an endpoint and assert 401 Unauthorized."""
+        if method == "get":
+            resp = client.get(url=url)
+        else:
+            resp = client.post(url=url, json=json_body or {})
+        assert resp.status_code == status.HTTP_401_UNAUTHORIZED, (
+            f"{method.upper()} {url} returned {resp.status_code}, expected 401"
+        )
+
+    def test_check_endpoints_require_auth(self, db):  # noqa
+        """All /check/* endpoints require auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                for path in [
+                    "/check/ateamapi",
+                    "/check/database",
+                    "/check/check_obsolete_entities",
+                    "/check/check_redacted_references_with_tags",
+                    "/check/check_obsolete_pmids",
+                    "/check/check_duplicate_orcids",
+                    "/check/environments",
+                    "/check/debezium_status",
+                ]:
+                    self._assert_401(client, "get", path)
+
+    def test_ontology_endpoints_require_auth(self, db):  # noqa
+        """All /ontology/* endpoints require auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                for path in [
+                    "/ontology/entity_validation/NCBITaxon:6239/gene/WBGene00000001",
+                    "/ontology/map_curie_to_name/gene/WB:WBGene00000001",
+                    "/ontology/search_topic/ATP:0000001",
+                    "/ontology/search_descendants/ATP:0000001",
+                    "/ontology/search_species/NCBITaxon:6239",
+                ]:
+                    self._assert_401(client, "get", path)
+
+    def test_search_endpoint_requires_auth(self, db):  # noqa
+        """POST /search/references/ requires auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                self._assert_401(
+                    client, "post", "/search/references/",
+                    json_body={"query": "test"},
+                )
+
+    def test_sort_endpoints_require_auth(self, db):  # noqa
+        """All /sort/* endpoints require auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                for path in [
+                    "/sort/need_review?mod_abbreviation=WB",
+                    "/sort/need_prioritization?mod_abbreviation=WB",
+                    "/sort/prepublication_pipeline?mod_abbreviation=WB",
+                    "/sort/recently_sorted?mod_abbreviation=WB",
+                ]:
+                    self._assert_401(client, "get", path)
+
+    def test_database_endpoints_require_auth(self, db):  # noqa
+        """All /database/* endpoints require auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                for path in [
+                    "/database/schema/download",
+                    "/database/configuration",
+                ]:
+                    self._assert_401(client, "get", path)
+
+    def test_workflow_tag_job_endpoints_require_auth(self, db):  # noqa
+        """POST /workflow_tag/job/* endpoints require auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                for path in [
+                    "/workflow_tag/job/failed/999",
+                    "/workflow_tag/job/retry/999",
+                    "/workflow_tag/job/success/999",
+                    "/workflow_tag/job/started/999",
+                ]:
+                    self._assert_401(client, "post", path)
+
+    def test_workflow_tag_set_priority_requires_auth(self, db):  # noqa
+        """POST /workflow_tag/set_priority requires auth."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=False), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                self._assert_401(
+                    client, "post",
+                    "/workflow_tag/set_priority/AGRKB:101000000000001/WB/high",
+                )
+
+
+class TestSearchReadAuthBypass:
+    """Tests that the search POST allows read-level IP bypass
+    while workflow_tag job POSTs do NOT.
+    """
+
+    def test_search_post_allows_read_ip_bypass(self, db):  # noqa
+        """POST /search/references/ has @read_auth_bypass, so read IPs can access it."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=True), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                response = client.post(
+                    url="/search/references/",
+                    json={"query": "test"},
+                )
+                # Should NOT be 401 — read IP bypass allows access
+                assert response.status_code != status.HTTP_401_UNAUTHORIZED
+
+    def test_workflow_job_post_denies_read_ip_bypass(self, db):  # noqa
+        """POST /workflow_tag/job/* does NOT have @read_auth_bypass,
+        so read IPs should still get 401."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=True), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                for path in [
+                    "/workflow_tag/job/failed/999",
+                    "/workflow_tag/job/retry/999",
+                    "/workflow_tag/job/success/999",
+                    "/workflow_tag/job/started/999",
+                ]:
+                    resp = client.post(url=path)
+                    assert resp.status_code == status.HTTP_401_UNAUTHORIZED, (
+                        f"POST {path} returned {resp.status_code}, expected 401"
+                    )
+
+    def test_workflow_set_priority_denies_read_ip_bypass(self, db):  # noqa
+        """POST /workflow_tag/set_priority does NOT have @read_auth_bypass."""
+        with patch.object(auth_module, 'is_skip_read_auth_ip', return_value=True), \
+             patch.object(auth_module, 'is_skip_all_auth_ip', return_value=False):
+            with TestClient(app) as client:
+                resp = client.post(
+                    url="/workflow_tag/set_priority/AGRKB:101000000000001/WB/high",
+                )
+                assert resp.status_code == status.HTTP_401_UNAUTHORIZED
