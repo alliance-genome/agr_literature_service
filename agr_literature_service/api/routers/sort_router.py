@@ -1,10 +1,13 @@
+from typing import Any, Dict, List, Optional
+
 from sqlalchemy.orm import Session
-from fastapi import APIRouter, Depends
-from typing import List
+from fastapi import APIRouter, Depends, Security
 
 from agr_literature_service.api import database
+from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud import sort_crud
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow
+from agr_literature_service.api.user import set_global_user_from_cognito
 
 
 router = APIRouter(
@@ -19,25 +22,43 @@ db_session: Session = Depends(get_db)
 @router.get('/need_review',
             status_code=200,
             response_model=List[ReferenceSchemaNeedReviewShow])
-def show_need_review(mod_abbreviation: str, count: int = None, db: Session = db_session):
+def show_need_review(mod_abbreviation: str,
+                     count: int = None,
+                     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                     db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return sort_crud.show_need_review(mod_abbreviation, count, db)
 
 
 @router.get('/need_prioritization',
             status_code=200,
             response_model=List[ReferenceSchemaNeedReviewShow])
-def show_need_prioritization(mod_abbreviation: str, count: int = None, db: Session = db_session):
+def show_need_prioritization(mod_abbreviation: str,
+                             count: int = None,
+                             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                             db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return sort_crud.show_need_prioritization(mod_abbreviation, count, db)
 
 
 @router.get('/prepublication_pipeline',
             status_code=200,
             response_model=List[ReferenceSchemaNeedReviewShow])
-def show_prepublication_pipeline(mod_abbreviation: str, count: int = None, db: Session = db_session):
+def show_prepublication_pipeline(mod_abbreviation: str,
+                                 count: int = None,
+                                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                                 db: Session = db_session):
+    set_global_user_from_cognito(db, user)
     return sort_crud.show_prepublication_pipeline(mod_abbreviation, count, db)
 
 
 @router.get('/recently_sorted',
             status_code=200)
-def show_recently_sorted(mod_abbreviation: str, count: int = None, db: Session = db_session, curator: str = None, day: int = 7):
+def show_recently_sorted(mod_abbreviation: str,
+                         count: int = None,
+                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                         db: Session = db_session,
+                         curator: str = None,
+                         day: int = 7):
+    set_global_user_from_cognito(db, user)
     return sort_crud.show_recently_sorted(db, mod_abbreviation, count, curator, day)
