@@ -1,23 +1,22 @@
 import argparse
 import json
 import logging
-import sys
+import requests
+from os import environ
 
-sys.path.append('/usr/local/bin/src/literature')
-
-from agr_literature_service.api.crud import curation_status_crud
-from agr_literature_service.api.schemas.curation_status_schemas import CurationStatusSchemaPost
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-
+from agr_cognito_py import get_authentication_token, generate_headers
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+post_url = environ['API_URL'] + "curation_status/"
+
 
 def load_data(datafile):
 
-    db = create_postgres_session(False)
+    token = get_authentication_token()
+    auth_headers = generate_headers(token)
 
     with open(datafile) as f:
         json_data = json.load(f)
@@ -29,23 +28,27 @@ def load_data(datafile):
     success_count = 0
     error_count = 0
     for i, record in enumerate(records, start=1):
+        data = {
+            "reference_curie": record["reference_curie"],
+            "mod_abbreviation": record["mod_abbreviation"],
+            "topic": record["topic"],
+            "curation_status": record.get("curation_status"),
+            "created_by": record.get("created_by"),
+            "updated_by": record.get("updated_by"),
+            "date_created": record.get("date_created"),
+            "date_updated": record.get("date_updated"),
+        }
         try:
-            curation_status = CurationStatusSchemaPost(
-                reference_curie=record["reference_curie"],
-                mod_abbreviation=record["mod_abbreviation"],
-                topic=record["topic"],
-                curation_status=record.get("curation_status"),
-                created_by=record.get("created_by"),
-                updated_by=record.get("updated_by"),
-                date_created=record.get("date_created"),
-                date_updated=record.get("date_updated"),
-            )
-            curation_status_crud.create(db, curation_status)
-            success_count += 1
+            response = requests.post(url=post_url, json=data, headers=auth_headers)
+            if response.status_code == 201:
+                success_count += 1
+            else:
+                error_count += 1
+                logger.info(f"FAILED [{i}/{total}] {record['reference_curie']} "
+                            f"topic={record['topic']}: {response.status_code} {response.text}")
         except Exception as e:
             error_count += 1
-            logger.info(f"FAILED [{i}/{total}] {record['reference_curie']} "
-                        f"topic={record['topic']}: {e}")
+            logger.info(f"ERROR [{i}/{total}] {record['reference_curie']}: {e}")
 
         if success_count * 3 < error_count:
             rate = (success_count / (error_count + success_count)) * 100
@@ -55,8 +58,6 @@ def load_data(datafile):
             logger.info(f"Progress: {i}/{total} (success={success_count}, errors={error_count})")
 
     logger.info(f"DONE! Total={total}, Success={success_count}, Errors={error_count}")
-    db.close()
-
 
 
 if __name__ == "__main__":
