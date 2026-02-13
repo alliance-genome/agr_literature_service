@@ -62,6 +62,8 @@ def load_data(datafile):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Load curation status data from a JSON file")
-    parser.add_argument("-f", "--json_file", help="Path to the JSON file containing curation status data")
+    parser.add_argument("-f", "--json_file",
+                        help="Path to the JSON file containing curation status data",
+                        type=str, required=True)
     args = parser.parse_args()
     load_data(args.json_file)
