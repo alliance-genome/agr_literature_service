@@ -1,13 +1,14 @@
 import argparse
 import json
 import logging
+import sys
+
+sys.path.append('/usr/local/bin/src/literature')
 
 from agr_literature_service.api.crud import curation_status_crud
 from agr_literature_service.api.schemas.curation_status_schemas import CurationStatusSchemaPost
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-import sys
 
-sys.path.append('/usr/local/bin/src/literature')
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
