@@ -5,6 +5,9 @@ import logging
 from agr_literature_service.api.crud import curation_status_crud
 from agr_literature_service.api.schemas.curation_status_schemas import CurationStatusSchemaPost
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
+import sys
+
+sys.path.append('/usr/local/bin/src/literature')
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -52,6 +55,7 @@ def load_data(datafile):
 
     logger.info(f"DONE! Total={total}, Success={success_count}, Errors={error_count}")
     db.close()
+
 
 
 if __name__ == "__main__":
