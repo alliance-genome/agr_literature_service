@@ -17,7 +17,7 @@ RUN pip3 install wheel
 RUN pip3 install "Cython<3.0" pyyaml --no-build-isolation
 
 RUN pip3 install -r requirements.txt
-RUN pip3 install .
+RUN export PYTHONPATH="/usr/local/bin/src/literature/"
 
 # Use gunicorn with uvicorn workers for multi-process handling
 CMD ["gunicorn", "agr_literature_service.api.main:app", "-c", "gunicorn.conf.py"]
