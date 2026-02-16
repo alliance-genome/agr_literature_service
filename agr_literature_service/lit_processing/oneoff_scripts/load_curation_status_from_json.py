@@ -1,3 +1,8 @@
+"""
+SCRUM-5477. Script to load curation_status or topic_entity_tags into database.
+The metaData of the input json file has an endpoint that tells us which to load to.
+This can be ran from the alliance gocd and has a pipeline setup which is called LoadCurationStatus.
+"""
 import argparse
 import json
 import logging
@@ -22,6 +27,8 @@ def load_data(datafile):
     # Get the end point from the metaData.
     metadata = json_data['metaData']
     post_url = environ['API_URL'] + metadata["endpoint"] + "/"
+    logger.info(f'Loading data for {metadata["endpoint"]}')
+    logger.info(f'Into end point {post_url}')
 
     records = json_data["data"]
     total = len(records)
@@ -30,16 +37,6 @@ def load_data(datafile):
     success_count = 0
     error_count = 0
     for i, record in enumerate(records, start=1):
-        # data = {
-        #     "reference_curie": record["reference_curie"],
-        #     "mod_abbreviation": record["mod_abbreviation"],
-        #     "topic": record["topic"],
-        #     "curation_status": record.get("curation_status"),
-        #     "created_by": record.get("created_by"),
-        #     "updated_by": record.get("updated_by"),
-        #     "date_created": record.get("date_created"),
-        #     "date_updated": record.get("date_updated"),
-        # }
         try:
             response = requests.post(url=post_url, json=record, headers=auth_headers)
             if response.status_code == 201:
@@ -64,7 +61,7 @@ def load_data(datafile):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Load curation status data from a JSON file")
+    parser = argparse.ArgumentParser(description="Load curation status or topic_entity_tag data from a JSON file")
     parser.add_argument("-f", "--json_file",
                         help="Path to the JSON file containing curation status data",
                         type=str, required=True)
