@@ -10,8 +10,6 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-post_url = environ['API_URL'] + "curation_status/"
-
 
 def load_data(datafile):
 
@@ -21,6 +19,10 @@ def load_data(datafile):
     with open(datafile) as f:
         json_data = json.load(f)
 
+    # Get the end point from the metaData.
+    metadata = json_data['metaData']
+    post_url = environ['API_URL'] + metadata["endpoint"] + "/"
+
     records = json_data["data"]
     total = len(records)
     logger.info(f"Total records to load: {total}")
@@ -28,18 +30,18 @@ def load_data(datafile):
     success_count = 0
     error_count = 0
     for i, record in enumerate(records, start=1):
-        data = {
-            "reference_curie": record["reference_curie"],
-            "mod_abbreviation": record["mod_abbreviation"],
-            "topic": record["topic"],
-            "curation_status": record.get("curation_status"),
-            "created_by": record.get("created_by"),
-            "updated_by": record.get("updated_by"),
-            "date_created": record.get("date_created"),
-            "date_updated": record.get("date_updated"),
-        }
+        # data = {
+        #     "reference_curie": record["reference_curie"],
+        #     "mod_abbreviation": record["mod_abbreviation"],
+        #     "topic": record["topic"],
+        #     "curation_status": record.get("curation_status"),
+        #     "created_by": record.get("created_by"),
+        #     "updated_by": record.get("updated_by"),
+        #     "date_created": record.get("date_created"),
+        #     "date_updated": record.get("date_updated"),
+        # }
         try:
-            response = requests.post(url=post_url, json=data, headers=auth_headers)
+            response = requests.post(url=post_url, json=record, headers=auth_headers)
             if response.status_code == 201:
                 success_count += 1
             else:
@@ -61,6 +63,7 @@ def load_data(datafile):
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="Load curation status data from a JSON file")
     parser.add_argument("-f", "--json_file",
                         help="Path to the JSON file containing curation status data",
