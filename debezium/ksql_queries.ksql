@@ -61,7 +61,10 @@ CREATE TABLE normalized_copyright_reference AS
     pubmed_abstract_languages,
     pubmed_publication_status,
     pubmed_types,
-    resource_id,
+    CASE
+      WHEN resource_id IS NULL THEN '__EMPTY__'
+      ELSE resource_id
+    END AS resource_id,
     title,
     volume
   FROM reference
@@ -651,6 +654,22 @@ INSERT INTO copyright_license (
   open_access
 ) VALUES (
   '__EMPTY__',
+  NULL,
+  NULL,
+  NULL,
+  NULL
+);
+
+INSERT INTO resource (
+  resource_id,
+  title,
+  iso_abbreviation,
+  medline_abbreviation,
+  issn_print,
+  issn_electronic
+) VALUES (
+  '__EMPTY__',
+  NULL,
   NULL,
   NULL,
   NULL,
