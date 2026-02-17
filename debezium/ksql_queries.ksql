@@ -660,22 +660,6 @@ INSERT INTO copyright_license (
   NULL
 );
 
-INSERT INTO resource (
-  resource_id,
-  title,
-  iso_abbreviation,
-  medline_abbreviation,
-  issn_print,
-  issn_electronic
-) VALUES (
-  '__EMPTY__',
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-);
-
 CREATE TABLE mesh_detail (
     mesh_detail_id string PRIMARY KEY,
     reference_id string,
@@ -697,6 +681,22 @@ CREATE TABLE resource (
     KAFKA_TOPIC='abc.public.resource',
     VALUE_FORMAT='json'
   );
+
+INSERT INTO resource (
+  resource_id,
+  title,
+  iso_abbreviation,
+  medline_abbreviation,
+  issn_print,
+  issn_electronic
+) VALUES (
+  '__EMPTY__',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL
+);
 
 CREATE TABLE reference_relations AS
     SELECT reference_id_from \"REFERENCE_ID\",

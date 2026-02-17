@@ -70,7 +70,7 @@ class MockDataFactory:
         return citation
 
     def create_reference(self, db_session, ref_id: int, citation: CitationModel,
-                         resource: ResourceModel) -> ReferenceModel:
+                         resource: ResourceModel = None) -> ReferenceModel:
         """Create a realistic reference based on RDS dev patterns."""
         ref_patterns = self.mock_patterns.get('references', [{}])
         ref_pattern = (ref_patterns[ref_id % len(ref_patterns)]
@@ -82,7 +82,7 @@ class MockDataFactory:
             abstract=ref_pattern.get('abstract', f"This is a test abstract for reference {ref_id}."),
             category=ref_pattern.get('category', 'research_article'),
             citation_id=citation.citation_id,
-            resource_id=resource.resource_id,
+            resource_id=resource.resource_id if resource else None,
             date_published=ref_pattern.get('date_published', '2024-01-01'),
             language=ref_pattern.get('language', 'eng'),
             publisher=ref_pattern.get('publisher', 'Academic Press'),
@@ -487,6 +487,54 @@ class TestDebeziumIntegration:
             # Field should be in the mapping
             field_found = field in index_mapping or any(field in str(index_mapping))
             assert field_found, f"Field {field} not found in public index mapping"
+
+    @pytest.mark.debezium
+    @pytest.mark.webtest
+    def test_references_without_resource_in_public_index(self, elasticsearch_config):
+        """Test that references without a resource_id are indexed in the public index.
+
+        References with NULL resource_id (e.g. Internal_Process_Reference,
+        Direct_Data_Submission) that have a MOD corpus association should
+        appear in both the private and public indexes.
+        """
+        es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
+
+        # These curies are created by populate_test_db.py without a resource
+        no_resource_curies = [
+            "AGRKB:101000100",  # Internal_Process_Reference
+            "AGRKB:101000101",  # Direct_Data_Submission
+            "AGRKB:101000102",  # Personal_Communication
+        ]
+
+        for curie in no_resource_curies:
+            # Check private index
+            private_response = requests.post(
+                f"{es_url}/{elasticsearch_config['private_index']}/_search",
+                json={"query": {"term": {"curie.keyword": curie}}, "size": 1}
+            )
+            assert private_response.status_code == 200
+            private_data = private_response.json()
+            assert private_data['hits']['total']['value'] > 0, (
+                f"Reference {curie} (no resource_id) not found in private index"
+            )
+
+            # Check public index — this is the key assertion for the fix
+            public_response = requests.post(
+                f"{es_url}/{elasticsearch_config['public_index']}/_search",
+                json={"query": {"term": {"curie.keyword": curie}}, "size": 1}
+            )
+            assert public_response.status_code == 200
+            public_data = public_response.json()
+            assert public_data['hits']['total']['value'] > 0, (
+                f"Reference {curie} (no resource_id) not found in public index. "
+                f"NULL resource_id references with MOD corpus should be indexed."
+            )
+
+            # Verify the public doc has expected fields but no resource_title
+            public_doc = public_data['hits']['hits'][0]['_source']
+            assert public_doc['curie'] == curie
+            assert 'title' in public_doc
+            assert 'abstract' in public_doc
 
     @pytest.mark.debezium
     @pytest.mark.webtest
