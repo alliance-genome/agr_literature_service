@@ -357,6 +357,44 @@ class MockDataFactory:
         return obsolete
 
 
+def _create_no_resource_references(db, factory, citations, mods):
+    """Create references without a resource to test null resource_id indexing."""
+    print("Creating references without resource...")
+    refs = []
+    categories = [
+        'Internal_Process_Reference',
+        'Direct_Data_Submission',
+        'Personal_Communication'
+    ]
+    for i, category in enumerate(categories):
+        ref_id = 100 + i
+        citation = citations[i % len(citations)]
+        ref = ReferenceModel(
+            curie=f"AGRKB:10100{ref_id:04d}",
+            title=f"No-resource ref {ref_id}: {category} test",
+            abstract=f"Test abstract for {category} reference without resource.",
+            category=category,
+            citation_id=citation.citation_id,
+            resource_id=None,
+            date_published='2024-06-01',
+            language='eng',
+            keywords=['test', 'no-resource'],
+            pubmed_types=[],
+            volume='',
+            issue_name='',
+            page_range=''
+        )
+        db.add(ref)
+        db.flush()
+        refs.append(ref)
+        factory.create_author(db, ref, ref_id)
+        factory.create_cross_reference(db, ref, ref_id, False)
+        mod = mods[i % len(mods)]
+        factory.create_mod_corpus_association(db, ref, mod, True)
+        factory.create_workflow_tag(db, ref, ref_id, mod)
+    return refs
+
+
 def populate_database():
     """Populate the test database with mock data for Debezium integration tests."""
     print("Starting mock data population for Debezium integration tests...")
@@ -468,44 +506,10 @@ def populate_database():
                 factory.create_reference_mod_referencetype_association(db, reference, ref_mod_associations[0])
 
         # Create references WITHOUT a resource (testing null resource_id indexing)
-        print("Creating references without resource...")
-        no_resource_categories = [
-            'Internal_Process_Reference',
-            'Direct_Data_Submission',
-            'Personal_Communication'
-        ]
-        for i, category in enumerate(no_resource_categories):
-            ref_id = 100 + i
-            citation = citations[i % len(citations)]
-            ref = ReferenceModel(
-                curie=f"AGRKB:10100{ref_id:04d}",
-                title=f"No-resource ref {ref_id}: {category} test",
-                abstract=f"Test abstract for {category} reference without resource.",
-                category=category,
-                citation_id=citation.citation_id,
-                resource_id=None,
-                date_published='2024-06-01',
-                language='eng',
-                keywords=['test', 'no-resource'],
-                pubmed_types=[],
-                volume='',
-                issue_name='',
-                page_range=''
-            )
-            db.add(ref)
-            db.flush()
-            references.append(ref)
-
-            # Add author and cross-reference
-            factory.create_author(db, ref, ref_id)
-            factory.create_cross_reference(db, ref, ref_id, False)
-
-            # Add MOD corpus association so it should appear in public index
-            mod = mods[i % len(mods)]
-            factory.create_mod_corpus_association(db, ref, mod, True)
-
-            # Add workflow tag
-            factory.create_workflow_tag(db, ref, ref_id, mod)
+        no_resource_refs = _create_no_resource_references(
+            db, factory, citations, mods
+        )
+        references.extend(no_resource_refs)
 
         # Create reference relations
         print("Creating reference relations...")
