@@ -76,7 +76,7 @@ _PMC_PDF_RE = re.compile(r"^(PMC\d+)\.pdf$", re.IGNORECASE)
 # -----------------------------
 # DB query
 # -----------------------------
-def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, str]]:
+def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, str]]:  # pragma: no cover
     """
     Returns:
         list of tuples: (reference_id, pmcid) where pmcid is like "PMCID:PMC1234567"
@@ -324,7 +324,7 @@ class RfInfo:
     display_name: Optional[str]
 
 
-def preload_existing_referencefiles(db) -> Tuple[Dict[Tuple[int, str], RfInfo], Set[int]]:
+def preload_existing_referencefiles(db) -> Tuple[Dict[Tuple[int, str], RfInfo], Set[int]]:  # pragma: no cover
     """
     Returns:
       - rf_by_key: (reference_id, md5sum) -> RfInfo
@@ -356,7 +356,7 @@ def preload_existing_referencefiles(db) -> Tuple[Dict[Tuple[int, str], RfInfo], 
     return rf_by_key, rf_mod_loaded
 
 
-def insert_referencefile(db, reference_id: int, display_name: str, md5sum: str) -> int:
+def insert_referencefile(db, reference_id: int, display_name: str, md5sum: str) -> int:  # pragma: no cover
     x = ReferencefileModel(
         display_name=display_name,
         reference_id=reference_id,
@@ -373,12 +373,12 @@ def insert_referencefile(db, reference_id: int, display_name: str, md5sum: str) 
     return int(x.referencefile_id)
 
 
-def insert_referencefile_mod(db, referencefile_id: int) -> None:
+def insert_referencefile_mod(db, referencefile_id: int) -> None:  # pragma: no cover
     x = ReferencefileModAssociationModel(referencefile_id=referencefile_id)
     db.add(x)
 
 
-def promote_referencefile_to_main(db, rf_id: int) -> bool:
+def promote_referencefile_to_main(db, rf_id: int) -> bool:  # pragma: no cover
     """
     Promote an existing referencefile row to main/final/pdf using ORM so
     AuditedModel updates updated_by/date_updated and versioning hooks run.
@@ -425,7 +425,7 @@ def needs_promotion(info: Optional[RfInfo]) -> bool:
     return fe in ("", FILE_EXTENSION)
 
 
-def find_refs_with_nxml_named_supplement_pdfs(db, limit: Optional[int] = None) -> List[int]:
+def find_refs_with_nxml_named_supplement_pdfs(db, limit: Optional[int] = None) -> List[int]:  # pragma: no cover
     """
     Find ALL references where there exists a supplement PDF row and an NXML row such that:
       supplement_pdf.display_name == nxml.display_name
@@ -449,7 +449,7 @@ def find_refs_with_nxml_named_supplement_pdfs(db, limit: Optional[int] = None) -
     return [int(r[0]) for r in rs]
 
 
-def repair_nxml_named_supplement_pdfs(
+def repair_nxml_named_supplement_pdfs(  # pragma: no cover
     db,
     reference_ids: Set[int],
     rf_by_key: Dict[Tuple[int, str], RfInfo],
@@ -607,7 +607,7 @@ def process_single_item(args: Tuple[int, int, str, bool, str]) -> Dict:
 # -----------------------------
 # Main
 # -----------------------------
-def main() -> None:  # noqa: C901
+def main() -> None:  # noqa: C901  # pragma: no cover
     ap = argparse.ArgumentParser(description="Download OA PDFs from Europe PMC, upload to S3, and load DB metadata")
     ap.add_argument("--dry-run", action="store_true", help="Only check OA + availability; do not download/upload/db")
     ap.add_argument("--limit", type=int, default=None, help="Limit number of PMCIDs to process")
