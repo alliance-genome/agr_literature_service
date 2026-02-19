@@ -27,7 +27,16 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.download_pd
     process_single_item,
     PmcMeta,
     RfInfo,
+    reset_error_stats,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_error_tracking():
+    """Reset error stats before each test to avoid cross-test contamination."""
+    reset_error_stats()
+    yield
+    reset_error_stats()
 
 
 class TestNormalizePmcid:
@@ -78,6 +87,8 @@ class TestCheckPdfAvailable:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/pdf"}
+        mock_response.history = []  # No redirects
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC1234567&blobtype=pdf"
         mock_head.return_value = mock_response
 
         result = check_pdf_available("PMC1234567")
@@ -89,6 +100,8 @@ class TestCheckPdfAvailable:
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.headers = {}
+        mock_response.history = []
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC0000000&blobtype=pdf"
         mock_head.return_value = mock_response
 
         result = check_pdf_available("PMC0000000")
@@ -100,6 +113,8 @@ class TestCheckPdfAvailable:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "text/html"}
+        mock_response.history = []
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC1234567&blobtype=pdf"
         mock_head.return_value = mock_response
 
         result = check_pdf_available("PMC1234567")
@@ -119,6 +134,8 @@ class TestCheckPdfAvailable:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/pdf"}
+        mock_response.history = []
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC1234567&blobtype=pdf"
         mock_head.return_value = mock_response
 
         result = check_pdf_available("PMCID:PMC1234567")
@@ -137,6 +154,8 @@ class TestDownloadPdfByPmcid:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "application/pdf"}
+        mock_response.history = []
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC1234567&blobtype=pdf"
         mock_response.iter_content = Mock(return_value=[b"PDF content here"])
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
@@ -168,6 +187,8 @@ class TestDownloadPdfByPmcid:
         mock_response = Mock()
         mock_response.status_code = 404
         mock_response.headers = {}
+        mock_response.history = []
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC0000000&blobtype=pdf"
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
         mock_get.return_value = mock_response
@@ -185,6 +206,8 @@ class TestDownloadPdfByPmcid:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.headers = {"Content-Type": "text/html"}
+        mock_response.history = []
+        mock_response.url = "https://europepmc.org/backend/ptpmcrender.fcgi?accid=PMC1234567&blobtype=pdf"
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
         mock_get.return_value = mock_response
@@ -411,6 +434,9 @@ class TestFetchBatchCore:
         """Test successful batch fetch."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.history = []
+        mock_response.url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+        mock_response.headers = {"Content-Type": "application/json"}
         mock_response.json.return_value = {
             "resultList": {
                 "result": [
@@ -451,6 +477,9 @@ class TestFetchBatchCore:
         """Test batch fetch with empty results."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.history = []
+        mock_response.url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+        mock_response.headers = {"Content-Type": "application/json"}
         mock_response.json.return_value = {"resultList": {"result": []}}
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
@@ -465,6 +494,9 @@ class TestFetchBatchCore:
         """Test batch fetch with result missing pmcid."""
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.history = []
+        mock_response.url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+        mock_response.headers = {"Content-Type": "application/json"}
         mock_response.json.return_value = {
             "resultList": {
                 "result": [
