@@ -607,7 +607,7 @@ def process_single_item(args: Tuple[int, int, str, bool, str]) -> Dict:
 # -----------------------------
 # Main
 # -----------------------------
-def main() -> None:
+def main() -> None:  # noqa: C901
     ap = argparse.ArgumentParser(description="Download OA PDFs from Europe PMC, upload to S3, and load DB metadata")
     ap.add_argument("--dry-run", action="store_true", help="Only check OA + availability; do not download/upload/db")
     ap.add_argument("--limit", type=int, default=None, help="Limit number of PMCIDs to process")
@@ -698,8 +698,8 @@ def main() -> None:
     session.headers.update({"User-Agent": "agr-europepmc-oa-download-upload-load/1.2"})
 
     fetched = 0
-    for batch in chunked(missing, args.oa_batch_size):
-        batch_meta = fetch_batch_core(batch, session=session)
+    for oa_batch in chunked(missing, args.oa_batch_size):
+        batch_meta = fetch_batch_core(oa_batch, session=session)
 
         for pmcid, meta in batch_meta.items():
             cache[pmcid] = {
@@ -711,7 +711,7 @@ def main() -> None:
             }
 
         returned = set(batch_meta.keys())
-        for pmcid in batch:
+        for pmcid in oa_batch:
             if pmcid not in returned:
                 cache[pmcid] = {
                     "hit": False,
@@ -721,7 +721,7 @@ def main() -> None:
                     "in_pmc": None,
                 }
 
-        fetched += len(batch)
+        fetched += len(oa_batch)
         if args.oa_sleep > 0:
             time.sleep(args.oa_sleep)
         if fetched and fetched % (args.oa_batch_size * 10) == 0:
@@ -867,14 +867,14 @@ def main() -> None:
             logger.info(f"DB-wide repair candidates: {len(all_refs)}")
 
             processed = 0
-            batch: List[int] = []
+            ref_batch: List[int] = []
 
             for ref_id in all_refs:
-                batch.append(ref_id)
-                if len(batch) >= args.repair_batch_size:
+                ref_batch.append(ref_id)
+                if len(ref_batch) >= args.repair_batch_size:
                     rm_ct, pr_ct = repair_nxml_named_supplement_pdfs(
                         db,
-                        set(batch),
+                        set(ref_batch),
                         rf_by_key=rf_by_key,
                         rf_mod_loaded=rf_mod_loaded,
                     )
@@ -882,16 +882,16 @@ def main() -> None:
                     promoted_bad_supp += pr_ct
                     db.commit()
 
-                    processed += len(batch)
-                    batch = []
+                    processed += len(ref_batch)
+                    ref_batch = []
 
                     if args.repair_commit_every > 0 and processed % args.repair_commit_every == 0:
                         logger.info(f"Repair progress: {processed}/{len(all_refs)}")
 
-            if batch:
+            if ref_batch:
                 rm_ct, pr_ct = repair_nxml_named_supplement_pdfs(
                     db,
-                    set(batch),
+                    set(ref_batch),
                     rf_by_key=rf_by_key,
                     rf_mod_loaded=rf_mod_loaded,
                 )
