@@ -50,6 +50,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 import gzip
 import requests
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from agr_literature_service.api.models import ReferencefileModel, ReferencefileModAssociationModel
 from agr_literature_service.api.user import set_global_user_id
@@ -70,6 +71,9 @@ logger.setLevel(logging.INFO)
 # Constants
 # -----------------------------
 S3_BUCKET = "agr-literature"
+
+# Europe PMC API maximum page size
+EUROPEPMC_MAX_PAGE_SIZE = 1000
 
 FILE_CLASS = "main"
 FILE_PUBLICATION_STATUS = "final"
@@ -277,11 +281,13 @@ def fetch_batch_core(
     timeout: int = 60,
     page_size: int = 1000,
 ) -> Dict[str, PmcMeta]:
+    # Ensure page_size can accommodate all PMCIDs in the batch
+    effective_page_size = max(page_size, len(pmcids))
     or_query = " OR ".join([f"PMCID:{p}" for p in pmcids])
     query = f"({or_query})"
 
     url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-    params = {"query": query, "resultType": "core", "format": "json", "pageSize": page_size}
+    params = {"query": query, "resultType": "core", "format": "json", "pageSize": effective_page_size}
 
     r = session.get(url, params=params, timeout=timeout)
     r.raise_for_status()
@@ -561,7 +567,7 @@ def repair_nxml_named_supplement_pdfs(  # pragma: no cover
 # -----------------------------
 # Worker: ensure local PDF exists
 # -----------------------------
-def process_single_item(args: Tuple[int, int, str, bool, str]) -> Dict:
+def process_single_item(args: Tuple[int, int, str, bool, str, float]) -> Dict:
     """
     Ensures a local PDF exists:
       - If already on disk: mark downloaded=True, already_downloaded=True
@@ -569,7 +575,7 @@ def process_single_item(args: Tuple[int, int, str, bool, str]) -> Dict:
           * dry-run: HEAD check to report availability (no download)
           * non-dry-run: attempt download (GET); availability derived from success
     """
-    index, reference_id, pmcid, dry_run, output_dir = args
+    index, reference_id, pmcid, dry_run, output_dir, download_sleep = args
     pmc_id = normalize_pmcid(pmcid)
     pdf_path = os.path.join(output_dir, f"{pmc_id}.pdf")
 
@@ -599,6 +605,10 @@ def process_single_item(args: Tuple[int, int, str, bool, str]) -> Dict:
             out["available"] = check_pdf_available(pmcid)
             return out
 
+        # Rate limiting for PDF downloads
+        if download_sleep > 0:
+            time.sleep(download_sleep)
+
         # Non-dry-run: avoid extra HEAD; download attempt is availability check
         if download_pdf_by_pmcid(pmcid, pdf_path):
             out["available"] = True
@@ -624,9 +634,13 @@ def main() -> None:  # noqa: C901  # pragma: no cover
     # main-loop commits: still helpful to keep transactions bounded, but safe now due to per-item savepoints
     ap.add_argument("--commit-every", type=int, default=250, help="DB commit batch size (main loop)")
 
-    ap.add_argument("--oa-batch-size", type=int, default=100, help="PMCIDs per OA metadata request")
+    ap.add_argument(
+        "--oa-batch-size", type=int, default=100,
+        help=f"PMCIDs per OA metadata request (max {EUROPEPMC_MAX_PAGE_SIZE})"
+    )
     ap.add_argument("--oa-cache", type=str, default="europepmc_oa_cache.json", help="JSON cache for OA metadata")
     ap.add_argument("--oa-sleep", type=float, default=0.1, help="Sleep between OA batches")
+    ap.add_argument("--download-sleep", type=float, default=0.0, help="Sleep between PDF downloads (rate limiting)")
 
     ap.add_argument(
         "--require-has-pdf",
@@ -674,6 +688,13 @@ def main() -> None:  # noqa: C901  # pragma: no cover
     )
 
     args = ap.parse_args()
+
+    # Validate oa_batch_size doesn't exceed Europe PMC's max page size
+    if args.oa_batch_size > EUROPEPMC_MAX_PAGE_SIZE:
+        logger.warning(
+            f"--oa-batch-size ({args.oa_batch_size}) exceeds Europe PMC max page size "
+            f"({EUROPEPMC_MAX_PAGE_SIZE}). Results may be truncated."
+        )
 
     env_state = os.environ.get("ENV_STATE")
     upload_and_db_allowed = (env_state is not None and env_state != "test")
@@ -780,7 +801,10 @@ def main() -> None:  # noqa: C901  # pragma: no cover
         return
 
     # Ensure local PDFs exist (threads)
-    work = [(i, rid, pmc, args.dry_run, args.output_dir) for i, (rid, pmc) in enumerate(oa_items, 1)]
+    work = [
+        (i, rid, pmc, args.dry_run, args.output_dir, args.download_sleep)
+        for i, (rid, pmc) in enumerate(oa_items, 1)
+    ]
     total = len(work)
 
     logger.info(f"Ensuring local PDFs (download if missing) with {args.workers} workers...")
@@ -860,17 +884,28 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                     rf_info_cache[key] = info
 
                 if info is None:
-                    rf_id = insert_referencefile(db, reference_id, display_name, md5sum)
-                    rf_info_cache[key] = RfInfo(
-                        referencefile_id=rf_id,
-                        file_class=FILE_CLASS,
-                        file_extension=FILE_EXTENSION,
-                        file_publication_status=FILE_PUBLICATION_STATUS,
-                        pdf_type=PDF_TYPE,
-                        display_name=display_name,
-                    )
-                    inserted_ok += 1
-                    logger.info(f"{pmcid}: inserted referencefile (id={rf_id})")
+                    try:
+                        rf_id = insert_referencefile(db, reference_id, display_name, md5sum)
+                        rf_info_cache[key] = RfInfo(
+                            referencefile_id=rf_id,
+                            file_class=FILE_CLASS,
+                            file_extension=FILE_EXTENSION,
+                            file_publication_status=FILE_PUBLICATION_STATUS,
+                            pdf_type=PDF_TYPE,
+                            display_name=display_name,
+                        )
+                        inserted_ok += 1
+                        logger.info(f"{pmcid}: inserted referencefile (id={rf_id})")
+                    except IntegrityError:
+                        # Likely display_name already exists with different md5sum (revised PDF)
+                        logger.warning(
+                            f"{pmcid}: skipped insert - display_name '{display_name}' already exists "
+                            f"for reference_id={reference_id} with a different md5sum"
+                        )
+                        sp.rollback()
+                        r["db_loaded"] = False
+                        r["error"] = "IntegrityError: display_name already exists with different md5sum"
+                        continue
                 else:
                     rf_id = info.referencefile_id
                     if needs_promotion(info):
@@ -986,7 +1021,6 @@ def main() -> None:  # noqa: C901  # pragma: no cover
     downloaded = sum(1 for r in results if r.get("downloaded"))
     available = sum(1 for r in results if r.get("available"))
     already = sum(1 for r in results if r.get("already_downloaded"))
-    promoted = sum(1 for r in results if r.get("promoted") is True)
 
     logger.info("============================================================")
     logger.info("SUMMARY")
@@ -995,8 +1029,10 @@ def main() -> None:  # noqa: C901  # pragma: no cover
     logger.info(f"Downloaded this run: {downloaded - already}")
     logger.info(f"Skipped (already on disk): {already}")
     logger.info(f"Available at PDF endpoint OR already on disk: {available}")
+    logger.info(f"Uploaded to S3: {uploaded_ok}")
+    logger.info(f"Skipped upload/DB (ENV_STATE missing or test): {skipped_upload_db}")
     logger.info(f"Inserted new referencefile rows: {inserted_ok}")
-    logger.info(f"Promoted misclassified existing PDFs to main: {promoted}")
+    logger.info(f"Promoted misclassified existing PDFs to main: {promoted_ok}")
     logger.info(f"Removed misnamed supplement PDFs (matched NXML display_name): {removed_bad_supp}")
     logger.info(f"Promoted misnamed supplement PDFs to main (matched NXML display_name): {promoted_bad_supp}")
     logger.info(f"Skipped non-OA/unknown: {len(skipped_non_oa)}")

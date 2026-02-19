@@ -616,7 +616,8 @@ class TestProcessSingleItem:
             with open(pdf_path, "w") as f:
                 f.write("existing pdf")
 
-            args = (1, 100, "PMCID:PMC1234567", False, tmpdir)
+            # Args: (index, reference_id, pmcid, dry_run, output_dir, download_sleep)
+            args = (1, 100, "PMCID:PMC1234567", False, tmpdir, 0.0)
             result = process_single_item(args)
 
             assert result["available"] is True
@@ -633,7 +634,8 @@ class TestProcessSingleItem:
         mock_download.return_value = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = (1, 100, "PMCID:PMC1234567", False, tmpdir)
+            # Args: (index, reference_id, pmcid, dry_run, output_dir, download_sleep)
+            args = (1, 100, "PMCID:PMC1234567", False, tmpdir, 0.0)
             result = process_single_item(args)
 
             assert result["available"] is True
@@ -648,7 +650,8 @@ class TestProcessSingleItem:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Use dry_run=True since check_pdf_available is only called in dry-run mode
-            args = (1, 100, "PMCID:PMC1234567", True, tmpdir)
+            # Args: (index, reference_id, pmcid, dry_run, output_dir, download_sleep)
+            args = (1, 100, "PMCID:PMC1234567", True, tmpdir, 0.0)
             result = process_single_item(args)
 
             assert result["available"] is False
@@ -661,7 +664,8 @@ class TestProcessSingleItem:
         mock_check.return_value = True
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = (1, 100, "PMCID:PMC1234567", True, tmpdir)  # dry_run=True
+            # Args: (index, reference_id, pmcid, dry_run, output_dir, download_sleep)
+            args = (1, 100, "PMCID:PMC1234567", True, tmpdir, 0.0)  # dry_run=True
             result = process_single_item(args)
 
             assert result["available"] is True
@@ -674,7 +678,8 @@ class TestProcessSingleItem:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Use dry_run=True since check_pdf_available is only called in dry-run mode
-            args = (1, 100, "PMCID:PMC1234567", True, tmpdir)
+            # Args: (index, reference_id, pmcid, dry_run, output_dir, download_sleep)
+            args = (1, 100, "PMCID:PMC1234567", True, tmpdir, 0.0)
             result = process_single_item(args)
 
             assert result["available"] is False
