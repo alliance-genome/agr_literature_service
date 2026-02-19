@@ -701,7 +701,7 @@ def fetch_batch_core(  # noqa: C901
             )
             logger.warning("EuroPMC API response missing 'resultList' field - API format may have changed")
 
-        results = ((result_list or {}).get("result", []) or []) if result_list else []
+        results: List[dict] = ((result_list or {}).get("result", []) or []) if result_list else []
 
         # Warn if we got fewer results than expected (might indicate API issues)
         if len(results) == 0 and len(pmcids) > 0:
