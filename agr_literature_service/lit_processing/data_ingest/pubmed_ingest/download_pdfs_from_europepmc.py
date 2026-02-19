@@ -693,7 +693,8 @@ def main() -> None:  # noqa: C901  # pragma: no cover
 
     pmcids_norm = [normalize_pmcid(pmc) for (_, pmc) in candidates]
     unique_pmcids = sorted(set(pmcids_norm))
-    missing = [p for p in unique_pmcids if p not in cache]
+    # Include PMCIDs not in cache OR those with fetch_error=True (transient failures)
+    missing = [p for p in unique_pmcids if p not in cache or cache.get(p, {}).get("fetch_error")]
 
     logger.info(
         f"OA cache: {cache_path} (entries={len(cache)}); "
@@ -710,7 +711,8 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                 batch_meta = fetch_batch_core(oa_batch, session=session)
             except Exception as e:
                 logger.error(f"OA fetch failed for batch (size={len(oa_batch)}): {type(e).__name__}: {e}")
-                # Mark as miss for now so we can continue the run; next run can retry.
+                # Mark with fetch_error=True so next run can retry these PMCIDs.
+                # We do NOT cache them as hit=False (which would prevent retry).
                 for pmcid in oa_batch:
                     cache[pmcid] = {
                         "hit": False,
@@ -718,6 +720,7 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                         "license": None,
                         "has_pdf": None,
                         "in_pmc": None,
+                        "fetch_error": True,
                     }
                 save_cache(cache_path, cache)
                 continue

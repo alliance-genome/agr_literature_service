@@ -643,15 +643,17 @@ class TestProcessSingleItem:
 
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.download_pdfs_from_europepmc.check_pdf_available')
     def test_process_single_item_not_available(self, mock_check):
-        """Test processing when PDF is not available."""
+        """Test processing when PDF is not available (dry-run mode)."""
         mock_check.return_value = False
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = (1, 100, "PMCID:PMC1234567", False, tmpdir)
+            # Use dry_run=True since check_pdf_available is only called in dry-run mode
+            args = (1, 100, "PMCID:PMC1234567", True, tmpdir)
             result = process_single_item(args)
 
             assert result["available"] is False
             assert result["downloaded"] is False
+            mock_check.assert_called_once()
 
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.download_pdfs_from_europepmc.check_pdf_available')
     def test_process_single_item_dry_run(self, mock_check):
@@ -667,11 +669,12 @@ class TestProcessSingleItem:
 
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.download_pdfs_from_europepmc.check_pdf_available')
     def test_process_single_item_exception(self, mock_check):
-        """Test processing when an exception occurs."""
+        """Test processing when an exception occurs (dry-run mode)."""
         mock_check.side_effect = Exception("Test error")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            args = (1, 100, "PMCID:PMC1234567", False, tmpdir)
+            # Use dry_run=True since check_pdf_available is only called in dry-run mode
+            args = (1, 100, "PMCID:PMC1234567", True, tmpdir)
             result = process_single_item(args)
 
             assert result["available"] is False
