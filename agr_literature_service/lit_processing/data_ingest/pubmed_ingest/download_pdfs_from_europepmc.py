@@ -281,8 +281,8 @@ def fetch_batch_core(
     timeout: int = 60,
     page_size: int = 1000,
 ) -> Dict[str, PmcMeta]:
-    # Ensure page_size can accommodate all PMCIDs in the batch
-    effective_page_size = max(page_size, len(pmcids))
+    # Ensure page_size can accommodate all PMCIDs in the batch, but cap at API limit
+    effective_page_size = min(max(page_size, len(pmcids)), EUROPEPMC_MAX_PAGE_SIZE)
     or_query = " OR ".join([f"PMCID:{p}" for p in pmcids])
     query = f"({or_query})"
 
@@ -970,8 +970,8 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                         sp.commit()
                     except Exception as e:
                         logger.error(
-                            f"Repair batch failed (ref_id range ~{ref_batch[0]}..{ref_batch[-1]}): "
-                            f"{type(e).__name__}: {e}"
+                            f"Repair batch failed ({len(ref_batch)} ref_ids lost): "
+                            f"{type(e).__name__}: {e}; ref_ids={ref_batch}"
                         )
                         try:
                             sp.rollback()
@@ -1003,7 +1003,10 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                     promoted_bad_supp += pr_ct
                     sp.commit()
                 except Exception as e:
-                    logger.error(f"Final repair batch failed: {type(e).__name__}: {e}")
+                    logger.error(
+                        f"Final repair batch failed ({len(ref_batch)} ref_ids lost): "
+                        f"{type(e).__name__}: {e}; ref_ids={ref_batch}"
+                    )
                     try:
                         sp.rollback()
                     except Exception:
