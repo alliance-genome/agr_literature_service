@@ -32,7 +32,6 @@ import argparse
 import json
 import logging
 import os
-import re
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -70,7 +69,7 @@ FILE_PUBLICATION_STATUS = "final"
 FILE_EXTENSION = "pdf"
 PDF_TYPE = "pdf"
 
-_PMC_PDF_RE = re.compile(r"^(PMC\d+)\.pdf$", re.IGNORECASE)
+# _PMC_PDF_RE = re.compile(r"^(PMC\d+)\.pdf$", re.IGNORECASE)
 
 
 # -----------------------------
@@ -539,7 +538,11 @@ def repair_nxml_named_supplement_pdfs(  # pragma: no cover
                 else:
                     if promote_referencefile_to_main(db, rf_id):
                         promoted += 1
-
+                        # After promoting the first "main", treat this reference as having a main PDF
+                        # so any other NXML-named supplement PDFs are removed.
+                        # this won't happen since we will have one copy of nxml file for a paper, but
+                        # just in case
+                        main_exists = True
                     if rf_id not in rf_mod_loaded:
                         insert_referencefile_mod(db, rf_id)
                         rf_mod_loaded.add(rf_id)
@@ -867,11 +870,41 @@ def main() -> None:  # noqa: C901  # pragma: no cover
             logger.info(f"DB-wide repair candidates: {len(all_refs)}")
 
             processed = 0
+            processed_since_commit = 0
             ref_batch: List[int] = []
 
             for ref_id in all_refs:
                 ref_batch.append(ref_id)
                 if len(ref_batch) >= args.repair_batch_size:
+                    try:
+                        rm_ct, pr_ct = repair_nxml_named_supplement_pdfs(
+                            db,
+                            set(ref_batch),
+                            rf_by_key=rf_by_key,
+                            rf_mod_loaded=rf_mod_loaded,
+                        )
+                        removed_bad_supp += rm_ct
+                        promoted_bad_supp += pr_ct
+                    except Exception as e:
+                        logger.error(f"Repair batch failed (ref_id range ~{ref_batch[0]}..{ref_batch[-1]}): {type(e).__name__}: {e}")
+                        db.rollback()
+                        ref_batch = []
+                        continue
+                    processed += len(ref_batch)
+                    processed_since_commit += len(ref_batch)
+                    ref_batch = []
+
+                    # if args.repair_commit_every > 0 and processed % args.repair_commit_every == 0:
+                    #    logger.info(f"Repair progress: {processed}/{len(all_refs)}")
+                    if args.repair_commit_every > 0 and processed_since_commit >= args.repair_commit_every:
+                        db.commit()
+                        processed_since_commit = 0
+
+                    if args.repair_commit_every > 0 and processed % args.repair_commit_every == 0:
+                        logger.info(f"Repair progress: {processed}/{len(all_refs)}")
+
+            if ref_batch:
+                try:
                     rm_ct, pr_ct = repair_nxml_named_supplement_pdfs(
                         db,
                         set(ref_batch),
@@ -880,25 +913,16 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                     )
                     removed_bad_supp += rm_ct
                     promoted_bad_supp += pr_ct
+                except Exception as e:
+                    logger.error(f"Final repair batch failed: {type(e).__name__}: {e}")
+                    db.rollback()
+                else:
                     db.commit()
+                processed += len(ref_batch)
+                processed_since_commit += len(ref_batch)
 
-                    processed += len(ref_batch)
-                    ref_batch = []
-
-                    if args.repair_commit_every > 0 and processed % args.repair_commit_every == 0:
-                        logger.info(f"Repair progress: {processed}/{len(all_refs)}")
-
-            if ref_batch:
-                rm_ct, pr_ct = repair_nxml_named_supplement_pdfs(
-                    db,
-                    set(ref_batch),
-                    rf_by_key=rf_by_key,
-                    rf_mod_loaded=rf_mod_loaded,
-                )
-                removed_bad_supp += rm_ct
-                promoted_bad_supp += pr_ct
-                db.commit()
-
+            # Final commit for any remaining repairs not yet committed
+            db.commit()
         db.commit()
 
     finally:
