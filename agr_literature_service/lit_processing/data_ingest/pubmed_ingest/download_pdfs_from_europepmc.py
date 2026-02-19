@@ -32,6 +32,8 @@ Safety/robustness fixes vs prior version:
 Notes:
 - Upload step is skipped if ENV_STATE is missing or ENV_STATE == 'test'.
 - DB inserts are also skipped in those environments by default (to keep behavior consistent).
+- Downloaded PDFs are kept in --output-dir after upload (for re-runs that skip download).
+  This means disk usage grows across runs. Monitor or periodically clean up --output-dir.
 """
 
 from __future__ import annotations
@@ -800,10 +802,26 @@ def main() -> None:  # noqa: C901  # pragma: no cover
         logger.info("No OA items to process after OA filter.")
         return
 
-    # Ensure local PDFs exist (threads)
+    # Deduplicate by PMCID for download phase to avoid race conditions:
+    # Multiple reference_ids can share the same PMCID, causing concurrent
+    # workers to write to the same temp file. We download once per unique PMCID.
+    seen_pmcids: Set[str] = set()
+    deduped_for_download: List[Tuple[int, str]] = []
+    for reference_id, pmcid in oa_items:
+        norm = normalize_pmcid(pmcid)
+        if norm not in seen_pmcids:
+            deduped_for_download.append((reference_id, pmcid))
+            seen_pmcids.add(norm)
+
+    logger.info(
+        f"Unique PMCIDs for download: {len(deduped_for_download)} "
+        f"(total OA items including duplicates: {len(oa_items)})"
+    )
+
+    # Ensure local PDFs exist (threads) - uses deduplicated list
     work = [
         (i, rid, pmc, args.dry_run, args.output_dir, args.download_sleep)
-        for i, (rid, pmc) in enumerate(oa_items, 1)
+        for i, (rid, pmc) in enumerate(deduped_for_download, 1)
     ]
     total = len(work)
 
@@ -821,14 +839,47 @@ def main() -> None:  # noqa: C901  # pragma: no cover
         logger.info("Dry-run complete (no download/upload/db inserts performed).")
         return
 
-    # Upload + DB load (serial)
+    # Build a map of normalized PMCID -> download result for lookup
+    # This allows us to process ALL oa_items (including duplicate PMCIDs) for DB load
+    pmcid_to_result: Dict[str, Dict] = {}
+    for r in results:
+        if r.get("downloaded"):
+            norm = normalize_pmcid(r["pmcid"])
+            pmcid_to_result[norm] = r
+
+    # Upload phase: gzip and upload each unique PDF once
+    # Cache md5sum per PMCID so we don't recompute for duplicate reference_ids
+    pmcid_to_md5: Dict[str, str] = {}
+
+    for norm_pmcid, r in pmcid_to_result.items():
+        pdf_path = r["pdf_path"]
+        md5sum = get_md5sum(pdf_path)
+        r["md5sum"] = md5sum
+        pmcid_to_md5[norm_pmcid] = md5sum
+
+        gz_path = gzip_file(pdf_path)
+        if not gz_path:
+            r["error"] = (r.get("error") or "") + " gzip_failed"
+            r["upload_failed"] = True
+            continue
+
+        upload_status = upload_pdf_file_to_s3(gz_path, md5sum)
+        r["uploaded"] = upload_status
+
+        try:
+            os.remove(gz_path)
+        except OSError:
+            pass
+
+    uploaded_ok = sum(1 for r in pmcid_to_result.values() if r.get("uploaded") is True)
+
+    # DB load (serial) - process ALL oa_items including duplicate PMCIDs
     db = create_postgres_session(False)
 
     removed_bad_supp = 0
     promoted_bad_supp = 0
     inserted_ok = 0
     promoted_ok = 0
-    uploaded_ok = 0
     skipped_upload_db = 0
 
     # Small in-run caches to avoid repeated DB hits
@@ -841,38 +892,23 @@ def main() -> None:  # noqa: C901  # pragma: no cover
 
         committed = 0
 
-        for r in results:
-            if not r.get("downloaded"):
+        # Process ALL oa_items for DB load (not just deduplicated download results)
+        for reference_id, pmcid in oa_items:
+            norm_pmcid = normalize_pmcid(pmcid)
+            download_result = pmcid_to_result.get(norm_pmcid)
+
+            if download_result is None or download_result.get("upload_failed"):
                 continue
-
-            pdf_path = r["pdf_path"]
-            reference_id = int(r["reference_id"])
-            pmcid = str(r["pmcid"])
-            display_name = normalize_pmcid(pmcid)
-
-            md5sum = get_md5sum(pdf_path)
-            r["md5sum"] = md5sum
-
-            gz_path = gzip_file(pdf_path)
-            if not gz_path:
-                r["error"] = (r.get("error") or "") + " gzip_failed"
-                continue
-
-            upload_status = upload_pdf_file_to_s3(gz_path, md5sum)
-            r["uploaded"] = upload_status
-
-            try:
-                os.remove(gz_path)
-            except OSError:
-                pass
-
-            if upload_status is True:
-                uploaded_ok += 1
 
             if not upload_and_db_allowed:
-                r["db_loaded"] = None
                 skipped_upload_db += 1
                 continue
+
+            md5sum = pmcid_to_md5.get(norm_pmcid)
+            if not md5sum:
+                continue
+
+            display_name = norm_pmcid
 
             # Per-item SAVEPOINT so a failure won't rollback prior successful items
             sp = db.begin_nested()
@@ -895,16 +931,13 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                             display_name=display_name,
                         )
                         inserted_ok += 1
-                        logger.info(f"{pmcid}: inserted referencefile (id={rf_id})")
-                    except IntegrityError:
-                        # Likely display_name already exists with different md5sum (revised PDF)
+                        logger.info(f"{pmcid} (ref={reference_id}): inserted referencefile (id={rf_id})")
+                    except IntegrityError as ie:
+                        # Could be display_name or md5sum constraint - log actual error
                         logger.warning(
-                            f"{pmcid}: skipped insert - display_name '{display_name}' already exists "
-                            f"for reference_id={reference_id} with a different md5sum"
+                            f"{pmcid} (ref={reference_id}): skipped insert due to IntegrityError: {ie}"
                         )
                         sp.rollback()
-                        r["db_loaded"] = False
-                        r["error"] = "IntegrityError: display_name already exists with different md5sum"
                         continue
                 else:
                     rf_id = info.referencefile_id
@@ -915,17 +948,17 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                             info.file_extension = FILE_EXTENSION
                             info.file_publication_status = FILE_PUBLICATION_STATUS
                             info.pdf_type = PDF_TYPE
-                            r["promoted"] = True
                             promoted_ok += 1
-                            logger.info(f"{pmcid}: promoted existing referencefile to main (id={rf_id})")
+                            logger.info(
+                                f"{pmcid} (ref={reference_id}): promoted existing referencefile to main (id={rf_id})"
+                            )
 
                 if rf_id not in null_mod_cache:
                     if not has_null_mod_assoc(db, rf_id):
                         insert_referencefile_mod(db, rf_id)
-                        logger.info(f"{pmcid}: inserted referencefile_mod (mod_id NULL)")
+                        logger.info(f"{pmcid} (ref={reference_id}): inserted referencefile_mod (mod_id NULL)")
                     null_mod_cache.add(rf_id)
 
-                r["db_loaded"] = True
                 sp.commit()
 
                 committed += 1
@@ -933,8 +966,7 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                     db.commit()
 
             except Exception as e:
-                r["db_loaded"] = False
-                r["error"] = f"{type(e).__name__}: {e}"
+                logger.error(f"{pmcid} (ref={reference_id}): DB error: {type(e).__name__}: {e}")
                 try:
                     sp.rollback()
                 except Exception:
@@ -984,12 +1016,12 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                     processed_since_commit += len(ref_batch)
                     ref_batch = []
 
+                    # Log progress every batch for visibility
+                    logger.info(f"Repair progress: {processed}/{len(all_refs)}")
+
                     if args.repair_commit_every > 0 and processed_since_commit >= args.repair_commit_every:
                         db.commit()
                         processed_since_commit = 0
-
-                    if args.repair_commit_every > 0 and processed % args.repair_commit_every == 0:
-                        logger.info(f"Repair progress: {processed}/{len(all_refs)}")
 
             if ref_batch:
                 sp = db.begin_nested()
@@ -1028,7 +1060,8 @@ def main() -> None:  # noqa: C901  # pragma: no cover
     logger.info("============================================================")
     logger.info("SUMMARY")
     logger.info("============================================================")
-    logger.info(f"OA items processed: {len(oa_items)}")
+    logger.info(f"OA items (reference_id, pmcid pairs): {len(oa_items)}")
+    logger.info(f"Unique PMCIDs for download: {len(deduped_for_download)}")
     logger.info(f"Downloaded this run: {downloaded - already}")
     logger.info(f"Skipped (already on disk): {already}")
     logger.info(f"Available at PDF endpoint OR already on disk: {available}")
