@@ -44,9 +44,12 @@ import logging
 import os
 import shutil
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
+from threading import Lock
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import gzip
@@ -81,6 +84,223 @@ FILE_CLASS = "main"
 FILE_PUBLICATION_STATUS = "final"
 FILE_EXTENSION = "pdf"
 PDF_TYPE = "pdf"
+
+# Expected EuroPMC URL patterns (for detecting URL changes)
+EUROPEPMC_PDF_URL_PATTERN = "europepmc.org/backend/ptpmcrender.fcgi"
+EUROPEPMC_API_URL_PATTERN = "ebi.ac.uk/europepmc/webservices/rest/search"
+
+
+# -----------------------------
+# Error Types for EuroPMC requests
+# -----------------------------
+class EuropePmcErrorType(Enum):
+    """Categorized error types for EuroPMC API/PDF requests."""
+    SUCCESS = "success"
+    HTTP_404_NOT_FOUND = "http_404_not_found"
+    HTTP_403_FORBIDDEN = "http_403_forbidden"
+    HTTP_401_UNAUTHORIZED = "http_401_unauthorized"
+    HTTP_429_RATE_LIMITED = "http_429_rate_limited"
+    HTTP_500_SERVER_ERROR = "http_500_server_error"
+    HTTP_502_BAD_GATEWAY = "http_502_bad_gateway"
+    HTTP_503_UNAVAILABLE = "http_503_unavailable"
+    HTTP_OTHER = "http_other"
+    UNEXPECTED_REDIRECT = "unexpected_redirect"
+    WRONG_CONTENT_TYPE = "wrong_content_type"
+    CONNECTION_ERROR = "connection_error"
+    TIMEOUT = "timeout"
+    SSL_ERROR = "ssl_error"
+    INVALID_RESPONSE_FORMAT = "invalid_response_format"
+    EMPTY_RESPONSE = "empty_response"
+    UNKNOWN = "unknown"
+
+
+@dataclass
+class EuropePmcErrorStats:
+    """Thread-safe tracking of EuroPMC request errors for surfacing issues."""
+    _lock: Lock = field(default_factory=Lock, repr=False)
+    pdf_errors: Counter = field(default_factory=Counter)
+    api_errors: Counter = field(default_factory=Counter)
+    sample_errors: Dict[str, List[str]] = field(default_factory=dict)
+    max_samples_per_type: int = 5
+
+    def record_pdf_error(self, error_type: EuropePmcErrorType, pmcid: str, details: str = "") -> None:
+        """Record a PDF download error with optional details."""
+        with self._lock:
+            self.pdf_errors[error_type.value] += 1
+            key = f"pdf_{error_type.value}"
+            if key not in self.sample_errors:
+                self.sample_errors[key] = []
+            if len(self.sample_errors[key]) < self.max_samples_per_type:
+                self.sample_errors[key].append(f"{pmcid}: {details}" if details else pmcid)
+
+    def record_api_error(self, error_type: EuropePmcErrorType, details: str = "") -> None:
+        """Record an API metadata request error with optional details."""
+        with self._lock:
+            self.api_errors[error_type.value] += 1
+            key = f"api_{error_type.value}"
+            if key not in self.sample_errors:
+                self.sample_errors[key] = []
+            if len(self.sample_errors[key]) < self.max_samples_per_type:
+                self.sample_errors[key].append(details)
+
+    def has_errors(self) -> bool:
+        """Return True if any errors were recorded."""
+        return bool(self.pdf_errors) or bool(self.api_errors)
+
+    def get_summary(self) -> str:
+        """Generate a summary of all recorded errors."""
+        lines = []
+        if self.pdf_errors:
+            lines.append("PDF Download Errors:")
+            for error_type, count in sorted(self.pdf_errors.items()):
+                lines.append(f"  {error_type}: {count}")
+                key = f"pdf_{error_type}"
+                if key in self.sample_errors and self.sample_errors[key]:
+                    lines.append(f"    Samples: {self.sample_errors[key][:3]}")
+
+        if self.api_errors:
+            lines.append("API Metadata Errors:")
+            for error_type, count in sorted(self.api_errors.items()):
+                lines.append(f"  {error_type}: {count}")
+                key = f"api_{error_type}"
+                if key in self.sample_errors and self.sample_errors[key]:
+                    lines.append(f"    Samples: {self.sample_errors[key][:3]}")
+
+        return "\n".join(lines) if lines else "No errors recorded."
+
+    def check_for_systemic_issues(self, total_pdf_attempts: int, total_api_attempts: int) -> List[str]:
+        """Check for patterns indicating systemic issues (URL changes, rate limiting, etc.)."""
+        warnings = []
+
+        # Check for high 404 rate (possible URL change)
+        if total_pdf_attempts > 0:
+            not_found_rate = self.pdf_errors.get("http_404_not_found", 0) / total_pdf_attempts
+            if not_found_rate > 0.5 and self.pdf_errors.get("http_404_not_found", 0) > 10:
+                warnings.append(
+                    f"HIGH 404 RATE ({not_found_rate:.1%}): EuroPMC PDF URL pattern may have changed. "
+                    f"Current pattern: {EUROPEPMC_PDF_URL_PATTERN}"
+                )
+
+        # Check for 403/401 (authentication/access issues)
+        auth_errors = (
+            self.pdf_errors.get("http_403_forbidden", 0)
+            + self.pdf_errors.get("http_401_unauthorized", 0)
+            + self.api_errors.get("http_403_forbidden", 0)
+            + self.api_errors.get("http_401_unauthorized", 0)
+        )
+        if auth_errors > 5:
+            warnings.append(
+                f"ACCESS DENIED ({auth_errors} errors): EuroPMC may have added authentication requirements "
+                "or IP restrictions."
+            )
+
+        # Check for rate limiting
+        rate_limit_errors = (
+            self.pdf_errors.get("http_429_rate_limited", 0)
+            + self.api_errors.get("http_429_rate_limited", 0)
+        )
+        if rate_limit_errors > 0:
+            warnings.append(
+                f"RATE LIMITED ({rate_limit_errors} errors): Consider reducing --workers or adding --download-sleep."
+            )
+
+        # Check for unexpected redirects (URL change indicator)
+        redirect_errors = self.pdf_errors.get("unexpected_redirect", 0)
+        if redirect_errors > 5:
+            warnings.append(
+                f"UNEXPECTED REDIRECTS ({redirect_errors}): EuroPMC PDF URLs may be redirecting to a new location."
+            )
+
+        # Check for wrong content type (API returning HTML error pages)
+        wrong_content = (
+            self.pdf_errors.get("wrong_content_type", 0)
+            + self.api_errors.get("wrong_content_type", 0)
+        )
+        if wrong_content > 10:
+            warnings.append(
+                f"WRONG CONTENT TYPE ({wrong_content}): API may be returning error pages instead of expected content."
+            )
+
+        # Check for server errors (EuroPMC infrastructure issues)
+        server_errors = sum([
+            self.pdf_errors.get("http_500_server_error", 0),
+            self.pdf_errors.get("http_502_bad_gateway", 0),
+            self.pdf_errors.get("http_503_unavailable", 0),
+            self.api_errors.get("http_500_server_error", 0),
+            self.api_errors.get("http_502_bad_gateway", 0),
+            self.api_errors.get("http_503_unavailable", 0),
+        ])
+        if server_errors > 10:
+            warnings.append(
+                f"SERVER ERRORS ({server_errors}): EuroPMC may be experiencing infrastructure issues."
+            )
+
+        # Check for API response format issues
+        if self.api_errors.get("invalid_response_format", 0) > 3:
+            warnings.append(
+                "API RESPONSE FORMAT CHANGED: EuroPMC API may have changed its response structure."
+            )
+
+        return warnings
+
+
+# Global error stats instance (initialized per run in main())
+_error_stats: Optional[EuropePmcErrorStats] = None
+
+
+def get_error_stats() -> EuropePmcErrorStats:
+    """Get the global error stats instance."""
+    global _error_stats
+    if _error_stats is None:
+        _error_stats = EuropePmcErrorStats()
+    return _error_stats
+
+
+def reset_error_stats() -> None:
+    """Reset error stats for a new run."""
+    global _error_stats
+    _error_stats = EuropePmcErrorStats()
+
+
+def classify_request_exception(e: Exception) -> EuropePmcErrorType:
+    """Classify a requests exception into an error type."""
+    if isinstance(e, requests.exceptions.Timeout):
+        return EuropePmcErrorType.TIMEOUT
+    elif isinstance(e, requests.exceptions.SSLError):
+        return EuropePmcErrorType.SSL_ERROR
+    elif isinstance(e, requests.exceptions.ConnectionError):
+        return EuropePmcErrorType.CONNECTION_ERROR
+    elif isinstance(e, requests.exceptions.HTTPError):
+        response = getattr(e, 'response', None)
+        if response is not None:
+            return classify_http_status(response.status_code)
+        return EuropePmcErrorType.HTTP_OTHER
+    elif isinstance(e, requests.exceptions.RequestException):
+        return EuropePmcErrorType.UNKNOWN
+    return EuropePmcErrorType.UNKNOWN
+
+
+def classify_http_status(status_code: int) -> EuropePmcErrorType:
+    """Classify an HTTP status code into an error type."""
+    if status_code == 404:
+        return EuropePmcErrorType.HTTP_404_NOT_FOUND
+    elif status_code == 403:
+        return EuropePmcErrorType.HTTP_403_FORBIDDEN
+    elif status_code == 401:
+        return EuropePmcErrorType.HTTP_401_UNAUTHORIZED
+    elif status_code == 429:
+        return EuropePmcErrorType.HTTP_429_RATE_LIMITED
+    elif status_code == 500:
+        return EuropePmcErrorType.HTTP_500_SERVER_ERROR
+    elif status_code == 502:
+        return EuropePmcErrorType.HTTP_502_BAD_GATEWAY
+    elif status_code == 503:
+        return EuropePmcErrorType.HTTP_503_UNAVAILABLE
+    elif 400 <= status_code < 500:
+        return EuropePmcErrorType.HTTP_OTHER
+    elif 500 <= status_code < 600:
+        return EuropePmcErrorType.HTTP_500_SERVER_ERROR
+    return EuropePmcErrorType.HTTP_OTHER
 
 
 # -----------------------------
@@ -144,14 +364,66 @@ def europepmc_pdf_url(pmc_id: str) -> str:
 
 
 def check_pdf_available(pmcid: str, timeout: int = 30) -> bool:
-    """HEAD-check for dry-run reporting."""
+    """HEAD-check for dry-run reporting with explicit error tracking."""
     pmc_id = normalize_pmcid(pmcid)
     url = europepmc_pdf_url(pmc_id)
+    stats = get_error_stats()
+
     try:
         r = requests.head(url, timeout=timeout, allow_redirects=True)
+
+        # Check for unexpected redirects to different domains
+        if r.history:
+            final_url = r.url
+            if EUROPEPMC_PDF_URL_PATTERN not in final_url:
+                stats.record_pdf_error(
+                    EuropePmcErrorType.UNEXPECTED_REDIRECT,
+                    pmc_id,
+                    f"Redirected to: {final_url}"
+                )
+                logger.warning(
+                    f"{pmc_id}: Unexpected redirect from EuroPMC PDF URL to {final_url}"
+                )
+                return False
+
+        if r.status_code != 200:
+            error_type = classify_http_status(r.status_code)
+            stats.record_pdf_error(
+                error_type,
+                pmc_id,
+                f"HTTP {r.status_code}"
+            )
+            logger.debug(f"{pmc_id}: HEAD check returned HTTP {r.status_code}")
+            return False
+
         ct = r.headers.get("Content-Type", "")
-        return r.status_code == 200 and "application/pdf" in ct.lower()
-    except requests.RequestException:
+        if "application/pdf" not in ct.lower():
+            stats.record_pdf_error(
+                EuropePmcErrorType.WRONG_CONTENT_TYPE,
+                pmc_id,
+                f"Content-Type: {ct}"
+            )
+            logger.debug(f"{pmc_id}: HEAD check returned unexpected Content-Type: {ct}")
+            return False
+
+        return True
+
+    except requests.exceptions.Timeout as e:
+        stats.record_pdf_error(EuropePmcErrorType.TIMEOUT, pmc_id, str(e))
+        logger.debug(f"{pmc_id}: HEAD check timed out: {e}")
+        return False
+    except requests.exceptions.SSLError as e:
+        stats.record_pdf_error(EuropePmcErrorType.SSL_ERROR, pmc_id, str(e))
+        logger.warning(f"{pmc_id}: SSL error during HEAD check: {e}")
+        return False
+    except requests.exceptions.ConnectionError as e:
+        stats.record_pdf_error(EuropePmcErrorType.CONNECTION_ERROR, pmc_id, str(e))
+        logger.debug(f"{pmc_id}: Connection error during HEAD check: {e}")
+        return False
+    except requests.RequestException as e:
+        error_type = classify_request_exception(e)
+        stats.record_pdf_error(error_type, pmc_id, str(e))
+        logger.debug(f"{pmc_id}: Request error during HEAD check: {type(e).__name__}: {e}")
         return False
 
 
@@ -159,6 +431,7 @@ def download_pdf_by_pmcid(pmcid: str, output_path: str, timeout: int = 60) -> bo
     """
     Never overwrites output_path. Downloads to .tmp then atomic rename.
     Availability is determined by the GET response.
+    Tracks errors for detecting URL changes and API issues.
     """
     if os.path.exists(output_path):
         return False
@@ -166,22 +439,85 @@ def download_pdf_by_pmcid(pmcid: str, output_path: str, timeout: int = 60) -> bo
     pmc_id = normalize_pmcid(pmcid)
     url = europepmc_pdf_url(pmc_id)
     tmp_path = output_path + ".tmp"
+    stats = get_error_stats()
 
     try:
         with requests.get(url, timeout=timeout, stream=True) as r:
-            ct = r.headers.get("Content-Type", "")
-            if r.status_code != 200 or "application/pdf" not in ct.lower():
+            # Check for unexpected redirects
+            if r.history:
+                final_url = r.url
+                if EUROPEPMC_PDF_URL_PATTERN not in final_url:
+                    stats.record_pdf_error(
+                        EuropePmcErrorType.UNEXPECTED_REDIRECT,
+                        pmc_id,
+                        f"Redirected to: {final_url}"
+                    )
+                    logger.warning(
+                        f"{pmc_id}: Unexpected redirect from EuroPMC PDF URL to {final_url}"
+                    )
+                    return False
+
+            # Check HTTP status code
+            if r.status_code != 200:
+                error_type = classify_http_status(r.status_code)
+                stats.record_pdf_error(
+                    error_type,
+                    pmc_id,
+                    f"HTTP {r.status_code}"
+                )
+                if r.status_code in (401, 403, 404, 429, 500, 502, 503):
+                    logger.debug(f"{pmc_id}: Download failed with HTTP {r.status_code}")
                 return False
 
+            # Validate Content-Type
+            ct = r.headers.get("Content-Type", "")
+            if "application/pdf" not in ct.lower():
+                stats.record_pdf_error(
+                    EuropePmcErrorType.WRONG_CONTENT_TYPE,
+                    pmc_id,
+                    f"Content-Type: {ct}"
+                )
+                logger.debug(f"{pmc_id}: Expected PDF but got Content-Type: {ct}")
+                return False
+
+            # Download the content
             with open(tmp_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         f.write(chunk)
 
+            # Verify we got actual content
+            if os.path.getsize(tmp_path) == 0:
+                stats.record_pdf_error(
+                    EuropePmcErrorType.EMPTY_RESPONSE,
+                    pmc_id,
+                    "Downloaded file is empty"
+                )
+                logger.warning(f"{pmc_id}: Downloaded PDF is empty")
+                return False
+
         os.replace(tmp_path, output_path)
         return True
 
-    except (requests.RequestException, OSError):
+    except requests.exceptions.Timeout as e:
+        stats.record_pdf_error(EuropePmcErrorType.TIMEOUT, pmc_id, str(e))
+        logger.debug(f"{pmc_id}: Download timed out: {e}")
+        return False
+    except requests.exceptions.SSLError as e:
+        stats.record_pdf_error(EuropePmcErrorType.SSL_ERROR, pmc_id, str(e))
+        logger.warning(f"{pmc_id}: SSL error during download: {e}")
+        return False
+    except requests.exceptions.ConnectionError as e:
+        stats.record_pdf_error(EuropePmcErrorType.CONNECTION_ERROR, pmc_id, str(e))
+        logger.debug(f"{pmc_id}: Connection error during download: {e}")
+        return False
+    except requests.RequestException as e:
+        error_type = classify_request_exception(e)
+        stats.record_pdf_error(error_type, pmc_id, str(e))
+        logger.debug(f"{pmc_id}: Request error during download: {type(e).__name__}: {e}")
+        return False
+    except OSError as e:
+        logger.error(f"{pmc_id}: File system error during download: {e}")
         return False
     finally:
         try:
@@ -277,12 +613,16 @@ def save_cache(cache_path: Path, cache: Dict[str, dict]) -> None:
     cache_path.write_text(json.dumps(cache, indent=2, sort_keys=True))
 
 
-def fetch_batch_core(
+def fetch_batch_core(  # noqa: C901
     pmcids: List[str],
     session: requests.Session,
     timeout: int = 60,
     page_size: int = 1000,
 ) -> Dict[str, PmcMeta]:
+    """
+    Fetch OA metadata from EuroPMC API with explicit error handling.
+    Validates response structure to detect API changes.
+    """
     # Ensure page_size can accommodate all PMCIDs in the batch, but cap at API limit
     effective_page_size = min(max(page_size, len(pmcids)), EUROPEPMC_MAX_PAGE_SIZE)
     or_query = " OR ".join([f"PMCID:{p}" for p in pmcids])
@@ -290,27 +630,124 @@ def fetch_batch_core(
 
     url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
     params = {"query": query, "resultType": "core", "format": "json", "pageSize": effective_page_size}
+    stats = get_error_stats()
 
-    r = session.get(url, params=params, timeout=timeout)
-    r.raise_for_status()
-    data = r.json()
+    try:
+        r = session.get(url, params=params, timeout=timeout)
 
-    results = (data.get("resultList", {}) or {}).get("result", []) or []
-    out: Dict[str, PmcMeta] = {}
+        # Check for unexpected redirects
+        if r.history:
+            final_url = r.url
+            if EUROPEPMC_API_URL_PATTERN not in final_url:
+                stats.record_api_error(
+                    EuropePmcErrorType.UNEXPECTED_REDIRECT,
+                    f"Redirected to: {final_url}"
+                )
+                logger.warning(f"EuroPMC API redirected to unexpected URL: {final_url}")
 
-    for res in results:
-        pmcid = (res.get("pmcid") or "").upper()
-        if not pmcid:
-            continue
-        out[pmcid] = PmcMeta(
-            pmcid=pmcid,
-            hit=True,
-            is_open_access=parse_yn(res.get("isOpenAccess")),
-            license=res.get("license"),
-            has_pdf=parse_yn(res.get("hasPDF")),
-            in_pmc=parse_yn(res.get("inPMC")),
-        )
-    return out
+        # Check HTTP status
+        if r.status_code != 200:
+            error_type = classify_http_status(r.status_code)
+            stats.record_api_error(
+                error_type,
+                f"HTTP {r.status_code} for batch of {len(pmcids)} PMCIDs"
+            )
+            r.raise_for_status()
+
+        # Validate Content-Type is JSON
+        ct = r.headers.get("Content-Type", "")
+        if "application/json" not in ct.lower() and "json" not in ct.lower():
+            stats.record_api_error(
+                EuropePmcErrorType.WRONG_CONTENT_TYPE,
+                f"Expected JSON but got Content-Type: {ct}"
+            )
+            logger.warning(f"EuroPMC API returned unexpected Content-Type: {ct}")
+
+        # Parse JSON response
+        try:
+            data = r.json()
+        except ValueError as e:
+            stats.record_api_error(
+                EuropePmcErrorType.INVALID_RESPONSE_FORMAT,
+                f"JSON parse error: {e}"
+            )
+            logger.error(f"EuroPMC API returned invalid JSON: {e}")
+            raise
+
+        # Validate expected response structure
+        if not isinstance(data, dict):
+            stats.record_api_error(
+                EuropePmcErrorType.INVALID_RESPONSE_FORMAT,
+                f"Expected dict, got {type(data).__name__}"
+            )
+            logger.error(f"EuroPMC API response is not a dict: {type(data).__name__}")
+            raise ValueError(f"Invalid API response format: expected dict, got {type(data).__name__}")
+
+        result_list = data.get("resultList")
+        if result_list is None:
+            # Check if this is an error response
+            if "error" in data or "errorMessage" in data:
+                error_msg = data.get("error") or data.get("errorMessage") or "Unknown API error"
+                stats.record_api_error(
+                    EuropePmcErrorType.HTTP_OTHER,
+                    f"API error response: {error_msg}"
+                )
+                logger.error(f"EuroPMC API returned error: {error_msg}")
+                raise ValueError(f"API error: {error_msg}")
+
+            stats.record_api_error(
+                EuropePmcErrorType.INVALID_RESPONSE_FORMAT,
+                "Missing 'resultList' in response"
+            )
+            logger.warning("EuroPMC API response missing 'resultList' field - API format may have changed")
+
+        results = ((result_list or {}).get("result", []) or []) if result_list else []
+
+        # Warn if we got fewer results than expected (might indicate API issues)
+        if len(results) == 0 and len(pmcids) > 0:
+            logger.debug(f"EuroPMC API returned 0 results for {len(pmcids)} PMCIDs (may all be non-OA)")
+
+        out: Dict[str, PmcMeta] = {}
+
+        for res in results:
+            if not isinstance(res, dict):
+                stats.record_api_error(
+                    EuropePmcErrorType.INVALID_RESPONSE_FORMAT,
+                    f"Result item is not a dict: {type(res).__name__}"
+                )
+                continue
+
+            pmcid = (res.get("pmcid") or "").upper()
+            if not pmcid:
+                continue
+
+            out[pmcid] = PmcMeta(
+                pmcid=pmcid,
+                hit=True,
+                is_open_access=parse_yn(res.get("isOpenAccess")),
+                license=res.get("license"),
+                has_pdf=parse_yn(res.get("hasPDF")),
+                in_pmc=parse_yn(res.get("inPMC")),
+            )
+
+        return out
+
+    except requests.exceptions.Timeout as e:
+        stats.record_api_error(EuropePmcErrorType.TIMEOUT, str(e))
+        raise
+    except requests.exceptions.SSLError as e:
+        stats.record_api_error(EuropePmcErrorType.SSL_ERROR, str(e))
+        raise
+    except requests.exceptions.ConnectionError as e:
+        stats.record_api_error(EuropePmcErrorType.CONNECTION_ERROR, str(e))
+        raise
+    except requests.exceptions.HTTPError:
+        # Already recorded above, just re-raise
+        raise
+    except requests.RequestException as e:
+        error_type = classify_request_exception(e)
+        stats.record_api_error(error_type, str(e))
+        raise
 
 
 def is_oa_from_cache_entry(c: dict, require_has_pdf: bool = True) -> bool:
@@ -691,6 +1128,9 @@ def main() -> None:  # noqa: C901  # pragma: no cover
 
     args = ap.parse_args()
 
+    # Reset error stats for this run
+    reset_error_stats()
+
     # Validate oa_batch_size doesn't exceed Europe PMC's max page size
     if args.oa_batch_size > EUROPEPMC_MAX_PAGE_SIZE:
         logger.warning(
@@ -836,6 +1276,24 @@ def main() -> None:  # noqa: C901  # pragma: no cover
                 logger.info(f"Progress: {completed}/{total} ({100 * completed / total:.1f}%)")
 
     if args.dry_run:
+        # Report any errors encountered during dry-run availability checks
+        stats = get_error_stats()
+        if stats.has_errors():
+            logger.info("============================================================")
+            logger.info("ERROR STATISTICS (dry-run)")
+            logger.info("============================================================")
+            logger.info(stats.get_summary())
+
+            # Check for systemic issues
+            total_pdf_attempts = len(deduped_for_download)
+            warnings = stats.check_for_systemic_issues(total_pdf_attempts, 0)
+            if warnings:
+                logger.info("============================================================")
+                logger.warning("POTENTIAL ISSUES DETECTED")
+                logger.info("============================================================")
+                for warning in warnings:
+                    logger.warning(warning)
+
         logger.info("Dry-run complete (no download/upload/db inserts performed).")
         return
 
@@ -1073,6 +1531,27 @@ def main() -> None:  # noqa: C901  # pragma: no cover
     logger.info(f"Promoted misnamed supplement PDFs to main (matched NXML display_name): {promoted_bad_supp}")
     logger.info(f"Skipped non-OA/unknown: {len(skipped_non_oa)}")
     logger.info(f"ENV_STATE={os.environ.get('ENV_STATE')} upload/db allowed={upload_and_db_allowed}")
+
+    # Report error statistics and check for systemic issues
+    stats = get_error_stats()
+    if stats.has_errors():
+        logger.info("============================================================")
+        logger.info("ERROR STATISTICS")
+        logger.info("============================================================")
+        logger.info(stats.get_summary())
+
+        # Check for systemic issues that might indicate URL/API changes
+        total_pdf_attempts = len(deduped_for_download)
+        total_api_attempts = len(missing) // args.oa_batch_size + (1 if len(missing) % args.oa_batch_size else 0)
+        warnings = stats.check_for_systemic_issues(total_pdf_attempts, total_api_attempts)
+
+        if warnings:
+            logger.info("============================================================")
+            logger.warning("POTENTIAL ISSUES DETECTED")
+            logger.info("============================================================")
+            for warning in warnings:
+                logger.warning(warning)
+
     logger.info("Done.")
 
 
