@@ -34,7 +34,7 @@ def load_mod_abbr(db, debug):
         for mod_abbr, mod_id in mods:
             if debug:
                 print(f"DEBUG: mod abbr {mod_abbr}")
-            if mod_abbr != 'GO':
+            if mod_abbr not in ['GO', 'alliance']:
                 mod_ids[mod_abbr] = mod_id
                 mod_abbrs[mod_id] = mod_abbr
     except Exception as e:

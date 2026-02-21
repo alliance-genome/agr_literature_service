@@ -66,7 +66,7 @@ def get_name_to_atp_and_children(token, debug, curie='ATP:0000177'):
 def add_transitions(db_session: Session, filename: str, debug: bool = False):  # noqa
     global name_to_atp
 
-    mod_ids = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).filter(ModModel.abbreviation != 'GO').all()])
+    mod_ids = dict([(x.abbreviation, x.mod_id) for x in db_session.query(ModModel).filter(ModModel.abbreviation.not_in(['GO', 'alliance'])).all()])
 
     # Add new data files here with appropriate elif
     if filename == "file_upload":
