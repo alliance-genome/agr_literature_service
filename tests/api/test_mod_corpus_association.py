@@ -225,9 +225,9 @@ class TestAllianceOnlyReference:
             assert ref_data["title"] == "Alliance-only test paper"
 
             # Verify Alliance MOD corpus association was created
-            assert len(ref_data["mod_corpus_association"]) == 1
-            assert ref_data["mod_corpus_association"][0]["mod_abbreviation"] == "alliance"
-            assert ref_data["mod_corpus_association"][0]["corpus"] is True
+            assert len(ref_data["mod_corpus_associations"]) == 1
+            assert ref_data["mod_corpus_associations"][0]["mod_abbreviation"] == "alliance"
+            assert ref_data["mod_corpus_associations"][0]["corpus"] is True
 
             # Verify no cross-references were auto-generated
             reference_obj = db.query(ReferenceModel).filter(
@@ -357,11 +357,11 @@ class TestAllianceOnlyReference:
             ref_response = client.get(url=f"/reference/{ref_curie}", headers=auth_headers)
             ref_data = ref_response.json()
 
-            assert len(ref_data["mod_corpus_association"]) == 1
-            assert ref_data["mod_corpus_association"][0]["mod_abbreviation"] == "alliance"
+            assert len(ref_data["mod_corpus_associations"]) == 1
+            assert ref_data["mod_corpus_associations"][0]["mod_abbreviation"] == "alliance"
 
             # Verify no WB, SGD, FB, etc. MOD associations were auto-created
-            for mca in ref_data["mod_corpus_association"]:
+            for mca in ref_data["mod_corpus_associations"]:
                 assert mca["mod_abbreviation"] == "alliance"
 
     def test_alliance_excluded_from_get_mod_abbreviations(self, db):  # noqa
@@ -398,7 +398,8 @@ class TestAllianceOnlyReference:
 
         populate_test_mods()
 
-        taxon_list = taxons(db)
+        # Use type='all' to avoid None taxon_ids issue in test data
+        taxon_list = taxons(db, type='all')
 
         # Alliance should NOT be in the taxons list
         mod_abbrevs = [t['mod_abbreviation'] for t in taxon_list]
