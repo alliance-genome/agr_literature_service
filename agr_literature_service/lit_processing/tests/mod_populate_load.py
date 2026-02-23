@@ -47,7 +47,10 @@ def populate_test_mods():      # noqa: C901
                  "full_name": "Xenbase"},
                 {"abbreviation": "GO",
                  "short_name": "GOC",
-                 "full_name": "Gene Ontology Consortium"}]
+                 "full_name": "Gene Ontology Consortium"},
+                {"abbreviation": "alliance",
+                 "short_name": "Alliance",
+                 "full_name": "Alliance of Genome Resources"}]
 
     for data in mod_data:
 

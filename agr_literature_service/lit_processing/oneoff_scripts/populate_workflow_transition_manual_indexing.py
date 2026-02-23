@@ -34,7 +34,7 @@ def populate_data():
 
     try:
         for mod in mods:
-            if mod.abbreviation == 'GO':
+            if mod.abbreviation in ['GO', 'alliance']:
                 continue
             for from_term in terms:
                 for to_term in target_terms:

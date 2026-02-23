@@ -161,9 +161,10 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                 mod_abbreviation = db_mod.abbreviation
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
-                if get_current_workflow_status(db, str(reference_obj.reference_id),
-                                               "ATP:0000140",
-                                               mod_abbreviation=mod_abbreviation) is None:
+                # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
+                if mod_abbreviation != 'alliance' and get_current_workflow_status(
+                        db, str(reference_obj.reference_id), "ATP:0000140",
+                        mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
                 if mod_abbreviation == 'ZFIN':
                     wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,

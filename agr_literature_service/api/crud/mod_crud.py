@@ -104,7 +104,7 @@ def taxons(db: Session, type='default'):
 
     taxons = []
     for mod in db.query(ModModel).all():
-        if mod.abbreviation != 'GO':
+        if mod.abbreviation not in ['GO', 'alliance']:
             if type == 'all':
                 taxons.append({'mod_abbreviation': mod.abbreviation,
                                'taxon_ids': mod.taxon_ids})

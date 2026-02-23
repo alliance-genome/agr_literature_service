@@ -691,7 +691,7 @@ def get_mod_reference_type_data_for_ref_ids(db_session: Session, ref_ids):
 def get_mod_abbreviations(db_session: Session = None):
     if db_session is None:
         db_session = create_postgres_session(False)
-    return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation != 'GO').all()]
+    return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation.not_in(['GO', 'alliance'])).all()]
 
 
 def get_pmid_list_without_pmc_package(mods, db_session: Session = None):
