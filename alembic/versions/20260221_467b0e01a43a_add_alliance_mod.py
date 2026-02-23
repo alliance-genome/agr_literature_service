@@ -1,42 +1,58 @@
 """add_alliance_mod
 
 Revision ID: 467b0e01a43a
-Revises: abc123def456
+Revises: 283e37c0f96d
 Create Date: 2026-02-21 10:00:00.000000
 
 """
+from __future__ import annotations
+
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.sql import table, column
-
 
 # revision identifiers, used by Alembic.
-revision = '467b0e01a43a'
-down_revision = 'abc123def456'
+revision = "467b0e01a43a"
+down_revision = "283e37c0f96d"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
-    # Insert the 'alliance' MOD into the mod table
-    mod_table = table(
-        'mod',
-        column('abbreviation', sa.String),
-        column('short_name', sa.String),
-        column('full_name', sa.String),
-        column('taxon_ids', sa.ARRAY(sa.String))
-    )
+    conn = op.get_bind()
 
-    op.bulk_insert(mod_table, [
+    # Prefer a valid existing created_by from mod table (avoids FK / NOT NULL surprises)
+    user = conn.execute(
+        sa.text("SELECT created_by FROM mod WHERE created_by IS NOT NULL LIMIT 1")
+    ).scalar()
+
+    if user is None:
+        user = "default_user"
+
+    # Insert into mod if not exists. Use NOW() in SQL (not as a bound parameter).
+    conn.execute(
+        sa.text(
+            """
+            INSERT INTO mod (abbreviation, short_name, full_name, taxon_ids,
+                             date_created, created_by, date_updated, updated_by)
+            SELECT :abbr, :short_name, :full_name, NULL,
+                   NOW(), :user, NOW(), :user
+            WHERE NOT EXISTS (
+                SELECT 1 FROM mod WHERE abbreviation = :abbr
+            )
+            """
+        ),
         {
-            'abbreviation': 'alliance',
-            'short_name': 'Alliance',
-            'full_name': 'Alliance of Genome Resources',
-            'taxon_ids': None
-        }
-    ])
+            "abbr": "alliance",
+            "short_name": "Alliance",
+            "full_name": "Alliance of Genome Resources",
+            "user": user,
+        },
+    )
 
 
 def downgrade():
-    # Remove the 'alliance' MOD from the mod table
-    op.execute("DELETE FROM mod WHERE abbreviation = 'alliance'")
+    conn = op.get_bind()
+    conn.execute(
+        sa.text("DELETE FROM mod WHERE abbreviation = :abbr"),
+        {"abbr": "alliance"},
+    )
