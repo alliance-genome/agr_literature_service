@@ -13,6 +13,9 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_all_pmids, get_mod_papers
+from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel
+from agr_literature_service.api.schemas import ModCorpusSortSourceType
+from sqlalchemy import text
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
@@ -67,6 +70,10 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
 
+    # Associate HUMAN papers with alliance MOD
+    if datasetName == "HUMAN":
+        associate_human_papers_with_alliance(db_session, all_pmids)
+
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                                   all_pmids, new_pmids, pmid_to_src,
@@ -91,6 +98,10 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
                 upload_xml_file_to_s3(pmid, 'latest')
 
     add_md5sum_to_database(db_session, None, pmids_loaded)
+
+    # Associate newly loaded HUMAN papers with alliance MOD
+    if datasetName == "HUMAN" and len(pmids_loaded) > 0:
+        associate_human_papers_with_alliance(db_session, pmids_loaded)
 
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,
@@ -234,6 +245,71 @@ def search_pubmed(pmids):
             valid_pmids.append(pmid)
 
     return obsolete_pmids, valid_pmids
+
+
+def associate_human_papers_with_alliance(db_session, all_pmids):
+    """
+    Associate HUMAN dataset papers with the 'alliance' MOD.
+    For papers that exist in the database but are not associated with alliance,
+    create a mod_corpus_association with corpus=True.
+    """
+    # Get alliance mod_id
+    alliance_mod = db_session.query(ModModel).filter(
+        ModModel.abbreviation == 'alliance'
+    ).first()
+    if not alliance_mod:
+        logger.warning("Alliance MOD not found in database")
+        return 0
+
+    alliance_mod_id = alliance_mod.mod_id
+
+    # Get PMIDs that are in the database
+    pmids_with_prefix = ", ".join([f"'PMID:{pmid}'" for pmid in all_pmids])
+    if not pmids_with_prefix:
+        return 0
+
+    # Get reference_ids for PMIDs in the HUMAN dataset
+    rows = db_session.execute(text(
+        f"SELECT cr.curie, cr.reference_id "
+        f"FROM cross_reference cr "
+        f"WHERE cr.curie IN ({pmids_with_prefix}) "
+        f"AND cr.is_obsolete = False"
+    )).fetchall()
+
+    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
+    reference_ids_in_db = set(pmid_to_ref_id.values())
+
+    if not reference_ids_in_db:
+        return 0
+
+    # Get reference_ids already associated with alliance
+    ref_ids_str = ", ".join([str(ref_id) for ref_id in reference_ids_in_db])
+    existing_rows = db_session.execute(text(
+        f"SELECT reference_id FROM mod_corpus_association "
+        f"WHERE mod_id = {alliance_mod_id} "
+        f"AND reference_id IN ({ref_ids_str})"
+    )).fetchall()
+
+    already_associated = {row[0] for row in existing_rows}
+
+    # Add mod_corpus_association for papers not yet associated with alliance
+    count = 0
+    for ref_id in reference_ids_in_db:
+        if ref_id not in already_associated:
+            mca = ModCorpusAssociationModel(
+                reference_id=ref_id,
+                mod_id=alliance_mod_id,
+                corpus=True,
+                mod_corpus_sort_source=ModCorpusSortSourceType.Automated_alliance
+            )
+            db_session.add(mca)
+            count += 1
+
+    if count > 0:
+        db_session.commit()
+        logger.info(f"Associated {count} HUMAN paper(s) with alliance MOD")
+
+    return count
 
 
 def clean_up_tmp_directories():
