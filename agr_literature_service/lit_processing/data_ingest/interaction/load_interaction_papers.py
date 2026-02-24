@@ -250,8 +250,9 @@ def search_pubmed(pmids):
 def associate_human_papers_with_alliance(db_session, all_pmids):
     """
     Associate HUMAN dataset papers with the 'alliance' MOD.
-    For papers that exist in the database but are not associated with alliance,
-    create a mod_corpus_association with corpus=True.
+    Only associate papers that do NOT already have a mod_corpus_association
+    with corpus=True for any MOD. This ensures we only add papers to 'alliance'
+    that are not already in another MOD's corpus.
     """
     # Get alliance mod_id
     alliance_mod = db_session.query(ModModel).filter(
@@ -282,20 +283,21 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
     if not reference_ids_in_db:
         return 0
 
-    # Get reference_ids already associated with alliance
     ref_ids_str = ", ".join([str(ref_id) for ref_id in reference_ids_in_db])
-    existing_rows = db_session.execute(text(
-        f"SELECT reference_id FROM mod_corpus_association "
-        f"WHERE mod_id = {alliance_mod_id} "
+
+    # Get reference_ids that already have corpus=True for any MOD
+    refs_with_corpus = db_session.execute(text(
+        f"SELECT DISTINCT reference_id FROM mod_corpus_association "
+        f"WHERE corpus = True "
         f"AND reference_id IN ({ref_ids_str})"
     )).fetchall()
 
-    already_associated = {row[0] for row in existing_rows}
+    already_in_corpus = {row[0] for row in refs_with_corpus}
 
-    # Add mod_corpus_association for papers not yet associated with alliance
+    # Add mod_corpus_association for papers not yet in any MOD's corpus
     count = 0
     for ref_id in reference_ids_in_db:
-        if ref_id not in already_associated:
+        if ref_id not in already_in_corpus:
             mca = ModCorpusAssociationModel(
                 reference_id=ref_id,
                 mod_id=alliance_mod_id,
