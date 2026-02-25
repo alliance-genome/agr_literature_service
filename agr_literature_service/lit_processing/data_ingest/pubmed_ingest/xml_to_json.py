@@ -158,7 +158,9 @@ def get_alliance_category_from_pubmed_types(pubmed_types: List[str]):     # noqa
     # 2) Any Retraction/Correction/Preprint next
     for t in lower_types:
         info = type2categoryInfo.get(t)
-        if info and info[0] in ('Correction', 'Retraction', 'Preprint'):
+        if info and info[0] in ('Correction', 'Retraction Notice', 'Preprint'):
+            if info[0] == 'Retraction Notice':
+                return 'Retraction'
             return info[0]
 
     # 3) Then Comment
