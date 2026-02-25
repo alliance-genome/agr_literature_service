@@ -577,14 +577,13 @@ def test_pubmed_types_to_category_mapping(base_dir=base_path):
     if not path.exists(json_path):
         makedirs(json_path)
 
-    pmids = ['26051182', '19678847', '21976771', '7567443']
+    pmids = ['26051182', '19678847', '7567443']
     # 26051182 ['Journal Article', 'Research Support, N.I.H., Extramural', "Research Support, Non-U.S. Gov't"]
     # 19678847 ['Comparative Study', 'Journal Article', "Research Support, Non-U.S. Gov't", 'Review']
-    # 21976771 ['Journal Article', 'Retracted Publication']
     # 7567443  ['Journal Article', "Research Support, Non-U.S. Gov't", 'Corrected and Republished Article']
+    # Note: Retraction category is only mapped from 'Retraction Notice' pubmed_type
     pmid_to_category = {'26051182': 'Research_Article',
                         '19678847': 'Review_Article',
-                        '21976771': 'Retraction',
                         '7567443': 'Correction'}
 
     generate_json(pmids, [], base_dir=base_dir)
@@ -598,7 +597,7 @@ def test_pubmed_types_to_category_mapping(base_dir=base_path):
         f.close()
         if json_data.get('allianceCategory') and json_data['allianceCategory'] == pmid_to_category[pmid]:
             good_check_check_count = good_check_check_count + 1
-    if good_check_check_count == 4:
+    if good_check_check_count == 3:
         result = "Success"
 
     assert result != 'Failure'

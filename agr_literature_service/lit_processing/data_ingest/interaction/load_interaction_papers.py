@@ -264,18 +264,20 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
 
     alliance_mod_id = alliance_mod.mod_id
 
-    # Get PMIDs that are in the database
-    pmids_with_prefix = ", ".join([f"'PMID:{pmid}'" for pmid in all_pmids])
-    if not pmids_with_prefix:
+    if not all_pmids:
         return 0
 
-    # Get reference_ids for PMIDs in the HUMAN dataset
-    rows = db_session.execute(text(
-        f"SELECT cr.curie, cr.reference_id "
-        f"FROM cross_reference cr "
-        f"WHERE cr.curie IN ({pmids_with_prefix}) "
-        f"AND cr.is_obsolete = False"
-    )).fetchall()
+    # Build parameterized query for PMIDs
+    pmid_curies = [f"PMID:{pmid}" for pmid in all_pmids]
+
+    # Get reference_ids for PMIDs in the HUMAN dataset using parameterized query
+    query = text(
+        "SELECT cr.curie, cr.reference_id "
+        "FROM cross_reference cr "
+        "WHERE cr.curie = ANY(:pmid_curies) "
+        "AND cr.is_obsolete = False"
+    )
+    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
 
     pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
     reference_ids_in_db = set(pmid_to_ref_id.values())
@@ -283,21 +285,27 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
     if not reference_ids_in_db:
         return 0
 
-    ref_ids_str = ", ".join([str(ref_id) for ref_id in reference_ids_in_db])
+    ref_ids_list = list(reference_ids_in_db)
 
     # Get reference_ids that already have corpus=True for any MOD
-    refs_with_corpus = db_session.execute(text(
-        f"SELECT DISTINCT reference_id FROM mod_corpus_association "
-        f"WHERE corpus = True "
-        f"AND reference_id IN ({ref_ids_str})"
-    )).fetchall()
+    # OR already have an association with the alliance MOD (to avoid unique constraint violation)
+    refs_to_exclude_query = text(
+        "SELECT DISTINCT reference_id FROM mod_corpus_association "
+        "WHERE reference_id = ANY(:ref_ids) "
+        "AND (corpus = True OR mod_id = :alliance_mod_id)"
+    )
+    refs_to_exclude = db_session.execute(
+        refs_to_exclude_query,
+        {"ref_ids": ref_ids_list, "alliance_mod_id": alliance_mod_id}
+    ).fetchall()
 
-    already_in_corpus = {row[0] for row in refs_with_corpus}
+    already_excluded = {row[0] for row in refs_to_exclude}
 
     # Add mod_corpus_association for papers not yet in any MOD's corpus
+    # and not already associated with alliance MOD
     count = 0
     for ref_id in reference_ids_in_db:
-        if ref_id not in already_in_corpus:
+        if ref_id not in already_excluded:
             mca = ModCorpusAssociationModel(
                 reference_id=ref_id,
                 mod_id=alliance_mod_id,
