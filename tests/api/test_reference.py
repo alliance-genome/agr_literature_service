@@ -122,6 +122,53 @@ class TestReference:
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
 
+    def test_retraction_status(self, db, auth_headers, test_reference):  # noqa
+        # retraction_status stores ATP curies (no DB constraint):
+        #   ATP:0000346 = retracted
+        #   ATP:0000348 = fully retracted
+        #   ATP:0000347 = partially retracted
+        #   NULL = not retracted
+        with TestClient(app) as client:
+            # 1) Default fixture reference has no retraction_status → should be None
+            response = client.get(url=f"/reference/{test_reference.new_ref_curie}",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["retraction_status"] is None
+
+            # 2) Create a reference WITH retraction_status set
+            new_ref = {
+                "title": "Retracted Paper",
+                "category": "research_article",
+                "retraction_status": "ATP:0000348"  # fully retracted
+            }
+            post_resp = client.post(url="/reference/", json=new_ref,
+                                    headers=auth_headers)
+            assert post_resp.status_code == status.HTTP_201_CREATED
+            new_curie = post_resp.json()
+            get_resp = client.get(url=f"/reference/{new_curie}",
+                                  headers=auth_headers)
+            assert get_resp.json()["retraction_status"] == "ATP:0000348"
+
+            # 3) Patch retraction_status on the fixture reference
+            patch_resp = client.patch(
+                url=f"/reference/{test_reference.new_ref_curie}",
+                json={"retraction_status": "ATP:0000347"},  # partially retracted
+                headers=auth_headers)
+            assert patch_resp.status_code == status.HTTP_202_ACCEPTED
+            get_resp = client.get(url=f"/reference/{test_reference.new_ref_curie}",
+                                  headers=auth_headers)
+            assert get_resp.json()["retraction_status"] == "ATP:0000347"
+
+            # 4) Clear retraction_status back to None (not retracted)
+            patch_resp = client.patch(
+                url=f"/reference/{test_reference.new_ref_curie}",
+                json={"retraction_status": None},
+                headers=auth_headers)
+            assert patch_resp.status_code == status.HTTP_202_ACCEPTED
+            get_resp = client.get(url=f"/reference/{test_reference.new_ref_curie}",
+                                  headers=auth_headers)
+            assert get_resp.json()["retraction_status"] is None
+
     def test_show_reference(self, auth_headers, test_reference):  # noqa
         with TestClient(app) as client:
             get_response = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers)
