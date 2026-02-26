@@ -125,6 +125,12 @@ alembic-apply-latest-migration:
 	$(MAKE) ENV_FILE=${ENV_FILE} restart-api-and-automated-scripts
 	$(MAKE) ENV_FILE=${ENV_FILE} restart-debezium-aws
 
+alembic-apply-latest-migration-devdb:
+	docker-compose --env-file ${ENV_FILE} rm -s -f api
+	docker-compose --env-file ${ENV_FILE} build dev_app
+	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
+	$(MAKE) ENV_FILE=${ENV_FILE} restart-api
+
 restart-automated-scripts:
 	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts
 	docker-compose --env-file ${ENV_FILE} up --build -d automated_scripts
