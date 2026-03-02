@@ -91,9 +91,10 @@ def generate_new_md5(input_path, mods, base_dir=base_path):
         try:
             with open(filename, 'r') as f:
                 dqm_data = json.load(f)
-                f.close()
         except IOError:
             logger.info("No reference data to update from MOD %s", mod)
+        except json.JSONDecodeError as e:
+            logger.warning("Invalid JSON in reference file for MOD %s: %s", mod, str(e))
         if not dqm_data:
             continue
 
