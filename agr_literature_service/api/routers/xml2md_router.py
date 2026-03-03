@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 VALID_FORMATS = {"auto", "tei", "jats"}
 VALID_OUTPUT_FORMATS = {"md", "html"}
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
 _md_renderer = MarkdownIt()
 
@@ -89,11 +90,16 @@ async def convert_xml_to_md(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
-    xml_content = await file.read()
+    xml_content = await file.read(MAX_UPLOAD_BYTES + 1)
     if not xml_content:
         return PlainTextResponse(
             content="Uploaded file is empty",
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    if len(xml_content) > MAX_UPLOAD_BYTES:
+        return PlainTextResponse(
+            content="File too large (max 50 MB)",
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
         )
 
     try:
@@ -104,10 +110,10 @@ async def convert_xml_to_md(
             content=f"Conversion failed: {e}",
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Unexpected error during XML-to-Markdown conversion")
         return PlainTextResponse(
-            content=f"Unexpected error: {e}",
+            content="An internal error occurred. Check server logs for details.",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 

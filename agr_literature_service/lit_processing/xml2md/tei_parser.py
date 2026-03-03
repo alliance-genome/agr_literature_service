@@ -20,7 +20,10 @@ def parse_tei(xml_content: bytes) -> Document:
     Returns:
         A populated Document dataclass.
     """
-    root = etree.fromstring(xml_content)
+    parser = etree.XMLParser(
+        recover=True, no_network=True, load_dtd=False, resolve_entities=False
+    )
+    root = etree.fromstring(xml_content, parser=parser)
     doc = Document(source_format="tei")
 
     doc.title = _parse_title(root)
@@ -46,16 +49,21 @@ def _text(elem) -> str:
 
 def _all_text(elem) -> str:
     """Get all text content of an element including children."""
+    return _collect_text(elem).strip()
+
+
+def _collect_text(elem) -> str:
+    """Recursively collect text without stripping inner whitespace."""
     if elem is None:
         return ""
     parts = []
     if elem.text:
         parts.append(elem.text)
     for child in elem:
-        parts.append(_all_text(child))
+        parts.append(_collect_text(child))
         if child.tail:
             parts.append(child.tail)
-    return "".join(parts).strip()
+    return "".join(parts)
 
 
 def _parse_title(root) -> str:

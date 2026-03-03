@@ -66,16 +66,21 @@ def _text(elem) -> str:
 
 def _all_text(elem) -> str:
     """Get all text content of an element including children."""
+    return _collect_text(elem).strip()
+
+
+def _collect_text(elem) -> str:
+    """Recursively collect text without stripping inner whitespace."""
     if elem is None:
         return ""
     parts = []
     if elem.text:
         parts.append(elem.text)
     for child in elem:
-        parts.append(_all_text(child))
+        parts.append(_collect_text(child))
         if child.tail:
             parts.append(child.tail)
-    return "".join(parts).strip()
+    return "".join(parts)
 
 
 def _parse_title(root) -> str:
@@ -152,15 +157,47 @@ def _parse_authors(root, aff_map: dict[str, str]) -> list[Author]:
 
 
 def _parse_body(root) -> list[Section]:
-    """Parse body sections from //body/sec."""
+    """Parse body content from <body>.
+
+    Handles both <sec>-structured bodies and bare elements (<p>, <fig>,
+    <table-wrap>) that appear as direct children of <body>.
+    """
     sections: list[Section] = []
     body = root.find(".//body")
     if body is None:
         return sections
 
-    for sec in body.findall("sec"):
-        section = _parse_sec(sec, level=1)
-        sections.append(section)
+    # Collect bare (non-sec) elements before the first <sec> into a
+    # preamble section, and handle any bare elements between sections.
+    preamble = Section(level=1)
+
+    for child in body:
+        tag = etree.QName(child.tag).localname if isinstance(
+            child.tag, str
+        ) else ""
+
+        if tag == "sec":
+            # Flush any accumulated preamble content
+            if (preamble.paragraphs or preamble.figures
+                    or preamble.tables or preamble.lists):
+                sections.append(preamble)
+                preamble = Section(level=1)
+            sections.append(_parse_sec(child, level=1))
+        elif tag == "p":
+            preamble.paragraphs.append(_parse_paragraph(child))
+        elif tag == "fig":
+            preamble.figures.append(_parse_fig(child))
+        elif tag == "table-wrap":
+            preamble.tables.append(_parse_table_wrap(child))
+        elif tag == "disp-formula":
+            preamble.formulas.append(_parse_formula(child))
+        elif tag == "list":
+            preamble.lists.append(_parse_list(child))
+
+    # Flush trailing preamble
+    if (preamble.paragraphs or preamble.figures
+            or preamble.tables or preamble.lists):
+        sections.append(preamble)
 
     return sections
 
@@ -408,10 +445,11 @@ def _parse_ref(ref_elem, index: int) -> Reference:
     if citation is None:
         return ref
 
-    # Authors
-    for name_elem in citation.findall(
-        ".//person-group/name"
-    ):
+    # Authors — try person-group/name first, fall back to direct name children
+    author_names = citation.findall(".//person-group/name")
+    if not author_names:
+        author_names = citation.findall("name")
+    for name_elem in author_names:
         surname = _text(name_elem.find("surname"))
         given = _text(name_elem.find("given-names"))
         if surname:

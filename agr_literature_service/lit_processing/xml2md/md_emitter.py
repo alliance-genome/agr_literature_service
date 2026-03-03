@@ -23,11 +23,13 @@ def emit_markdown(doc: Document) -> str:
     _emit_authors(doc, lines)
     _emit_abstract(doc, lines)
     _emit_keywords(doc, lines)
-    _emit_sections(doc.sections, lines, base_level=2)
+    footnote_counter = [0]  # mutable counter shared across sections
+    _emit_sections(doc.sections, lines, base_level=2,
+                   footnote_counter=footnote_counter)
     _emit_doc_level_figures(doc, lines)
     _emit_doc_level_tables(doc, lines)
     _emit_acknowledgments(doc, lines)
-    _emit_back_matter(doc, lines)
+    _emit_back_matter(doc, lines, footnote_counter=footnote_counter)
     _emit_references(doc, lines)
 
     return "\n".join(lines).rstrip("\n") + "\n"
@@ -90,15 +92,21 @@ def _emit_keywords(doc: Document, lines: list[str]) -> None:
 
 
 def _emit_sections(
-    sections: list[Section], lines: list[str], base_level: int
+    sections: list[Section], lines: list[str], base_level: int,
+    footnote_counter: list[int] | None = None,
 ) -> None:
+    if footnote_counter is None:
+        footnote_counter = [0]
     for section in sections:
-        _emit_section(section, lines, base_level)
+        _emit_section(section, lines, base_level, footnote_counter)
 
 
 def _emit_section(
-    section: Section, lines: list[str], heading_level: int
+    section: Section, lines: list[str], heading_level: int,
+    footnote_counter: list[int] | None = None,
 ) -> None:
+    if footnote_counter is None:
+        footnote_counter = [0]
     capped_level = min(heading_level, MAX_HEADING_LEVEL)
     hashes = "#" * capped_level
 
@@ -138,14 +146,20 @@ def _emit_section(
         _emit_list(lst, lines)
 
     # Footnotes
-    for i, note in enumerate(section.notes, 1):
-        lines.append(f"[^{i}]: {note}")
+    for note in section.notes:
+        footnote_counter[0] += 1
+        lines.append(f"[^{footnote_counter[0]}]: {note}")
     if section.notes:
         lines.append("")
 
     # Subsections
     for sub in section.subsections:
-        _emit_section(sub, lines, heading_level + 1)
+        _emit_section(sub, lines, heading_level + 1, footnote_counter)
+
+
+def _escape_cell(text: str) -> str:
+    """Escape pipe characters in table cell text."""
+    return text.replace("|", "\\|")
 
 
 def _emit_table(table, lines: list[str]) -> None:
@@ -155,18 +169,33 @@ def _emit_table(table, lines: list[str]) -> None:
     # Determine column count from widest row
     col_count = max(len(row) for row in table.rows)
 
-    # Header row (first row)
-    header = table.rows[0]
-    header_cells = [cell.text for cell in header]
-    # Pad if needed
-    while len(header_cells) < col_count:
-        header_cells.append("")
-    lines.append("| " + " | ".join(header_cells) + " |")
+    # Split rows into header and data based on is_header flag
+    header_rows = []
+    data_rows = []
+    for row in table.rows:
+        if row and row[0].is_header:
+            header_rows.append(row)
+        else:
+            data_rows.append(row)
+
+    # If no explicit headers, treat first row as header
+    if not header_rows and table.rows:
+        header_rows = [table.rows[0]]
+        data_rows = table.rows[1:]
+
+    # Emit header rows
+    for row in header_rows:
+        cells = [_escape_cell(cell.text) for cell in row]
+        while len(cells) < col_count:
+            cells.append("")
+        lines.append("| " + " | ".join(cells) + " |")
+
+    # Separator after headers
     lines.append("|" + "|".join(["---"] * col_count) + "|")
 
     # Data rows
-    for row in table.rows[1:]:
-        cells = [cell.text for cell in row]
+    for row in data_rows:
+        cells = [_escape_cell(cell.text) for cell in row]
         while len(cells) < col_count:
             cells.append("")
         lines.append("| " + " | ".join(cells) + " |")
@@ -222,10 +251,14 @@ def _emit_acknowledgments(doc: Document, lines: list[str]) -> None:
     lines.append("")
 
 
-def _emit_back_matter(doc: Document, lines: list[str]) -> None:
+def _emit_back_matter(
+    doc: Document, lines: list[str],
+    footnote_counter: list[int] | None = None,
+) -> None:
     if not doc.back_matter:
         return
-    _emit_sections(doc.back_matter, lines, base_level=2)
+    _emit_sections(doc.back_matter, lines, base_level=2,
+                   footnote_counter=footnote_counter)
 
 
 def _emit_references(doc: Document, lines: list[str]) -> None:
