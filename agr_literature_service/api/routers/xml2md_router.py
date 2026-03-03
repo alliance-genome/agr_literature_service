@@ -17,7 +17,7 @@ VALID_FORMATS = {"auto", "tei", "jats"}
 VALID_OUTPUT_FORMATS = {"md", "html"}
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 
-_md_renderer = MarkdownIt()
+_md_renderer = MarkdownIt().disable("html_block").disable("html_inline")
 
 _HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
@@ -69,7 +69,7 @@ async def convert_xml_to_md(
         "md",
         description="Output format: 'md' (plain Markdown text) or 'html' (rendered HTML)",
     ),
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    _user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> Response:
     """Convert an uploaded XML file to Markdown."""
     if source_format not in VALID_FORMATS:

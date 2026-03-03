@@ -3,6 +3,7 @@
 Detects format (TEI or JATS) and dispatches to the appropriate parser,
 then emits Markdown via the shared emitter.
 """
+from __future__ import annotations
 
 from lxml import etree
 
