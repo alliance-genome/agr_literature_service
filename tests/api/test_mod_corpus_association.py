@@ -206,7 +206,7 @@ class TestAllianceOnlyReference:
                 "abstract": "This is a test paper for Alliance-only reference creation.",
                 "mod_corpus_associations": [
                     {
-                        "mod_abbreviation": "alliance",
+                        "mod_abbreviation": "AGR",
                         "mod_corpus_sort_source": "manual_creation",
                         "corpus": True
                     }
@@ -226,7 +226,7 @@ class TestAllianceOnlyReference:
 
             # Verify Alliance MOD corpus association was created
             assert len(ref_data["mod_corpus_associations"]) == 1
-            assert ref_data["mod_corpus_associations"][0]["mod_abbreviation"] == "alliance"
+            assert ref_data["mod_corpus_associations"][0]["mod_abbreviation"] == "AGR"
             assert ref_data["mod_corpus_associations"][0]["corpus"] is True
 
             # Verify no cross-references were auto-generated
@@ -257,7 +257,7 @@ class TestAllianceOnlyReference:
 
             # Now add Alliance MOD corpus association with corpus=true
             new_mca = {
-                "mod_abbreviation": "alliance",
+                "mod_abbreviation": "AGR",
                 "reference_curie": ref_curie,
                 "mod_corpus_sort_source": "manual_creation",
                 "corpus": True
@@ -275,7 +275,7 @@ class TestAllianceOnlyReference:
             alliance_xref = db.query(CrossReferenceModel).filter(
                 and_(
                     CrossReferenceModel.reference_id == reference_obj.reference_id,
-                    CrossReferenceModel.curie_prefix == 'alliance'
+                    CrossReferenceModel.curie_prefix == 'AGR'
                 )
             ).one_or_none()
             assert alliance_xref is None
@@ -304,7 +304,7 @@ class TestAllianceOnlyReference:
                 ],
                 "mod_corpus_associations": [
                     {
-                        "mod_abbreviation": "alliance",
+                        "mod_abbreviation": "AGR",
                         "mod_corpus_sort_source": "manual_creation",
                         "corpus": True
                     }
@@ -343,7 +343,7 @@ class TestAllianceOnlyReference:
                 "category": "research_article",
                 "mod_corpus_associations": [
                     {
-                        "mod_abbreviation": "alliance",
+                        "mod_abbreviation": "AGR",
                         "mod_corpus_sort_source": "manual_creation",
                         "corpus": True
                     }
@@ -358,11 +358,11 @@ class TestAllianceOnlyReference:
             ref_data = ref_response.json()
 
             assert len(ref_data["mod_corpus_associations"]) == 1
-            assert ref_data["mod_corpus_associations"][0]["mod_abbreviation"] == "alliance"
+            assert ref_data["mod_corpus_associations"][0]["mod_abbreviation"] == "AGR"
 
             # Verify no WB, SGD, FB, etc. MOD associations were auto-created
             for mca in ref_data["mod_corpus_associations"]:
-                assert mca["mod_abbreviation"] == "alliance"
+                assert mca["mod_abbreviation"] == "AGR"
 
     def test_alliance_excluded_from_get_mod_abbreviations(self, db):  # noqa
         """
@@ -376,7 +376,7 @@ class TestAllianceOnlyReference:
         mod_abbreviations = get_mod_abbreviations(db)
 
         # Alliance should NOT be in the list
-        assert 'alliance' not in mod_abbreviations
+        assert 'AGR' not in mod_abbreviations
 
         # GO should also NOT be in the list
         assert 'GO' not in mod_abbreviations
@@ -403,7 +403,7 @@ class TestAllianceOnlyReference:
 
         # Alliance should NOT be in the taxons list
         mod_abbrevs = [t['mod_abbreviation'] for t in taxon_list]
-        assert 'alliance' not in mod_abbrevs
+        assert 'AGR' not in mod_abbrevs
         assert 'GO' not in mod_abbrevs
 
         # Other MODs should be present

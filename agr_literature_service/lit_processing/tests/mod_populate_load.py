@@ -48,7 +48,7 @@ def populate_test_mods():      # noqa: C901
                 {"abbreviation": "GO",
                  "short_name": "GOC",
                  "full_name": "Gene Ontology Consortium"},
-                {"abbreviation": "alliance",
+                {"abbreviation": "AGR",
                  "short_name": "Alliance",
                  "full_name": "Alliance of Genome Resources"}]
 
