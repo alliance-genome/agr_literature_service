@@ -47,16 +47,6 @@ def parse_jats(xml_content: bytes) -> Document:
     return doc
 
 
-def _find(elem, xpath: str):
-    """Find element using XPath, works without namespaces."""
-    return elem.find(xpath)
-
-
-def _findall(elem, xpath: str):
-    """Find all elements using XPath, works without namespaces."""
-    return elem.findall(xpath)
-
-
 def _text(elem) -> str:
     """Get stripped text content of an element, or empty string."""
     if elem is None or elem.text is None:
@@ -179,7 +169,8 @@ def _parse_body(root) -> list[Section]:
         if tag == "sec":
             # Flush any accumulated preamble content
             if (preamble.paragraphs or preamble.figures
-                    or preamble.tables or preamble.lists):
+                    or preamble.tables or preamble.lists
+                    or preamble.formulas):
                 sections.append(preamble)
                 preamble = Section(level=1)
             sections.append(_parse_sec(child, level=1))
@@ -196,7 +187,8 @@ def _parse_body(root) -> list[Section]:
 
     # Flush trailing preamble
     if (preamble.paragraphs or preamble.figures
-            or preamble.tables or preamble.lists):
+            or preamble.tables or preamble.lists
+            or preamble.formulas):
         sections.append(preamble)
 
     return sections

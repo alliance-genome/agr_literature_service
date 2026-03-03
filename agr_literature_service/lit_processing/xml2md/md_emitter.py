@@ -126,10 +126,15 @@ def _emit_section(
     # Figures
     for fig in section.figures:
         label = fig.label.rstrip(".:").strip()
-        if fig.caption:
-            lines.append(f"**{label}.** {fig.caption}")
+        if label:
+            if fig.caption:
+                lines.append(f"**{label}.** {fig.caption}")
+            else:
+                lines.append(f"**{label}.**")
+        elif fig.caption:
+            lines.append(fig.caption)
         else:
-            lines.append(f"**{label}.**")
+            continue
         lines.append("")
 
     # Tables
