@@ -70,7 +70,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
 
-    # Associate HUMAN papers with alliance MOD
+    # Associate HUMAN papers with AGR MOD
     if datasetName == "HUMAN":
         associate_human_papers_with_alliance(db_session, all_pmids)
 
@@ -99,7 +99,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     add_md5sum_to_database(db_session, None, pmids_loaded)
 
-    # Associate newly loaded HUMAN papers with alliance MOD
+    # Associate newly loaded HUMAN papers with AGR MOD
     if datasetName == "HUMAN" and len(pmids_loaded) > 0:
         associate_human_papers_with_alliance(db_session, pmids_loaded)
 
@@ -249,14 +249,14 @@ def search_pubmed(pmids):
 
 def associate_human_papers_with_alliance(db_session, all_pmids):
     """
-    Associate HUMAN dataset papers with the 'alliance' MOD.
+    Associate HUMAN dataset papers with the 'AGR' MOD.
     Only associate papers that do NOT already have a mod_corpus_association
-    with corpus=True for any MOD. This ensures we only add papers to 'alliance'
+    with corpus=True for any MOD. This ensures we only add papers to 'AGR'
     that are not already in another MOD's corpus.
     """
-    # Get alliance mod_id
+    # Get AGR mod_id
     alliance_mod = db_session.query(ModModel).filter(
-        ModModel.abbreviation == 'alliance'
+        ModModel.abbreviation == 'AGR'
     ).first()
     if not alliance_mod:
         logger.warning("Alliance MOD not found in database")
@@ -288,7 +288,7 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
     ref_ids_list = list(reference_ids_in_db)
 
     # Get reference_ids that already have corpus=True for any MOD
-    # OR already have an association with the alliance MOD (to avoid unique constraint violation)
+    # OR already have an association with the AGR MOD (to avoid unique constraint violation)
     refs_to_exclude_query = text(
         "SELECT DISTINCT reference_id FROM mod_corpus_association "
         "WHERE reference_id = ANY(:ref_ids) "
@@ -302,7 +302,7 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
     already_excluded = {row[0] for row in refs_to_exclude}
 
     # Add mod_corpus_association for papers not yet in any MOD's corpus
-    # and not already associated with alliance MOD
+    # and not already associated with AGR MOD
     count = 0
     for ref_id in reference_ids_in_db:
         if ref_id not in already_excluded:
@@ -317,7 +317,7 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
 
     if count > 0:
         db_session.commit()
-        logger.info(f"Associated {count} HUMAN paper(s) with alliance MOD")
+        logger.info(f"Associated {count} HUMAN paper(s) with AGR MOD")
 
     return count
 

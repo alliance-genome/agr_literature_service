@@ -9,7 +9,7 @@ def add_alliance_mod():
 
     try:
         # check if already exists
-        existing = db.query(ModModel).filter_by(abbreviation="alliance").one_or_none()
+        existing = db.query(ModModel).filter_by(abbreviation="AGR").one_or_none()
 
         if existing:
             print("Alliance mod already exists. Skipping.")
@@ -21,7 +21,7 @@ def add_alliance_mod():
         ).scalar_one_or_none()
 
         new_mod = ModModel(
-            abbreviation="alliance",
+            abbreviation="AGR",
             short_name="Alliance",
             full_name="Alliance of Genome Resources",
             taxon_ids=None,
