@@ -118,7 +118,7 @@ def _emit_section(
             lines.append(f"{hashes} {section.heading}")
         lines.append("")
 
-    # Paragraphs
+    # Paragraphs (para.refs preserved in the Document model for downstream use)
     for para in section.paragraphs:
         lines.append(para.text)
         lines.append("")
@@ -209,10 +209,12 @@ def _emit_table(table, lines: list[str]) -> None:
     # Caption
     if table.label or table.caption:
         label = table.label.rstrip(".:").strip()
-        if table.caption:
+        if label and table.caption:
             lines.append(f"**{label}.** {table.caption}")
-        else:
+        elif label:
             lines.append(f"**{label}.**")
+        elif table.caption:
+            lines.append(table.caption)
         lines.append("")
 
 

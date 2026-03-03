@@ -4,30 +4,32 @@ from __future__ import annotations
 from lxml import etree
 
 from agr_literature_service.lit_processing.xml2md.models import (
-    Author, Document, Figure, Formula, ListBlock,
+    Author, Document, Figure, Formula, InlineRef, ListBlock,
     Paragraph, Reference, Section, Table, TableCell,
 )
 from agr_literature_service.lit_processing.xml2md.xml_utils import (
-    all_text, text,
+    all_text, parse_xml, text,
 )
 
 
-def parse_jats(xml_content: bytes) -> Document:
+def parse_jats(
+    xml_content: bytes,
+    root: etree._Element | None = None,
+) -> Document:
     """Parse JATS/nXML content into a Document model.
 
     Handles both namespaced and non-namespaced JATS files.
 
     Args:
         xml_content: Raw bytes of a JATS XML file.
+        root: Optional pre-parsed XML root element. When provided,
+            *xml_content* is ignored and no re-parsing occurs.
 
     Returns:
         A populated Document dataclass.
     """
-    # Strip DOCTYPE to avoid DTD resolution issues
-    parser = etree.XMLParser(
-        recover=True, no_network=True, load_dtd=False, resolve_entities=False
-    )
-    root = etree.fromstring(xml_content, parser=parser)
+    if root is None:
+        root = parse_xml(xml_content)
     doc = Document(source_format="jats")
 
     doc.title = _parse_title(root)
@@ -203,9 +205,32 @@ def _parse_sec(sec_elem, level: int) -> Section:
 
 
 def _parse_paragraph(p_elem) -> Paragraph:
-    """Parse a <p> element with mixed content."""
-    para_text = all_text(p_elem)
-    return Paragraph(text=para_text)
+    """Parse a <p> element with mixed content, extracting inline refs."""
+    parts: list[str] = []
+    refs: list[InlineRef] = []
+
+    if p_elem.text:
+        parts.append(p_elem.text)
+
+    for child in p_elem:
+        tag = etree.QName(child.tag).localname if isinstance(
+            child.tag, str
+        ) else ""
+
+        if tag == "xref":
+            ref_text = all_text(child)
+            rid = child.get("rid", "")
+            if ref_text:
+                refs.append(InlineRef(text=ref_text, target=rid))
+                parts.append(ref_text)
+        else:
+            parts.append(all_text(child))
+
+        if child.tail:
+            parts.append(child.tail)
+
+    para_text = "".join(parts).strip()
+    return Paragraph(text=para_text, refs=refs)
 
 
 def _parse_fig(fig_elem) -> Figure:

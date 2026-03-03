@@ -8,25 +8,28 @@ from agr_literature_service.lit_processing.xml2md.models import (
     Paragraph, Reference, Section, Table, TableCell,
 )
 from agr_literature_service.lit_processing.xml2md.xml_utils import (
-    all_text, text,
+    all_text, parse_xml, text,
 )
 
 NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
 
-def parse_tei(xml_content: bytes) -> Document:
+def parse_tei(
+    xml_content: bytes,
+    root: etree._Element | None = None,
+) -> Document:
     """Parse GROBID TEI XML content into a Document model.
 
     Args:
         xml_content: Raw bytes of a TEI XML file.
+        root: Optional pre-parsed XML root element. When provided,
+            *xml_content* is ignored and no re-parsing occurs.
 
     Returns:
         A populated Document dataclass.
     """
-    parser = etree.XMLParser(
-        recover=True, no_network=True, load_dtd=False, resolve_entities=False
-    )
-    root = etree.fromstring(xml_content, parser=parser)
+    if root is None:
+        root = parse_xml(xml_content)
     doc = Document(source_format="tei")
 
     doc.title = _parse_title(root)

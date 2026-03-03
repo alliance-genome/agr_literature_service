@@ -10,6 +10,7 @@ from lxml import etree
 from agr_literature_service.lit_processing.xml2md.jats_parser import parse_jats
 from agr_literature_service.lit_processing.xml2md.md_emitter import emit_markdown
 from agr_literature_service.lit_processing.xml2md.tei_parser import parse_tei
+from agr_literature_service.lit_processing.xml2md.xml_utils import parse_xml
 
 TEI_NAMESPACE = "http://www.tei-c.org/ns/1.0"
 
@@ -27,14 +28,15 @@ def detect_format(xml_content: bytes) -> str:
         ValueError: If format cannot be determined.
     """
     try:
-        parser = etree.XMLParser(
-            recover=True, no_network=True,
-            load_dtd=False, resolve_entities=False,
-        )
-        root = etree.fromstring(xml_content, parser=parser)
+        root = parse_xml(xml_content)
     except etree.XMLSyntaxError as e:
         raise ValueError(f"Unknown format: invalid XML ({e})")
 
+    return _detect_format_from_root(root)
+
+
+def _detect_format_from_root(root: etree._Element) -> str:
+    """Detect format from a pre-parsed XML root element."""
     if root is None:
         raise ValueError("Unknown format: could not parse XML")
 
@@ -65,13 +67,15 @@ def convert_xml_to_markdown(
     Raises:
         ValueError: If format is unknown or cannot be detected.
     """
+    root = None
     if source_format == "auto":
-        source_format = detect_format(xml_content)
+        root = parse_xml(xml_content)
+        source_format = _detect_format_from_root(root)
 
     if source_format == "tei":
-        document = parse_tei(xml_content)
+        document = parse_tei(xml_content, root=root)
     elif source_format == "jats":
-        document = parse_jats(xml_content)
+        document = parse_jats(xml_content, root=root)
     else:
         raise ValueError(f"Unknown format: {source_format}")
 

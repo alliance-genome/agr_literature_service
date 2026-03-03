@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 VALID_FORMATS = {"auto", "tei", "jats"}
 VALID_OUTPUT_FORMATS = {"md", "html"}
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 _md_renderer = MarkdownIt().disable("html_block").disable("html_inline")
 
@@ -24,17 +24,17 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <style>
-  body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-         max-width: 900px; margin: 2em auto; padding: 0 1em; line-height: 1.6; color: #24292f; }}
-  table {{ border-collapse: collapse; margin: 1em 0; }}
-  th, td {{ border: 1px solid #d0d7de; padding: 6px 13px; }}
-  th {{ background: #f6f8fa; }}
-  pre {{ background: #f6f8fa; padding: 1em; overflow-x: auto; border-radius: 6px; }}
-  code {{ background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; font-size: 85%; }}
-  pre code {{ background: none; padding: 0; }}
-  blockquote {{ border-left: 4px solid #d0d7de; margin: 0; padding: 0 1em; color: #57606a; }}
-  h1 {{ border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }}
-  h2 {{ border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }}
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+         max-width: 900px; margin: 2em auto; padding: 0 1em; line-height: 1.6; color: #24292f; }
+  table { border-collapse: collapse; margin: 1em 0; }
+  th, td { border: 1px solid #d0d7de; padding: 6px 13px; }
+  th { background: #f6f8fa; }
+  pre { background: #f6f8fa; padding: 1em; overflow-x: auto; border-radius: 6px; }
+  code { background: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; font-size: 85%; }
+  pre code { background: none; padding: 0; }
+  blockquote { border-left: 4px solid #d0d7de; margin: 0; padding: 0 1em; color: #57606a; }
+  h1 { border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }
+  h2 { border-bottom: 1px solid #d0d7de; padding-bottom: 0.3em; }
 </style>
 </head>
 <body>
@@ -98,7 +98,7 @@ async def convert_xml_to_md(
         )
     if len(xml_content) > MAX_UPLOAD_BYTES:
         return PlainTextResponse(
-            content="File too large (max 50 MB)",
+            content="File too large (max 10 MB)",
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
         )
 
@@ -119,7 +119,7 @@ async def convert_xml_to_md(
 
     if output_format == "html":
         html_body = _md_renderer.render(markdown)
-        html_page = _HTML_TEMPLATE.format(body=html_body)
+        html_page = _HTML_TEMPLATE.replace("{body}", html_body)
         return HTMLResponse(content=html_page)
 
     return PlainTextResponse(content=markdown)
