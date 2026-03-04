@@ -31,7 +31,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 manual_indexing_tag_router, person_router,
                                                 person_cross_reference_router, email_router,
                                                 person_setting_router, ontology_router,
-                                                authentication)
+                                                xml2md_router, authentication)
 
 TITLE = "Alliance Literature Service"
 VERSION = "0.1.0"
@@ -140,6 +140,7 @@ app.include_router(email_router.router)
 app.include_router(person_cross_reference_router.router)
 app.include_router(person_setting_router.router)
 app.include_router(ontology_router.router)
+app.include_router(xml2md_router.router)
 app.include_router(authentication.router)
 
 app.add_api_route("/health", health([is_database_online]))

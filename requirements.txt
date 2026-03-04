@@ -51,6 +51,7 @@ urllib3==1.26.17
 
 # XML Processing
 bs4==0.0.1                   # No update needed.
+markdown-it-py==2.2.0        # Markdown-to-HTML rendering for xml2md endpoint
 
 # Elasticsearch and Caching
 elasticsearch==7.13.4        # No update needed.

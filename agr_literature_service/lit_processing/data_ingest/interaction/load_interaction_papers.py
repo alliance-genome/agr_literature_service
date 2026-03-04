@@ -317,7 +317,7 @@ def associate_human_papers_with_alliance(db_session, all_pmids):
 
     if count > 0:
         db_session.commit()
-        logger.info(f"Associated {count} HUMAN paper(s) with AGR MOD")
+        logger.info("Associated %d HUMAN paper(s) with AGR MOD", count)
 
     return count
 
