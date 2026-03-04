@@ -399,7 +399,10 @@ def _parse_table_row(tr_elem: etree._Element, is_header: bool) -> list[TableCell
             child.tag, str
         ) else ""
         if tag in ("th", "td"):
-            colspan = int(child.get("colspan", "1") or "1")
+            try:
+                colspan = int(child.get("colspan", "1") or "1")
+            except (ValueError, OverflowError):
+                colspan = 1
             cell = TableCell(
                 text=all_text(child),
                 is_header=(tag == "th" or is_header),
