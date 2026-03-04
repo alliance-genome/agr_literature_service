@@ -46,13 +46,13 @@ def parse_tei(
     return doc
 
 
-def _parse_title(root) -> str:
+def _parse_title(root: etree._Element) -> str:
     """Extract title from //teiHeader//title[@level='a']."""
     title_elem = root.find(".//tei:teiHeader//tei:title[@level='a']", NS)
     return all_text(title_elem)
 
 
-def _parse_authors(root) -> list[Author]:
+def _parse_authors(root: etree._Element) -> list[Author]:
     """Extract authors from //sourceDesc//author."""
     authors = []
     for author_elem in root.findall(
@@ -88,7 +88,7 @@ def _parse_authors(root) -> list[Author]:
     return authors
 
 
-def _parse_abstract(root) -> list[Paragraph]:
+def _parse_abstract(root: etree._Element) -> list[Paragraph]:
     """Extract abstract paragraphs.
 
     Handles both <abstract><div><p> and <abstract><p> variants.
@@ -116,7 +116,7 @@ def _parse_abstract(root) -> list[Paragraph]:
     return paragraphs
 
 
-def _parse_keywords(root) -> list[str]:
+def _parse_keywords(root: etree._Element) -> list[str]:
     """Extract keywords from //textClass//keywords/term."""
     keywords: list[str] = []
     for term in root.findall(
@@ -128,7 +128,7 @@ def _parse_keywords(root) -> list[str]:
     return keywords
 
 
-def _parse_doi(root) -> str:
+def _parse_doi(root: etree._Element) -> str:
     """Extract DOI from //sourceDesc//idno[@type='DOI']."""
     doi_elem = root.find(
         ".//tei:sourceDesc//tei:idno[@type='DOI']", NS
@@ -136,7 +136,7 @@ def _parse_doi(root) -> str:
     return text(doi_elem)
 
 
-def _parse_body(root) -> list[Section]:
+def _parse_body(root: etree._Element) -> list[Section]:
     """Parse body sections from //body/div."""
     sections: list[Section] = []
     body = root.find(".//tei:body", NS)
@@ -150,7 +150,7 @@ def _parse_body(root) -> list[Section]:
     return sections
 
 
-def _parse_top_level_figures(root) -> tuple[list[Figure], list[Table]]:
+def _parse_top_level_figures(root: etree._Element) -> tuple[list[Figure], list[Table]]:
     """Parse figures/tables that are direct children of body (not in divs).
 
     GROBID commonly places extracted figures and tables at the end of
@@ -176,7 +176,7 @@ def _parse_top_level_figures(root) -> tuple[list[Figure], list[Table]]:
     return figures, tables
 
 
-def _parse_section(div_elem, level: int) -> Section:
+def _parse_section(div_elem: etree._Element, level: int) -> Section:
     """Recursively parse a div element into a Section."""
     section = Section(level=level)
 
@@ -218,7 +218,7 @@ def _parse_section(div_elem, level: int) -> Section:
     return section
 
 
-def _parse_paragraph(p_elem) -> Paragraph:
+def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
     """Parse a <p> element with mixed content (text + refs + tails)."""
     parts = []
     refs = []
@@ -270,7 +270,7 @@ def _parse_paragraph(p_elem) -> Paragraph:
     return Paragraph(text=para_text, refs=refs)
 
 
-def _parse_figure(fig_elem) -> Figure:
+def _parse_figure(fig_elem: etree._Element) -> Figure:
     """Parse a <figure> element (non-table)."""
     fig = Figure()
 
@@ -289,7 +289,7 @@ def _parse_figure(fig_elem) -> Figure:
     return fig
 
 
-def _parse_table(fig_elem) -> Table:
+def _parse_table(fig_elem: etree._Element) -> Table:
     """Parse a <figure type='table'> element."""
     table = Table()
 
@@ -314,23 +314,28 @@ def _parse_table(fig_elem) -> Table:
     return table
 
 
-def _parse_formula(formula_elem) -> Formula:
+def _parse_formula(formula_elem: etree._Element) -> Formula:
     """Parse a <formula> element."""
     # Get text content but exclude <label> text
     label_elem = formula_elem.find("tei:label", NS)
     label_text = all_text(label_elem)
 
     full_text = all_text(formula_elem)
-    # Remove label from the full text
-    if label_text and full_text.endswith(label_text):
-        formula_text = full_text[:-len(label_text)].strip()
+    # Remove label from text — may appear at start or end
+    if label_text:
+        if full_text.endswith(label_text):
+            formula_text = full_text[:-len(label_text)].strip()
+        elif full_text.startswith(label_text):
+            formula_text = full_text[len(label_text):].strip()
+        else:
+            formula_text = full_text
     else:
         formula_text = full_text
 
     return Formula(text=formula_text, label=label_text)
 
 
-def _parse_list(list_elem) -> ListBlock:
+def _parse_list(list_elem: etree._Element) -> ListBlock:
     """Parse a <list> element."""
     list_type = list_elem.get("type", "")
     ordered = list_type in ("ordered", "order", "number")
@@ -342,7 +347,7 @@ def _parse_list(list_elem) -> ListBlock:
     return ListBlock(items=items, ordered=ordered)
 
 
-def _parse_acknowledgments(root) -> str:
+def _parse_acknowledgments(root: etree._Element) -> str:
     """Extract acknowledgments from //back/div[@type='acknowledgement']."""
     ack_div = root.find(
         ".//tei:back/tei:div[@type='acknowledgement']", NS
@@ -358,7 +363,7 @@ def _parse_acknowledgments(root) -> str:
     return "\n\n".join(parts)
 
 
-def _parse_annex(root) -> list[Section]:
+def _parse_annex(root: etree._Element) -> list[Section]:
     """Extract annex sections from //back/div[@type='annex']."""
     sections: list[Section] = []
     annex_div = root.find(
@@ -374,7 +379,7 @@ def _parse_annex(root) -> list[Section]:
     return sections
 
 
-def _parse_bibliography(root) -> list[Reference]:
+def _parse_bibliography(root: etree._Element) -> list[Reference]:
     """Extract references from //back//listBibl/biblStruct."""
     references = []
     for idx, bib in enumerate(
@@ -385,7 +390,7 @@ def _parse_bibliography(root) -> list[Reference]:
     return references
 
 
-def _parse_bib_entry(bib_elem, index: int) -> Reference:
+def _parse_bib_entry(bib_elem: etree._Element, index: int) -> Reference:
     """Parse a single <biblStruct> element."""
     ref = Reference(index=index)
 

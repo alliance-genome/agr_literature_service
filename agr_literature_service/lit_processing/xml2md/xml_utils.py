@@ -15,7 +15,10 @@ def parse_xml(xml_content: bytes) -> etree._Element:
         recover=True, no_network=True, load_dtd=False,
         resolve_entities=False, huge_tree=False,
     )
-    return etree.fromstring(xml_content, parser=parser)
+    root = etree.fromstring(xml_content, parser=parser)
+    if root is None:
+        raise ValueError("Could not parse XML content")
+    return root
 
 
 def text(elem) -> str:
@@ -26,19 +29,11 @@ def text(elem) -> str:
 
 
 def all_text(elem) -> str:
-    """Get all text content of an element including children (stripped)."""
-    return collect_text(elem).strip()
+    """Get all text content of an element including children (stripped).
 
-
-def collect_text(elem) -> str:
-    """Recursively collect text without stripping inner whitespace."""
+    Uses lxml's built-in text serialisation instead of manual recursion
+    to avoid stack overflow on deeply nested XML.
+    """
     if elem is None:
         return ""
-    parts: list[str] = []
-    if elem.text:
-        parts.append(elem.text)
-    for child in elem:
-        parts.append(collect_text(child))
-        if child.tail:
-            parts.append(child.tail)
-    return "".join(parts)
+    return (etree.tostring(elem, method="text", encoding="unicode", with_tail=False) or "").strip()

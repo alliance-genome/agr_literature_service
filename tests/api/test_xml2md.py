@@ -148,6 +148,18 @@ class TestXml2MdConvert:
             assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
             assert "Conversion failed" in resp.text
 
+    def test_file_too_large(self, db):  # noqa: F811
+        """File exceeding 10MB returns 413."""
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            large_content = b"<TEI>" + b"x" * (10 * 1024 * 1024 + 1) + b"</TEI>"
+            resp = client.post(
+                "/xml2md/convert",
+                files={"file": ("big.xml", large_content, "text/xml")},
+            )
+            assert resp.status_code == status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+            assert "too large" in resp.text.lower()
+
     def test_requires_authentication(self, db):  # noqa: F811
         """Unauthenticated request returns 401."""
         with patch.object(auth_module, 'is_skip_all_auth_ip',
@@ -158,5 +170,81 @@ class TestXml2MdConvert:
                 resp = client.post(
                     "/xml2md/convert",
                     files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
+                )
+                assert resp.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+# Minimal valid Markdown for validation endpoint tests
+VALID_MD = b"# Title\n\n## Abstract\n\nSome text.\n\n## References\n\n1. Ref one.\n"
+
+INVALID_MD = b"## No H1\n\nSome text.\n"
+
+
+class TestXml2MdValidate:
+    """Tests for POST /xml2md/validate endpoint."""
+
+    def test_validate_valid_markdown(self, db):  # noqa: F811
+        """Valid markdown returns valid=true with no errors."""
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/validate",
+                files={"file": ("doc.md", VALID_MD, "text/markdown")},
+            )
+            assert resp.status_code == status.HTTP_200_OK
+            data = resp.json()
+            assert data["valid"] is True
+            assert data["error_count"] == 0
+
+    def test_validate_invalid_markdown(self, db):  # noqa: F811
+        """Markdown without H1 returns valid=false with S01 error."""
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/validate",
+                files={"file": ("doc.md", INVALID_MD, "text/markdown")},
+            )
+            assert resp.status_code == status.HTTP_200_OK
+            data = resp.json()
+            assert data["valid"] is False
+            assert data["error_count"] > 0
+            rule_ids = [e["rule_id"] for e in data["errors"]]
+            assert "S01" in rule_ids
+
+    def test_validate_empty_file(self, db):  # noqa: F811
+        """Empty file returns 422."""
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/validate",
+                files={"file": ("empty.md", b"", "text/markdown")},
+            )
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_validate_line_numbers(self, db):  # noqa: F811
+        """Validation issues include line numbers."""
+        p1, p2 = _bypass_auth()
+        with p1, p2, TestClient(app) as client:
+            resp = client.post(
+                "/xml2md/validate",
+                files={"file": ("doc.md", INVALID_MD, "text/markdown")},
+            )
+            data = resp.json()
+            all_issues = data["errors"] + data["warnings"]
+            assert len(all_issues) > 0
+            for issue in all_issues:
+                assert "line" in issue
+                assert isinstance(issue["line"], int)
+
+    def test_validate_requires_authentication(self, db):  # noqa: F811
+        """Unauthenticated request returns 401."""
+        with patch.object(auth_module, 'is_skip_all_auth_ip',
+                          return_value=False), \
+             patch.object(auth_module, 'is_skip_read_auth_ip',
+                          return_value=False):
+            with TestClient(app) as client:
+                resp = client.post(
+                    "/xml2md/validate",
+                    files={"file": ("doc.md", VALID_MD, "text/markdown")},
                 )
                 assert resp.status_code == status.HTTP_401_UNAUTHORIZED

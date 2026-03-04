@@ -7,3 +7,9 @@ from agr_literature_service.lit_processing.xml2md.converter import (  # noqa: F4
     convert_xml_to_markdown,
     detect_format,
 )
+from agr_literature_service.lit_processing.xml2md.md_validator import (  # noqa: F401
+    Severity,
+    ValidationIssue,
+    ValidationResult,
+    validate_markdown,
+)

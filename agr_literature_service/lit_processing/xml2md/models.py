@@ -29,7 +29,7 @@ class Paragraph:
 class Figure:
     label: str = ""       # "Figure 1" or "Fig. 1"
     caption: str = ""     # figDesc text
-    graphic_url: str = ""  # optional image reference
+    graphic_url: str = ""  # image ref (preserved for downstream; not in Markdown)
 
 
 @dataclass

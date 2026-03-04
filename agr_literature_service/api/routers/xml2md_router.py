@@ -1,15 +1,19 @@
 """XML-to-Markdown conversion endpoint."""
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, File, Query, Security, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from markdown_it import MarkdownIt
 from starlette import status
 
 from agr_literature_service.api.auth import get_authenticated_user
-from agr_literature_service.lit_processing.xml2md import convert_xml_to_markdown
+from agr_literature_service.lit_processing.xml2md import (
+    convert_xml_to_markdown,
+    validate_markdown,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +107,9 @@ async def convert_xml_to_md(
         )
 
     try:
-        markdown = convert_xml_to_markdown(xml_content, source_format)
+        markdown = await asyncio.to_thread(
+            convert_xml_to_markdown, xml_content, source_format
+        )
     except ValueError as e:
         logger.warning("XML-to-Markdown conversion failed: %s", e)
         return PlainTextResponse(
@@ -123,3 +129,54 @@ async def convert_xml_to_md(
         return HTMLResponse(content=html_page)
 
     return PlainTextResponse(content=markdown)
+
+
+@router.post(
+    "/validate",
+    status_code=status.HTTP_200_OK,
+    summary="Validate Markdown against AGR schema",
+    description=(
+        "Upload a Markdown file and validate it against the AGR Literature "
+        "Markdown Schema. Returns a JSON report with any errors and warnings."
+    ),
+)
+async def validate_md(
+    file: UploadFile = File(
+        ..., description="Markdown file to validate",
+    ),
+    _user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+) -> Response:
+    """Validate an uploaded Markdown file against the schema."""
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not content:
+        return PlainTextResponse(
+            content="Uploaded file is empty",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    if len(content) > MAX_UPLOAD_BYTES:
+        return PlainTextResponse(
+            content="File too large (max 10 MB)",
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
+
+    text = content.decode("utf-8", errors="replace")
+    result = await asyncio.to_thread(validate_markdown, text)
+
+    errors = [
+        {"rule_id": i.rule_id, "severity": i.severity.value,
+         "line": i.line, "message": i.message}
+        for i in result.errors
+    ]
+    warnings = [
+        {"rule_id": i.rule_id, "severity": i.severity.value,
+         "line": i.line, "message": i.message}
+        for i in result.warnings
+    ]
+
+    return JSONResponse(content={
+        "valid": result.valid,
+        "error_count": len(errors),
+        "warning_count": len(warnings),
+        "errors": errors,
+        "warnings": warnings,
+    })

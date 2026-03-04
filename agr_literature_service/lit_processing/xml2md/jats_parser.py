@@ -52,19 +52,19 @@ def parse_jats(
     return doc
 
 
-def _parse_title(root) -> str:
+def _parse_title(root: etree._Element) -> str:
     """Extract title from article-meta/title-group/article-title."""
     title_elem = root.find(".//article-meta/title-group/article-title")
     return all_text(title_elem)
 
 
-def _parse_doi(root) -> str:
+def _parse_doi(root: etree._Element) -> str:
     """Extract DOI from article-id[@pub-id-type='doi']."""
     doi_elem = root.find(".//article-meta/article-id[@pub-id-type='doi']")
     return text(doi_elem)
 
 
-def _parse_keywords(root) -> list[str]:
+def _parse_keywords(root: etree._Element) -> list[str]:
     """Extract keywords from kwd-group/kwd."""
     keywords: list[str] = []
     for kwd in root.findall(".//article-meta/kwd-group/kwd"):
@@ -74,21 +74,41 @@ def _parse_keywords(root) -> list[str]:
     return keywords
 
 
-def _parse_abstract(root) -> list[Paragraph]:
-    """Extract abstract paragraphs."""
+def _parse_abstract(root: etree._Element) -> list[Paragraph]:
+    """Extract abstract paragraphs.
+
+    Handles both plain abstracts (<abstract><p>...) and structured
+    abstracts (<abstract><sec><title>Background</title><p>...) common
+    in PMC papers.
+    """
     abstract_elem = root.find(".//article-meta/abstract")
     if abstract_elem is None:
         return []
 
-    paragraphs = []
-    for p_elem in abstract_elem.findall(".//p"):
-        para = _parse_paragraph(p_elem)
-        if para.text:
-            paragraphs.append(para)
+    paragraphs: list[Paragraph] = []
+
+    # Check for structured abstract with <sec> children
+    secs = abstract_elem.findall("sec")
+    if secs:
+        for sec in secs:
+            title_elem = sec.find("title")
+            sec_title = all_text(title_elem) if title_elem is not None else ""
+            for p_elem in sec.findall("p"):
+                para = _parse_paragraph(p_elem)
+                if para.text and sec_title:
+                    para.text = f"**{sec_title}:** {para.text}"
+                if para.text:
+                    paragraphs.append(para)
+    else:
+        for p_elem in abstract_elem.findall(".//p"):
+            para = _parse_paragraph(p_elem)
+            if para.text:
+                paragraphs.append(para)
+
     return paragraphs
 
 
-def _parse_affiliations(root) -> dict[str, str]:
+def _parse_affiliations(root: etree._Element) -> dict[str, str]:
     """Build a map of aff id -> affiliation text."""
     aff_map: dict[str, str] = {}
     for aff_elem in root.findall(".//article-meta/aff"):
@@ -99,7 +119,7 @@ def _parse_affiliations(root) -> dict[str, str]:
     return aff_map
 
 
-def _parse_authors(root, aff_map: dict[str, str]) -> list[Author]:
+def _parse_authors(root: etree._Element, aff_map: dict[str, str]) -> list[Author]:
     """Extract authors from contrib-group, resolving affiliations via xref."""
     authors = []
     for contrib in root.findall(
@@ -125,7 +145,7 @@ def _parse_authors(root, aff_map: dict[str, str]) -> list[Author]:
     return authors
 
 
-def _parse_body(root) -> list[Section]:
+def _parse_body(root: etree._Element) -> list[Section]:
     """Parse body content from <body>.
 
     Handles both <sec>-structured bodies and bare elements (<p>, <fig>,
@@ -173,7 +193,7 @@ def _parse_body(root) -> list[Section]:
     return sections
 
 
-def _parse_sec(sec_elem, level: int) -> Section:
+def _parse_sec(sec_elem: etree._Element, level: int) -> Section:
     """Recursively parse a <sec> element into a Section."""
     section = Section(level=level)
 
@@ -204,7 +224,7 @@ def _parse_sec(sec_elem, level: int) -> Section:
     return section
 
 
-def _parse_paragraph(p_elem) -> Paragraph:
+def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
     """Parse a <p> element with mixed content, extracting inline refs."""
     parts: list[str] = []
     refs: list[InlineRef] = []
@@ -233,7 +253,7 @@ def _parse_paragraph(p_elem) -> Paragraph:
     return Paragraph(text=para_text, refs=refs)
 
 
-def _parse_fig(fig_elem) -> Figure:
+def _parse_fig(fig_elem: etree._Element) -> Figure:
     """Parse a <fig> element."""
     fig = Figure()
 
@@ -265,7 +285,7 @@ def _parse_fig(fig_elem) -> Figure:
     return fig
 
 
-def _parse_table_wrap(tw_elem) -> Table:
+def _parse_table_wrap(tw_elem: etree._Element) -> Table:
     """Parse a <table-wrap> element."""
     table = Table()
 
@@ -311,36 +331,49 @@ def _parse_table_wrap(tw_elem) -> Table:
     return table
 
 
-def _parse_table_row(tr_elem, is_header: bool) -> list[TableCell]:
-    """Parse a <tr> element into a list of TableCells."""
+def _parse_table_row(tr_elem: etree._Element, is_header: bool) -> list[TableCell]:
+    """Parse a <tr> element into a list of TableCells.
+
+    Handles colspan by emitting empty padding cells so GFM tables
+    stay aligned.
+    """
     cells = []
     for child in tr_elem:
         tag = etree.QName(child.tag).localname if isinstance(
             child.tag, str
         ) else ""
         if tag in ("th", "td"):
+            colspan = int(child.get("colspan", "1") or "1")
             cell = TableCell(
                 text=all_text(child),
                 is_header=(tag == "th" or is_header),
             )
             cells.append(cell)
+            for _ in range(colspan - 1):
+                cells.append(TableCell(
+                    text="",
+                    is_header=(tag == "th" or is_header),
+                ))
     return cells
 
 
-def _parse_formula(formula_elem) -> Formula:
+def _parse_formula(formula_elem: etree._Element) -> Formula:
     """Parse a <disp-formula> element."""
     label_elem = formula_elem.find("label")
     label = all_text(label_elem)
 
     formula_text = all_text(formula_elem)
-    # Remove label from text if present at end
-    if label and formula_text.endswith(label):
-        formula_text = formula_text[:-len(label)].strip()
+    # Remove label from text — may appear at start or end
+    if label:
+        if formula_text.endswith(label):
+            formula_text = formula_text[:-len(label)].strip()
+        elif formula_text.startswith(label):
+            formula_text = formula_text[len(label):].strip()
 
     return Formula(text=formula_text, label=label)
 
 
-def _parse_list(list_elem) -> ListBlock:
+def _parse_list(list_elem: etree._Element) -> ListBlock:
     """Parse a <list> element."""
     list_type = list_elem.get("list-type", "")
     ordered = list_type in ("order", "ordered", "number")
@@ -359,7 +392,7 @@ def _parse_list(list_elem) -> ListBlock:
     return ListBlock(items=items, ordered=ordered)
 
 
-def _parse_acknowledgments(root) -> str:
+def _parse_acknowledgments(root: etree._Element) -> str:
     """Extract acknowledgments from //back/ack."""
     ack = root.find(".//back/ack")
     if ack is None:
@@ -373,7 +406,7 @@ def _parse_acknowledgments(root) -> str:
     return "\n\n".join(parts)
 
 
-def _parse_appendices(root) -> list[Section]:
+def _parse_appendices(root: etree._Element) -> list[Section]:
     """Extract appendices from //back/app-group."""
     sections: list[Section] = []
     app_group = root.find(".//back/app-group")
@@ -392,7 +425,7 @@ def _parse_appendices(root) -> list[Section]:
     return sections
 
 
-def _parse_floats_group(root, doc: Document) -> None:
+def _parse_floats_group(root: etree._Element, doc: Document) -> None:
     """Parse <floats-group> for figures and tables outside body/back.
 
     In many PMC nXML files, figures and tables are placed in a
@@ -414,7 +447,7 @@ def _parse_floats_group(root, doc: Document) -> None:
             doc.tables.append(_parse_table_wrap(child))
 
 
-def _parse_bibliography(root) -> list[Reference]:
+def _parse_bibliography(root: etree._Element) -> list[Reference]:
     """Extract references from //back/ref-list/ref."""
     references = []
     for idx, ref_elem in enumerate(
@@ -425,7 +458,7 @@ def _parse_bibliography(root) -> list[Reference]:
     return references
 
 
-def _parse_ref(ref_elem, index: int) -> Reference:
+def _parse_ref(ref_elem: etree._Element, index: int) -> Reference:
     """Parse a single <ref> element.
 
     Supports both <element-citation> and <mixed-citation>.

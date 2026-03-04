@@ -173,6 +173,37 @@ NO_NAMESPACE_JATS = b"""\
 </article>
 """
 
+STRUCTURED_ABSTRACT_JATS = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article article-type="research-article">
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>Paper With Structured Abstract</article-title>
+      </title-group>
+      <abstract>
+        <sec>
+          <title>Background</title>
+          <p>Background paragraph text.</p>
+        </sec>
+        <sec>
+          <title>Results</title>
+          <p>Results paragraph text.</p>
+        </sec>
+        <sec>
+          <title>Conclusions</title>
+          <p>Conclusions paragraph text.</p>
+        </sec>
+      </abstract>
+    </article-meta>
+  </front>
+  <body>
+    <sec><title>Intro</title><p>Body.</p></sec>
+  </body>
+  <back><ref-list/></back>
+</article>
+"""
+
 MIXED_CITATION_JATS = b"""\
 <?xml version="1.0" encoding="UTF-8"?>
 <article article-type="research-article">
@@ -345,6 +376,36 @@ class TestJatsParser:
         assert doc.authors[0].surname == "Doe"
         assert len(doc.abstract) == 1
         assert len(doc.sections) == 1
+
+    def test_parse_table_colspan(self):
+        """Table cells with colspan emit padding cells."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <table-wrap><table>
+    <thead><tr><th colspan="2">Spanning Header</th><th>C</th></tr></thead>
+    <tbody><tr><td>A</td><td>B</td><td>C</td></tr></tbody>
+  </table></table-wrap>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        table = doc.sections[0].tables[0]
+        # Header row should have 3 cells (1 real + 1 padding + 1 regular)
+        assert len(table.rows[0]) == 3
+        assert table.rows[0][0].text == "Spanning Header"
+        assert table.rows[0][1].text == ""
+        assert table.rows[0][2].text == "C"
+
+    def test_parse_structured_abstract(self):
+        """Structured abstract with <sec> preserves section titles."""
+        doc = parse_jats(STRUCTURED_ABSTRACT_JATS)
+        assert len(doc.abstract) == 3
+        assert doc.abstract[0].text == "**Background:** Background paragraph text."
+        assert doc.abstract[1].text == "**Results:** Results paragraph text."
+        assert doc.abstract[2].text == "**Conclusions:** Conclusions paragraph text."
 
     def test_parse_mixed_citation(self):
         """References using <mixed-citation> instead of <element-citation>."""

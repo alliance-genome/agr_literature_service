@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from agr_literature_service.lit_processing.xml2md.models import (
-    Document, Section,
+    Document, ListBlock, Section, Table,
 )
 
 MAX_HEADING_LEVEL = 6
@@ -46,31 +46,15 @@ def _emit_authors(doc: Document, lines: list[str]) -> None:
     if not doc.authors:
         return
 
-    # Collect unique affiliations and assign superscript numbers
-    aff_map: dict[str, int] = {}
-    for author in doc.authors:
-        for aff in author.affiliations:
-            if aff not in aff_map:
-                aff_map[aff] = len(aff_map) + 1
-
-    # Build author line
+    # Plain comma-separated author names (matches consensus pipeline format)
     author_parts = []
     for author in doc.authors:
         name = f"{author.given_name} {author.surname}".strip()
-        if author.affiliations and aff_map:
-            sups = ",".join(
-                str(aff_map[a]) for a in author.affiliations if a in aff_map
-            )
-            name = f"{name}^{sups}"
-        author_parts.append(name)
+        if name:
+            author_parts.append(name)
 
-    lines.append(f"Authors: {', '.join(author_parts)}")
-    lines.append("")
-
-    # Affiliation footnotes
-    for aff, num in aff_map.items():
-        lines.append(f"^{num} {aff}")
-    if aff_map:
+    if author_parts:
+        lines.append(", ".join(author_parts))
         lines.append("")
 
 
@@ -110,12 +94,9 @@ def _emit_section(
     capped_level = min(heading_level, MAX_HEADING_LEVEL)
     hashes = "#" * capped_level
 
-    # Heading
+    # Heading (section numbers omitted to match consensus pipeline format)
     if section.heading:
-        if section.number:
-            lines.append(f"{hashes} {section.number} {section.heading}")
-        else:
-            lines.append(f"{hashes} {section.heading}")
+        lines.append(f"{hashes} {section.heading}")
         lines.append("")
 
     # Paragraphs (para.refs preserved in the Document model for downstream use)
@@ -141,9 +122,9 @@ def _emit_section(
     for table in section.tables:
         _emit_table(table, lines)
 
-    # Formulas
+    # Formulas (plain text, matching consensus pipeline format)
     for formula in section.formulas:
-        lines.append(f"> Formula: {formula.text}")
+        lines.append(formula.text)
         lines.append("")
 
     # Lists
@@ -162,31 +143,35 @@ def _emit_section(
         _emit_section(sub, lines, heading_level + 1, footnote_counter)
 
 
-def _escape_cell(text: str) -> str:
-    """Escape pipe characters in table cell text."""
-    return text.replace("|", "\\|")
+def _escape_cell(cell_text: str) -> str:
+    """Escape characters that break GFM table cells."""
+    return cell_text.replace("|", "\\|").replace("\n", " ")
 
 
-def _emit_table(table, lines: list[str]) -> None:
+def _emit_table(table: Table, lines: list[str]) -> None:
     if not table.rows:
         return
 
-    # Determine column count from widest row
-    col_count = max(len(row) for row in table.rows)
+    # Filter out empty rows and determine column count from widest row
+    non_empty_rows = [row for row in table.rows if row]
+    if not non_empty_rows:
+        return
+    col_count = max(len(row) for row in non_empty_rows)
 
-    # Split rows into header and data based on is_header flag
+    # Split rows into header and data based on is_header flag.
+    # A row is treated as a header only if ALL its cells are headers.
     header_rows = []
     data_rows = []
-    for row in table.rows:
-        if row and row[0].is_header:
+    for row in non_empty_rows:
+        if all(cell.is_header for cell in row):
             header_rows.append(row)
         else:
             data_rows.append(row)
 
     # If no explicit headers, treat first row as header
-    if not header_rows and table.rows:
-        header_rows = [table.rows[0]]
-        data_rows = table.rows[1:]
+    if not header_rows and non_empty_rows:
+        header_rows = [non_empty_rows[0]]
+        data_rows = non_empty_rows[1:]
 
     # Emit header rows
     for row in header_rows:
@@ -218,7 +203,7 @@ def _emit_table(table, lines: list[str]) -> None:
         lines.append("")
 
 
-def _emit_list(lst, lines: list[str]) -> None:
+def _emit_list(lst: ListBlock, lines: list[str]) -> None:
     for i, item in enumerate(lst.items, 1):
         if lst.ordered:
             lines.append(f"{i}. {item}")

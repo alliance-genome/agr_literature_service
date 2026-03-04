@@ -27,11 +27,7 @@ def detect_format(xml_content: bytes) -> str:
     Raises:
         ValueError: If format cannot be determined.
     """
-    try:
-        root = parse_xml(xml_content)
-    except etree.XMLSyntaxError as e:
-        raise ValueError(f"Unknown format: invalid XML ({e})")
-
+    root = parse_xml(xml_content)
     return _detect_format_from_root(root)
 
 

@@ -21,7 +21,7 @@ class TestMdEmitter:
         assert "# My Paper Title" in md
 
     def test_emit_authors(self):
-        """Authors line: 'Authors: First Last^1, ...'."""
+        """Authors as plain comma-separated names."""
         doc = _make_doc(authors=[
             Author(given_name="Alice", surname="Smith",
                    affiliations=["Dept of Biology, MIT"]),
@@ -29,23 +29,9 @@ class TestMdEmitter:
                    affiliations=["Dept of CS, Stanford"]),
         ])
         md = emit_markdown(doc)
-        assert "Authors:" in md
-        assert "Alice Smith" in md
-        assert "Bob Jones" in md
-
-    def test_emit_author_affiliations(self):
-        """Affiliations as footnotes: '^1 Department, Institution'."""
-        doc = _make_doc(authors=[
-            Author(given_name="Alice", surname="Smith",
-                   affiliations=["Dept of Biology, MIT"]),
-            Author(given_name="Bob", surname="Jones",
-                   affiliations=["Dept of CS, Stanford"]),
-        ])
-        md = emit_markdown(doc)
-        assert "^1" in md
-        assert "Dept of Biology, MIT" in md
-        assert "^2" in md
-        assert "Dept of CS, Stanford" in md
+        assert "Alice Smith, Bob Jones" in md
+        # No 'Authors:' prefix (consensus pipeline format)
+        assert "Authors:" not in md
 
     def test_emit_abstract(self):
         """Abstract section: '## Abstract' + paragraphs."""
@@ -67,13 +53,14 @@ class TestMdEmitter:
         assert "RNA-seq" in md
 
     def test_emit_sections_with_numbers(self):
-        """'## 1 Introduction' format."""
+        """Section numbers omitted from headings (consensus format)."""
         doc = _make_doc(sections=[
             Section(heading="Introduction", number="1", level=1,
                     paragraphs=[Paragraph(text="Intro text.")]),
         ])
         md = emit_markdown(doc)
-        assert "## 1 Introduction" in md
+        assert "## Introduction" in md
+        assert "## 1 " not in md
         assert "Intro text." in md
 
     def test_emit_sections_without_numbers(self):
@@ -100,9 +87,9 @@ class TestMdEmitter:
                     ]),
         ])
         md = emit_markdown(doc)
-        assert "## 2 Methods" in md
-        assert "### 2.1 Samples" in md
-        assert "#### 2.1.1 RNA extraction" in md
+        assert "## Methods" in md
+        assert "### Samples" in md
+        assert "#### RNA extraction" in md
 
     def test_emit_heading_level_cap(self):
         """Max heading level is ######."""
@@ -166,14 +153,18 @@ class TestMdEmitter:
         assert "**Table 1.** Summary of findings." in md
 
     def test_emit_formulas(self):
-        """'> Formula: E = mc^2'."""
+        """Formulas emitted as plain text."""
         doc = _make_doc(sections=[
             Section(heading="Theory", level=1, formulas=[
                 Formula(text="E = mc^2", label="(1)"),
+                Formula(text="F = ma", label=""),
             ]),
         ])
         md = emit_markdown(doc)
-        assert "> Formula: E = mc^2" in md
+        assert "E = mc^2" in md
+        assert "F = ma" in md
+        # No blockquote format (consensus pipeline format)
+        assert "> Formula" not in md
 
     def test_emit_lists_unordered(self):
         """'- item' format."""
@@ -280,11 +271,11 @@ class TestMdEmitter:
         )
         md = emit_markdown(doc)
         assert md.startswith("# A Study of Gene Expression")
-        assert "Authors:" in md
+        assert "Alice Smith, Bob Jones" in md
         assert "## Abstract" in md
         assert "**Keywords:**" in md
-        assert "## 1 Introduction" in md
-        assert "## 2 Methods" in md
+        assert "## Introduction" in md
+        assert "## Methods" in md
         assert "## Acknowledgments" in md
         assert "## References" in md
         assert "1. Lee C (2020)" in md

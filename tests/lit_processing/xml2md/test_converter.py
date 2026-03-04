@@ -116,6 +116,16 @@ class TestConverter:
         with pytest.raises(ValueError, match="Unknown format"):
             convert_xml_to_markdown(MINIMAL_TEI, source_format="foo")
 
+    def test_convert_explicit_format_with_invalid_xml(self):
+        """Explicit format with garbage input gives ValueError, not AttributeError."""
+        with pytest.raises(ValueError):
+            convert_xml_to_markdown(b"not xml at all", source_format="tei")
+
+    def test_convert_explicit_format_with_garbage_jats(self):
+        """Explicit JATS format with garbage input gives ValueError."""
+        with pytest.raises(ValueError):
+            convert_xml_to_markdown(b"totally invalid", source_format="jats")
+
 
 def _load_fixture(filename: str) -> bytes:
     """Load a gzipped TEI fixture file."""
