@@ -310,7 +310,9 @@ def _parse_figure(fig_elem: etree._Element) -> Figure:
 
     figdesc = fig_elem.find("tei:figDesc", NS)
     if figdesc is not None:
-        fig.caption = all_text(figdesc)
+        # Use _parse_paragraph to preserve inline refs as text
+        para = _parse_paragraph(figdesc)
+        fig.caption = para.text
 
     graphic = fig_elem.find("tei:graphic", NS)
     if graphic is not None:
@@ -551,6 +553,22 @@ def _parse_bib_ids(
             ref.ext_links.append(target)
 
 
+def _parse_bib_editors(
+    bib_elem: etree._Element, ref: Reference,
+) -> None:
+    """Extract editors from a ``<biblStruct>`` into *ref*."""
+    for editor in bib_elem.findall(
+        ".//tei:monogr/tei:editor/tei:persName", NS
+    ):
+        forenames = editor.findall("tei:forename", NS)
+        given_parts = [text(fn) for fn in forenames if text(fn)]
+        given = " ".join(given_parts)
+        surname = text(editor.find("tei:surname", NS))
+        if surname:
+            name = f"{surname} {given}" if given else surname
+            ref.editors.append(name)
+
+
 def _parse_bib_entry(bib_elem: etree._Element, index: int) -> Reference:
     """Parse a single <biblStruct> element."""
     ref = Reference(index=index)
@@ -579,5 +597,27 @@ def _parse_bib_entry(bib_elem: etree._Element, index: int) -> Reference:
 
     _parse_bib_imprint(bib_elem, ref)
     _parse_bib_ids(bib_elem, ref)
+
+    # Publisher
+    pub_elem = bib_elem.find(
+        ".//tei:monogr/tei:imprint/tei:publisher", NS
+    )
+    if pub_elem is not None:
+        ref.publisher = text(pub_elem)
+
+    # Publisher location
+    pub_loc = bib_elem.find(
+        ".//tei:monogr/tei:imprint/tei:pubPlace", NS
+    )
+    if pub_loc is not None:
+        ref.publisher_loc = text(pub_loc)
+
+    # Meeting / conference
+    meeting = bib_elem.find(".//tei:monogr/tei:meeting", NS)
+    if meeting is not None:
+        ref.conference = all_text(meeting)
+
+    # Editors
+    _parse_bib_editors(bib_elem, ref)
 
     return ref

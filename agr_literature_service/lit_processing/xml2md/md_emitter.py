@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from agr_literature_service.lit_processing.xml2md.models import (
-    Document, ListBlock, Section, Table,
+    Document, ListBlock, Reference, Section, Table,
 )
 
 MAX_HEADING_LEVEL = 6
@@ -202,6 +202,12 @@ def _emit_table(table: Table, lines: list[str]) -> None:
             lines.append(table.caption)
         lines.append("")
 
+    # Table footnotes
+    if table.foot_notes:
+        for fn in table.foot_notes:
+            lines.append(fn)
+        lines.append("")
+
 
 def _emit_list(lst: ListBlock, lines: list[str]) -> None:
     for i, item in enumerate(lst.items, 1):
@@ -253,44 +259,54 @@ def _emit_back_matter(
                    footnote_counter=footnote_counter)
 
 
+def _format_ref_source(ref: Reference) -> list[str]:
+    """Format journal, conference, publisher parts of a reference."""
+    parts: list[str] = []
+    if ref.journal:
+        journal_part = f"*{ref.journal}*"
+        if ref.volume:
+            journal_part += f", {ref.volume}"
+            if ref.issue:
+                journal_part += f"({ref.issue})"
+        if ref.pages:
+            journal_part += f", {ref.pages}"
+        journal_part += "."
+        parts.append(journal_part)
+    if ref.conference:
+        parts.append(f"*{ref.conference}*.")
+    if ref.publisher:
+        pub_str = ref.publisher
+        if ref.publisher_loc:
+            pub_str = f"{ref.publisher_loc}: {pub_str}"
+        parts.append(f"{pub_str}.")
+    return parts
+
+
 def _emit_references(doc: Document, lines: list[str]) -> None:
     if not doc.references:
         return
     lines.append("## References")
     lines.append("")
     for ref in doc.references:
-        parts = []
-        # Authors
+        parts: list[str] = []
         if ref.authors:
             parts.append(", ".join(ref.authors))
-        # Year
         if ref.year:
             parts.append(f"({ref.year})")
-        # Title
         if ref.title:
             parts.append(f"{ref.title}.")
-        # Journal (italic)
-        if ref.journal:
-            journal_part = f"*{ref.journal}*"
-            if ref.volume:
-                journal_part += f", {ref.volume}"
-                if ref.issue:
-                    journal_part += f"({ref.issue})"
-            if ref.pages:
-                journal_part += f", {ref.pages}"
-            journal_part += "."
-            parts.append(journal_part)
-        # Identifiers
+        if ref.chapter_title:
+            parts.append(f"In: {ref.chapter_title}.")
+        if ref.editors:
+            parts.append(f"Edited by {', '.join(ref.editors)}.")
+        parts.extend(_format_ref_source(ref))
         if ref.doi:
             parts.append(f"doi:{ref.doi}")
         if ref.pmid:
             parts.append(f"PMID:{ref.pmid}")
         if ref.pmcid:
             parts.append(f"PMCID:{ref.pmcid}")
-        # External links (URLs)
         for link in ref.ext_links:
             parts.append(link)
-
-        line = f"{ref.index}. " + " ".join(parts)
-        lines.append(line)
+        lines.append(f"{ref.index}. " + " ".join(parts))
     lines.append("")

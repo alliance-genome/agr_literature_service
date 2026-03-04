@@ -280,6 +280,49 @@ class TestMdEmitter:
         assert "## References" in md
         assert "1. Lee C (2020)" in md
 
+    def test_emit_reference_with_editors_and_publisher(self):
+        """Editors, chapter title, publisher, conference emitted."""
+        doc = _make_doc(
+            title="T",
+            references=[
+                Reference(
+                    index=1, authors=["Auth A"],
+                    title="Book chapter title",
+                    chapter_title="Part One",
+                    editors=["Editor E"],
+                    journal="Big Book",
+                    publisher="Academic Press",
+                    publisher_loc="New York",
+                    year="2023",
+                ),
+                Reference(
+                    index=2, authors=["Auth B"],
+                    title="Conference paper",
+                    conference="ISMB 2024",
+                    year="2024",
+                ),
+            ],
+        )
+        md = emit_markdown(doc)
+        assert "In: Part One." in md
+        assert "Edited by Editor E." in md
+        assert "New York: Academic Press." in md
+        assert "*ISMB 2024*." in md
+
+    def test_emit_table_footnotes(self):
+        """Table footnotes emitted after caption."""
+        doc = _make_doc(sections=[
+            Section(heading="Results", level=1, tables=[
+                Table(label="Table 1", caption="Summary.", rows=[
+                    [TableCell(text="A"), TableCell(text="B")],
+                    [TableCell(text="1"), TableCell(text="2")],
+                ], foot_notes=["FC, fold change.", "*P < 0.05."]),
+            ]),
+        ])
+        md = emit_markdown(doc)
+        assert "FC, fold change." in md
+        assert "*P < 0.05." in md
+
     def test_emit_reference_with_pmcid_and_ext_links(self):
         """PMCID and ext_links emitted in references."""
         doc = _make_doc(

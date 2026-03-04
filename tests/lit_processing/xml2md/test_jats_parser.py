@@ -708,3 +708,200 @@ class TestJatsParser:
         assert len(sec.lists) == 1
         assert "**GO**" in sec.lists[0].items[0]
         assert "Gene Ontology" in sec.lists[0].items[0]
+
+    def test_parse_table_wrap_foot(self):
+        """<table-wrap-foot> footnotes captured in Table.foot_notes."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <table-wrap>
+    <label>Table 1</label>
+    <table>
+      <thead><tr><th>Gene</th><th>FC</th></tr></thead>
+      <tbody><tr><td>BRCA1</td><td>2.5</td></tr></tbody>
+    </table>
+    <table-wrap-foot>
+      <fn id="tfn1"><p>FC, fold change.</p></fn>
+      <fn id="tfn2"><p>*P &lt; 0.05.</p></fn>
+    </table-wrap-foot>
+  </table-wrap>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        table = doc.sections[0].tables[0]
+        assert len(table.foot_notes) == 2
+        assert "fold change" in table.foot_notes[0]
+        assert "P <" in table.foot_notes[1]
+
+    def test_parse_page_range(self):
+        """<page-range> as fallback for pages in references."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation>
+      <article-title>Title</article-title>
+      <source>J</source>
+      <year>2024</year>
+      <page-range>100-110, 115</page-range>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert doc.references[0].pages == "100-110, 115"
+
+    def test_parse_publisher_info(self):
+        """<publisher-name> and <publisher-loc> in references."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation publication-type="book">
+      <person-group person-group-type="author">
+        <name><surname>Auth</surname><given-names>A</given-names></name>
+      </person-group>
+      <source>Biology Handbook</source>
+      <year>2023</year>
+      <publisher-name>Academic Press</publisher-name>
+      <publisher-loc>New York</publisher-loc>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        ref = doc.references[0]
+        assert ref.publisher == "Academic Press"
+        assert ref.publisher_loc == "New York"
+
+    def test_parse_chapter_title(self):
+        """<chapter-title> / <part-title> for book chapters."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation publication-type="book">
+      <article-title>Chapter One</article-title>
+      <chapter-title>Methods in Molecular Biology</chapter-title>
+      <source>Book Title</source>
+      <year>2022</year>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert doc.references[0].chapter_title == "Methods in Molecular Biology"
+
+    def test_parse_conf_name(self):
+        """<conf-name> captured as conference."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation publication-type="confproc">
+      <article-title>Deep learning for genomics</article-title>
+      <conf-name>ISMB 2024</conf-name>
+      <year>2024</year>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert doc.references[0].conference == "ISMB 2024"
+
+    def test_parse_ref_editors(self):
+        """Editors from person-group[@person-group-type='editor']."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation publication-type="book">
+      <person-group person-group-type="author">
+        <name><surname>Auth</surname><given-names>A</given-names></name>
+      </person-group>
+      <person-group person-group-type="editor">
+        <name><surname>Editor</surname><given-names>E</given-names></name>
+      </person-group>
+      <article-title>Chapter</article-title>
+      <source>Big Book</source>
+      <year>2023</year>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        ref = doc.references[0]
+        assert len(ref.editors) == 1
+        assert "Editor E" in ref.editors[0]
+
+    def test_parse_preformat(self):
+        """<preformat> blocks rendered as code blocks."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Methods</title>
+  <preformat>SELECT * FROM genes WHERE symbol = 'BRCA1';</preformat>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        code_paras = [p for p in sec.paragraphs if "```" in p.text]
+        assert len(code_paras) == 1
+        assert "SELECT * FROM genes" in code_paras[0].text
+
+    def test_parse_glossary_in_back(self):
+        """<glossary> in back matter parsed with def-list."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back>
+  <glossary>
+    <title>Abbreviations</title>
+    <def-list>
+      <def-item>
+        <term>GO</term>
+        <def><p>Gene Ontology</p></def>
+      </def-item>
+      <def-item>
+        <term>MOD</term>
+        <def><p>Model Organism Database</p></def>
+      </def-item>
+    </def-list>
+  </glossary>
+</back></article>
+"""
+        doc = parse_jats(jats)
+        headings = [s.heading for s in doc.back_matter]
+        assert "Abbreviations" in headings
+        abbr = [s for s in doc.back_matter
+                if s.heading == "Abbreviations"][0]
+        assert len(abbr.lists) >= 1
+        assert "**GO**" in abbr.lists[0].items[0]

@@ -207,6 +207,43 @@ def _parse_body(root: etree._Element) -> list[Section]:
 _BLOCK_TAGS = frozenset({"fig", "table-wrap", "disp-formula", "list"})
 
 
+def _dispatch_sec_block(
+    child: etree._Element, tag: str, section: Section,
+) -> None:
+    """Handle supplementary, boxed-text, quote, def-list, etc."""
+    if tag == "supplementary-material":
+        _parse_supplementary(child, section)
+    elif tag == "boxed-text":
+        _parse_boxed_text(child, section)
+    elif tag == "disp-quote":
+        quote_text = all_text(child)
+        if quote_text:
+            section.paragraphs.append(
+                Paragraph(text=f"> {quote_text}")
+            )
+    elif tag == "def-list":
+        _parse_def_list(child, section)
+    elif tag == "fn-group":
+        for fn in child.findall("fn"):
+            fn_text = all_text(fn)
+            if fn_text:
+                section.notes.append(fn_text)
+    elif tag == "preformat":
+        pre_text = all_text(child)
+        if pre_text:
+            section.paragraphs.append(
+                Paragraph(text=f"```\n{pre_text}\n```")
+            )
+    elif tag == "glossary":
+        _parse_glossary(child, section)
+
+
+_SEC_BLOCK_TAGS = frozenset({
+    "supplementary-material", "boxed-text", "disp-quote",
+    "def-list", "fn-group", "preformat", "glossary",
+})
+
+
 def _dispatch_sec_child(
     child: etree._Element, tag: str,
     section: Section, level: int,
@@ -226,23 +263,8 @@ def _dispatch_sec_child(
         section.formulas.append(_parse_formula(child))
     elif tag == "list":
         section.lists.append(_parse_list(child))
-    elif tag == "supplementary-material":
-        _parse_supplementary(child, section)
-    elif tag == "boxed-text":
-        _parse_boxed_text(child, section)
-    elif tag == "disp-quote":
-        quote_text = all_text(child)
-        if quote_text:
-            section.paragraphs.append(
-                Paragraph(text=f"> {quote_text}")
-            )
-    elif tag == "def-list":
-        _parse_def_list(child, section)
-    elif tag == "fn-group":
-        for fn in child.findall("fn"):
-            fn_text = all_text(fn)
-            if fn_text:
-                section.notes.append(fn_text)
+    elif tag in _SEC_BLOCK_TAGS:
+        _dispatch_sec_block(child, tag, section)
 
 
 def _parse_sec(sec_elem: etree._Element, level: int) -> Section:
@@ -440,6 +462,14 @@ def _parse_table_wrap(tw_elem: etree._Element) -> Table:
                 if row:
                     table.rows.append(row)
 
+    # Table footnotes from <table-wrap-foot>
+    foot = tw_elem.find("table-wrap-foot")
+    if foot is not None:
+        for fn in foot.findall(".//fn"):
+            fn_text = all_text(fn)
+            if fn_text:
+                table.foot_notes.append(fn_text)
+
     return table
 
 
@@ -565,6 +595,23 @@ def _parse_def_list(elem: etree._Element, section: Section) -> None:
         section.lists.append(ListBlock(items=items, ordered=False))
 
 
+def _parse_glossary(elem: etree._Element, section: Section) -> None:
+    """Parse <glossary> — title + def-list or paragraphs."""
+    title_elem = elem.find("title")
+    if title_elem is not None:
+        title_text = all_text(title_elem)
+        if title_text:
+            section.paragraphs.append(
+                Paragraph(text=f"**{title_text}**")
+            )
+    for dl in elem.findall("def-list"):
+        _parse_def_list(dl, section)
+    for p in elem.findall("p"):
+        p_text = all_text(p)
+        if p_text:
+            section.paragraphs.append(Paragraph(text=p_text))
+
+
 def _parse_acknowledgments(root: etree._Element) -> str:
     """Extract acknowledgments from //back/ack."""
     ack = root.find(".//back/ack")
@@ -645,6 +692,17 @@ def _parse_back_sections(root: etree._Element) -> list[Section]:
                 if p_text:
                     section.paragraphs.append(Paragraph(text=p_text))
             if section.paragraphs or section.heading:
+                sections.append(section)
+        elif tag == "glossary":
+            section = Section(level=1)
+            title_elem = child.find("title")
+            if title_elem is not None:
+                section.heading = all_text(title_elem)
+            else:
+                section.heading = "Glossary"
+            _parse_glossary(child, section)
+            if (section.paragraphs or section.lists
+                    or section.heading):
                 sections.append(section)
 
     return sections
@@ -733,6 +791,23 @@ def _parse_ref_authors(
             ref.authors.append(collab_text)
 
 
+def _parse_ref_editors(
+    citation: etree._Element, ref: Reference,
+) -> None:
+    """Extract editors from a citation element into *ref*."""
+    editor_group = citation.find(
+        "person-group[@person-group-type='editor']"
+    )
+    if editor_group is None:
+        return
+    for name_elem in editor_group.findall("name"):
+        surname = text(name_elem.find("surname"))
+        given = text(name_elem.find("given-names"))
+        if surname:
+            name = f"{surname} {given}" if given else surname
+            ref.editors.append(name)
+
+
 def _parse_ref_pages(
     citation: etree._Element, ref: Reference,
 ) -> None:
@@ -746,6 +821,10 @@ def _parse_ref_pages(
             ref.pages = f"{fpage_text}-{lpage_text}"
         elif fpage_text:
             ref.pages = fpage_text
+    if not ref.pages:
+        page_range = citation.find("page-range")
+        if page_range is not None:
+            ref.pages = text(page_range)
     if not ref.pages:
         eloc = citation.find("elocation-id")
         if eloc is not None:
@@ -797,12 +876,35 @@ def _parse_ref(ref_elem: etree._Element, index: int) -> Reference:
     if source_elem is not None:
         ref.journal = all_text(source_elem)
 
+    # Chapter / part title (book chapters)
+    part_title = citation.find("chapter-title")
+    if part_title is None:
+        part_title = citation.find("part-title")
+    if part_title is not None:
+        ref.chapter_title = all_text(part_title)
+
     # Simple text fields
     for tag, attr in (("year", "year"), ("volume", "volume"),
                       ("issue", "issue")):
         elem = citation.find(tag)
         if elem is not None:
             setattr(ref, attr, text(elem))
+
+    # Publisher info
+    pub_name = citation.find("publisher-name")
+    if pub_name is not None:
+        ref.publisher = all_text(pub_name)
+    pub_loc = citation.find("publisher-loc")
+    if pub_loc is not None:
+        ref.publisher_loc = all_text(pub_loc)
+
+    # Conference name
+    conf = citation.find("conf-name")
+    if conf is not None:
+        ref.conference = all_text(conf)
+
+    # Editors
+    _parse_ref_editors(citation, ref)
 
     _parse_ref_pages(citation, ref)
     _parse_ref_ids(citation, ref)

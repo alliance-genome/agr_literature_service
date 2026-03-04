@@ -847,3 +847,158 @@ class TestTeiParser:
         doc = parse_tei(tei)
         table = doc.tables[0]
         assert "Abbreviations" in table.caption
+
+    def test_parse_bib_publisher(self):
+        """Publisher from <imprint><publisher>."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back><div type="references"><listBibl>
+    <biblStruct>
+      <monogr>
+        <title level="m">A Great Book</title>
+        <editor><persName>
+          <forename type="first">E</forename>
+          <surname>Smith</surname>
+        </persName></editor>
+        <imprint>
+          <publisher>Academic Press</publisher>
+          <pubPlace>London</pubPlace>
+          <date when="2022"/>
+        </imprint>
+      </monogr>
+    </biblStruct>
+  </listBibl></div></back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        ref = doc.references[0]
+        assert ref.publisher == "Academic Press"
+        assert ref.publisher_loc == "London"
+
+    def test_parse_bib_editor(self):
+        """Editors from <monogr><editor>."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back><div type="references"><listBibl>
+    <biblStruct>
+      <analytic>
+        <title level="a">A chapter</title>
+        <author><persName>
+          <forename type="first">A</forename>
+          <surname>Author</surname>
+        </persName></author>
+      </analytic>
+      <monogr>
+        <title level="m">Edited Book</title>
+        <editor><persName>
+          <forename type="first">E</forename>
+          <surname>Editor</surname>
+        </persName></editor>
+        <imprint><date when="2023"/></imprint>
+      </monogr>
+    </biblStruct>
+  </listBibl></div></back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        ref = doc.references[0]
+        assert len(ref.editors) == 1
+        assert "Editor E" in ref.editors[0]
+
+    def test_parse_bib_meeting(self):
+        """Conference/meeting from <monogr><meeting>."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back><div type="references"><listBibl>
+    <biblStruct>
+      <analytic>
+        <title level="a">Conference paper</title>
+      </analytic>
+      <monogr>
+        <title level="m">Proc. ISMB</title>
+        <meeting>ISMB 2024</meeting>
+        <imprint><date when="2024"/></imprint>
+      </monogr>
+    </biblStruct>
+  </listBibl></div></back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        assert doc.references[0].conference == "ISMB 2024"
+
+    def test_parse_figdesc_with_refs(self):
+        """<figDesc> with inline <ref> preserves reference text."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <figure xmlns="http://www.tei-c.org/ns/1.0">
+      <head>Figure 1</head>
+      <figDesc>Expression data from <ref type="bibr" target="#b0">
+      Smith et al. (2020)</ref> showing upregulation.</figDesc>
+    </figure>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        fig = doc.figures[0]
+        assert "Smith et al." in fig.caption
+        assert "upregulation" in fig.caption

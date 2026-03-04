@@ -43,6 +43,7 @@ class TableCell:
 class Table:
     label: str = ""              # "Table 1"
     caption: str = ""
+    foot_notes: list[str] = field(default_factory=list)
     rows: list[list[TableCell]] = field(default_factory=list)
 
 
@@ -77,8 +78,13 @@ class Reference:
     """A single entry in the bibliography."""
     index: int = 0
     authors: list[str] = field(default_factory=list)  # "Surname FN" format
+    editors: list[str] = field(default_factory=list)
     title: str = ""
+    chapter_title: str = ""  # part-title for book chapters
     journal: str = ""
+    publisher: str = ""
+    publisher_loc: str = ""
+    conference: str = ""  # conf-name / meeting
     volume: str = ""
     issue: str = ""
     pages: str = ""
