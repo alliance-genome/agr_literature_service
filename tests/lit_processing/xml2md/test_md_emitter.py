@@ -279,3 +279,23 @@ class TestMdEmitter:
         assert "## Acknowledgments" in md
         assert "## References" in md
         assert "1. Lee C (2020)" in md
+
+    def test_emit_reference_with_pmcid_and_ext_links(self):
+        """PMCID and ext_links emitted in references."""
+        doc = _make_doc(
+            title="T",
+            references=[
+                Reference(
+                    index=1, authors=["Doe J"],
+                    title="Test paper", journal="PLOS ONE",
+                    year="2024", doi="10.1234/test",
+                    pmid="11111111", pmcid="PMC9999999",
+                    ext_links=["https://example.com/data"],
+                ),
+            ],
+        )
+        md = emit_markdown(doc)
+        assert "doi:10.1234/test" in md
+        assert "PMID:11111111" in md
+        assert "PMCID:PMC9999999" in md
+        assert "https://example.com/data" in md

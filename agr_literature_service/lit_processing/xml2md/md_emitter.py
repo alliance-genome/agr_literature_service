@@ -280,9 +280,16 @@ def _emit_references(doc: Document, lines: list[str]) -> None:
                 journal_part += f", {ref.pages}"
             journal_part += "."
             parts.append(journal_part)
-        # DOI
+        # Identifiers
         if ref.doi:
             parts.append(f"doi:{ref.doi}")
+        if ref.pmid:
+            parts.append(f"PMID:{ref.pmid}")
+        if ref.pmcid:
+            parts.append(f"PMCID:{ref.pmcid}")
+        # External links (URLs)
+        for link in ref.ext_links:
+            parts.append(link)
 
         line = f"{ref.index}. " + " ".join(parts)
         lines.append(line)

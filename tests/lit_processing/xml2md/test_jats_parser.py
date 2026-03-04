@@ -447,3 +447,264 @@ class TestJatsParser:
         assert len(sec.paragraphs) == 1
         assert "See Table 1" in sec.paragraphs[0].text
         assert "More text" in sec.paragraphs[0].text
+
+    def test_parse_citation_alternatives(self):
+        """References wrapped in <citation-alternatives>."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>Text.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <citation-alternatives>
+      <element-citation publication-type="journal">
+        <person-group><name>
+          <surname>Alt</surname><given-names>A</given-names>
+        </name></person-group>
+        <article-title>Alt title</article-title>
+        <source>Alt Journal</source>
+        <year>2023</year>
+      </element-citation>
+    </citation-alternatives>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert len(doc.references) == 1
+        assert doc.references[0].title == "Alt title"
+        assert "Alt" in doc.references[0].authors[0]
+
+    def test_parse_inline_formatting(self):
+        """Inline <italic>, <bold>, <sup>, <sub> preserved as markdown."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <p>The gene <italic>drosophila</italic> is <bold>important</bold> for
+  H<sub>2</sub>O and Ca<sup>2+</sup> studies.</p>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        para = doc.sections[0].paragraphs[0].text
+        assert "*drosophila*" in para
+        assert "**important**" in para
+        assert "<sub>2</sub>" in para
+        assert "<sup>2+</sup>" in para
+
+    def test_parse_ext_link_in_paragraph(self):
+        """<ext-link> in paragraphs emitted as markdown links."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <p>Data at <ext-link ext-link-type="uri"
+    xlink:href="https://example.com/data"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    >example.com/data</ext-link>.</p>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        para = doc.sections[0].paragraphs[0].text
+        assert "[example.com/data](https://example.com/data)" in para
+
+    def test_parse_string_name_authors(self):
+        """References with <string-name> instead of <name>."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <mixed-citation>
+      <string-name><surname>Sn</surname><given-names>A</given-names></string-name>
+      <article-title>SN title</article-title>
+      <source>SN Journal</source>
+      <year>2022</year>
+    </mixed-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert "Sn" in doc.references[0].authors[0]
+
+    def test_parse_elocation_id(self):
+        """References with <elocation-id> instead of fpage/lpage."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation>
+      <article-title>E-journal paper</article-title>
+      <source>PLOS ONE</source>
+      <year>2023</year>
+      <elocation-id>e12345</elocation-id>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert doc.references[0].pages == "e12345"
+
+    def test_parse_pmcid(self):
+        """PMCID captured from pub-id[@pub-id-type='pmcid']."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation>
+      <article-title>Title</article-title>
+      <year>2024</year>
+      <pub-id pub-id-type="doi">10.1234/test</pub-id>
+      <pub-id pub-id-type="pmid">99999999</pub-id>
+      <pub-id pub-id-type="pmcid">PMC1234567</pub-id>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        ref = doc.references[0]
+        assert ref.doi == "10.1234/test"
+        assert ref.pmid == "99999999"
+        assert ref.pmcid == "PMC1234567"
+
+    def test_parse_collab_author(self):
+        """Collaborative/group author names."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation>
+      <person-group>
+        <collab>The International Consortium</collab>
+      </person-group>
+      <article-title>Consortium paper</article-title>
+      <year>2024</year>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        assert "The International Consortium" in doc.references[0].authors
+
+    def test_parse_author_orcid(self):
+        """Author ORCID from contrib-id."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+  <contrib-group>
+    <contrib contrib-type="author">
+      <contrib-id contrib-id-type="orcid">0000-0001-2345-6789</contrib-id>
+      <name><surname>Orcid</surname><given-names>A</given-names></name>
+    </contrib>
+  </contrib-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body></article>
+"""
+        doc = parse_jats(jats)
+        assert doc.authors[0].orcid == "0000-0001-2345-6789"
+
+    def test_parse_back_sections(self):
+        """Back-matter sec, fn-group, notes parsed as back_matter."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back>
+  <sec sec-type="data-availability">
+    <title>Data Availability</title>
+    <p>Data deposited at GEO.</p>
+  </sec>
+  <fn-group>
+    <title>Author Contributions</title>
+    <fn><p>A.B. conceived the study.</p></fn>
+  </fn-group>
+</back></article>
+"""
+        doc = parse_jats(jats)
+        headings = [s.heading for s in doc.back_matter]
+        assert "Data Availability" in headings
+        assert "Author Contributions" in headings
+
+    def test_parse_supplementary_material(self):
+        """<supplementary-material> in sec rendered as paragraph."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Results</title>
+  <p>Main findings.</p>
+  <supplementary-material>
+    <label>Supplementary File 1</label>
+    <caption><p>Additional data tables.</p></caption>
+  </supplementary-material>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        supp_paras = [p for p in sec.paragraphs
+                      if "Supplementary" in p.text]
+        assert len(supp_paras) == 1
+        assert "Additional data" in supp_paras[0].text
+
+    def test_parse_disp_quote(self):
+        """<disp-quote> in sec rendered as block quote."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Discussion</title>
+  <disp-quote><p>A famous quote here.</p></disp-quote>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        quote_paras = [p for p in sec.paragraphs if p.text.startswith(">")]
+        assert len(quote_paras) == 1
+        assert "famous quote" in quote_paras[0].text
+
+    def test_parse_def_list(self):
+        """<def-list>/<def-item> rendered as list."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Glossary</title>
+  <def-list>
+    <def-item>
+      <term>GO</term>
+      <def><p>Gene Ontology</p></def>
+    </def-item>
+  </def-list>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        assert len(sec.lists) == 1
+        assert "**GO**" in sec.lists[0].items[0]
+        assert "Gene Ontology" in sec.lists[0].items[0]

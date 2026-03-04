@@ -9,6 +9,7 @@ class Author:
     given_name: str = ""
     surname: str = ""
     email: str = ""
+    orcid: str = ""
     affiliations: list[str] = field(default_factory=list)
 
 
@@ -84,6 +85,8 @@ class Reference:
     year: str = ""
     doi: str = ""
     pmid: str = ""
+    pmcid: str = ""
+    ext_links: list[str] = field(default_factory=list)  # URLs from ext-link/ptr
 
 
 @dataclass

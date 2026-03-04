@@ -45,8 +45,14 @@ footnotes) must be followed by a blank line.
 
 ### Paragraphs
 
-Plain text. Inline citations may appear as `[1]`, `[1, 2]`, or
-`(Author, Year)`.
+Plain text with optional inline formatting:
+
+- `*italic*` — species names, gene names, emphasis
+- `**bold**` — strong emphasis
+- `<sup>text</sup>` — superscripts (exponents, ions like Ca<sup>2+</sup>)
+- `<sub>text</sub>` — subscripts (chemical formulas like H<sub>2</sub>O)
+- `[text](url)` — hyperlinks from external links
+- Inline citations: `[1]`, `[1, 2]`, or `(Author, Year)`
 
 ### Figures
 
@@ -97,12 +103,32 @@ Ordered:
 [^1]: Footnote text here.
 ```
 
+### Block Quotes
+
+```
+> Quoted text from a disp-quote element.
+```
+
+### Supplementary Material
+
+```
+**Supplementary File 1.** Description of supplementary data.
+```
+
+### Definition Lists
+
+Rendered as unordered lists with bold terms:
+
+```
+- **Term**: Definition text
+```
+
 ### References
 
 Numbered list in the final `## References` section:
 
 ```
-1. Author A, Author B (2024) Title of the paper. *Journal Name*, 52(3), 100-110. doi:10.1234/example
+1. Author A, Author B (2024) Title of the paper. *Journal Name*, 52(3), 100-110. doi:10.1234/example PMID:12345678 PMCID:PMC1234567
 ```
 
 ## Machine-Checkable Validation Rules
@@ -122,7 +148,11 @@ Numbered list in the final `## References` section:
 ## Notes
 
 - Section numbers (e.g., "1.", "2.1") are **omitted** from headings.
-- Author affiliations are stored in the data model but not emitted in
-  Markdown.
+- Author affiliations and ORCIDs are stored in the data model but not
+  emitted in Markdown.
+- Back-matter sections (funding, data availability, author contributions,
+  etc.) are emitted as H2 sections between Acknowledgments and References.
+- Inline formatting (`*italic*`, `**bold**`, `<sup>`, `<sub>`) is
+  preserved from source XML where present.
 - The schema is intentionally format-agnostic regarding the XML source
   (TEI or JATS) — both must produce conforming output.

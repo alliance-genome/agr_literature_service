@@ -41,7 +41,11 @@ def parse_tei(
     doc.figures, doc.tables = _parse_top_level_figures(root)
     doc.references = _parse_bibliography(root)
     doc.acknowledgments = _parse_acknowledgments(root)
-    doc.back_matter = _parse_annex(root)
+
+    # Back matter: annex + additional div types (funding, availability)
+    back_matter = _parse_annex(root)
+    back_matter.extend(_parse_additional_back(root))
+    doc.back_matter = back_matter
 
     return doc
 
@@ -61,14 +65,22 @@ def _parse_authors(root: etree._Element) -> list[Author]:
         author = Author()
         persname = author_elem.find("tei:persName", NS)
         if persname is not None:
-            forename = persname.find("tei:forename", NS)
+            # Collect all forename parts (first + middle)
+            forenames = persname.findall("tei:forename", NS)
+            name_parts = [text(fn) for fn in forenames if text(fn)]
+            author.given_name = " ".join(name_parts)
+
             surname = persname.find("tei:surname", NS)
-            author.given_name = text(forename)
             author.surname = text(surname)
 
         email_elem = author_elem.find(".//tei:email", NS)
         if email_elem is not None:
             author.email = text(email_elem)
+
+        # ORCID
+        orcid_elem = author_elem.find("tei:idno[@type='ORCID']", NS)
+        if orcid_elem is not None:
+            author.orcid = text(orcid_elem)
 
         for aff_elem in author_elem.findall("tei:affiliation", NS):
             parts = []
@@ -218,10 +230,46 @@ def _parse_section(div_elem: etree._Element, level: int) -> Section:
     return section
 
 
+def _format_hi(elem: etree._Element) -> str:
+    """Format a <hi> element with markdown syntax based on @rend."""
+    rend = elem.get("rend", "")
+    inner = all_text(elem)
+    if not inner:
+        return ""
+    if rend == "italic":
+        return f"*{inner}*"
+    elif rend == "bold":
+        return f"**{inner}**"
+    elif rend == "superscript":
+        return f"<sup>{inner}</sup>"
+    elif rend == "subscript":
+        return f"<sub>{inner}</sub>"
+    return inner
+
+
+def _parse_inline(elem: etree._Element, parts: list[str],
+                  refs: list[InlineRef]) -> None:
+    """Parse an inline child element, appending to parts and refs."""
+    tag = etree.QName(elem.tag).localname if isinstance(
+        elem.tag, str
+    ) else ""
+
+    if tag == "ref":
+        ref_text = all_text(elem)
+        ref_target = elem.get("target", "")
+        if ref_text:
+            refs.append(InlineRef(text=ref_text, target=ref_target))
+            parts.append(ref_text)
+    elif tag == "hi":
+        parts.append(_format_hi(elem))
+    else:
+        parts.append(all_text(elem))
+
+
 def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
     """Parse a <p> element with mixed content (text + refs + tails)."""
-    parts = []
-    refs = []
+    parts: list[str] = []
+    refs: list[InlineRef] = []
 
     if p_elem.text:
         parts.append(p_elem.text)
@@ -231,37 +279,19 @@ def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
             child.tag, str
         ) else ""
 
-        if tag == "ref":
-            ref_text = all_text(child)
-            ref_target = child.get("target", "")
-            if ref_text:
-                refs.append(InlineRef(text=ref_text, target=ref_target))
-                parts.append(ref_text)
-        elif tag == "s":
+        if tag == "s":
             # Sentence segmentation — collect text content
             if child.text:
                 parts.append(child.text)
             for grandchild in child:
-                gc_tag = etree.QName(grandchild.tag).localname if isinstance(
-                    grandchild.tag, str
-                ) else ""
-                if gc_tag == "ref":
-                    ref_text = all_text(grandchild)
-                    ref_target = grandchild.get("target", "")
-                    if ref_text:
-                        refs.append(InlineRef(
-                            text=ref_text, target=ref_target
-                        ))
-                        parts.append(ref_text)
-                else:
-                    parts.append(all_text(grandchild))
+                _parse_inline(grandchild, parts, refs)
                 if grandchild.tail:
                     parts.append(grandchild.tail)
             if child.tail:
                 parts.append(child.tail)
             continue
         else:
-            parts.append(all_text(child))
+            _parse_inline(child, parts, refs)
 
         if child.tail:
             parts.append(child.tail)
@@ -307,13 +337,30 @@ def _parse_table(fig_elem: etree._Element) -> Table:
             is_header_row = row_elem.get("role", "") == "head"
             row = []
             for cell_elem in row_elem.findall("tei:cell", NS):
+                try:
+                    colspan = int(cell_elem.get("cols", "1") or "1")
+                except (ValueError, OverflowError):
+                    colspan = 1
                 cell = TableCell(
                     text=all_text(cell_elem),
                     is_header=is_header_row,
                 )
                 row.append(cell)
+                for _ in range(colspan - 1):
+                    row.append(TableCell(
+                        text="", is_header=is_header_row,
+                    ))
             if row:
                 table.rows.append(row)
+
+    # Table footnotes
+    for note in fig_elem.findall("tei:note", NS):
+        note_text = all_text(note)
+        if note_text:
+            if table.caption:
+                table.caption += f" {note_text}"
+            else:
+                table.caption = note_text
 
     return table
 
@@ -383,6 +430,54 @@ def _parse_annex(root: etree._Element) -> list[Section]:
     return sections
 
 
+def _parse_additional_back(root: etree._Element) -> list[Section]:
+    """Extract additional back-matter sections (funding, availability, etc.).
+
+    GROBID produces these as ``<div type="...">`` children of ``<back>``.
+    """
+    sections: list[Section] = []
+    back = root.find(".//tei:back", NS)
+    if back is None:
+        return sections
+
+    # Types already handled elsewhere
+    _HANDLED_TYPES = {"acknowledgement", "annex"}
+
+    for div in back.findall("tei:div", NS):
+        div_type = div.get("type", "")
+        if div_type in _HANDLED_TYPES:
+            continue
+
+        section = Section(level=1)
+
+        # Use the div type as heading if no explicit head
+        head = div.find("tei:head", NS)
+        if head is not None:
+            section.heading = all_text(head)
+        elif div_type:
+            # Capitalize the type for a readable heading
+            section.heading = div_type.replace("_", " ").title()
+
+        # Parse content — may have nested divs
+        for child in div:
+            tag = etree.QName(child.tag).localname if isinstance(
+                child.tag, str
+            ) else ""
+            if tag == "head":
+                continue
+            elif tag == "p":
+                section.paragraphs.append(_parse_paragraph(child))
+            elif tag == "div":
+                sub = _parse_section(child, level=2)
+                section.subsections.append(sub)
+
+        if (section.paragraphs or section.subsections
+                or section.heading):
+            sections.append(section)
+
+    return sections
+
+
 def _parse_bibliography(root: etree._Element) -> list[Reference]:
     """Extract references from //back//listBibl/biblStruct."""
     references = []
@@ -394,37 +489,26 @@ def _parse_bibliography(root: etree._Element) -> list[Reference]:
     return references
 
 
-def _parse_bib_entry(bib_elem: etree._Element, index: int) -> Reference:
-    """Parse a single <biblStruct> element."""
-    ref = Reference(index=index)
-
-    # Authors
+def _parse_bib_authors(
+    bib_elem: etree._Element, ref: Reference,
+) -> None:
+    """Extract authors from a ``<biblStruct>`` into *ref*."""
     for author_elem in bib_elem.findall(
         ".//tei:author/tei:persName", NS
     ):
-        forename = text(author_elem.find("tei:forename", NS))
+        forenames = author_elem.findall("tei:forename", NS)
+        given_parts = [text(fn) for fn in forenames if text(fn)]
+        given = " ".join(given_parts)
         surname = text(author_elem.find("tei:surname", NS))
         if surname:
-            if forename:
-                ref.authors.append(f"{surname} {forename}")
-            else:
-                ref.authors.append(surname)
+            name = f"{surname} {given}" if given else surname
+            ref.authors.append(name)
 
-    # Title
-    title_elem = bib_elem.find(
-        ".//tei:analytic/tei:title[@level='a']", NS
-    )
-    if title_elem is not None:
-        ref.title = all_text(title_elem)
 
-    # Journal
-    journal_elem = bib_elem.find(
-        ".//tei:monogr/tei:title[@level='j']", NS
-    )
-    if journal_elem is not None:
-        ref.journal = all_text(journal_elem)
-
-    # Volume, issue, pages, year
+def _parse_bib_imprint(
+    bib_elem: etree._Element, ref: Reference,
+) -> None:
+    """Extract volume, issue, pages, year from imprint."""
     for scope in bib_elem.findall(
         ".//tei:monogr/tei:imprint/tei:biblScope", NS
     ):
@@ -448,13 +532,52 @@ def _parse_bib_entry(bib_elem: etree._Element, index: int) -> Reference:
     )
     if date_elem is not None:
         ref.year = date_elem.get("when", "")
-        # Sometimes year is in full date format like "2024-01-01"
         if len(ref.year) > 4:
             ref.year = ref.year[:4]
 
-    # DOI
-    doi_elem = bib_elem.find("tei:idno[@type='DOI']", NS)
-    if doi_elem is not None:
-        ref.doi = text(doi_elem)
+
+def _parse_bib_ids(
+    bib_elem: etree._Element, ref: Reference,
+) -> None:
+    """Extract identifiers and external links from bibliography entry."""
+    for idno_type, attr in (("DOI", "doi"), ("PMID", "pmid")):
+        elem = bib_elem.find(f"tei:idno[@type='{idno_type}']", NS)
+        if elem is not None:
+            setattr(ref, attr, text(elem))
+
+    for ptr_elem in bib_elem.findall(".//tei:ptr", NS):
+        target = ptr_elem.get("target", "")
+        if target:
+            ref.ext_links.append(target)
+
+
+def _parse_bib_entry(bib_elem: etree._Element, index: int) -> Reference:
+    """Parse a single <biblStruct> element."""
+    ref = Reference(index=index)
+
+    _parse_bib_authors(bib_elem, ref)
+
+    # Title — article-level first
+    title_elem = bib_elem.find(
+        ".//tei:analytic/tei:title[@level='a']", NS
+    )
+    if title_elem is not None:
+        ref.title = all_text(title_elem)
+
+    # Journal — fall back to monograph title for books/proceedings
+    journal_elem = bib_elem.find(
+        ".//tei:monogr/tei:title[@level='j']", NS
+    )
+    if journal_elem is not None:
+        ref.journal = all_text(journal_elem)
+    if not ref.journal:
+        monogr_title = bib_elem.find(
+            ".//tei:monogr/tei:title[@level='m']", NS
+        )
+        if monogr_title is not None:
+            ref.journal = all_text(monogr_title)
+
+    _parse_bib_imprint(bib_elem, ref)
+    _parse_bib_ids(bib_elem, ref)
 
     return ref

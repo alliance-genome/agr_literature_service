@@ -566,3 +566,284 @@ class TestTeiParser:
         """Document.source_format is 'tei'."""
         doc = parse_tei(FULL_TEI)
         assert doc.source_format == "tei"
+
+    def test_parse_hi_formatting(self):
+        """<hi rend="..."> elements preserved as markdown formatting."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head n="1">Results</head>
+      <p>The gene <hi rend="italic">drosophila</hi> has
+      <hi rend="bold">significant</hi> expression of
+      Ca<hi rend="superscript">2+</hi> and
+      H<hi rend="subscript">2</hi>O.</p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        para = doc.sections[0].paragraphs[0].text
+        assert "*drosophila*" in para
+        assert "**significant**" in para
+        assert "<sup>2+</sup>" in para
+        assert "<sub>2</sub>" in para
+
+    def test_parse_author_middle_name(self):
+        """All forename parts (first + middle) collected."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc>
+        <biblStruct><analytic>
+          <title level="a" type="main">T</title>
+          <author>
+            <persName>
+              <forename type="first">John</forename>
+              <forename type="middle">Q</forename>
+              <surname>Public</surname>
+            </persName>
+          </author>
+        </analytic><monogr><imprint><date when="2024"/>
+        </imprint></monogr></biblStruct>
+      </sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        assert doc.authors[0].given_name == "John Q"
+
+    def test_parse_author_orcid(self):
+        """ORCID from <idno type="ORCID">."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc>
+        <biblStruct><analytic>
+          <title level="a" type="main">T</title>
+          <author>
+            <persName>
+              <forename type="first">Jane</forename>
+              <surname>Doe</surname>
+            </persName>
+            <idno type="ORCID">0000-0001-2345-6789</idno>
+          </author>
+        </analytic><monogr><imprint><date when="2024"/>
+        </imprint></monogr></biblStruct>
+      </sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        assert doc.authors[0].orcid == "0000-0001-2345-6789"
+
+    def test_parse_bib_pmid(self):
+        """PMID captured from <idno type="PMID">."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back><div type="references"><listBibl>
+    <biblStruct>
+      <analytic>
+        <title level="a">Ref title</title>
+        <author><persName>
+          <forename type="first">A</forename>
+          <surname>Ref</surname>
+        </persName></author>
+      </analytic>
+      <monogr><title level="j">J</title>
+        <imprint><date when="2023"/></imprint>
+      </monogr>
+      <idno type="DOI">10.1234/test</idno>
+      <idno type="PMID">99887766</idno>
+    </biblStruct>
+  </listBibl></div></back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        assert doc.references[0].doi == "10.1234/test"
+        assert doc.references[0].pmid == "99887766"
+
+    def test_parse_bib_ptr(self):
+        """<ptr> URLs captured in ext_links."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back><div type="references"><listBibl>
+    <biblStruct>
+      <analytic>
+        <title level="a">Ref</title>
+        <ptr target="https://doi.org/10.1234/test"/>
+      </analytic>
+      <monogr><title level="j">J</title>
+        <imprint><date when="2023"/></imprint>
+      </monogr>
+    </biblStruct>
+  </listBibl></div></back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        assert "https://doi.org/10.1234/test" in doc.references[0].ext_links
+
+    def test_parse_monograph_title(self):
+        """Book/proceedings title from <title level="m"> as journal."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back><div type="references"><listBibl>
+    <biblStruct>
+      <analytic>
+        <title level="a">Chapter title</title>
+      </analytic>
+      <monogr>
+        <title level="m">Current Protocols in Molecular Biology</title>
+        <imprint><date when="2021"/></imprint>
+      </monogr>
+    </biblStruct>
+  </listBibl></div></back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        assert doc.references[0].journal == "Current Protocols in Molecular Biology"
+
+    def test_parse_funding_section(self):
+        """<div type='funding'> in back matter captured."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>I</head><p>X.</p>
+    </div>
+  </body>
+  <back>
+    <div type="funding">
+      <p>This work was supported by the NIH (Grant R01).</p>
+    </div>
+    <div type="references"><listBibl/></div>
+  </back></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        headings = [s.heading for s in doc.back_matter]
+        assert "Funding" in headings
+        funding = [s for s in doc.back_matter if s.heading == "Funding"][0]
+        assert "NIH" in funding.paragraphs[0].text
+
+    def test_parse_table_footnote(self):
+        """<note> in <figure type='table'> appended to caption."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <figure type="table" xmlns="http://www.tei-c.org/ns/1.0">
+      <head>Table 1</head>
+      <figDesc>Primer sequences.</figDesc>
+      <table>
+        <row role="head"><cell>Gene</cell><cell>Seq</cell></row>
+        <row><cell>BRCA1</cell><cell>ATCG</cell></row>
+      </table>
+      <note>Abbreviations: fw, forward; rev, reverse.</note>
+    </figure>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        table = doc.tables[0]
+        assert "Abbreviations" in table.caption
