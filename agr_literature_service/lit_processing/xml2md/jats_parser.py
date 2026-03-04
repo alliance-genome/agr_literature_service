@@ -174,7 +174,7 @@ def _parse_body(root: etree._Element) -> list[Section]:
                 preamble = Section(level=1)
             sections.append(_parse_sec(child, level=1))
         elif tag == "p":
-            preamble.paragraphs.append(_parse_paragraph(child))
+            _collect_from_p(child, preamble)
         elif tag == "fig":
             preamble.figures.append(_parse_fig(child))
         elif tag == "table-wrap":
@@ -193,6 +193,9 @@ def _parse_body(root: etree._Element) -> list[Section]:
     return sections
 
 
+_BLOCK_TAGS = frozenset({"fig", "table-wrap", "disp-formula", "list"})
+
+
 def _parse_sec(sec_elem: etree._Element, level: int) -> Section:
     """Recursively parse a <sec> element into a Section."""
     section = Section(level=level)
@@ -209,7 +212,7 @@ def _parse_sec(sec_elem: etree._Element, level: int) -> Section:
         if tag == "title":
             continue
         elif tag == "p":
-            section.paragraphs.append(_parse_paragraph(child))
+            _collect_from_p(child, section)
         elif tag == "sec":
             section.subsections.append(_parse_sec(child, level + 1))
         elif tag == "fig":
@@ -224,8 +227,55 @@ def _parse_sec(sec_elem: etree._Element, level: int) -> Section:
     return section
 
 
-def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
-    """Parse a <p> element with mixed content, extracting inline refs."""
+def _collect_from_p(p_elem: etree._Element, section: Section) -> None:
+    """Parse a <p> element, extracting any embedded block elements.
+
+    JATS allows block-level elements (<table-wrap>, <fig>, <disp-formula>,
+    <list>) to be nested inside <p>.  When that happens the paragraph text
+    before/after the block element is emitted as separate paragraphs, and
+    the block element is added to the appropriate section list.
+    """
+    child_tags = {
+        etree.QName(c.tag).localname
+        for c in p_elem
+        if isinstance(c.tag, str)
+    }
+    if not child_tags & _BLOCK_TAGS:
+        # Fast path — no embedded blocks, just parse normally
+        section.paragraphs.append(_parse_paragraph(p_elem))
+        return
+
+    # Slow path — split around embedded block elements
+    for child in p_elem:
+        tag = etree.QName(child.tag).localname if isinstance(
+            child.tag, str
+        ) else ""
+        if tag == "fig":
+            section.figures.append(_parse_fig(child))
+        elif tag == "table-wrap":
+            section.tables.append(_parse_table_wrap(child))
+        elif tag == "disp-formula":
+            section.formulas.append(_parse_formula(child))
+        elif tag == "list":
+            section.lists.append(_parse_list(child))
+
+    # Emit the paragraph text (with block elements excluded)
+    para = _parse_paragraph(p_elem, skip_tags=_BLOCK_TAGS)
+    if para.text:
+        section.paragraphs.append(para)
+
+
+def _parse_paragraph(
+    p_elem: etree._Element,
+    skip_tags: frozenset[str] | None = None,
+) -> Paragraph:
+    """Parse a <p> element with mixed content, extracting inline refs.
+
+    Args:
+        p_elem: The ``<p>`` XML element.
+        skip_tags: Optional set of child tag localnames to skip (used when
+            block elements like ``<table-wrap>`` are extracted separately).
+    """
     parts: list[str] = []
     refs: list[InlineRef] = []
 
@@ -236,6 +286,12 @@ def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
         tag = etree.QName(child.tag).localname if isinstance(
             child.tag, str
         ) else ""
+
+        if skip_tags and tag in skip_tags:
+            # Still collect the tail text after the skipped element
+            if child.tail:
+                parts.append(child.tail)
+            continue
 
         if tag == "xref":
             ref_text = all_text(child)

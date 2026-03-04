@@ -33,9 +33,6 @@ def detect_format(xml_content: bytes) -> str:
 
 def _detect_format_from_root(root: etree._Element) -> str:
     """Detect format from a pre-parsed XML root element."""
-    if root is None:
-        raise ValueError("Unknown format: could not parse XML")
-
     tag = root.tag
     # TEI: root is {namespace}TEI or just TEI with namespace
     if tag == f"{{{TEI_NAMESPACE}}}TEI" or tag == "TEI":

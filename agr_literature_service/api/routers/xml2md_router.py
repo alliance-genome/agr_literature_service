@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, File, Query, Security, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
@@ -17,10 +17,10 @@ from agr_literature_service.lit_processing.xml2md import (
 
 logger = logging.getLogger(__name__)
 
-VALID_FORMATS = {"auto", "tei", "jats"}
-VALID_OUTPUT_FORMATS = {"md", "html"}
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
+# Module-level renderer is safe: MarkdownIt.render() creates a new StateCore
+# per call, so no shared mutable state across concurrent requests.
 _md_renderer = MarkdownIt().disable("html_block").disable("html_inline")
 
 _HTML_TEMPLATE = """<!DOCTYPE html>
@@ -42,9 +42,11 @@ _HTML_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-{body}
+<!-- __XML2MD_BODY__ -->
 </body>
 </html>"""
+
+_HTML_BODY_MARKER = "<!-- __XML2MD_BODY__ -->"
 
 router = APIRouter(
     prefix="/xml2md",
@@ -65,35 +67,17 @@ router = APIRouter(
 )
 async def convert_xml_to_md(
     file: UploadFile = File(..., description="XML file to convert (TEI or JATS/nXML)"),
-    source_format: str = Query(
+    source_format: Literal["auto", "tei", "jats"] = Query(
         "auto",
         description="Source format: 'auto' (autodetect), 'tei', or 'jats'",
     ),
-    output_format: str = Query(
+    output_format: Literal["md", "html"] = Query(
         "md",
         description="Output format: 'md' (plain Markdown text) or 'html' (rendered HTML)",
     ),
     _user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> Response:
     """Convert an uploaded XML file to Markdown."""
-    if source_format not in VALID_FORMATS:
-        return PlainTextResponse(
-            content=(
-                f"Invalid source_format '{source_format}'. "
-                f"Must be one of: {', '.join(sorted(VALID_FORMATS))}"
-            ),
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
-    if output_format not in VALID_OUTPUT_FORMATS:
-        return PlainTextResponse(
-            content=(
-                f"Invalid output_format '{output_format}'. "
-                f"Must be one of: {', '.join(sorted(VALID_OUTPUT_FORMATS))}"
-            ),
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-
     xml_content = await file.read(MAX_UPLOAD_BYTES + 1)
     if not xml_content:
         return PlainTextResponse(
@@ -113,7 +97,7 @@ async def convert_xml_to_md(
     except ValueError as e:
         logger.warning("XML-to-Markdown conversion failed: %s", e)
         return PlainTextResponse(
-            content=f"Conversion failed: {e}",
+            content="Conversion failed due to invalid or unsupported input.",
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     except Exception:
@@ -125,7 +109,7 @@ async def convert_xml_to_md(
 
     if output_format == "html":
         html_body = _md_renderer.render(markdown)
-        html_page = _HTML_TEMPLATE.replace("{body}", html_body)
+        html_page = _HTML_TEMPLATE.replace(_HTML_BODY_MARKER, html_body)
         return HTMLResponse(content=html_page)
 
     return PlainTextResponse(content=markdown)

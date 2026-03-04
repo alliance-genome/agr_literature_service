@@ -21,14 +21,14 @@ def parse_xml(xml_content: bytes) -> etree._Element:
     return root
 
 
-def text(elem) -> str:
+def text(elem: etree._Element | None) -> str:
     """Get stripped direct text content of an element, or empty string."""
     if elem is None or elem.text is None:
         return ""
     return elem.text.strip()
 
 
-def all_text(elem) -> str:
+def all_text(elem: etree._Element | None) -> str:
     """Get all text content of an element including children (stripped).
 
     Uses lxml's built-in text serialisation instead of manual recursion

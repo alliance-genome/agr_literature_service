@@ -41,6 +41,8 @@ class ValidationResult:
 _RE_HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
 _RE_TABLE_SEP = re.compile(r"^\|(?:\s*-{3,}\s*\|)+\s*$")
 _RE_TABLE_ROW = re.compile(r"^\|.*\|$")
+_RE_UNORDERED_LIST = re.compile(r"^- ")
+_RE_ORDERED_LIST = re.compile(r"^\d+\.\s")
 _RE_BLOCK_ELEMENT = re.compile(
     r"^("
     r"#{1,6}\s"           # heading
@@ -65,13 +67,14 @@ def validate_markdown(text: str) -> ValidationResult:
     """
     result = ValidationResult()
     lines = text.split("\n") if text else []
+    headings = _headings(lines)
 
-    _check_s01(lines, result)
-    _check_s02(lines, result)
-    _check_s03(lines, result)
-    _check_s04(lines, result)
-    _check_s05(lines, result)
-    _check_s06(lines, result)
+    _check_s01(headings, result)
+    _check_s02(headings, result)
+    _check_s03(headings, result)
+    _check_s04(headings, result)
+    _check_s05(headings, result)
+    _check_s06(headings, result)
     _check_s07(lines, result)
     _check_s08(lines, result)
     _check_s09(text, result)
@@ -94,12 +97,16 @@ def _headings(lines: list[str]) -> list[tuple[int, int, str]]:
     return out
 
 
-def _check_s01(lines: list[str], result: ValidationResult) -> None:
+def _check_s01(
+    headings: list[tuple[int, int, str]], result: ValidationResult,
+) -> None:
     """S01: Exactly one H1 heading."""
-    h1s = [(ln, txt) for ln, lvl, txt in _headings(lines) if lvl == 1]
+    h1s = [(ln, txt) for ln, lvl, txt in headings if lvl == 1]
     if len(h1s) == 0:
-        result.errors.append(ValidationIssue(
-            rule_id="S01", severity=Severity.ERROR, line=1,
+        # Missing title is a source-data issue (e.g., GROBID couldn't
+        # extract one), not a conversion bug — warn instead of error.
+        result.warnings.append(ValidationIssue(
+            rule_id="S01", severity=Severity.WARNING, line=1,
             message="Document has no H1 heading (expected exactly one)",
         ))
     elif len(h1s) > 1:
@@ -110,22 +117,34 @@ def _check_s01(lines: list[str], result: ValidationResult) -> None:
             ))
 
 
-def _check_s02(lines: list[str], result: ValidationResult) -> None:
+def _check_s02(
+    headings: list[tuple[int, int, str]], result: ValidationResult,
+) -> None:
     """S02: H1 must be the first heading."""
-    headings = _headings(lines)
-    if headings and headings[0][1] != 1:
-        result.errors.append(ValidationIssue(
-            rule_id="S02", severity=Severity.ERROR, line=headings[0][0],
-            message=(
-                f"First heading is H{headings[0][1]} "
-                f"('{headings[0][2]}'), expected H1"
-            ),
-        ))
+    if not headings or headings[0][1] == 1:
+        return
+    # If there is no H1 at all, this is the same source-data issue as
+    # S01 (missing title) — warn.  If an H1 exists but isn't first,
+    # that is a structural error.
+    has_h1 = any(lvl == 1 for _, lvl, _ in headings)
+    severity = Severity.ERROR if has_h1 else Severity.WARNING
+    issue = ValidationIssue(
+        rule_id="S02", severity=severity, line=headings[0][0],
+        message=(
+            f"First heading is H{headings[0][1]} "
+            f"('{headings[0][2]}'), expected H1"
+        ),
+    )
+    if has_h1:
+        result.errors.append(issue)
+    else:
+        result.warnings.append(issue)
 
 
-def _check_s03(lines: list[str], result: ValidationResult) -> None:
+def _check_s03(
+    headings: list[tuple[int, int, str]], result: ValidationResult,
+) -> None:
     """S03: No heading level skips (e.g., H2 → H4 without H3)."""
-    headings = _headings(lines)
     for i in range(1, len(headings)):
         prev_level = headings[i - 1][1]
         curr_level = headings[i][1]
@@ -140,9 +159,11 @@ def _check_s03(lines: list[str], result: ValidationResult) -> None:
             ))
 
 
-def _check_s04(lines: list[str], result: ValidationResult) -> None:
+def _check_s04(
+    headings: list[tuple[int, int, str]], result: ValidationResult,
+) -> None:
     """S04: ``## Abstract`` appears before body sections."""
-    h2s = [(ln, txt) for ln, lvl, txt in _headings(lines) if lvl == 2]
+    h2s = [(ln, txt) for ln, lvl, txt in headings if lvl == 2]
     if not h2s:
         return
     abstract_indices = [
@@ -160,9 +181,11 @@ def _check_s04(lines: list[str], result: ValidationResult) -> None:
         ))
 
 
-def _check_s05(lines: list[str], result: ValidationResult) -> None:
+def _check_s05(
+    headings: list[tuple[int, int, str]], result: ValidationResult,
+) -> None:
     """S05: ``## References`` is the last H2 section."""
-    h2s = [(ln, txt) for ln, lvl, txt in _headings(lines) if lvl == 2]
+    h2s = [(ln, txt) for ln, lvl, txt in headings if lvl == 2]
     if not h2s:
         return
     ref_indices = [
@@ -179,16 +202,18 @@ def _check_s05(lines: list[str], result: ValidationResult) -> None:
         ))
 
 
-def _check_s06(lines: list[str], result: ValidationResult) -> None:
+def _check_s06(
+    headings: list[tuple[int, int, str]], result: ValidationResult,
+) -> None:
     """S06: ``## Acknowledgments`` appears before ``## References``."""
-    h2s = [(ln, txt) for ln, lvl, txt in _headings(lines) if lvl == 2]
+    h2s = [(ln, txt) for ln, lvl, txt in headings if lvl == 2]
     if not h2s:
         return
     ack_idx: int | None = None
     ref_idx: int | None = None
     for i, (_, txt) in enumerate(h2s):
         lower = txt.strip().lower()
-        if lower == "acknowledgments" and ack_idx is None:
+        if lower in ("acknowledgments", "acknowledgements") and ack_idx is None:
             ack_idx = i
         if lower == "references" and ref_idx is None:
             ref_idx = i
@@ -204,28 +229,50 @@ def _check_s06(lines: list[str], result: ValidationResult) -> None:
 
 
 def _check_s07(lines: list[str], result: ValidationResult) -> None:
-    """S07: GFM tables have header + ``|---|`` separator + data rows."""
+    """S07: GFM tables have header row(s) + ``|---|`` separator + data rows.
+
+    Strict GFM allows only one header row, but source data (e.g., JATS
+    with spanning/multi-level headers) may produce multiple header rows
+    before the separator.  A table with no separator at all is an error;
+    multiple header rows before the separator is a warning.
+    """
     i = 0
     while i < len(lines):
         if _RE_TABLE_ROW.match(lines[i]) and not _RE_TABLE_SEP.match(lines[i]):
-            # Found a potential table header row
-            table_start = i + 1  # 1-indexed
-            if i + 1 >= len(lines) or not _RE_TABLE_SEP.match(lines[i + 1]):
+            table_start = i  # 0-indexed
+            # Scan forward through contiguous table rows / separators
+            j = i + 1
+            sep_offset: int | None = None
+            while j < len(lines) and (
+                _RE_TABLE_ROW.match(lines[j])
+                or _RE_TABLE_SEP.match(lines[j])
+            ):
+                if sep_offset is None and _RE_TABLE_SEP.match(lines[j]):
+                    sep_offset = j - table_start
+                j += 1
+
+            if sep_offset is None:
+                # No separator found anywhere in this block of rows
                 result.errors.append(ValidationIssue(
                     rule_id="S07", severity=Severity.ERROR,
-                    line=table_start,
+                    line=table_start + 1,
                     message=(
-                        "Table row without separator: header row must be "
-                        "followed by a |---| separator line"
+                        "Table has no |---| separator line"
                     ),
                 ))
-            # Skip past the rest of this table
-            i += 1
-            while i < len(lines) and (
-                _RE_TABLE_ROW.match(lines[i])
-                or _RE_TABLE_SEP.match(lines[i])
-            ):
-                i += 1
+            elif sep_offset > 1:
+                # Separator found, but after multiple header rows
+                result.warnings.append(ValidationIssue(
+                    rule_id="S07", severity=Severity.WARNING,
+                    line=table_start + 1,
+                    message=(
+                        f"Table has {sep_offset} header rows before "
+                        f"separator (GFM supports 1)"
+                    ),
+                ))
+            # else: sep_offset == 1 → perfectly valid table
+
+            i = j  # skip past entire table block
         else:
             i += 1
 
@@ -244,11 +291,11 @@ def _check_s08(lines: list[str], result: ValidationResult) -> None:
             ):
                 continue
         # Skip list items followed by more list items
-        if re.match(r"^- ", line) or re.match(r"^\d+\.\s", line):
+        if _RE_UNORDERED_LIST.match(line) or _RE_ORDERED_LIST.match(line):
             next_idx = i + 1
             if next_idx < len(lines) and (
-                re.match(r"^- ", lines[next_idx])
-                or re.match(r"^\d+\.\s", lines[next_idx])
+                _RE_UNORDERED_LIST.match(lines[next_idx])
+                or _RE_ORDERED_LIST.match(lines[next_idx])
             ):
                 continue
         # Skip footnotes followed by more footnotes

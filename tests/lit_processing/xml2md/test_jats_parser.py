@@ -416,3 +416,34 @@ class TestJatsParser:
         assert ref.title == "Mixed citation title"
         assert ref.journal == "Mixed Journal"
         assert ref.year == "2021"
+
+    def test_parse_table_wrap_inside_p(self):
+        """<table-wrap> nested inside <p> is extracted as a table."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Results</title>
+  <p>See Table 1 below.
+    <table-wrap><label>Table 1</label>
+      <caption><p>Summary stats.</p></caption>
+      <table>
+        <thead><tr><th>Gene</th><th>Value</th></tr></thead>
+        <tbody><tr><td>BRCA1</td><td>2.5</td></tr></tbody>
+      </table>
+    </table-wrap>
+  More text after table.</p>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        # Table extracted from <p>
+        assert len(sec.tables) == 1
+        assert sec.tables[0].label == "Table 1"
+        assert sec.tables[0].rows[0][0].text == "Gene"
+        assert sec.tables[0].rows[1][0].text == "BRCA1"
+        # Surrounding paragraph text preserved (block elements stripped)
+        assert len(sec.paragraphs) == 1
+        assert "See Table 1" in sec.paragraphs[0].text
+        assert "More text" in sec.paragraphs[0].text

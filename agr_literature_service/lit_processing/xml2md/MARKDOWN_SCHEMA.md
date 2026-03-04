@@ -109,13 +109,13 @@ Numbered list in the final `## References` section:
 
 | ID  | Rule                                                         | Severity |
 |-----|--------------------------------------------------------------|----------|
-| S01 | Exactly one H1 heading                                       | error    |
-| S02 | H1 must be the first heading in the document                 | error    |
+| S01 | Exactly one H1 heading (missing = warning, multiple = error) | warning/error |
+| S02 | H1 must be the first heading (warning if no H1 exists)       | warning/error |
 | S03 | No heading level skips (e.g., H2 → H4 without H3)           | warning  |
 | S04 | `## Abstract` appears before body sections                   | warning  |
 | S05 | `## References` is the last H2 section                       | warning  |
 | S06 | `## Acknowledgments` before `## References`                  | warning  |
-| S07 | GFM tables have header row + `|---|` separator + data rows   | error    |
+| S07 | GFM tables have `|---|` separator (multi-row header = warn)  | warning/error |
 | S08 | Block elements are followed by blank lines                   | warning  |
 | S09 | Document ends with exactly one trailing newline               | warning  |
 

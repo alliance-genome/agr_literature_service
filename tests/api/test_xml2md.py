@@ -105,26 +105,24 @@ class TestXml2MdConvert:
             assert "Test Title" in resp.text
 
     def test_invalid_source_format(self, db):  # noqa: F811
-        """Invalid source_format returns 400."""
+        """Invalid source_format returns 422 (Literal validation)."""
         p1, p2 = _bypass_auth()
         with p1, p2, TestClient(app) as client:
             resp = client.post(
                 "/xml2md/convert?source_format=docx",
                 files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_400_BAD_REQUEST
-            assert "Invalid source_format" in resp.text
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_invalid_output_format(self, db):  # noqa: F811
-        """Invalid output_format returns 400."""
+        """Invalid output_format returns 422 (Literal validation)."""
         p1, p2 = _bypass_auth()
         with p1, p2, TestClient(app) as client:
             resp = client.post(
                 "/xml2md/convert?output_format=pdf",
                 files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
             )
-            assert resp.status_code == status.HTTP_400_BAD_REQUEST
-            assert "Invalid output_format" in resp.text
+            assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_empty_file(self, db):  # noqa: F811
         """Empty uploaded file returns 422."""
@@ -146,7 +144,7 @@ class TestXml2MdConvert:
                 files={"file": ("bad.xml", b"<html/>", "text/xml")},
             )
             assert resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-            assert "Conversion failed" in resp.text
+            assert "invalid or unsupported input" in resp.text.lower()
 
     def test_file_too_large(self, db):  # noqa: F811
         """File exceeding 10MB returns 413."""
@@ -177,7 +175,7 @@ class TestXml2MdConvert:
 # Minimal valid Markdown for validation endpoint tests
 VALID_MD = b"# Title\n\n## Abstract\n\nSome text.\n\n## References\n\n1. Ref one.\n"
 
-INVALID_MD = b"## No H1\n\nSome text.\n"
+INVALID_MD = b"# First\n\n# Second\n\nSome text.\n"
 
 
 class TestXml2MdValidate:
@@ -197,7 +195,7 @@ class TestXml2MdValidate:
             assert data["error_count"] == 0
 
     def test_validate_invalid_markdown(self, db):  # noqa: F811
-        """Markdown without H1 returns valid=false with S01 error."""
+        """Markdown with multiple H1 returns valid=false with S01 error."""
         p1, p2 = _bypass_auth()
         with p1, p2, TestClient(app) as client:
             resp = client.post(

@@ -24,15 +24,17 @@ def _ids(result) -> list[str]:
 # -- S01: Exactly one H1 heading -------------------------------------------
 
 class TestS01:
-    def test_no_h1(self):
+    def test_no_h1_is_warning(self):
+        """Missing H1 is a warning (source may lack a title)."""
         result = validate_markdown("## Section\n\nText.\n")
-        assert not result.valid
-        assert "S01" in _ids(result)
+        assert result.valid  # warnings don't make it invalid
+        warn_ids = [i.rule_id for i in result.warnings]
+        assert "S01" in warn_ids
 
-    def test_multiple_h1(self):
+    def test_multiple_h1_is_error(self):
         result = validate_markdown("# First\n\n# Second\n\nText.\n")
         assert not result.valid
-        assert "S01" in _ids(result)
+        assert "S01" in [i.rule_id for i in result.errors]
 
     def test_single_h1_ok(self):
         result = validate_markdown(_valid_md())
@@ -42,10 +44,19 @@ class TestS01:
 # -- S02: H1 must be the first heading -------------------------------------
 
 class TestS02:
-    def test_h2_before_h1(self):
+    def test_h2_before_h1_with_h1_is_error(self):
+        """H1 exists but isn't the first heading — structural error."""
         md = "## Before\n\n# Title\n\nText.\n"
         result = validate_markdown(md)
-        assert "S02" in _ids(result)
+        assert not result.valid
+        assert "S02" in [i.rule_id for i in result.errors]
+
+    def test_no_h1_at_all_is_warning(self):
+        """No H1 anywhere — source-data issue, warn only."""
+        md = "## Section\n\nText.\n"
+        result = validate_markdown(md)
+        assert result.valid  # warnings don't invalidate
+        assert "S02" in [i.rule_id for i in result.warnings]
 
     def test_h1_first_ok(self):
         result = validate_markdown(_valid_md())
@@ -120,10 +131,19 @@ class TestS06:
 # -- S07: GFM table structure ----------------------------------------------
 
 class TestS07:
-    def test_table_without_separator(self):
+    def test_table_without_separator_is_error(self):
+        """Table with no |---| separator at all is an error."""
         md = "# Title\n\n| A | B |\n| 1 | 2 |\n"
         result = validate_markdown(md)
-        assert "S07" in _ids(result)
+        assert not result.valid
+        assert "S07" in [i.rule_id for i in result.errors]
+
+    def test_multirow_header_is_warning(self):
+        """Multiple header rows before separator — source data, warn only."""
+        md = "# Title\n\n| A | B |\n| C | D |\n|---|---|\n| 1 | 2 |\n"
+        result = validate_markdown(md)
+        assert result.valid  # warnings don't invalidate
+        assert "S07" in [i.rule_id for i in result.warnings]
 
     def test_valid_table_ok(self):
         md = "# Title\n\n| A | B |\n|---|---|\n| 1 | 2 |\n"
@@ -223,8 +243,11 @@ class TestValidationResult:
 
     def test_severity_classification(self):
         """Errors go to errors list, warnings to warnings list."""
-        md = "## No H1\nText without blank line\n"
+        # Multiple H1 triggers an error; missing blank line triggers a warning
+        md = "# First\n# Second\nText.\n"
         result = validate_markdown(md)
+        assert len(result.errors) > 0
+        assert len(result.warnings) > 0
         for issue in result.errors:
             assert issue.severity == Severity.ERROR
         for issue in result.warnings:

@@ -304,9 +304,13 @@ def _parse_table(fig_elem: etree._Element) -> Table:
     table_elem = fig_elem.find("tei:table", NS)
     if table_elem is not None:
         for row_elem in table_elem.findall("tei:row", NS):
+            is_header_row = row_elem.get("role", "") == "head"
             row = []
             for cell_elem in row_elem.findall("tei:cell", NS):
-                cell = TableCell(text=all_text(cell_elem))
+                cell = TableCell(
+                    text=all_text(cell_elem),
+                    is_header=is_header_row,
+                )
                 row.append(cell)
             if row:
                 table.rows.append(row)
