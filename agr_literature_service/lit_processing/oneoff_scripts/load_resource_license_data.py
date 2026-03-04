@@ -14,7 +14,7 @@ If no input file is provided, it will download from the default URL.
 import logging
 import sys
 from os import path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import requests
 
 from sqlalchemy import or_
@@ -28,8 +28,7 @@ logging.basicConfig(format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-DEFAULT_URL = "https://dev-shuai.alliancegenome.org/ABC/resource_licenses_doaj.txt"
-LOCAL_FILE = "data/resource_licenses_doaj.txt"
+LOCAL_FILE = "resource_licenses_doaj.tsv"
 
 # License restriction order: most restricted first
 # Based on Creative Commons license restrictiveness
@@ -149,10 +148,6 @@ def load_data(input_source: str = None) -> None:
         logger.info(f"Reading from local file: {input_source}")
         with open(input_source, "r", encoding="utf-8") as f:
             lines = f.readlines()
-    else:
-        url = input_source if input_source and input_source.startswith("http") else DEFAULT_URL
-        content = download_file(url)
-        lines = content.splitlines()
 
     for ln, line in enumerate(lines, start=1):
         line = line.strip()
@@ -248,5 +243,5 @@ def load_data(input_source: str = None) -> None:
 
 
 if __name__ == "__main__":
-    input_file = sys.argv[1] if len(sys.argv) > 1 else None
+    input_file = sys.argv[1] if len(sys.argv) > 1 else LOCAL_FILE
     load_data(input_file)
