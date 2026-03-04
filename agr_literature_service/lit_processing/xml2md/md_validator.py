@@ -39,10 +39,11 @@ class ValidationResult:
 # Regex patterns
 # ---------------------------------------------------------------------------
 _RE_HEADING = re.compile(r"^(#{1,6})\s+(.*)$")
-_RE_TABLE_SEP = re.compile(r"^\|(?:\s*-{3,}\s*\|)+\s*$")
+_RE_TABLE_SEP = re.compile(r"^\|(?:\s*:?-{3,}:?\s*\|)+\s*$")
 _RE_TABLE_ROW = re.compile(r"^\|.*\|$")
 _RE_UNORDERED_LIST = re.compile(r"^- ")
 _RE_ORDERED_LIST = re.compile(r"^\d+\.\s")
+_RE_CODE_FENCE = re.compile(r"^`{3,}[^`]*$")
 _RE_BLOCK_ELEMENT = re.compile(
     r"^("
     r"#{1,6}\s"           # heading
@@ -52,6 +53,7 @@ _RE_BLOCK_ELEMENT = re.compile(
     r"|\*\*Figure\s"      # figure caption
     r"|\*\*Table\s"       # table caption
     r"|\[\^"              # footnote
+    r"|`{3,}\s*"          # fenced code block delimiter
     r")"
 )
 
@@ -236,8 +238,17 @@ def _check_s07(lines: list[str], result: ValidationResult) -> None:
     before the separator.  A table with no separator at all is an error;
     multiple header rows before the separator is a warning.
     """
+    in_code_fence = False
     i = 0
     while i < len(lines):
+        # Skip fenced code blocks to avoid false positives on pipe chars
+        if _RE_CODE_FENCE.match(lines[i]):
+            in_code_fence = not in_code_fence
+            i += 1
+            continue
+        if in_code_fence:
+            i += 1
+            continue
         if _RE_TABLE_ROW.match(lines[i]) and not _RE_TABLE_SEP.match(lines[i]):
             table_start = i  # 0-indexed
             # Scan forward through contiguous table rows / separators
@@ -279,8 +290,26 @@ def _check_s07(lines: list[str], result: ValidationResult) -> None:
 
 def _check_s08(lines: list[str], result: ValidationResult) -> None:
     """S08: Block elements are followed by blank lines."""
-    for i, line in enumerate(lines):
+    in_code_fence = False
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        # Track fenced code blocks — content inside is not validated
+        if _RE_CODE_FENCE.match(line):
+            if in_code_fence:
+                # Closing fence — treat as a block element below
+                in_code_fence = False
+            else:
+                # Opening fence — skip to closing fence
+                in_code_fence = True
+                i += 1
+                continue
+        if in_code_fence:
+            i += 1
+            continue
+
         if not _RE_BLOCK_ELEMENT.match(line):
+            i += 1
             continue
         # Skip table rows that are followed by more table rows or separators
         if _RE_TABLE_ROW.match(line) or _RE_TABLE_SEP.match(line):
@@ -289,6 +318,7 @@ def _check_s08(lines: list[str], result: ValidationResult) -> None:
                 _RE_TABLE_ROW.match(lines[next_idx])
                 or _RE_TABLE_SEP.match(lines[next_idx])
             ):
+                i += 1
                 continue
         # Skip list items followed by more list items
         if _RE_UNORDERED_LIST.match(line) or _RE_ORDERED_LIST.match(line):
@@ -297,11 +327,13 @@ def _check_s08(lines: list[str], result: ValidationResult) -> None:
                 _RE_UNORDERED_LIST.match(lines[next_idx])
                 or _RE_ORDERED_LIST.match(lines[next_idx])
             ):
+                i += 1
                 continue
         # Skip footnotes followed by more footnotes
         if line.startswith("[^"):
             next_idx = i + 1
             if next_idx < len(lines) and lines[next_idx].startswith("[^"):
+                i += 1
                 continue
         # Now check that next line is blank (or end-of-file)
         next_idx = i + 1
@@ -313,6 +345,7 @@ def _check_s08(lines: list[str], result: ValidationResult) -> None:
                     "Block element not followed by a blank line"
                 ),
             ))
+        i += 1
 
 
 def _check_s09(text: str, result: ValidationResult) -> None:

@@ -1,6 +1,9 @@
 """Parse PMC nXML/JATS XML into the intermediate Document model."""
 from __future__ import annotations
 
+import logging
+import re
+
 from lxml import etree
 
 from agr_literature_service.lit_processing.xml2md.models import (
@@ -10,6 +13,8 @@ from agr_literature_service.lit_processing.xml2md.models import (
 from agr_literature_service.lit_processing.xml2md.xml_utils import (
     all_text, parse_xml, text,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def parse_jats(
@@ -216,11 +221,20 @@ def _dispatch_sec_block(
     elif tag == "boxed-text":
         _parse_boxed_text(child, section)
     elif tag == "disp-quote":
-        quote_text = all_text(child)
-        if quote_text:
-            section.paragraphs.append(
-                Paragraph(text=f"> {quote_text}")
-            )
+        p_elems = child.findall("p")
+        if p_elems:
+            lines = [f"> {all_text(p)}" for p in p_elems
+                     if all_text(p)]
+            if lines:
+                section.paragraphs.append(
+                    Paragraph(text="\n".join(lines))
+                )
+        else:
+            quote_text = all_text(child)
+            if quote_text:
+                section.paragraphs.append(
+                    Paragraph(text=f"> {quote_text}")
+                )
     elif tag == "def-list":
         _parse_def_list(child, section)
     elif tag == "fn-group":
@@ -231,11 +245,14 @@ def _dispatch_sec_block(
     elif tag == "preformat":
         pre_text = all_text(child)
         if pre_text:
+            ticks = re.findall(r"`+", pre_text)
+            max_ticks = max((len(t) for t in ticks), default=2)
+            fence = "`" * max(3, max_ticks + 1)
             section.paragraphs.append(
-                Paragraph(text=f"```\n{pre_text}\n```")
+                Paragraph(text=f"{fence}\n{pre_text}\n{fence}")
             )
     elif tag == "glossary":
-        _parse_glossary(child, section)
+        _parse_glossary(child, section, emit_title=True)
 
 
 _SEC_BLOCK_TAGS = frozenset({
@@ -322,6 +339,35 @@ def _collect_from_p(p_elem: etree._Element, section: Section) -> None:
         section.paragraphs.append(para)
 
 
+_INLINE_FMT: dict[str, tuple[str, str]] = {
+    "italic": ("*", "*"),
+    "bold": ("**", "**"),
+    "sup": ("<sup>", "</sup>"),
+    "sub": ("<sub>", "</sub>"),
+}
+
+
+def _inline_text(elem: etree._Element) -> str:
+    """Recursively format inline content, preserving nested markup."""
+    parts: list[str] = []
+    if elem.text:
+        parts.append(elem.text)
+    for child in elem:
+        tag = etree.QName(child.tag).localname if isinstance(
+            child.tag, str
+        ) else ""
+        if tag in _INLINE_FMT:
+            inner = _inline_text(child)
+            if inner:
+                pre, suf = _INLINE_FMT[tag]
+                parts.append(f"{pre}{inner}{suf}")
+        else:
+            parts.append(all_text(child))
+        if child.tail:
+            parts.append(child.tail)
+    return "".join(parts)
+
+
 def _parse_paragraph(
     p_elem: etree._Element,
     skip_tags: frozenset[str] | None = None,
@@ -369,21 +415,20 @@ def _parse_paragraph(
                 parts.append(href)
             elif link_text:
                 parts.append(link_text)
-        elif tag == "italic":
-            parts.append(f"*{all_text(child)}*")
-        elif tag == "bold":
-            parts.append(f"**{all_text(child)}**")
-        elif tag == "sup":
-            parts.append(f"<sup>{all_text(child)}</sup>")
-        elif tag == "sub":
-            parts.append(f"<sub>{all_text(child)}</sub>")
+        elif tag in _INLINE_FMT:
+            inner = _inline_text(child)
+            if inner:
+                pre, suf = _INLINE_FMT[tag]
+                parts.append(f"{pre}{inner}{suf}")
         else:
             parts.append(all_text(child))
 
         if child.tail:
             parts.append(child.tail)
 
-    para_text = "".join(parts).strip()
+    # Collapse XML-indentation whitespace (newlines + spaces) into
+    # single spaces so parsed paragraphs read cleanly.
+    para_text = re.sub(r"\s+", " ", "".join(parts)).strip()
     return Paragraph(text=para_text, refs=refs)
 
 
@@ -485,8 +530,15 @@ def _parse_table_row(tr_elem: etree._Element, is_header: bool) -> list[TableCell
             child.tag, str
         ) else ""
         if tag in ("th", "td"):
+            rowspan_val = child.get("rowspan", "1") or "1"
+            if rowspan_val != "1":
+                logger.warning(
+                    "rowspan=%s on <%s> not supported; table may "
+                    "be misaligned in Markdown output",
+                    rowspan_val, tag,
+                )
             try:
-                colspan = int(child.get("colspan", "1") or "1")
+                colspan = min(int(child.get("colspan", "1") or "1"), 50)
             except (ValueError, OverflowError):
                 colspan = 1
             cell = TableCell(
@@ -595,15 +647,28 @@ def _parse_def_list(elem: etree._Element, section: Section) -> None:
         section.lists.append(ListBlock(items=items, ordered=False))
 
 
-def _parse_glossary(elem: etree._Element, section: Section) -> None:
-    """Parse <glossary> — title + def-list or paragraphs."""
-    title_elem = elem.find("title")
-    if title_elem is not None:
-        title_text = all_text(title_elem)
-        if title_text:
-            section.paragraphs.append(
-                Paragraph(text=f"**{title_text}**")
-            )
+def _parse_glossary(
+    elem: etree._Element, section: Section,
+    emit_title: bool = False,
+) -> None:
+    """Parse <glossary> — def-list or paragraphs.
+
+    Args:
+        elem: The ``<glossary>`` XML element.
+        section: Target section to populate.
+        emit_title: If True, emit the ``<title>`` as a bold paragraph.
+            Set to True when the glossary is inline (e.g. inside a
+            ``<sec>``); False when the caller already uses the title
+            as the section heading.
+    """
+    if emit_title:
+        title_elem = elem.find("title")
+        if title_elem is not None:
+            title_text = all_text(title_elem)
+            if title_text:
+                section.paragraphs.append(
+                    Paragraph(text=f"**{title_text}**")
+                )
     for dl in elem.findall("def-list"):
         _parse_def_list(dl, section)
     for p in elem.findall("p"):
@@ -760,8 +825,14 @@ def _parse_ref_authors(
     citation: etree._Element, ref: Reference,
 ) -> None:
     """Extract authors from a citation element into *ref*."""
-    # Try person-group/name first, fall back to direct name children
-    author_names = citation.findall(".//person-group/name")
+    # Try person-group with type="author" first, then untyped groups,
+    # then direct name children.
+    author_names: list[etree._Element] = []
+    for pg in citation.findall(".//person-group"):
+        pg_type = pg.get("person-group-type", "")
+        if pg_type and pg_type != "author":
+            continue
+        author_names.extend(pg.findall("name"))
     if not author_names:
         author_names = citation.findall("name")
     for name_elem in author_names:

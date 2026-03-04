@@ -1,6 +1,9 @@
 """Parse GROBID TEI XML into the intermediate Document model."""
 from __future__ import annotations
 
+import logging
+import re
+
 from lxml import etree
 
 from agr_literature_service.lit_processing.xml2md.models import (
@@ -10,6 +13,8 @@ from agr_literature_service.lit_processing.xml2md.models import (
 from agr_literature_service.lit_processing.xml2md.xml_utils import (
     all_text, parse_xml, text,
 )
+
+logger = logging.getLogger(__name__)
 
 NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 
@@ -149,15 +154,40 @@ def _parse_doi(root: etree._Element) -> str:
 
 
 def _parse_body(root: etree._Element) -> list[Section]:
-    """Parse body sections from //body/div."""
+    """Parse body sections from //body.
+
+    Handles both ``<div>``-structured bodies and bare elements (``<p>``,
+    ``<formula>``, ``<list>``) that appear as direct children of ``<body>``.
+    Bare ``<figure>`` elements are handled separately by
+    :func:`_parse_top_level_figures`.
+    """
     sections: list[Section] = []
     body = root.find(".//tei:body", NS)
     if body is None:
         return sections
 
-    for div in body.findall("tei:div", NS):
-        section = _parse_section(div, level=1)
-        sections.append(section)
+    preamble = Section(level=1)
+
+    for child in body:
+        tag = etree.QName(child.tag).localname if isinstance(
+            child.tag, str
+        ) else ""
+
+        if tag == "div":
+            if preamble.paragraphs or preamble.formulas or preamble.lists:
+                sections.append(preamble)
+                preamble = Section(level=1)
+            sections.append(_parse_section(child, level=1))
+        elif tag == "p":
+            preamble.paragraphs.append(_parse_paragraph(child))
+        elif tag == "formula":
+            preamble.formulas.append(_parse_formula(child))
+        elif tag == "list":
+            preamble.lists.append(_parse_list(child))
+        # <figure> handled by _parse_top_level_figures
+
+    if preamble.paragraphs or preamble.formulas or preamble.lists:
+        sections.append(preamble)
 
     return sections
 
@@ -230,20 +260,44 @@ def _parse_section(div_elem: etree._Element, level: int) -> Section:
     return section
 
 
+_HI_REND_FMT: dict[str, tuple[str, str]] = {
+    "italic": ("*", "*"),
+    "bold": ("**", "**"),
+    "superscript": ("<sup>", "</sup>"),
+    "subscript": ("<sub>", "</sub>"),
+}
+
+
+def _inline_text_tei(elem: etree._Element) -> str:
+    """Recursively format inline TEI content, preserving nested markup."""
+    parts: list[str] = []
+    if elem.text:
+        parts.append(elem.text)
+    for child in elem:
+        tag = etree.QName(child.tag).localname if isinstance(
+            child.tag, str
+        ) else ""
+        if tag == "hi":
+            parts.append(_format_hi(child))
+        elif tag == "ref":
+            parts.append(all_text(child))
+        else:
+            parts.append(all_text(child))
+        if child.tail:
+            parts.append(child.tail)
+    return "".join(parts)
+
+
 def _format_hi(elem: etree._Element) -> str:
     """Format a <hi> element with markdown syntax based on @rend."""
     rend = elem.get("rend", "")
-    inner = all_text(elem)
+    inner = _inline_text_tei(elem)
     if not inner:
         return ""
-    if rend == "italic":
-        return f"*{inner}*"
-    elif rend == "bold":
-        return f"**{inner}**"
-    elif rend == "superscript":
-        return f"<sup>{inner}</sup>"
-    elif rend == "subscript":
-        return f"<sub>{inner}</sub>"
+    fmt = _HI_REND_FMT.get(rend)
+    if fmt:
+        pre, suf = fmt
+        return f"{pre}{inner}{suf}"
     return inner
 
 
@@ -280,7 +334,13 @@ def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
         ) else ""
 
         if tag == "s":
-            # Sentence segmentation — collect text content
+            # Sentence segmentation — collect text content.
+            # Ensure inter-sentence spacing when adjacent <s>
+            # elements have no whitespace between them.
+            if parts:
+                last = parts[-1]
+                if last and not last[-1].isspace():
+                    parts.append(" ")
             if child.text:
                 parts.append(child.text)
             for grandchild in child:
@@ -296,7 +356,9 @@ def _parse_paragraph(p_elem: etree._Element) -> Paragraph:
         if child.tail:
             parts.append(child.tail)
 
-    para_text = "".join(parts).strip()
+    # Collapse XML-indentation whitespace (newlines + spaces) into
+    # single spaces so parsed paragraphs read cleanly.
+    para_text = re.sub(r"\s+", " ", "".join(parts)).strip()
     return Paragraph(text=para_text, refs=refs)
 
 
@@ -339,8 +401,17 @@ def _parse_table(fig_elem: etree._Element) -> Table:
             is_header_row = row_elem.get("role", "") == "head"
             row = []
             for cell_elem in row_elem.findall("tei:cell", NS):
+                rowspan_val = cell_elem.get("rows", "1") or "1"
+                if rowspan_val != "1":
+                    logger.warning(
+                        "rowspan=%s on <cell> not supported; table "
+                        "may be misaligned in Markdown output",
+                        rowspan_val,
+                    )
                 try:
-                    colspan = int(cell_elem.get("cols", "1") or "1")
+                    colspan = min(
+                        int(cell_elem.get("cols", "1") or "1"), 50,
+                    )
                 except (ValueError, OverflowError):
                     colspan = 1
                 cell = TableCell(
@@ -359,10 +430,7 @@ def _parse_table(fig_elem: etree._Element) -> Table:
     for note in fig_elem.findall("tei:note", NS):
         note_text = all_text(note)
         if note_text:
-            if table.caption:
-                table.caption += f" {note_text}"
-            else:
-                table.caption = note_text
+            table.foot_notes.append(note_text)
 
     return table
 
@@ -432,6 +500,9 @@ def _parse_annex(root: etree._Element) -> list[Section]:
     return sections
 
 
+_HANDLED_BACK_TYPES = frozenset({"acknowledgement", "annex"})
+
+
 def _parse_additional_back(root: etree._Element) -> list[Section]:
     """Extract additional back-matter sections (funding, availability, etc.).
 
@@ -442,12 +513,9 @@ def _parse_additional_back(root: etree._Element) -> list[Section]:
     if back is None:
         return sections
 
-    # Types already handled elsewhere
-    _HANDLED_TYPES = {"acknowledgement", "annex"}
-
     for div in back.findall("tei:div", NS):
         div_type = div.get("type", "")
-        if div_type in _HANDLED_TYPES:
+        if div_type in _HANDLED_BACK_TYPES:
             continue
 
         section = Section(level=1)

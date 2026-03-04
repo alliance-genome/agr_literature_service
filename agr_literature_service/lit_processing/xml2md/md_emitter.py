@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from agr_literature_service.lit_processing.xml2md.models import (
-    Document, ListBlock, Reference, Section, Table,
+    Document, Figure, ListBlock, Reference, Section, Table,
 )
 
 MAX_HEADING_LEVEL = 6
@@ -106,17 +106,7 @@ def _emit_section(
 
     # Figures
     for fig in section.figures:
-        label = fig.label.rstrip(".:").strip()
-        if label:
-            if fig.caption:
-                lines.append(f"**{label}.** {fig.caption}")
-            else:
-                lines.append(f"**{label}.**")
-        elif fig.caption:
-            lines.append(fig.caption)
-        else:
-            continue
-        lines.append("")
+        _emit_figure(fig, lines)
 
     # Tables
     for table in section.tables:
@@ -218,20 +208,25 @@ def _emit_list(lst: ListBlock, lines: list[str]) -> None:
     lines.append("")
 
 
+def _emit_figure(fig: Figure, lines: list[str]) -> None:
+    """Emit a single figure caption."""
+    label = fig.label.rstrip(".:").strip()
+    if label:
+        if fig.caption:
+            lines.append(f"**{label}.** {fig.caption}")
+        else:
+            lines.append(f"**{label}.**")
+    elif fig.caption:
+        lines.append(fig.caption)
+    else:
+        return
+    lines.append("")
+
+
 def _emit_doc_level_figures(doc: Document, lines: list[str]) -> None:
     """Emit figures that are at document level (not inside sections)."""
     for fig in doc.figures:
-        label = fig.label.rstrip(".:").strip()
-        if label:
-            if fig.caption:
-                lines.append(f"**{label}.** {fig.caption}")
-            else:
-                lines.append(f"**{label}.**")
-        elif fig.caption:
-            lines.append(fig.caption)
-        else:
-            continue
-        lines.append("")
+        _emit_figure(fig, lines)
 
 
 def _emit_doc_level_tables(doc: Document, lines: list[str]) -> None:

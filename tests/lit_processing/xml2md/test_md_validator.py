@@ -252,3 +252,31 @@ class TestValidationResult:
             assert issue.severity == Severity.ERROR
         for issue in result.warnings:
             assert issue.severity == Severity.WARNING
+
+
+# -- S07/S08 code fence interaction ----------------------------------------
+
+class TestCodeFenceInteraction:
+    def test_s07_ignores_pipes_inside_code_fence(self):
+        """Pipe chars inside fenced code block don't trigger S07 table error."""
+        md = "# Title\n\n```\n| not | a | table |\n| x | y | z |\n```\n"
+        result = validate_markdown(md)
+        assert "S07" not in _ids(result)
+
+    def test_s08_ignores_content_inside_code_fence(self):
+        """Block-like content inside code fence doesn't trigger S08."""
+        md = "# Title\n\n```\n## Not a heading\n- not a list\n```\n"
+        result = validate_markdown(md)
+        assert "S08" not in _ids(result)
+
+    def test_s07_code_fence_with_info_string(self):
+        """Code fence with language info string recognized."""
+        md = "# Title\n\n```python\n| not | a | table |\n```\n"
+        result = validate_markdown(md)
+        assert "S07" not in _ids(result)
+
+    def test_s07_table_separator_with_alignment(self):
+        """GFM table separator with alignment markers is valid."""
+        md = "# Title\n\n| L | C | R |\n|:---|:---:|---:|\n| a | b | c |\n"
+        result = validate_markdown(md)
+        assert "S07" not in _ids(result)

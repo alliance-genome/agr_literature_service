@@ -817,7 +817,7 @@ class TestTeiParser:
         assert "NIH" in funding.paragraphs[0].text
 
     def test_parse_table_footnote(self):
-        """<note> in <figure type='table'> appended to caption."""
+        """<note> in <figure type='table'> stored in foot_notes."""
         tei = b"""\
 <?xml version="1.0" encoding="UTF-8"?>
 <TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
@@ -846,7 +846,9 @@ class TestTeiParser:
 """
         doc = parse_tei(tei)
         table = doc.tables[0]
-        assert "Abbreviations" in table.caption
+        assert table.caption == "Primer sequences."
+        assert len(table.foot_notes) == 1
+        assert "Abbreviations" in table.foot_notes[0]
 
     def test_parse_bib_publisher(self):
         """Publisher from <imprint><publisher>."""
@@ -1002,3 +1004,158 @@ class TestTeiParser:
         fig = doc.figures[0]
         assert "Smith et al." in fig.caption
         assert "upregulation" in fig.caption
+
+    def test_parse_bare_p_under_body(self):
+        """Bare <p> directly under <body> (not wrapped in <div>)."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <p xmlns="http://www.tei-c.org/ns/1.0">Bare paragraph one.</p>
+    <p xmlns="http://www.tei-c.org/ns/1.0">Bare paragraph two.</p>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>Results</head>
+      <p>Div paragraph.</p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        # Bare paragraphs collected into a preamble section
+        assert len(doc.sections) == 2
+        preamble = doc.sections[0]
+        assert len(preamble.paragraphs) == 2
+        assert "Bare paragraph one" in preamble.paragraphs[0].text
+        assert "Bare paragraph two" in preamble.paragraphs[1].text
+        # Div still parsed normally
+        assert doc.sections[1].heading == "Results"
+
+    def test_parse_nested_hi_formatting(self):
+        """Nested <hi> inside <hi>: <hi italic>text <hi sup>x</hi></hi>."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head n="1">Results</head>
+      <p>The <hi rend="italic">Drosophila <hi rend="superscript">x</hi></hi> gene.</p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        para = doc.sections[0].paragraphs[0].text
+        assert "*Drosophila <sup>x</sup>*" in para
+
+    def test_parse_rowspan_warning(self, caplog):
+        """rowspan on TEI table cells logs a warning."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <figure type="table" xmlns="http://www.tei-c.org/ns/1.0">
+      <head>Table 1</head>
+      <table>
+        <row role="head"><cell>A</cell><cell>B</cell></row>
+        <row><cell rows="2">Span</cell><cell>1</cell></row>
+        <row><cell>2</cell></row>
+      </table>
+    </figure>
+  </body></text>
+</TEI>
+"""
+        import logging
+        with caplog.at_level(logging.WARNING):
+            doc = parse_tei(tei)
+        assert any("rowspan" in r.message for r in caplog.records)
+        assert len(doc.tables[0].rows) >= 2
+
+    def test_parse_sentence_spacing(self):
+        """Adjacent <s> tags without whitespace get inter-sentence space."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>R</head>
+      <p><s>First sentence.</s><s>Second sentence.</s></p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        para = doc.sections[0].paragraphs[0].text
+        # Should have a space between sentences, not "sentence.Second"
+        assert "First sentence. Second sentence." == para
+
+    def test_parse_whitespace_normalization(self):
+        """XML indentation whitespace collapsed in paragraph text."""
+        tei = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI xml:space="preserve" xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">T</title></titleStmt>
+      <publicationStmt><publisher/></publicationStmt>
+      <sourceDesc><biblStruct><analytic>
+        <title level="a" type="main">T</title>
+      </analytic><monogr><imprint><date when="2024"/>
+      </imprint></monogr></biblStruct></sourceDesc>
+    </fileDesc><profileDesc/>
+  </teiHeader>
+  <text xml:lang="en"><body>
+    <div xmlns="http://www.tei-c.org/ns/1.0">
+      <head>R</head>
+      <p>Text with
+      <ref type="bibr" target="#b0">[1]</ref>
+      and more text.</p>
+    </div>
+  </body></text>
+</TEI>
+"""
+        doc = parse_tei(tei)
+        para = doc.sections[0].paragraphs[0].text
+        # No newlines or multiple spaces in output
+        assert "\n" not in para
+        assert "  " not in para
+        assert "Text with [1] and more text." == para

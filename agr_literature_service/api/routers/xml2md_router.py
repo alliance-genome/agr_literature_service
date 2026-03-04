@@ -21,6 +21,10 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
 # Module-level renderer is safe: MarkdownIt.render() creates a new StateCore
 # per call, so no shared mutable state across concurrent requests.
+# html_inline is disabled to prevent XSS — entity-encoded tags in XML source
+# (e.g. &lt;script&gt;) would otherwise render as live HTML.  This means
+# <sup>/<sub> from the parsers display as literal text in the HTML preview;
+# the plain-Markdown output (the primary format) is unaffected.
 _md_renderer = MarkdownIt().disable("html_block").disable("html_inline")
 
 _HTML_TEMPLATE = """<!DOCTYPE html>

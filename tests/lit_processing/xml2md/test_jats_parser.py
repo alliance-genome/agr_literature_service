@@ -905,3 +905,181 @@ class TestJatsParser:
                 if s.heading == "Abbreviations"][0]
         assert len(abbr.lists) >= 1
         assert "**GO**" in abbr.lists[0].items[0]
+
+    def test_parse_empty_inline_formatting(self):
+        """Empty <italic>/<bold>/<sup>/<sub> produce no stray markers."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <p>Before<italic></italic> middle<bold></bold> after <sup></sup> end<sub></sub>.</p>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        para = doc.sections[0].paragraphs[0].text
+        assert "**" not in para
+        assert "<sup></sup>" not in para
+        assert "<sub></sub>" not in para
+        assert "Before" in para
+        assert "middle" in para
+
+    def test_parse_nested_inline_formatting(self):
+        """Nested inline markup: <italic>text <sup>x</sup></italic>."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <p>The gene <italic>Drosophila <sup>x</sup></italic> is studied.</p>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        para = doc.sections[0].paragraphs[0].text
+        assert "*Drosophila <sup>x</sup>*" in para
+
+    def test_parse_rowspan_warning(self, caplog):
+        """rowspan on table cells logs a warning."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <table-wrap><table>
+    <thead><tr><th>A</th><th>B</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="2">Spanning</td><td>1</td></tr>
+      <tr><td>2</td></tr>
+    </tbody>
+  </table></table-wrap>
+</sec></body></article>
+"""
+        import logging
+        with caplog.at_level(logging.WARNING):
+            doc = parse_jats(jats)
+        assert any("rowspan" in r.message for r in caplog.records)
+        # Table still parsed (just potentially misaligned)
+        assert len(doc.sections[0].tables[0].rows) >= 2
+
+    def test_parse_ref_author_editor_separation(self):
+        """Editors not captured as authors in refs with both groups."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back><ref-list>
+  <ref id="r1">
+    <element-citation publication-type="book">
+      <person-group person-group-type="author">
+        <name><surname>Writer</surname><given-names>A</given-names></name>
+      </person-group>
+      <person-group person-group-type="editor">
+        <name><surname>Editor</surname><given-names>E</given-names></name>
+      </person-group>
+      <source>Big Book</source>
+      <year>2023</year>
+    </element-citation>
+  </ref>
+</ref-list></back></article>
+"""
+        doc = parse_jats(jats)
+        ref = doc.references[0]
+        assert len(ref.authors) == 1
+        assert "Writer" in ref.authors[0]
+        assert "Editor" not in ref.authors[0]
+        assert len(ref.editors) == 1
+        assert "Editor" in ref.editors[0]
+
+    def test_parse_preformat_with_backticks(self):
+        """<preformat> containing backticks uses wider fence."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Methods</title>
+  <preformat>Run ```this``` command</preformat>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        code_paras = [p for p in sec.paragraphs if "Run" in p.text]
+        assert len(code_paras) == 1
+        # Fence should be wider than 3 backticks
+        assert "````" in code_paras[0].text
+
+    def test_parse_disp_quote_multi_paragraph(self):
+        """<disp-quote> with multiple <p> children gets per-paragraph >."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>Discussion</title>
+  <disp-quote>
+    <p>First paragraph of quote.</p>
+    <p>Second paragraph of quote.</p>
+  </disp-quote>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        sec = doc.sections[0]
+        quote_paras = [p for p in sec.paragraphs if p.text.startswith(">")]
+        assert len(quote_paras) == 1
+        text = quote_paras[0].text
+        assert "> First paragraph of quote." in text
+        assert "> Second paragraph of quote." in text
+        # Each paragraph gets its own > prefix
+        assert text.count(">") == 2
+
+    def test_parse_glossary_no_title_duplication(self):
+        """Glossary title in back matter not duplicated as bold paragraph."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>I</title><p>X.</p></sec></body>
+<back>
+  <glossary>
+    <title>Abbreviations</title>
+    <def-list>
+      <def-item>
+        <term>GO</term>
+        <def><p>Gene Ontology</p></def>
+      </def-item>
+    </def-list>
+  </glossary>
+</back></article>
+"""
+        doc = parse_jats(jats)
+        abbr = [s for s in doc.back_matter
+                if s.heading == "Abbreviations"][0]
+        # Title should be the section heading, not also a bold paragraph
+        bold_titles = [p for p in abbr.paragraphs
+                       if "**Abbreviations**" in p.text]
+        assert len(bold_titles) == 0
+
+    def test_parse_whitespace_normalization(self):
+        """XML indentation whitespace collapsed in paragraph text."""
+        jats = b"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<article><front><article-meta>
+  <title-group><article-title>T</article-title></title-group>
+</article-meta></front>
+<body><sec><title>R</title>
+  <p>Text with
+    <xref ref-type="bibr" rid="r1">[1]</xref>
+    and more text.</p>
+</sec></body></article>
+"""
+        doc = parse_jats(jats)
+        para = doc.sections[0].paragraphs[0].text
+        assert "\n" not in para
+        assert "  " not in para
+        assert "Text with [1] and more text." == para
