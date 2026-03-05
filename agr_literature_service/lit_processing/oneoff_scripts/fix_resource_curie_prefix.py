@@ -2,12 +2,17 @@
 One-off script to fix cross_reference rows where curie is missing the prefix.
 
 For resource-linked cross_references where curie doesn't contain ':':
-1. If a correct version exists (curie_prefix:curie), delete the malformed row
-2. If no correct version exists, update the curie to include the prefix
+1. Simple fix: If no conflict, update curie to include prefix
+2. DELETE_CORRECT: If malformed resource has refs and correct resource has 0 refs,
+   fix the malformed curie and delete the unused correct resource
+3. DELETE_MALFORMED: If malformed resource has 0 refs and correct resource has refs,
+   delete the malformed cross_reference and resource
+4. MERGE_NEEDED: If both have refs, transfer references from malformed to correct
+   resource and delete the malformed resource
 
 Usage:
-    python fix_resource_curie_prefix.py          # Dry run (default)
-    python fix_resource_curie_prefix.py --execute  # Actually make changes
+    python fix_resource_curie_prefix.py              # Dry run (default)
+    python fix_resource_curie_prefix.py --execute    # Actually make changes
 """
 import argparse
 import logging
@@ -34,6 +39,44 @@ def get_db_session():
     return Session()
 
 
+def get_reference_count(conn, resource_id):
+    """Get count of references for a resource."""
+    result = conn.execute(
+        text("SELECT COUNT(*) FROM reference WHERE resource_id = :rid"),
+        {"rid": resource_id}
+    ).fetchone()
+    return result[0] if result else 0
+
+
+def transfer_references(conn, from_resource_id, to_resource_id, dry_run=True):
+    """Transfer all references from one resource to another."""
+    if not dry_run:
+        conn.execute(
+            text("UPDATE reference SET resource_id = :to_rid WHERE resource_id = :from_rid"),
+            {"to_rid": to_resource_id, "from_rid": from_resource_id}
+        )
+
+
+def delete_resource_and_xrefs(conn, resource_id, dry_run=True):
+    """Delete a resource and all its cross_references."""
+    if not dry_run:
+        # Delete cross_references first
+        conn.execute(
+            text("DELETE FROM cross_reference WHERE resource_id = :rid"),
+            {"rid": resource_id}
+        )
+        # Delete editors
+        conn.execute(
+            text("DELETE FROM editor WHERE resource_id = :rid"),
+            {"rid": resource_id}
+        )
+        # Delete the resource
+        conn.execute(
+            text("DELETE FROM resource WHERE resource_id = :rid"),
+            {"rid": resource_id}
+        )
+
+
 def fix_resource_curie_prefixes(dry_run: bool = True):
     """
     Fix cross_reference rows where curie is missing the prefix.
@@ -41,6 +84,7 @@ def fix_resource_curie_prefixes(dry_run: bool = True):
     :param dry_run: If True, only report what would be done without making changes
     """
     db_session = get_db_session()
+    conn = db_session.connection()
 
     # Find all cross_reference rows where curie doesn't contain ':' and has resource_id
     query = text("""
@@ -50,65 +94,122 @@ def fix_resource_curie_prefixes(dry_run: bool = True):
           AND curie NOT LIKE '%:%'
     """)
 
-    result = db_session.execute(query)
+    result = conn.execute(query)
     malformed_rows = result.fetchall()
 
     logger.info(f"Found {len(malformed_rows)} cross_reference rows with malformed curie (missing prefix)")
 
     updated_count = 0
-    deleted_count = 0
+    deleted_xref_count = 0
+    deleted_resource_count = 0
+    merged_count = 0
     skipped_count = 0
+
+    # Track resources we've already processed to avoid double-processing
+    processed_resources = set()
 
     for row in malformed_rows:
         cross_reference_id, curie_prefix, current_curie, resource_id = row
         correct_curie = f"{curie_prefix}:{current_curie}"
 
+        # Skip if we've already processed this resource
+        if resource_id in processed_resources:
+            continue
+
         # Check if a row with the correct curie already exists for this resource
-        check_existing = text("""
-            SELECT cross_reference_id FROM cross_reference
-            WHERE resource_id = :resource_id AND curie = :correct_curie
-        """)
-        existing = db_session.execute(
-            check_existing,
+        existing = conn.execute(
+            text("""
+                SELECT cross_reference_id FROM cross_reference
+                WHERE resource_id = :resource_id AND curie = :correct_curie
+            """),
             {"resource_id": resource_id, "correct_curie": correct_curie}
         ).fetchone()
 
         if existing:
-            # Correct version exists - delete the malformed row
-            logger.info(f"DELETE: id={cross_reference_id} curie={current_curie} "
-                        f"(resource_id={resource_id}) - correct version {correct_curie} already exists")
+            # Correct version exists for same resource - just delete the malformed duplicate
+            logger.info(f"DELETE DUPLICATE: id={cross_reference_id} curie={current_curie} "
+                        f"(resource_id={resource_id}) - correct version already exists")
             if not dry_run:
-                delete_query = text("DELETE FROM cross_reference WHERE cross_reference_id = :id")
-                db_session.execute(delete_query, {"id": cross_reference_id})
-            deleted_count += 1
-        else:
-            # Check if another resource already has this correct curie
-            check_conflict = text("""
+                conn.execute(
+                    text("DELETE FROM cross_reference WHERE cross_reference_id = :id"),
+                    {"id": cross_reference_id}
+                )
+            deleted_xref_count += 1
+            continue
+
+        # Check if another resource has this correct curie
+        conflict = conn.execute(
+            text("""
                 SELECT cross_reference_id, resource_id FROM cross_reference
                 WHERE curie = :correct_curie AND resource_id != :resource_id
-            """)
-            conflict = db_session.execute(
-                check_conflict,
-                {"correct_curie": correct_curie, "resource_id": resource_id}
-            ).fetchone()
+            """),
+            {"correct_curie": correct_curie, "resource_id": resource_id}
+        ).fetchone()
 
-            if conflict:
-                # Another resource owns this curie - skip to avoid conflict
-                logger.warning(f"SKIP: id={cross_reference_id} curie={current_curie} "
-                               f"(resource_id={resource_id}) - correct curie {correct_curie} "
-                               f"belongs to resource_id={conflict[1]}")
-                skipped_count += 1
-            else:
-                # Safe to update
-                logger.info(f"UPDATE: id={cross_reference_id} {current_curie} -> {correct_curie} "
-                            f"(resource_id={resource_id})")
+        if not conflict:
+            # No conflict - simple update
+            logger.info(f"UPDATE: id={cross_reference_id} {current_curie} -> {correct_curie} "
+                        f"(resource_id={resource_id})")
+            if not dry_run:
+                conn.execute(
+                    text("UPDATE cross_reference SET curie = :correct_curie WHERE cross_reference_id = :id"),
+                    {"correct_curie": correct_curie, "id": cross_reference_id}
+                )
+            updated_count += 1
+        else:
+            # Conflict exists - check reference counts to decide action
+            conflict_xref_id, correct_resource_id = conflict
+            malformed_refs = get_reference_count(conn, resource_id)
+            correct_refs = get_reference_count(conn, correct_resource_id)
+
+            if malformed_refs > 0 and correct_refs == 0:
+                # DELETE_CORRECT: Keep malformed resource (has refs), delete unused correct resource
+                logger.info(f"DELETE_CORRECT: Fix curie on resource_id={resource_id} ({malformed_refs} refs), "
+                            f"delete unused resource_id={correct_resource_id} (0 refs) - {correct_curie}")
                 if not dry_run:
-                    update_query = text("""
-                        UPDATE cross_reference SET curie = :correct_curie
-                        WHERE cross_reference_id = :id
-                    """)
-                    db_session.execute(update_query, {"correct_curie": correct_curie, "id": cross_reference_id})
+                    # First delete the unused correct resource and its xrefs
+                    delete_resource_and_xrefs(conn, correct_resource_id, dry_run=False)
+                    # Now update the malformed curie
+                    conn.execute(
+                        text("UPDATE cross_reference SET curie = :correct_curie WHERE cross_reference_id = :id"),
+                        {"correct_curie": correct_curie, "id": cross_reference_id}
+                    )
                 updated_count += 1
+                deleted_resource_count += 1
+                processed_resources.add(correct_resource_id)
+
+            elif malformed_refs == 0 and correct_refs > 0:
+                # DELETE_MALFORMED: Delete the unused malformed resource
+                logger.info(f"DELETE_MALFORMED: Delete unused resource_id={resource_id} (0 refs), "
+                            f"keep resource_id={correct_resource_id} ({correct_refs} refs) - {correct_curie}")
+                if not dry_run:
+                    delete_resource_and_xrefs(conn, resource_id, dry_run=False)
+                deleted_resource_count += 1
+                processed_resources.add(resource_id)
+
+            elif malformed_refs == 0 and correct_refs == 0:
+                # BOTH_UNUSED: Delete the malformed one, keep the correct one
+                logger.info(f"BOTH_UNUSED: Delete unused resource_id={resource_id}, "
+                            f"keep resource_id={correct_resource_id} - {correct_curie}")
+                if not dry_run:
+                    delete_resource_and_xrefs(conn, resource_id, dry_run=False)
+                deleted_resource_count += 1
+                processed_resources.add(resource_id)
+
+            else:
+                # MERGE_NEEDED: Both have refs - transfer refs from malformed to correct,
+                # then delete malformed resource
+                logger.info(f"MERGE: Transfer {malformed_refs} refs from resource_id={resource_id} "
+                            f"to resource_id={correct_resource_id} ({correct_refs} refs), "
+                            f"then delete resource_id={resource_id} - {correct_curie}")
+                if not dry_run:
+                    # Transfer references
+                    transfer_references(conn, resource_id, correct_resource_id, dry_run=False)
+                    # Delete the malformed resource
+                    delete_resource_and_xrefs(conn, resource_id, dry_run=False)
+                merged_count += 1
+                deleted_resource_count += 1
+                processed_resources.add(resource_id)
 
     if not dry_run:
         db_session.commit()
@@ -116,11 +217,12 @@ def fix_resource_curie_prefixes(dry_run: bool = True):
     else:
         logger.info("DRY RUN - no changes made")
 
-    logger.info(f"Summary: {updated_count} would be updated, {deleted_count} would be deleted, "
+    logger.info(f"Summary: {updated_count} curies updated, {deleted_xref_count} duplicate xrefs deleted, "
+                f"{merged_count} resources merged, {deleted_resource_count} resources deleted, "
                 f"{skipped_count} skipped")
 
     db_session.close()
-    return updated_count, deleted_count, skipped_count
+    return updated_count, deleted_xref_count, merged_count, deleted_resource_count, skipped_count
 
 
 if __name__ == "__main__":
