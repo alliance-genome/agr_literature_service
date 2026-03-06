@@ -3,10 +3,9 @@ resource_model.py
 =================
 """
 
-
 from typing import Dict
 
-from sqlalchemy import ARRAY, Column, DateTime, Integer, String
+from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql.sqltypes import Boolean
 
@@ -132,12 +131,43 @@ class ResourceModel(Base, AuditedModel):
         Boolean,
         nullable=False,
         default=False,
-        server_default='false'
+        server_default="false"
+    )
+
+    copyright_license_id = Column(
+        Integer,
+        ForeignKey("copyright_license.copyright_license_id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
+    copyright_license = relationship(
+        "CopyrightLicenseModel",
+        lazy="joined"
+    )
+
+    license_list: Column = Column(
+        ARRAY(String()),
+        unique=False,
+        nullable=True
+    )
+
+    license_start_year = Column(
+        Integer,
+        nullable=True
     )
 
     def __str__(self):
         """
         Overwrite the default output.
         """
-        return "Resource id = {} created {} updated {}: curie='{}' title='{}...'".\
-            format(self.resource_id, self.date_created, self.date_updated, self.curie, self.title[:10])
+        title_prefix = (self.title or "")[:10]
+        return (
+            "Resource id = {} created {} updated {}: curie='{}' title='{}...'"
+        ).format(
+            self.resource_id,
+            self.date_created,
+            self.date_updated,
+            self.curie,
+            title_prefix
+        )
