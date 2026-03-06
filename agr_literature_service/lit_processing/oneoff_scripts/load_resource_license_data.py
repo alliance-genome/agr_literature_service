@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 LOCAL_FILE = "resource_licenses_doaj.tsv"
+DOAJ_DOWNLOAD_URL = "https://doaj.org/csv"  # DOAJ journal list export URL
 
 # License restriction order: most restricted first
 # Based on Creative Commons license restrictiveness
@@ -148,6 +149,11 @@ def load_data(input_source: str = None) -> None:
         logger.info(f"Reading from local file: {input_source}")
         with open(input_source, "r", encoding="utf-8") as f:
             lines = f.readlines()
+    else:
+        # Download from DOAJ if no local file provided or file doesn't exist
+        logger.info(f"Local file not found, downloading from {DOAJ_DOWNLOAD_URL}")
+        content = download_file(DOAJ_DOWNLOAD_URL)
+        lines = content.splitlines()
 
     for ln, line in enumerate(lines, start=1):
         line = line.strip()
@@ -187,6 +193,8 @@ def load_data(input_source: str = None) -> None:
             except ValueError:
                 logger.warning(f"Line {ln}: invalid year '{oa_start_year_str}' for {journal_title}")
 
+        # Use savepoint so only this row is rolled back on error, not all prior updates
+        savepoint = db.begin_nested()
         try:
             # Find resource by ISSN/EISSN
             resource = find_resource_by_issn(db, issn, eissn)
@@ -194,6 +202,7 @@ def load_data(input_source: str = None) -> None:
             if not resource:
                 not_found_count += 1
                 logger.info(f"Line {ln}: resource not found - ISSN={issn}, EISSN={eissn}, Title={journal_title}")
+                savepoint.rollback()
                 continue
 
             # Get most restricted license and look up its ID
@@ -220,6 +229,7 @@ def load_data(input_source: str = None) -> None:
             resource.copyright_license_id = copyright_license_id
 
             db.add(resource)
+            savepoint.commit()
             updated_count += 1
 
             logger.info(
@@ -229,7 +239,7 @@ def load_data(input_source: str = None) -> None:
             )
 
         except Exception as e:
-            db.rollback()
+            savepoint.rollback()
             error_count += 1
             logger.error(f"Line {ln} ERROR for {journal_title}: {e}")
 
