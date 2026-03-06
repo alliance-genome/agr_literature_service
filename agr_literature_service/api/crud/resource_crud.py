@@ -13,10 +13,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql.expression import cast
 
 from agr_literature_service.api.crud import cross_reference_crud
-from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefix
+from agr_literature_service.api.crud.cross_reference_crud import (
+    format_cross_reference_data, set_curie_prefix)
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                MeshDetailModel, ResourceModel)
+from agr_literature_service.api.models.resource_descriptor_models import ResourceDescriptorModel
 from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 from agr_literature_service.global_utils import get_next_resource_curie
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -164,6 +166,51 @@ def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, 
     return {"message": "updated"}
 
 
+def show_all(db: Session):
+    """
+    Returns all resources with full data.
+    :param db:
+    :return:
+    """
+    resources = db.query(ResourceModel).all()
+
+    all_prefixes = set()
+    for resource in resources:
+        if resource.cross_reference:
+            for xref in resource.cross_reference:
+                if ':' in xref.curie:
+                    all_prefixes.add(xref.curie.split(":")[0])
+
+    resource_descriptors = db.query(ResourceDescriptorModel).filter(
+        ResourceDescriptorModel.db_prefix.in_(list(all_prefixes))).all()
+    resource_desc_prefix_obj_map = {rd.db_prefix: rd for rd in resource_descriptors}
+
+    resources_data = []
+    for resource in resources:
+        resource_data = jsonable_encoder(resource)
+        if resource.cross_reference:
+            cross_references = []
+            for xref_obj in resource.cross_reference:
+                if ':' not in xref_obj.curie:
+                    continue
+                xref_data = jsonable_encoder(xref_obj)
+                xref_data = format_cross_reference_data(
+                    db, xref_obj, xref_data, resource_desc_prefix_obj_map)
+                if 'resource_curie' in xref_data:
+                    del xref_data['resource_curie']
+                cross_references.append(xref_data)
+            resource_data['cross_references'] = cross_references
+
+        if resource.editor:
+            editors = []
+            for editor in resource_data['editor']:
+                del editor['resource_id']
+                editors.append(editor)
+            resource_data['editors'] = editors
+        resources_data.append(resource_data)
+    return resources_data
+
+
 def show(db: Session, curie: str):
     """
 
@@ -181,6 +228,8 @@ def show(db: Session, curie: str):
     if resource.cross_reference:
         cross_references = []
         for cross_reference in resource_data['cross_reference']:
+            if ':' not in cross_reference['curie']:
+                continue
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference['curie']))
             del cross_reference_show['resource_curie']
             cross_references.append(cross_reference_show)

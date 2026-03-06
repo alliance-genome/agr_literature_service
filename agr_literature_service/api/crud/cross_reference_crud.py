@@ -129,7 +129,10 @@ def format_cross_reference_data(db: Session, cross_reference_object: CrossRefere
         cross_reference_data["reference_curie"] = cross_reference_object.reference.curie
     del cross_reference_data["reference_id"]
 
-    [db_prefix, local_id] = cross_reference_object.curie.split(":", 1)
+    curie_parts = cross_reference_object.curie.split(":", 1)
+    if len(curie_parts) != 2:
+        return cross_reference_data
+    [db_prefix, local_id] = curie_parts
     resource_descriptor = resource_desc_prefix_obj_map[db_prefix] if db_prefix in resource_desc_prefix_obj_map else None
     if resource_descriptor:
         default_url = resource_descriptor.default_url.replace("[%s]", local_id)
