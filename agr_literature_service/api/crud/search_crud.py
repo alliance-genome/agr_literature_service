@@ -557,6 +557,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     topics = extract_filtered_agg(res, "topic_aggregation", "topics")
     confidence_levels = extract_filtered_agg(res, "confidence_aggregation", "confidence_levels")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
+    data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
 
     raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
     group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
@@ -574,6 +575,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     }
 
     # remove temp aggs
+    # TODO Need to add novel here too
     for k in [
         'topic_aggregation',
         'confidence_aggregation',
@@ -584,6 +586,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         res['aggregations'].pop(k, None)
 
     # add labels to ATP/ECO curies
+    ## TODO Needs names for novel and a reorder.
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
 
@@ -605,6 +608,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "confidence_levels": confidence_levels,
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
+        "data_novelty": data_novelty,
     }
 
 
@@ -790,6 +794,15 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_key="confidence_levels",
         allowed_dp=allowed_dp,
         size=facets_limits.get("confidence_levels", 10)
+    )
+
+    es_body["aggregations"]["data_novelty_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.data_novelty.keyword",
+        term_key="data_novelty",
+        allowed_dp=allowed_dp,
+        size=facets_limits.get("data_novelty", 10)
     )
 
     es_body["aggregations"]["source_method_aggregation"] = create_filtered_aggregation_with_dp(
