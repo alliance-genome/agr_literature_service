@@ -1880,13 +1880,13 @@ def set_retraction_status(db, logger):
     stmt = text("""
         UPDATE reference
         SET retraction_status = 'ATP:0000346'
-        WHERE category = 'Retraction'
-        AND retraction_status is NULL
+        WHERE 'Retracted Publication' = ANY(pubmed_types)
+        AND retraction_status IS NULL
     """)
     try:
         result: Result = db.execute(stmt)
         db.commit()
-        logger.info(f"Set retraction_status = 'ATP:0000346' (retracted) for {result.rowcount} paper(s) with category='Retraction' and retraction_status = NULL")
+        logger.info(f"Set retraction_status = 'ATP:0000346' (retracted) for {result.rowcount} paper(s) with 'Retracted Publication' as one of the types and retraction_status = NULL")
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to set retraction_status for 'Retraction' papers. Error={e}")
+        logger.error(f"Failed to set retraction_status for 'Retracted Publication' papers. Error={e}")
