@@ -78,8 +78,8 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     curie: Optional[str] = None
     title: str
 
-    title_synonyms: List[str] = Field(default_factory=list)
-    abbreviation_synonyms: List[str] = Field(default_factory=list)
+    title_synonyms: Optional[List[str]] = Field(default_factory=list)
+    abbreviation_synonyms: Optional[List[str]] = Field(default_factory=list)
     iso_abbreviation: Optional[str] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
@@ -87,9 +87,9 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     print_issn: Optional[str] = None
     online_issn: Optional[str] = None
     pages: Optional[str] = None
-    volumes: List[str] = Field(default_factory=list)
+    volumes: Optional[List[str]] = Field(default_factory=list)
     abstract: Optional[str] = None
     summary: Optional[str] = None
-    cross_references: List[CrossReferenceSchemaRelated] = Field(default_factory=list)
-    editors: List[EditorSchemaShow] = Field(default_factory=list)
+    cross_references: Optional[List[CrossReferenceSchemaRelated]] = Field(default_factory=list)
+    editors: Optional[List[EditorSchemaShow]] = Field(default_factory=list)
     open_access: Optional[bool] = None
