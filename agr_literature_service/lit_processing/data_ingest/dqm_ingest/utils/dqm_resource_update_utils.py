@@ -598,8 +598,10 @@ def compare_xref(agr, resource_id, dqm_entry, report: bool = True):
             else:
                 try:
                     logger.info("CREATE: add cross_reference %s to %s", curie, agr)
+                    # Ensure curie includes the prefix (e.g., "ZFIN:ZDB-JRNL-260129-1")
+                    full_curie = f"{prefix}:{identifier}" if ':' not in identifier else identifier
                     entry = {
-                        'curie': identifier,
+                        'curie': full_curie,
                         'curie_prefix': prefix,
                         'resource_id': resource_id,
                         'pages': xref.get('pages', [])
