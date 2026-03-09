@@ -575,13 +575,13 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     }
 
     # remove temp aggs
-    # TODO Need to add novel here too
     for k in [
         'topic_aggregation',
         'confidence_aggregation',
         'source_method_aggregation',
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
+        'data_novelty_aggregation'
     ]:
         res['aggregations'].pop(k, None)
 
