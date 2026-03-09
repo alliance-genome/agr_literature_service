@@ -1889,4 +1889,4 @@ def set_retraction_status(db, logger):
         logger.info(f"Set retraction_status = 'ATP:0000346' (retracted) for {result.rowcount} paper(s) with 'Retracted Publication' as one of the types and retraction_status = NULL")
     except Exception as e:
         db.rollback()
-        logger.error(f"Failed to set retraction_status for 'Retraction' papers. Error={e}")
+        logger.error(f"Failed to set retraction_status for 'Retracted Publication' papers. Error={e}")
