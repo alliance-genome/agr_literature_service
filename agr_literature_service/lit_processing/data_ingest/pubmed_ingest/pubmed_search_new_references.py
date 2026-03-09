@@ -15,7 +15,8 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pu
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    check_handle_duplicate, add_mca_to_existing_references, mark_false_positive_papers_as_out_of_corpus
+    check_handle_duplicate, add_mca_to_existing_references, mark_false_positive_papers_as_out_of_corpus, \
+    set_retraction_status
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     set_pmid_list, get_pmid_association_to_mod_via_reference, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
@@ -338,6 +339,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
         mark_false_positive_papers_as_out_of_corpus(db_session, mod, fp_pmids, logger)
 
+    set_retraction_status(db_session, logger)
     logger.info("Sending Report")
     send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,
                               bad_date_published)

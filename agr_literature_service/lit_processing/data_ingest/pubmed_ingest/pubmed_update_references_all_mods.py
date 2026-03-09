@@ -16,6 +16,8 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
     import update_data
 from agr_literature_service.lit_processing.utils.db_read_utils import sort_pmids, \
     retrieve_all_pmids, get_mod_abbreviations
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    set_retraction_status
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
@@ -52,7 +54,6 @@ def update_all_data():  # pragma: no cover
 
     logger.info("Retrieving pmids from PubMed daily update file:")
     (updated_pmids_for_mod, deleted_pmids_for_mod) = download_and_parse_daily_update(db_session, set(pmids_all))
-    db_session.close()
 
     resourceUpdated = 1
     for mod in [*get_mod_abbreviations(), 'NONE']:
@@ -66,6 +67,8 @@ def update_all_data():  # pragma: no cover
         except Exception as e:
             logger.info("Error occurred when updating pubmed papers for " + mod + "\n" + str(e))
         time.sleep(sleep_time)
+    set_retraction_status(db_session, logger)
+    db_session.close()
 
 
 def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
