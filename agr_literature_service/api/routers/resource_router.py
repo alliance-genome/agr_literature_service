@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, Response, Security, status
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -54,6 +54,18 @@ def patch(curie: str,
     patch = request.model_dump(exclude_unset=True)
 
     return resource_crud.patch(db, curie, patch)
+
+
+@router.get('/show_all',
+            status_code=200,
+            response_model=List[ResourceSchemaShow],
+            description="Returns all resources with full data. "
+                        "WARNING: Response is ~46MB. Swagger UI will fail to render it. "
+                        "Use curl or programmatic access instead.")
+def show_all(user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+             db: Session = db_session):
+    set_global_user_from_cognito(db, user)
+    return resource_crud.show_all(db)
 
 
 @router.get('/{curie}',
