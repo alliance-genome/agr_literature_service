@@ -3,9 +3,10 @@ import logging.config
 import re
 import time
 import urllib
+from datetime import datetime, timedelta
 from os import environ, makedirs, path
 from typing import Set
-# from datetime import datetime, timedelta
+
 import requests
 from dotenv import load_dotenv
 
@@ -150,6 +151,175 @@ if not path.exists(pmc_process_path):
 if not path.exists(pmc_storage_path):
     makedirs(pmc_storage_path)
 
+# PubMed ESearch API limit: max 10,000 results per query
+PUBMED_MAX_RESULTS = 10000
+ESEARCH_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+
+
+def build_esearch_url(term: str, retmax: int = PUBMED_MAX_RESULTS,
+                      mindate: str = None, maxdate: str = None,
+                      api_key: str = None) -> str:
+    """
+    Build a PubMed ESearch URL with the given parameters.
+
+    Args:
+        term: The search term/query
+        retmax: Maximum number of results to return (default 10000, the API limit)
+        mindate: Start date in YYYY/MM/DD format
+        maxdate: End date in YYYY/MM/DD format
+        api_key: NCBI API key for higher rate limits
+
+    Returns:
+        Complete ESearch URL
+    """
+    params = {
+        'db': 'pubmed',
+        'retmax': retmax,
+        'term': term
+    }
+    if mindate and maxdate:
+        params['mindate'] = mindate
+        params['maxdate'] = maxdate
+        params['datetype'] = 'edat'
+    if api_key:
+        params['api_key'] = api_key
+
+    query_string = urllib.parse.urlencode(params, safe='+*[]()":/')
+    return f"{ESEARCH_BASE_URL}?{query_string}"
+
+
+def get_esearch_count(term: str, mindate: str = None, maxdate: str = None,
+                      api_key: str = None) -> int:
+    """
+    Query PubMed ESearch to get the count of results for a search term.
+
+    Args:
+        term: The search term/query
+        mindate: Start date in YYYY/MM/DD format
+        maxdate: End date in YYYY/MM/DD format
+        api_key: NCBI API key
+
+    Returns:
+        Count of matching records
+    """
+    url = build_esearch_url(term, retmax=0, mindate=mindate, maxdate=maxdate, api_key=api_key)
+    try:
+        f = urllib.request.urlopen(url)
+        xml_response = f.read().decode('utf-8')
+        count_match = re.search(r"<Count>(\d+)</Count>", xml_response)
+        if count_match:
+            return int(count_match.group(1))
+    except Exception as e:
+        logger.error(f"Error getting count from PubMed: {e}")
+    return 0
+
+
+def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
+                                        end_date: datetime, api_key: str = None,
+                                        sleep_delay: float = 0.5) -> Set[str]:
+    """
+    Query PubMed ESearch with automatic date range partitioning to handle
+    the 10,000 result limit. If a query returns >= 10,000 results, the date
+    range is split in half and each half is queried recursively.
+
+    Args:
+        term: The PubMed search term/query
+        start_date: Start date for the search range
+        end_date: End date for the search range
+        api_key: NCBI API key for higher rate limits
+        sleep_delay: Delay between API calls to respect rate limits
+
+    Returns:
+        Set of PMIDs (as strings without 'PMID:' prefix)
+    """
+    pmids = set()
+    mindate_str = start_date.strftime('%Y/%m/%d')
+    maxdate_str = end_date.strftime('%Y/%m/%d')
+
+    time.sleep(sleep_delay)
+    count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
+
+    logger.info(f"Date range {mindate_str} to {maxdate_str}: {count} results")
+
+    if count == 0:
+        return pmids
+
+    if count >= PUBMED_MAX_RESULTS:
+        date_diff = end_date - start_date
+        if date_diff.days <= 1:
+            logger.warning(f"Date range {mindate_str} to {maxdate_str} has {count} results "
+                           f"but cannot split further. Retrieving first {PUBMED_MAX_RESULTS}.")
+            pmids.update(_fetch_pmids_from_pubmed(term, mindate_str, maxdate_str, api_key, sleep_delay))
+        else:
+            mid_date = start_date + timedelta(days=date_diff.days // 2)
+            logger.info(f"Splitting date range at {mid_date.strftime('%Y/%m/%d')}")
+
+            pmids.update(query_pubmed_with_date_partitioning(
+                term, start_date, mid_date, api_key, sleep_delay))
+            pmids.update(query_pubmed_with_date_partitioning(
+                term, mid_date + timedelta(days=1), end_date, api_key, sleep_delay))
+    else:
+        pmids.update(_fetch_pmids_from_pubmed(term, mindate_str, maxdate_str, api_key, sleep_delay))
+
+    return pmids
+
+
+def _fetch_pmids_from_pubmed(term: str, mindate: str, maxdate: str,
+                             api_key: str = None, sleep_delay: float = 0.5) -> Set[str]:
+    """
+    Fetch PMIDs from PubMed ESearch for a given term and date range.
+
+    Args:
+        term: The PubMed search term/query
+        mindate: Start date in YYYY/MM/DD format
+        maxdate: End date in YYYY/MM/DD format
+        api_key: NCBI API key
+        sleep_delay: Delay between API calls
+
+    Returns:
+        Set of PMIDs (as strings without 'PMID:' prefix)
+    """
+    pmids = set()
+    time.sleep(sleep_delay)
+
+    url = build_esearch_url(term, retmax=PUBMED_MAX_RESULTS, mindate=mindate,
+                            maxdate=maxdate, api_key=api_key)
+    try:
+        f = urllib.request.urlopen(url)
+        xml_response = f.read().decode('utf-8')
+
+        pmid_matches = re.findall(r"<Id>(\d+)</Id>", xml_response)
+        pmids.update(pmid_matches)
+        logger.debug(f"Fetched {len(pmid_matches)} PMIDs for {mindate} to {maxdate}")
+    except Exception as e:
+        logger.error(f"Error fetching PMIDs from PubMed: {e}")
+
+    return pmids
+
+
+def query_pubmed_for_mod(mod: str, term: str, reldate_days: int,
+                         api_key: str = None) -> Set[str]:
+    """
+    Query PubMed for a MOD's search term, handling the 10,000 result limit
+    by using date partitioning when necessary.
+
+    Args:
+        mod: MOD abbreviation (e.g., 'SGD', 'WB')
+        term: The PubMed search term for this MOD
+        reldate_days: Number of days back to search
+        api_key: NCBI API key
+
+    Returns:
+        Set of PMIDs (as strings without 'PMID:' prefix)
+    """
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=reldate_days)
+
+    logger.info(f"Querying PubMed for {mod}: {start_date.strftime('%Y/%m/%d')} to "
+                f"{end_date.strftime('%Y/%m/%d')} ({reldate_days} days)")
+
+    return query_pubmed_with_date_partitioning(term, start_date, end_date, api_key)
+
 
 def query_pubmed_mod_updates(input_mod, reldate):
     """
@@ -194,19 +364,21 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
     # 'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+NOT+pubstatusaheadofprint+NOT+preprint[pt]&retmax=100000000'
 
-    mod_esearch_url = {
-        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=(drosophil*[ALL]+OR+melanogaster[ALL])+NOT+pubstatusaheadofprint+NOT+preprint[pt]+NOT+"epub+ahead+of+print"[Publication+Type]&retmax=10000000',
-        'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]+NOT+preprint[pt]',
-        'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae+NOT+preprint[pt]',
-        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans+NOT+preprint[pt]',
-        'XB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D+NOT+preprint[pt]'
+    # Search terms for each MOD (without URL structure - used with date partitioning)
+    mod_search_terms = {
+        'FB': '(drosophil*[ALL] OR melanogaster[ALL]) NOT pubstatusaheadofprint NOT preprint[pt] NOT "epub ahead of print"[Publication Type]',
+        'ZFIN': 'zebrafish[Title/Abstract] OR zebra fish[Title/Abstract] OR danio[Title/Abstract] OR zebrafish[keyword] OR zebra fish[keyword] OR danio[keyword] OR zebrafish[Mesh Terms] OR zebra fish[Mesh Terms] OR danio[Mesh Terms] NOT preprint[pt]',
+        'SGD': 'yeast OR cerevisiae NOT preprint[pt]',
+        'WB': 'elegans NOT preprint[pt]',
+        'XB': '(Xenopus OR Silurana) AND "Journal Article" NOT preprint[pt]'
     }
-    mod_daterange = {
-        'FB': '&reldate=3650',
-        'ZFIN': '&reldate=730',
-        'SGD': '&reldate=3650',
-        'WB': '&reldate=1825',
-        'XB': '&reldate=365'
+    # Default date ranges in days for each MOD
+    mod_default_reldate = {
+        'FB': 3650,
+        'ZFIN': 730,
+        'SGD': 3650,
+        'WB': 1825,
+        'XB': 365
     }
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
@@ -218,14 +390,13 @@ def query_mods(input_mod, reldate):  # noqa: C901
         mods_to_query = [input_mod]
     pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
-    sleep_delay = 1
     not_loaded_pmids4mod = {}
     pmids4mod = {}
     pmids4mod['all'] = set()
 
     exclude_pmids = get_pmids_from_exclude_list()
 
-    for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
+    for mod in [mod for mod in mods_to_query if mod in mod_search_terms]:
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
         try:
@@ -243,25 +414,26 @@ def query_mods(input_mod, reldate):  # noqa: C901
             )
             db_session.close()
             return
-        time.sleep(sleep_delay)
-        url = mod_esearch_url[mod]
-        if environ.get('NCBI_API_KEY'):
-            url = url + "&api_key=" + environ['NCBI_API_KEY']
+
+        # Determine date range for query
+        api_key = environ.get('NCBI_API_KEY')
         if reldate:
-            url = url + "&reldate=" + str(reldate)
-        elif mod in mod_daterange:
-            url = url + mod_daterange[mod]
-        # print (" url for " + mod + "=" + url)
-        f = urllib.request.urlopen(url)
-        xml_all = f.read().decode('utf-8')
+            reldate_days = int(reldate)
+        elif mod in mod_default_reldate:
+            reldate_days = mod_default_reldate[mod]
+        else:
+            reldate_days = 365  # Default to 1 year if not specified
+
+        # Query PubMed with date partitioning to handle >10K results
+        term = mod_search_terms[mod]
+        pmid_group = query_pubmed_for_mod(mod, term, reldate_days, api_key)
+        logger.info(f"Total PMIDs retrieved for {mod}: {len(pmid_group)}")
+
         pmids_to_create = []
         agr_curies_to_corpus = []
-        if re.findall(r"<Id>(\d+)</Id>", xml_all):
-            pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
-
-            whitelist_pmids = []  # remove this later with removed block below
-            for pmid in pmid_group:
-                whitelist_pmids = [pmid for pmid in pmid_group if pmid not in fp_pmids and pmid not in exclude_pmids]
+        if pmid_group:
+            whitelist_pmids = [pmid for pmid in pmid_group
+                               if pmid not in fp_pmids and pmid not in exclude_pmids]
 
             pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
 
