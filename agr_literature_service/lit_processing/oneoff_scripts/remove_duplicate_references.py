@@ -1,16 +1,7 @@
 import argparse
-import logging
-import sys
 from sqlalchemy import text
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
-
-logging.basicConfig(level=logging.INFO,
-                    stream=sys.stdout,
-                    format='%(asctime)s - %(levelname)s - {%(module)s %(funcName)s:%(lineno)d} - %(message)s',
-                    # noqa E251
-                    datefmt='%Y-%m-%d %H:%M:%S')
-logger = logging.getLogger(__name__)
 
 def remove_duplicates(db_session, mod='FB', saveit=False):
     query = """SELECT r.reference_id, r.curie, cr.curie, cr.is_obsolete, r.title
@@ -39,21 +30,23 @@ ORDER BY cr.curie, cr.is_obsolete"""
                     print(f"REMOVE {row[REF_ID]} {row[REF_CURIE]} {row[CR_CURIE]}")
                     delete_list.append(row[REF_ID])
                 else:
-                    print(f"KEEPING {row[REF_ID]} {row[REF_CURIE]} {row[CR_CURIE]}")
+                    print(f"keeping {row[REF_ID]} {row[REF_CURIE]} {row[CR_CURIE]}")
             else:
-                print(f"Mismatch reference titles: {row[TITLE]} != {prev_row[TITLE]}")
+                print(f"WARNING!!! Mismatch reference titles: {row[TITLE]} != {prev_row[TITLE]}")
         else:
             if row[CR_OBS]:
-                print(f"obsolete first! {row}")
-            print(f"KEEPING FIRST ONE {row[REF_ID]} {row[REF_CURIE]} {row[CR_CURIE]}")
-        prev_row= row
+                print(f"WARNING obsolete first! {row}")
+            print(f"keeping {row[REF_ID]} {row[REF_CURIE]} {row[CR_CURIE]}")
+        prev_row = row
 
     if not saveit:
-        print(f"Deleting {delete_list}")
+        print(f"Would be Deleting {delete_list}")
     else:
-        query = "DELETE FROM reference where reference_id in :delete_list"
-        # db_session.execute(text(query), {'delete_list': delete_list})
-        # db.commit()
+        print(f"Deleting {delete_list}")
+        for table_name in ('reference_mod_referencetype', 'reference'):
+            query = f"DELETE FROM {table_name} WHERE reference_id = ANY(:delete_list)"
+            db_session.execute(text(query), {'delete_list': delete_list})
+        db_session.commit()
 
 
 if __name__ == "__main__":
