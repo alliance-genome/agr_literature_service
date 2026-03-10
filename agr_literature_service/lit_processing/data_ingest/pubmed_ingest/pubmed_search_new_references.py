@@ -437,7 +437,15 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
             pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
 
-            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(db_session, pmids_wanted, mod)
+            # Process PMIDs in chunks to avoid overwhelming the database with large IN clauses
+            # The old code never passed this many PMIDs due to the 10K API limit
+            CHUNK_SIZE = 5000
+            pmid_curie_mod_dict = {}
+            for i in range(0, len(pmids_wanted), CHUNK_SIZE):
+                chunk = pmids_wanted[i:i + CHUNK_SIZE]
+                logger.info(f"Checking database for PMIDs {i + 1} to {min(i + CHUNK_SIZE, len(pmids_wanted))} of {len(pmids_wanted)}")
+                chunk_result = get_pmid_association_to_mod_via_reference(db_session, chunk, mod)
+                pmid_curie_mod_dict.update(chunk_result)
             # to debug
             # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
             # print(mod)
