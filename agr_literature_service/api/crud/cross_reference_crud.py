@@ -3,7 +3,7 @@ cross_reference_crud.py
 =======================
 """
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -120,13 +120,15 @@ def show_from_curies(db: Session, curies: List[str]) -> List[dict]:
 
 
 def format_cross_reference_data(db: Session, cross_reference_object: CrossReferenceModel,
-                                cross_reference_data: dict, resource_desc_prefix_obj_map: dict) -> dict:
+                                cross_reference_data: dict, resource_desc_prefix_obj_map: dict,
+                                resource_curie: Optional[str] = None,
+                                reference_curie: Optional[str] = None) -> dict:
     if cross_reference_data["resource_id"]:
-        cross_reference_data["resource_curie"] = cross_reference_object.resource.curie
+        cross_reference_data["resource_curie"] = resource_curie or cross_reference_object.resource.curie
     del cross_reference_data["resource_id"]
 
     if cross_reference_data["reference_id"]:
-        cross_reference_data["reference_curie"] = cross_reference_object.reference.curie
+        cross_reference_data["reference_curie"] = reference_curie or cross_reference_object.reference.curie
     del cross_reference_data["reference_id"]
 
     curie_parts = cross_reference_object.curie.split(":", 1)

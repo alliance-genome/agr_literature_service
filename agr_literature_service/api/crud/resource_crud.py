@@ -9,7 +9,7 @@ from typing import Dict, Union
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import ARRAY, Boolean, String, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.sql.expression import cast
 
 from agr_literature_service.api.crud import cross_reference_crud
@@ -166,13 +166,21 @@ def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, 
     return {"message": "updated"}
 
 
+def _serialize_datetime(dt):
+    """Convert datetime to ISO format string or None."""
+    return dt.isoformat() if dt else None
+
+
 def show_all(db: Session):
     """
     Returns all resources with full data.
     :param db:
     :return:
     """
-    resources = db.query(ResourceModel).all()
+    resources = db.query(ResourceModel).options(
+        selectinload(ResourceModel.cross_reference),
+        selectinload(ResourceModel.editor)
+    ).all()
 
     all_prefixes = set()
     for resource in resources:
@@ -187,26 +195,87 @@ def show_all(db: Session):
 
     resources_data = []
     for resource in resources:
-        resource_data = jsonable_encoder(resource)
+        resource_data = {
+            "resource_id": resource.resource_id,
+            "curie": resource.curie,
+            "title": resource.title,
+            "title_synonyms": resource.title_synonyms,
+            "iso_abbreviation": resource.iso_abbreviation,
+            "medline_abbreviation": resource.medline_abbreviation,
+            "copyright_date": _serialize_datetime(resource.copyright_date),
+            "publisher": resource.publisher,
+            "print_issn": resource.print_issn,
+            "online_issn": resource.online_issn,
+            "volumes": resource.volumes,
+            "abbreviation_synonyms": resource.abbreviation_synonyms,
+            "pages": resource.pages,
+            "abstract": resource.abstract,
+            "summary": resource.summary,
+            "open_access": resource.open_access,
+            "copyright_license_id": resource.copyright_license_id,
+            "license_list": resource.license_list,
+            "license_start_year": resource.license_start_year,
+            "date_created": _serialize_datetime(resource.date_created),
+            "date_updated": _serialize_datetime(resource.date_updated),
+            "created_by": resource.created_by,
+            "updated_by": resource.updated_by,
+        }
+
+        resource_data["copyright_license"] = None
+        if resource.copyright_license:
+            cl = resource.copyright_license
+            resource_data["copyright_license"] = {
+                "copyright_license_id": cl.copyright_license_id,
+                "name": cl.name,
+                "url": cl.url,
+                "description": cl.description,
+                "open_access": cl.open_access,
+            }
+
+        cross_references = []
         if resource.cross_reference:
-            cross_references = []
             for xref_obj in resource.cross_reference:
                 if ':' not in xref_obj.curie:
                     continue
-                xref_data = jsonable_encoder(xref_obj)
+                xref_data = {
+                    "cross_reference_id": xref_obj.cross_reference_id,
+                    "curie": xref_obj.curie,
+                    "curie_prefix": xref_obj.curie_prefix,
+                    "is_obsolete": xref_obj.is_obsolete,
+                    "resource_id": xref_obj.resource_id,
+                    "reference_id": xref_obj.reference_id,
+                    "pages": xref_obj.pages,
+                    "date_created": _serialize_datetime(xref_obj.date_created),
+                    "date_updated": _serialize_datetime(xref_obj.date_updated),
+                    "created_by": xref_obj.created_by,
+                    "updated_by": xref_obj.updated_by,
+                }
                 xref_data = format_cross_reference_data(
-                    db, xref_obj, xref_data, resource_desc_prefix_obj_map)
+                    db, xref_obj, xref_data, resource_desc_prefix_obj_map,
+                    resource_curie=resource.curie)
                 if 'resource_curie' in xref_data:
                     del xref_data['resource_curie']
+                if 'reference_curie' in xref_data:
+                    del xref_data['reference_curie']
                 cross_references.append(xref_data)
-            resource_data['cross_references'] = cross_references
+        resource_data['cross_references'] = cross_references
 
+        editors = []
         if resource.editor:
-            editors = []
-            for editor in resource_data['editor']:
-                del editor['resource_id']
-                editors.append(editor)
-            resource_data['editors'] = editors
+            for editor_obj in resource.editor:
+                editors.append({
+                    "editor_id": editor_obj.editor_id,
+                    "orcid": editor_obj.orcid,
+                    "order": editor_obj.order,
+                    "name": editor_obj.name,
+                    "first_name": editor_obj.first_name,
+                    "last_name": editor_obj.last_name,
+                    "date_created": _serialize_datetime(editor_obj.date_created),
+                    "date_updated": _serialize_datetime(editor_obj.date_updated),
+                    "created_by": editor_obj.created_by,
+                    "updated_by": editor_obj.updated_by,
+                })
+        resource_data['editors'] = editors
         resources_data.append(resource_data)
     return resources_data
 
@@ -225,22 +294,23 @@ def show(db: Session, curie: str):
                             detail=f"Resource with the id {curie} is not available")
 
     resource_data = jsonable_encoder(resource)
+
+    cross_references = []
     if resource.cross_reference:
-        cross_references = []
         for cross_reference in resource_data['cross_reference']:
             if ':' not in cross_reference['curie']:
                 continue
             cross_reference_show = jsonable_encoder(cross_reference_crud.show(db, cross_reference['curie']))
             del cross_reference_show['resource_curie']
             cross_references.append(cross_reference_show)
-        resource_data['cross_references'] = cross_references
+    resource_data['cross_references'] = cross_references
 
+    editors = []
     if resource.editor:
-        editors = []
         for editor in resource_data['editor']:
             del editor['resource_id']
             editors.append(editor)
-        resource_data['editors'] = editors
+    resource_data['editors'] = editors
     return resource_data
 
 
