@@ -314,11 +314,29 @@ def query_pubmed_for_mod(mod: str, term: str, reldate_days: int,
     """
     end_date = datetime.today()
     start_date = end_date - timedelta(days=reldate_days)
+    mindate_str = start_date.strftime('%Y/%m/%d')
+    maxdate_str = end_date.strftime('%Y/%m/%d')
 
-    logger.info(f"Querying PubMed for {mod}: {start_date.strftime('%Y/%m/%d')} to "
-                f"{end_date.strftime('%Y/%m/%d')} ({reldate_days} days)")
+    logger.info(f"Querying PubMed for {mod}: {mindate_str} to {maxdate_str} ({reldate_days} days)")
 
-    return query_pubmed_with_date_partitioning(term, start_date, end_date, api_key)
+    # Get expected total count from PubMed before partitioning
+    expected_count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
+    logger.info(f"{mod}: PubMed reports {expected_count} total results for date range")
+
+    # Retrieve all PMIDs using date partitioning
+    pmids = query_pubmed_with_date_partitioning(term, start_date, end_date, api_key)
+
+    # Log summary and verify we got all results
+    retrieved_count = len(pmids)
+    logger.info(f"{mod}: Retrieved {retrieved_count} PMIDs via date partitioning")
+    if retrieved_count < expected_count:
+        logger.warning(f"{mod}: Retrieved {retrieved_count} but expected {expected_count} - "
+                       f"missing {expected_count - retrieved_count} PMIDs")
+    elif retrieved_count > expected_count:
+        logger.info(f"{mod}: Retrieved {retrieved_count} (expected {expected_count}) - "
+                    f"slight variance is normal due to timing")
+
+    return pmids
 
 
 def query_pubmed_mod_updates(input_mod, reldate):
