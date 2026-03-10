@@ -4,6 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from agr_literature_service.api.schemas import AuditedObjectModelSchema, EditorSchemaPost, EditorSchemaShow, CrossReferenceSchemaRelated
+from agr_literature_service.api.schemas.copyright_license_schemas import CopyrightLicenseSchemaShow
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 
 
@@ -78,8 +79,8 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     curie: Optional[str] = None
     title: str
 
-    title_synonyms: Optional[List[str]] = Field(default_factory=list)
-    abbreviation_synonyms: Optional[List[str]] = Field(default_factory=list)
+    title_synonyms: Optional[List[str]] = None
+    abbreviation_synonyms: Optional[List[str]] = None
     iso_abbreviation: Optional[str] = None
     medline_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
@@ -87,9 +88,13 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     print_issn: Optional[str] = None
     online_issn: Optional[str] = None
     pages: Optional[str] = None
-    volumes: Optional[List[str]] = Field(default_factory=list)
+    volumes: Optional[List[str]] = None
     abstract: Optional[str] = None
     summary: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = Field(default_factory=list)
     editors: Optional[List[EditorSchemaShow]] = Field(default_factory=list)
     open_access: Optional[bool] = None
+    copyright_license_id: Optional[int] = None
+    copyright_license: Optional[CopyrightLicenseSchemaShow] = None
+    license_list: Optional[List[str]] = None
+    license_start_year: Optional[int] = None
