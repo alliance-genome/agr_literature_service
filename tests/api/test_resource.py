@@ -275,7 +275,8 @@ class TestResource:
             r4_data = by_curie[curie4]
             assert r4_data['title'] == "Journal of Testing Delta"
             assert r4_data['copyright_license_id'] is None
-            assert r4_data.get('copyright_license') is None
+            assert 'copyright_license' in r4_data
+            assert r4_data['copyright_license'] is None
             assert r4_data['license_list'] is None
             assert r4_data['license_start_year'] is None
             assert r4_data['cross_references'][0]['curie'] == "NLM:444444"

@@ -221,6 +221,7 @@ def show_all(db: Session):
             "updated_by": resource.updated_by,
         }
 
+        resource_data["copyright_license"] = None
         if resource.copyright_license:
             cl = resource.copyright_license
             resource_data["copyright_license"] = {
@@ -293,9 +294,6 @@ def show(db: Session, curie: str):
                             detail=f"Resource with the id {curie} is not available")
 
     resource_data = jsonable_encoder(resource)
-
-    if resource.copyright_license:
-        resource_data['copyright_license'] = jsonable_encoder(resource.copyright_license)
 
     cross_references = []
     if resource.cross_reference:
