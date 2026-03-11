@@ -43,13 +43,14 @@ ORDER BY cr.curie, cr.is_obsolete"""
         print(f"Would be Deleting {delete_list}")
     else:
         print(f"Deleting {delete_list}")
-        db_session.execute(text(
-            "DELETE FROM reference_relation WHERE reference_id_from = ANY(:ids) OR reference_id_to = ANY(:ids)"
-        ), {'ids': delete_list})
-        for table_name in ('reference_mod_referencetype', 'reference'):
-            query = f"DELETE FROM {table_name} WHERE reference_id = ANY(:delete_list)"
-            db_session.execute(text(query), {'delete_list': delete_list})
-        db_session.commit()
+        if delete_list:
+            db_session.execute(text(
+                "DELETE FROM reference_relation WHERE reference_id_from = ANY(:ids) OR reference_id_to = ANY(:ids)"
+            ), {'ids': delete_list})
+            for table_name in ('reference_mod_referencetype', 'reference'):
+                query = f"DELETE FROM {table_name} WHERE reference_id = ANY(:delete_list)"
+                db_session.execute(text(query), {'delete_list': delete_list})
+            db_session.commit()
 
 
 if __name__ == "__main__":
