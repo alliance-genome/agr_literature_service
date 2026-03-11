@@ -189,7 +189,7 @@ def build_esearch_url(term: str, retmax: int = PUBMED_MAX_RESULTS,
 
 
 def get_esearch_count(term: str, mindate: str = None, maxdate: str = None,
-                      api_key: str = None) -> int:
+                      api_key: str = None, max_retries: int = 3) -> int:
     """
     Query PubMed ESearch to get the count of results for a search term.
 
@@ -198,20 +198,36 @@ def get_esearch_count(term: str, mindate: str = None, maxdate: str = None,
         mindate: Start date in YYYY/MM/DD format
         maxdate: End date in YYYY/MM/DD format
         api_key: NCBI API key
+        max_retries: Number of retries on network error
 
     Returns:
         Count of matching records
+
+    Raises:
+        Exception: If all retries fail
     """
     url = build_esearch_url(term, retmax=0, mindate=mindate, maxdate=maxdate, api_key=api_key)
-    try:
-        f = urllib.request.urlopen(url)
-        xml_response = f.read().decode('utf-8')
-        count_match = re.search(r"<Count>(\d+)</Count>", xml_response)
-        if count_match:
-            return int(count_match.group(1))
-    except Exception as e:
-        logger.error(f"Error getting count from PubMed: {e}")
-    return 0
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            f = urllib.request.urlopen(url)
+            xml_response = f.read().decode('utf-8')
+            count_match = re.search(r"<Count>(\d+)</Count>", xml_response)
+            if count_match:
+                return int(count_match.group(1))
+            return 0
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                sleep_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                logger.warning(f"Error getting count from PubMed (attempt {attempt + 1}/{max_retries}): {e}. "
+                               f"Retrying in {sleep_time}s...")
+                time.sleep(sleep_time)
+            else:
+                logger.error(f"Error getting count from PubMed after {max_retries} attempts: {e}")
+
+    raise Exception(f"Failed to get PubMed count after {max_retries} attempts: {last_error}")
 
 
 def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
@@ -265,7 +281,8 @@ def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
 
 
 def _fetch_pmids_from_pubmed(term: str, mindate: str, maxdate: str,
-                             api_key: str = None, sleep_delay: float = 0.5) -> Set[str]:
+                             api_key: str = None, sleep_delay: float = 0.5,
+                             max_retries: int = 3) -> Set[str]:
     """
     Fetch PMIDs from PubMed ESearch for a given term and date range.
 
@@ -275,26 +292,41 @@ def _fetch_pmids_from_pubmed(term: str, mindate: str, maxdate: str,
         maxdate: End date in YYYY/MM/DD format
         api_key: NCBI API key
         sleep_delay: Delay between API calls
+        max_retries: Number of retries on network error
 
     Returns:
         Set of PMIDs (as strings without 'PMID:' prefix)
+
+    Raises:
+        Exception: If all retries fail
     """
-    pmids = set()
+    pmids: Set[str] = set()
     time.sleep(sleep_delay)
 
     url = build_esearch_url(term, retmax=PUBMED_MAX_RESULTS, mindate=mindate,
                             maxdate=maxdate, api_key=api_key)
-    try:
-        f = urllib.request.urlopen(url)
-        xml_response = f.read().decode('utf-8')
+    last_error = None
 
-        pmid_matches = re.findall(r"<Id>(\d+)</Id>", xml_response)
-        pmids.update(pmid_matches)
-        logger.debug(f"Fetched {len(pmid_matches)} PMIDs for {mindate} to {maxdate}")
-    except Exception as e:
-        logger.error(f"Error fetching PMIDs from PubMed: {e}")
+    for attempt in range(max_retries):
+        try:
+            f = urllib.request.urlopen(url)
+            xml_response = f.read().decode('utf-8')
 
-    return pmids
+            pmid_matches = re.findall(r"<Id>(\d+)</Id>", xml_response)
+            pmids.update(pmid_matches)
+            logger.debug(f"Fetched {len(pmid_matches)} PMIDs for {mindate} to {maxdate}")
+            return pmids
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                retry_sleep = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                logger.warning(f"Error fetching PMIDs from PubMed (attempt {attempt + 1}/{max_retries}): {e}. "
+                               f"Retrying in {retry_sleep}s...")
+                time.sleep(retry_sleep)
+            else:
+                logger.error(f"Error fetching PMIDs from PubMed after {max_retries} attempts: {e}")
+
+    raise Exception(f"Failed to fetch PMIDs from PubMed after {max_retries} attempts: {last_error}")
 
 
 def query_pubmed_for_mod(mod: str, term: str, reldate_days: int,

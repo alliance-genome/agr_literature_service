@@ -188,8 +188,6 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         message += f"<li>In {mod} Corpus: {len(pmids_in_corpus_set)}"
         logger.info(f"Associated but Outside Corpus: {len(pmids_associated_with_mod_but_out_corpus_set)}")
         message += f"<li>Associated but Outside Corpus: {len(pmids_associated_with_mod_but_out_corpus_set)}"
-        logger.info(f"Not Associated with {mod}: {len(pmids_in_db_but_not_associated_with_mod_set)}")
-        message += f"<li>Not Associated with {mod}: {len(pmids_in_db_but_not_associated_with_mod_set)}"
         if len(pmids_associated_with_mod_but_out_corpus_set) > 0:
             fw.write("Associated but Outside Corpus:\n\n")
             for pmid in pmids_associated_with_mod_but_out_corpus_set:
@@ -197,19 +195,29 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
             fw.write("\n")
             has_logfile = True
         if len(pmids_in_db_but_not_associated_with_mod_set) > 0:
+            pmids_added_to_corpus = set()
             # For SGD, add these papers to the SGD corpus
             if datasetName == "SGD":
-                added_count = associate_sgd_interaction_papers_with_corpus(
+                added_count, pmids_added_to_corpus = associate_sgd_interaction_papers_with_corpus(
                     db_session, pmids_in_db_but_not_associated_with_mod_set
                 )
                 if added_count > 0:
                     logger.info(f"Added {added_count} paper(s) to SGD corpus")
                     message += f"<li>Added to SGD Corpus: {added_count}"
-            fw.write(f"Not Associated with {mod}:\n\n")
-            for pmid in pmids_in_db_but_not_associated_with_mod_set:
-                fw.write(f"PMID:{pmid} ({pmid_to_src.get(pmid)})\n")
-            fw.write("\n")
-            has_logfile = True
+            # Only log PMIDs that were not just added to the corpus
+            pmids_still_not_associated = pmids_in_db_but_not_associated_with_mod_set - pmids_added_to_corpus
+            # Log the count after SGD papers have been added
+            logger.info(f"Not Associated with {mod}: {len(pmids_still_not_associated)}")
+            message += f"<li>Not Associated with {mod}: {len(pmids_still_not_associated)}"
+            if len(pmids_still_not_associated) > 0:
+                fw.write(f"Not Associated with {mod}:\n\n")
+                for pmid in pmids_still_not_associated:
+                    fw.write(f"PMID:{pmid} ({pmid_to_src.get(pmid)})\n")
+                fw.write("\n")
+                has_logfile = True
+        else:
+            logger.info(f"Not Associated with {mod}: 0")
+            message += f"<li>Not Associated with {mod}: 0"
     else:
         pmids_in_db_but_not_associated_with_mod_set = set(all_pmids) - pmids_out_db_set
         logger.info(f"In Database: {len(pmids_in_db_but_not_associated_with_mod_set)}")
@@ -266,17 +274,17 @@ def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
         pmids: Set of PMIDs to associate
 
     Returns:
-        Number of papers associated
+        Tuple of (count of papers associated, set of PMIDs that were added)
     """
     if not pmids:
-        return 0
+        return 0, set()
 
     sgd_mod = db_session.query(ModModel).filter(
         ModModel.abbreviation == 'SGD'
     ).first()
     if not sgd_mod:
         logger.warning("SGD MOD not found in database")
-        return 0
+        return 0, set()
 
     sgd_mod_id = sgd_mod.mod_id
 
@@ -296,7 +304,7 @@ def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
     reference_ids_in_db = set(pmid_to_ref_id.values())
 
     if not reference_ids_in_db:
-        return 0
+        return 0, set()
 
     ref_ids_list = list(reference_ids_in_db)
 
@@ -313,8 +321,12 @@ def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
 
     already_associated = {row[0] for row in refs_already_associated}
 
+    # Build reverse mapping: ref_id -> pmid
+    ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
+
     # Add mod_corpus_association for papers not yet associated with SGD
     count = 0
+    pmids_added = set()
     for ref_id in reference_ids_in_db:
         if ref_id not in already_associated:
             mca = ModCorpusAssociationModel(
@@ -325,12 +337,14 @@ def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
             )
             db_session.add(mca)
             count += 1
+            if ref_id in ref_id_to_pmid:
+                pmids_added.add(ref_id_to_pmid[ref_id])
 
     if count > 0:
         db_session.commit()
         logger.info(f"Associated {count} SGD interaction paper(s) with SGD corpus")
 
-    return count
+    return count, pmids_added
 
 
 def associate_human_papers_with_alliance(db_session, all_pmids):
