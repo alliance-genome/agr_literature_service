@@ -16,7 +16,7 @@ class TestXmlToJson:
         assert get_alliance_category_from_pubmed_types(["Journal Article", "Review"]) == "Review_Article"
         assert get_alliance_category_from_pubmed_types(["Journal Article", "Published Erratum"]) == "Correction"
         assert get_alliance_category_from_pubmed_types(["Journal Article", "Research Support, Non-U.S. Gov't",
-                                                        "Retracted Publication"]) == "Retraction"
+                                                        "Retraction Notice"]) == "Retraction"
         assert get_alliance_category_from_pubmed_types(["Preprint"]) == "Preprint"
 
     def test_generate_json(self, cleanup_tmp_files_when_done): # noqa

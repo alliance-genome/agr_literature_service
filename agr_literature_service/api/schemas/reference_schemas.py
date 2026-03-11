@@ -52,6 +52,7 @@ class ReferenceSchemaPost(BaseModel):
     mod_corpus_associations: Optional[List[ModCorpusAssociationSchemaCreate]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
+    retraction_status: Optional[str] = None
     mesh_terms: Optional[List[MeshDetailSchemaCreate]] = None
     cross_references: Optional[List[CrossReferenceSchemaCreate]] = None
     authors: Optional[List[AuthorSchemaPost]] = None
@@ -86,6 +87,7 @@ class ReferenceSchemaUpdate(BaseModel):
     pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
+    retraction_status: Optional[str] = None
     resource: Optional[str] = None
     prepublication_pipeline: Optional[bool] = False
 
@@ -183,6 +185,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     resources_for_curation: Optional[List[Dict[str, str]]] = None
     publisher: Optional[str] = None
     issue_name: Optional[str] = None
+    retraction_status: Optional[str] = None
     # mesh_term: Optional[List[MeshDetailSchemaRelated]] = None  # allow singular mesh_term
     mesh_terms: Optional[List[MeshDetailSchemaRelated]] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = None

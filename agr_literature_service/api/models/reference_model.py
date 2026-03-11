@@ -195,6 +195,14 @@ class ReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
+    # ATP curies: ATP:0000346 (retracted), ATP:0000348 (fully retracted),
+    # ATP:0000347 (partially retracted). NULL means not retracted.
+    retraction_status = Column(
+        String(),
+        unique=False,
+        nullable=True
+    )
+
     mesh_term = relationship(
         "MeshDetailModel",
         back_populates="reference",
