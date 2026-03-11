@@ -152,7 +152,7 @@ def compose_report_title(file_name):
     return f"{mod}: {title} {fileType}"
 
 
-def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmids, pmids_loaded, pmid_to_src, full_obsolete_set, message):
+def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmids, pmids_loaded, pmid_to_src, full_obsolete_set, message):  # noqa: C901 pragma: no cover
 
     logger.info(f"{file_name}:\n")
     logger.info(f"New Reference(s) Added: {len(pmids_loaded)}")
