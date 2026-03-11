@@ -197,6 +197,14 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
             fw.write("\n")
             has_logfile = True
         if len(pmids_in_db_but_not_associated_with_mod_set) > 0:
+            # For SGD, add these papers to the SGD corpus
+            if datasetName == "SGD":
+                added_count = associate_sgd_interaction_papers_with_corpus(
+                    db_session, pmids_in_db_but_not_associated_with_mod_set
+                )
+                if added_count > 0:
+                    logger.info(f"Added {added_count} paper(s) to SGD corpus")
+                    message += f"<li>Added to SGD Corpus: {added_count}"
             fw.write(f"Not Associated with {mod}:\n\n")
             for pmid in pmids_in_db_but_not_associated_with_mod_set:
                 fw.write(f"PMID:{pmid} ({pmid_to_src.get(pmid)})\n")
@@ -245,6 +253,84 @@ def search_pubmed(pmids):
             valid_pmids.append(pmid)
 
     return obsolete_pmids, valid_pmids
+
+
+def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
+    """
+    Associate SGD interaction papers with the SGD corpus.
+    Only associates papers that do NOT already have a mod_corpus_association
+    with SGD.
+
+    Args:
+        db_session: Database session
+        pmids: Set of PMIDs to associate
+
+    Returns:
+        Number of papers associated
+    """
+    if not pmids:
+        return 0
+
+    sgd_mod = db_session.query(ModModel).filter(
+        ModModel.abbreviation == 'SGD'
+    ).first()
+    if not sgd_mod:
+        logger.warning("SGD MOD not found in database")
+        return 0
+
+    sgd_mod_id = sgd_mod.mod_id
+
+    # Build parameterized query for PMIDs
+    pmid_curies = [f"PMID:{pmid}" for pmid in pmids]
+
+    # Get reference_ids for PMIDs using parameterized query
+    query = text(
+        "SELECT cr.curie, cr.reference_id "
+        "FROM cross_reference cr "
+        "WHERE cr.curie = ANY(:pmid_curies) "
+        "AND cr.is_obsolete = False"
+    )
+    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
+
+    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
+    reference_ids_in_db = set(pmid_to_ref_id.values())
+
+    if not reference_ids_in_db:
+        return 0
+
+    ref_ids_list = list(reference_ids_in_db)
+
+    # Get reference_ids that already have an association with SGD
+    refs_already_associated_query = text(
+        "SELECT DISTINCT reference_id FROM mod_corpus_association "
+        "WHERE reference_id = ANY(:ref_ids) "
+        "AND mod_id = :sgd_mod_id"
+    )
+    refs_already_associated = db_session.execute(
+        refs_already_associated_query,
+        {"ref_ids": ref_ids_list, "sgd_mod_id": sgd_mod_id}
+    ).fetchall()
+
+    already_associated = {row[0] for row in refs_already_associated}
+
+    # Add mod_corpus_association for papers not yet associated with SGD
+    count = 0
+    for ref_id in reference_ids_in_db:
+        if ref_id not in already_associated:
+            mca = ModCorpusAssociationModel(
+                reference_id=ref_id,
+                mod_id=sgd_mod_id,
+                corpus=True,
+                mod_corpus_sort_source=ModCorpusSortSourceType.Automated_alliance
+            )
+            db_session.add(mca)
+            count += 1
+
+    if count > 0:
+        db_session.commit()
+        logger.info(f"Associated {count} SGD interaction paper(s) with SGD corpus")
+
+    return count
 
 
 def associate_human_papers_with_alliance(db_session, all_pmids):
