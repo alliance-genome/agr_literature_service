@@ -43,6 +43,9 @@ ORDER BY cr.curie, cr.is_obsolete"""
         print(f"Would be Deleting {delete_list}")
     else:
         print(f"Deleting {delete_list}")
+        db_session.execute(text(
+            "DELETE FROM reference_relation WHERE reference_id_from = ANY(:ids) OR reference_id_to = ANY(:ids)"
+        ), {'ids': delete_list})
         for table_name in ('reference_mod_referencetype', 'reference'):
             query = f"DELETE FROM {table_name} WHERE reference_id = ANY(:delete_list)"
             db_session.execute(text(query), {'delete_list': delete_list})
@@ -53,7 +56,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Remove duplicate references')
     parser.add_argument('--mod', type=str, default='FB',
                         help='MOD abbreviation (default: FB)')
-    parser.add_argument('--saveit', type=bool, default=False,
+    parser.add_argument('--saveit', action='store_true', default=False,
                         help='saveit mode (default: False)')
     args = parser.parse_args()
 
