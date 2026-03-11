@@ -10,7 +10,7 @@ from markdown_it import MarkdownIt
 from starlette import status
 
 from agr_literature_service.api.auth import get_authenticated_user
-from agr_literature_service.lit_processing.xml2md import (
+from agr_abc_document_parsers import (
     convert_xml_to_markdown,
     validate_markdown,
 )
