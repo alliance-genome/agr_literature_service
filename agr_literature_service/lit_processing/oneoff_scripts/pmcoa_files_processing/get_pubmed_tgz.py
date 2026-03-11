@@ -1,8 +1,15 @@
+"""
+DEPRECATED: This script uses PMC FTP service which will be retired August 2026.
+Use pubmed_download_pmc_files.py with AWS S3 bucket pmc-oa-opendata instead.
+See: https://ncbiinsights.ncbi.nlm.nih.gov/2026/02/12/pmc-article-dataset-distribution-services/
+"""
+
 import argparse
 import logging
 import logging.config
 import time
 import urllib
+import warnings
 from os import environ, makedirs, path
 
 import requests  # noqa flake8 will complain about this, but without it urllib.request will not work
@@ -11,6 +18,14 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 
 load_dotenv()
 init_tmp_dir()
+
+# DEPRECATED: PMC FTP service retiring August 2026
+# Use AWS S3 bucket pmc-oa-opendata instead
+warnings.warn(
+    "get_pubmed_tgz.py uses PMC FTP which is deprecated August 2026. "
+    "Use pubmed_download_pmc_files.py with S3 instead.",
+    DeprecationWarning
+)
 
 # pipenv run python get_pubmed_tgz.py -f /home/azurebrd/git/agr_literature_service_demo/src/xml_processing/inputs/alliance_pmids
 

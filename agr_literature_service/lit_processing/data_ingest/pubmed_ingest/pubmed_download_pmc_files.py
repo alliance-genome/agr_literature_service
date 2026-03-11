@@ -9,7 +9,7 @@ from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file, gunzip_file, gzip_file
+    download_file, gunzip_file, gzip_file, download_pmc_package_from_s3
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     load_ref_file_metadata_into_db
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_identify_main_pdfs import \
@@ -22,34 +22,28 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 s3_bucket = 'agr-literature'
-pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
+# Legacy FTP URL - deprecated August 2026
+# pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
 dataDir = 'data/'
 pmcFileDir = 'pubmed_pmc_download/'
 suppl_file_uploaded = dataDir + "pmc_oa_files_uploaded.txt"
 batch_size = 250
 
 
-def download_pmc_files(mapping_file):  # pragma: no cover
+def download_pmc_files(mapping_file=None):  # pragma: no cover
+    """
+    Download PMC Open Access packages for papers in the corpus.
 
-    logger.info("Reading oa_file_list.csv mapping file...")
+    Uses AWS S3 bucket pmc-oa-opendata (new method, August 2026+).
+    The mapping_file parameter is kept for backward compatibility but is no longer used.
+    """
+    logger.info("Retrieving PMID/PMCID list for papers that do not have PMC package downloaded...")
 
-    (pmid_to_oa_url, pmid_to_license) = get_pmid_to_pmc_url_mapping(mapping_file)
+    (pmcids_for_pmc_loading, pmids_for_license_loading) = get_pmids_and_pmcids()
 
-    logger.info("Retrieving pmid list for papers that do not have PMC package downloaded...")
+    logger.info("Downloading PMC OA packages from S3...")
 
-    (pmids_for_pmc_loading, pmids_for_license_loading) = get_pmids()
-
-    logger.info("Loading the license data into database...")
-
-    load_license_into_db(pmids_for_license_loading, pmid_to_license)
-
-    logger.info("Downloading PMC OA packages...")
-
-    download_packages(pmids_for_pmc_loading, pmid_to_oa_url)
-
-    logger.info("Unpacking PMC OA packages...")
-
-    unpack_packages()
+    download_packages_from_s3(pmcids_for_pmc_loading)
 
     logger.info("Uploading the files to s3...")
 
@@ -148,8 +142,36 @@ def unpack_packages():  # pragma: no cover
                 remove(file_with_path)
 
 
-def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover
+def download_packages_from_s3(pmcids):  # pragma: no cover
+    """
+    Download PMC packages from AWS S3 bucket pmc-oa-opendata.
 
+    Args:
+        pmcids: List of tuples (pmid, pmcid) to download
+    """
+    for (pmid, pmcid) in pmcids:
+        # Check if already downloaded
+        pmid_dir = path.join(pmcFileDir, pmid)
+        if path.exists(pmid_dir):
+            continue
+
+        logger.info(f"PMID:{pmid} PMCID:{pmcid} - Downloading from S3...")
+        makedirs(pmid_dir, exist_ok=True)
+
+        # Download to pmid_dir/pmcid/ structure to match existing code expectations
+        success = download_pmc_package_from_s3(pmcid, pmid_dir)
+        if not success:
+            logger.warning(f"Failed to download PMC package for PMID:{pmid} PMCID:{pmcid}")
+
+
+def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover
+    """
+    Legacy function - downloads PMC packages from FTP.
+    Deprecated: Use download_packages_from_s3 instead.
+    """
+    logger.warning("download_packages using FTP is deprecated. Use download_packages_from_s3.")
+    # Keep for backward compatibility with annual_pmc_package_update.py
+    pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
     for pmid in pmids:
         pmc_file = pmcFileDir + pmid + '.tar.gz'
         if path.exists(pmc_file):
@@ -160,8 +182,15 @@ def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover
             download_file(pmc_url, pmc_file)
 
 
-def get_pmids():  # pragma: no cover
+def get_pmids_and_pmcids():  # pragma: no cover
+    """
+    Get PMIDs and PMCIDs for papers that need PMC package downloads.
 
+    Returns:
+        Tuple of (pmcids_for_pmc_loading, pmids_for_license_loading)
+        - pmcids_for_pmc_loading: List of (pmid, pmcid) tuples
+        - pmids_for_license_loading: List of (pmid, reference_id) tuples
+    """
     db_session = create_postgres_session(False)
 
     rows = db_session.execute(text("SELECT distinct rf.reference_id "
@@ -181,21 +210,22 @@ def get_pmids():  # pragma: no cover
     for x in rows:
         reference_ids_with_license.add(x[0])
 
-    pmids_for_pmc_loading = []
+    pmcids_for_pmc_loading = []
     pmids_for_license_loading = []
 
     limit = 5000
     loop_count = 200000
     for index in range(loop_count):
         offset = index * limit
-        logger.info(f"offset={offset} Retrieving pmids...")
-        rows = db_session.execute(text(f"SELECT cr.reference_id, cr.curie "
+        logger.info(f"offset={offset} Retrieving pmids and pmcids...")
+        rows = db_session.execute(text(f"SELECT cr.reference_id, cr.curie as pmid, cr2.curie as pmcid "
                                        f"FROM cross_reference cr, mod_corpus_association mca, "
                                        f"cross_reference cr2 "
                                        f"WHERE cr.curie_prefix = 'PMID' "
                                        f"AND cr.is_obsolete is False "
                                        f"AND cr.reference_id = cr2.reference_id "
                                        f"AND cr2.curie_prefix = 'PMCID' "
+                                       f"AND cr2.is_obsolete is False "
                                        f"AND cr.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
                                        f"order by cr.reference_id "
@@ -205,16 +235,27 @@ def get_pmids():  # pragma: no cover
             break
 
         for x in rows:
-            pmid = x["curie"].replace("PMID:", "")
+            pmid = x["pmid"].replace("PMID:", "")
+            pmcid = x["pmcid"].replace("PMCID:", "")
             if x["reference_id"] not in reference_ids_with_PMC:
-                if pmid not in pmids_for_pmc_loading:
-                    pmids_for_pmc_loading.append(pmid)
+                if (pmid, pmcid) not in pmcids_for_pmc_loading:
+                    pmcids_for_pmc_loading.append((pmid, pmcid))
             if x["reference_id"] not in reference_ids_with_license:
-                if pmid not in pmids_for_license_loading:
+                if (pmid, x["reference_id"]) not in pmids_for_license_loading:
                     pmids_for_license_loading.append((pmid, x["reference_id"]))
 
     db_session.close()
 
+    return (pmcids_for_pmc_loading, pmids_for_license_loading)
+
+
+def get_pmids():  # pragma: no cover
+    """
+    Legacy function for backward compatibility.
+    Returns PMIDs only (not PMCIDs).
+    """
+    pmcids_for_pmc_loading, pmids_for_license_loading = get_pmids_and_pmcids()
+    pmids_for_pmc_loading = [pmid for (pmid, pmcid) in pmcids_for_pmc_loading]
     return (pmids_for_pmc_loading, pmids_for_license_loading)
 
 
@@ -286,9 +327,6 @@ if __name__ == "__main__":
 
     create_tmp_dirs()
 
-    oafile_ftp = 'ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.csv'
-    mapping_file = dataDir + "oa_file_list.csv"
-
-    download_file(oafile_ftp, mapping_file)
-
-    download_pmc_files(mapping_file)
+    # PMC FTP service deprecated August 2026
+    # Now using AWS S3 bucket pmc-oa-opendata directly
+    download_pmc_files()

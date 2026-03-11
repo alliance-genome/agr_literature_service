@@ -940,11 +940,16 @@ def main():
     makedirs(DATA_DIR, exist_ok=True)
 
     # Download oa_file_list.csv
+    # NOTE: PMC FTP service deprecated August 2026. Migration to S3 in progress.
+    # See: https://ncbiinsights.ncbi.nlm.nih.gov/2026/02/12/pmc-article-dataset-distribution-services/
+    # TODO: Update to use S3 inventory at s3://pmc-oa-opendata/inventory-reports/
     oafile_ftp = "ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.csv"
     mapping_file = path.join(DATA_DIR, "oa_file_list.csv")
 
     try:
         log_progress(f"Downloading {oafile_ftp}...")
+        log_progress("WARNING: PMC FTP service will be deprecated August 2026. "
+                     "Migration to AWS S3 bucket pmc-oa-opendata is in progress.")
         download_file(oafile_ftp, mapping_file)
         log_progress(f"Successfully downloaded to {mapping_file}")
     except Exception as e:

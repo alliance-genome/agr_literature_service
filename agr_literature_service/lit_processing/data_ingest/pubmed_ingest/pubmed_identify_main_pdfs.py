@@ -15,7 +15,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 rootUrl = "https://www.ncbi.nlm.nih.gov"
-pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
 
 ## the following file is created by main PMC downloading program
 ## (pubmed_download_pmc_files.py) that calls this program
