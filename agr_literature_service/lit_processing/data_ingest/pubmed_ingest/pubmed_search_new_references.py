@@ -232,7 +232,7 @@ def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
     Returns:
         Set of PMIDs (as strings without 'PMID:' prefix)
     """
-    pmids = set()
+    pmids: Set[str] = set()
     mindate_str = start_date.strftime('%Y/%m/%d')
     maxdate_str = end_date.strftime('%Y/%m/%d')
 
@@ -463,27 +463,36 @@ def query_mods(input_mod, reldate):  # noqa: C901
                 chunk = pmids_wanted[i:i + CHUNK_SIZE]
                 logger.info(f"Checking database for PMIDs {i + 1} to {min(i + CHUNK_SIZE, len(pmids_wanted))} of {len(pmids_wanted)}")
                 chunk_result = get_pmid_association_to_mod_via_reference(db_session, chunk, mod)
+
+                # Debug: count results for this chunk
+                chunk_has_ref = sum(1 for v in chunk_result.values() if v[0] is not None)
+                chunk_has_mod = sum(1 for v in chunk_result.values() if v[1] is not None)
+                chunk_no_ref = sum(1 for v in chunk_result.values() if v[0] is None)
+                logger.info(f"  Chunk results: {chunk_has_ref} have reference, {chunk_has_mod} have {mod} MCA, {chunk_no_ref} not in DB")
+
+                # Debug: sample some PMIDs that appear to not be in DB
+                if chunk_no_ref > 0:
+                    sample_missing = [k for k, v in chunk_result.items() if v[0] is None][:5]
+                    logger.info(f"  Sample PMIDs marked as 'not in DB': {sample_missing}")
+
                 pmid_curie_mod_dict.update(chunk_result)
-            # to debug
-            # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
-            # print(mod)
-            # print(json_data)
-            # pmids_joined = (',').join(sorted(pmids_wanted))
-            # logger.info(pmids_joined)
-            # logger.info(len(pmids_wanted))
+
+            # Debug: summarize totals before processing
+            total_has_ref = sum(1 for v in pmid_curie_mod_dict.values() if v[0] is not None)
+            total_has_mod = sum(1 for v in pmid_curie_mod_dict.values() if v[1] is not None)
+            total_no_ref = sum(1 for v in pmid_curie_mod_dict.values() if v[0] is None)
+            logger.info(f"{mod} DB lookup summary: {total_has_ref} have reference, {total_has_mod} have {mod} MCA, {total_no_ref} not in DB")
+
             for pmid in pmids_wanted:
                 if pmid in pmids4mod['all']:
-                    # the same paper already added during seacrh for other mod papers
+                    # the same paper already added during search for other mod papers
                     pmids4mod[mod].add(pmid)
                 if pmid in pmid_curie_mod_dict:
                     agr_curie = pmid_curie_mod_dict[pmid][0]
                     in_corpus = pmid_curie_mod_dict[pmid][1]
-                    # to debug
-                    # print(f"{pmid}\t{agr_curie}\t{in_corpus}")
                     if agr_curie is None:
                         pmids_to_create.append(pmid.replace('PMID:', ''))
                     elif in_corpus is None:
-                        # print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
         logger.info(f"pmids_to_create: {len(pmids_to_create)}")
 
