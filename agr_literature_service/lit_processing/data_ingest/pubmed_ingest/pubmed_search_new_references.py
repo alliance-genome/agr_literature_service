@@ -232,7 +232,8 @@ def get_esearch_count(term: str, mindate: str = None, maxdate: str = None,
 
 def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
                                         end_date: datetime, api_key: str = None,
-                                        sleep_delay: float = 0.5) -> Set[str]:
+                                        sleep_delay: float = 0.5,
+                                        initial_count: int = None) -> Set[str]:
     """
     Query PubMed ESearch with automatic date range partitioning to handle
     the 10,000 result limit. If a query returns >= 10,000 results, the date
@@ -244,6 +245,7 @@ def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
         end_date: End date for the search range
         api_key: NCBI API key for higher rate limits
         sleep_delay: Delay between API calls to respect rate limits
+        initial_count: Optional pre-fetched count to avoid redundant API call
 
     Returns:
         Set of PMIDs (as strings without 'PMID:' prefix)
@@ -252,8 +254,12 @@ def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
     mindate_str = start_date.strftime('%Y/%m/%d')
     maxdate_str = end_date.strftime('%Y/%m/%d')
 
-    time.sleep(sleep_delay)
-    count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
+    # Use pre-fetched count if provided, otherwise fetch it
+    if initial_count is not None:
+        count = initial_count
+    else:
+        time.sleep(sleep_delay)
+        count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
 
     logger.info(f"Date range {mindate_str} to {maxdate_str}: {count} results")
 
@@ -355,8 +361,9 @@ def query_pubmed_for_mod(mod: str, term: str, reldate_days: int,
     expected_count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
     logger.info(f"{mod}: PubMed reports {expected_count} total results for date range")
 
-    # Retrieve all PMIDs using date partitioning
-    pmids = query_pubmed_with_date_partitioning(term, start_date, end_date, api_key)
+    # Retrieve all PMIDs using date partitioning, passing the count to avoid redundant API call
+    pmids = query_pubmed_with_date_partitioning(term, start_date, end_date, api_key,
+                                                initial_count=expected_count)
 
     # Log summary and verify we got all results
     retrieved_count = len(pmids)
@@ -476,7 +483,11 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
         # Query PubMed with date partitioning to handle >10K results
         term = mod_search_terms[mod]
-        pmid_group = query_pubmed_for_mod(mod, term, reldate_days, api_key)
+        try:
+            pmid_group = query_pubmed_for_mod(mod, term, reldate_days, api_key)
+        except Exception as e:
+            logger.error(f"Failed to query PubMed for {mod}: {e}. Skipping this MOD.")
+            continue
         logger.info(f"Total PMIDs retrieved for {mod}: {len(pmid_group)}")
 
         pmids_to_create = []
