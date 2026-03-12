@@ -231,7 +231,7 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=N
                 except Exception as e:
                     logger.warning(f"PMID:{pmid} - FTP fallback failed: {e}")
             else:
-                logger.warning(f"Failed to download PMC package for PMID:{pmid} PMCID:{pmcid} (not in S3, no FTP fallback)")
+                logger.warning(f"PMID:{pmid} PMCID:{pmcid} - Not available (not in PMC Open Access subset)")
 
     # Summary of download sources
     logger.info(f"Download summary: {s3_download_count} from S3 (pmc-oa-opendata), {ftp_fallback_count} from FTP (fallback)")
