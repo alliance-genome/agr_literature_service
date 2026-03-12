@@ -43,22 +43,23 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
 
     (pmcids_for_pmc_loading, pmids_for_license_loading) = get_pmids_and_pmcids()
 
-    # Load FTP mapping for fallback (older PMCIDs not in S3)
+    # Load FTP mapping for fallback (older PMCIDs not in S3) and license info
     pmid_to_oa_url = None
+    pmid_to_license = {}
     if mapping_file and path.exists(mapping_file):
-        logger.info("Loading FTP mapping from oa_file_list.csv for fallback...")
-        (pmid_to_oa_url, _) = get_pmid_to_pmc_url_mapping(mapping_file)
+        logger.info("Loading FTP mapping and license info from oa_file_list.csv...")
+        (pmid_to_oa_url, pmid_to_license) = get_pmid_to_pmc_url_mapping(mapping_file)
     else:
-        # Download the mapping file for fallback
-        logger.info("Downloading oa_file_list.csv for FTP fallback...")
+        # Download the mapping file for fallback and license info
+        logger.info("Downloading oa_file_list.csv for FTP fallback and license info...")
         oafile_ftp = 'ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.csv'
         mapping_file = dataDir + "oa_file_list.csv"
         try:
             download_file(oafile_ftp, mapping_file)
-            (pmid_to_oa_url, _) = get_pmid_to_pmc_url_mapping(mapping_file)
+            (pmid_to_oa_url, pmid_to_license) = get_pmid_to_pmc_url_mapping(mapping_file)
         except Exception as e:
             logger.warning(f"Could not download oa_file_list.csv for fallback: {e}")
-            logger.warning("Will only use S3 - older PMCIDs may fail")
+            logger.warning("Will only use S3 - older PMCIDs may fail, license loading skipped")
 
     logger.info("Downloading PMC OA packages (S3 primary, FTP fallback)...")
 
@@ -75,6 +76,10 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
     logger.info("Identifying main PDF files in the database...")
 
     identify_main_pdfs(True)
+
+    if pmid_to_license:
+        logger.info("Loading license information into database...")
+        load_license_into_db(pmids_for_license_loading, pmid_to_license)
 
 
 def upload_suppl_files_to_s3():  # pragma: no cover
