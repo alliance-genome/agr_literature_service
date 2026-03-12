@@ -9,7 +9,7 @@ from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file, gunzip_file, gzip_file, download_pmc_package_from_s3
+    download_file, gunzip_file, gzip_file, download_pmc_package_from_s3, get_pmc_license_from_s3
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     load_ref_file_metadata_into_db
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_identify_main_pdfs import \
@@ -36,6 +36,7 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
 
     Uses AWS S3 bucket pmc-oa-opendata (new method, August 2026+).
     Falls back to FTP for older PMCIDs not yet migrated to S3.
+    License info is extracted from S3 JSON metadata (FTP CSV as fallback).
 
     The mapping_file parameter is used for FTP fallback if provided.
     """
@@ -43,27 +44,28 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
 
     (pmcids_for_pmc_loading, pmids_for_license_loading) = get_pmids_and_pmcids()
 
-    # Load FTP mapping for fallback (older PMCIDs not in S3) and license info
+    # Load FTP mapping for fallback (older PMCIDs not in S3)
     pmid_to_oa_url = None
-    pmid_to_license = {}
+    pmid_to_license_ftp = {}
     if mapping_file and path.exists(mapping_file):
-        logger.info("Loading FTP mapping and license info from oa_file_list.csv...")
-        (pmid_to_oa_url, pmid_to_license) = get_pmid_to_pmc_url_mapping(mapping_file)
+        logger.info("Loading FTP mapping from oa_file_list.csv for fallback...")
+        (pmid_to_oa_url, pmid_to_license_ftp) = get_pmid_to_pmc_url_mapping(mapping_file)
     else:
-        # Download the mapping file for fallback and license info
-        logger.info("Downloading oa_file_list.csv for FTP fallback and license info...")
+        # Download the mapping file for FTP fallback
+        logger.info("Downloading oa_file_list.csv for FTP fallback...")
         oafile_ftp = 'ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.csv'
         mapping_file = dataDir + "oa_file_list.csv"
         try:
             download_file(oafile_ftp, mapping_file)
-            (pmid_to_oa_url, pmid_to_license) = get_pmid_to_pmc_url_mapping(mapping_file)
+            (pmid_to_oa_url, pmid_to_license_ftp) = get_pmid_to_pmc_url_mapping(mapping_file)
         except Exception as e:
             logger.warning(f"Could not download oa_file_list.csv for fallback: {e}")
-            logger.warning("Will only use S3 - older PMCIDs may fail, license loading skipped")
+            logger.warning("Will only use S3 - older PMCIDs may fail")
 
     logger.info("Downloading PMC OA packages (S3 primary, FTP fallback)...")
 
-    download_packages_from_s3(pmcids_for_pmc_loading, pmid_to_oa_url)
+    # Downloads packages and extracts license info from S3 JSON metadata
+    pmid_to_license = download_packages_from_s3(pmcids_for_pmc_loading, pmid_to_oa_url, pmid_to_license_ftp)
 
     logger.info("Uploading the files to s3...")
 
@@ -78,7 +80,7 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
     identify_main_pdfs(True)
 
     if pmid_to_license:
-        logger.info("Loading license information into database...")
+        logger.info(f"Loading license information for {len(pmid_to_license)} papers into database...")
         load_license_into_db(pmids_for_license_loading, pmid_to_license)
 
 
@@ -166,22 +168,32 @@ def unpack_packages():  # pragma: no cover
                 remove(file_with_path)
 
 
-def download_packages_from_s3(pmcids, pmid_to_oa_url=None):  # pragma: no cover
+def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=None):  # pragma: no cover
     """
     Download PMC packages from AWS S3 bucket pmc-oa-opendata.
     Falls back to FTP for older PMCIDs not yet in S3.
+    Extracts license info from S3 JSON metadata.
 
     Args:
         pmcids: List of tuples (pmid, pmcid) to download
         pmid_to_oa_url: Optional dict mapping PMID to FTP path for fallback
+        pmid_to_license_ftp: Optional dict mapping PMID to license from FTP CSV (fallback)
+
+    Returns:
+        Dict mapping PMID to license_code from S3 metadata
     """
     pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
     ftp_fallback_count = 0
+    pmid_to_license = {}
 
     for (pmid, pmcid) in pmcids:
         # Check if already downloaded
         pmid_dir = path.join(pmcFileDir, pmid)
         if path.exists(pmid_dir) and listdir(pmid_dir):
+            # Still try to get license info from S3 metadata
+            (_, license_code) = get_pmc_license_from_s3(pmcid)
+            if license_code and license_code.startswith('CC'):
+                pmid_to_license[pmid] = license_code
             continue
 
         logger.info(f"PMID:{pmid} PMCID:{pmcid} - Downloading from S3...")
@@ -190,7 +202,12 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None):  # pragma: no cover
         # Try S3 first
         success = download_pmc_package_from_s3(pmcid, pmid_dir)
 
-        if not success:
+        if success:
+            # Get license info from S3 JSON metadata
+            (_, license_code) = get_pmc_license_from_s3(pmcid)
+            if license_code and license_code.startswith('CC'):
+                pmid_to_license[pmid] = license_code
+        else:
             # Fall back to FTP if S3 doesn't have the package
             if pmid_to_oa_url and pmid in pmid_to_oa_url:
                 logger.info(f"PMID:{pmid} - Falling back to FTP download...")
@@ -204,6 +221,9 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None):  # pragma: no cover
                         remove(pmc_file)
                     ftp_fallback_count += 1
                     logger.info(f"PMID:{pmid} - FTP download successful")
+                    # Use license from FTP CSV for fallback downloads
+                    if pmid_to_license_ftp and pmid in pmid_to_license_ftp:
+                        pmid_to_license[pmid] = pmid_to_license_ftp[pmid]
                 except Exception as e:
                     logger.warning(f"PMID:{pmid} - FTP fallback failed: {e}")
             else:
@@ -211,6 +231,8 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None):  # pragma: no cover
 
     if ftp_fallback_count > 0:
         logger.info(f"Used FTP fallback for {ftp_fallback_count} packages (older PMCIDs not yet in S3)")
+
+    return pmid_to_license
 
 
 def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover

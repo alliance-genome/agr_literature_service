@@ -3,6 +3,7 @@ import logging
 import tarfile
 import gzip
 import shutil
+from typing import Optional, Tuple
 from urllib import request
 import datetime
 from os import environ, path, listdir, remove
@@ -480,6 +481,49 @@ def download_pmc_file_from_s3(pmcid: str, file_name: str, dest_path: str,
     except ClientError as e:
         logger.error(f"Error downloading {file_key}: {e}")
         return False
+
+
+def get_pmc_license_from_s3(pmcid: str, version: str = None) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Get license and PMID info from PMC S3 JSON metadata.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402' or '10009402')
+        version: Specific version or None for latest
+
+    Returns:
+        Tuple of (pmid, license_code) - both may be None if not found
+    """
+    import io
+
+    if not pmcid.startswith('PMC'):
+        pmcid = f'PMC{pmcid}'
+
+    if version:
+        prefix = f"{pmcid}.{version}"
+    else:
+        prefix = get_latest_pmc_version(pmcid)
+        if not prefix:
+            return (None, None)
+
+    s3_client = get_pmc_oa_s3_client()
+    json_key = f"{prefix}/{prefix}.json"
+
+    try:
+        response = s3_client.get_object(Bucket=PMC_OA_S3_BUCKET, Key=json_key)
+        metadata = json.loads(response['Body'].read().decode('utf-8'))
+        pmid = metadata.get('pmid')
+        license_code = metadata.get('license_code')
+        # Convert pmid to string if it exists
+        if pmid is not None:
+            pmid = str(pmid)
+        return (pmid, license_code)
+    except ClientError as e:
+        logger.warning(f"Could not get metadata for {pmcid}: {e}")
+        return (None, None)
+    except json.JSONDecodeError as e:
+        logger.warning(f"Could not parse JSON metadata for {pmcid}: {e}")
+        return (None, None)
 
 
 def get_pmc_package_metadata(pmcid: str, version: str = None) -> dict:
