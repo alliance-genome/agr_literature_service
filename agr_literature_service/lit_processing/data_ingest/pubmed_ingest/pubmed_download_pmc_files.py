@@ -35,15 +35,34 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
     Download PMC Open Access packages for papers in the corpus.
 
     Uses AWS S3 bucket pmc-oa-opendata (new method, August 2026+).
-    The mapping_file parameter is kept for backward compatibility but is no longer used.
+    Falls back to FTP for older PMCIDs not yet migrated to S3.
+
+    The mapping_file parameter is used for FTP fallback if provided.
     """
     logger.info("Retrieving PMID/PMCID list for papers that do not have PMC package downloaded...")
 
     (pmcids_for_pmc_loading, pmids_for_license_loading) = get_pmids_and_pmcids()
 
-    logger.info("Downloading PMC OA packages from S3...")
+    # Load FTP mapping for fallback (older PMCIDs not in S3)
+    pmid_to_oa_url = None
+    if mapping_file and path.exists(mapping_file):
+        logger.info("Loading FTP mapping from oa_file_list.csv for fallback...")
+        (pmid_to_oa_url, _) = get_pmid_to_pmc_url_mapping(mapping_file)
+    else:
+        # Download the mapping file for fallback
+        logger.info("Downloading oa_file_list.csv for FTP fallback...")
+        oafile_ftp = 'ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.csv'
+        mapping_file = dataDir + "oa_file_list.csv"
+        try:
+            download_file(oafile_ftp, mapping_file)
+            (pmid_to_oa_url, _) = get_pmid_to_pmc_url_mapping(mapping_file)
+        except Exception as e:
+            logger.warning(f"Could not download oa_file_list.csv for fallback: {e}")
+            logger.warning("Will only use S3 - older PMCIDs may fail")
 
-    download_packages_from_s3(pmcids_for_pmc_loading)
+    logger.info("Downloading PMC OA packages (S3 primary, FTP fallback)...")
+
+    download_packages_from_s3(pmcids_for_pmc_loading, pmid_to_oa_url)
 
     logger.info("Uploading the files to s3...")
 
@@ -142,26 +161,51 @@ def unpack_packages():  # pragma: no cover
                 remove(file_with_path)
 
 
-def download_packages_from_s3(pmcids):  # pragma: no cover
+def download_packages_from_s3(pmcids, pmid_to_oa_url=None):  # pragma: no cover
     """
     Download PMC packages from AWS S3 bucket pmc-oa-opendata.
+    Falls back to FTP for older PMCIDs not yet in S3.
 
     Args:
         pmcids: List of tuples (pmid, pmcid) to download
+        pmid_to_oa_url: Optional dict mapping PMID to FTP path for fallback
     """
+    pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
+    ftp_fallback_count = 0
+
     for (pmid, pmcid) in pmcids:
         # Check if already downloaded
         pmid_dir = path.join(pmcFileDir, pmid)
-        if path.exists(pmid_dir):
+        if path.exists(pmid_dir) and listdir(pmid_dir):
             continue
 
         logger.info(f"PMID:{pmid} PMCID:{pmcid} - Downloading from S3...")
         makedirs(pmid_dir, exist_ok=True)
 
-        # Download to pmid_dir/pmcid/ structure to match existing code expectations
+        # Try S3 first
         success = download_pmc_package_from_s3(pmcid, pmid_dir)
+
         if not success:
-            logger.warning(f"Failed to download PMC package for PMID:{pmid} PMCID:{pmcid}")
+            # Fall back to FTP if S3 doesn't have the package
+            if pmid_to_oa_url and pmid in pmid_to_oa_url:
+                logger.info(f"PMID:{pmid} - Falling back to FTP download...")
+                pmc_file = pmcFileDir + pmid + '.tar.gz'
+                pmc_url = pmcRootUrl + pmid_to_oa_url[pmid]
+                try:
+                    download_file(pmc_url, pmc_file)
+                    # Unpack the tar.gz
+                    gunzip_file(pmc_file, pmid_dir + "/")
+                    if path.exists(pmc_file):
+                        remove(pmc_file)
+                    ftp_fallback_count += 1
+                    logger.info(f"PMID:{pmid} - FTP download successful")
+                except Exception as e:
+                    logger.warning(f"PMID:{pmid} - FTP fallback failed: {e}")
+            else:
+                logger.warning(f"Failed to download PMC package for PMID:{pmid} PMCID:{pmcid} (not in S3, no FTP fallback)")
+
+    if ftp_fallback_count > 0:
+        logger.info(f"Used FTP fallback for {ftp_fallback_count} packages (older PMCIDs not yet in S3)")
 
 
 def download_packages(pmids, pmid_to_oa_url):  # pragma: no cover

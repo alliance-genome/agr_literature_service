@@ -866,10 +866,16 @@ def download_packages_from_s3_for_update(pmids_to_download: list, pmid_to_pmcid:
     """
     Download PMC packages from S3 for the update workflow.
 
+    Note: Older PMCIDs (below ~PMC9000000) may not be in the new S3 bucket yet.
+    These will be skipped. The full migration is expected by August 2026.
+
     Args:
         pmids_to_download: List of PMIDs (with prefix) to download
         pmid_to_pmcid: Dict mapping PMID to PMCID
     """
+    s3_success = 0
+    s3_not_found = 0
+
     for pmid in pmids_to_download:
         pmid_numeric = pmid.replace("PMID:", "")
         pmcid = pmid_to_pmcid.get(pmid, "")
@@ -880,15 +886,28 @@ def download_packages_from_s3_for_update(pmids_to_download: list, pmid_to_pmcid:
         # Create directory structure matching expected format
         # pmcFileDir/PMID:12345/PMC12345/files
         pmid_dir = path.join(pmcFileDir, pmid)
-        if path.exists(pmid_dir):
+        if path.exists(pmid_dir) and listdir(pmid_dir):
             continue
 
         logger.info(f"{pmid} ({pmcid}): Downloading from S3...")
         makedirs(pmid_dir, exist_ok=True)
 
         success = download_pmc_package_from_s3(pmcid, pmid_dir)
-        if not success:
-            logger.warning(f"Failed to download PMC package for {pmid} ({pmcid})")
+        if success:
+            s3_success += 1
+        else:
+            s3_not_found += 1
+            # Clean up empty directory
+            try:
+                if path.exists(pmid_dir) and not listdir(pmid_dir):
+                    import shutil
+                    shutil.rmtree(pmid_dir)
+            except Exception:
+                pass
+            logger.debug(f"PMC package for {pmid} ({pmcid}) not in S3 - may be older package not yet migrated")
+
+    if s3_not_found > 0:
+        logger.info(f"S3 download summary: {s3_success} successful, {s3_not_found} not found (older PMCIDs not yet in S3)")
 
 
 def get_all_pmids_with_files_etc():
