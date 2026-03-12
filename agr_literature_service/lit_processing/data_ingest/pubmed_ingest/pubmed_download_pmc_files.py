@@ -10,6 +10,7 @@ from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_u
     get_md5sum
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     download_file, gunzip_file, gzip_file, download_pmc_package_from_s3, get_pmc_license_from_s3
+import json
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     load_ref_file_metadata_into_db
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_identify_main_pdfs import \
@@ -204,13 +205,33 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=N
         success = download_pmc_package_from_s3(pmcid, pmid_dir)
 
         if success:
-            s3_download_count += 1
-            logger.info(f"PMID:{pmid} PMCID:{pmcid} - S3 download successful (pmc-oa-opendata)")
-            # Get license info from S3 JSON metadata
-            (_, license_code) = get_pmc_license_from_s3(pmcid)
-            if license_code and license_code.startswith('CC'):
-                pmid_to_license[pmid] = license_code
-                logger.info(f"PMID:{pmid} - License from S3 metadata: {license_code}")
+            # Check if package is truly Open Access by reading downloaded JSON metadata
+            package_dir = path.join(pmid_dir, pmcid)
+            json_files = [f for f in listdir(package_dir) if f.endswith('.json')] if path.exists(package_dir) else []
+
+            is_openaccess = False
+            license_code = None
+            if json_files:
+                json_path = path.join(package_dir, json_files[0])
+                try:
+                    with open(json_path, 'r') as f:
+                        metadata = json.load(f)
+                        is_openaccess = metadata.get('is_pmc_openaccess', False)
+                        license_code = metadata.get('license_code')
+                except Exception as e:
+                    logger.warning(f"PMID:{pmid} - Could not read JSON metadata: {e}")
+
+            if is_openaccess:
+                s3_download_count += 1
+                logger.info(f"PMID:{pmid} PMCID:{pmcid} - S3 download successful (pmc-oa-opendata)")
+                if license_code and license_code.startswith('CC'):
+                    pmid_to_license[pmid] = license_code
+                    logger.info(f"PMID:{pmid} - License from S3 metadata: {license_code}")
+            else:
+                # Not true Open Access - remove downloaded files
+                logger.warning(f"PMID:{pmid} PMCID:{pmcid} - Not Open Access (is_pmc_openaccess=false), removing package")
+                if path.exists(pmid_dir):
+                    shutil.rmtree(pmid_dir)
         else:
             # Fall back to FTP if S3 doesn't have the package
             if pmid_to_oa_url and pmid in pmid_to_oa_url:
