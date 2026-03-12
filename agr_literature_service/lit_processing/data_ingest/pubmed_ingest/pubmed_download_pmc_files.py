@@ -230,8 +230,14 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=N
                         pmid_to_license[pmid] = pmid_to_license_ftp[pmid]
                 except Exception as e:
                     logger.warning(f"PMID:{pmid} - FTP fallback failed: {e}")
+                    # Remove empty directory on FTP failure
+                    if path.exists(pmid_dir) and not listdir(pmid_dir):
+                        shutil.rmtree(pmid_dir)
             else:
                 logger.warning(f"PMID:{pmid} PMCID:{pmcid} - Not available (not in PMC Open Access subset)")
+                # Remove empty directory for non-Open Access papers
+                if path.exists(pmid_dir) and not listdir(pmid_dir):
+                    shutil.rmtree(pmid_dir)
 
     # Summary of download sources
     logger.info(f"Download summary: {s3_download_count} from S3 (pmc-oa-opendata), {ftp_fallback_count} from FTP (fallback)")
