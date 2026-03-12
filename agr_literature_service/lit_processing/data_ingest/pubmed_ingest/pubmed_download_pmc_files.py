@@ -183,6 +183,7 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=N
         Dict mapping PMID to license_code from S3 metadata
     """
     pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
+    s3_download_count = 0
     ftp_fallback_count = 0
     pmid_to_license = {}
 
@@ -199,14 +200,17 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=N
         logger.info(f"PMID:{pmid} PMCID:{pmcid} - Downloading from S3...")
         makedirs(pmid_dir, exist_ok=True)
 
-        # Try S3 first
+        # Try S3 first (pmc-oa-opendata bucket)
         success = download_pmc_package_from_s3(pmcid, pmid_dir)
 
         if success:
+            s3_download_count += 1
+            logger.info(f"PMID:{pmid} PMCID:{pmcid} - S3 download successful (pmc-oa-opendata)")
             # Get license info from S3 JSON metadata
             (_, license_code) = get_pmc_license_from_s3(pmcid)
             if license_code and license_code.startswith('CC'):
                 pmid_to_license[pmid] = license_code
+                logger.info(f"PMID:{pmid} - License from S3 metadata: {license_code}")
         else:
             # Fall back to FTP if S3 doesn't have the package
             if pmid_to_oa_url and pmid in pmid_to_oa_url:
@@ -229,8 +233,10 @@ def download_packages_from_s3(pmcids, pmid_to_oa_url=None, pmid_to_license_ftp=N
             else:
                 logger.warning(f"Failed to download PMC package for PMID:{pmid} PMCID:{pmcid} (not in S3, no FTP fallback)")
 
+    # Summary of download sources
+    logger.info(f"Download summary: {s3_download_count} from S3 (pmc-oa-opendata), {ftp_fallback_count} from FTP (fallback)")
     if ftp_fallback_count > 0:
-        logger.info(f"Used FTP fallback for {ftp_fallback_count} packages (older PMCIDs not yet in S3)")
+        logger.info(f"FTP fallback used for {ftp_fallback_count} older PMCIDs not yet migrated to S3")
 
     return pmid_to_license
 
