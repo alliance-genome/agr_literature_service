@@ -586,9 +586,9 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         res['aggregations'].pop(k, None)
 
     # add labels to ATP/ECO curies
-    ## TODO Needs names for novel and a reorder.
     add_curie_to_name_values(topics)
     add_curie_to_name_values(source_evidence_assertions)
+    add_curie_to_name_values(data_novelty)
 
     # reorder SEA buckets to desired sequence
     desired_order = [
@@ -874,6 +874,8 @@ def add_curie_to_name_values(aggregations: Dict[str, Any]) -> None:
             curie_name = "author"
         elif key_u == "ATP:0000036":
             curie_name = "professional biocurator"
+        elif key_u == "ATP:0000335":
+            curie_name= "unspecified"
         bucket["name"] = curie_name
 
 
