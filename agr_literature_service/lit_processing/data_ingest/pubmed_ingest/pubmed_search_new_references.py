@@ -3,9 +3,10 @@ import logging.config
 import re
 import time
 import urllib
+from datetime import datetime, timedelta
 from os import environ, makedirs, path
 from typing import Set
-# from datetime import datetime, timedelta
+
 import requests
 from dotenv import load_dotenv
 
@@ -15,7 +16,8 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pu
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    check_handle_duplicate, add_mca_to_existing_references, mark_false_positive_papers_as_out_of_corpus
+    check_handle_duplicate, add_mca_to_existing_references, mark_false_positive_papers_as_out_of_corpus, \
+    set_retraction_status
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     set_pmid_list, get_pmid_association_to_mod_via_reference, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_update_resources_nlm import \
@@ -149,6 +151,232 @@ if not path.exists(pmc_process_path):
 if not path.exists(pmc_storage_path):
     makedirs(pmc_storage_path)
 
+# PubMed ESearch API limit: max 10,000 results per query
+PUBMED_MAX_RESULTS = 10000
+ESEARCH_BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+
+
+def build_esearch_url(term: str, retmax: int = PUBMED_MAX_RESULTS,
+                      mindate: str = None, maxdate: str = None,
+                      api_key: str = None) -> str:
+    """
+    Build a PubMed ESearch URL with the given parameters.
+
+    Args:
+        term: The search term/query
+        retmax: Maximum number of results to return (default 10000, the API limit)
+        mindate: Start date in YYYY/MM/DD format
+        maxdate: End date in YYYY/MM/DD format
+        api_key: NCBI API key for higher rate limits
+
+    Returns:
+        Complete ESearch URL
+    """
+    params = {
+        'db': 'pubmed',
+        'retmax': retmax,
+        'term': term
+    }
+    if mindate and maxdate:
+        params['mindate'] = mindate
+        params['maxdate'] = maxdate
+        params['datetype'] = 'edat'
+    if api_key:
+        params['api_key'] = api_key
+
+    query_string = urllib.parse.urlencode(params, safe='+*[]()":/')
+    return f"{ESEARCH_BASE_URL}?{query_string}"
+
+
+def get_esearch_count(term: str, mindate: str = None, maxdate: str = None,
+                      api_key: str = None, max_retries: int = 3) -> int:
+    """
+    Query PubMed ESearch to get the count of results for a search term.
+
+    Args:
+        term: The search term/query
+        mindate: Start date in YYYY/MM/DD format
+        maxdate: End date in YYYY/MM/DD format
+        api_key: NCBI API key
+        max_retries: Number of retries on network error
+
+    Returns:
+        Count of matching records
+
+    Raises:
+        Exception: If all retries fail
+    """
+    url = build_esearch_url(term, retmax=0, mindate=mindate, maxdate=maxdate, api_key=api_key)
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            f = urllib.request.urlopen(url)
+            xml_response = f.read().decode('utf-8')
+            count_match = re.search(r"<Count>(\d+)</Count>", xml_response)
+            if count_match:
+                return int(count_match.group(1))
+            return 0
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                sleep_time = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                logger.warning(f"Error getting count from PubMed (attempt {attempt + 1}/{max_retries}): {e}. "
+                               f"Retrying in {sleep_time}s...")
+                time.sleep(sleep_time)
+            else:
+                logger.error(f"Error getting count from PubMed after {max_retries} attempts: {e}")
+
+    raise Exception(f"Failed to get PubMed count after {max_retries} attempts: {last_error}")
+
+
+def query_pubmed_with_date_partitioning(term: str, start_date: datetime,
+                                        end_date: datetime, api_key: str = None,
+                                        sleep_delay: float = 0.5,
+                                        initial_count: int = None) -> Set[str]:
+    """
+    Query PubMed ESearch with automatic date range partitioning to handle
+    the 10,000 result limit. If a query returns >= 10,000 results, the date
+    range is split in half and each half is queried recursively.
+
+    Args:
+        term: The PubMed search term/query
+        start_date: Start date for the search range
+        end_date: End date for the search range
+        api_key: NCBI API key for higher rate limits
+        sleep_delay: Delay between API calls to respect rate limits
+        initial_count: Optional pre-fetched count to avoid redundant API call
+
+    Returns:
+        Set of PMIDs (as strings without 'PMID:' prefix)
+    """
+    pmids: Set[str] = set()
+    mindate_str = start_date.strftime('%Y/%m/%d')
+    maxdate_str = end_date.strftime('%Y/%m/%d')
+
+    # Use pre-fetched count if provided, otherwise fetch it
+    if initial_count is not None:
+        count = initial_count
+    else:
+        time.sleep(sleep_delay)
+        count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
+
+    logger.info(f"Date range {mindate_str} to {maxdate_str}: {count} results")
+
+    if count == 0:
+        return pmids
+
+    if count >= PUBMED_MAX_RESULTS:
+        date_diff = end_date - start_date
+        if date_diff.days <= 1:
+            logger.warning(f"Date range {mindate_str} to {maxdate_str} has {count} results "
+                           f"but cannot split further. Retrieving first {PUBMED_MAX_RESULTS}.")
+            pmids.update(_fetch_pmids_from_pubmed(term, mindate_str, maxdate_str, api_key, sleep_delay))
+        else:
+            mid_date = start_date + timedelta(days=date_diff.days // 2)
+            logger.info(f"Splitting date range at {mid_date.strftime('%Y/%m/%d')}")
+
+            pmids.update(query_pubmed_with_date_partitioning(
+                term, start_date, mid_date, api_key, sleep_delay))
+            pmids.update(query_pubmed_with_date_partitioning(
+                term, mid_date + timedelta(days=1), end_date, api_key, sleep_delay))
+    else:
+        pmids.update(_fetch_pmids_from_pubmed(term, mindate_str, maxdate_str, api_key, sleep_delay))
+
+    return pmids
+
+
+def _fetch_pmids_from_pubmed(term: str, mindate: str, maxdate: str,
+                             api_key: str = None, sleep_delay: float = 0.5,
+                             max_retries: int = 3) -> Set[str]:
+    """
+    Fetch PMIDs from PubMed ESearch for a given term and date range.
+
+    Args:
+        term: The PubMed search term/query
+        mindate: Start date in YYYY/MM/DD format
+        maxdate: End date in YYYY/MM/DD format
+        api_key: NCBI API key
+        sleep_delay: Delay between API calls
+        max_retries: Number of retries on network error
+
+    Returns:
+        Set of PMIDs (as strings without 'PMID:' prefix)
+
+    Raises:
+        Exception: If all retries fail
+    """
+    pmids: Set[str] = set()
+    time.sleep(sleep_delay)
+
+    url = build_esearch_url(term, retmax=PUBMED_MAX_RESULTS, mindate=mindate,
+                            maxdate=maxdate, api_key=api_key)
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            f = urllib.request.urlopen(url)
+            xml_response = f.read().decode('utf-8')
+
+            pmid_matches = re.findall(r"<Id>(\d+)</Id>", xml_response)
+            pmids.update(pmid_matches)
+            logger.debug(f"Fetched {len(pmid_matches)} PMIDs for {mindate} to {maxdate}")
+            return pmids
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries - 1:
+                retry_sleep = 2 ** attempt  # Exponential backoff: 1, 2, 4 seconds
+                logger.warning(f"Error fetching PMIDs from PubMed (attempt {attempt + 1}/{max_retries}): {e}. "
+                               f"Retrying in {retry_sleep}s...")
+                time.sleep(retry_sleep)
+            else:
+                logger.error(f"Error fetching PMIDs from PubMed after {max_retries} attempts: {e}")
+
+    raise Exception(f"Failed to fetch PMIDs from PubMed after {max_retries} attempts: {last_error}")
+
+
+def query_pubmed_for_mod(mod: str, term: str, reldate_days: int,
+                         api_key: str = None) -> Set[str]:
+    """
+    Query PubMed for a MOD's search term, handling the 10,000 result limit
+    by using date partitioning when necessary.
+
+    Args:
+        mod: MOD abbreviation (e.g., 'SGD', 'WB')
+        term: The PubMed search term for this MOD
+        reldate_days: Number of days back to search
+        api_key: NCBI API key
+
+    Returns:
+        Set of PMIDs (as strings without 'PMID:' prefix)
+    """
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=reldate_days)
+    mindate_str = start_date.strftime('%Y/%m/%d')
+    maxdate_str = end_date.strftime('%Y/%m/%d')
+
+    logger.info(f"Querying PubMed for {mod}: {mindate_str} to {maxdate_str} ({reldate_days} days)")
+
+    # Get expected total count from PubMed before partitioning
+    expected_count = get_esearch_count(term, mindate=mindate_str, maxdate=maxdate_str, api_key=api_key)
+    logger.info(f"{mod}: PubMed reports {expected_count} total results for date range")
+
+    # Retrieve all PMIDs using date partitioning, passing the count to avoid redundant API call
+    pmids = query_pubmed_with_date_partitioning(term, start_date, end_date, api_key,
+                                                initial_count=expected_count)
+
+    # Log summary and verify we got all results
+    retrieved_count = len(pmids)
+    logger.info(f"{mod}: Retrieved {retrieved_count} PMIDs via date partitioning")
+    if retrieved_count < expected_count:
+        logger.warning(f"{mod}: Retrieved {retrieved_count} but expected {expected_count} - "
+                       f"missing {expected_count - retrieved_count} PMIDs")
+    elif retrieved_count > expected_count:
+        logger.info(f"{mod}: Retrieved {retrieved_count} (expected {expected_count}) - "
+                    f"slight variance is normal due to timing")
+
+    return pmids
+
 
 def query_pubmed_mod_updates(input_mod, reldate):
     """
@@ -193,19 +421,21 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
     # 'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=drosophil*[ALL]+OR+melanogaster[ALL]+AND+NOT+pubstatusaheadofprint+NOT+preprint[pt]&retmax=100000000'
 
-    mod_esearch_url = {
-        'FB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=(drosophil*[ALL]+OR+melanogaster[ALL])+NOT+pubstatusaheadofprint+NOT+preprint[pt]+NOT+"epub+ahead+of+print"[Publication+Type]&retmax=10000000',
-        'ZFIN': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=zebrafish[Title/Abstract]+OR+zebra+fish[Title/Abstract]+OR+danio[Title/Abstract]+OR+zebrafish[keyword]+OR+zebra+fish[keyword]+OR+danio[keyword]+OR+zebrafish[Mesh+Terms]+OR+zebra+fish[Mesh+Terms]+OR+danio[Mesh+Terms]+NOT+preprint[pt]',
-        'SGD': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=yeast+OR+cerevisiae+NOT+preprint[pt]',
-        'WB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=elegans+NOT+preprint[pt]',
-        'XB': 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=100000000&term=(Xenopus+OR+Silurana)+AND+%22Journal+Article%E2%80%9D+NOT+preprint[pt]'
+    # Search terms for each MOD (without URL structure - used with date partitioning)
+    mod_search_terms = {
+        'FB': '(drosophil*[ALL] OR melanogaster[ALL]) NOT pubstatusaheadofprint NOT preprint[pt] NOT "epub ahead of print"[Publication Type]',
+        'ZFIN': 'zebrafish[Title/Abstract] OR zebra fish[Title/Abstract] OR danio[Title/Abstract] OR zebrafish[keyword] OR zebra fish[keyword] OR danio[keyword] OR zebrafish[Mesh Terms] OR zebra fish[Mesh Terms] OR danio[Mesh Terms] NOT preprint[pt]',
+        'SGD': 'yeast OR cerevisiae NOT preprint[pt]',
+        'WB': 'elegans NOT preprint[pt]',
+        'XB': '(Xenopus OR Silurana) AND "Journal Article" NOT preprint[pt]'
     }
-    mod_daterange = {
-        'FB': '&reldate=3650',
-        'ZFIN': '&reldate=730',
-        'SGD': '&reldate=3650',
-        'WB': '&reldate=1825',
-        'XB': '&reldate=365'
+    # Default date ranges in days for each MOD
+    mod_default_reldate = {
+        'FB': 3650,
+        'ZFIN': 730,
+        'SGD': 3650,
+        'WB': 1825,
+        'XB': 365
     }
     # retrieve all cross_reference info from database
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('reference')
@@ -217,14 +447,13 @@ def query_mods(input_mod, reldate):  # noqa: C901
         mods_to_query = [input_mod]
     pmids_posted = set()     # type: Set
     logger.info("Starting query mods")
-    sleep_delay = 1
     not_loaded_pmids4mod = {}
     pmids4mod = {}
     pmids4mod['all'] = set()
 
     exclude_pmids = get_pmids_from_exclude_list()
 
-    for mod in [mod for mod in mods_to_query if mod in mod_esearch_url]:
+    for mod in [mod for mod in mods_to_query if mod in mod_search_terms]:
         pmids4mod[mod] = set()
         logger.info(f"Processing {mod}")
         try:
@@ -242,49 +471,71 @@ def query_mods(input_mod, reldate):  # noqa: C901
             )
             db_session.close()
             return
-        time.sleep(sleep_delay)
-        url = mod_esearch_url[mod]
-        if environ.get('NCBI_API_KEY'):
-            url = url + "&api_key=" + environ['NCBI_API_KEY']
+
+        # Determine date range for query
+        api_key = environ.get('NCBI_API_KEY')
         if reldate:
-            url = url + "&reldate=" + str(reldate)
-        elif mod in mod_daterange:
-            url = url + mod_daterange[mod]
-        # print (" url for " + mod + "=" + url)
-        f = urllib.request.urlopen(url)
-        xml_all = f.read().decode('utf-8')
+            reldate_days = int(reldate)
+        elif mod in mod_default_reldate:
+            reldate_days = mod_default_reldate[mod]
+        else:
+            reldate_days = 365  # Default to 1 year if not specified
+
+        # Query PubMed with date partitioning to handle >10K results
+        term = mod_search_terms[mod]
+        try:
+            pmid_group = query_pubmed_for_mod(mod, term, reldate_days, api_key)
+        except Exception as e:
+            logger.error(f"Failed to query PubMed for {mod}: {e}. Skipping this MOD.")
+            continue
+        logger.info(f"Total PMIDs retrieved for {mod}: {len(pmid_group)}")
+
         pmids_to_create = []
         agr_curies_to_corpus = []
-        if re.findall(r"<Id>(\d+)</Id>", xml_all):
-            pmid_group = re.findall(r"<Id>(\d+)</Id>", xml_all)
-
-            whitelist_pmids = []  # remove this later with removed block below
-            for pmid in pmid_group:
-                whitelist_pmids = [pmid for pmid in pmid_group if pmid not in fp_pmids and pmid not in exclude_pmids]
+        if pmid_group:
+            whitelist_pmids = [pmid for pmid in pmid_group
+                               if pmid not in fp_pmids and pmid not in exclude_pmids]
 
             pmids_wanted = list(map(lambda x: 'PMID:' + x, whitelist_pmids))
 
-            pmid_curie_mod_dict = get_pmid_association_to_mod_via_reference(db_session, pmids_wanted, mod)
-            # to debug
-            # json_data = json.dumps(pmid_curie_mod_dict, indent=4, sort_keys=True)
-            # print(mod)
-            # print(json_data)
-            # pmids_joined = (',').join(sorted(pmids_wanted))
-            # logger.info(pmids_joined)
-            # logger.info(len(pmids_wanted))
+            # Process PMIDs in chunks to avoid overwhelming the database with large IN clauses
+            # The old code never passed this many PMIDs due to the 10K API limit
+            CHUNK_SIZE = 5000
+            pmid_curie_mod_dict = {}
+            for i in range(0, len(pmids_wanted), CHUNK_SIZE):
+                chunk = pmids_wanted[i:i + CHUNK_SIZE]
+                logger.info(f"Checking database for PMIDs {i + 1} to {min(i + CHUNK_SIZE, len(pmids_wanted))} of {len(pmids_wanted)}")
+                chunk_result = get_pmid_association_to_mod_via_reference(db_session, chunk, mod)
+
+                # Debug: count results for this chunk
+                chunk_has_ref = sum(1 for v in chunk_result.values() if v[0] is not None)
+                chunk_has_mod = sum(1 for v in chunk_result.values() if v[1] is not None)
+                chunk_no_ref = sum(1 for v in chunk_result.values() if v[0] is None)
+                logger.info(f"  Chunk results: {chunk_has_ref} have reference, {chunk_has_mod} have {mod} MCA, {chunk_no_ref} not in DB")
+
+                # Debug: sample some PMIDs that appear to not be in DB
+                if chunk_no_ref > 0:
+                    sample_missing = [k for k, v in chunk_result.items() if v[0] is None][:5]
+                    logger.info(f"  Sample PMIDs marked as 'not in DB': {sample_missing}")
+
+                pmid_curie_mod_dict.update(chunk_result)
+
+            # Debug: summarize totals before processing
+            total_has_ref = sum(1 for v in pmid_curie_mod_dict.values() if v[0] is not None)
+            total_has_mod = sum(1 for v in pmid_curie_mod_dict.values() if v[1] is not None)
+            total_no_ref = sum(1 for v in pmid_curie_mod_dict.values() if v[0] is None)
+            logger.info(f"{mod} DB lookup summary: {total_has_ref} have reference, {total_has_mod} have {mod} MCA, {total_no_ref} not in DB")
+
             for pmid in pmids_wanted:
                 if pmid in pmids4mod['all']:
-                    # the same paper already added during seacrh for other mod papers
+                    # the same paper already added during search for other mod papers
                     pmids4mod[mod].add(pmid)
                 if pmid in pmid_curie_mod_dict:
                     agr_curie = pmid_curie_mod_dict[pmid][0]
                     in_corpus = pmid_curie_mod_dict[pmid][1]
-                    # to debug
-                    # print(f"{pmid}\t{agr_curie}\t{in_corpus}")
                     if agr_curie is None:
                         pmids_to_create.append(pmid.replace('PMID:', ''))
                     elif in_corpus is None:
-                        # print(f"add {mod} mca to {pmid} is {agr_curie}")
                         agr_curies_to_corpus.append(agr_curie)
         logger.info(f"pmids_to_create: {len(pmids_to_create)}")
 
@@ -338,6 +589,7 @@ def query_mods(input_mod, reldate):  # noqa: C901
 
         mark_false_positive_papers_as_out_of_corpus(db_session, mod, fp_pmids, logger)
 
+    set_retraction_status(db_session, logger)
     logger.info("Sending Report")
     send_pubmed_search_report(pmids4mod, mods_to_query, log_path, log_url, not_loaded_pmids4mod,
                               bad_date_published)

@@ -74,7 +74,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
     if "corpus" in mod_corpus_association_data and mod_corpus_association_data["corpus"] is True:
         check_xref_and_generate_mod_id(db, reference, mod_abbreviation)
         # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
-        if mod_abbreviation != 'alliance' and get_current_workflow_status(
+        if mod_abbreviation != 'AGR' and get_current_workflow_status(
                 db, reference_curie, "ATP:0000140", mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
         indexing_needed_tag = {
@@ -163,7 +163,7 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
             if value is True and mod_corpus_association_db_obj.corpus is not True:
                 check_xref_and_generate_mod_id(db, reference_obj, mod_abbreviation)
                 # Skip workflow transitions for Alliance MOD (no workflow transitions defined)
-                if mod_abbreviation != 'alliance' and get_current_workflow_status(
+                if mod_abbreviation != 'AGR' and get_current_workflow_status(
                         db, str(reference_obj.reference_id), "ATP:0000140",
                         mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)

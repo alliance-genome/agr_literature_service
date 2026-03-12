@@ -51,6 +51,7 @@ urllib3==1.26.17
 
 # XML Processing
 bs4==0.0.1                   # No update needed.
+markdown-it-py==2.2.0        # Markdown-to-HTML rendering for xml2md endpoint
 
 # Elasticsearch and Caching
 elasticsearch==7.13.4        # No update needed.
@@ -67,3 +68,4 @@ cryptography>=41.0.0         # PyJWT can handle RS256 and other asymmetric algor
 
 # AGR Cognito Authentication
 agr-cognito-py==0.1.0        # AWS Cognito authentication for AGR services
+agr-abc-document-parsers==1.1.0  # Shared ABC document parsers (xml2md, md_reader, plain_text)
