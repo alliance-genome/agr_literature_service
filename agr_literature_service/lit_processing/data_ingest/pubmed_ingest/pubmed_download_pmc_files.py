@@ -182,10 +182,10 @@ def fetch_oa_status_for_pmcids(pmcids: List[Tuple[str, str]],
 
 
 def is_open_access(cache: Dict[str, dict], pmcid: str) -> bool:
-    """Check if a PMCID is Open Access with PDF available."""
+    """Check if a PMCID is Open Access (does not require PDF, includes suppl files)."""
     pmcid = normalize_pmcid(pmcid)
     entry = cache.get(pmcid, {})
-    return entry.get("is_open_access", False) and entry.get("has_pdf", False)
+    return entry.get("is_open_access", False)
 
 
 def download_pmc_files(mapping_file=None):  # pragma: no cover
@@ -221,7 +221,7 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
         else:
             non_oa_count += 1
 
-    logger.info(f"OA filter: {len(oa_pmcids)} Open Access papers, {non_oa_count} non-OA/no-PDF skipped")
+    logger.info(f"OA filter: {len(oa_pmcids)} Open Access papers, {non_oa_count} non-OA skipped")
 
     if not oa_pmcids:
         logger.info("No Open Access papers to download.")
