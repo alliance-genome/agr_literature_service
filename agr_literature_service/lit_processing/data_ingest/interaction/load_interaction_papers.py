@@ -322,7 +322,7 @@ def update_sgd_corpus_flag_to_true(db_session, pmids):
     # Update mod_corpus_association records where corpus=False to corpus=True
     update_query = text(
         "UPDATE mod_corpus_association "
-        "SET corpus = True, mod_corpus_sort_source = :sort_source "
+        "SET corpus = True "
         "WHERE reference_id = ANY(:ref_ids) "
         "AND mod_id = :sgd_mod_id "
         "AND corpus = False"
@@ -331,8 +331,7 @@ def update_sgd_corpus_flag_to_true(db_session, pmids):
         update_query,
         {
             "ref_ids": ref_ids_list,
-            "sgd_mod_id": sgd_mod_id,
-            "sort_source": ModCorpusSortSourceType.Automated_alliance.value
+            "sgd_mod_id": sgd_mod_id
         }
     )
     count = result.rowcount
