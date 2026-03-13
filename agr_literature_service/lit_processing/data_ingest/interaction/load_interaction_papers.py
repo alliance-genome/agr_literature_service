@@ -186,11 +186,23 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
                 pmids_in_db_but_not_associated_with_mod_set.add(pmid)
         logger.info(f"In {mod} Corpus: {len(pmids_in_corpus_set)}")
         message += f"<li>In {mod} Corpus: {len(pmids_in_corpus_set)}"
-        logger.info(f"Associated but Outside Corpus: {len(pmids_associated_with_mod_but_out_corpus_set)}")
-        message += f"<li>Associated but Outside Corpus: {len(pmids_associated_with_mod_but_out_corpus_set)}"
-        if len(pmids_associated_with_mod_but_out_corpus_set) > 0:
+        # For SGD, update papers that are associated but outside corpus to be in corpus
+        pmids_still_outside_corpus = pmids_associated_with_mod_but_out_corpus_set
+        if datasetName == "SGD" and len(pmids_associated_with_mod_but_out_corpus_set) > 0:
+            updated_count = update_sgd_corpus_flag_to_true(
+                db_session, pmids_associated_with_mod_but_out_corpus_set
+            )
+            if updated_count > 0:
+                logger.info(f"Updated {updated_count} paper(s) to SGD corpus (corpus=True)")
+                message += f"<li>Updated to SGD Corpus: {updated_count}"
+                # All papers were updated, so none remain outside corpus
+                pmids_still_outside_corpus = set()
+
+        logger.info(f"Associated but Outside Corpus: {len(pmids_still_outside_corpus)}")
+        message += f"<li>Associated but Outside Corpus: {len(pmids_still_outside_corpus)}"
+        if len(pmids_still_outside_corpus) > 0:
             fw.write("Associated but Outside Corpus:\n\n")
-            for pmid in pmids_associated_with_mod_but_out_corpus_set:
+            for pmid in pmids_still_outside_corpus:
                 fw.write(f"PMID:{pmid}\n")
             fw.write("\n")
             has_logfile = True
@@ -261,6 +273,75 @@ def search_pubmed(pmids):
             valid_pmids.append(pmid)
 
     return obsolete_pmids, valid_pmids
+
+
+def update_sgd_corpus_flag_to_true(db_session, pmids):
+    """
+    Update SGD interaction papers that are associated but outside corpus
+    to be inside the corpus (corpus=True).
+
+    Args:
+        db_session: Database session
+        pmids: Set of PMIDs to update
+
+    Returns:
+        Count of papers updated
+    """
+    if not pmids:
+        return 0
+
+    sgd_mod = db_session.query(ModModel).filter(
+        ModModel.abbreviation == 'SGD'
+    ).first()
+    if not sgd_mod:
+        logger.warning("SGD MOD not found in database")
+        return 0
+
+    sgd_mod_id = sgd_mod.mod_id
+
+    # Build parameterized query for PMIDs
+    pmid_curies = [f"PMID:{pmid}" for pmid in pmids]
+
+    # Get reference_ids for PMIDs using parameterized query
+    query = text(
+        "SELECT cr.curie, cr.reference_id "
+        "FROM cross_reference cr "
+        "WHERE cr.curie = ANY(:pmid_curies) "
+        "AND cr.is_obsolete = False"
+    )
+    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
+
+    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
+    reference_ids_in_db = set(pmid_to_ref_id.values())
+
+    if not reference_ids_in_db:
+        return 0
+
+    ref_ids_list = list(reference_ids_in_db)
+
+    # Update mod_corpus_association records where corpus=False to corpus=True
+    update_query = text(
+        "UPDATE mod_corpus_association "
+        "SET corpus = True, mod_corpus_sort_source = :sort_source "
+        "WHERE reference_id = ANY(:ref_ids) "
+        "AND mod_id = :sgd_mod_id "
+        "AND corpus = False"
+    )
+    result = db_session.execute(
+        update_query,
+        {
+            "ref_ids": ref_ids_list,
+            "sgd_mod_id": sgd_mod_id,
+            "sort_source": ModCorpusSortSourceType.Automated_alliance.value
+        }
+    )
+    count = result.rowcount
+
+    if count > 0:
+        db_session.commit()
+        logger.info(f"Updated {count} SGD interaction paper(s) to corpus=True")
+
+    return count
 
 
 def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
