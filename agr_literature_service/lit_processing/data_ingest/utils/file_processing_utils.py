@@ -187,7 +187,7 @@ def classify_pmc_file(file_name, file_extension):
     ]
     """
     image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
-    if file_extension.lower() == "nxml":
+    if file_extension.lower() in ("nxml", "xml"):
         return "nXML"
     if "thumb" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
         return "thumbnail"

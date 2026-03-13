@@ -98,6 +98,13 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                         file_class = 'main'
                         logger.info(f"PMCID:{pmcid} - Identified main PDF: {file_name_with_suffix}")
 
+                # Check if this TXT matches XML root name
+                if file_extension == 'txt' and pmcid in pmcid_to_xml_root:
+                    txt_root = file_name.lower()
+                    if txt_root == pmcid_to_xml_root[pmcid]:
+                        file_class = 'txt'
+                        logger.info(f"PMCID:{pmcid} - Identified main TXT: {file_name_with_suffix}")
+
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,
