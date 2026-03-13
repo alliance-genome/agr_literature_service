@@ -43,6 +43,24 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
 
     pmid_to_reference_id = get_pmid_to_reference_id_mapping(db_session)
 
+    # First pass: Build mapping of PMCID -> XML root name to identify main PDFs
+    # If there's a .xml file, the .pdf with same root name is the main PDF
+    pmcid_to_xml_root = {}
+    with open(infile) as f:
+        for line in f:
+            pieces = line.strip().split("\t")
+            if len(pieces) < 4:
+                continue
+            pmcid = pieces[1]
+            file_name_with_suffix = pieces[2]
+            if file_name_with_suffix.lower().endswith('.xml'):
+                # Extract root name (e.g., "PMC2947581.1" from "PMC2947581.1.xml")
+                xml_root = file_name_with_suffix.rsplit('.', 1)[0]
+                pmcid_to_xml_root[pmcid] = xml_root.lower()
+
+    logger.info(f"Found {len(pmcid_to_xml_root)} PMCIDs with XML files for main PDF identification")
+
+    # Second pass: Process files and load metadata
     with open(infile) as f:
         for line_num, line in enumerate(f):
             if line_num % batch_commit_size == 0:
@@ -55,6 +73,7 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
             reference_id = pmid_to_reference_id.get(pmid)
             if reference_id is None:
                 continue
+            pmcid = pieces[1]
             md5sum = pieces[3]
             file_name_with_suffix = pieces[2]
             if (reference_id, file_name_with_suffix) in ref_file_uniq_filename_set:
@@ -71,6 +90,14 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 file_extension = file_name_with_suffix.split(".")[-1].lower()
                 file_name = file_name_with_suffix.replace("." + file_extension, "")
                 file_class = classify_pmc_file(file_name, file_extension)
+
+                # Check if this PDF is the main PDF (matches XML root name)
+                if file_extension == 'pdf' and pmcid in pmcid_to_xml_root:
+                    pdf_root = file_name.lower()
+                    if pdf_root == pmcid_to_xml_root[pmcid]:
+                        file_class = 'main'
+                        logger.info(f"PMCID:{pmcid} - Identified main PDF: {file_name_with_suffix}")
+
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,

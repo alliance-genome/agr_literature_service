@@ -17,8 +17,6 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     download_file, gunzip_file, gzip_file, download_pmc_package_from_s3
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     load_ref_file_metadata_into_db
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_identify_main_pdfs import \
-    identify_main_pdfs
 
 load_dotenv()
 
@@ -241,10 +239,6 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
     logger.info("Loading the metadata into database...")
 
     load_ref_file_metadata_into_db()
-
-    logger.info("Identifying main PDF files in the database...")
-
-    identify_main_pdfs(True)
 
     if pmid_to_license:
         logger.info(f"Loading license information for {len(pmid_to_license)} papers into database...")
