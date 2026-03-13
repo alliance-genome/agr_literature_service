@@ -43,9 +43,10 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
 
     pmid_to_reference_id = get_pmid_to_reference_id_mapping(db_session)
 
-    # First pass: Build mapping of PMCID -> XML root name to identify main PDFs
-    # If there's a .xml file, the .pdf with same root name is the main PDF
+    # First pass: Build mappings to identify main files
+    # If there's a .xml file and a .pdf with same root name, that's the main PDF
     pmcid_to_xml_root = {}
+    pmcid_to_pdf_roots = {}
     with open(infile) as f:
         for line in f:
             pieces = line.strip().split("\t")
@@ -57,6 +58,12 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 # Extract root name (e.g., "PMC2947581.1" from "PMC2947581.1.xml")
                 xml_root = file_name_with_suffix.rsplit('.', 1)[0]
                 pmcid_to_xml_root[pmcid] = xml_root.lower()
+            elif file_name_with_suffix.lower().endswith('.pdf'):
+                # Extract root name for PDF files
+                pdf_root = file_name_with_suffix.rsplit('.', 1)[0].lower()
+                if pmcid not in pmcid_to_pdf_roots:
+                    pmcid_to_pdf_roots[pmcid] = set()
+                pmcid_to_pdf_roots[pmcid].add(pdf_root)
 
     logger.info(f"Found {len(pmcid_to_xml_root)} PMCIDs with XML files for main PDF identification")
 
@@ -104,6 +111,15 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                     if txt_root == pmcid_to_xml_root[pmcid]:
                         file_class = 'txt'
                         logger.info(f"PMCID:{pmcid} - Identified main TXT: {file_name_with_suffix}")
+
+                # Only set nXML for .xml files if there's a matching PDF
+                if file_extension == 'xml' and pmcid in pmcid_to_pdf_roots:
+                    xml_root = file_name.lower()
+                    if xml_root in pmcid_to_pdf_roots[pmcid]:
+                        file_class = 'nXML'
+                        logger.info(f"PMCID:{pmcid} - Identified nXML: {file_name_with_suffix}")
+                    else:
+                        file_class = 'supplement'
 
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
