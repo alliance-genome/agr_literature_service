@@ -212,7 +212,7 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
     oa_cache = fetch_oa_status_for_pmcids(pmcids_for_pmc_loading, oa_cache)
     save_oa_cache(OA_CACHE_FILE, oa_cache)
 
-    # Filter to only Open Access papers with PDFs
+    # Filter to only Open Access papers
     oa_pmcids = []
     non_oa_count = 0
     for (pmid, pmcid) in pmcids_for_pmc_loading:
@@ -222,6 +222,7 @@ def download_pmc_files(mapping_file=None):  # pragma: no cover
             non_oa_count += 1
 
     logger.info(f"OA filter: {len(oa_pmcids)} Open Access papers, {non_oa_count} non-OA skipped")
+    logger.info(f"Total papers to download from S3: {len(oa_pmcids)} (have PMCID, no PMC package downloaded so far, is_open_access=True)")
 
     if not oa_pmcids:
         logger.info("No Open Access papers to download.")
