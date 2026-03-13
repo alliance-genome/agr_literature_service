@@ -189,14 +189,14 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         # For SGD, update papers that are associated but outside corpus to be in corpus
         pmids_still_outside_corpus = pmids_associated_with_mod_but_out_corpus_set
         if datasetName == "SGD" and len(pmids_associated_with_mod_but_out_corpus_set) > 0:
-            updated_count = update_sgd_corpus_flag_to_true(
+            updated_count, updated_pmids = update_sgd_corpus_flag_to_true(
                 db_session, pmids_associated_with_mod_but_out_corpus_set
             )
             if updated_count > 0:
                 logger.info(f"Updated {updated_count} paper(s) to SGD corpus (corpus=True)")
                 message += f"<li>Updated to SGD Corpus: {updated_count}"
-                # All papers were updated, so none remain outside corpus
-                pmids_still_outside_corpus = set()
+            # Compute remaining PMIDs that were not updated
+            pmids_still_outside_corpus = pmids_associated_with_mod_but_out_corpus_set - updated_pmids
 
         logger.info(f"Associated but Outside Corpus: {len(pmids_still_outside_corpus)}")
         message += f"<li>Associated but Outside Corpus: {len(pmids_still_outside_corpus)}"
@@ -285,17 +285,17 @@ def update_sgd_corpus_flag_to_true(db_session, pmids):
         pmids: Set of PMIDs to update
 
     Returns:
-        Count of papers updated
+        Tuple of (count of papers updated, set of PMIDs that were updated)
     """
     if not pmids:
-        return 0
+        return 0, set()
 
     sgd_mod = db_session.query(ModModel).filter(
         ModModel.abbreviation == 'SGD'
     ).first()
     if not sgd_mod:
         logger.warning("SGD MOD not found in database")
-        return 0
+        return 0, set()
 
     sgd_mod_id = sgd_mod.mod_id
 
@@ -315,17 +315,22 @@ def update_sgd_corpus_flag_to_true(db_session, pmids):
     reference_ids_in_db = set(pmid_to_ref_id.values())
 
     if not reference_ids_in_db:
-        return 0
+        return 0, set()
 
     ref_ids_list = list(reference_ids_in_db)
 
+    # Build reverse mapping: ref_id -> pmid
+    ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
+
     # Update mod_corpus_association records where corpus=False to corpus=True
+    # Use RETURNING to get the reference_ids that were actually updated
     update_query = text(
         "UPDATE mod_corpus_association "
         "SET corpus = True "
         "WHERE reference_id = ANY(:ref_ids) "
         "AND mod_id = :sgd_mod_id "
-        "AND corpus = False"
+        "AND corpus = False "
+        "RETURNING reference_id"
     )
     result = db_session.execute(
         update_query,
@@ -334,13 +339,16 @@ def update_sgd_corpus_flag_to_true(db_session, pmids):
             "sgd_mod_id": sgd_mod_id
         }
     )
-    count = result.rowcount
+    updated_ref_ids = {row[0] for row in result.fetchall()}
+    count = len(updated_ref_ids)
+
+    # Map back to PMIDs
+    updated_pmids = {ref_id_to_pmid[ref_id] for ref_id in updated_ref_ids if ref_id in ref_id_to_pmid}
 
     if count > 0:
         db_session.commit()
-        logger.info(f"Updated {count} SGD interaction paper(s) to corpus=True")
 
-    return count
+    return count, updated_pmids
 
 
 def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
