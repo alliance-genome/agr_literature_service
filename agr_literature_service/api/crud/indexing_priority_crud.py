@@ -310,16 +310,15 @@ def set_priority(
             ),
         )
 
-    # Build a Post schema so we benefit from its validation (ATP prefix + confidence rounding)
-    payload = IndexingPrioritySchemaPost(
-        predicted_indexing_priority=predicted_indexing_priority,
-        curator_indexing_priority=curator_indexing_priority,
-        mod_abbreviation=mod_abbreviation,
-        reference_curie=reference_curie,
-        confidence_score=confidence_score,
-    )
-
     try:
+        # Build a Post schema so we benefit from its validation (ATP prefix + confidence rounding)
+        payload = IndexingPrioritySchemaPost(
+            predicted_indexing_priority=predicted_indexing_priority,
+            curator_indexing_priority=curator_indexing_priority,
+            mod_abbreviation=mod_abbreviation,
+            reference_curie=reference_curie,
+            confidence_score=confidence_score,
+        )
         new_id = create(db, payload)
         # mark success on the workflow tag
         wft_patch(
