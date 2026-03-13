@@ -349,9 +349,11 @@ def download_packages_from_s3(pmcids, oa_cache: Dict[str, dict]):  # pragma: no 
     """
     s3_download_count = 0
     s3_not_found_count = 0
+    s3_error_count = 0
     pmid_to_license = {}
+    total = len(pmcids)
 
-    for (pmid, pmcid) in pmcids:
+    for idx, (pmid, pmcid) in enumerate(pmcids, 1):
         # Check if already downloaded
         pmid_dir = path.join(pmcFileDir, pmid)
         if path.exists(pmid_dir) and listdir(pmid_dir):
@@ -363,32 +365,44 @@ def download_packages_from_s3(pmcids, oa_cache: Dict[str, dict]):  # pragma: no 
                 pmid_to_license[pmid] = license_code
             continue
 
-        logger.info(f"PMID:{pmid} PMCID:{pmcid} - Downloading from S3 (pmc-oa-opendata)...")
-        makedirs(pmid_dir, exist_ok=True)
+        try:
+            logger.info(f"[{idx}/{total}] PMID:{pmid} PMCID:{pmcid} - Downloading from S3 (pmc-oa-opendata)...")
+            makedirs(pmid_dir, exist_ok=True)
 
-        # Download from S3
-        success = download_pmc_package_from_s3(pmcid, pmid_dir)
+            # Download from S3
+            success = download_pmc_package_from_s3(pmcid, pmid_dir)
 
-        if success:
-            s3_download_count += 1
-            logger.info(f"PMID:{pmid} PMCID:{pmcid} - S3 download successful")
+            if success:
+                s3_download_count += 1
+                logger.info(f"[{idx}/{total}] PMID:{pmid} PMCID:{pmcid} - S3 download successful")
 
-            # Get license from OA cache (EuroPMC API)
-            norm_pmcid = normalize_pmcid(pmcid)
-            cache_entry = oa_cache.get(norm_pmcid, {})
-            license_code = cache_entry.get('license')
-            if license_code and (license_code.startswith('CC') or license_code.lower() == 'cc0'):
-                pmid_to_license[pmid] = license_code
-                logger.info(f"PMID:{pmid} - License: {license_code}")
-        else:
-            s3_not_found_count += 1
-            logger.warning(f"PMID:{pmid} PMCID:{pmcid} - Not found in S3 (may not be migrated yet)")
-            # Remove empty directory
+                # Get license from OA cache (EuroPMC API)
+                norm_pmcid = normalize_pmcid(pmcid)
+                cache_entry = oa_cache.get(norm_pmcid, {})
+                license_code = cache_entry.get('license')
+                if license_code and (license_code.startswith('CC') or license_code.lower() == 'cc0'):
+                    pmid_to_license[pmid] = license_code
+                    logger.info(f"PMID:{pmid} - License: {license_code}")
+            else:
+                s3_not_found_count += 1
+                logger.warning(f"[{idx}/{total}] PMID:{pmid} PMCID:{pmcid} - Not found in S3 (may not be migrated yet)")
+                # Remove empty directory
+                if path.exists(pmid_dir) and not listdir(pmid_dir):
+                    shutil.rmtree(pmid_dir)
+        except Exception as e:
+            s3_error_count += 1
+            logger.error(f"[{idx}/{total}] PMID:{pmid} PMCID:{pmcid} - Error downloading: {type(e).__name__}: {e}")
+            # Remove empty directory on error
             if path.exists(pmid_dir) and not listdir(pmid_dir):
                 shutil.rmtree(pmid_dir)
+            continue
+
+        # Progress logging every 500 papers
+        if idx % 500 == 0:
+            logger.info(f"Progress: {idx}/{total} processed, {s3_download_count} downloaded, {s3_not_found_count} not found, {s3_error_count} errors")
 
     # Summary
-    logger.info(f"Download summary: {s3_download_count} downloaded from S3, {s3_not_found_count} not found in S3")
+    logger.info(f"Download summary: {s3_download_count} downloaded from S3, {s3_not_found_count} not found in S3, {s3_error_count} errors")
 
     return pmid_to_license
 
