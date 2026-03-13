@@ -26,8 +26,9 @@ db_session: Session = Depends(get_db)
 class SetPriorityBody(BaseModel):
     reference_curie: str
     mod_abbreviation: str
-    indexing_priority: str
-    confidence_score: float
+    predicted_indexing_priority: Optional[str] = None
+    confidence_score: Optional[float] = None
+    curator_indexing_priority: Optional[str] = None
 
 
 @router.post(
@@ -124,6 +125,7 @@ def set_priority(
         db,
         body.reference_curie,
         body.mod_abbreviation,
-        body.indexing_priority,
+        body.predicted_indexing_priority,
         body.confidence_score,
+        body.curator_indexing_priority,
     )

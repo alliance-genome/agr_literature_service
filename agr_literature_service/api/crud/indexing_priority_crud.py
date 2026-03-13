@@ -11,7 +11,6 @@ from agr_literature_service.api.models import (
     ModModel,
     ReferenceModel,
     WorkflowTagModel,
-    TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.schemas.indexing_priority_schemas import IndexingPrioritySchemaPost
 from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_descendants
@@ -24,13 +23,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_ref_ids_with_indexing_priority(
-    db: Session, indexing_priority: str, mod_abbreviation: Optional[str] = None
+    db: Session, predicted_indexing_priority: str, mod_abbreviation: Optional[str] = None
 ) -> List[int]:
     """
-    Return reference_ids that have the given indexing_priority, optionally filtered by MOD.
+    Return reference_ids that have the given predicted_indexing_priority,
+    optionally filtered by MOD.
     """
     q = db.query(IndexingPriorityModel.reference_id).filter(
-        IndexingPriorityModel.indexing_priority == indexing_priority
+        IndexingPriorityModel.predicted_indexing_priority == predicted_indexing_priority
     )
     if mod_abbreviation is not None:
         mod = db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_abbreviation).first()
@@ -54,7 +54,6 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
 
     reference_curie: str = data.pop("reference_curie")
     mod_abbreviation: str = data.pop("mod_abbreviation")
-    indexing_priority: str = data["indexing_priority"]
 
     reference = (
         db.query(ReferenceModel)
@@ -82,7 +81,6 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
         db.query(IndexingPriorityModel)
         .filter(IndexingPriorityModel.reference_id == reference.reference_id)
         .filter(IndexingPriorityModel.mod_id == mod.mod_id)
-        .filter(IndexingPriorityModel.indexing_priority == indexing_priority)
         .first()
     )
     if existing:
@@ -91,30 +89,13 @@ def create(db: Session, indexing_priority_tag: IndexingPrioritySchemaPost) -> in
             detail=(
                 "IndexingPriority already exists for "
                 f"reference_curie={reference_curie}, "
-                f"mod_abbreviation={mod_abbreviation}, "
-                f"indexing_priority={indexing_priority} "
+                f"mod_abbreviation={mod_abbreviation} "
                 f"(id:{existing.indexing_priority_id}); cannot create duplicate record."
-            ),
-        )
-
-    tet_src_obj = (
-        db.query(TopicEntityTagSourceModel)
-        .filter(TopicEntityTagSourceModel.source_method == "abc_document_classifier")
-        .filter(TopicEntityTagSourceModel.data_provider == mod_abbreviation)
-        .first()
-    )
-    if not tet_src_obj:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                "The TET source with source_method 'abc_document_classifier' "
-                f"does not exist for {mod_abbreviation}."
             ),
         )
 
     data["reference_id"] = reference.reference_id
     data["mod_id"] = mod.mod_id
-    data["source_id"] = tet_src_obj.topic_entity_tag_source_id
 
     db_obj = IndexingPriorityModel(**data)
     db.add(db_obj)
@@ -245,11 +226,10 @@ def get_indexing_priority_tag(db: Session, curie: str):
     sql = """
     SELECT
         ip.indexing_priority_id,
-        ip.indexing_priority,
+        ip.predicted_indexing_priority,
         ip.confidence_score,
-        ip.validation_by_biocurator,
+        ip.curator_indexing_priority,
         ip.date_updated,
-        ip.source_id,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
         COALESCE(e.email_address, ip.updated_by) AS updated_by_email,
@@ -275,8 +255,10 @@ def get_indexing_priority_tag(db: Session, curie: str):
     tags = []
     for row in rows:
         d = dict(row)
-        code = d.get("indexing_priority")
-        d["indexing_priority_name"] = priority_tag_to_name.get(code, code)
+        predicted_code = d.get("predicted_indexing_priority")
+        d["predicted_indexing_priority_name"] = priority_tag_to_name.get(predicted_code, predicted_code)
+        curator_code = d.get("curator_indexing_priority")
+        d["curator_indexing_priority_name"] = priority_tag_to_name.get(curator_code, curator_code)
         date_updated = d.get("date_updated")
         d["date_updated"] = date_updated.isoformat() if date_updated else None
         tags.append(d)
@@ -291,12 +273,14 @@ def set_priority(
     db: Session,
     reference_curie: str,
     mod_abbreviation: str,
-    indexing_priority: str,
-    confidence_score: float,
+    predicted_indexing_priority: Optional[str] = None,
+    confidence_score: Optional[float] = None,
+    curator_indexing_priority: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Set an indexing priority (expects an ATP:... code), and update the pre-indexing
-    workflow tag to success/failure accordingly. Returns the created record (incl. date_updated).
+    Set a predicted indexing priority (expects an ATP:... code), and update the
+    pre-indexing workflow tag to success/failure accordingly.
+    Returns the created record (incl. date_updated).
     """
     # Workflow tags for pre-indexing status
     pre_indexing_prioritization_to_atp = {
@@ -328,7 +312,8 @@ def set_priority(
 
     # Build a Post schema so we benefit from its validation (ATP prefix + confidence rounding)
     payload = IndexingPrioritySchemaPost(
-        indexing_priority=indexing_priority,
+        predicted_indexing_priority=predicted_indexing_priority,
+        curator_indexing_priority=curator_indexing_priority,
         mod_abbreviation=mod_abbreviation,
         reference_curie=reference_curie,
         confidence_score=confidence_score,

@@ -28,13 +28,20 @@ class IndexingPrioritySchemaCreate(ConfidenceMixin):
         from_attributes=True
     )
 
-    indexing_priority: str
+    predicted_indexing_priority: Optional[str] = None
+    curator_indexing_priority: Optional[str] = None
     mod_abbreviation: str
 
-    @field_validator('indexing_priority')
-    def _check_atp_prefix(cls, v: str) -> str:
-        if not v.startswith('ATP:'):
-            raise ValueError("indexing_priority must start with 'ATP:'")
+    @field_validator('predicted_indexing_priority')
+    def _check_predicted_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("predicted_indexing_priority must start with 'ATP:'")
+        return v
+
+    @field_validator('curator_indexing_priority')
+    def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("curator_indexing_priority must start with 'ATP:'")
         return v
 
 
@@ -56,7 +63,8 @@ class IndexingPrioritySchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     )
 
     indexing_priority_id: Optional[int] = None
-    indexing_priority: str
+    predicted_indexing_priority: Optional[str] = None
+    curator_indexing_priority: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
     updated_by_name: Optional[str] = None
@@ -77,10 +85,17 @@ class IndexingPrioritySchemaUpdate(ConfidenceMixin):
 
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
-    indexing_priority: Optional[str] = None
+    predicted_indexing_priority: Optional[str] = None
+    curator_indexing_priority: Optional[str] = None
 
-    @field_validator('indexing_priority')
-    def _check_atp_prefix_optional(cls, v: Optional[str]) -> Optional[str]:
+    @field_validator('predicted_indexing_priority')
+    def _check_predicted_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.startswith('ATP:'):
-            raise ValueError("indexing_priority must start with 'ATP:'")
+            raise ValueError("predicted_indexing_priority must start with 'ATP:'")
+        return v
+
+    @field_validator('curator_indexing_priority')
+    def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("curator_indexing_priority must start with 'ATP:'")
         return v
