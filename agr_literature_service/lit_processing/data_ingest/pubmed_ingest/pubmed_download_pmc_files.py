@@ -266,33 +266,54 @@ def upload_suppl_files_to_s3():  # pragma: no cover
     else:
         fw = open(suppl_file_uploaded, "w")
 
+    # Count total PMIDs to process for progress logging
+    all_pmids = [d for d in listdir(pmcFileDir) if d.strip() not in files_uploaded]
+    total_pmids = len(all_pmids)
+    logger.info(f"Total PMIDs to upload to S3: {total_pmids}")
+
+    upload_count = 0
+    error_count = 0
+    skip_count = 0
+
     # download_PMC/9971735/PMC2132911
     # eg, under download_PMC/
-    for file_dir in listdir(pmcFileDir):
+    for idx, file_dir in enumerate(all_pmids, 1):
         pmid = file_dir.strip()
-        if pmid in files_uploaded:
-            continue
         pmid_dir = path.join(pmcFileDir, pmid)
-        # eg, under download_PMC/9971735/
-        for pmcid in listdir(pmid_dir):
-            sub_dir = path.join(pmcFileDir, pmid, pmcid)
-            # eg, under download_PMC/9971735/PMC2132911/
-            for file_name in listdir(sub_dir):
-                file_with_path = path.join(sub_dir, file_name)
-                if not path.exists(file_with_path):
-                    continue
-                md5sum = get_md5sum(file_with_path)
-                gzip_file_with_path = None
-                if file_with_path.endswith('.gz'):
-                    gzip_file_with_path = file_with_path
-                else:
-                    gzip_file_with_path = gzip_file(file_with_path)
-                if gzip_file_with_path is None:
-                    continue
-                status = upload_suppl_file_to_s3(gzip_file_with_path, md5sum)
-                if status is True:
-                    fw.write(pmid + "\t" + pmcid + "\t" + file_name + "\t" + md5sum + "\n")
+
+        try:
+            # eg, under download_PMC/9971735/
+            for pmcid in listdir(pmid_dir):
+                sub_dir = path.join(pmcFileDir, pmid, pmcid)
+                # eg, under download_PMC/9971735/PMC2132911/
+                for file_name in listdir(sub_dir):
+                    file_with_path = path.join(sub_dir, file_name)
+                    if not path.exists(file_with_path):
+                        continue
+                    md5sum = get_md5sum(file_with_path)
+                    gzip_file_with_path = None
+                    if file_with_path.endswith('.gz'):
+                        gzip_file_with_path = file_with_path
+                    else:
+                        gzip_file_with_path = gzip_file(file_with_path)
+                    if gzip_file_with_path is None:
+                        skip_count += 1
+                        continue
+                    status = upload_suppl_file_to_s3(gzip_file_with_path, md5sum)
+                    if status is True:
+                        fw.write(pmid + "\t" + pmcid + "\t" + file_name + "\t" + md5sum + "\n")
+                        upload_count += 1
+        except Exception as e:
+            error_count += 1
+            logger.error(f"[{idx}/{total_pmids}] PMID:{pmid} - Error uploading: {type(e).__name__}: {e}")
+            continue
+
+        # Progress logging every 500 PMIDs
+        if idx % 500 == 0:
+            logger.info(f"Upload progress: {idx}/{total_pmids} PMIDs processed, {upload_count} files uploaded, {error_count} errors")
+
     fw.close()
+    logger.info(f"Upload summary: {upload_count} files uploaded, {skip_count} skipped, {error_count} errors")
 
 
 def upload_suppl_file_to_s3(gzip_file_with_path, md5sum):  # pragma: no cover
