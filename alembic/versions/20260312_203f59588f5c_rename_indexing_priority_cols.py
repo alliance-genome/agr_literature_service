@@ -103,7 +103,14 @@ def upgrade():
             "curator_indexing_priority IS NULL OR curator_indexing_priority LIKE 'ATP:%'",
         )
 
-    # 8. Recreate index on predicted_indexing_priority
+    # 8. At least one priority field must be non-null
+    if not _constraint_exists(tbl, "ck_at_least_one_priority"):
+        op.create_check_constraint(
+            "ck_at_least_one_priority", tbl,
+            "predicted_indexing_priority IS NOT NULL OR curator_indexing_priority IS NOT NULL",
+        )
+
+    # 9. Recreate index on predicted_indexing_priority
     if not _index_exists(tbl, "ix_indexing_priority_predicted_indexing_priority"):
         op.create_index(
             "ix_indexing_priority_predicted_indexing_priority", tbl,
@@ -115,10 +122,16 @@ def downgrade():
     tbl = "indexing_priority"
 
     # Reverse: drop new constraints/indexes
-    op.drop_index("ix_indexing_priority_predicted_indexing_priority", table_name=tbl)
-    op.drop_constraint("ck_curator_indexing_priority_prefix", tbl, type_="check")
-    op.drop_constraint("ck_predicted_indexing_priority_prefix", tbl, type_="check")
-    op.drop_constraint("uq_indexing_priority_mod_ref", tbl, type_="unique")
+    if _index_exists(tbl, "ix_indexing_priority_predicted_indexing_priority"):
+        op.drop_index("ix_indexing_priority_predicted_indexing_priority", table_name=tbl)
+    if _constraint_exists(tbl, "ck_at_least_one_priority"):
+        op.drop_constraint("ck_at_least_one_priority", tbl, type_="check")
+    if _constraint_exists(tbl, "ck_curator_indexing_priority_prefix"):
+        op.drop_constraint("ck_curator_indexing_priority_prefix", tbl, type_="check")
+    if _constraint_exists(tbl, "ck_predicted_indexing_priority_prefix"):
+        op.drop_constraint("ck_predicted_indexing_priority_prefix", tbl, type_="check")
+    if _constraint_exists(tbl, "uq_indexing_priority_mod_ref"):
+        op.drop_constraint("uq_indexing_priority_mod_ref", tbl, type_="unique")
 
     # Revert nullable
     op.alter_column(tbl, "predicted_indexing_priority", existing_type=sa.String(), nullable=False)

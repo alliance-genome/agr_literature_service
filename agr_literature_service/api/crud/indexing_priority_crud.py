@@ -337,7 +337,7 @@ def set_priority(
             {"workflow_tag_id": pre_indexing_prioritization_to_atp["failed"]},
         )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 f"Setting indexing_priority failed: {e} "
                 f"for paper {reference_curie} in MOD {mod_abbreviation}"

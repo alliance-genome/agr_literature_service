@@ -28,6 +28,10 @@ class IndexingPriorityModel(Base, AuditedModel):
             "curator_indexing_priority IS NULL OR curator_indexing_priority LIKE 'ATP:%'",
             name="ck_curator_indexing_priority_prefix",
         ),
+        CheckConstraint(
+            "predicted_indexing_priority IS NOT NULL OR curator_indexing_priority IS NOT NULL",
+            name="ck_at_least_one_priority",
+        ),
     )
 
     indexing_priority_id: Mapped[int] = mapped_column(

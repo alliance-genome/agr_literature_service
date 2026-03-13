@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, field_validator, confloat
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, confloat
 from datetime import datetime
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -43,6 +43,15 @@ class IndexingPrioritySchemaCreate(ConfidenceMixin):
         if v is not None and not v.startswith('ATP:'):
             raise ValueError("curator_indexing_priority must start with 'ATP:'")
         return v
+
+    @model_validator(mode='after')
+    def _at_least_one_priority(self):
+        if self.predicted_indexing_priority is None and self.curator_indexing_priority is None:
+            raise ValueError(
+                "At least one of predicted_indexing_priority or "
+                "curator_indexing_priority must be provided"
+            )
+        return self
 
 
 class IndexingPrioritySchemaPost(IndexingPrioritySchemaCreate):

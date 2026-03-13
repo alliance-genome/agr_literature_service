@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional, Dict, Any
 
 from agr_literature_service.api import database
@@ -29,6 +29,15 @@ class SetPriorityBody(BaseModel):
     predicted_indexing_priority: Optional[str] = None
     confidence_score: Optional[float] = None
     curator_indexing_priority: Optional[str] = None
+
+    @model_validator(mode='after')
+    def _at_least_one_priority(self):
+        if self.predicted_indexing_priority is None and self.curator_indexing_priority is None:
+            raise ValueError(
+                "At least one of predicted_indexing_priority or "
+                "curator_indexing_priority must be provided"
+            )
+        return self
 
 
 @router.post(
