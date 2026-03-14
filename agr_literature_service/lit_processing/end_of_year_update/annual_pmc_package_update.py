@@ -12,9 +12,10 @@ import logging
 import shutil
 import csv
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from os import path, listdir, makedirs
-from typing import Dict, Any, Iterable, Tuple, List
+from typing import Dict, Any, Iterable, Tuple, List, Optional
 from sqlalchemy import text
 from collections import defaultdict
 from fastapi import HTTPException
@@ -755,76 +756,107 @@ def get_pmid_to_pmc_mapping(mapping_file, pmid_to_last_date_updated):
     return pmid_to_oa_url
 
 
+def _check_pmcid_s3_update(pmid: str, pmcid: str,
+                           lit_update_time: Optional[datetime]) -> Optional[Tuple[str, str]]:
+    """
+    Check if a single PMCID needs updating from S3.
+
+    Returns:
+        Tuple of (pmid, pmcid) if update needed, None otherwise
+    """
+    if lit_update_time is None:
+        # No update time in DB, include for checking
+        return (pmid, pmcid)
+
+    s3_client = get_pmc_oa_s3_client()
+
+    # Get latest version prefix
+    latest_version = get_latest_pmc_version(pmcid)
+    if not latest_version:
+        # Package not found in S3, skip
+        return None
+
+    # Get last modified time from S3 object metadata
+    try:
+        # Check the metadata JSON file for last modified
+        json_key = f"{latest_version}/{latest_version}.json"
+        response = s3_client.head_object(Bucket=PMC_OA_S3_BUCKET, Key=json_key)
+        s3_last_modified = response['LastModified'].replace(tzinfo=None)
+
+        # If S3 has newer version, include for update
+        if s3_last_modified > lit_update_time:
+            return (pmid, pmcid)
+    except ClientError:
+        # Try checking the directory itself if JSON doesn't exist
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=PMC_OA_S3_BUCKET,
+                Prefix=f"{latest_version}/",
+                MaxKeys=1
+            )
+            if response.get('Contents'):
+                s3_last_modified = response['Contents'][0]['LastModified'].replace(tzinfo=None)
+                if s3_last_modified > lit_update_time:
+                    return (pmid, pmcid)
+        except ClientError:
+            pass
+
+    return None
+
+
 def get_pmid_to_pmcid_s3_mapping(pmid_to_pmcid: Dict[str, str],
-                                 pmid_to_last_date_updated: Dict[str, datetime]) -> Dict[str, str]:
+                                 pmid_to_last_date_updated: Dict[str, datetime],
+                                 max_workers: int = 20) -> Dict[str, str]:
     """
     Get PMID to PMCID mapping for packages that need updating, using S3 metadata.
 
     Checks each PMCID's last modified time in S3 and compares with our DB update time.
+    Uses concurrent threads for performance.
 
     Args:
         pmid_to_pmcid: Dict mapping PMID (with prefix) to PMCID (without prefix)
         pmid_to_last_date_updated: Dict mapping PMID to last update datetime in our DB
+        max_workers: Maximum number of concurrent threads (default 20)
 
     Returns:
         Dict mapping PMID (with prefix) to PMCID for packages that need updating
     """
-    logger.info("Checking S3 for PMC package updates...")
+    logger.info(f"Checking S3 for PMC package updates (using {max_workers} threads)...")
 
-    s3_client = get_pmc_oa_s3_client()
     pmid_to_pmcid_to_update = {}
-    checked = 0
+    total = len(pmid_to_pmcid)
+    completed = 0
     needs_update = 0
 
-    for pmid, pmcid in pmid_to_pmcid.items():
-        if pmid not in pmid_to_last_date_updated:
-            # No update time in DB, include for checking
-            pmid_to_pmcid_to_update[pmid] = pmcid
-            needs_update += 1
-            continue
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        futures = {
+            executor.submit(
+                _check_pmcid_s3_update,
+                pmid,
+                pmcid,
+                pmid_to_last_date_updated.get(pmid)
+            ): pmid
+            for pmid, pmcid in pmid_to_pmcid.items()
+        }
 
-        checked += 1
-        if checked % 1000 == 0:
-            logger.info(f"Checked {checked}/{len(pmid_to_pmcid)} PMCIDs...")
+        # Process results as they complete
+        for future in as_completed(futures):
+            completed += 1
+            if completed % 1000 == 0:
+                logger.info(f"Checked {completed}/{total} PMCIDs...")
 
-        # Get latest version prefix
-        latest_version = get_latest_pmc_version(pmcid)
-        if not latest_version:
-            # Package not found in S3, skip
-            continue
-
-        # Get last modified time from S3 object metadata
-        try:
-            # Check the metadata JSON file for last modified
-            json_key = f"{latest_version}/{latest_version}.json"
-            response = s3_client.head_object(Bucket=PMC_OA_S3_BUCKET, Key=json_key)
-            s3_last_modified = response['LastModified'].replace(tzinfo=None)
-
-            lit_update_time = pmid_to_last_date_updated[pmid]
-
-            # If S3 has newer version, include for update
-            if s3_last_modified > lit_update_time:
-                pmid_to_pmcid_to_update[pmid] = pmcid
-                needs_update += 1
-        except ClientError:
-            # Try checking the directory itself if JSON doesn't exist
             try:
-                response = s3_client.list_objects_v2(
-                    Bucket=PMC_OA_S3_BUCKET,
-                    Prefix=f"{latest_version}/",
-                    MaxKeys=1
-                )
-                if response.get('Contents'):
-                    s3_last_modified = response['Contents'][0]['LastModified'].replace(tzinfo=None)
-                    lit_update_time = pmid_to_last_date_updated[pmid]
-                    if s3_last_modified > lit_update_time:
-                        pmid_to_pmcid_to_update[pmid] = pmcid
-                        needs_update += 1
-            except ClientError as e:
-                logger.debug(f"Could not check S3 for {pmcid}: {e}")
-                continue
+                result = future.result()
+                if result:
+                    pmid, pmcid = result
+                    pmid_to_pmcid_to_update[pmid] = pmcid
+                    needs_update += 1
+            except Exception as e:
+                pmid = futures[future]
+                logger.debug(f"Error checking {pmid}: {e}")
 
-    logger.info(f"Checked {checked} PMCIDs in S3, {needs_update} need updating")
+    logger.info(f"Checked {completed} PMCIDs in S3, {needs_update} need updating")
     return pmid_to_pmcid_to_update
 
 

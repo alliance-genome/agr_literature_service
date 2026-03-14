@@ -37,6 +37,7 @@ EUROPEPMC_API_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 EUROPEPMC_BATCH_SIZE = 100
 EUROPEPMC_MAX_PAGE_SIZE = 1000
 OA_CACHE_FILE = dataDir + "europepmc_oa_cache.json"
+OA_CACHE_TTL_DAYS = 30  # Re-check cached entries older than this
 
 
 # -----------------------------
@@ -100,6 +101,7 @@ def fetch_oa_metadata_batch(pmcids: List[str], session: requests.Session,
         results = result_list.get("result", []) if result_list else []
 
         out: Dict[str, dict] = {}
+        cached_at = time.time()
         for res in results:
             if not isinstance(res, dict):
                 continue
@@ -112,6 +114,7 @@ def fetch_oa_metadata_batch(pmcids: List[str], session: requests.Session,
                 "is_open_access": res.get("isOpenAccess") == "Y",
                 "has_pdf": res.get("hasPDF") == "Y",
                 "license": res.get("license"),
+                "cached_at": cached_at,
             }
 
         return out
@@ -121,11 +124,22 @@ def fetch_oa_metadata_batch(pmcids: List[str], session: requests.Session,
         return {}
 
 
+def _is_cache_entry_stale(entry: dict) -> bool:
+    """Check if a cache entry is older than TTL."""
+    cached_at = entry.get("cached_at")
+    if cached_at is None:
+        # Legacy entry without timestamp, consider stale
+        return True
+    age_days = (time.time() - cached_at) / (60 * 60 * 24)
+    return age_days > OA_CACHE_TTL_DAYS
+
+
 def fetch_oa_status_for_pmcids(pmcids: List[Tuple[str, str]],
                                cache: Dict[str, dict]) -> Dict[str, dict]:
     """
     Fetch OA status for list of (pmid, pmcid) tuples using EuroPMC API.
     Uses and updates the cache. Returns updated cache.
+    Entries older than OA_CACHE_TTL_DAYS are re-fetched.
 
     Args:
         pmcids: List of (pmid, pmcid) tuples
@@ -134,23 +148,34 @@ def fetch_oa_status_for_pmcids(pmcids: List[Tuple[str, str]],
     Returns:
         Updated cache dict
     """
-    # Normalize and find missing PMCIDs
+    # Normalize and find missing/stale PMCIDs
     unique_pmcids = set()
     for (_, pmcid) in pmcids:
         unique_pmcids.add(normalize_pmcid(pmcid))
 
-    missing = [p for p in unique_pmcids if p not in cache]
+    missing = []
+    stale = 0
+    for p in unique_pmcids:
+        if p not in cache:
+            missing.append(p)
+        elif _is_cache_entry_stale(cache[p]):
+            missing.append(p)
+            stale += 1
 
     if not missing:
         logger.info(f"OA cache hit: all {len(unique_pmcids)} PMCIDs found in cache")
         return cache
 
-    logger.info(f"OA cache: {len(unique_pmcids)} unique PMCIDs, {len(missing)} missing, fetching from EuroPMC...")
+    if stale > 0:
+        logger.info(f"OA cache: {len(unique_pmcids)} unique PMCIDs, {len(missing)} to fetch ({stale} stale)")
+    else:
+        logger.info(f"OA cache: {len(unique_pmcids)} unique PMCIDs, {len(missing)} missing, fetching from EuroPMC...")
 
     session = requests.Session()
     session.headers.update({"User-Agent": "agr-pmc-download/1.0"})
 
     fetched = 0
+    cached_at = time.time()
     for i in range(0, len(missing), EUROPEPMC_BATCH_SIZE):
         batch = missing[i:i + EUROPEPMC_BATCH_SIZE]
         batch_meta = fetch_oa_metadata_batch(batch, session)
@@ -167,6 +192,7 @@ def fetch_oa_status_for_pmcids(pmcids: List[Tuple[str, str]],
                     "is_open_access": False,
                     "has_pdf": False,
                     "license": None,
+                    "cached_at": cached_at,
                 }
 
         fetched += len(batch)
