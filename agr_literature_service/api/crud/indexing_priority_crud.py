@@ -266,4 +266,3 @@ def get_indexing_priority_tag(db: Session, curie: str):
         "all_priority_tags": priority_tag_to_name,
     }
 
-
