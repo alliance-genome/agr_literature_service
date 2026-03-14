@@ -265,4 +265,3 @@ def get_indexing_priority_tag(db: Session, curie: str):
         "current_priority_tag": tags[0] if tags else {},
         "all_priority_tags": priority_tag_to_name,
     }
-

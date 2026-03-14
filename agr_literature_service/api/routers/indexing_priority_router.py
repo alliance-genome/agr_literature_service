@@ -100,4 +100,3 @@ def get_indexing_priority_tag(
     return indexing_priority_crud.get_indexing_priority_tag(
         db, reference_curie
     )
-
