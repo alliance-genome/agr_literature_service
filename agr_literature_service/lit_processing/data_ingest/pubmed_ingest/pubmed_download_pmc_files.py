@@ -4,7 +4,7 @@ import shutil
 import time
 import requests
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Tuple
 from sqlalchemy import text
 from os import path, environ, makedirs, listdir, remove
 from dotenv import load_dotenv

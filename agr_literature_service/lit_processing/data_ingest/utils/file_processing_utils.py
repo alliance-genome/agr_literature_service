@@ -347,7 +347,7 @@ def list_pmc_package_versions(pmcid: str) -> list:
         return []
 
 
-def get_latest_pmc_version(pmcid: str) -> str:
+def get_latest_pmc_version(pmcid: str) -> Optional[str]:
     """
     Get the latest version prefix for a PMC package.
 
