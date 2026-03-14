@@ -1182,7 +1182,7 @@ def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_typ
         lc_json = [x.lower() for x in json_mrt_data[mod] if x]
         lc_db: Set[str] = set()
         if mod in db_mrt_data:
-            lc_json = [x.lower() for x in json_mrt_data[mod] if x]
+            lc_db = {x.lower() for x in db_mrt_data[mod].keys() if x}
         for ref_type_label in json_mrt_data[mod]:
             if ref_type_label and ref_type_label.lower() not in lc_db:
                 try:
@@ -1212,6 +1212,8 @@ def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_typ
 
     if len(referenceTypesConflict) > 0:
         referenceTypesConflict.add('Meeting_abstract')
+
+    return referenceTypesConflict
 
 
 def _get_mod_id_by_mod(db_session: Session, mod):  # pragma: no cover
