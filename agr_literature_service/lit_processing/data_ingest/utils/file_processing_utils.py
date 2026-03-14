@@ -3,7 +3,7 @@ import logging
 import tarfile
 import gzip
 import shutil
-from typing import Optional, Tuple
+from typing import Optional
 from urllib import request
 import datetime
 from os import environ, path, listdir, remove, makedirs
