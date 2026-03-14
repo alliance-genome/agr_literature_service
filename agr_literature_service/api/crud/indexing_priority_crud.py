@@ -5,12 +5,10 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.workflow_tag_crud import patch as wft_patch
 from agr_literature_service.api.models import (
     IndexingPriorityModel,
     ModModel,
     ReferenceModel,
-    WorkflowTagModel,
 )
 from agr_literature_service.api.schemas.indexing_priority_schemas import IndexingPrioritySchemaPost
 from agr_literature_service.api.crud.ateam_db_helpers import get_name_to_atp_for_descendants
@@ -269,76 +267,3 @@ def get_indexing_priority_tag(db: Session, curie: str):
     }
 
 
-def set_priority(
-    db: Session,
-    reference_curie: str,
-    mod_abbreviation: str,
-    predicted_indexing_priority: Optional[str] = None,
-    confidence_score: Optional[float] = None,
-    curator_indexing_priority: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Set a predicted indexing priority (expects an ATP:... code), and update the
-    pre-indexing workflow tag to success/failure accordingly.
-    Returns the created record (incl. date_updated).
-    """
-    # Workflow tags for pre-indexing status
-    pre_indexing_prioritization_to_atp = {
-        "failed": "ATP:0000304",
-        "success": "ATP:0000303",
-    }
-
-    # Ensure the reference has the pre-indexing workflow tag ATP:0000306 for this MOD
-    reference_workflow_tag_id = (
-        db.query(WorkflowTagModel.reference_workflow_tag_id)
-        .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
-        .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-        .filter(
-            ModModel.abbreviation == mod_abbreviation,
-            WorkflowTagModel.workflow_tag_id == "ATP:0000306",
-            ReferenceModel.curie == reference_curie,
-        )
-        .scalar()
-    )
-
-    if reference_workflow_tag_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                f"No workflow‐tag ATP:0000306 for paper {reference_curie} "
-                f"in MOD {mod_abbreviation}"
-            ),
-        )
-
-    try:
-        # Build a Post schema so we benefit from its validation (ATP prefix + confidence rounding)
-        payload = IndexingPrioritySchemaPost(
-            predicted_indexing_priority=predicted_indexing_priority,
-            curator_indexing_priority=curator_indexing_priority,
-            mod_abbreviation=mod_abbreviation,
-            reference_curie=reference_curie,
-            confidence_score=confidence_score,
-        )
-        new_id = create(db, payload)
-        # mark success on the workflow tag
-        wft_patch(
-            db,
-            reference_workflow_tag_id,
-            {"workflow_tag_id": pre_indexing_prioritization_to_atp["success"]},
-        )
-        # Return the created record (with date_updated, updated_by_email, etc.)
-        return show(db, new_id)
-    except Exception as e:
-        # mark failure on the workflow tag
-        wft_patch(
-            db,
-            reference_workflow_tag_id,
-            {"workflow_tag_id": pre_indexing_prioritization_to_atp["failed"]},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Setting indexing_priority failed: {e} "
-                f"for paper {reference_curie} in MOD {mod_abbreviation}"
-            ),
-        )

@@ -4,7 +4,6 @@ from fastapi import HTTPException
 from agr_literature_service.api.models import (
     ReferenceModel,
     IndexingPriorityModel,
-    WorkflowTagModel,
     ModModel,
 )
 from agr_literature_service.api.crud import indexing_priority_crud as ip_crud
@@ -28,7 +27,6 @@ def patch_ip_helpers(monkeypatch):
     Make ip_crud independent of seeded ATP/workflow data:
       - get_workflow_tags_from_process -> fixed list of ATP codes
       - get_name_to_atp_for_descendants -> fixed name map
-      - wft_patch -> simple in-DB update of WorkflowTagModel.workflow_tag_id
     """
     def _fake_get_workflow_tags_from_process(process_atp_id):
         # Pretend the process ATP:0000210 has these two child tags
@@ -50,30 +48,6 @@ def patch_ip_helpers(monkeypatch):
     # nothing to unpatch explicitly (monkeypatch handles teardown)
 
 
-@pytest.fixture(autouse=True)
-def patch_wft_patch(monkeypatch):
-    """
-    Replace ip_crud.wft_patch with a minimal in-DB updater so set_priority
-    can flip ATP:0000306 -> {success,failed} without depending on router logic.
-    """
-    def _fake_wft_patch(db, reference_workflow_tag_id, update_dict):
-        wft = (
-            db.query(WorkflowTagModel)
-            .filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id)
-            .first()
-        )
-        if not wft:
-            # Mirror your real patch behavior with an HTTPException if needed
-            raise HTTPException(status_code=404, detail="workflow tag not found")
-        if "workflow_tag_id" in update_dict:
-            wft.workflow_tag_id = update_dict["workflow_tag_id"]
-        db.add(wft)
-        db.commit()
-
-    monkeypatch.setattr(ip_crud, "wft_patch", _fake_wft_patch)
-    yield
-
-
 # ---------- helpers ----------
 
 def _ensure_mod(session, abbr: str) -> int:
@@ -84,33 +58,6 @@ def _ensure_mod(session, abbr: str) -> int:
         session.commit()
         session.refresh(mod)
     return mod.mod_id
-
-
-def _ensure_preindexing_wft(session, ref_curie: str, mod_abbr: str) -> int:
-    """Create ATP:0000306 workflow tag for (ref, mod) if missing."""
-    ref_id = (
-        session.query(ReferenceModel.reference_id)
-        .filter(ReferenceModel.curie == ref_curie)
-        .scalar()
-    )
-    mod_id = _ensure_mod(session, mod_abbr)
-    wft = (
-        session.query(WorkflowTagModel)
-        .filter(WorkflowTagModel.reference_id == ref_id)
-        .filter(WorkflowTagModel.mod_id == mod_id)
-        .filter(WorkflowTagModel.workflow_tag_id == "ATP:0000306")
-        .first()
-    )
-    if not wft:
-        wft = WorkflowTagModel(
-            reference_id=ref_id,
-            mod_id=mod_id,
-            workflow_tag_id="ATP:0000306",
-        )
-        session.add(wft)
-        session.commit()
-        session.refresh(wft)
-    return wft.reference_workflow_tag_id
 
 
 def _mk_payload(ref_curie: str, mod_abbr: str, ip_code: str = "ATP:0000211", score: float = 0.5):
@@ -231,54 +178,6 @@ class TestIndexingPriorityCRUD:
         assert ref_id in ids_all_211
         assert ref_id in ids_mod_a_211
         assert ref_id not in ids_mod_b_211
-
-    def test_set_priority_success_and_failure_paths(self, db, test_reference):  # noqa
-        ref_curie = test_reference.new_ref_curie
-        mod_abbr = "ZFIN"
-        _ensure_mod(db, mod_abbr)
-        _ensure_preindexing_wft(db, ref_curie, mod_abbr)
-
-        result = ip_crud.set_priority(
-            db=db,
-            reference_curie=ref_curie,
-            mod_abbreviation=mod_abbr,
-            predicted_indexing_priority="ATP:0000211",
-            confidence_score=0.777,
-        )
-        assert result["reference_curie"] == ref_curie
-        assert result["mod_abbreviation"] == mod_abbr
-        assert result["predicted_indexing_priority"] == "ATP:0000211"
-
-        wft_row = (
-            db.query(WorkflowTagModel)
-            .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
-            .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-            .filter(ReferenceModel.curie == ref_curie, ModModel.abbreviation == mod_abbr)
-            .filter(WorkflowTagModel.workflow_tag_id.in_(["ATP:0000303", "ATP:0000304", "ATP:0000306"]))
-            .order_by(WorkflowTagModel.reference_workflow_tag_id.desc())
-            .first()
-        )
-        assert wft_row.workflow_tag_id == "ATP:0000303"
-
-        _ensure_preindexing_wft(db, ref_curie, mod_abbr)  # fresh ATP:0000306 again
-        with pytest.raises(HTTPException):
-            ip_crud.set_priority(
-                db=db,
-                reference_curie=ref_curie,
-                mod_abbreviation=mod_abbr,
-                predicted_indexing_priority="ATP:0000211",
-                confidence_score=0.9,
-            )
-        wft_row2 = (
-            db.query(WorkflowTagModel)
-            .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
-            .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-            .filter(ReferenceModel.curie == ref_curie, ModModel.abbreviation == mod_abbr)
-            .filter(WorkflowTagModel.workflow_tag_id.in_(["ATP:0000303", "ATP:0000304"]))
-            .order_by(WorkflowTagModel.reference_workflow_tag_id.desc())
-            .first()
-        )
-        assert wft_row2.workflow_tag_id == "ATP:0000304"
 
     def test_get_indexing_priority_tag_shapes_and_names(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
