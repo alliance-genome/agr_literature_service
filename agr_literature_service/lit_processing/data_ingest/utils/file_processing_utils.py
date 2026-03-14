@@ -419,10 +419,11 @@ def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None)
     if version:
         prefix = f"{pmcid}.{version}"
     else:
-        prefix = get_latest_pmc_version(pmcid)
-        if not prefix:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
             logger.warning(f"No PMC package found for {pmcid}")
             return False
+        prefix = latest
 
     s3_client = get_pmc_oa_s3_client()
     files = list_pmc_package_files(pmcid, version)
@@ -448,7 +449,7 @@ def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None)
 
 
 def download_pmc_file_from_s3(pmcid: str, file_name: str, dest_path: str,
-                               version: str = None) -> bool:
+                              version: str = None) -> bool:
     """
     Download a specific file from a PMC package.
 
@@ -467,10 +468,11 @@ def download_pmc_file_from_s3(pmcid: str, file_name: str, dest_path: str,
     if version:
         prefix = f"{pmcid}.{version}"
     else:
-        prefix = get_latest_pmc_version(pmcid)
-        if not prefix:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
             logger.warning(f"No PMC package found for {pmcid}")
             return False
+        prefix = latest
 
     s3_client = get_pmc_oa_s3_client()
     file_key = f"{prefix}/{file_name}"
@@ -494,17 +496,16 @@ def get_pmc_license_from_s3(pmcid: str, version: str = None) -> Tuple[Optional[s
     Returns:
         Tuple of (pmid, license_code) - both may be None if not found
     """
-    import io
-
     if not pmcid.startswith('PMC'):
         pmcid = f'PMC{pmcid}'
 
     if version:
         prefix = f"{pmcid}.{version}"
     else:
-        prefix = get_latest_pmc_version(pmcid)
-        if not prefix:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
             return (None, None)
+        prefix = latest
 
     s3_client = get_pmc_oa_s3_client()
     json_key = f"{prefix}/{prefix}.json"
@@ -543,9 +544,10 @@ def get_pmc_package_metadata(pmcid: str, version: str = None) -> dict:
     if version:
         prefix = f"{pmcid}.{version}"
     else:
-        prefix = get_latest_pmc_version(pmcid)
-        if not prefix:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
             return {}
+        prefix = latest
 
     s3_client = get_pmc_oa_s3_client()
     json_key = f"{prefix}/{prefix}.json"

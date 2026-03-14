@@ -23,12 +23,12 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.models import ReferencefileModel, ReferencefileModAssociationModel, \
     CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file, gzip_file, classify_pmc_file, \
+    gzip_file, classify_pmc_file, \
     get_pmc_oa_s3_client, PMC_OA_S3_BUCKET, get_latest_pmc_version, \
     download_pmc_package_from_s3
 from agr_literature_service.lit_processing.utils.db_read_utils import get_pmid_to_reference_id_mapping
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_download_pmc_files import \
-    download_packages, unpack_packages, upload_suppl_file_to_s3
+    upload_suppl_file_to_s3
 from agr_literature_service.api.crud.referencefile_utils import remove_from_s3_and_db
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
@@ -755,7 +755,7 @@ def get_pmid_to_pmc_mapping(mapping_file, pmid_to_last_date_updated):
 
 
 def get_pmid_to_pmcid_s3_mapping(pmid_to_pmcid: Dict[str, str],
-                                  pmid_to_last_date_updated: Dict[str, datetime]) -> Dict[str, str]:
+                                 pmid_to_last_date_updated: Dict[str, datetime]) -> Dict[str, str]:
     """
     Get PMID to PMCID mapping for packages that need updating, using S3 metadata.
 
@@ -877,7 +877,6 @@ def download_packages_from_s3_for_update(pmids_to_download: list, pmid_to_pmcid:
     s3_not_found = 0
 
     for pmid in pmids_to_download:
-        pmid_numeric = pmid.replace("PMID:", "")
         pmcid = pmid_to_pmcid.get(pmid, "")
         if not pmcid:
             logger.warning(f"No PMCID found for {pmid}, skipping")
