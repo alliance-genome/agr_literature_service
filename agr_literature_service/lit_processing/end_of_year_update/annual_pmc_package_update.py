@@ -18,6 +18,7 @@ from typing import Dict, Any, Iterable, Tuple, List
 from sqlalchemy import text
 from collections import defaultdict
 from fastapi import HTTPException
+from botocore.exceptions import ClientError
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ReferencefileModel, ReferencefileModAssociationModel, \
@@ -768,8 +769,6 @@ def get_pmid_to_pmcid_s3_mapping(pmid_to_pmcid: Dict[str, str],
     Returns:
         Dict mapping PMID (with prefix) to PMCID for packages that need updating
     """
-    from botocore.exceptions import ClientError
-
     logger.info("Checking S3 for PMC package updates...")
 
     s3_client = get_pmc_oa_s3_client()
@@ -899,7 +898,6 @@ def download_packages_from_s3_for_update(pmids_to_download: list, pmid_to_pmcid:
             # Clean up empty directory
             try:
                 if path.exists(pmid_dir) and not listdir(pmid_dir):
-                    import shutil
                     shutil.rmtree(pmid_dir)
             except Exception:
                 pass

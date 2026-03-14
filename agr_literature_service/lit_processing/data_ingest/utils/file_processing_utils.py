@@ -6,7 +6,8 @@ import shutil
 from typing import Optional, Tuple
 from urllib import request
 import datetime
-from os import environ, path, listdir, remove
+from os import environ, path, listdir, remove, makedirs
+from os.path import join as path_join, basename
 import html
 import re
 
@@ -187,7 +188,7 @@ def classify_pmc_file(file_name, file_extension):
     ]
     """
     image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
-    if file_extension.lower() in ("nxml", "xml"):
+    if file_extension.lower() == "nxml":
         return "nXML"
     if "thumb" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
         return "thumbnail"
@@ -308,15 +309,22 @@ def escape_special_characters(text):
 
 PMC_OA_S3_BUCKET = "pmc-oa-opendata"
 
+# Cached S3 client for PMC OA bucket (anonymous access)
+_pmc_oa_s3_client = None
+
 
 def get_pmc_oa_s3_client():
     """
     Get an S3 client configured for anonymous access to the PMC Open Access bucket.
+    Client is cached as a module-level singleton for performance.
 
     Returns:
         boto3 S3 client configured with anonymous credentials
     """
-    return boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    global _pmc_oa_s3_client
+    if _pmc_oa_s3_client is None:
+        _pmc_oa_s3_client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    return _pmc_oa_s3_client
 
 
 def list_pmc_package_versions(pmcid: str) -> list:
@@ -389,11 +397,14 @@ def list_pmc_package_files(pmcid: str, version: str = None) -> list:
     s3_client = get_pmc_oa_s3_client()
 
     try:
-        response = s3_client.list_objects_v2(
-            Bucket=PMC_OA_S3_BUCKET,
-            Prefix=prefix
-        )
-        return [obj['Key'] for obj in response.get('Contents', [])]
+        # Use paginator to handle >1000 files
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=PMC_OA_S3_BUCKET, Prefix=prefix)
+        files = []
+        for page in pages:
+            for obj in page.get('Contents', []):
+                files.append(obj['Key'])
+        return files
     except ClientError as e:
         logger.error(f"Error listing PMC package files for {pmcid}: {e}")
         return []
@@ -411,8 +422,6 @@ def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None)
     Returns:
         True if successful, False otherwise
     """
-    import os
-
     if not pmcid.startswith('PMC'):
         pmcid = f'PMC{pmcid}'
 
@@ -430,13 +439,13 @@ def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None)
         return False
 
     # Create destination directory
-    package_dir = os.path.join(dest_dir, pmcid)
-    os.makedirs(package_dir, exist_ok=True)
+    package_dir = path_join(dest_dir, pmcid)
+    makedirs(package_dir, exist_ok=True)
 
     try:
         for file_key in files:
-            file_name = os.path.basename(file_key)
-            local_path = os.path.join(package_dir, file_name)
+            file_name = basename(file_key)
+            local_path = path_join(package_dir, file_name)
             logger.info(f"Downloading {file_key} to {local_path}")
             s3_client.download_file(PMC_OA_S3_BUCKET, file_key, local_path)
         return True
