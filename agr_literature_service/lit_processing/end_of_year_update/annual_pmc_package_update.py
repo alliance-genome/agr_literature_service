@@ -12,21 +12,25 @@ import logging
 import shutil
 import csv
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from os import path, listdir, makedirs
-from typing import Dict, Any, Iterable, Tuple, List
+from typing import Dict, Any, Iterable, Tuple, List, Optional
 from sqlalchemy import text
 from collections import defaultdict
 from fastapi import HTTPException
+from botocore.exceptions import ClientError
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ReferencefileModel, ReferencefileModAssociationModel, \
     CrossReferenceModel
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file, gzip_file, classify_pmc_file
+    gzip_file, classify_pmc_file, \
+    get_pmc_oa_s3_client, PMC_OA_S3_BUCKET, get_latest_pmc_version, \
+    download_pmc_package_from_s3
 from agr_literature_service.lit_processing.utils.db_read_utils import get_pmid_to_reference_id_mapping
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_download_pmc_files import \
-    download_packages, unpack_packages, upload_suppl_file_to_s3
+    upload_suppl_file_to_s3
 from agr_literature_service.api.crud.referencefile_utils import remove_from_s3_and_db
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
@@ -68,11 +72,11 @@ def log_progress(message: str):
         f.write(f"{datetime.now().isoformat()} - {message}\n")
 
 
-def annual_pmc_package_update(mapping_file: str, batch_size: int = 500, dry_run: bool = False):
+def annual_pmc_package_update(mapping_file: str = None, batch_size: int = 500, dry_run: bool = False):
     """
     Main function to perform annual PMC package update.
     Args:
-        mapping_file: Path to oa_file_list.csv
+        mapping_file: Deprecated - no longer used. S3 is now the source.
         batch_size: Number of PMIDs to process per batch
         dry_run: If True, only report what would be updated without making changes
     """
@@ -80,6 +84,7 @@ def annual_pmc_package_update(mapping_file: str, batch_size: int = 500, dry_run:
     log_progress("=" * 80)
     log_progress(f"Starting Annual PMC Package Update - {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     log_progress(f"Batch size: {batch_size}, Dry run: {dry_run}")
+    log_progress("Using AWS S3 bucket pmc-oa-opendata for package retrieval")
     log_progress("=" * 80)
 
     # Step 1: Get all PMIDs currently in our database
@@ -87,14 +92,18 @@ def annual_pmc_package_update(mapping_file: str, batch_size: int = 500, dry_run:
     pmids_in_db, pmid_to_reference_id, pmid_to_last_date_updated, pmids_for_retracted_papers = get_all_pmids_with_files_etc()
     log_progress(f"Found {len(pmids_in_db)} PMIDs with files in database")
 
-    # Step 2: Get PMIDs that need checking
-    log_progress("Step 2: Analyzing oa_file_list.csv to identify packages for update check...")
-    pmid_to_oa_url = get_pmid_to_pmc_mapping(mapping_file, pmid_to_last_date_updated)
+    # Step 2: Get PMID to PMCID mapping from database
+    log_progress("Step 2: Getting PMID to PMCID mappings from database...")
+    pmid_to_pmcid = get_pmid_to_pmcid_from_db()
 
-    # Step 3: Intersect - only check PMIDs we have AND that exist in OA
-    log_progress("Step 3: Intersect - only check PMIDs we have AND that exist in OA")
+    # Step 3: Check S3 for packages that need updating
+    log_progress("Step 3: Checking S3 for packages with updates...")
+    pmid_to_pmcid_to_update = get_pmid_to_pmcid_s3_mapping(pmid_to_pmcid, pmid_to_last_date_updated)
+
+    # Step 4: Intersect - only check PMIDs we have AND that need updates
+    log_progress("Step 4: Identifying PMIDs that need checking...")
     pmids_to_check = sorted(
-        set(pmid_to_oa_url.keys()) & set(pmids_in_db),
+        set(pmid_to_pmcid_to_update.keys()) & set(pmids_in_db),
         key=lambda x: int(x.split(":", 1)[1])
     )
 
@@ -132,7 +141,7 @@ def annual_pmc_package_update(mapping_file: str, batch_size: int = 500, dry_run:
             process_batch(
                 batch_idx,
                 batch_pmids,
-                pmid_to_oa_url,
+                pmid_to_pmcid_to_update,
                 stats,
                 total_batches,
                 pmid_to_reference_id,
@@ -153,7 +162,7 @@ def annual_pmc_package_update(mapping_file: str, batch_size: int = 500, dry_run:
     log_progress("=" * 80)
 
 
-def process_batch(batch_idx, batch_pmids, pmid_to_oa_url, stats, total_batches, pmid_to_reference_id, pmids_for_retracted_papers, dry_run):      # noqa: C901
+def process_batch(batch_idx, batch_pmids, pmid_to_pmcid, stats, total_batches, pmid_to_reference_id, pmids_for_retracted_papers, dry_run):      # noqa: C901
     """Process a single batch of PMIDs."""
     batch_size = len(batch_pmids)
     batch_start = (batch_idx - 1) * len(batch_pmids) + 1
@@ -177,22 +186,21 @@ def process_batch(batch_idx, batch_pmids, pmid_to_oa_url, stats, total_batches, 
         log_progress(f"[Batch {batch_idx}] ERROR loading metadata: {e}")
         raise
 
-    # Check which packages need downloading
+    # Check which packages need downloading (check for directory instead of tar.gz)
     pmids_to_download = []
     for pmid_with_prefix in batch_pmids:
-        tar_name = f"{pmid_with_prefix}.tar.gz"
-        tar_path = path.join(pmcFileDir, tar_name)
-        if path.exists(tar_path) and path.getsize(tar_path) > 0:
-            logger.debug(f"[Batch {batch_idx}] Cache hit: {tar_path}")
+        pmid_dir = path.join(pmcFileDir, pmid_with_prefix)
+        if path.exists(pmid_dir) and listdir(pmid_dir):
+            logger.debug(f"[Batch {batch_idx}] Cache hit: {pmid_dir}")
         else:
             pmids_to_download.append(pmid_with_prefix)
 
-    # Download packages
+    # Download packages from S3
     if pmids_to_download:
-        log_progress(f"[Batch {batch_idx}] Downloading {len(pmids_to_download)} PMC packages...")
+        log_progress(f"[Batch {batch_idx}] Downloading {len(pmids_to_download)} PMC packages from S3...")
         if not dry_run:
             try:
-                download_packages(pmids_to_download, pmid_to_oa_url)
+                download_packages_from_s3_for_update(pmids_to_download, pmid_to_pmcid)
                 log_progress(f"[Batch {batch_idx}] Download complete")
             except Exception as e:
                 log_progress(f"[Batch {batch_idx}] ERROR during download: {e}")
@@ -202,17 +210,7 @@ def process_batch(batch_idx, batch_pmids, pmid_to_oa_url, stats, total_batches, 
     else:
         log_progress(f"[Batch {batch_idx}] All packages cached, skipping download")
 
-    # Unpack packages
-    log_progress(f"[Batch {batch_idx}] Unpacking PMC packages...")
-    if not dry_run:
-        try:
-            unpack_packages()
-            log_progress(f"[Batch {batch_idx}] Unpack complete")
-        except Exception as e:
-            log_progress(f"[Batch {batch_idx}] ERROR during unpacking: {e}")
-            raise
-    else:
-        log_progress(f"[Batch {batch_idx}] DRY RUN: Would unpack packages")
+    # No unpacking needed - S3 provides individual files
 
     # Compare files
     log_progress(f"[Batch {batch_idx}] Comparing files on disk vs database...")
@@ -712,6 +710,12 @@ def destroy_file(db, pmid, file_name, md5sum, file_class, pmids_for_retracted_pa
 
 
 def get_pmid_to_pmc_mapping(mapping_file, pmid_to_last_date_updated):
+    """
+    DEPRECATED: Uses oa_file_list.csv from FTP (retiring August 2026).
+    Use get_pmid_to_pmcid_s3_mapping instead.
+    """
+    logger.warning("get_pmid_to_pmc_mapping using oa_file_list.csv is deprecated. "
+                   "Use get_pmid_to_pmcid_s3_mapping for S3-based lookup.")
 
     logger.info("Reading oa_file_list.csv...")
 
@@ -750,6 +754,189 @@ def get_pmid_to_pmc_mapping(mapping_file, pmid_to_last_date_updated):
 
     logger.info(f"Loaded mapping for {len(pmid_to_oa_url)} PMIDs from oa_file_list.csv")
     return pmid_to_oa_url
+
+
+def _check_pmcid_s3_update(pmid: str, pmcid: str,
+                           lit_update_time: Optional[datetime]) -> Optional[Tuple[str, str]]:
+    """
+    Check if a single PMCID needs updating from S3.
+
+    Returns:
+        Tuple of (pmid, pmcid) if update needed, None otherwise
+    """
+    if lit_update_time is None:
+        # No update time in DB, include for checking
+        return (pmid, pmcid)
+
+    s3_client = get_pmc_oa_s3_client()
+
+    # Get latest version prefix
+    latest_version = get_latest_pmc_version(pmcid)
+    if not latest_version:
+        # Package not found in S3, skip
+        return None
+
+    # Get last modified time from S3 object metadata
+    try:
+        # Check the metadata JSON file for last modified
+        json_key = f"{latest_version}/{latest_version}.json"
+        response = s3_client.head_object(Bucket=PMC_OA_S3_BUCKET, Key=json_key)
+        s3_last_modified = response['LastModified'].replace(tzinfo=None)
+
+        # If S3 has newer version, include for update
+        if s3_last_modified > lit_update_time:
+            return (pmid, pmcid)
+    except ClientError:
+        # Try checking the directory itself if JSON doesn't exist
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=PMC_OA_S3_BUCKET,
+                Prefix=f"{latest_version}/",
+                MaxKeys=1
+            )
+            if response.get('Contents'):
+                s3_last_modified = response['Contents'][0]['LastModified'].replace(tzinfo=None)
+                if s3_last_modified > lit_update_time:
+                    return (pmid, pmcid)
+        except ClientError:
+            pass
+
+    return None
+
+
+def get_pmid_to_pmcid_s3_mapping(pmid_to_pmcid: Dict[str, str],
+                                 pmid_to_last_date_updated: Dict[str, datetime],
+                                 max_workers: int = 20) -> Dict[str, str]:
+    """
+    Get PMID to PMCID mapping for packages that need updating, using S3 metadata.
+
+    Checks each PMCID's last modified time in S3 and compares with our DB update time.
+    Uses concurrent threads for performance.
+
+    Args:
+        pmid_to_pmcid: Dict mapping PMID (with prefix) to PMCID (without prefix)
+        pmid_to_last_date_updated: Dict mapping PMID to last update datetime in our DB
+        max_workers: Maximum number of concurrent threads (default 20)
+
+    Returns:
+        Dict mapping PMID (with prefix) to PMCID for packages that need updating
+    """
+    logger.info(f"Checking S3 for PMC package updates (using {max_workers} threads)...")
+
+    pmid_to_pmcid_to_update = {}
+    total = len(pmid_to_pmcid)
+    completed = 0
+    needs_update = 0
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        futures = {
+            executor.submit(
+                _check_pmcid_s3_update,
+                pmid,
+                pmcid,
+                pmid_to_last_date_updated.get(pmid)
+            ): pmid
+            for pmid, pmcid in pmid_to_pmcid.items()
+        }
+
+        # Process results as they complete
+        for future in as_completed(futures):
+            completed += 1
+            if completed % 1000 == 0:
+                logger.info(f"Checked {completed}/{total} PMCIDs...")
+
+            try:
+                result = future.result()
+                if result:
+                    pmid, pmcid = result
+                    pmid_to_pmcid_to_update[pmid] = pmcid
+                    needs_update += 1
+            except Exception as e:
+                pmid = futures[future]
+                logger.debug(f"Error checking {pmid}: {e}")
+
+    logger.info(f"Checked {completed} PMCIDs in S3, {needs_update} need updating")
+    return pmid_to_pmcid_to_update
+
+
+def get_pmid_to_pmcid_from_db() -> Dict[str, str]:
+    """
+    Get mapping of PMID to PMCID for all papers with PMC packages in our database.
+
+    Returns:
+        Dict mapping PMID (with prefix) to PMCID (without prefix)
+    """
+    db = create_postgres_session(False)
+    try:
+        rows = db.execute(text("""
+            SELECT cr_pmid.curie AS pmid, cr_pmcid.curie AS pmcid
+            FROM cross_reference cr_pmid
+            JOIN cross_reference cr_pmcid ON cr_pmid.reference_id = cr_pmcid.reference_id
+            JOIN referencefile rf ON cr_pmid.reference_id = rf.reference_id
+            JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+            WHERE cr_pmid.curie_prefix = 'PMID'
+              AND cr_pmid.is_obsolete = False
+              AND cr_pmcid.curie_prefix = 'PMCID'
+              AND cr_pmcid.is_obsolete = False
+              AND rfm.mod_id IS NULL
+            GROUP BY cr_pmid.curie, cr_pmcid.curie
+        """)).fetchall()
+
+        pmid_to_pmcid = {
+            row.pmid: row.pmcid.replace("PMCID:", "")
+            for row in rows
+        }
+        logger.info(f"Found {len(pmid_to_pmcid)} PMID-PMCID mappings in database")
+        return pmid_to_pmcid
+    finally:
+        db.close()
+
+
+def download_packages_from_s3_for_update(pmids_to_download: list, pmid_to_pmcid: Dict[str, str]):
+    """
+    Download PMC packages from S3 for the update workflow.
+
+    Note: Older PMCIDs (below ~PMC9000000) may not be in the new S3 bucket yet.
+    These will be skipped. The full migration is expected by August 2026.
+
+    Args:
+        pmids_to_download: List of PMIDs (with prefix) to download
+        pmid_to_pmcid: Dict mapping PMID to PMCID
+    """
+    s3_success = 0
+    s3_not_found = 0
+
+    for pmid in pmids_to_download:
+        pmcid = pmid_to_pmcid.get(pmid, "")
+        if not pmcid:
+            logger.warning(f"No PMCID found for {pmid}, skipping")
+            continue
+
+        # Create directory structure matching expected format
+        # pmcFileDir/PMID:12345/PMC12345/files
+        pmid_dir = path.join(pmcFileDir, pmid)
+        if path.exists(pmid_dir) and listdir(pmid_dir):
+            continue
+
+        logger.info(f"{pmid} ({pmcid}): Downloading from S3...")
+        makedirs(pmid_dir, exist_ok=True)
+
+        success = download_pmc_package_from_s3(pmcid, pmid_dir)
+        if success:
+            s3_success += 1
+        else:
+            s3_not_found += 1
+            # Clean up empty directory
+            try:
+                if path.exists(pmid_dir) and not listdir(pmid_dir):
+                    shutil.rmtree(pmid_dir)
+            except Exception:
+                pass
+            logger.debug(f"PMC package for {pmid} ({pmcid}) not in S3 - may be older package not yet migrated")
+
+    if s3_not_found > 0:
+        logger.info(f"S3 download summary: {s3_success} successful, {s3_not_found} not found (older PMCIDs not yet in S3)")
 
 
 def get_all_pmids_with_files_etc():
@@ -939,20 +1126,12 @@ def main():
         shutil.rmtree(DATA_DIR)
     makedirs(DATA_DIR, exist_ok=True)
 
-    # Download oa_file_list.csv
-    oafile_ftp = "ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.csv"
-    mapping_file = path.join(DATA_DIR, "oa_file_list.csv")
+    # PMC FTP service deprecated August 2026. Using AWS S3 bucket pmc-oa-opendata.
+    # See: https://ncbiinsights.ncbi.nlm.nih.gov/2026/02/12/pmc-article-dataset-distribution-services/
+    log_progress("Using AWS S3 bucket pmc-oa-opendata for PMC package retrieval")
 
-    try:
-        log_progress(f"Downloading {oafile_ftp}...")
-        download_file(oafile_ftp, mapping_file)
-        log_progress(f"Successfully downloaded to {mapping_file}")
-    except Exception as e:
-        logger.error(f"Failed to download oa_file_list.csv: {e}")
-        raise
-
-    # Run the update
-    annual_pmc_package_update(mapping_file, args.batch_size, args.dry_run)
+    # Run the update (no mapping_file needed - using S3 directly)
+    annual_pmc_package_update(batch_size=args.batch_size, dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

@@ -10,7 +10,6 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 rootUrl = "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id="
-pmcRootUrl = 'https://ftp.ncbi.nlm.nih.gov/pub/pmc/'
 
 license_file = "data/pmc_license_searched.txt"
 searched_url_file = "data/searched_urls.lst"
