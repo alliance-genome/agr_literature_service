@@ -416,14 +416,11 @@ def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None)
     if not pmcid.startswith('PMC'):
         pmcid = f'PMC{pmcid}'
 
-    if version:
-        prefix = f"{pmcid}.{version}"
-    else:
-        latest = get_latest_pmc_version(pmcid)
-        if not latest:
+    if not version:
+        # Check if package exists
+        if not get_latest_pmc_version(pmcid):
             logger.warning(f"No PMC package found for {pmcid}")
             return False
-        prefix = latest
 
     s3_client = get_pmc_oa_s3_client()
     files = list_pmc_package_files(pmcid, version)
