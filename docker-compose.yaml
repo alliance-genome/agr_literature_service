@@ -72,7 +72,12 @@ services:
       - agr-literature
 
   api:
+    container_name: agr.literature.${ENV_STATE}.api.server
     restart: always
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     build:
       context: .
       dockerfile: docker/api.dockerfile
@@ -137,7 +142,12 @@ services:
       - "${API_PORT}:8080"
 
   xml_processing:
+    container_name: agr.literature.${ENV_STATE}.xml_processing
     restart: always
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     build:
       context: .
       dockerfile: docker/xml_processing.dockerfile
@@ -180,7 +190,12 @@ services:
       - api
 
   automated_scripts:
+    container_name: agr.literature.${ENV_STATE}.automated_scripts
     restart: always
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     build:
       context: .
       dockerfile: docker/automated_scripts.dockerfile
@@ -344,6 +359,11 @@ services:
       - .:/usr/local/bin/src/literature
 
   dbz_zookeeper:
+    container_name: agr.literature.${ENV_STATE}.dbz.zookeeper
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
     ports:
       - 2181:2181
@@ -353,6 +373,11 @@ services:
       - agr-literature
 
   dbz_kafka:
+    container_name: agr.literature.${ENV_STATE}.dbz.kafka
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     image: quay.io/debezium/kafka:${DEBEZIUM_VERSION}
     ports:
       - 9092:9092
@@ -364,6 +389,11 @@ services:
       - agr-literature
 
   dbz_connector:
+    container_name: agr.literature.${ENV_STATE}.dbz.connector
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     build:
       context: .
       dockerfile: docker/debezium_connector.dockerfile
@@ -380,6 +410,11 @@ services:
       - agr-literature
 
   dbz_setup:
+    container_name: agr.literature.${ENV_STATE}.dbz.setup
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     build:
       context: .
       dockerfile: docker/debezium_setup.dockerfile
@@ -406,6 +441,11 @@ services:
       /setup.sh
 
   dbz_ksql_server:
+    container_name: agr.literature.${ENV_STATE}.dbz.ksql
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
     image: confluentinc/ksqldb-server:0.26.0
     depends_on:
       - dbz_kafka
