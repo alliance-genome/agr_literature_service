@@ -343,12 +343,20 @@ def get_pmc_oa_s3_client():
     Get an S3 client configured for anonymous access to the PMC Open Access bucket.
     Client is cached as a module-level singleton for performance.
 
+    Includes retry configuration for transient S3 errors (SlowDown, connection resets).
+
     Returns:
-        boto3 S3 client configured with anonymous credentials
+        boto3 S3 client configured with anonymous credentials and retry logic
     """
     global _pmc_oa_s3_client
     if _pmc_oa_s3_client is None:
-        _pmc_oa_s3_client = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+        _pmc_oa_s3_client = boto3.client(
+            's3',
+            config=Config(
+                signature_version=UNSIGNED,
+                retries={'max_attempts': 5, 'mode': 'adaptive'}
+            )
+        )
     return _pmc_oa_s3_client
 
 

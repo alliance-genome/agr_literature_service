@@ -56,9 +56,12 @@ def load_oa_cache(cache_path: str) -> Dict[str, dict]:
 
 def save_oa_cache(cache_path: str, cache: Dict[str, dict]) -> None:
     """Save OA metadata cache to JSON file."""
-    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_path, 'w') as f:
-        json.dump(cache, f, indent=2, sort_keys=True)
+    try:
+        Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'w') as f:
+            json.dump(cache, f, indent=2, sort_keys=True)
+    except OSError as e:
+        logger.warning(f"Failed to save OA cache to {cache_path}: {e}")
 
 
 def fetch_oa_metadata_batch(pmcids: List[str], session: requests.Session,
@@ -202,13 +205,17 @@ def is_open_access(cache: Dict[str, dict], pmcid: str) -> bool:
     return entry.get("is_open_access", False)
 
 
-def download_pmc_files(mapping_file=None):  # pragma: no cover
+def download_pmc_files():  # pragma: no cover
     """
     Download PMC Open Access packages for papers in the corpus.
 
     Uses EuroPMC API to check Open Access status before downloading.
     Downloads from AWS S3 bucket pmc-oa-opendata for OA papers only.
     License info is extracted from S3 JSON metadata.
+
+    Note: File classification uses XML root-name matching (determine_file_class)
+    which works for most cases. For edge cases where the XML root name doesn't
+    match the PDF root name, run identify_main_pdfs.py separately for cleanup.
     """
     logger.info("Retrieving PMID/PMCID list for papers that do not have PMC package downloaded...")
 
