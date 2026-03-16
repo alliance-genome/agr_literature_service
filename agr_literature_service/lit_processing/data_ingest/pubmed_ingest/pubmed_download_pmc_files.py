@@ -14,7 +14,7 @@ from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import \
     get_md5sum
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file, gunzip_file, gzip_file, download_pmc_package_from_s3
+    download_file, gunzip_file, gzip_file, download_pmc_package_from_s3, normalize_pmcid
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.load_pmc_metadata import \
     load_ref_file_metadata_into_db
 
@@ -59,16 +59,6 @@ def save_oa_cache(cache_path: str, cache: Dict[str, dict]) -> None:
     Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
     with open(cache_path, 'w') as f:
         json.dump(cache, f, indent=2, sort_keys=True)
-
-
-def normalize_pmcid(pmcid: str) -> str:
-    """Normalize 'PMCID:PMC123' or 'PMC123' to 'PMC123' (uppercase)."""
-    s = pmcid.strip().upper()
-    if s.startswith("PMCID:"):
-        s = s.split(":", 1)[1]
-    if not s.startswith("PMC"):
-        s = f"PMC{s}"
-    return s
 
 
 def fetch_oa_metadata_batch(pmcids: List[str], session: requests.Session,
@@ -402,7 +392,7 @@ def download_packages_from_s3(pmcids, oa_cache: Dict[str, dict]):  # pragma: no 
             norm_pmcid = normalize_pmcid(pmcid)
             cache_entry = oa_cache.get(norm_pmcid, {})
             license_code = cache_entry.get('license')
-            if license_code and (license_code.startswith('CC') or license_code == 'cc0'):
+            if license_code and (license_code.upper().startswith('CC') or license_code.upper() == 'CC0'):
                 pmid_to_license[pmid] = license_code
             continue
 
@@ -421,7 +411,7 @@ def download_packages_from_s3(pmcids, oa_cache: Dict[str, dict]):  # pragma: no 
                 norm_pmcid = normalize_pmcid(pmcid)
                 cache_entry = oa_cache.get(norm_pmcid, {})
                 license_code = cache_entry.get('license')
-                if license_code and (license_code.startswith('CC') or license_code.lower() == 'cc0'):
+                if license_code and (license_code.upper().startswith('CC') or license_code.upper() == 'CC0'):
                     pmid_to_license[pmid] = license_code
                     logger.info(f"PMID:{pmid} - License: {license_code}")
             else:
@@ -496,6 +486,9 @@ def get_pmids_and_pmcids():  # pragma: no cover
 
     pmcids_for_pmc_loading = []
     pmids_for_license_loading = []
+    # Use sets for O(1) membership checks instead of O(n) list scans
+    pmcids_for_pmc_loading_set = set()
+    pmids_for_license_loading_set = set()
 
     limit = 5000
     loop_count = 200000
@@ -522,11 +515,13 @@ def get_pmids_and_pmcids():  # pragma: no cover
             pmid = x["pmid"].replace("PMID:", "")
             pmcid = x["pmcid"].replace("PMCID:", "")
             if x["reference_id"] not in reference_ids_with_PMC:
-                if (pmid, pmcid) not in pmcids_for_pmc_loading:
+                if (pmid, pmcid) not in pmcids_for_pmc_loading_set:
                     pmcids_for_pmc_loading.append((pmid, pmcid))
+                    pmcids_for_pmc_loading_set.add((pmid, pmcid))
             if x["reference_id"] not in reference_ids_with_license:
-                if (pmid, x["reference_id"]) not in pmids_for_license_loading:
+                if (pmid, x["reference_id"]) not in pmids_for_license_loading_set:
                     pmids_for_license_loading.append((pmid, x["reference_id"]))
+                    pmids_for_license_loading_set.add((pmid, x["reference_id"]))
 
     db_session.close()
 

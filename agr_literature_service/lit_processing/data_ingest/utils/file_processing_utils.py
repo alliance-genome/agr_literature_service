@@ -309,6 +309,31 @@ def escape_special_characters(text):
 
 PMC_OA_S3_BUCKET = "pmc-oa-opendata"
 
+
+def normalize_pmcid(pmcid: str) -> str:
+    """
+    Normalize PMC ID to canonical format 'PMC123456' (uppercase, no prefix).
+
+    Handles various input formats:
+      - 'PMCID:PMC123' -> 'PMC123'
+      - 'PMC123' -> 'PMC123'
+      - 'pmc123' -> 'PMC123'
+      - '123456' -> 'PMC123456'
+
+    Args:
+        pmcid: PMC ID in any common format
+
+    Returns:
+        Normalized PMC ID (e.g., 'PMC123456')
+    """
+    s = pmcid.strip().upper()
+    if s.startswith("PMCID:"):
+        s = s.split(":", 1)[1]
+    if not s.startswith("PMC"):
+        s = f"PMC{s}"
+    return s
+
+
 # Cached S3 client for PMC OA bucket (anonymous access)
 _pmc_oa_s3_client = None
 
@@ -337,18 +362,22 @@ def list_pmc_package_versions(pmcid: str) -> list:
     Returns:
         List of version prefixes (e.g., ['PMC10009402.1/', 'PMC10009402.2/'])
     """
-    if not pmcid.startswith('PMC'):
-        pmcid = f'PMC{pmcid}'
+    pmcid = normalize_pmcid(pmcid)
 
     s3_client = get_pmc_oa_s3_client()
 
     try:
-        response = s3_client.list_objects_v2(
+        # Use paginator to handle >1000 versions (unlikely but consistent with list_pmc_package_files)
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(
             Bucket=PMC_OA_S3_BUCKET,
             Prefix=f"{pmcid}.",
             Delimiter='/'
         )
-        prefixes = [p['Prefix'] for p in response.get('CommonPrefixes', [])]
+        prefixes = []
+        for page in pages:
+            for p in page.get('CommonPrefixes', []):
+                prefixes.append(p['Prefix'])
         return sorted(prefixes)
     except ClientError as e:
         logger.error(f"Error listing PMC package versions for {pmcid}: {e}")
@@ -383,8 +412,7 @@ def list_pmc_package_files(pmcid: str, version: str = None) -> list:
     Returns:
         List of file keys in the package
     """
-    if not pmcid.startswith('PMC'):
-        pmcid = f'PMC{pmcid}'
+    pmcid = normalize_pmcid(pmcid)
 
     if version:
         prefix = f"{pmcid}.{version}/"
@@ -422,8 +450,7 @@ def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None)
     Returns:
         True if successful, False otherwise
     """
-    if not pmcid.startswith('PMC'):
-        pmcid = f'PMC{pmcid}'
+    pmcid = normalize_pmcid(pmcid)
 
     if not version:
         # Check if package exists
@@ -468,8 +495,7 @@ def download_pmc_file_from_s3(pmcid: str, file_name: str, dest_path: str,
     Returns:
         True if successful, False otherwise
     """
-    if not pmcid.startswith('PMC'):
-        pmcid = f'PMC{pmcid}'
+    pmcid = normalize_pmcid(pmcid)
 
     if version:
         prefix = f"{pmcid}.{version}"
@@ -502,8 +528,7 @@ def get_pmc_package_metadata(pmcid: str, version: str = None) -> dict:
     Returns:
         Metadata dict or empty dict if not found
     """
-    if not pmcid.startswith('PMC'):
-        pmcid = f'PMC{pmcid}'
+    pmcid = normalize_pmcid(pmcid)
 
     if version:
         prefix = f"{pmcid}.{version}"
