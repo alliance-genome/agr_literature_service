@@ -3,13 +3,17 @@ import logging
 import tarfile
 import gzip
 import shutil
+from typing import Optional
 from urllib import request
 import datetime
-from os import environ, path, listdir, remove
+from os import environ, path, listdir, remove, makedirs
+from os.path import join as path_join, basename
 import html
 import re
 
 import boto3  # type: ignore
+from botocore import UNSIGNED  # type: ignore
+from botocore.config import Config  # type: ignore
 from botocore.exceptions import ClientError  # type: ignore
 
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
@@ -297,3 +301,257 @@ def escape_special_characters(text):
         # text = text.replace('"', '\\"')
 
     return text
+
+
+# PMC Open Access S3 utilities
+# As of August 2026, PMC FTP service is deprecated in favor of AWS S3
+# See: https://ncbiinsights.ncbi.nlm.nih.gov/2026/02/12/pmc-article-dataset-distribution-services/
+
+PMC_OA_S3_BUCKET = "pmc-oa-opendata"
+
+
+def normalize_pmcid(pmcid: str) -> str:
+    """
+    Normalize PMC ID to canonical format 'PMC123456' (uppercase, no prefix).
+
+    Handles various input formats:
+      - 'PMCID:PMC123' -> 'PMC123'
+      - 'PMC123' -> 'PMC123'
+      - 'pmc123' -> 'PMC123'
+      - '123456' -> 'PMC123456'
+
+    Args:
+        pmcid: PMC ID in any common format
+
+    Returns:
+        Normalized PMC ID (e.g., 'PMC123456')
+    """
+    s = pmcid.strip().upper()
+    if s.startswith("PMCID:"):
+        s = s.split(":", 1)[1]
+    if not s.startswith("PMC"):
+        s = f"PMC{s}"
+    return s
+
+
+# Cached S3 client for PMC OA bucket (anonymous access)
+_pmc_oa_s3_client = None
+
+
+def get_pmc_oa_s3_client():
+    """
+    Get an S3 client configured for anonymous access to the PMC Open Access bucket.
+    Client is cached as a module-level singleton for performance.
+
+    Includes retry configuration for transient S3 errors (SlowDown, connection resets).
+
+    Returns:
+        boto3 S3 client configured with anonymous credentials and retry logic
+    """
+    global _pmc_oa_s3_client
+    if _pmc_oa_s3_client is None:
+        _pmc_oa_s3_client = boto3.client(
+            's3',
+            config=Config(
+                signature_version=UNSIGNED,
+                retries={'max_attempts': 5, 'mode': 'adaptive'}
+            )
+        )
+    return _pmc_oa_s3_client
+
+
+def list_pmc_package_versions(pmcid: str) -> list:
+    """
+    List all available versions of a PMC package in S3.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402' or '10009402')
+
+    Returns:
+        List of version prefixes (e.g., ['PMC10009402.1/', 'PMC10009402.2/'])
+    """
+    pmcid = normalize_pmcid(pmcid)
+
+    s3_client = get_pmc_oa_s3_client()
+
+    try:
+        # Use paginator to handle >1000 versions (unlikely but consistent with list_pmc_package_files)
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(
+            Bucket=PMC_OA_S3_BUCKET,
+            Prefix=f"{pmcid}.",
+            Delimiter='/'
+        )
+        prefixes = []
+        for page in pages:
+            for p in page.get('CommonPrefixes', []):
+                prefixes.append(p['Prefix'])
+        return sorted(prefixes)
+    except ClientError as e:
+        logger.error(f"Error listing PMC package versions for {pmcid}: {e}")
+        return []
+
+
+def get_latest_pmc_version(pmcid: str) -> Optional[str]:
+    """
+    Get the latest version prefix for a PMC package.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402' or '10009402')
+
+    Returns:
+        Latest version prefix (e.g., 'PMC10009402.2') or None if not found
+    """
+    versions = list_pmc_package_versions(pmcid)
+    if versions:
+        # Return the highest version number (remove trailing /)
+        return versions[-1].rstrip('/')
+    return None
+
+
+def list_pmc_package_files(pmcid: str, version: str = None) -> list:
+    """
+    List all files in a PMC package.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402')
+        version: Specific version (e.g., '1') or None for latest
+
+    Returns:
+        List of file keys in the package
+    """
+    pmcid = normalize_pmcid(pmcid)
+
+    if version:
+        prefix = f"{pmcid}.{version}/"
+    else:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
+            return []
+        prefix = f"{latest}/"
+
+    s3_client = get_pmc_oa_s3_client()
+
+    try:
+        # Use paginator to handle >1000 files
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=PMC_OA_S3_BUCKET, Prefix=prefix)
+        files = []
+        for page in pages:
+            for obj in page.get('Contents', []):
+                files.append(obj['Key'])
+        return files
+    except ClientError as e:
+        logger.error(f"Error listing PMC package files for {pmcid}: {e}")
+        return []
+
+
+def download_pmc_package_from_s3(pmcid: str, dest_dir: str, version: str = None) -> bool:
+    """
+    Download all files from a PMC package to a local directory.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402' or '10009402')
+        dest_dir: Local directory to download files to
+        version: Specific version or None for latest
+
+    Returns:
+        True if successful, False otherwise
+    """
+    pmcid = normalize_pmcid(pmcid)
+
+    if not version:
+        # Check if package exists
+        if not get_latest_pmc_version(pmcid):
+            logger.warning(f"No PMC package found for {pmcid}")
+            return False
+
+    s3_client = get_pmc_oa_s3_client()
+    files = list_pmc_package_files(pmcid, version)
+
+    if not files:
+        logger.warning(f"No files found for {pmcid}")
+        return False
+
+    # Create destination directory
+    package_dir = path_join(dest_dir, pmcid)
+    makedirs(package_dir, exist_ok=True)
+
+    try:
+        for file_key in files:
+            file_name = basename(file_key)
+            local_path = path_join(package_dir, file_name)
+            logger.info(f"Downloading {file_key} to {local_path}")
+            s3_client.download_file(PMC_OA_S3_BUCKET, file_key, local_path)
+        return True
+    except ClientError as e:
+        logger.error(f"Error downloading PMC package {pmcid}: {e}")
+        return False
+
+
+def download_pmc_file_from_s3(pmcid: str, file_name: str, dest_path: str,
+                              version: str = None) -> bool:
+    """
+    Download a specific file from a PMC package.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402')
+        file_name: Name of the file to download (e.g., 'PMC10009402.1.pdf')
+        dest_path: Full local path to save the file
+        version: Specific version or None for latest
+
+    Returns:
+        True if successful, False otherwise
+    """
+    pmcid = normalize_pmcid(pmcid)
+
+    if version:
+        prefix = f"{pmcid}.{version}"
+    else:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
+            logger.warning(f"No PMC package found for {pmcid}")
+            return False
+        prefix = latest
+
+    s3_client = get_pmc_oa_s3_client()
+    file_key = f"{prefix}/{file_name}"
+
+    try:
+        s3_client.download_file(PMC_OA_S3_BUCKET, file_key, dest_path)
+        return True
+    except ClientError as e:
+        logger.error(f"Error downloading {file_key}: {e}")
+        return False
+
+
+def get_pmc_package_metadata(pmcid: str, version: str = None) -> dict:
+    """
+    Get metadata JSON for a PMC package.
+
+    Args:
+        pmcid: PMC ID (e.g., 'PMC10009402')
+        version: Specific version or None for latest
+
+    Returns:
+        Metadata dict or empty dict if not found
+    """
+    pmcid = normalize_pmcid(pmcid)
+
+    if version:
+        prefix = f"{pmcid}.{version}"
+    else:
+        latest = get_latest_pmc_version(pmcid)
+        if not latest:
+            return {}
+        prefix = latest
+
+    s3_client = get_pmc_oa_s3_client()
+    json_key = f"{prefix}/{prefix}.json"
+
+    try:
+        response = s3_client.get_object(Bucket=PMC_OA_S3_BUCKET, Key=json_key)
+        return json.loads(response['Body'].read().decode('utf-8'))
+    except ClientError as e:
+        logger.debug(f"No metadata found for {pmcid}: {e}")
+        return {}
