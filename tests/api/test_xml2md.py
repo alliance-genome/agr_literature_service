@@ -53,7 +53,7 @@ class TestXml2MdConvert:
                 files={"file": ("test.xml", MINIMAL_TEI, "text/xml")},
             )
             assert resp.status_code == status.HTTP_200_OK
-            assert resp.headers["content-type"] == "text/plain; charset=utf-8"
+            assert resp.headers["content-type"] == "text/markdown; charset=utf-8"
             assert "# Test Title" in resp.text
             assert "Hello world." in resp.text
 
