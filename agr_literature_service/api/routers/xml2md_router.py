@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from typing import Any, Dict, Literal, Optional
 
 from fastapi import APIRouter, File, Query, Security, UploadFile
@@ -111,8 +112,10 @@ async def convert_xml_to_md(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
-    # Derive a download filename from the uploaded file.
-    stem = (file.filename or "converted").rsplit(".", 1)[0]
+    # Derive a download filename from the uploaded file, sanitising to
+    # prevent header injection via crafted filenames.
+    raw_stem = (file.filename or "converted").rsplit(".", 1)[0]
+    stem = re.sub(r'[^\w.() -]', '_', raw_stem)
 
     if output_format == "html":
         html_body = _md_renderer.render(markdown)
