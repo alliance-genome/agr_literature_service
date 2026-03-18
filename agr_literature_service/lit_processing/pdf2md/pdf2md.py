@@ -8,12 +8,13 @@ https://pdfx.alliancegenome.org. It supports multiple extraction methods
 import logging
 import os
 import time
+from datetime import datetime
 from io import BytesIO
 from typing import Optional, Dict, List, Tuple
 
 import requests
 from fastapi import UploadFile
-from sqlalchemy import create_engine, desc
+from sqlalchemy import create_engine, desc, and_, not_, exists, select
 from sqlalchemy.orm import sessionmaker, Session
 
 from agr_literature_service.api.crud.referencefile_crud import (
@@ -299,6 +300,198 @@ def get_newest_main_pdfs(db: Session, limit: int = 50) -> List[Dict]:
         })
 
     return results
+
+
+def get_unprocessed_pdfs_since_year(db: Session, since_year: int) -> List[Dict]:
+    """
+    Get main PDF files created since a given year that haven't been converted to markdown.
+
+    A PDF is considered "unprocessed" if it has no associated markdown files
+    (none of the 4 extraction methods: grobid, docling, marker, merged).
+
+    Args:
+        db: Database session.
+        since_year: Year to filter from (e.g., 2025 means Jan 1, 2025 onwards).
+
+    Returns:
+        List of dicts with referencefile info for PDFs needing processing.
+    """
+    results = []
+
+    # Start date is January 1st of the given year
+    start_date = datetime(since_year, 1, 1)
+
+    # File classes for markdown outputs
+    md_file_classes = list(EXTRACTION_METHODS.values())
+
+    logger.info(f"Querying for unprocessed PDFs since {start_date.strftime('%Y-%m-%d')}...")
+
+    # Subquery to find reference_ids that already have markdown files
+    md_exists_subquery = (
+        select(ReferencefileModel.reference_id)
+        .where(ReferencefileModel.file_class.in_(md_file_classes))
+        .distinct()
+    )
+
+    # Query for main PDFs since the given year that don't have markdown files
+    query = (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.file_class == "main",
+            ReferencefileModel.file_publication_status == "final",
+            ReferencefileModel.pdf_type == "pdf",
+            ReferencefileModel.date_created >= start_date,
+            ~ReferencefileModel.reference_id.in_(md_exists_subquery)
+        )
+        .order_by(desc(ReferencefileModel.date_created))
+    )
+
+    all_pdfs = query.all()
+    logger.info(f"Found {len(all_pdfs)} unprocessed PDFs since {since_year}")
+
+    for ref_file in all_pdfs:
+        reference = db.query(ReferenceModel).filter(
+            ReferenceModel.reference_id == ref_file.reference_id
+        ).one_or_none()
+
+        if not reference:
+            continue
+
+        # Get MOD abbreviation from referencefile_mods
+        mod_abbreviation = None
+        for ref_file_mod in ref_file.referencefile_mods:
+            if ref_file_mod.mod:
+                mod_abbreviation = ref_file_mod.mod.abbreviation
+                break
+
+        results.append({
+            "referencefile_id": ref_file.referencefile_id,
+            "reference_id": reference.reference_id,
+            "reference_curie": reference.curie,
+            "display_name": ref_file.display_name,
+            "file_extension": ref_file.file_extension,
+            "mod_abbreviation": mod_abbreviation,
+            "date_created": ref_file.date_created
+        })
+
+    return results
+
+
+def process_pdfs_since_year(since_year: int):
+    """
+    Process all unprocessed PDFs since a given year.
+
+    Args:
+        since_year: Year to filter from (e.g., 2025 means Jan 1, 2025 onwards).
+    """
+    start_time = time.time()
+
+    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+    new_session = sessionmaker(bind=engine, autoflush=True)
+    db = new_session()
+
+    logger.info(f"Starting PDF to Markdown conversion for PDFs since {since_year}")
+
+    # Get token
+    try:
+        token = get_pdfx_token()
+    except Exception as e:
+        logger.error(f"Failed to obtain PDFX token: {e}")
+        return
+
+    # Get unprocessed PDFs
+    pdf_list = get_unprocessed_pdfs_since_year(db, since_year=since_year)
+    logger.info(f"Found {len(pdf_list)} unprocessed PDFs to convert")
+
+    if not pdf_list:
+        logger.info("No unprocessed PDFs found. Exiting.")
+        db.close()
+        return {"total": 0, "success": 0, "failed": 0}
+
+    # Processing statistics
+    total_count = len(pdf_list)
+    success_count = 0
+    failure_count = 0
+    objects_with_errors = []
+    pdf_times = []
+
+    for idx, ref_file_info in enumerate(pdf_list, 1):
+        pdf_start_time = time.time()
+        reference_curie = ref_file_info["reference_curie"]
+
+        logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
+
+        # Refresh token if needed
+        try:
+            token = get_pdfx_token()
+        except Exception as e:
+            logger.error(f"Failed to refresh token: {e}")
+            continue
+
+        success, error_msg = process_single_pdf(db, ref_file_info, token)
+
+        pdf_elapsed = time.time() - pdf_start_time
+        pdf_times.append(pdf_elapsed)
+
+        if success:
+            success_count += 1
+            logger.info(f"Completed {reference_curie} in {pdf_elapsed:.2f}s")
+        else:
+            failure_count += 1
+            objects_with_errors.append({
+                "reference_curie": reference_curie,
+                "display_name": ref_file_info["display_name"],
+                "file_extension": ref_file_info["file_extension"],
+                "mod_abbreviation": ref_file_info.get("mod_abbreviation", "N/A"),
+                "error": error_msg
+            })
+            logger.error(f"Failed {reference_curie} after {pdf_elapsed:.2f}s: {error_msg}")
+
+    # Calculate timing statistics
+    total_elapsed = time.time() - start_time
+    avg_time = sum(pdf_times) / len(pdf_times) if pdf_times else 0
+    min_time = min(pdf_times) if pdf_times else 0
+    max_time = max(pdf_times) if pdf_times else 0
+
+    # Log summary
+    logger.info("=" * 60)
+    logger.info(f"PDF to Markdown Conversion Summary (Since {since_year})")
+    logger.info("=" * 60)
+    logger.info(f"Total PDFs processed: {total_count}")
+    logger.info(f"Successful: {success_count}")
+    logger.info(f"Failed: {failure_count}")
+    logger.info("-" * 60)
+    logger.info("Timing Statistics:")
+    logger.info(f"  Total time: {total_elapsed:.2f}s ({total_elapsed/60:.2f} minutes)")
+    logger.info(f"  Average per PDF: {avg_time:.2f}s")
+    logger.info(f"  Min time: {min_time:.2f}s")
+    logger.info(f"  Max time: {max_time:.2f}s")
+    logger.info("=" * 60)
+
+    # Send error report if there were failures
+    if objects_with_errors:
+        error_message = f"PDF to Markdown Conversion Errors (Since {since_year})\n\n"
+        error_message += f"Total: {total_count}, Success: {success_count}, Failed: {failure_count}\n\n"
+        error_message += f"Total time: {total_elapsed:.2f}s, Avg per PDF: {avg_time:.2f}s\n\n"
+        error_message += "Failed conversions:\n"
+        for error_obj in objects_with_errors:
+            error_message += f"{error_obj['mod_abbreviation']}\t{error_obj['reference_curie']}\t"
+            error_message += f"{error_obj['display_name']}.{error_obj['file_extension']}\t{error_obj['error']}\n"
+
+        subject = f"pdf2md conversion errors (since {since_year})"
+        send_report(subject, error_message)
+
+    db.close()
+
+    return {
+        "total": total_count,
+        "success": success_count,
+        "failed": failure_count,
+        "total_time_seconds": total_elapsed,
+        "avg_time_per_pdf": avg_time,
+        "min_time": min_time,
+        "max_time": max_time
+    }
 
 
 def process_single_pdf(
@@ -687,13 +880,50 @@ if __name__ == '__main__':
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
 
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "--newest":
-        # Process newest PDFs mode
-        limit = int(sys.argv[2]) if len(sys.argv) > 2 else 50
-        print(f"Processing {limit} newest main PDFs...")
-        result = process_newest_pdfs(limit=limit)
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Convert PDF files to Markdown using PDFX service.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Process PDFs via workflow jobs (default)
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md
+
+  # Process N newest PDFs
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50
+
+  # Process all unprocessed PDFs since 2025
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --since 2025
+        """
+    )
+    parser.add_argument(
+        "--newest",
+        type=int,
+        metavar="N",
+        help="Process N newest main PDFs (regardless of processing status)"
+    )
+    parser.add_argument(
+        "--since",
+        type=int,
+        metavar="YEAR",
+        help="Process all unprocessed PDFs since YEAR (e.g., 2025)"
+    )
+
+    args = parser.parse_args()
+
+    if args.newest and args.since:
+        print("Error: Cannot use --newest and --since together. Choose one.")
+        exit(1)
+
+    if args.newest:
+        print(f"Processing {args.newest} newest main PDFs...")
+        result = process_newest_pdfs(limit=args.newest)
+        print(f"\nResults: {result}")
+    elif args.since:
+        print(f"Processing all unprocessed PDFs since {args.since}...")
+        result = process_pdfs_since_year(since_year=args.since)
         print(f"\nResults: {result}")
     else:
-        # Workflow mode
+        # Workflow mode (default)
         main()
