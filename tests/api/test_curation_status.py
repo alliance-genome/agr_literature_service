@@ -39,7 +39,7 @@ workflow_tag_to_topic_map = {
 }
 
 
-def patch_workflow_subset_list(workflow_name, mod_abbreviation, db):
+def patch_workflow_subset_list(workflow_name, mod_abbreviation, db_session):
     return {f"name_{i}": curie for i, curie in enumerate(workflow_tag_to_topic_map.keys())}
 
 
