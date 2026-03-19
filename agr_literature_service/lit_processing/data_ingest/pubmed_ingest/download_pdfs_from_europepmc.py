@@ -60,6 +60,7 @@ from sqlalchemy.exc import IntegrityError
 from agr_literature_service.api.models import ReferencefileModel, ReferencefileModAssociationModel
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.dqm_ingest.utils.md5sum_utils import get_md5sum
+from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import normalize_pmcid
 from agr_literature_service.lit_processing.utils.s3_utils import upload_file_to_s3
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -351,14 +352,6 @@ def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, 
 # -----------------------------
 # Helpers
 # -----------------------------
-def normalize_pmcid(pmcid: str) -> str:
-    """Normalize 'PMCID:PMC123' or 'PMC123' to 'PMC123' (uppercase)."""
-    s = pmcid.strip()
-    if s.upper().startswith("PMCID:"):
-        s = s.split(":", 1)[1]
-    return s.upper()
-
-
 def europepmc_pdf_url(pmc_id: str) -> str:
     return f"https://europepmc.org/backend/ptpmcrender.fcgi?accid={pmc_id}&blobtype=pdf"
 
