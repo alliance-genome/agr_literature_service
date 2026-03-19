@@ -6,7 +6,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-# from agr_literature_service.api.models import CurationStatusModel
+from agr_literature_service.api.models import WorkflowTagTopicModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from .test_mod import test_mod # noqa
@@ -29,9 +29,29 @@ def patch_map_curies_to_names(category, curies):
     return topic_curie_to_name
 
 
+# Mapping from workflow tag curies to topic curies used in tests
+workflow_tag_to_topic_map = {
+    "ATP:wf_curation_test": "ATP:curation_test",
+    "ATP:wf_topic1": "ATP:topic1",
+    "ATP:wf_topic2": "ATP:topic2",
+    "ATP:wf_topic3": "ATP:topic3",
+    "ATP:wf_0000002": "ATP:0000002",
+}
+
+
+def patch_workflow_subset_list(workflow_name, mod_abbreviation, db):
+    return {f"name_{i}": curie for i, curie in enumerate(workflow_tag_to_topic_map.keys())}
+
+
 @pytest.fixture
 def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
     print("***** Adding a test curation_status *****")
+    # Insert WorkflowTagTopicModel rows for the test
+    for wf_tag, topic in workflow_tag_to_topic_map.items():
+        existing = db.query(WorkflowTagTopicModel).filter_by(workflow_tag=wf_tag).first()
+        if not existing:
+            db.add(WorkflowTagTopicModel(workflow_tag=wf_tag, topic=topic))
+    db.commit()
     with TestClient(app) as client:
         new_curation_status = {
             "mod_abbreviation": test_mod.new_mod_abbreviation,
@@ -51,6 +71,7 @@ class TestCurationStatus:
 
     @patch("agr_literature_service.api.crud.curation_status_crud.search_topic_list", patch_subset)
     @patch("agr_literature_service.api.crud.curation_status_crud.map_curies_to_names", patch_map_curies_to_names)
+    @patch("agr_literature_service.api.crud.curation_status_crud.workflow_subset_list", patch_workflow_subset_list)
     def test_show_aggregated_curation_status_and_tet_info(self, test_curation_status, auth_headers): # noqa
         with TestClient(app) as client:
             url = (f"/curation_status/aggregated_curation_status_and_tet_info/{test_curation_status.new_reference_curie}/"
