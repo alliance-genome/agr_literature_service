@@ -14,8 +14,9 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names, search_topic_list
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id
+from agr_literature_service.api.crud.workflow_tag_crud import workflow_subset_list
 from agr_literature_service.api.models import CurationStatusModel, ReferenceModel, ModModel, TopicEntityTagModel, \
-    TopicEntityTagSourceModel
+    TopicEntityTagSourceModel, WorkflowTagTopicModel
 from agr_literature_service.api.schemas import CurationStatusSchemaPost
 from agr_literature_service.api.schemas.curation_status_schemas import AggregatedCurationStatusAndTETInfoSchema
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -182,9 +183,23 @@ def get_aggregated_curation_status_and_tet_info(db: Session, reference_curie, mo
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database.")
 
-    # create empty return objects with topics from atp subsets as keys
-    agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic["curie"]: {} for topic in
-                                                        search_topic_list(topic=None, mod_abbr=mod_abbreviation)}
+    # Get broader topic subset
+    topic_subset = {topic["curie"] for topic in
+                    search_topic_list(topic=None, mod_abbr=mod_abbreviation)}
+
+    # Get workflow subset and map workflow tag curies -> topic curies
+    workflow_tags = workflow_subset_list("reference classification", mod_abbreviation, db)
+    workflow_tag_curies = set(workflow_tags.values())
+    workflow_tag_to_topic = {
+        row.workflow_tag: row.topic
+        for row in db.query(WorkflowTagTopicModel).all()
+    }
+    workflow_topics = {workflow_tag_to_topic[wf] for wf in workflow_tag_curies
+                       if wf in workflow_tag_to_topic}
+
+    # Only include topics in BOTH sets
+    allowed_topics = topic_subset & workflow_topics
+    agg_cur_stat_tet_objs: Dict[str, Dict[str, str]] = {topic: {} for topic in allowed_topics}
 
     # add tet info to the objects
     query = (
