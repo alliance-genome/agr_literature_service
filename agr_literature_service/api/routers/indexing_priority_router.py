@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
 from agr_literature_service.api import database
@@ -21,13 +20,6 @@ router = APIRouter(
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
-
-
-class SetPriorityBody(BaseModel):
-    reference_curie: str
-    mod_abbreviation: str
-    indexing_priority: str
-    confidence_score: float
 
 
 @router.post(
@@ -107,23 +99,4 @@ def get_indexing_priority_tag(
         return {}
     return indexing_priority_crud.get_indexing_priority_tag(
         db, reference_curie
-    )
-
-
-@router.post(
-    "/set_priority",
-    status_code=status.HTTP_200_OK,
-)
-def set_priority(
-    body: SetPriorityBody,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    set_global_user_from_cognito(db, user)
-    return indexing_priority_crud.set_priority(
-        db,
-        body.reference_curie,
-        body.mod_abbreviation,
-        body.indexing_priority,
-        body.confidence_score,
     )

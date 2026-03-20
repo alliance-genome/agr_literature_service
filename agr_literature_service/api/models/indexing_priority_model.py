@@ -14,16 +14,23 @@ class IndexingPriorityModel(Base, AuditedModel):
         UniqueConstraint(
             "mod_id",
             "reference_id",
-            "indexing_priority",
-            name="uq_indexing_priority_mod_ref_priority",  # renamed for clarity
+            name="uq_indexing_priority_mod_ref",
         ),
         CheckConstraint(
-            "indexing_priority LIKE 'ATP:%'",
-            name="ck_indexing_priority_prefix",
+            "predicted_indexing_priority IS NULL OR predicted_indexing_priority LIKE 'ATP:%'",
+            name="ck_predicted_indexing_priority_prefix",
         ),
         CheckConstraint(
             "(confidence_score IS NULL) OR (confidence_score >= 0.0 AND confidence_score <= 1.0)",
             name="ck_indexing_priority_confidence_range",
+        ),
+        CheckConstraint(
+            "curator_indexing_priority IS NULL OR curator_indexing_priority LIKE 'ATP:%'",
+            name="ck_curator_indexing_priority_prefix",
+        ),
+        CheckConstraint(
+            "predicted_indexing_priority IS NOT NULL OR curator_indexing_priority IS NOT NULL",
+            name="ck_at_least_one_priority",
         ),
     )
 
@@ -31,8 +38,8 @@ class IndexingPriorityModel(Base, AuditedModel):
         Integer, primary_key=True, autoincrement=True
     )
 
-    indexing_priority: Mapped[str] = mapped_column(
-        String, index=True, nullable=False
+    predicted_indexing_priority: Mapped[Optional[str]] = mapped_column(
+        String, index=True, nullable=True
     )
 
     reference_id: Mapped[int] = mapped_column(
@@ -57,15 +64,13 @@ class IndexingPriorityModel(Base, AuditedModel):
         Float, nullable=True
     )
 
-    source_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("topic_entity_tag_source.topic_entity_tag_source_id", ondelete="CASCADE"),
-        index=True, nullable=False
-    )
-
-    validation_by_biocurator: Mapped[Optional[str]] = mapped_column(
+    curator_indexing_priority: Mapped[Optional[str]] = mapped_column(
         String, nullable=True
     )
 
     def __str__(self) -> str:
-        return f"priority:{self.indexing_priority} mod_id:{self.mod_id} ref_id:{self.reference_id}"
+        return (
+            f"predicted_indexing_priority:{self.predicted_indexing_priority} "
+            f"curator_indexing_priority:{self.curator_indexing_priority} "
+            f"mod_id:{self.mod_id} ref_id:{self.reference_id}"
+        )
