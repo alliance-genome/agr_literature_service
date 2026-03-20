@@ -22,6 +22,53 @@ file_publication_status = "final"
 batch_commit_size = 250
 
 
+def build_file_root_mappings(input_file):
+    """Build mappings of PMCID to XML and PDF root names for main file identification."""
+    pmcid_to_xml_root = {}
+    pmcid_to_pdf_roots = {}
+    with open(input_file) as f:
+        for line in f:
+            pieces = line.strip().split("\t")
+            if len(pieces) < 4:
+                continue
+            pmcid = pieces[1]
+            file_name_with_suffix = pieces[2]
+            if file_name_with_suffix.lower().endswith('.xml'):
+                xml_root = file_name_with_suffix.rsplit('.', 1)[0]
+                pmcid_to_xml_root[pmcid] = xml_root.lower()
+            elif file_name_with_suffix.lower().endswith('.pdf'):
+                pdf_root = file_name_with_suffix.rsplit('.', 1)[0].lower()
+                if pmcid not in pmcid_to_pdf_roots:
+                    pmcid_to_pdf_roots[pmcid] = set()
+                pmcid_to_pdf_roots[pmcid].add(pdf_root)
+    return pmcid_to_xml_root, pmcid_to_pdf_roots
+
+
+def determine_file_class(file_name, file_extension, pmcid, pmcid_to_xml_root, pmcid_to_pdf_roots):
+    """Determine the file_class for a PMC file based on extension and root name matching."""
+    file_class = classify_pmc_file(file_name, file_extension)
+    file_root = file_name.lower()
+
+    # Check if this PDF is the main PDF (matches XML root name)
+    if file_extension == 'pdf' and pmcid in pmcid_to_xml_root:
+        if file_root == pmcid_to_xml_root[pmcid]:
+            return 'main'
+
+    # Check if this TXT matches XML root name
+    if file_extension == 'txt' and pmcid in pmcid_to_xml_root:
+        if file_root == pmcid_to_xml_root[pmcid]:
+            return 'txt'
+
+    # Only set nXML for .xml files if there's a matching PDF
+    if file_extension == 'xml' and pmcid in pmcid_to_pdf_roots:
+        if file_root in pmcid_to_pdf_roots[pmcid]:
+            return 'nXML'
+        else:
+            return 'supplement'
+
+    return file_class
+
+
 def load_ref_file_metadata_into_db():  # pragma: no cover
 
     db_session = create_postgres_session(False)
@@ -43,18 +90,22 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
 
     pmid_to_reference_id = get_pmid_to_reference_id_mapping(db_session)
 
+    # First pass: Build mappings to identify main files
+    pmcid_to_xml_root, pmcid_to_pdf_roots = build_file_root_mappings(infile)
+    logger.info(f"Found {len(pmcid_to_xml_root)} PMCIDs with XML files for main PDF identification")
+
+    # Second pass: Process files and load metadata
     with open(infile) as f:
         for line_num, line in enumerate(f):
             if line_num % batch_commit_size == 0:
                 db_session.commit()
-                # db_session.rollback()
 
-            # 35857496      PMC9278858      sciadv.abm9875-f5.jpg   17ef0e061fcdc9bd1f4338809f738d72
             pieces = line.strip().split("\t")
             pmid = pieces[0]
             reference_id = pmid_to_reference_id.get(pmid)
             if reference_id is None:
                 continue
+            pmcid = pieces[1]
             md5sum = pieces[3]
             file_name_with_suffix = pieces[2]
             if (reference_id, file_name_with_suffix) in ref_file_uniq_filename_set:
@@ -70,7 +121,8 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
             if not referencefile_id:
                 file_extension = file_name_with_suffix.split(".")[-1].lower()
                 file_name = file_name_with_suffix.replace("." + file_extension, "")
-                file_class = classify_pmc_file(file_name, file_extension)
+                file_class = determine_file_class(file_name, file_extension, pmcid,
+                                                  pmcid_to_xml_root, pmcid_to_pdf_roots)
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,
@@ -85,7 +137,6 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 ref_file_uniq_filename_set.add((reference_id, file_name_with_suffix))
 
         db_session.commit()
-        # db_session.rollback()
         db_session.close()
 
 
