@@ -64,6 +64,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_mesh_term_data_for_ref_ids, get_mod_corpus_association_data_for_ref_ids, \
     get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
     get_journal_by_resource_id, get_citation_data, get_license_data
+from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
+    update_title_cleanup_tags_for_one_retracted_paper
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.crud.person_crud import normalize_email
@@ -299,6 +301,9 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     db.add(reference_db_obj)
     db.commit()
 
+    if "retraction_status" in reference_data:
+        update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_db_obj.reference_id)
+    
     return {"message": "updated"}
 
 
