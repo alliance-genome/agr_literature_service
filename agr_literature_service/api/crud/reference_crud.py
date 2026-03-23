@@ -303,7 +303,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
 
     if "retraction_status" in reference_data:
         update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_db_obj.reference_id)
-    
+
     return {"message": "updated"}
 
 
