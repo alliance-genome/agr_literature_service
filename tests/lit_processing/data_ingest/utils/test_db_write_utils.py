@@ -296,7 +296,7 @@ class TestRetractedPaperFunctions:
         assert original_title in ref.title
 
     def test_update_title_for_one_retracted_paper_partial_retraction(self, db, load_sanitized_references):  # noqa
-        """Test that partial retraction adds PARTIAL RETRACTED: prefix to title."""
+        """Test that partial retraction adds PARTIALLY RETRACTED: prefix to title."""
         ref = db.query(ReferenceModel).first()
         original_title = ref.title
         ref.retraction_status = 'ATP:0000347'
@@ -306,7 +306,7 @@ class TestRetractedPaperFunctions:
 
         db.refresh(ref)
         assert result is True
-        assert ref.title.startswith("PARTIAL RETRACTED: ")
+        assert ref.title.startswith("PARTIALLY RETRACTED: ")
         assert original_title in ref.title
 
     def test_update_title_for_one_retracted_paper_already_prefixed(self, db, load_sanitized_references):  # noqa

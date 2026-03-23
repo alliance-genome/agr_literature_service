@@ -2168,13 +2168,13 @@ def update_title_for_one_retracted_paper(db: Session, logger, reference_id) -> b
     """
     Update title for a single retracted paper.
       - Full retraction → "RETRACTED: "
-      - Partial retraction → "PARTIAL RETRACTED: "
+      - Partial retraction → "PARTIALLY RETRACTED: "
       - Replace any existing variants with standardized prefix
 
     Returns True if the title was updated, False otherwise.
     """
 
-    retracted_pattern = re.compile(r"^\s*(partial\s+)?retracted\s*:?\s*", re.IGNORECASE)
+    retracted_pattern = re.compile(r"^\s*(partial(ly)?\s+)?retracted\s*:?\s*", re.IGNORECASE)
 
     try:
         stmt = select(ReferenceModel).where(
@@ -2197,9 +2197,9 @@ def update_title_for_one_retracted_paper(db: Session, logger, reference_id) -> b
                 return False
             prefix = "RETRACTED: "
         elif ref.retraction_status == 'ATP:0000347':
-            if original_title.startswith("PARTIAL RETRACTED: "):
+            if original_title.startswith("PARTIALLY RETRACTED: "):
                 return False
-            prefix = "PARTIAL RETRACTED: "
+            prefix = "PARTIALLY RETRACTED: "
         else:
             return False
 
@@ -2226,7 +2226,7 @@ def update_title_for_retracted_papers(db: Session, logger):
     """
     Ensure titles of retracted papers:
       - Full retraction → "RETRACTED: "
-      - Partial retraction → "PARTIAL RETRACTED: "
+      - Partial retraction → "PARTIALLY RETRACTED: "
       - Replace any existing variants with standardized prefix
     """
 
@@ -2239,7 +2239,7 @@ def update_title_for_retracted_papers(db: Session, logger):
                 ),
                 and_(
                     ReferenceModel.retraction_status == 'ATP:0000347',
-                    ~ReferenceModel.title.like("PARTIAL RETRACTED: %")
+                    ~ReferenceModel.title.like("PARTIALLY RETRACTED: %")
                 )
             )
         )
