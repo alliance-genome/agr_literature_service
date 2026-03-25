@@ -17,7 +17,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
-    TopicEntityTagModel, TopicEntityTagSourceModel
+    TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
@@ -1911,22 +1911,27 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
              continue working on partially retracted papers (see SCRUM-5348)
        - Else (no person-added TET tags remain):
            - delete all non-"won't xxx" workflow tags for this ref/mod
-           - if already exactly the 3 expected workflow tags, skip
+           - if already exactly the 2 expected workflow tags and curation_status, skip
            - otherwise delete any remaining workflow tags for this ref/mod
-             and add the 3 standard workflow tags for retracted papers
+             and add the 2 standard workflow tags for retracted papers:
+               - ATP:0000343 (won't manually index)
+               - ATP:0000342 (won't community curate)
+             and add/update curation_status for whole paper (ATP:0000002) with:
+               - curation_status: ATP:0000299 (won't curate)
+               - curation_tag: ATP:0000344 (retracted)
 
     Returns a dict with statistics about what was changed.
     """
 
     retracted_curation_tag = 'ATP:0000344'
     manual_assertions = {'ATP:0000035', 'ATP:0000036'}
+    wont_curate_status = 'ATP:0000299'  # won't curate - goes to curation_status table
+    whole_paper_topic = 'ATP:0000002'  # whole paper topic for curation_status
     wont_workflow_tag_ids = {
-        'ATP:0000299',  # won't curate
         'ATP:0000343',  # won't manually index
         'ATP:0000342',  # won't community curate
     }
     expected_pairs = {
-        ('ATP:0000299', retracted_curation_tag),
         ('ATP:0000343', retracted_curation_tag),
         ('ATP:0000342', retracted_curation_tag),
     }
@@ -1937,7 +1942,10 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
         'skipped_already_clean_count': 0,
         'deleted_tet_count': 0,
         'deleted_workflow_tag_count': 0,
-        'added_workflow_tag_count': 0
+        'added_workflow_tag_count': 0,
+        'added_curation_status_count': 0,
+        'updated_curation_status_count': 0,
+        'skipped_curation_status_count': 0
     }
 
     try:
@@ -2058,12 +2066,26 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
                 for workflow_tag_id, curation_tag in existing_wfts
             }
 
+            # Check if curation_status already has "won't curate" for whole paper
+            existing_curation_status_stmt = select(CurationStatusModel).where(
+                CurationStatusModel.reference_id == reference_id,
+                CurationStatusModel.mod_id == mod_id,
+                CurationStatusModel.topic == whole_paper_topic
+            )
+            existing_curation_status = db.execute(existing_curation_status_stmt).scalar_one_or_none()
+
+            curation_status_already_correct = (
+                existing_curation_status is not None
+                and existing_curation_status.curation_status == wont_curate_status
+                and existing_curation_status.curation_tag == retracted_curation_tag
+            )
+
             # Already exactly correct: skip.
-            if existing_pairs == expected_pairs and len(existing_wfts) == 3:
+            if existing_pairs == expected_pairs and len(existing_wfts) == 2 and curation_status_already_correct:
                 stats['skipped_already_clean_count'] += 1
                 continue
 
-            # Otherwise, replace any remaining workflow tags with the exact 3 expected rows.
+            # Otherwise, replace any remaining workflow tags with the exact 2 expected rows.
             delete_remaining_wft_stmt = delete(WorkflowTagModel).where(
                 WorkflowTagModel.reference_id == reference_id,
                 WorkflowTagModel.mod_id == mod_id
@@ -2082,10 +2104,33 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
                     )
                 )
 
-            stats['added_workflow_tag_count'] += 3
+            stats['added_workflow_tag_count'] += 2
+
+            # Add or update curation_status for whole paper with "won't curate"
+            if existing_curation_status is not None:
+                if existing_curation_status.curation_status == wont_curate_status:
+                    # Already "won't curate" - skip
+                    stats['skipped_curation_status_count'] += 1
+                else:
+                    # Has another curation status (child of ATP:0000230) - update to "won't curate"
+                    existing_curation_status.curation_status = wont_curate_status
+                    existing_curation_status.curation_tag = retracted_curation_tag
+                    stats['updated_curation_status_count'] += 1
+            else:
+                # No curation_status exists - insert new
+                db.add(
+                    CurationStatusModel(
+                        reference_id=reference_id,
+                        mod_id=mod_id,
+                        topic=whole_paper_topic,
+                        curation_status=wont_curate_status,
+                        curation_tag=retracted_curation_tag
+                    )
+                )
+                stats['added_curation_status_count'] += 1
 
             logger.info(
-                f"Reset workflow tags for reference_id={reference_id}, mod_id={mod_id}."
+                f"Reset workflow tags and curation status for reference_id={reference_id}, mod_id={mod_id}."
             )
 
         db.commit()
