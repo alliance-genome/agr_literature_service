@@ -301,7 +301,7 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     db.add(reference_db_obj)
     db.commit()
 
-    if "retraction_status" in reference_data:
+    if reference_data.get("retraction_status"):
         update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_db_obj.reference_id)
 
     return {"message": "updated"}

@@ -2016,17 +2016,12 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
 
             if manual_tet_count > 0:
                 stats['ref_mod_with_manual_tet_count'] += 1
-                sql_query = text("""
-                    DELETE FROM workflow_tag
-                    WHERE reference_id = :reference_id
-                    AND mod_id = :mod_id
-                    AND workflow_tag_id IN :all_workflow_tags
-                """)
-                delete_all_wft_result = db.execute(sql_query, {
-                    'reference_id': reference_id,
-                    'mod_id': mod_id,
-                    'all_workflow_tags': tuple(all_pipeline_workflow_tags)
-                })
+                delete_all_wft_stmt = delete(WorkflowTagModel).where(
+                    WorkflowTagModel.reference_id == reference_id,
+                    WorkflowTagModel.mod_id == mod_id,
+                    WorkflowTagModel.workflow_tag_id.in_(all_pipeline_workflow_tags)
+                )
+                delete_all_wft_result = db.execute(delete_all_wft_stmt)
                 deleted_wft_rows = delete_all_wft_result.rowcount or 0
                 stats['deleted_workflow_tag_count'] += deleted_wft_rows
                 logger.info(
@@ -2159,9 +2154,9 @@ def cleanup_tags_for_retracted_papers(db, logger) -> None:
              continue working on partially retracted papers (see SCRUM-5348)
        - Else (no person-added TET tags remain):
            - delete all non-"won't xxx" workflow tags for this ref/mod
-           - if already exactly the 3 expected workflow tags, skip
+           - if already exactly the 2 expected workflow tags and curation_status, skip
            - otherwise delete any remaining workflow tags for this ref/mod
-             and add the 3 standard workflow tags for retracted papers
+             and add the 2 standard workflow tags for retracted papers
     """
 
     try:
@@ -2181,6 +2176,9 @@ def cleanup_tags_for_retracted_papers(db, logger) -> None:
         deleted_tet_count = 0
         deleted_workflow_tag_count = 0
         added_workflow_tag_count = 0
+        added_curation_status_count = 0
+        updated_curation_status_count = 0
+        skipped_curation_status_count = 0
 
         for ref_id in ref_ids:
             processed_ref_count += 1
@@ -2191,6 +2189,9 @@ def cleanup_tags_for_retracted_papers(db, logger) -> None:
             deleted_tet_count += stats['deleted_tet_count']
             deleted_workflow_tag_count += stats['deleted_workflow_tag_count']
             added_workflow_tag_count += stats['added_workflow_tag_count']
+            added_curation_status_count += stats['added_curation_status_count']
+            updated_curation_status_count += stats['updated_curation_status_count']
+            skipped_curation_status_count += stats['skipped_curation_status_count']
 
         logger.info(
             "cleanup_tags_for_retracted_papers complete: "
@@ -2200,7 +2201,10 @@ def cleanup_tags_for_retracted_papers(db, logger) -> None:
             f"{skipped_already_clean_count} ref/mod pair(s) already clean, "
             f"{deleted_tet_count} topic_entity_tag row(s) deleted, "
             f"{deleted_workflow_tag_count} workflow_tag row(s) deleted, "
-            f"{added_workflow_tag_count} workflow_tag row(s) added."
+            f"{added_workflow_tag_count} workflow_tag row(s) added, "
+            f"{added_curation_status_count} curation_status row(s) added, "
+            f"{updated_curation_status_count} curation_status row(s) updated, "
+            f"{skipped_curation_status_count} curation_status row(s) skipped."
         )
 
     except Exception as e:
