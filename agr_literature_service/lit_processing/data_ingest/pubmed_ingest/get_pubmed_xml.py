@@ -66,40 +66,42 @@ init_tmp_dir()
 
 
 @retry(requests.exceptions.RequestException, delay=30, backoff=2, tries=10)
-def download_pubmed_xml_slice(url, parameters, pmids_found, storage_path, md5dict, pmids_joined):
-    # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)"
-    # that crashes this script.
-    with requests.post(url, data=parameters) as r:
-        xml_all = r.text
-        # xml_all = r.text.encode('utf-8').strip()		  # python2
-        # xml_split = xml_all.split("\n<Pubmed")		  # before 2021 08 11  xml output had linebreaks between pmids, making that easier
-        xml_split = re.split('(<Pubmed[^>]*Article>)',
-                             xml_all)  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
+def fetch_pubmed_xml(pmid_str: str) -> str:
+    """Fetch PubMed XML from efetch API. Returns raw XML text."""
+    url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
+    parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmid_str}
+    if environ.get('NCBI_API_KEY'):
+        parameters['api_key'] = environ['NCBI_API_KEY']
+    r = requests.post(url, data=parameters)
+    return r.text
 
-        header = xml_split.pop(0)
-        # header = header + "\n<Pubmed" + xml_split.pop(0)	  # before when splitting on linebreak without capturing was manually adding the split
-        # footer = "\n\n</PubmedArticleSet>"
-        footer = "</PubmedArticleSet>"
 
-        while xml_split:
-            this_xml = header + xml_split.pop(0) + xml_split.pop(0)
-            if len(xml_split) > 0:
-                this_xml = this_xml + footer
-            clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
-            clean_xml = clean_xml.replace('\n', ' ')
-            # logger.info(clean_xml)
-            if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
-                pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
-                assert pmid_group is not None
-                pmid = pmid_group.group(1)
-                pmids_found.add(pmid)
-                filename = storage_path + pmid + '.xml'
-                f = open(filename, "w")
-                f.write(clean_xml)
-                f.close()
-                md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
-                md5dict[pmid] = md5sum
-        time.sleep(5)
+def download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined):
+    xml_all = fetch_pubmed_xml(pmids_joined)
+    xml_split = re.split('(<Pubmed[^>]*Article>)',
+                         xml_all)  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
+
+    header = xml_split.pop(0)
+    footer = "</PubmedArticleSet>"
+
+    while xml_split:
+        this_xml = header + xml_split.pop(0) + xml_split.pop(0)
+        if len(xml_split) > 0:
+            this_xml = this_xml + footer
+        clean_xml = os.linesep.join([s for s in this_xml.splitlines() if s])
+        clean_xml = clean_xml.replace('\n', ' ')
+        if re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml):
+            pmid_group = re.search(r"<PMID[^>]*?>(\d+)</PMID>", clean_xml)
+            assert pmid_group is not None
+            pmid = pmid_group.group(1)
+            pmids_found.add(pmid)
+            filename = storage_path + pmid + '.xml'
+            f = open(filename, "w")
+            f.write(clean_xml)
+            f.close()
+            md5sum = hashlib.md5(clean_xml.encode('utf-8')).hexdigest()
+            md5dict[pmid] = md5sum
+    time.sleep(5)
 
 
 def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
@@ -157,24 +159,8 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         pmids_joined = (',').join(pmids_slice)
         logger.debug("processing PMIDs %s", pmids_joined)
 
-        # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
-
-        # default way without a library, using get
-        # url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" \+
-        # pmids_joined + "&retmode=xml"
-        # print url
-        # f = urllib.urlopen(url)
-        # xml_all = f.read()
-
-        # using post with requests library, works well for 10000 pmids
-        url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-        parameters = {'db': 'pubmed', 'retmode': 'xml', 'id': pmids_joined}
-
-        if environ.get('NCBI_API_KEY'):
-            parameters['api_key'] = environ['NCBI_API_KEY']
-
         try:
-            download_pubmed_xml_slice(url, parameters, pmids_found, storage_path, md5dict, pmids_joined)
+            download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined)
         except requests.exceptions.RequestException as e:
             logger.info("requests failure with input %s %s", pmids_joined, e)
             raise SystemExit(e)
