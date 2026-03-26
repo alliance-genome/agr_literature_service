@@ -1410,7 +1410,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             detail=f"The reference curie '{reference_curie}' is not in the database."
         )
 
-    # Define which “parent” processes we care about
+    # Define which "parent" processes we care about
     if mod_abbreviation and mod_abbreviation in ['SGD', 'ZFIN']:
         process_atp_ids = {"ATP:0000273": "manual indexing"}
     else:
