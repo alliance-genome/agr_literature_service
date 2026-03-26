@@ -159,6 +159,15 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
         pmids_joined = (',').join(pmids_slice)
         logger.debug("processing PMIDs %s", pmids_joined)
 
+        # https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=1,10,100,1000487,1000584&retmode=xml
+
+        # default way without a library, using get
+        # url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=" \+
+        # pmids_joined + "&retmode=xml"
+        # print url
+        # f = urllib.urlopen(url)
+        # xml_all = f.read()
+
         try:
             download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined)
         except requests.exceptions.RequestException as e:
