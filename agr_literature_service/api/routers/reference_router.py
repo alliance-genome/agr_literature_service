@@ -82,7 +82,7 @@ def external_lookup(external_curie: str,
     set_global_user_from_cognito(db, user)
     prefix, identifier = _parse_curie(external_curie)
     if prefix.lower() in ('pmid', 'pubmed', 'pubmedid'):
-        return lookup_reference_by_pmid(identifier)
+        return lookup_reference_by_pmid(identifier, db)
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail=f"Unsupported curie prefix: {prefix}")

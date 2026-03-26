@@ -2,14 +2,15 @@ import html
 import logging
 import re
 
+from sqlalchemy.orm import Session
+
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import fetch_pubmed_xml
-from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 logger = logging.getLogger(__name__)
 
 
-def lookup_reference_by_pmid(pmid: str) -> dict:
+def lookup_reference_by_pmid(pmid: str, db: Session) -> dict:
     """Look up a PMID in the local DB, then at PubMed if not found.
 
     Returns a dict with:
@@ -31,25 +32,21 @@ def lookup_reference_by_pmid(pmid: str) -> dict:
             'title': ''
         }
 
-    db_session = create_postgres_session(False)
-    try:
-        xref = db_session.query(CrossReferenceModel).filter_by(
-            curie="PMID:" + pmid
+    xref = db.query(CrossReferenceModel).filter_by(
+        curie="PMID:" + pmid
+    ).one_or_none()
+    if xref and xref.reference_id:
+        ref = db.query(ReferenceModel).filter_by(
+            reference_id=xref.reference_id
         ).one_or_none()
-        if xref and xref.reference_id:
-            ref = db_session.query(ReferenceModel).filter_by(
-                reference_id=xref.reference_id
-            ).one_or_none()
-            if ref:
-                return {
-                    'exists_in_db': True,
-                    'reference_curie': ref.curie,
-                    'external_curie': external_curie,
-                    'external_curie_found': True,
-                    'title': ref.title or ''
-                }
-    finally:
-        db_session.close()
+        if ref:
+            return {
+                'exists_in_db': True,
+                'reference_curie': ref.curie,
+                'external_curie': external_curie,
+                'external_curie_found': True,
+                'title': ref.title or ''
+            }
 
     xml_text = fetch_pubmed_xml(pmid)
     title = _extract_title_from_pubmed_xml(xml_text)

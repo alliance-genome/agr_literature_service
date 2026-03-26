@@ -65,7 +65,6 @@ init_tmp_dir()
 # logger = logging.getLogger('literature logger')
 
 
-@retry(requests.exceptions.RequestException, delay=30, backoff=2, tries=10)
 def fetch_pubmed_xml(pmid_str: str) -> str:
     """Fetch PubMed XML from efetch API. Returns raw XML text."""
     url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
@@ -73,9 +72,11 @@ def fetch_pubmed_xml(pmid_str: str) -> str:
     if environ.get('NCBI_API_KEY'):
         parameters['api_key'] = environ['NCBI_API_KEY']
     r = requests.post(url, data=parameters)
+    r.raise_for_status()
     return r.text
 
 
+@retry(requests.exceptions.RequestException, delay=30, backoff=2, tries=10)
 def download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined):
     xml_all = fetch_pubmed_xml(pmids_joined)
     xml_split = re.split('(<Pubmed[^>]*Article>)',
