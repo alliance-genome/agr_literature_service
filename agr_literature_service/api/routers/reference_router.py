@@ -20,7 +20,10 @@ import datetime
 import logging
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_lookup import lookup_reference_by_pmid
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import dump_data
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.api.schemas.external_lookup_schemas import ExternalLookupResponse
 
 
 logger = logging.getLogger(__name__)
@@ -61,6 +64,25 @@ def add(request: ReferenceSchemaAddPmid,
     if mod_curie is None:
         mod_curie = ''
     return process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
+
+
+@router.get('/external_lookup/{external_curie}',
+            status_code=200,
+            response_model=ExternalLookupResponse)
+def external_lookup(external_curie: str,
+                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                    db: Session = db_session):
+    set_global_user_from_cognito(db, user)
+    prefix, identifier, _ = split_identifier(external_curie, ignore_error=True)
+    if not prefix:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid curie format: {external_curie}")
+    if prefix.lower() in ('pmid', 'pubmed', 'pubmedid'):
+        return lookup_reference_by_pmid(identifier, db)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Unsupported curie prefix: {prefix}")
 
 
 @router.delete('/{curie_or_reference_id}',

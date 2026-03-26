@@ -1013,3 +1013,68 @@ class TestReference:
                 if xref['curie'] == 'WB:WBPaper00000001':
                     xrefs_ok = xrefs_ok + 1
             assert xrefs_ok == 2
+
+    def test_external_lookup_exists_in_db(self, auth_headers, test_reference, db):  # noqa
+        with TestClient(app) as client:
+            # test_reference creates a reference; add a PMID cross-reference to it
+            ref_curie = test_reference.new_ref_curie
+            ref = db.query(ReferenceModel).filter_by(curie=ref_curie).one()
+            xref = CrossReferenceModel(curie="PMID:77777777",
+                                       curie_prefix="PMID",
+                                       reference_id=ref.reference_id,
+                                       pages=['reference'])
+            db.add(xref)
+            db.commit()
+
+            response = client.get(url="/reference/external_lookup/PMID:77777777",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is True
+            assert data['reference_curie'] == ref_curie
+            assert data['external_curie'] == 'PMID:77777777'
+            assert data['external_curie_found'] is True
+            assert data['title'] == ref.title
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_lookup.fetch_pubmed_xml")
+    def test_external_lookup_found_at_pubmed(self, mock_fetch, auth_headers, db):  # noqa
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<PubmedArticleSet><PubmedArticle><MedlineCitation>'
+            '<PMID Version="1">99999999</PMID>'
+            '<Article><ArticleTitle>A test title from PubMed</ArticleTitle></Article>'
+            '</MedlineCitation></PubmedArticle></PubmedArticleSet>'
+        )
+        with TestClient(app) as client:
+            response = client.get(url="/reference/external_lookup/PMID:99999999",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['reference_curie'] is None
+            assert data['external_curie'] == 'PMID:99999999'
+            assert data['external_curie_found'] is True
+            assert data['title'] == 'A test title from PubMed'
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_lookup.fetch_pubmed_xml")
+    def test_external_lookup_not_found(self, mock_fetch, auth_headers, db):  # noqa
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<eFetchResult><ERROR>PMID 88888888 not found</ERROR></eFetchResult>'
+        )
+        with TestClient(app) as client:
+            response = client.get(url="/reference/external_lookup/PMID:88888888",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['reference_curie'] is None
+            assert data['external_curie'] == 'PMID:88888888'
+            assert data['external_curie_found'] is False
+            assert data['title'] == ''
+
+    def test_external_lookup_unsupported_prefix(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/reference/external_lookup/DOI:10.1234",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
