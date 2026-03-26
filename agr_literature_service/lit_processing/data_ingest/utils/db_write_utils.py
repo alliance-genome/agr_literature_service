@@ -1884,8 +1884,23 @@ def update_title_cleanup_tags_for_retracted_papers(db, logger):
 
 
 def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id):
-    update_title_for_one_retracted_paper(db, logger, reference_id)
-    cleanup_tags_for_one_retracted_paper(db, logger, reference_id)
+    """
+    Update title and cleanup tags for a single retracted paper atomically.
+
+    Wraps both operations in a single transaction to ensure consistency:
+    if either operation fails, the entire transaction is rolled back.
+    """
+    try:
+        update_title_for_one_retracted_paper(db, logger, reference_id, commit=False)
+        cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit=False)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"Failed to update title and cleanup tags for reference_id={reference_id}. "
+            f"Transaction rolled back. Error={e}"
+        )
+        raise
 
 
 def process_retracted_papers(db, logger):
@@ -1894,9 +1909,15 @@ def process_retracted_papers(db, logger):
     cleanup_tags_for_retracted_papers(db, logger)
 
 
-def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
+def cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit: bool = True) -> dict:
     """
-    Cleanup tags for a single retracted paper.
+    Cleanup tags for a single fully retracted paper.
+
+    Only processes papers with full retraction status:
+      - ATP:0000346: retracted (starting point, treated as fully retracted)
+      - ATP:0000348: fully retracted
+    Partial retractions (ATP:0000347) are skipped - they only get title updates,
+    not tag cleanup, so curators can continue working on them.
 
     1. Find in-corpus mod associations.
     2. For each mod:
@@ -1920,8 +1941,43 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
                - curation_status: ATP:0000299 (won't curate)
                - curation_tag: ATP:0000344 (retracted)
 
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+        commit: If True, commit the transaction. Set to False when caller
+                manages the transaction (e.g., for atomic multi-step operations).
+
     Returns a dict with statistics about what was changed.
     """
+
+    # Retraction status codes:
+    #   ATP:0000346: retracted (starting point, treated as fully retracted)
+    #   ATP:0000347: partially retracted (should NOT trigger tag cleanup)
+    #   ATP:0000348: fully retracted
+    full_retraction_statuses = {'ATP:0000346', 'ATP:0000348'}
+
+    empty_stats = {
+        'processed_mod_count': 0,
+        'ref_mod_with_manual_tet_count': 0,
+        'skipped_already_clean_count': 0,
+        'deleted_tet_count': 0,
+        'deleted_workflow_tag_count': 0,
+        'added_workflow_tag_count': 0,
+        'added_curation_status_count': 0,
+        'updated_curation_status_count': 0,
+        'skipped_curation_status_count': 0
+    }
+
+    # Defensive guard: only process papers with full retraction status
+    ref = db.query(ReferenceModel).filter_by(reference_id=reference_id).first()
+    if not ref or ref.retraction_status not in full_retraction_statuses:
+        if ref and ref.retraction_status:
+            logger.info(
+                f"Skipping tag cleanup for reference_id={reference_id}: "
+                f"retraction_status={ref.retraction_status} is not a full retraction"
+            )
+        return empty_stats
 
     retracted_curation_tag = 'ATP:0000344'
     manual_assertions = {'ATP:0000035', 'ATP:0000036'}
@@ -2128,7 +2184,8 @@ def cleanup_tags_for_one_retracted_paper(db, logger, reference_id) -> dict:
                 f"Reset workflow tags and curation status for reference_id={reference_id}, mod_id={mod_id}."
             )
 
-        db.commit()
+        if commit:
+            db.commit()
         return stats
 
     except Exception as e:
@@ -2213,12 +2270,24 @@ def cleanup_tags_for_retracted_papers(db, logger) -> None:
         raise
 
 
-def update_title_for_one_retracted_paper(db: Session, logger, reference_id) -> bool:
+def update_title_for_one_retracted_paper(db: Session, logger, reference_id, commit: bool = True) -> bool:
     """
     Update title for a single retracted paper.
       - Full retraction → "RETRACTED: "
       - Partial retraction → "PARTIALLY RETRACTED: "
       - Replace any existing variants with standardized prefix
+
+    Retraction status codes:
+      - ATP:0000346: retracted (starting point, treated as fully retracted)
+      - ATP:0000347: partially retracted
+      - ATP:0000348: fully retracted
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to update
+        commit: If True, commit the transaction. Set to False when caller
+                manages the transaction (e.g., for atomic multi-step operations).
 
     Returns True if the title was updated, False otherwise.
     """
@@ -2240,7 +2309,8 @@ def update_title_for_one_retracted_paper(db: Session, logger, reference_id) -> b
 
         original_title = ref.title or ""
 
-        # Check if title already has the correct prefix
+        # Full retraction (ATP:0000346, ATP:0000348) → "RETRACTED: "
+        # Partial retraction (ATP:0000347) → "PARTIALLY RETRACTED: "
         if ref.retraction_status in ('ATP:0000346', 'ATP:0000348'):
             if original_title.startswith("RETRACTED: "):
                 return False
@@ -2260,7 +2330,8 @@ def update_title_for_one_retracted_paper(db: Session, logger, reference_id) -> b
             logger.debug(f"Old: {original_title}")
             logger.debug(f"New: {new_title}")
             ref.title = new_title
-            db.commit()
+            if commit:
+                db.commit()
             return True
 
         return False
