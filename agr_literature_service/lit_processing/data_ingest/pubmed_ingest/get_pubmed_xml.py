@@ -78,6 +78,8 @@ def fetch_pubmed_xml(pmid_str: str) -> str:
 
 @retry(requests.exceptions.RequestException, delay=30, backoff=2, tries=10)
 def download_pubmed_xml_slice(pmids_found, storage_path, md5dict, pmids_joined):
+    # PubMed randomly has ("Connection broken: InvalidChunkLength(got length b'', 0 bytes read)"
+    # that crashes this script.
     xml_all = fetch_pubmed_xml(pmids_joined)
     xml_split = re.split('(<Pubmed[^>]*Article>)',
                          xml_all)  # some types are not PubmedArticle, like PubmedBookArticle, e.g. 32644453
