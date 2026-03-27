@@ -305,7 +305,9 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     db.commit()
 
     if reference_data.get("retraction_status"):
-        update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_db_obj.reference_id)
+        update_title_cleanup_tags_for_one_retracted_paper(
+            db, logger, reference_db_obj.reference_id, old_retraction_status
+        )
     elif "retraction_status" in reference_data and old_retraction_status:
         # retraction_status is being cleared (changed from non-empty to empty/None)
         reverse_retraction_for_one_paper(db, logger, reference_db_obj.reference_id)

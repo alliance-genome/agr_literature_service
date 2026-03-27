@@ -1883,22 +1883,157 @@ def update_title_cleanup_tags_for_retracted_papers(db, logger):
     cleanup_tags_for_retracted_papers(db, logger)
 
 
-def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id):
+def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id,
+                                                      old_retraction_status=None):
     """
     Update title and cleanup tags for a single retracted paper atomically.
 
     Wraps both operations in a single transaction to ensure consistency:
     if either operation fails, the entire transaction is rolled back.
+
+    When transitioning from full retraction (ATP:0000346, ATP:0000348) to
+    partial retraction (ATP:0000347), also removes the "won't" tags that
+    were added during full retraction, allowing curators to continue working.
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+        old_retraction_status: The previous retraction status before the update.
+            Used to detect transitions from full to partial retraction.
     """
+    full_retraction_statuses = {'ATP:0000346', 'ATP:0000348'}
+    partial_retraction_status = 'ATP:0000347'
+
     try:
         update_title_for_one_retracted_paper(db, logger, reference_id, commit=False)
         cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit=False)
+
+        # If transitioning from full retraction to partial retraction,
+        # remove the "won't" tags so curators can continue working
+        ref = db.query(ReferenceModel).filter_by(reference_id=reference_id).first()
+        if (ref
+                and old_retraction_status in full_retraction_statuses
+                and ref.retraction_status == partial_retraction_status):
+            logger.info(
+                f"Transitioning from full retraction to partial retraction for "
+                f"reference_id={reference_id}. Removing 'won't' tags."
+            )
+            remove_wont_tags_for_one_paper(db, logger, reference_id, commit=False)
+
         db.commit()
     except Exception as e:
         db.rollback()
         logger.error(
             f"Failed to update title and cleanup tags for reference_id={reference_id}. "
             f"Transaction rolled back. Error={e}"
+        )
+        raise
+
+
+def remove_wont_tags_for_one_paper(db, logger, reference_id, commit: bool = True) -> dict:
+    """
+    Remove the "won't" workflow tags and curation_status for a retracted paper.
+
+    This function removes:
+    1. The two "won't" workflow tags (ATP:0000343, ATP:0000342) that have
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+    2. The "won't curate" (ATP:0000299) curation_status entry with
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+
+    Used when:
+    - Transitioning from full retraction to partial retraction
+    - Fully reversing a retraction (called by reverse_retraction_for_one_paper)
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+        commit: If True, commit the transaction. Set to False when caller
+                manages the transaction.
+
+    Returns a dict with statistics about what was changed.
+    """
+
+    retracted_curation_tag = 'ATP:0000344'  # retracted
+    wont_curate_status = 'ATP:0000299'  # won't curate
+    whole_paper_topic = 'ATP:0000002'  # whole paper topic for curation_status
+    wont_workflow_tag_ids = {
+        'ATP:0000343',  # won't manually index
+        'ATP:0000342',  # won't community curate
+    }
+
+    stats = {
+        'deleted_workflow_tag_count': 0,
+        'deleted_curation_status_count': 0
+    }
+
+    try:
+        # Find all in-corpus mod associations for this reference
+        mod_stmt = select(distinct(ModCorpusAssociationModel.mod_id)).where(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True)
+        )
+        mod_ids = db.execute(mod_stmt).scalars().all()
+
+        if not mod_ids:
+            if commit:
+                db.commit()
+            return stats
+
+        for mod_id in mod_ids:
+            # Delete the two "won't" workflow tags with retracted curation_tag
+            delete_wft_stmt = delete(WorkflowTagModel).where(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id,
+                WorkflowTagModel.workflow_tag_id.in_(wont_workflow_tag_ids),
+                WorkflowTagModel.curation_tag == retracted_curation_tag
+            )
+            delete_wft_result = db.execute(delete_wft_stmt)
+            deleted_wft_rows = delete_wft_result.rowcount or 0
+            stats['deleted_workflow_tag_count'] += deleted_wft_rows
+
+            if deleted_wft_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_wft_rows} 'won't' workflow tag(s) with retracted curation_tag "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+            # Delete the "won't curate" curation_status with retracted curation_tag
+            delete_cs_stmt = delete(CurationStatusModel).where(
+                CurationStatusModel.reference_id == reference_id,
+                CurationStatusModel.mod_id == mod_id,
+                CurationStatusModel.topic == whole_paper_topic,
+                CurationStatusModel.curation_status == wont_curate_status,
+                CurationStatusModel.curation_tag == retracted_curation_tag
+            )
+            delete_cs_result = db.execute(delete_cs_stmt)
+            deleted_cs_rows = delete_cs_result.rowcount or 0
+            stats['deleted_curation_status_count'] += deleted_cs_rows
+
+            if deleted_cs_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_cs_rows} 'won't curate' curation_status row(s) with retracted curation_tag "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+        if commit:
+            db.commit()
+
+        logger.info(
+            f"remove_wont_tags_for_one_paper complete for reference_id={reference_id}: "
+            f"deleted_workflow_tag_count={stats['deleted_workflow_tag_count']}, "
+            f"deleted_curation_status_count={stats['deleted_curation_status_count']}"
+        )
+
+        return stats
+
+    except Exception as e:
+        if commit:
+            db.rollback()
+        logger.error(
+            f"Failed to remove 'won't' tags for reference_id={reference_id}. "
+            f"Error={e}"
         )
         raise
 
@@ -1921,14 +2056,6 @@ def reverse_retraction_for_one_paper(db, logger, reference_id) -> dict:
 
     Returns a dict with statistics about what was changed.
     """
-
-    retracted_curation_tag = 'ATP:0000344'  # retracted
-    wont_curate_status = 'ATP:0000299'  # won't curate
-    whole_paper_topic = 'ATP:0000002'  # whole paper topic for curation_status
-    wont_workflow_tag_ids = {
-        'ATP:0000343',  # won't manually index
-        'ATP:0000342',  # won't community curate
-    }
 
     stats = {
         'title_updated': False,
@@ -1953,52 +2080,10 @@ def reverse_retraction_for_one_paper(db, logger, reference_id) -> dict:
             stats['title_updated'] = True
             logger.info(f"Removed 'PARTIALLY RETRACTED: ' prefix from title for reference_id={reference_id}")
 
-        # Step 2: Find all in-corpus mod associations for this reference
-        mod_stmt = select(distinct(ModCorpusAssociationModel.mod_id)).where(
-            ModCorpusAssociationModel.reference_id == reference_id,
-            ModCorpusAssociationModel.corpus.is_(True)
-        )
-        mod_ids = db.execute(mod_stmt).scalars().all()
-
-        if not mod_ids:
-            db.commit()
-            return stats
-
-        for mod_id in mod_ids:
-            # Step 3: Delete the two "won't" workflow tags with retracted curation_tag
-            delete_wft_stmt = delete(WorkflowTagModel).where(
-                WorkflowTagModel.reference_id == reference_id,
-                WorkflowTagModel.mod_id == mod_id,
-                WorkflowTagModel.workflow_tag_id.in_(wont_workflow_tag_ids),
-                WorkflowTagModel.curation_tag == retracted_curation_tag
-            )
-            delete_wft_result = db.execute(delete_wft_stmt)
-            deleted_wft_rows = delete_wft_result.rowcount or 0
-            stats['deleted_workflow_tag_count'] += deleted_wft_rows
-
-            if deleted_wft_rows > 0:
-                logger.info(
-                    f"Deleted {deleted_wft_rows} 'won't' workflow tag(s) with retracted curation_tag "
-                    f"for reference_id={reference_id}, mod_id={mod_id}."
-                )
-
-            # Step 4: Delete the "won't curate" curation_status with retracted curation_tag
-            delete_cs_stmt = delete(CurationStatusModel).where(
-                CurationStatusModel.reference_id == reference_id,
-                CurationStatusModel.mod_id == mod_id,
-                CurationStatusModel.topic == whole_paper_topic,
-                CurationStatusModel.curation_status == wont_curate_status,
-                CurationStatusModel.curation_tag == retracted_curation_tag
-            )
-            delete_cs_result = db.execute(delete_cs_stmt)
-            deleted_cs_rows = delete_cs_result.rowcount or 0
-            stats['deleted_curation_status_count'] += deleted_cs_rows
-
-            if deleted_cs_rows > 0:
-                logger.info(
-                    f"Deleted {deleted_cs_rows} 'won't curate' curation_status row(s) with retracted curation_tag "
-                    f"for reference_id={reference_id}, mod_id={mod_id}."
-                )
+        # Step 2-4: Remove the "won't" tags using the helper function
+        tag_stats = remove_wont_tags_for_one_paper(db, logger, reference_id, commit=False)
+        stats['deleted_workflow_tag_count'] = tag_stats['deleted_workflow_tag_count']
+        stats['deleted_curation_status_count'] = tag_stats['deleted_curation_status_count']
 
         db.commit()
 
