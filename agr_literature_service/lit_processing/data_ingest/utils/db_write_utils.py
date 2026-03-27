@@ -2,8 +2,7 @@ from os import environ, makedirs, path
 import json
 import re
 from typing import List, Dict, Set, Tuple, Iterable, Optional, Any
-
-from sqlalchemy import or_, and_, text, false
+from sqlalchemy import or_, and_, text, false, select, distinct, delete, func
 from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
@@ -17,7 +16,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
 from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
-    ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
+    ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
+    TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
@@ -1876,6 +1876,514 @@ def set_category_for_fb_note_papers(db, logger):
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to set category for FB note papers. Error={e}")
+
+
+def update_title_cleanup_tags_for_retracted_papers(db, logger):
+    update_title_for_retracted_papers(db, logger)
+    cleanup_tags_for_retracted_papers(db, logger)
+
+
+def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id):
+    """
+    Update title and cleanup tags for a single retracted paper atomically.
+
+    Wraps both operations in a single transaction to ensure consistency:
+    if either operation fails, the entire transaction is rolled back.
+    """
+    try:
+        update_title_for_one_retracted_paper(db, logger, reference_id, commit=False)
+        cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit=False)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"Failed to update title and cleanup tags for reference_id={reference_id}. "
+            f"Transaction rolled back. Error={e}"
+        )
+        raise
+
+
+def process_retracted_papers(db, logger):
+    set_retraction_status(db, logger)
+    update_title_for_retracted_papers(db, logger)
+    cleanup_tags_for_retracted_papers(db, logger)
+
+
+def cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit: bool = True) -> dict:
+    """
+    Cleanup tags for a single fully retracted paper.
+
+    Only processes papers with full retraction status:
+      - ATP:0000346: retracted (starting point, treated as fully retracted)
+      - ATP:0000348: fully retracted
+    Partial retractions (ATP:0000347) are skipped - they only get title updates,
+    not tag cleanup, so curators can continue working on them.
+
+    1. Find in-corpus mod associations.
+    2. For each mod:
+       - Delete pipeline-added topic_entity_tag rows for this ref/mod
+         (keep only source_evidence_assertion in ATP:0000035 / ATP:0000036)
+          ATP:0000035: manual assertion by author
+          ATP:0000036: manual assertion by professional biocurator
+       - If person-added TET tags exist after cleanup:
+           - delete all pipeline-generated workflow tags for this ref/mod
+           - Preserves manual workflow tags (e.g., manual indexing,
+             community curation, and curator-applied tags) so curators can
+             continue working on partially retracted papers (see SCRUM-5348)
+       - Else (no person-added TET tags remain):
+           - delete all non-"won't xxx" workflow tags for this ref/mod
+           - if already exactly the 2 expected workflow tags and curation_status, skip
+           - otherwise delete any remaining workflow tags for this ref/mod
+             and add the 2 standard workflow tags for retracted papers:
+               - ATP:0000343 (won't manually index)
+               - ATP:0000342 (won't community curate)
+             and add/update curation_status for whole paper (ATP:0000002) with:
+               - curation_status: ATP:0000299 (won't curate)
+               - curation_tag: ATP:0000344 (retracted)
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+        commit: If True, commit the transaction. Set to False when caller
+                manages the transaction (e.g., for atomic multi-step operations).
+
+    Returns a dict with statistics about what was changed.
+    """
+
+    # Retraction status codes:
+    #   ATP:0000346: retracted (starting point, treated as fully retracted)
+    #   ATP:0000347: partially retracted (should NOT trigger tag cleanup)
+    #   ATP:0000348: fully retracted
+    full_retraction_statuses = {'ATP:0000346', 'ATP:0000348'}
+
+    empty_stats = {
+        'processed_mod_count': 0,
+        'ref_mod_with_manual_tet_count': 0,
+        'skipped_already_clean_count': 0,
+        'deleted_tet_count': 0,
+        'deleted_workflow_tag_count': 0,
+        'added_workflow_tag_count': 0,
+        'added_curation_status_count': 0,
+        'updated_curation_status_count': 0,
+        'skipped_curation_status_count': 0
+    }
+
+    # Defensive guard: only process papers with full retraction status
+    ref = db.query(ReferenceModel).filter_by(reference_id=reference_id).first()
+    if not ref or ref.retraction_status not in full_retraction_statuses:
+        if ref and ref.retraction_status:
+            logger.info(
+                f"Skipping tag cleanup for reference_id={reference_id}: "
+                f"retraction_status={ref.retraction_status} is not a full retraction"
+            )
+        return empty_stats
+
+    retracted_curation_tag = 'ATP:0000344'
+    manual_assertions = {'ATP:0000035', 'ATP:0000036'}
+    wont_curate_status = 'ATP:0000299'  # won't curate - goes to curation_status table
+    whole_paper_topic = 'ATP:0000002'  # whole paper topic for curation_status
+    wont_workflow_tag_ids = {
+        'ATP:0000343',  # won't manually index
+        'ATP:0000342',  # won't community curate
+    }
+    expected_pairs = {
+        ('ATP:0000343', retracted_curation_tag),
+        ('ATP:0000342', retracted_curation_tag),
+    }
+
+    stats = {
+        'processed_mod_count': 0,
+        'ref_mod_with_manual_tet_count': 0,
+        'skipped_already_clean_count': 0,
+        'deleted_tet_count': 0,
+        'deleted_workflow_tag_count': 0,
+        'added_workflow_tag_count': 0,
+        'added_curation_status_count': 0,
+        'updated_curation_status_count': 0,
+        'skipped_curation_status_count': 0
+    }
+
+    try:
+        all_text_conversion_wft = get_workflow_tags_from_process("ATP:0000161")
+        all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
+        all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
+        all_file_upload_wft = get_workflow_tags_from_process("ATP:0000140")
+        all_email_extraction_wft = get_workflow_tags_from_process("ATP:0000354")
+        all_curation_classification_wft = get_workflow_tags_from_process("ATP:0000311")
+
+        all_pipeline_workflow_tags = all_text_conversion_wft + all_ref_classification_wft + \
+            all_entity_extraction_wft + all_file_upload_wft + all_email_extraction_wft + \
+            all_curation_classification_wft
+
+        # Remove duplicates to optimize the IN clause
+        all_pipeline_workflow_tags = list(set(all_pipeline_workflow_tags))
+
+        mod_stmt = select(distinct(ModCorpusAssociationModel.mod_id)).where(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True)
+        )
+        mod_ids = db.execute(mod_stmt).scalars().all()
+
+        if not mod_ids:
+            return stats
+
+        for mod_id in mod_ids:
+            stats['processed_mod_count'] += 1
+
+            # Delete pipeline-added TET tags for this ref/mod.
+            tet_source_ids_stmt = select(
+                TopicEntityTagSourceModel.topic_entity_tag_source_id
+            ).where(
+                TopicEntityTagSourceModel.secondary_data_provider_id == mod_id,
+                TopicEntityTagSourceModel.source_evidence_assertion.notin_(manual_assertions)
+            )
+
+            delete_tet_stmt = delete(TopicEntityTagModel).where(
+                TopicEntityTagModel.reference_id == reference_id,
+                TopicEntityTagModel.topic_entity_tag_source_id.in_(tet_source_ids_stmt)
+            )
+            delete_tet_result = db.execute(delete_tet_stmt)
+            deleted_tet_rows = delete_tet_result.rowcount or 0
+            stats['deleted_tet_count'] += deleted_tet_rows
+
+            if deleted_tet_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_tet_rows} pipeline-added topic_entity_tag row(s) "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+            # Check whether any person-added TET tags remain.
+            manual_tet_count_stmt = (
+                select(func.count())
+                .select_from(TopicEntityTagModel)
+                .join(
+                    TopicEntityTagSourceModel,
+                    TopicEntityTagModel.topic_entity_tag_source_id
+                    == TopicEntityTagSourceModel.topic_entity_tag_source_id
+                )
+                .where(
+                    TopicEntityTagModel.reference_id == reference_id,
+                    TopicEntityTagSourceModel.secondary_data_provider_id == mod_id,
+                    TopicEntityTagSourceModel.source_evidence_assertion.in_(manual_assertions)
+                )
+            )
+            manual_tet_count = db.execute(manual_tet_count_stmt).scalar_one()
+
+            if manual_tet_count > 0:
+                stats['ref_mod_with_manual_tet_count'] += 1
+                delete_all_wft_stmt = delete(WorkflowTagModel).where(
+                    WorkflowTagModel.reference_id == reference_id,
+                    WorkflowTagModel.mod_id == mod_id,
+                    WorkflowTagModel.workflow_tag_id.in_(all_pipeline_workflow_tags)
+                )
+                delete_all_wft_result = db.execute(delete_all_wft_stmt)
+                deleted_wft_rows = delete_all_wft_result.rowcount or 0
+                stats['deleted_workflow_tag_count'] += deleted_wft_rows
+                logger.info(
+                    f"reference_id={reference_id}, mod_id={mod_id} has {manual_tet_count} "
+                    f"person-added TET tag(s); deleted {deleted_wft_rows} pipeline workflow tag(s)."
+                )
+                continue
+
+            # No person-added TET tags remain: first delete non-"won't xxx" workflow tags.
+            delete_non_wont_wft_stmt = delete(WorkflowTagModel).where(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id,
+                WorkflowTagModel.workflow_tag_id.notin_(wont_workflow_tag_ids)
+            )
+            delete_non_wont_wft_result = db.execute(delete_non_wont_wft_stmt)
+            deleted_non_wont_wft_rows = delete_non_wont_wft_result.rowcount or 0
+            stats['deleted_workflow_tag_count'] += deleted_non_wont_wft_rows
+
+            if deleted_non_wont_wft_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_non_wont_wft_rows} non-won't workflow tag row(s) "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+            # Re-read remaining workflow tags after removing non-won't tags.
+            existing_wft_stmt = select(
+                WorkflowTagModel.workflow_tag_id,
+                WorkflowTagModel.curation_tag
+            ).where(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id
+            )
+            existing_wfts = db.execute(existing_wft_stmt).all()
+
+            existing_pairs = {
+                (workflow_tag_id, curation_tag)
+                for workflow_tag_id, curation_tag in existing_wfts
+            }
+
+            # Check if curation_status already has "won't curate" for whole paper
+            existing_curation_status_stmt = select(CurationStatusModel).where(
+                CurationStatusModel.reference_id == reference_id,
+                CurationStatusModel.mod_id == mod_id,
+                CurationStatusModel.topic == whole_paper_topic
+            )
+            existing_curation_status = db.execute(existing_curation_status_stmt).scalar_one_or_none()
+
+            curation_status_already_correct = (
+                existing_curation_status is not None
+                and existing_curation_status.curation_status == wont_curate_status
+                and existing_curation_status.curation_tag == retracted_curation_tag
+            )
+
+            # Already exactly correct: skip.
+            if existing_pairs == expected_pairs and len(existing_wfts) == 2 and curation_status_already_correct:
+                stats['skipped_already_clean_count'] += 1
+                continue
+
+            # Otherwise, replace any remaining workflow tags with the exact 2 expected rows.
+            delete_remaining_wft_stmt = delete(WorkflowTagModel).where(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id
+            )
+            delete_remaining_wft_result = db.execute(delete_remaining_wft_stmt)
+            deleted_remaining_wft_rows = delete_remaining_wft_result.rowcount or 0
+            stats['deleted_workflow_tag_count'] += deleted_remaining_wft_rows
+
+            for tag_id in wont_workflow_tag_ids:
+                db.add(
+                    WorkflowTagModel(
+                        reference_id=reference_id,
+                        mod_id=mod_id,
+                        workflow_tag_id=tag_id,
+                        curation_tag=retracted_curation_tag
+                    )
+                )
+
+            stats['added_workflow_tag_count'] += 2
+
+            # Add or update curation_status for whole paper with "won't curate"
+            if existing_curation_status is not None:
+                if existing_curation_status.curation_status == wont_curate_status:
+                    # Already "won't curate" - skip
+                    stats['skipped_curation_status_count'] += 1
+                else:
+                    # Has another curation status (child of ATP:0000230) - update to "won't curate"
+                    existing_curation_status.curation_status = wont_curate_status
+                    existing_curation_status.curation_tag = retracted_curation_tag
+                    stats['updated_curation_status_count'] += 1
+            else:
+                # No curation_status exists - insert new
+                db.add(
+                    CurationStatusModel(
+                        reference_id=reference_id,
+                        mod_id=mod_id,
+                        topic=whole_paper_topic,
+                        curation_status=wont_curate_status,
+                        curation_tag=retracted_curation_tag
+                    )
+                )
+                stats['added_curation_status_count'] += 1
+
+            logger.info(
+                f"Reset workflow tags and curation status for reference_id={reference_id}, mod_id={mod_id}."
+            )
+
+        if commit:
+            db.commit()
+        return stats
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to cleanup tags for retracted paper reference_id={reference_id}. Error={e}")
+        raise
+
+
+def cleanup_tags_for_retracted_papers(db, logger) -> None:
+    """
+    For each reference with non-NULL retraction_status:
+
+    1. Find in-corpus mod associations.
+    2. For each mod:
+       - Delete pipeline-added topic_entity_tag rows for this ref/mod
+         (keep only source_evidence_assertion in ATP:0000035 / ATP:0000036)
+          ATP:0000035: manual assertion by author
+          ATP:0000036: manual assertion by professional biocurator
+       - If person-added TET tags exist after cleanup:
+           - delete all pipeline-generated workflow tags for this ref/mod
+           - Preserves manual workflow tags (e.g., manual indexing,
+             community curation, and curator-applied tags) so curators can
+             continue working on partially retracted papers (see SCRUM-5348)
+       - Else (no person-added TET tags remain):
+           - delete all non-"won't xxx" workflow tags for this ref/mod
+           - if already exactly the 2 expected workflow tags and curation_status, skip
+           - otherwise delete any remaining workflow tags for this ref/mod
+             and add the 2 standard workflow tags for retracted papers
+    """
+
+    try:
+        ref_stmt = select(ReferenceModel.reference_id).where(
+            ReferenceModel.retraction_status.in_(['ATP:0000346', 'ATP:0000348'])
+        )
+        ref_ids = db.execute(ref_stmt).scalars().all()
+
+        if not ref_ids:
+            logger.info("No retracted papers found for cleanup.")
+            return
+
+        processed_ref_count = 0
+        processed_mod_count = 0
+        ref_mod_with_manual_tet_count = 0
+        skipped_already_clean_count = 0
+        deleted_tet_count = 0
+        deleted_workflow_tag_count = 0
+        added_workflow_tag_count = 0
+        added_curation_status_count = 0
+        updated_curation_status_count = 0
+        skipped_curation_status_count = 0
+
+        for ref_id in ref_ids:
+            processed_ref_count += 1
+            stats = cleanup_tags_for_one_retracted_paper(db, logger, ref_id)
+            processed_mod_count += stats['processed_mod_count']
+            ref_mod_with_manual_tet_count += stats['ref_mod_with_manual_tet_count']
+            skipped_already_clean_count += stats['skipped_already_clean_count']
+            deleted_tet_count += stats['deleted_tet_count']
+            deleted_workflow_tag_count += stats['deleted_workflow_tag_count']
+            added_workflow_tag_count += stats['added_workflow_tag_count']
+            added_curation_status_count += stats['added_curation_status_count']
+            updated_curation_status_count += stats['updated_curation_status_count']
+            skipped_curation_status_count += stats['skipped_curation_status_count']
+
+        logger.info(
+            "cleanup_tags_for_retracted_papers complete: "
+            f"{processed_ref_count} retracted reference(s) checked, "
+            f"{processed_mod_count} ref/mod pair(s) checked, "
+            f"{ref_mod_with_manual_tet_count} ref/mod pair(s) had person-added TET tags, "
+            f"{skipped_already_clean_count} ref/mod pair(s) already clean, "
+            f"{deleted_tet_count} topic_entity_tag row(s) deleted, "
+            f"{deleted_workflow_tag_count} workflow_tag row(s) deleted, "
+            f"{added_workflow_tag_count} workflow_tag row(s) added, "
+            f"{added_curation_status_count} curation_status row(s) added, "
+            f"{updated_curation_status_count} curation_status row(s) updated, "
+            f"{skipped_curation_status_count} curation_status row(s) skipped."
+        )
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to cleanup tags for retracted papers. Error={e}")
+        raise
+
+
+def update_title_for_one_retracted_paper(db: Session, logger, reference_id, commit: bool = True) -> bool:
+    """
+    Update title for a single retracted paper.
+      - Full retraction → "RETRACTED: "
+      - Partial retraction → "PARTIALLY RETRACTED: "
+      - Replace any existing variants with standardized prefix
+
+    Retraction status codes:
+      - ATP:0000346: retracted (starting point, treated as fully retracted)
+      - ATP:0000347: partially retracted
+      - ATP:0000348: fully retracted
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to update
+        commit: If True, commit the transaction. Set to False when caller
+                manages the transaction (e.g., for atomic multi-step operations).
+
+    Returns True if the title was updated, False otherwise.
+    """
+
+    retracted_pattern = re.compile(r"^\s*(partial(ly)?\s+)?retracted\s*:?\s*", re.IGNORECASE)
+
+    try:
+        stmt = select(ReferenceModel).where(
+            ReferenceModel.reference_id == reference_id
+        )
+        ref = db.execute(stmt).scalars().first()
+
+        if not ref:
+            logger.warning(f"Reference not found: reference_id={reference_id}")
+            return False
+
+        if not ref.retraction_status:
+            return False
+
+        original_title = ref.title or ""
+
+        # Full retraction (ATP:0000346, ATP:0000348) → "RETRACTED: "
+        # Partial retraction (ATP:0000347) → "PARTIALLY RETRACTED: "
+        if ref.retraction_status in ('ATP:0000346', 'ATP:0000348'):
+            if original_title.startswith("RETRACTED: "):
+                return False
+            prefix = "RETRACTED: "
+        elif ref.retraction_status == 'ATP:0000347':
+            if original_title.startswith("PARTIALLY RETRACTED: "):
+                return False
+            prefix = "PARTIALLY RETRACTED: "
+        else:
+            return False
+
+        cleaned_title = retracted_pattern.sub("", original_title).strip()
+        new_title = f"{prefix}{cleaned_title}"
+
+        if original_title != new_title:
+            logger.info(f"Updating reference_id={ref.reference_id}")
+            logger.debug(f"Old: {original_title}")
+            logger.debug(f"New: {new_title}")
+            ref.title = new_title
+            if commit:
+                db.commit()
+            return True
+
+        return False
+
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error updating retracted paper title for reference_id={reference_id}: {e}")
+        raise
+
+
+def update_title_for_retracted_papers(db: Session, logger):
+    """
+    Ensure titles of retracted papers:
+      - Full retraction → "RETRACTED: "
+      - Partial retraction → "PARTIALLY RETRACTED: "
+      - Replace any existing variants with standardized prefix
+    """
+
+    try:
+        stmt = select(ReferenceModel.reference_id).where(
+            or_(
+                and_(
+                    ReferenceModel.retraction_status.in_(['ATP:0000346', 'ATP:0000348']),
+                    ~ReferenceModel.title.like("RETRACTED: %")
+                ),
+                and_(
+                    ReferenceModel.retraction_status == 'ATP:0000347',
+                    ~ReferenceModel.title.like("PARTIALLY RETRACTED: %")
+                )
+            )
+        )
+
+        ref_ids = db.execute(stmt).scalars().all()
+
+        if not ref_ids:
+            logger.info("No retracted paper titles needed updating.")
+            return
+
+        updated_count = 0
+        for ref_id in ref_ids:
+            if update_title_for_one_retracted_paper(db, logger, ref_id):
+                updated_count += 1
+
+        if updated_count:
+            logger.info(f"Updated {updated_count} retracted paper titles.")
+        else:
+            logger.info("No retracted paper titles needed updating.")
+
+    except Exception as e:
+        db.rollback()
+        logger.exception(f"Error updating retracted paper titles: {e}")
+        raise
 
 
 def set_retraction_status(db, logger):
