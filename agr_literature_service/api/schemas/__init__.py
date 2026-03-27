@@ -113,7 +113,8 @@ from agr_literature_service.api.schemas.copyright_license_schemas import (
     CopyrightLicenseSchemaPost, CopyrightLicenseSchemaShow)
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema
 
-from agr_literature_service.api.schemas.external_lookup_schemas import ExternalLookupResponse
+from agr_literature_service.api.schemas.external_lookup_schemas import (
+    ReferenceExternalLookupResponse, ResourceExternalLookupResponse)
 
 from agr_literature_service.api.schemas.check_schemas import (
     AteamApiSchemaShow,

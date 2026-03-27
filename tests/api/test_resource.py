@@ -10,6 +10,8 @@ from agr_literature_service.api.models import ResourceModel
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
 from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
+from unittest.mock import patch
+from agr_literature_service.api.models import CrossReferenceModel  # noqa
 
 ResourceTestData = namedtuple('ResourceTestData', ['response', 'new_resource_curie'])
 
@@ -293,3 +295,205 @@ class TestResource:
             # Deleting it again should give an error as the lookup will fail.
             response = client.delete(url=f"/resource/{test_resource.new_resource_curie}", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_external_lookup_nlm_exists_in_db(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            # Create a resource with an NLM cross-reference
+            res = client.post(url="/resource/", json={
+                "title": "Test NLM Journal",
+                "cross_references": [{"curie": "NLM:9999999"}]
+            }, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            resource_curie = res.json()
+
+            response = client.get(
+                url="/resource/external_lookup/NLM:9999999",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is True
+            assert data['resource_curie'] == resource_curie
+            assert data['external_curie'] == 'NLM:9999999'
+            assert data['external_curie_found'] is True
+            assert data['title'] == 'Test NLM Journal'
+
+    def test_external_lookup_issn_exists_in_db(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            res = client.post(url="/resource/", json={
+                "title": "Test ISSN Journal",
+                "print_issn": "1234-5678"
+            }, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            resource_curie = res.json()
+
+            response = client.get(
+                url="/resource/external_lookup/ISSN:1234-5678",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is True
+            assert data['resource_curie'] == resource_curie
+            assert data['external_curie'] == 'ISSN:1234-5678'
+            assert data['external_curie_found'] is True
+            assert data['title'] == 'Test ISSN Journal'
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_external_lookup_nlm_found_at_nlm_catalog(self, mock_search, mock_fetch, auth_headers, db):  # noqa
+        mock_search.return_value = "410462"
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>0410462</NlmUniqueID>'
+            '<TitleMain><Title Sort="0">Nature.</Title></TitleMain>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/NLM:0410462",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['resource_curie'] is None
+            assert data['external_curie'] == 'NLM:0410462'
+            assert data['external_curie_found'] is True
+            assert data['title'] == 'Nature.'
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_external_lookup_issn_found_at_nlm_catalog(self, mock_search, mock_fetch, auth_headers, db):  # noqa
+        mock_search.return_value = "410462"
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>0410462</NlmUniqueID>'
+            '<TitleMain><Title Sort="0">Nature.</Title></TitleMain>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/ISSN:0028-0836",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['resource_curie'] is None
+            assert data['external_curie'] == 'ISSN:0028-0836'
+            assert data['external_curie_found'] is True
+            assert data['title'] == 'Nature.'
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_external_lookup_nlm_not_found(self, mock_search, auth_headers, db):  # noqa
+        mock_search.return_value = ""
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/NLM:0000000",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['resource_curie'] is None
+            assert data['external_curie_found'] is False
+            assert data['title'] == ''
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_external_lookup_nlm_api_failure(self, mock_search, auth_headers, db):  # noqa
+        mock_search.side_effect = Exception("Connection refused")
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/NLM:0410462",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['external_curie_found'] is False
+            assert data['title'] == ''
+
+    def test_external_lookup_isbn_exists_in_db(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            res = client.post(url="/resource/", json={
+                "title": "Test ISBN Book",
+                "cross_references": [{"curie": "ISBN:978-0-12345"}]
+            }, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            resource_curie = res.json()
+
+            response = client.get(
+                url="/resource/external_lookup/ISBN:978-0-12345",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is True
+            assert data['resource_curie'] == resource_curie
+            assert data['external_curie_found'] is True
+            assert data['title'] == 'Test ISBN Book'
+
+    def test_external_lookup_isbn_not_supported(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/ISBN:000-0-00000",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['external_curie_found'] is False
+            assert data['title'] == 'ISBN not supported yet'
+
+    def test_external_lookup_unsupported_prefix(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/DOI:10.1234",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_external_lookup_case_insensitive_prefix(self, mock_search, mock_fetch, auth_headers, db):  # noqa
+        mock_search.return_value = "410462"
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<TitleMain><Title Sort="0">Nature.</Title></TitleMain>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        with TestClient(app) as client:
+            response = client.get(
+                url="/resource/external_lookup/nlm:0410462",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['external_curie_found'] is True
+
+            response = client.get(
+                url="/resource/external_lookup/NLMID:0410462",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['external_curie_found'] is True
+
+    def test_add_isbn_not_supported(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "ISBN:978-0-12345"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "ISBN not supported yet" in response.json()['detail']
+
+    def test_add_unsupported_prefix(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "DOI:10.1234"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "You must enter an NLM, ISSN, or ISBN" in response.json()['detail']
+
+    def test_add_missing_curie(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "nocolon"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

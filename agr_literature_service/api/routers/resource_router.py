@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
 from typing import Dict, Any, List, Optional
 
 from sqlalchemy.orm import Session
@@ -10,6 +10,11 @@ from agr_literature_service.api.schemas import (ResourceSchemaPost,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup import (
+    lookup_resource_by_nlm, lookup_resource_by_issn, lookup_resource_by_isbn)
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.api.schemas.external_lookup_schemas import ResourceExternalLookupResponse
+from agr_literature_service.api.schemas.resource_schemas import ResourceSchemaAddCurie
 
 router = APIRouter(
     prefix="/resource",
@@ -30,6 +35,55 @@ def create(request: ResourceSchemaPost,
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
     return resource_crud.create(db, request)
+
+
+@router.get('/external_lookup/{external_curie}',
+            status_code=200,
+            response_model=ResourceExternalLookupResponse)
+def external_lookup(external_curie: str,
+                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                    db: Session = db_session):
+    set_global_user_from_cognito(db, user)
+    prefix, identifier, _ = split_identifier(external_curie, ignore_error=True)
+    if not prefix:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You must enter an NLM, ISSN, or ISBN")
+    prefix_lower = prefix.lower()
+    if prefix_lower == 'issn':
+        return lookup_resource_by_issn(identifier, db)
+    if prefix_lower in ('nlm', 'nlmid'):
+        return lookup_resource_by_nlm(identifier, db)
+    if prefix_lower == 'isbn':
+        return lookup_resource_by_isbn(identifier, db)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail="You must enter an NLM, ISSN, or ISBN")
+
+
+@router.post('/add/',
+             status_code=status.HTTP_201_CREATED,
+             response_model=str)
+def add(request: ResourceSchemaAddCurie,
+        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+        db: Session = db_session):
+    set_global_user_from_cognito(db, user)
+    prefix, identifier, _ = split_identifier(request.curie, ignore_error=True)
+    if not prefix:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You must enter an NLM, ISSN, or ISBN")
+    prefix_lower = prefix.lower()
+    if prefix_lower == 'isbn':
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="ISBN not supported yet")
+    if prefix_lower not in ('issn', 'nlm', 'nlmid'):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You must enter an NLM, ISSN, or ISBN")
+    # Resource creation logic TBD
+    return "resource creation not yet implemented"
 
 
 @router.delete('/{curie}',
