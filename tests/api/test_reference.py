@@ -1073,6 +1073,18 @@ class TestReference:
             assert data['external_curie_found'] is False
             assert data['title'] == ''
 
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_lookup.fetch_pubmed_xml")
+    def test_external_lookup_pubmed_api_failure(self, mock_fetch, auth_headers, db):  # noqa
+        mock_fetch.side_effect = Exception("Connection refused")
+        with TestClient(app) as client:
+            response = client.get(url="/reference/external_lookup/PMID:55555555",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data['exists_in_db'] is False
+            assert data['external_curie_found'] is False
+            assert data['title'] == ''
+
     def test_external_lookup_unsupported_prefix(self, auth_headers, db):  # noqa
         with TestClient(app) as client:
             response = client.get(url="/reference/external_lookup/DOI:10.1234",
