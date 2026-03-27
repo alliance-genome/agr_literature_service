@@ -1903,6 +1903,123 @@ def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id):
         raise
 
 
+def reverse_retraction_for_one_paper(db, logger, reference_id) -> dict:
+    """
+    Reverse the retraction effects for a single paper when retraction_status is cleared.
+
+    This function:
+    1. Removes "RETRACTED: " or "PARTIALLY RETRACTED: " prefix from the paper title
+    2. Removes the two "won't" workflow tags (ATP:0000343, ATP:0000342) that have
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+    3. Removes the "won't curate" (ATP:0000299) curation_status entry with
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+
+    Returns a dict with statistics about what was changed.
+    """
+
+    retracted_curation_tag = 'ATP:0000344'  # retracted
+    wont_curate_status = 'ATP:0000299'  # won't curate
+    whole_paper_topic = 'ATP:0000002'  # whole paper topic for curation_status
+    wont_workflow_tag_ids = {
+        'ATP:0000343',  # won't manually index
+        'ATP:0000342',  # won't community curate
+    }
+
+    stats = {
+        'title_updated': False,
+        'deleted_workflow_tag_count': 0,
+        'deleted_curation_status_count': 0
+    }
+
+    try:
+        ref = db.query(ReferenceModel).filter_by(reference_id=reference_id).first()
+        if not ref:
+            logger.warning(f"Reference not found: reference_id={reference_id}")
+            return stats
+
+        # Step 1: Remove "RETRACTED: " or "PARTIALLY RETRACTED: " prefix from title
+        original_title = ref.title or ""
+        if original_title.startswith("RETRACTED: "):
+            ref.title = original_title[len("RETRACTED: "):]
+            stats['title_updated'] = True
+            logger.info(f"Removed 'RETRACTED: ' prefix from title for reference_id={reference_id}")
+        elif original_title.startswith("PARTIALLY RETRACTED: "):
+            ref.title = original_title[len("PARTIALLY RETRACTED: "):]
+            stats['title_updated'] = True
+            logger.info(f"Removed 'PARTIALLY RETRACTED: ' prefix from title for reference_id={reference_id}")
+
+        # Step 2: Find all in-corpus mod associations for this reference
+        mod_stmt = select(distinct(ModCorpusAssociationModel.mod_id)).where(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True)
+        )
+        mod_ids = db.execute(mod_stmt).scalars().all()
+
+        if not mod_ids:
+            db.commit()
+            return stats
+
+        for mod_id in mod_ids:
+            # Step 3: Delete the two "won't" workflow tags with retracted curation_tag
+            delete_wft_stmt = delete(WorkflowTagModel).where(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id,
+                WorkflowTagModel.workflow_tag_id.in_(wont_workflow_tag_ids),
+                WorkflowTagModel.curation_tag == retracted_curation_tag
+            )
+            delete_wft_result = db.execute(delete_wft_stmt)
+            deleted_wft_rows = delete_wft_result.rowcount or 0
+            stats['deleted_workflow_tag_count'] += deleted_wft_rows
+
+            if deleted_wft_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_wft_rows} 'won't' workflow tag(s) with retracted curation_tag "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+            # Step 4: Delete the "won't curate" curation_status with retracted curation_tag
+            delete_cs_stmt = delete(CurationStatusModel).where(
+                CurationStatusModel.reference_id == reference_id,
+                CurationStatusModel.mod_id == mod_id,
+                CurationStatusModel.topic == whole_paper_topic,
+                CurationStatusModel.curation_status == wont_curate_status,
+                CurationStatusModel.curation_tag == retracted_curation_tag
+            )
+            delete_cs_result = db.execute(delete_cs_stmt)
+            deleted_cs_rows = delete_cs_result.rowcount or 0
+            stats['deleted_curation_status_count'] += deleted_cs_rows
+
+            if deleted_cs_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_cs_rows} 'won't curate' curation_status row(s) with retracted curation_tag "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+        db.commit()
+
+        logger.info(
+            f"reverse_retraction_for_one_paper complete for reference_id={reference_id}: "
+            f"title_updated={stats['title_updated']}, "
+            f"deleted_workflow_tag_count={stats['deleted_workflow_tag_count']}, "
+            f"deleted_curation_status_count={stats['deleted_curation_status_count']}"
+        )
+
+        return stats
+
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"Failed to reverse retraction for reference_id={reference_id}. "
+            f"Transaction rolled back. Error={e}"
+        )
+        raise
+
+
 def process_retracted_papers(db, logger):
     set_retraction_status(db, logger)
     update_title_for_retracted_papers(db, logger)
