@@ -48,7 +48,17 @@ def lookup_reference_by_pmid(pmid: str, db: Session) -> dict:
                 'title': ref.title or ''
             }
 
-    xml_text = fetch_pubmed_xml(pmid)
+    try:
+        xml_text = fetch_pubmed_xml(pmid)
+    except Exception:
+        logger.warning("PubMed API request failed for PMID:%s", pmid, exc_info=True)
+        return {
+            'exists_in_db': False,
+            'reference_curie': None,
+            'external_curie': external_curie,
+            'external_curie_found': False,
+            'title': ''
+        }
     title = _extract_title_from_pubmed_xml(xml_text)
 
     if title:
