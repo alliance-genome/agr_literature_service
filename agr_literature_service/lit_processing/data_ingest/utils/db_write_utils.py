@@ -2623,7 +2623,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     Returns:
         dict with statistics about what was changed
     """
-    stats = {
+    stats: Dict[str, Any] = {
         'workflow_tags_added': 0,
         'mods_processed': []
     }
