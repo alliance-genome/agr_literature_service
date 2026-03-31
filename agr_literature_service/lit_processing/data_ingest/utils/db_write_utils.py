@@ -2692,12 +2692,22 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
                     new_tag = file_needed_tag_atp_id
 
             # Add the workflow tag using transition_to_workflow_status
+            # Note: transition_to_workflow_status only allows ATP:0000141 (file needed) as
+            # initial state. For other states, we need to first add file_needed, then transition.
             try:
                 reference = db.query(ReferenceModel).filter(
                     ReferenceModel.reference_id == reference_id
                 ).first()
                 if reference:
-                    transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                    if new_tag == file_needed_tag_atp_id:
+                        # Can directly add file needed as initial state
+                        transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                    else:
+                        # First add file needed, then transition to the target state
+                        transition_to_workflow_status(
+                            db, reference.curie, mod_abbreviation, file_needed_tag_atp_id
+                        )
+                        transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
                     stats['workflow_tags_added'] += 1
                     stats['mods_processed'].append({
                         'mod_abbreviation': mod_abbreviation,
