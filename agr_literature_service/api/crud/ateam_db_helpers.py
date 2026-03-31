@@ -7,9 +7,6 @@ from fastapi import HTTPException, status
 from typing import Dict, List, Optional, Iterable, Tuple, Union, cast
 from sqlalchemy import text, bindparam
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
-from sqlalchemy.orm import Session
-
-from agr_literature_service.api.models import WorkflowTagTopicModel
 
 logger = logging.getLogger(__name__)
 
@@ -270,12 +267,14 @@ def search_for_entity_curies(
 # Jobs/subset logic (uses client)
 # -----------------------------
 
-def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> List[str]:
+def get_workflow_tags_for_mod(name: str, mod_abbreviation: str) -> List[str]:
     """
-    Use ATP children + subset filter from search_atp_topics(mod_abbr) to find jobs.
+    Expand a parent ATP into its descendants, filtered by MOD subset.
+
     - If name is an ATP:curie, treat it as the parent.
     - Else, look for "<name> needed" in ATP names.
-    Returns [parent, ...allowed child curies in subset...]
+
+    Returns [parent, ...descendants in the MOD's ontology subset...]
     """
     if not atp_to_parent or not atp_to_children:
         load_name_to_atp_and_relationships()
@@ -285,10 +284,13 @@ def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> List[str]:
     else:
         needed = f"{name} needed"
         if needed not in name_to_atp:
-            raise HTTPException(status_code=404, detail=f"Exception: Could not find '{needed}' in ATP ontology names")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Exception: Could not find '{needed}' in ATP ontology names"
+            )
         atp_parent_id = name_to_atp[needed]
 
-    # Compute full candidate set: include parent + all descendants
+    # Compute full candidate set: parent + all descendants
     candidates = {atp_parent_id}
     stack = [atp_parent_id]
     while stack:
@@ -298,20 +300,21 @@ def get_jobs_to_run(name: str, mod_abbreviation: str, db: Session) -> List[str]:
                 candidates.add(ch)
                 stack.append(ch)
 
-    # Filter by MOD subset using client.search_atp_topics(mod_abbr=...)
+    # Filter descendants by MOD subset (e.g., FB_tag) in A-Team ontology
+    children = candidates - {atp_parent_id}
     cli = _get_client()
     try:
-        subset_topics = cli.search_atp_topics(mod_abbr=mod_abbreviation) or []
-        allowed_topics = {r["curie"] for r in subset_topics}
-        workflow_topic = {row[0]: row[1] for row in db.query(WorkflowTagTopicModel.workflow_tag, WorkflowTagTopicModel.
-                                                             topic).all()}
-        candidate_topic = {candidate_wf: workflow_topic[candidate_wf] for candidate_wf in candidates if candidate_wf in
-                           workflow_topic}
+        allowed = set(cli.filter_atp_by_mod_subset(
+            list(children), mod_abbreviation
+        ))
     except AGRAPIError as e:
-        raise HTTPException(status_code=502, detail=f"Failed to load subset topics for {mod_abbreviation}: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to filter subset for {mod_abbreviation}: {e}"
+        )
 
     results = [atp_parent_id]
-    results.extend([c for c in candidates if c in candidate_topic and candidate_topic[c] in allowed_topics])
+    results.extend(c for c in children if c in allowed)
     return results
 
 

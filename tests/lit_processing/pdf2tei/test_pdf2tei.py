@@ -3,7 +3,6 @@ import json
 import os
 from unittest.mock import patch, Mock
 
-from sqlalchemy.orm import Session
 from starlette import status
 from starlette.testclient import TestClient
 
@@ -94,7 +93,7 @@ def convert_pdf_with_grobid_mock(file_content):
     return mock_response
 
 
-def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session): # noqa
+def mock_get_jobs_to_run(name: str, mod_abbreviation: str): # noqa
     results = {'ATP:0000162': ['ATP:0000162']}
     return results[name]
 
@@ -102,7 +101,7 @@ def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session): # noqa
 class TestPdf2TEI:
 
     @staticmethod
-    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod", mock_get_jobs_to_run)
     def upload_initial_main_reference_file(db, client, test_mod, test_reference, auth_headers): # noqa
         mod_response = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}", headers=auth_headers)
         mod_abbreviation = mod_response.json()["abbreviation"]
@@ -185,7 +184,7 @@ class TestPdf2TEI:
 
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid",
            convert_pdf_with_grobid_mock)
-    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod", mock_get_jobs_to_run)
     def test_pdf2tei(self, db, auth_headers, test_reference, test_mod): # noqa
         with TestClient(app) as client:
             load_name_to_atp_and_relationships_mock()
@@ -202,7 +201,7 @@ class TestPdf2TEI:
             assert response.json() == "ATP:0000163"
 
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod", mock_get_jobs_to_run)
     def test_pdf2tei_failed_conversion(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:
@@ -228,7 +227,7 @@ class TestPdf2TEI:
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
     @patch("agr_literature_service.lit_processing.pdf2tei.pdf2tei.convert_pdf_with_grobid")
-    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod", mock_get_jobs_to_run)
     def test_pdf2tei_failed_conversion_500(self, mock_convert_pdf_with_grobid,
                                        db, auth_headers, test_reference, test_mod):  # noqa
         with TestClient(app) as client:
