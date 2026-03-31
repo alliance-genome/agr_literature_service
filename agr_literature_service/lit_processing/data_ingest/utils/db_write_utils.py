@@ -26,7 +26,8 @@ from agr_literature_service.api.crud.reference_utils import get_reference
 batch_size_for_commit = 250
 file_upload_process_atp_id = "ATP:0000140"  # file upload
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
-file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
+file_upload_in_progress_tag_atp_id = "ATP:0000139"  # file upload in progress
+file_uploaded_tag_atp_id = "ATP:0000134"  # files uploaded
 
 # One "Lastname, Initials" pair.
 # - last: anything up to a comma (handles hyphens, apostrophes, spaces like "van der Ven")
@@ -2602,3 +2603,126 @@ def set_retraction_status(db, logger):
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to set retraction_status for 'Retracted Publication' papers. Error={e}")
+
+
+def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
+    """
+    Restore file upload workflow tags for a reference when retraction_status is cleared.
+
+    For each MOD associated with this reference (corpus=True), determine the appropriate
+    file upload workflow tag based on the files:
+    - If there's a main PDF (file_class = 'main') → ATP:0000134 (files uploaded)
+    - If there's any file but no main PDF → ATP:0000139 (file upload in progress)
+    - Otherwise → ATP:0000141 (file needed)
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+
+    Returns:
+        dict with statistics about what was changed
+    """
+    stats = {
+        'workflow_tags_added': 0,
+        'mods_processed': []
+    }
+
+    try:
+        # Get all MODs associated with this reference (corpus=True), excluding AGR
+        mods_query = text("""
+            SELECT m.mod_id, m.abbreviation
+            FROM mod m
+            JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+            WHERE mca.reference_id = :reference_id
+            AND mca.corpus = TRUE
+            AND m.abbreviation != 'AGR'
+        """)
+        mods = db.execute(mods_query, {'reference_id': reference_id}).fetchall()
+
+        for mod_row in mods:
+            mod_id = mod_row[0]
+            mod_abbreviation = mod_row[1]
+
+            # Check if there's already a file upload workflow tag for this mod
+            current_status = get_current_workflow_status(
+                db, str(reference_id), file_upload_process_atp_id, mod_abbreviation
+            )
+            if current_status is not None:
+                # Already has a file upload workflow tag, skip
+                continue
+
+            # Determine the appropriate workflow tag based on files
+            # First, check if there's a main PDF
+            main_pdf_query = text("""
+                SELECT COUNT(*)
+                FROM referencefile rf
+                JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                WHERE rf.reference_id = :reference_id
+                AND rf.file_class = 'main'
+                AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
+            """)
+            main_pdf_count = db.execute(main_pdf_query, {
+                'reference_id': reference_id,
+                'mod_id': mod_id
+            }).scalar()
+
+            if main_pdf_count > 0:
+                # Has main PDF → files uploaded
+                new_tag = file_uploaded_tag_atp_id
+            else:
+                # Check if there are any files (not main PDF)
+                any_file_query = text("""
+                    SELECT COUNT(*)
+                    FROM referencefile rf
+                    JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                    WHERE rf.reference_id = :reference_id
+                    AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
+                """)
+                any_file_count = db.execute(any_file_query, {
+                    'reference_id': reference_id,
+                    'mod_id': mod_id
+                }).scalar()
+
+                if any_file_count > 0:
+                    # Has files but no main PDF → file upload in progress
+                    new_tag = file_upload_in_progress_tag_atp_id
+                else:
+                    # No files → file needed
+                    new_tag = file_needed_tag_atp_id
+
+            # Add the workflow tag using transition_to_workflow_status
+            try:
+                reference = db.query(ReferenceModel).filter(
+                    ReferenceModel.reference_id == reference_id
+                ).first()
+                if reference:
+                    transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                    stats['workflow_tags_added'] += 1
+                    stats['mods_processed'].append({
+                        'mod_abbreviation': mod_abbreviation,
+                        'workflow_tag': new_tag
+                    })
+                    logger.info(
+                        f"Added file upload workflow tag {new_tag} for reference_id={reference_id}, "
+                        f"mod={mod_abbreviation}"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to add file upload workflow tag for reference_id={reference_id}, "
+                    f"mod={mod_abbreviation}: {e}"
+                )
+
+        logger.info(
+            f"restore_file_upload_workflow_tags complete for reference_id={reference_id}: "
+            f"workflow_tags_added={stats['workflow_tags_added']}"
+        )
+
+        return stats
+
+    except Exception as e:
+        logger.error(
+            f"Failed to restore file upload workflow tags for reference_id={reference_id}. "
+            f"Error={e}"
+        )
+        raise
