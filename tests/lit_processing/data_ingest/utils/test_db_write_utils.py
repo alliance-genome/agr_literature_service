@@ -444,7 +444,7 @@ class TestRetractedPaperFunctions:
                 reference_id=ref.reference_id,
                 mod_id=mod.mod_id,
                 corpus=True,
-                mod_corpus_sort_source='test'
+                mod_corpus_sort_source='manual_creation'
             )
             db.add(mca)
             db.commit()
@@ -508,7 +508,7 @@ class TestRetractedPaperFunctions:
                 reference_id=ref.reference_id,
                 mod_id=mod.mod_id,
                 corpus=True,
-                mod_corpus_sort_source='test'
+                mod_corpus_sort_source='manual_creation'
             )
             db.add(mca)
             db.commit()
@@ -538,7 +538,7 @@ class TestRetractedPaperFunctions:
                 reference_id=ref.reference_id,
                 mod_id=mod.mod_id,
                 corpus=True,
-                mod_corpus_sort_source='test'
+                mod_corpus_sort_source='manual_creation'
             )
             db.add(mca)
             db.commit()
@@ -596,7 +596,7 @@ class TestRetractedPaperFunctions:
                 reference_id=ref.reference_id,
                 mod_id=mod.mod_id,
                 corpus=True,
-                mod_corpus_sort_source='test'
+                mod_corpus_sort_source='manual_creation'
             )
             db.add(mca)
             db.commit()
@@ -654,7 +654,7 @@ class TestRetractedPaperFunctions:
                 reference_id=ref.reference_id,
                 mod_id=mod.mod_id,
                 corpus=True,
-                mod_corpus_sort_source='test'
+                mod_corpus_sort_source='manual_creation'
             )
             db.add(mca)
             db.commit()
