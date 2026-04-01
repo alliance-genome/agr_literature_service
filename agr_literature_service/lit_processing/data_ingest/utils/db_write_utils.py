@@ -26,7 +26,8 @@ from agr_literature_service.api.crud.reference_utils import get_reference
 batch_size_for_commit = 250
 file_upload_process_atp_id = "ATP:0000140"  # file upload
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
-file_uploaded_tag_atp_id = "ATP:0000134"  # file needed
+file_upload_in_progress_tag_atp_id = "ATP:0000139"  # file upload in progress
+file_uploaded_tag_atp_id = "ATP:0000134"  # files uploaded
 
 # One "Lastname, Initials" pair.
 # - last: anything up to a comma (handles hyphens, apostrophes, spaces like "van der Ven")
@@ -1883,21 +1884,223 @@ def update_title_cleanup_tags_for_retracted_papers(db, logger):
     cleanup_tags_for_retracted_papers(db, logger)
 
 
-def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id):
+def update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_id,
+                                                      old_retraction_status=None):
     """
     Update title and cleanup tags for a single retracted paper atomically.
 
     Wraps both operations in a single transaction to ensure consistency:
     if either operation fails, the entire transaction is rolled back.
+
+    When transitioning from full retraction (ATP:0000346, ATP:0000348) to
+    partial retraction (ATP:0000347), also removes the "won't" tags that
+    were added during full retraction, allowing curators to continue working.
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+        old_retraction_status: The previous retraction status before the update.
+            Used to detect transitions from full to partial retraction.
     """
+    full_retraction_statuses = {'ATP:0000346', 'ATP:0000348'}
+    partial_retraction_status = 'ATP:0000347'
+
     try:
         update_title_for_one_retracted_paper(db, logger, reference_id, commit=False)
         cleanup_tags_for_one_retracted_paper(db, logger, reference_id, commit=False)
+
+        # If transitioning from full retraction to partial retraction,
+        # remove the "won't" tags so curators can continue working
+        ref = db.query(ReferenceModel).filter_by(reference_id=reference_id).first()
+        if (ref
+                and old_retraction_status in full_retraction_statuses
+                and ref.retraction_status == partial_retraction_status):
+            logger.info(
+                f"Transitioning from full retraction to partial retraction for "
+                f"reference_id={reference_id}. Removing 'won't' tags."
+            )
+            remove_wont_tags_for_one_paper(db, logger, reference_id, commit=False)
+
         db.commit()
     except Exception as e:
         db.rollback()
         logger.error(
             f"Failed to update title and cleanup tags for reference_id={reference_id}. "
+            f"Transaction rolled back. Error={e}"
+        )
+        raise
+
+
+def remove_wont_tags_for_one_paper(db, logger, reference_id, commit: bool = True) -> dict:
+    """
+    Remove the "won't" workflow tags and curation_status for a retracted paper.
+
+    This function removes:
+    1. The two "won't" workflow tags (ATP:0000343, ATP:0000342) that have
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+    2. The "won't curate" (ATP:0000299) curation_status entry with
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+
+    Used when:
+    - Transitioning from full retraction to partial retraction
+    - Fully reversing a retraction (called by reverse_retraction_for_one_paper)
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+        commit: If True, commit the transaction. Set to False when caller
+                manages the transaction.
+
+    Returns a dict with statistics about what was changed.
+    """
+
+    retracted_curation_tag = 'ATP:0000344'  # retracted
+    wont_curate_status = 'ATP:0000299'  # won't curate
+    whole_paper_topic = 'ATP:0000002'  # whole paper topic for curation_status
+    wont_workflow_tag_ids = {
+        'ATP:0000343',  # won't manually index
+        'ATP:0000342',  # won't community curate
+    }
+
+    stats = {
+        'deleted_workflow_tag_count': 0,
+        'deleted_curation_status_count': 0
+    }
+
+    try:
+        # Find all in-corpus mod associations for this reference
+        mod_stmt = select(distinct(ModCorpusAssociationModel.mod_id)).where(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True)
+        )
+        mod_ids = db.execute(mod_stmt).scalars().all()
+
+        if not mod_ids:
+            if commit:
+                db.commit()
+            return stats
+
+        for mod_id in mod_ids:
+            # Delete the two "won't" workflow tags with retracted curation_tag
+            delete_wft_stmt = delete(WorkflowTagModel).where(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id,
+                WorkflowTagModel.workflow_tag_id.in_(wont_workflow_tag_ids),
+                WorkflowTagModel.curation_tag == retracted_curation_tag
+            )
+            delete_wft_result = db.execute(delete_wft_stmt)
+            deleted_wft_rows = delete_wft_result.rowcount or 0
+            stats['deleted_workflow_tag_count'] += deleted_wft_rows
+
+            if deleted_wft_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_wft_rows} 'won't' workflow tag(s) with retracted curation_tag "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+            # Delete the "won't curate" curation_status with retracted curation_tag
+            delete_cs_stmt = delete(CurationStatusModel).where(
+                CurationStatusModel.reference_id == reference_id,
+                CurationStatusModel.mod_id == mod_id,
+                CurationStatusModel.topic == whole_paper_topic,
+                CurationStatusModel.curation_status == wont_curate_status,
+                CurationStatusModel.curation_tag == retracted_curation_tag
+            )
+            delete_cs_result = db.execute(delete_cs_stmt)
+            deleted_cs_rows = delete_cs_result.rowcount or 0
+            stats['deleted_curation_status_count'] += deleted_cs_rows
+
+            if deleted_cs_rows > 0:
+                logger.info(
+                    f"Deleted {deleted_cs_rows} 'won't curate' curation_status row(s) with retracted curation_tag "
+                    f"for reference_id={reference_id}, mod_id={mod_id}."
+                )
+
+        if commit:
+            db.commit()
+
+        logger.info(
+            f"remove_wont_tags_for_one_paper complete for reference_id={reference_id}: "
+            f"deleted_workflow_tag_count={stats['deleted_workflow_tag_count']}, "
+            f"deleted_curation_status_count={stats['deleted_curation_status_count']}"
+        )
+
+        return stats
+
+    except Exception as e:
+        if commit:
+            db.rollback()
+        logger.error(
+            f"Failed to remove 'won't' tags for reference_id={reference_id}. "
+            f"Error={e}"
+        )
+        raise
+
+
+def reverse_retraction_for_one_paper(db, logger, reference_id) -> dict:
+    """
+    Reverse the retraction effects for a single paper when retraction_status is cleared.
+
+    This function:
+    1. Removes "RETRACTED: " or "PARTIALLY RETRACTED: " prefix from the paper title
+    2. Removes the two "won't" workflow tags (ATP:0000343, ATP:0000342) that have
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+    3. Removes the "won't curate" (ATP:0000299) curation_status entry with
+       curation_tag='ATP:0000344' (retracted) for this paper in all associated mods
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+
+    Returns a dict with statistics about what was changed.
+    """
+
+    stats = {
+        'title_updated': False,
+        'deleted_workflow_tag_count': 0,
+        'deleted_curation_status_count': 0
+    }
+
+    try:
+        ref = db.query(ReferenceModel).filter_by(reference_id=reference_id).first()
+        if not ref:
+            logger.warning(f"Reference not found: reference_id={reference_id}")
+            return stats
+
+        # Step 1: Remove "RETRACTED: " or "PARTIALLY RETRACTED: " prefix from title
+        original_title = ref.title or ""
+        if original_title.startswith("RETRACTED: "):
+            ref.title = original_title[len("RETRACTED: "):]
+            stats['title_updated'] = True
+            logger.info(f"Removed 'RETRACTED: ' prefix from title for reference_id={reference_id}")
+        elif original_title.startswith("PARTIALLY RETRACTED: "):
+            ref.title = original_title[len("PARTIALLY RETRACTED: "):]
+            stats['title_updated'] = True
+            logger.info(f"Removed 'PARTIALLY RETRACTED: ' prefix from title for reference_id={reference_id}")
+
+        # Step 2-4: Remove the "won't" tags using the helper function
+        tag_stats = remove_wont_tags_for_one_paper(db, logger, reference_id, commit=False)
+        stats['deleted_workflow_tag_count'] = tag_stats['deleted_workflow_tag_count']
+        stats['deleted_curation_status_count'] = tag_stats['deleted_curation_status_count']
+
+        db.commit()
+
+        logger.info(
+            f"reverse_retraction_for_one_paper complete for reference_id={reference_id}: "
+            f"title_updated={stats['title_updated']}, "
+            f"deleted_workflow_tag_count={stats['deleted_workflow_tag_count']}, "
+            f"deleted_curation_status_count={stats['deleted_curation_status_count']}"
+        )
+
+        return stats
+
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            f"Failed to reverse retraction for reference_id={reference_id}. "
             f"Transaction rolled back. Error={e}"
         )
         raise
@@ -2400,3 +2603,136 @@ def set_retraction_status(db, logger):
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to set retraction_status for 'Retracted Publication' papers. Error={e}")
+
+
+def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
+    """
+    Restore file upload workflow tags for a reference when retraction_status is cleared.
+
+    For each MOD associated with this reference (corpus=True), determine the appropriate
+    file upload workflow tag based on the files:
+    - If there's a main PDF (file_class = 'main') → ATP:0000134 (files uploaded)
+    - If there's any file but no main PDF → ATP:0000139 (file upload in progress)
+    - Otherwise → ATP:0000141 (file needed)
+
+    Args:
+        db: Database session
+        logger: Logger instance
+        reference_id: ID of the reference to process
+
+    Returns:
+        dict with statistics about what was changed
+    """
+    stats: Dict[str, Any] = {
+        'workflow_tags_added': 0,
+        'mods_processed': []
+    }
+
+    try:
+        # Get all MODs associated with this reference (corpus=True), excluding AGR
+        mods_query = text("""
+            SELECT m.mod_id, m.abbreviation
+            FROM mod m
+            JOIN mod_corpus_association mca ON m.mod_id = mca.mod_id
+            WHERE mca.reference_id = :reference_id
+            AND mca.corpus = TRUE
+            AND m.abbreviation != 'AGR'
+        """)
+        mods = db.execute(mods_query, {'reference_id': reference_id}).fetchall()
+
+        for mod_row in mods:
+            mod_id = mod_row[0]
+            mod_abbreviation = mod_row[1]
+
+            # Check if there's already a file upload workflow tag for this mod
+            current_status = get_current_workflow_status(
+                db, str(reference_id), file_upload_process_atp_id, mod_abbreviation
+            )
+            if current_status is not None:
+                # Already has a file upload workflow tag, skip
+                continue
+
+            # Determine the appropriate workflow tag based on files
+            # First, check if there's a main PDF
+            main_pdf_query = text("""
+                SELECT COUNT(*)
+                FROM referencefile rf
+                JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                WHERE rf.reference_id = :reference_id
+                AND rf.file_class = 'main'
+                AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
+            """)
+            main_pdf_count = db.execute(main_pdf_query, {
+                'reference_id': reference_id,
+                'mod_id': mod_id
+            }).scalar()
+
+            if main_pdf_count > 0:
+                # Has main PDF → files uploaded
+                new_tag = file_uploaded_tag_atp_id
+            else:
+                # Check if there are any files (not main PDF)
+                any_file_query = text("""
+                    SELECT COUNT(*)
+                    FROM referencefile rf
+                    JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                    WHERE rf.reference_id = :reference_id
+                    AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
+                """)
+                any_file_count = db.execute(any_file_query, {
+                    'reference_id': reference_id,
+                    'mod_id': mod_id
+                }).scalar()
+
+                if any_file_count > 0:
+                    # Has files but no main PDF → file upload in progress
+                    new_tag = file_upload_in_progress_tag_atp_id
+                else:
+                    # No files → file needed
+                    new_tag = file_needed_tag_atp_id
+
+            # Add the workflow tag using transition_to_workflow_status
+            # Note: transition_to_workflow_status only allows ATP:0000141 (file needed) as
+            # initial state. For other states, we need to first add file_needed, then transition.
+            try:
+                reference = db.query(ReferenceModel).filter(
+                    ReferenceModel.reference_id == reference_id
+                ).first()
+                if reference:
+                    if new_tag == file_needed_tag_atp_id:
+                        # Can directly add file needed as initial state
+                        transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                    else:
+                        # First add file needed, then transition to the target state
+                        transition_to_workflow_status(
+                            db, reference.curie, mod_abbreviation, file_needed_tag_atp_id
+                        )
+                        transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                    stats['workflow_tags_added'] += 1
+                    stats['mods_processed'].append({
+                        'mod_abbreviation': mod_abbreviation,
+                        'workflow_tag': new_tag
+                    })
+                    logger.info(
+                        f"Added file upload workflow tag {new_tag} for reference_id={reference_id}, "
+                        f"mod={mod_abbreviation}"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Failed to add file upload workflow tag for reference_id={reference_id}, "
+                    f"mod={mod_abbreviation}: {e}"
+                )
+
+        logger.info(
+            f"restore_file_upload_workflow_tags complete for reference_id={reference_id}: "
+            f"workflow_tags_added={stats['workflow_tags_added']}"
+        )
+
+        return stats
+
+    except Exception as e:
+        logger.error(
+            f"Failed to restore file upload workflow tags for reference_id={reference_id}. "
+            f"Error={e}"
+        )
+        raise
