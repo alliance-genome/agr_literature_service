@@ -262,11 +262,21 @@ def create_resource_from_external_curie(identifier: str, field: str, db: Session
             'resource_curies': [r['curie'] for r in found]
         }
 
-    uid = search_nlm_catalog(identifier, field)
+    try:
+        uid = search_nlm_catalog(identifier, field)
+    except Exception:
+        logger.warning("NLM catalog esearch failed for %s",
+                       identifier, exc_info=True)
+        return {'exists_in_db': False, 'resource_curies': None}
     if not uid:
         return {'exists_in_db': False, 'resource_curies': None}
 
-    xml_text = fetch_nlm_catalog_xml(uid)
+    try:
+        xml_text = fetch_nlm_catalog_xml(uid)
+    except Exception:
+        logger.warning("NLM catalog efetch failed for UID:%s",
+                       uid, exc_info=True)
+        return {'exists_in_db': False, 'resource_curies': None}
     parsed = parse_nlm_catalog_xml(xml_text)
     if not parsed or 'title' not in parsed:
         return {'exists_in_db': False, 'resource_curies': None}

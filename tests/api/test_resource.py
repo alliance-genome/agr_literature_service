@@ -455,6 +455,7 @@ class TestResource:
         mock_fetch.return_value = (
             '<?xml version="1.0" ?>'
             '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>0410462</NlmUniqueID>'
             '<TitleMain><Title Sort="0">Nature.</Title></TitleMain>'
             '</NLMCatalogRecord></NLMCatalogRecordSet>'
         )
@@ -465,6 +466,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['external_curie_found'] is True
+            assert data['title'] == 'Nature.'
 
             response = client.get(
                 url="/resource/external_lookup/NLMID:0410462",
@@ -472,6 +474,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['external_curie_found'] is True
+            assert data['title'] == 'Nature.'
 
     def test_add_isbn_not_supported(self, auth_headers, db):  # noqa
         with TestClient(app) as client:

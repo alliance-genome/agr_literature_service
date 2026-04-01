@@ -102,9 +102,6 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
 
 class ResourceSchemaAddCurie(BaseModel):
     """Schema for adding a resource by external curie (NLM, ISSN, or ISBN)."""
-    model_config = ConfigDict(
-        extra='forbid',
-        from_attributes=True,
-    )
+    model_config = ConfigDict(extra='forbid')
 
     curie: str
