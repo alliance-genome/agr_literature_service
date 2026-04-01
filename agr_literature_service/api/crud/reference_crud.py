@@ -65,7 +65,8 @@ from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_mod_reference_type_data_for_ref_ids, get_all_reference_relation_data, \
     get_journal_by_resource_id, get_citation_data, get_license_data
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    update_title_cleanup_tags_for_one_retracted_paper
+    update_title_cleanup_tags_for_one_retracted_paper, reverse_retraction_for_one_paper, \
+    restore_file_upload_workflow_tags
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.crud.person_crud import normalize_email
@@ -284,6 +285,9 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Reference with curie or reference_id {curie_or_reference_id} not found")
 
+    # Store the old retraction_status before any changes are made
+    old_retraction_status = reference_db_obj.retraction_status
+
     for field, value in reference_data.items():
         if field == "resource" and value:
             resource_curie = value
@@ -302,7 +306,14 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
     db.commit()
 
     if reference_data.get("retraction_status"):
-        update_title_cleanup_tags_for_one_retracted_paper(db, logger, reference_db_obj.reference_id)
+        update_title_cleanup_tags_for_one_retracted_paper(
+            db, logger, reference_db_obj.reference_id, old_retraction_status
+        )
+    elif "retraction_status" in reference_data and old_retraction_status:
+        # retraction_status is being cleared (changed from non-empty to empty/None)
+        reverse_retraction_for_one_paper(db, logger, reference_db_obj.reference_id)
+        # Restore file upload workflow tags for all associated MODs
+        restore_file_upload_workflow_tags(db, logger, reference_db_obj.reference_id)
 
     return {"message": "updated"}
 
