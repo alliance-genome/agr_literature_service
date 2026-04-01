@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -19,7 +19,7 @@ class ResourceExternalLookupResponse(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     exists_in_db: bool
-    resource_curie: Optional[str] = None
+    resource_curies: Optional[List[str]] = None
     external_curie: str
     external_curie_found: bool
     title: Optional[str] = None

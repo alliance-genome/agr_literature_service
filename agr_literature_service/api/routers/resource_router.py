@@ -11,7 +11,7 @@ from agr_literature_service.api.schemas import (ResourceSchemaPost,
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup import (
-    lookup_resource_by_nlm, lookup_resource_by_issn, lookup_resource_by_isbn)
+    lookup_resource, create_resource_from_external_curie)
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
 from agr_literature_service.api.schemas.external_lookup_schemas import ResourceExternalLookupResponse
 from agr_literature_service.api.schemas.resource_schemas import ResourceSchemaAddCurie
@@ -49,21 +49,16 @@ def external_lookup(external_curie: str,
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="You must enter an NLM, ISSN, or ISBN")
-    prefix_lower = prefix.lower()
-    if prefix_lower == 'issn':
-        return lookup_resource_by_issn(identifier, db)
-    if prefix_lower in ('nlm', 'nlmid'):
-        return lookup_resource_by_nlm(identifier, db)
-    if prefix_lower == 'isbn':
-        return lookup_resource_by_isbn(identifier, db)
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        detail="You must enter an NLM, ISSN, or ISBN")
+    if prefix.lower() not in ('issn', 'nlm', 'nlmid', 'isbn'):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You must enter an NLM, ISSN, or ISBN")
+    return lookup_resource(identifier, prefix, db)
 
 
 @router.post('/add/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str)
+             response_model=List[str])
 def add(request: ResourceSchemaAddCurie,
         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session):
@@ -82,8 +77,13 @@ def add(request: ResourceSchemaAddCurie,
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="You must enter an NLM, ISSN, or ISBN")
-    # Resource creation logic TBD
-    return "resource creation not yet implemented"
+    field = 'nlmid' if prefix_lower in ('nlm', 'nlmid') else 'issn'
+    result = create_resource_from_external_curie(identifier, field, db)
+    if not result.get('resource_curies'):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Resource not found in NLM catalog for {request.curie}")
+    return result['resource_curies']
 
 
 @router.delete('/{curie}',

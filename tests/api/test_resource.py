@@ -12,6 +12,7 @@ from ..fixtures import db # noqa
 from .fixtures import auth_headers # noqa
 from unittest.mock import patch
 from agr_literature_service.api.models import CrossReferenceModel  # noqa
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup import parse_nlm_catalog_xml
 
 ResourceTestData = namedtuple('ResourceTestData', ['response', 'new_resource_curie'])
 
@@ -312,7 +313,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['exists_in_db'] is True
-            assert data['resource_curie'] == resource_curie
+            assert data['resource_curies'] == [resource_curie]
             assert data['external_curie'] == 'NLM:9999999'
             assert data['external_curie_found'] is True
             assert data['title'] == 'Test NLM Journal'
@@ -332,7 +333,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['exists_in_db'] is True
-            assert data['resource_curie'] == resource_curie
+            assert data['resource_curies'] == [resource_curie]
             assert data['external_curie'] == 'ISSN:1234-5678'
             assert data['external_curie_found'] is True
             assert data['title'] == 'Test ISSN Journal'
@@ -355,7 +356,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['exists_in_db'] is False
-            assert data['resource_curie'] is None
+            assert data['resource_curies'] is None
             assert data['external_curie'] == 'NLM:0410462'
             assert data['external_curie_found'] is True
             assert data['title'] == 'Nature.'
@@ -378,7 +379,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['exists_in_db'] is False
-            assert data['resource_curie'] is None
+            assert data['resource_curies'] is None
             assert data['external_curie'] == 'ISSN:0028-0836'
             assert data['external_curie_found'] is True
             assert data['title'] == 'Nature.'
@@ -393,7 +394,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['exists_in_db'] is False
-            assert data['resource_curie'] is None
+            assert data['resource_curies'] is None
             assert data['external_curie_found'] is False
             assert data['title'] == ''
 
@@ -425,7 +426,7 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
             assert data['exists_in_db'] is True
-            assert data['resource_curie'] == resource_curie
+            assert data['resource_curies'] == [resource_curie]
             assert data['external_curie_found'] is True
             assert data['title'] == 'Test ISBN Book'
 
@@ -497,3 +498,186 @@ class TestResource:
                 json={"curie": "nocolon"},
                 headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_add_nlm_creates_resource(self, mock_search, mock_fetch, auth_headers, db):  # noqa
+        mock_search.return_value = "410462"
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>0410462</NlmUniqueID>'
+            '<TitleMain><Title Sort="0">Nature.</Title></TitleMain>'
+            '<MedlineTA>Nature</MedlineTA>'
+            '<ISSN ValidYN="Y" IssnType="Print">0028-0836</ISSN>'
+            '<ISSN ValidYN="Y" IssnType="Electronic">1476-4687</ISSN>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        with TestClient(app) as client:
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "NLM:0410462"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            curies = response.json()
+            assert len(curies) == 1
+            assert curies[0].startswith("AGRKB:")
+
+            # Verify the resource was created with correct data
+            res = client.get(url=f"/resource/{curies[0]}", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            data = res.json()
+            assert data['title'] == 'Nature.'
+            assert data['medline_abbreviation'] == 'Nature'
+            assert data['print_issn'] == '0028-0836'
+            assert data['online_issn'] == '1476-4687'
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_add_issn_creates_resource(self, mock_search, mock_fetch, auth_headers, db):  # noqa
+        mock_search.return_value = "999999"
+        mock_fetch.return_value = (
+            '<?xml version="1.0" ?>'
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>999999</NlmUniqueID>'
+            '<TitleMain><Title Sort="0">Test ISSN Add Journal.</Title></TitleMain>'
+            '<ISSN ValidYN="Y" IssnType="Print">9999-0001</ISSN>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        with TestClient(app) as client:
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "ISSN:9999-0001"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            curies = response.json()
+            assert len(curies) == 1
+            assert curies[0].startswith("AGRKB:")
+
+    def test_add_nlm_already_exists(self, auth_headers, db):  # noqa
+        with TestClient(app) as client:
+            # Create a resource with an NLM cross-reference
+            res = client.post(url="/resource/", json={
+                "title": "Existing NLM Resource",
+                "cross_references": [{"curie": "NLM:8888888"}]
+            }, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            existing_curie = res.json()
+
+            # Try to add via the same NLM — should return existing
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "NLM:8888888"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+            assert response.json() == [existing_curie]
+
+    @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
+    def test_add_nlm_not_found(self, mock_search, auth_headers, db):  # noqa
+        mock_search.return_value = ""
+        with TestClient(app) as client:
+            response = client.post(
+                url="/resource/add/",
+                json={"curie": "NLM:0000000"},
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestParseNlmCatalogXml:
+
+    def test_parse_full_xml(self):  # noqa
+        xml = (
+            '<?xml version="1.0" ?>'
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>0410462</NlmUniqueID>'
+            '<TitleMain><Title Sort="0">Nature.</Title></TitleMain>'
+            '<MedlineTA>Nature</MedlineTA>'
+            '<TitleAlternate Owner="NLM" TitleType="Other">'
+            '<Title Sort="N">Nature (London)</Title></TitleAlternate>'
+            '<TitleAlternate Owner="NLM" TitleType="Other">'
+            '<Title Sort="N">Nature (Lond)</Title></TitleAlternate>'
+            '<PublicationInfo>'
+            '<Imprint ImprintType="Original" FunctionType="Publication">'
+            '<Entity>Macmillan Journals ltd.</Entity></Imprint>'
+            '<Imprint ImprintType="Current" FunctionType="Publication">'
+            '<Entity>Nature Publishing Group</Entity></Imprint>'
+            '</PublicationInfo>'
+            '<ISSN ValidYN="Y" IssnType="Print">0028-0836</ISSN>'
+            '<ISSN ValidYN="N" IssnType="Undetermined">0302-2889</ISSN>'
+            '<ISSN ValidYN="Y" IssnType="Electronic">1476-4687</ISSN>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        result = parse_nlm_catalog_xml(xml)
+        assert result['primaryId'] == 'NLM:0410462'
+        assert result['nlm'] == '0410462'
+        assert result['title'] == 'Nature.'
+        assert result['medlineAbbreviation'] == 'Nature'
+        assert result['printISSN'] == '0028-0836'
+        assert result['onlineISSN'] == '1476-4687'
+        assert result['publisher'] == 'Nature Publishing Group'
+        assert result['crossReferences'] == [{'id': 'NLM:0410462'}]
+        assert 'Nature (London)' in result['titleSynonyms']
+        assert 'Nature (Lond)' in result['titleSynonyms']
+        assert 'Nature.' not in result['titleSynonyms']
+
+    def test_parse_minimal_xml(self):  # noqa
+        xml = (
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>101528555</NlmUniqueID>'
+            '<TitleMain><Title Sort="0">Nature communications.</Title></TitleMain>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        result = parse_nlm_catalog_xml(xml)
+        assert result['primaryId'] == 'NLM:101528555'
+        assert result['title'] == 'Nature communications.'
+        assert 'medlineAbbreviation' not in result
+        assert 'printISSN' not in result
+        assert 'onlineISSN' not in result
+        assert 'titleSynonyms' not in result
+        assert 'publisher' not in result
+
+    def test_parse_no_nlm_id(self):  # noqa
+        xml = '<NLMCatalogRecordSet><NLMCatalogRecord></NLMCatalogRecord></NLMCatalogRecordSet>'
+        result = parse_nlm_catalog_xml(xml)
+        assert result == {}
+
+    def test_parse_issn_skips_invalid(self):  # noqa
+        xml = (
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>123</NlmUniqueID>'
+            '<TitleMain><Title>Test</Title></TitleMain>'
+            '<ISSN ValidYN="N" IssnType="Print">0000-0000</ISSN>'
+            '<ISSN ValidYN="Y" IssnType="Electronic">1111-1111</ISSN>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        result = parse_nlm_catalog_xml(xml)
+        assert 'printISSN' not in result
+        assert result['onlineISSN'] == '1111-1111'
+
+    def test_parse_publisher_fallback_to_original(self):  # noqa
+        xml = (
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>123</NlmUniqueID>'
+            '<TitleMain><Title>Test</Title></TitleMain>'
+            '<PublicationInfo>'
+            '<Imprint ImprintType="Original" FunctionType="Publication">'
+            '<Entity>Old Publisher</Entity></Imprint>'
+            '</PublicationInfo>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        result = parse_nlm_catalog_xml(xml)
+        assert result['publisher'] == 'Old Publisher'
+
+    def test_parse_title_synonyms_deduplication(self):  # noqa
+        xml = (
+            '<NLMCatalogRecordSet><NLMCatalogRecord>'
+            '<NlmUniqueID>123</NlmUniqueID>'
+            '<TitleMain><Title>Test Journal.</Title></TitleMain>'
+            '<TitleAlternate><Title>Dup Title</Title></TitleAlternate>'
+            '<TitleAlternate><Title>Dup Title</Title></TitleAlternate>'
+            '<TitleAlternate><Title>Test Journal.</Title></TitleAlternate>'
+            '<TitleAlternate><Title>Unique Alt</Title></TitleAlternate>'
+            '</NLMCatalogRecord></NLMCatalogRecordSet>'
+        )
+        result = parse_nlm_catalog_xml(xml)
+        assert result['titleSynonyms'] == ['Dup Title', 'Unique Alt']
