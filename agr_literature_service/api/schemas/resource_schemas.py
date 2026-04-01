@@ -98,3 +98,10 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     copyright_license: Optional[CopyrightLicenseSchemaShow] = None
     license_list: Optional[List[str]] = None
     license_start_year: Optional[int] = None
+
+
+class ResourceSchemaAddCurie(BaseModel):
+    """Schema for adding a resource by external curie (NLM, ISSN, or ISBN)."""
+    model_config = ConfigDict(extra='forbid')
+
+    curie: str

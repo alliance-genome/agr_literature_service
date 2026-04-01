@@ -23,7 +23,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_sin
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_lookup import lookup_reference_by_pmid
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import dump_data
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
-from agr_literature_service.api.schemas.external_lookup_schemas import ExternalLookupResponse
+from agr_literature_service.api.schemas.external_lookup_schemas import ReferenceExternalLookupResponse
 
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ def add(request: ReferenceSchemaAddPmid,
 
 @router.get('/external_lookup/{external_curie}',
             status_code=200,
-            response_model=ExternalLookupResponse)
+            response_model=ReferenceExternalLookupResponse)
 def external_lookup(external_curie: str,
                     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                     db: Session = db_session):
