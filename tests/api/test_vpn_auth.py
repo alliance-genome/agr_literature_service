@@ -422,7 +422,6 @@ class TestPreviouslyUnprotectedEndpointsRequireAuth:
             with TestClient(app) as client:
                 for path in [
                     "/sort/need_review?mod_abbreviation=WB",
-                    "/sort/need_prioritization?mod_abbreviation=WB",
                     "/sort/prepublication_pipeline?mod_abbreviation=WB",
                     "/sort/recently_sorted?mod_abbreviation=WB",
                 ]:

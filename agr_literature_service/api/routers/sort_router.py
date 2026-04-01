@@ -30,17 +30,6 @@ def show_need_review(mod_abbreviation: str,
     return sort_crud.show_need_review(mod_abbreviation, count, db)
 
 
-@router.get('/need_prioritization',
-            status_code=200,
-            response_model=List[ReferenceSchemaNeedReviewShow])
-def show_need_prioritization(mod_abbreviation: str,
-                             count: int = None,
-                             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-                             db: Session = db_session):
-    set_global_user_from_cognito(db, user)
-    return sort_crud.show_need_prioritization(mod_abbreviation, count, db)
-
-
 @router.get('/prepublication_pipeline',
             status_code=200,
             response_model=List[ReferenceSchemaNeedReviewShow])
