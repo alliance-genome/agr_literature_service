@@ -1,10 +1,13 @@
 """
 Script to clean up duplicate resource curies in the cross_reference table.
 
-Problem: Same curie (e.g., NLM:12345) can be associated with multiple resource_ids
+Problem 1: Same curie (e.g., NLM:12345) can be associated with multiple resource_ids
 via different cross_reference rows.
 
-Solution:
+Problem 2: Same curie + resource_id combination can appear multiple times
+(duplicate rows).
+
+Solution for Problem 1:
 1. Find all curies in cross_reference where resource_id IS NOT NULL
 2. Identify curies that map to multiple different resource_ids
 3. For each duplicate curie:
@@ -12,6 +15,11 @@ Solution:
    - Keep that resource_id's cross_reference entry (the "canonical" one)
    - Update all references pointing to losing resource_ids to point to the canonical resource_id
    - Delete the duplicate cross_reference entries for losing resource_ids
+
+Solution for Problem 2:
+1. Find all (curie, resource_id) combinations that appear more than once
+2. Keep the row with the lowest cross_reference_id
+3. Delete the other duplicate rows
 """
 
 from __future__ import annotations
@@ -48,6 +56,42 @@ class DuplicateCurie:
 def _write_file(path: str, content: str) -> None:
     with open(path, "w") as f:
         f.write(content)
+
+
+def find_duplicate_rows(db) -> List[Tuple[str, int, List[int]]]:
+    """
+    Find (curie, resource_id) combinations that appear more than once.
+
+    Returns a list of (curie, resource_id, xref_ids_to_delete) where
+    xref_ids_to_delete are the IDs to remove (keeping the lowest ID).
+    """
+    dup_sql = text("""
+        WITH duplicate_pairs AS (
+            SELECT
+                curie,
+                resource_id,
+                ARRAY_AGG(cross_reference_id ORDER BY cross_reference_id) AS all_xref_ids
+            FROM cross_reference
+            WHERE resource_id IS NOT NULL
+              AND is_obsolete = false
+            GROUP BY curie, resource_id
+            HAVING COUNT(*) > 1
+        )
+        SELECT
+            curie,
+            resource_id,
+            all_xref_ids[2:] AS xref_ids_to_delete  -- Keep first (lowest), delete rest
+        FROM duplicate_pairs
+        ORDER BY curie
+    """)
+
+    rows = db.execute(dup_sql).fetchall()
+
+    duplicates = []
+    for curie, resource_id, xref_ids_to_delete in rows:
+        duplicates.append((curie, resource_id, list(xref_ids_to_delete)))
+
+    return duplicates
 
 
 def find_duplicate_curies(db) -> Dict[str, List[Tuple[int, int, str | None, List[int]]]]:
@@ -114,6 +158,108 @@ def determine_canonical(
     return canonical[0], non_canonical
 
 
+def process_duplicate_curies(
+    duplicates: Dict[str, List[Tuple[int, int, str | None, List[int]]]]
+) -> Tuple[List[str], List[Tuple[int, int, int]], List[Tuple[str, int, List[int]]], List[DuplicateCurie]]:
+    """Process duplicate curies and return actions, updates, deletes, and details."""
+    actions: List[str] = []
+    reference_updates: List[Tuple[int, int, int]] = []
+    xref_deletes: List[Tuple[str, int, List[int]]] = []
+    duplicate_details: List[DuplicateCurie] = []
+
+    for curie, resources in duplicates.items():
+        canonical_id, non_canonical = determine_canonical(resources)
+
+        resource_infos = [
+            ResourceInfo(
+                resource_id=resource_id,
+                resource_curie=resource_curie,
+                reference_count=ref_count,
+                cross_reference_ids=xref_ids
+            )
+            for resource_id, ref_count, resource_curie, xref_ids in resources
+        ]
+
+        duplicate_details.append(DuplicateCurie(
+            curie=curie,
+            resources=resource_infos,
+            canonical_resource_id=canonical_id
+        ))
+
+        canonical_ref_count = next(r[1] for r in resources if r[0] == canonical_id)
+        actions.append(
+            f"CURIE: {curie} -> canonical resource_id={canonical_id} "
+            f"(refs={canonical_ref_count})"
+        )
+
+        for resource_id, ref_count, resource_curie, xref_ids in non_canonical:
+            if ref_count > 0:
+                reference_updates.append((resource_id, canonical_id, ref_count))
+                actions.append(
+                    f"  UPDATE {ref_count} references: resource_id {resource_id} -> {canonical_id}"
+                )
+            xref_deletes.append((curie, resource_id, xref_ids))
+            actions.append(
+                f"  DELETE cross_reference: curie={curie}, resource_id={resource_id}, "
+                f"xref_ids={xref_ids}"
+            )
+
+    return actions, reference_updates, xref_deletes, duplicate_details
+
+
+def apply_changes(
+    db,
+    dup_row_deletes: List[Tuple[str, int, List[int]]],
+    reference_updates: List[Tuple[int, int, int]],
+    xref_deletes: List[Tuple[str, int, List[int]]]
+) -> None:
+    """Apply all database changes."""
+    delete_xref_sql = text("""
+        DELETE FROM cross_reference
+        WHERE cross_reference_id = ANY(:xref_ids)
+    """)
+
+    total_dup_rows_deleted = 0
+    if dup_row_deletes:
+        logger.info("STEP 1: Deleting duplicate rows...")
+        for curie, resource_id, xref_ids in dup_row_deletes:
+            db.execute(delete_xref_sql, {"xref_ids": xref_ids})
+            total_dup_rows_deleted += len(xref_ids)
+            logger.info(
+                f"  Deleted duplicate rows: curie={curie}, "
+                f"resource_id={resource_id}, count={len(xref_ids)}"
+            )
+
+    total_refs_updated = 0
+    total_xrefs_deleted = 0
+
+    if reference_updates or xref_deletes:
+        logger.info("STEP 2: Updating references and deleting cross_references...")
+
+        update_ref_sql = text("""
+            UPDATE reference
+            SET resource_id = :to_id
+            WHERE resource_id = :from_id
+        """)
+
+        for from_id, to_id, count in reference_updates:
+            db.execute(update_ref_sql, {"from_id": from_id, "to_id": to_id})
+            total_refs_updated += count
+            logger.info(f"  Updated references: {from_id} -> {to_id} ({count} refs)")
+
+        for curie, resource_id, xref_ids in xref_deletes:
+            db.execute(delete_xref_sql, {"xref_ids": xref_ids})
+            total_xrefs_deleted += len(xref_ids)
+            logger.info(f"  Deleted cross_references: curie={curie}, resource_id={resource_id}")
+
+    db.commit()
+    logger.info(
+        f"Committed: {total_dup_rows_deleted} duplicate rows deleted, "
+        f"{total_refs_updated} reference updates, "
+        f"{total_xrefs_deleted} cross_reference deletes"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Clean up duplicate resource curies in cross_reference table"
@@ -133,65 +279,46 @@ def main() -> None:
     db = create_postgres_session(False)
 
     try:
-        logger.info("Finding duplicate curies in cross_reference table...")
+        # ================================================================
+        # STEP 1: Clean up duplicate rows (same curie + same resource_id)
+        # ================================================================
+        logger.info("Finding duplicate rows (same curie + same resource_id)...")
+        duplicate_rows = find_duplicate_rows(db)
+
+        dup_row_actions: List[str] = []
+        dup_row_deletes: List[Tuple[str, int, List[int]]] = []
+
+        if duplicate_rows:
+            logger.info(f"Found {len(duplicate_rows)} (curie, resource_id) pairs with duplicate rows")
+
+            for curie, resource_id, xref_ids_to_delete in duplicate_rows:
+                dup_row_deletes.append((curie, resource_id, xref_ids_to_delete))
+                dup_row_actions.append(
+                    f"DELETE duplicate rows: curie={curie}, resource_id={resource_id}, "
+                    f"deleting xref_ids={xref_ids_to_delete}"
+                )
+        else:
+            logger.info("No duplicate rows found.")
+
+        # ================================================================
+        # STEP 2: Clean up curies associated with multiple resource_ids
+        # ================================================================
+        logger.info("Finding duplicate curies (same curie -> different resource_ids)...")
         duplicates = find_duplicate_curies(db)
 
-        if not duplicates:
-            logger.info("No duplicate curies found.")
-            _write_file(f"{args.out_prefix}_summary.txt", "No duplicate curies found.\n")
+        if not duplicates and not duplicate_rows:
+            logger.info("No duplicates found.")
+            _write_file(f"{args.out_prefix}_summary.txt", "No duplicates found.\n")
             return
 
-        logger.info(f"Found {len(duplicates)} curies with multiple resource_ids")
+        if duplicates:
+            logger.info(f"Found {len(duplicates)} curies with multiple resource_ids")
+        else:
+            logger.info("No curies with multiple resource_ids found.")
 
-        # Track actions
-        actions: List[str] = []
-        reference_updates: List[Tuple[int, int, int]] = []  # (from_resource, to_resource, count)
-        xref_deletes: List[Tuple[str, int, List[int]]] = []  # (curie, resource_id, xref_ids)
-        duplicate_details: List[DuplicateCurie] = []
-
-        for curie, resources in duplicates.items():
-            canonical_id, non_canonical = determine_canonical(resources)
-
-            # Build resource info for reporting
-            resource_infos = []
-            for resource_id, ref_count, resource_curie, xref_ids in resources:
-                resource_infos.append(ResourceInfo(
-                    resource_id=resource_id,
-                    resource_curie=resource_curie,
-                    reference_count=ref_count,
-                    cross_reference_ids=xref_ids
-                ))
-
-            duplicate_details.append(DuplicateCurie(
-                curie=curie,
-                resources=resource_infos,
-                canonical_resource_id=canonical_id
-            ))
-
-            # Get canonical resource's reference count for logging
-            canonical_ref_count = next(
-                r[1] for r in resources if r[0] == canonical_id
-            )
-
-            actions.append(
-                f"CURIE: {curie} -> canonical resource_id={canonical_id} "
-                f"(refs={canonical_ref_count})"
-            )
-
-            for resource_id, ref_count, resource_curie, xref_ids in non_canonical:
-                if ref_count > 0:
-                    # Need to move references from this resource to canonical
-                    reference_updates.append((resource_id, canonical_id, ref_count))
-                    actions.append(
-                        f"  UPDATE {ref_count} references: resource_id {resource_id} -> {canonical_id}"
-                    )
-
-                # Delete the duplicate cross_reference entries
-                xref_deletes.append((curie, resource_id, xref_ids))
-                actions.append(
-                    f"  DELETE cross_reference: curie={curie}, resource_id={resource_id}, "
-                    f"xref_ids={xref_ids}"
-                )
+        # Process duplicate curies
+        actions, reference_updates, xref_deletes, duplicate_details = \
+            process_duplicate_curies(duplicates)
 
         # Write summary
         summary_lines = [
@@ -199,14 +326,27 @@ def main() -> None:
             "DUPLICATE RESOURCE CURIES IN CROSS_REFERENCE - CLEANUP SUMMARY",
             "=" * 100,
             f"Dry run: {args.dry_run}",
-            f"Total duplicate curies found: {len(duplicates)}",
-            f"Total reference updates planned: {sum(u[2] for u in reference_updates)}",
-            f"Total cross_reference deletes planned: {sum(len(d[2]) for d in xref_deletes)}",
             "",
-            "Actions:",
+            "STEP 1: Duplicate rows (same curie + same resource_id)",
+            f"  Duplicate (curie, resource_id) pairs found: {len(dup_row_deletes)}",
+            f"  Cross_reference rows to delete: {sum(len(d[2]) for d in dup_row_deletes)}",
+            "",
+            "STEP 2: Curies with multiple resource_ids",
+            f"  Duplicate curies found: {len(duplicates)}",
+            f"  Reference updates planned: {sum(u[2] for u in reference_updates)}",
+            f"  Cross_reference deletes planned: {sum(len(d[2]) for d in xref_deletes)}",
+            "",
         ]
-        summary_lines.extend(f"  {a}" for a in actions)
-        summary_lines.append("")
+
+        if dup_row_actions:
+            summary_lines.append("STEP 1 Actions (duplicate rows):")
+            summary_lines.extend(f"  {a}" for a in dup_row_actions)
+            summary_lines.append("")
+
+        if actions:
+            summary_lines.append("STEP 2 Actions (curies with multiple resources):")
+            summary_lines.extend(f"  {a}" for a in actions)
+            summary_lines.append("")
 
         _write_file(f"{args.out_prefix}_summary.txt", "\n".join(summary_lines))
         logger.info(f"Wrote: {args.out_prefix}_summary.txt")
@@ -239,37 +379,7 @@ def main() -> None:
         # Apply changes if not dry-run
         if not args.dry_run:
             logger.info("Applying changes to database...")
-
-            # Update references to point to canonical resource
-            update_ref_sql = text("""
-                UPDATE reference
-                SET resource_id = :to_id
-                WHERE resource_id = :from_id
-            """)
-
-            total_refs_updated = 0
-            for from_id, to_id, count in reference_updates:
-                db.execute(update_ref_sql, {"from_id": from_id, "to_id": to_id})
-                total_refs_updated += count
-                logger.info(f"  Updated references: {from_id} -> {to_id} ({count} refs)")
-
-            # Delete duplicate cross_reference entries
-            delete_xref_sql = text("""
-                DELETE FROM cross_reference
-                WHERE cross_reference_id = ANY(:xref_ids)
-            """)
-
-            total_xrefs_deleted = 0
-            for curie, resource_id, xref_ids in xref_deletes:
-                db.execute(delete_xref_sql, {"xref_ids": xref_ids})
-                total_xrefs_deleted += len(xref_ids)
-                logger.info(f"  Deleted cross_references: curie={curie}, resource_id={resource_id}")
-
-            db.commit()
-            logger.info(
-                f"Committed: {total_refs_updated} reference updates, "
-                f"{total_xrefs_deleted} cross_reference deletes"
-            )
+            apply_changes(db, dup_row_deletes, reference_updates, xref_deletes)
         else:
             logger.info("Dry run complete (no DB changes).")
 
