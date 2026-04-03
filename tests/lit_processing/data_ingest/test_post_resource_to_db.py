@@ -21,9 +21,7 @@ class TestPostResourceToDb:
         res_rows = db.query(ResourceModel).order_by(ResourceModel.resource_id).all()
         assert len(res_rows) == 5
         assert res_rows[0].title == 'Biochemical and biophysical research communications'
-        assert res_rows[1].iso_abbreviation == 'J Physiol Sci'
-        assert res_rows[2].online_issn == '2399-3642'
-        assert res_rows[3].print_issn == '1552-5260'
+        assert res_rows[1].title_abbreviation == 'J Physiol Sci'
 
         resource_id = res_rows[4].resource_id
         crossRef = db.query(CrossReferenceModel).filter_by(resource_id=resource_id).first()

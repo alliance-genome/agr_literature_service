@@ -68,9 +68,7 @@ class TestParseDqmJsonResource:
 
         res = db.query(ResourceModel).filter_by(title='title1').one()
 
-        assert not res.print_issn
-        assert res.medline_abbreviation == "medline1"
-        assert res.iso_abbreviation == "iso1"
+        assert res.title_abbreviation == "iso1"
 
         # check the cross reference
         assert res.cross_reference[0].curie_prefix == "ZFIN"

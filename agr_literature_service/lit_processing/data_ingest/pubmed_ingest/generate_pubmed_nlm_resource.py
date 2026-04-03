@@ -65,12 +65,10 @@ def populate_nlm_info(file_data):
             data_dict['title'] = title
         if re.search("IsoAbbr: (.+)", entry):
             iso_abbreviation_group = re.search("IsoAbbr: (.+)", entry)
-            iso_abbreviation = iso_abbreviation_group.group(1)
-            data_dict['isoAbbreviation'] = iso_abbreviation
-        if re.search("MedAbbr: (.+)", entry):
+            data_dict['titleAbbreviation'] = iso_abbreviation_group.group(1)
+        elif re.search("MedAbbr: (.+)", entry):
             medline_abbreviation_group = re.search("MedAbbr: (.+)", entry)
-            medline_abbreviation = medline_abbreviation_group.group(1)
-            data_dict['medlineAbbreviation'] = medline_abbreviation
+            data_dict['titleAbbreviation'] = medline_abbreviation_group.group(1)
         if re.search(r"ISSN \(Print\): (.+)", entry):
             print_issn_group = re.search(r"ISSN \(Print\): (.+)", entry)
             print_issn = print_issn_group.group(1)

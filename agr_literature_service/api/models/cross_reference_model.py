@@ -103,15 +103,13 @@ class CrossReferenceModel(Base, AuditedModel):
         Index('idx_curie_res',
               'curie', 'resource_id',
               unique=True,
-              postgresql_where=(and_(resource_id.isnot(None),
-                                     curie_prefix != 'ISSN'))
+              postgresql_where=(resource_id.isnot(None))
               ),
 
         Index('idx_curie',
               'curie',
               unique=True,
-              postgresql_where=(and_(is_obsolete.is_(False),
-                                     curie_prefix != 'ISSN')))
+              postgresql_where=(is_obsolete.is_(False)))
     )
 
     def __str__(self):

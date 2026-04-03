@@ -275,82 +275,52 @@
   "resources": [
     {
       "title": "PLOS water",
-      "iso_abbreviation": "PLOS Water",
-      "medline_abbreviation": "PLOS Water",
-      "print_issn": null,
-      "online_issn": "2767-3219",
+      "title_abbreviation": "PLOS Water",
       "publisher": null
     },
     {
       "title": "AANA journal",
-      "iso_abbreviation": "AANA J",
-      "medline_abbreviation": "AANA J",
-      "print_issn": "0094-6354",
-      "online_issn": "2162-5239",
+      "title_abbreviation": "AANA J",
       "publisher": null
     },
     {
       "title": "Academia Peruana de Cirugia",
-      "iso_abbreviation": "Acad Peru Cir",
-      "medline_abbreviation": "Acad Peru Cir",
-      "print_issn": "0001-3854",
-      "online_issn": null,
+      "title_abbreviation": "Acad Peru Cir",
       "publisher": null
     },
     {
       "title": "Acquisitions medicales recentes",
-      "iso_abbreviation": "Acquis Med Recent",
-      "medline_abbreviation": "Acquis Med Recent",
-      "print_issn": "0075-4463",
-      "online_issn": null,
+      "title_abbreviation": "Acquis Med Recent",
       "publisher": null
     },
     {
       "title": "Academy review of the California Academy of Periodontology, United States Section, ARPA Internationale",
-      "iso_abbreviation": "Acad Rev Calif Acad Periodontol",
-      "medline_abbreviation": "Acad Rev Calif Acad Periodontol",
-      "print_issn": "0008-0810",
-      "online_issn": null,
+      "title_abbreviation": "Acad Rev Calif Acad Periodontol",
       "publisher": null
     },
     {
       "title": "[Nihon shika hyoron] The Nippon dental review",
-      "iso_abbreviation": "Nihon Shika Hyoron",
-      "medline_abbreviation": "Nihon Shika Hyoron",
-      "print_issn": "0289-0909",
-      "online_issn": null,
+      "title_abbreviation": "Nihon Shika Hyoron",
       "publisher": null
     },
     {
       "title": "AADE editors' journal",
-      "iso_abbreviation": "AADE Ed J",
-      "medline_abbreviation": "AADE Ed J",
-      "print_issn": "0160-6999",
-      "online_issn": null,
+      "title_abbreviation": "AADE Ed J",
       "publisher": null
     },
     {
       "title": "Current directions in biomedical engineering",
-      "iso_abbreviation": "Curr Dir Biomed Eng",
-      "medline_abbreviation": "Curr Dir Biomed Eng",
-      "print_issn": null,
-      "online_issn": "2364-5504",
+      "title_abbreviation": "Curr Dir Biomed Eng",
       "publisher": null
     },
     {
       "title": "AARN news letter",
-      "iso_abbreviation": "AARN News Lett",
-      "medline_abbreviation": "AARN News Lett",
-      "print_issn": "0001-0197",
-      "online_issn": null,
+      "title_abbreviation": "AARN News Lett",
       "publisher": null
     },
     {
       "title": "Acarologia",
-      "iso_abbreviation": "Acarologia",
-      "medline_abbreviation": "Acarologia",
-      "print_issn": "0044-586X",
-      "online_issn": null,
+      "title_abbreviation": "Acarologia",
       "publisher": null
     }
   ],

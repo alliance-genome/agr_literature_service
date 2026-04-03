@@ -186,7 +186,7 @@ def load_xref_dicts() -> None:
 def load_issn_to_resource_dict() -> None:
     """
     Load ISSN-to-resource mapping from the database.
-    This maps both print_issn and online_issn to resource curies.
+    Queries cross_reference table for ISSN curies linked to resources.
     """
     global issn_to_resource
 
@@ -194,28 +194,35 @@ def load_issn_to_resource_dict() -> None:
         return
 
     logger.info("Loading ISSN-to-resource mapping from database.")
-    query = db_session.query(
-        ResourceModel.curie,
-        ResourceModel.resource_id,
-        ResourceModel.print_issn,
-        ResourceModel.online_issn
-    )
 
-    results = query.all()
-
-    for result in results:
-        curie, resource_id, print_issn, online_issn = result
+    # Load agr_to_resource_id mapping
+    for result in db_session.query(ResourceModel.curie, ResourceModel.resource_id).all():
+        curie, resource_id = result
         if curie and curie not in agr_to_resource_id:
             agr_to_resource_id[curie] = int(resource_id)
 
-        if print_issn and print_issn.strip():
-            issn_key = print_issn.strip()
-            if issn_key not in issn_to_resource:
-                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
-        if online_issn and online_issn.strip():
-            issn_key = online_issn.strip()
-            if issn_key not in issn_to_resource:
-                issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
+    # Load ISSN mappings from cross_reference table
+    from agr_literature_service.api.models import CrossReferenceModel
+    issn_xrefs = db_session.query(
+        CrossReferenceModel.curie,
+        CrossReferenceModel.resource_id,
+        ResourceModel.curie.label('resource_curie')
+    ).join(
+        ResourceModel,
+        CrossReferenceModel.resource_id == ResourceModel.resource_id
+    ).filter(
+        CrossReferenceModel.curie_prefix == 'ISSN',
+        CrossReferenceModel.resource_id.isnot(None),
+        CrossReferenceModel.is_obsolete.is_(False)
+    ).all()
+
+    for issn_curie, resource_id, resource_curie in issn_xrefs:
+        issn_key = issn_curie.split(":", 1)[1].strip()
+        if issn_key and issn_key not in issn_to_resource:
+            issn_to_resource[issn_key] = {
+                'curie': resource_curie,
+                'resource_id': int(resource_id)
+            }
 
     print(f"Loaded {len(issn_to_resource)} ISSN mappings.")
 
@@ -378,30 +385,27 @@ def get_resource_by_issn(issn: str) -> Optional[Dict[str, Union[str, int]]]:
     return None
 
 
-def update_issn_mapping(curie: str, resource_id: int, print_issn: str, online_issn: str) -> None:
+def update_issn_mapping(curie: str, resource_id: int, issn_values: list) -> None:
     """
     Update the ISSN-to-resource mapping when a new resource is created.
 
     :param curie: Resource CURIE (e.g., AGRKB:102000000000001)
     :param resource_id: Database resource_id
-    :param print_issn: Print ISSN value (can be None)
-    :param online_issn: Online ISSN value (can be None)
+    :param issn_values: List of ISSN values (strings) from cross_references
     """
     global issn_to_resource
 
-    # Keep this mapping updated too (helps avoid N+1 lookups)
     if curie and datatype == "resource" and curie not in agr_to_resource_id:
         agr_to_resource_id[curie] = int(resource_id)
 
-    if print_issn and print_issn.strip():
-        issn_key = print_issn.strip()
-        if issn_key not in issn_to_resource:
-            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
-
-    if online_issn and online_issn.strip():
-        issn_key = online_issn.strip()
-        if issn_key not in issn_to_resource:
-            issn_to_resource[issn_key] = {'curie': curie, 'resource_id': int(resource_id)}
+    for issn in issn_values:
+        if issn and issn.strip():
+            issn_key = issn.strip()
+            if issn_key not in issn_to_resource:
+                issn_to_resource[issn_key] = {
+                    'curie': curie,
+                    'resource_id': int(resource_id)
+                }
 
 
 def get_resource_by_title(title: str) -> Optional[Dict[str, Union[str, int]]]:

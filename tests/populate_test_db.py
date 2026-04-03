@@ -60,10 +60,7 @@ class MockDataFactory:
         resource = ResourceModel(
             curie=f"AGRKB:resource{resource_id:04d}",
             title=resource_pattern.get('title', f"Test Genomics Journal {resource_id}"),
-            iso_abbreviation=resource_pattern.get('iso_abbreviation', f"TGJ{resource_id}"),
-            medline_abbreviation=resource_pattern.get('medline_abbreviation', f"Test Genom J{resource_id}"),
-            print_issn=f"1234-567{resource_id}",
-            online_issn=f"8765-432{resource_id}",
+            title_abbreviation=resource_pattern.get('title_abbreviation', f"TGJ{resource_id}"),
             publisher=resource_pattern.get('publisher', "Academic Press")
         )
         db_session.add(resource)

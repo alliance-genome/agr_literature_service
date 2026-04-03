@@ -341,16 +341,17 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict, shared
     global remap_keys
 
     if not simple_fields:
-        simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN',
-                         'onlineISSN', 'publisher', 'pages']
+        simple_fields = ['title', 'titleAbbreviation', 'isoAbbreviation',
+                         'medlineAbbreviation', 'publisher', 'pages']
     if not list_fields:
-        list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
+        list_fields = ['titleAbbreviationSynonyms', 'abbreviationSynonyms',
+                       'titleSynonyms', 'volumes']
     if not remap_keys:
-        remap_keys['isoAbbreviation'] = 'iso_abbreviation'
-        remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-        remap_keys['printISSN'] = 'print_issn'
-        remap_keys['onlineISSN'] = 'online_issn'
-        remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
+        remap_keys['titleAbbreviation'] = 'title_abbreviation'
+        remap_keys['isoAbbreviation'] = 'title_abbreviation'
+        remap_keys['medlineAbbreviation'] = 'title_abbreviation'
+        remap_keys['titleAbbreviationSynonyms'] = 'title_abbreviation_synonyms'
+        remap_keys['abbreviationSynonyms'] = 'title_abbreviation_synonyms'
         remap_keys['titleSynonyms'] = 'title_synonyms'
         remap_keys['crossReferences'] = 'cross_references'
         remap_keys['editorsOrAuthors'] = 'editors'

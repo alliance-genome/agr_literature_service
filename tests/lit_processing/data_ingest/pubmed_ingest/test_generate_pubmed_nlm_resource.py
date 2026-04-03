@@ -22,8 +22,7 @@ class TestGeneratePubmedNlmResource:
                 'nlm': '0372516',
                 'crossReferences': [{'id': 'NLM:0372516'}],
                 'title': 'Biochemical and biophysical research communications',
-                'isoAbbreviation': 'Biochem Biophys Res Commun',
-                'medlineAbbreviation': 'Biochem Biophys Res Commun',
+                'titleAbbreviation': 'Biochem Biophys Res Commun',
                 'printISSN': '0006-291X',
                 'onlineISSN': '1090-2104'
             },
@@ -32,8 +31,7 @@ class TestGeneratePubmedNlmResource:
                 'nlm': '101262417',
                 'crossReferences': [{'id': 'NLM:101262417'}],
                 'title': 'The journal of physiological sciences : JPS',
-                'isoAbbreviation': 'J Physiol Sci',
-                'medlineAbbreviation': 'J Physiol Sci',
+                'titleAbbreviation': 'J Physiol Sci',
                 'printISSN': '1880-6546',
                 'onlineISSN': '1880-6562'
             },
@@ -42,8 +40,7 @@ class TestGeneratePubmedNlmResource:
                 'nlm': '101719179',
                 'crossReferences': [{'id': 'NLM:101719179'}],
                 'title': 'Communications biology',
-                'isoAbbreviation': 'Commun Biol',
-                'medlineAbbreviation': 'Commun Biol',
+                'titleAbbreviation': 'Commun Biol',
                 'onlineISSN': '2399-3642'
             },
             {
@@ -51,8 +48,7 @@ class TestGeneratePubmedNlmResource:
                 'nlm': '101231978',
                 'crossReferences': [{'id': 'NLM:101231978'}],
                 'title': "Alzheimer's & dementia : the journal of the Alzheimer's Association",
-                'isoAbbreviation': 'Alzheimers Dement',
-                'medlineAbbreviation': 'Alzheimers Dement',
+                'titleAbbreviation': 'Alzheimers Dement',
                 'printISSN': '1552-5260', 'onlineISSN': '1552-5279'
             },
             {
@@ -60,8 +56,7 @@ class TestGeneratePubmedNlmResource:
                 'nlm': '101759238',
                 'crossReferences': [{'id': 'NLM:101759238'}],
                 'title': 'microPublication biology',
-                'isoAbbreviation': 'MicroPubl Biol',
-                'medlineAbbreviation': 'MicroPubl Biol',
+                'titleAbbreviation': 'MicroPubl Biol',
                 'onlineISSN': '2578-9430'
             }
         ]
