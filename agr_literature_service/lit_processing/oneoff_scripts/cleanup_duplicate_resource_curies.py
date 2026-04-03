@@ -192,7 +192,7 @@ def process_duplicate_curies(
             f"(refs={canonical_ref_count})"
         )
 
-        for resource_id, ref_count, resource_curie, xref_ids in non_canonical:
+        for resource_id, ref_count, _resource_curie, xref_ids in non_canonical:
             if ref_count > 0:
                 reference_updates.append((resource_id, canonical_id, ref_count))
                 actions.append(
