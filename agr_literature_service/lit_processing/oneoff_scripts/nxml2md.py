@@ -20,23 +20,31 @@ SCRUM-5870
 """
 
 import argparse
+import gzip
+import hashlib
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 
-from fastapi import UploadFile
+import boto3
+from botocore.config import Config as BotoConfig
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from agr_abc_document_parsers import convert_xml_to_markdown
-from agr_cognito_py import ModAccess
-from agr_literature_service.api.crud.referencefile_crud import (
-    download_file,
-    file_upload_single,
+from agr_literature_service.api.crud.referencefile_crud import create_metadata
+from agr_literature_service.api.crud.referencefile_utils import (
+    get_s3_folder_from_md5sum,
 )
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
+from agr_literature_service.api.models import ReferencefileModel, ReferenceModel
+from agr_literature_service.api.s3.upload import upload_file_to_bucket
+from agr_literature_service.api.schemas.referencefile_schemas import (
+    ReferencefileSchemaPost,
+)
 
 logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
@@ -89,28 +97,90 @@ def parse_args():
         default=1,
         help="Number of parallel workers (default: 1)",
     )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=120,
+        help="Per-file timeout in seconds (default: 120)",
+    )
     return parser.parse_args()
 
 
-def convert_one(session_factory, row):
+def download_nxml_from_s3(s3_client, md5sum):
+    """Download and decompress an NXML file from S3 entirely in memory."""
+    folder = get_s3_folder_from_md5sum(md5sum)
+    s3_key = f"{folder}/{md5sum}.gz"
+    response = s3_client.get_object(
+        Bucket="agr-literature",
+        Key=s3_key,
+    )
+    compressed = response["Body"].read()
+    try:
+        return gzip.decompress(compressed)
+    except (gzip.BadGzipFile, OSError):
+        return compressed
+
+
+def upload_md_to_s3(s3_client, md_bytes, md5sum):
+    """Gzip and upload markdown bytes to S3 entirely in memory."""
+    folder = get_s3_folder_from_md5sum(md5sum)
+    compressed = gzip.compress(md_bytes)
+    env_state = os.environ.get("ENV_STATE", "")
+    extra_args = (
+        {"StorageClass": "GLACIER_IR"}
+        if env_state == "prod"
+        else {"StorageClass": "STANDARD"}
+    )
+    upload_file_to_bucket(
+        s3_client=s3_client,
+        file_obj=BytesIO(compressed),
+        bucket="agr-literature",
+        folder=folder,
+        object_name=f"{md5sum}.gz",
+        ExtraArgs=extra_args,
+    )
+
+
+def convert_one(session_factory, s3_client, row):
     """Convert a single NXML file to Markdown. Runs in a worker thread."""
     ref_curie = row.reference_curie
-    referencefile_id = row.referencefile_id
+    nxml_md5sum = row.md5sum
     display_name = row.display_name
 
     db = session_factory()
     try:
-        xml_content = download_file(
-            db=db,
-            referencefile_id=referencefile_id,
-            mod_access=ModAccess.ALL_ACCESS,
-            use_in_api=False,
-        )
+        # Download NXML from S3 in memory
+        xml_content = download_nxml_from_s3(s3_client, nxml_md5sum)
         if not xml_content:
             raise ValueError("Empty content returned from S3")
 
+        # Convert to markdown
         markdown = convert_xml_to_markdown(xml_content, "jats")
+        md_bytes = markdown.encode("utf-8")
 
+        # Compute md5sum of markdown
+        md5sum = hashlib.md5(md_bytes).hexdigest()
+
+        # Check if this exact file already exists for this reference
+        existing = db.query(ReferencefileModel).filter(
+            ReferencefileModel.md5sum == md5sum,
+            ReferencefileModel.reference.has(
+                ReferenceModel.curie == ref_curie
+            ),
+        ).one_or_none()
+
+        if existing:
+            return ref_curie, row.referencefile_id, None
+
+        # Upload to S3 in memory
+        # Only upload if no other referencefile has this md5sum
+        md5sum_count = db.query(ReferencefileModel).filter(
+            ReferencefileModel.md5sum == md5sum
+        ).count()
+        if md5sum_count == 0:
+            upload_md_to_s3(s3_client, md_bytes, md5sum)
+
+        # Create DB record
         metadata = {
             "reference_curie": ref_curie,
             "display_name": display_name,
@@ -121,18 +191,13 @@ def convert_one(session_factory, row):
             "is_annotation": False,
             "mod_abbreviation": None,
         }
+        create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
+        create_metadata(db, create_request)
 
-        md_bytes = markdown.encode("utf-8")
-        file_obj = UploadFile(
-            file=BytesIO(md_bytes),
-            filename=f"{display_name}.md",
-        )
-
-        file_upload_single(db=db, metadata=metadata, file=file_obj)
-        return ref_curie, referencefile_id, None
+        return ref_curie, row.referencefile_id, None
     except Exception as exc:
         db.rollback()
-        return ref_curie, referencefile_id, str(exc)
+        return ref_curie, row.referencefile_id, str(exc)
     finally:
         db.close()
 
@@ -201,7 +266,6 @@ def main():
         if multi_nxml:
             logger.info("")
             logger.info("References with multiple NXML files: %d", len(multi_nxml))
-            # Show details for all of them (or cap at 50)
             shown = 0
             for rid, rlist in sorted(multi_nxml.items()):
                 if shown >= 50:
@@ -239,16 +303,29 @@ def main():
     total = len(rows)
     _progress["done"] = 0
 
+    s3_client = boto3.client(
+        "s3",
+        config=BotoConfig(max_pool_connections=max(10, args.workers)),
+    )
+
     logger.info("Starting conversion with %d worker(s)...", args.workers)
     t_start = time.monotonic()
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(convert_one, Session, row): row
+            pool.submit(convert_one, Session, s3_client, row): row
             for row in rows
         }
         for future in as_completed(futures):
-            ref_curie, referencefile_id, error = future.result()
+            row = futures[future]
+            try:
+                ref_curie, referencefile_id, error = future.result(
+                    timeout=args.timeout,
+                )
+            except TimeoutError:
+                ref_curie = row.reference_curie
+                referencefile_id = row.referencefile_id
+                error = f"Timed out after {args.timeout}s"
             with _lock:
                 _progress["done"] += 1
                 done = _progress["done"]
