@@ -24,9 +24,20 @@ class TestPostResourceToDb:
         assert res_rows[1].title_abbreviation == 'J Physiol Sci'
 
         resource_id = res_rows[4].resource_id
-        crossRef = db.query(CrossReferenceModel).filter_by(resource_id=resource_id).first()
-        assert crossRef.curie == 'NLM:101759238'
-        assert crossRef.curie_prefix == 'NLM'
+        crossRefs = db.query(CrossReferenceModel).filter_by(resource_id=resource_id).all()
+        # Should have NLM cross-reference and ISSN cross-reference
+        crossRef_curies = {xr.curie for xr in crossRefs}
+        assert 'NLM:101759238' in crossRef_curies
+        assert 'ISSN:2578-9430' in crossRef_curies
+
+        # Verify NLM cross-reference
+        nlm_xref = next(xr for xr in crossRefs if xr.curie_prefix == 'NLM')
+        assert nlm_xref.curie == 'NLM:101759238'
+
+        # Verify ISSN cross-reference has issn_type
+        issn_xref = next(xr for xr in crossRefs if xr.curie_prefix == 'ISSN')
+        assert issn_xref.curie == 'ISSN:2578-9430'
+        assert issn_xref.issn_type == 'Online'
 
         # Check the log files.
         base_path = environ.get('XML_PATH', "")

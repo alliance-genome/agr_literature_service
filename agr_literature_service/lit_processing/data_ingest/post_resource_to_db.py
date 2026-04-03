@@ -114,6 +114,11 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
         xrefs_agr = get_agr_for_xref(prefix, identifier)
         new_xref['curie'] = prefix + ":" + identifier
         new_xref['curie_prefix'] = prefix
+
+        # Handle issn_type for ISSN cross-references
+        if prefix == 'ISSN' and 'issn_type' in xref:
+            new_xref['issn_type'] = xref['issn_type']
+
         if xrefs_agr:
             logger.info(f"{prefix} {identifier} ALREADY EXISTS?")
             # Just duplicated not an error as to same resource
@@ -123,16 +128,12 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
             logger.error(mess)
             okay = False
             error_mess += mess
-        # elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:  # Duplicate prefix
-        elif agr_has_xref_of_prefix(agr, prefix):
+        # For ISSN, allow multiple ISSN values per resource (print + online)
+        elif prefix != 'ISSN' and agr_has_xref_of_prefix(agr, prefix):
             okay = False
             error_mess += f"Not allowed same prefix {prefix} multiple time for the same resource"
         else:
-            # print("pre add xref")
-            # dump_xrefs()
             add_xref(agr, new_xref)
-            # print("post add xref")
-            # dump_xrefs()
     if not okay:
         return okay, error_mess
     return okay, "Cross References processed successfully"
