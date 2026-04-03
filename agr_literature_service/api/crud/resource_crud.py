@@ -137,12 +137,17 @@ def patch(db: Session, curie: str, resource_update: Union[ResourceSchemaUpdate, 
                             detail=f"Resource with curie {curie} not found")
 
     if isinstance(resource_update, ResourceSchemaUpdate):
-        if resource_update.iso_abbreviation is not None:
-            iso_abbreviation_resource = db.query(ResourceModel).filter(ResourceModel.iso_abbreviation == resource_update.iso_abbreviation).first()
+        if resource_update.title_abbreviation is not None:
+            title_abbreviation_resource = db.query(ResourceModel).filter(
+                ResourceModel.title_abbreviation == resource_update.title_abbreviation
+            ).first()
 
-            if iso_abbreviation_resource and iso_abbreviation_resource.curie != curie:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
-                                    detail=f"Resource with iso_abbreviation {resource_update.iso_abbreviation} already exists")
+            if title_abbreviation_resource and title_abbreviation_resource.curie != curie:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Resource with title_abbreviation "
+                           f"{resource_update.title_abbreviation} already exists"
+                )
 
     update_dict = {}  # type: Dict
     if isinstance(resource_update, ResourceSchemaUpdate):
@@ -200,18 +205,12 @@ def show_all(db: Session):
             "curie": resource.curie,
             "title": resource.title,
             "title_synonyms": resource.title_synonyms,
-            "iso_abbreviation": resource.iso_abbreviation,
-            "medline_abbreviation": resource.medline_abbreviation,
+            "title_abbreviation": resource.title_abbreviation,
             "copyright_date": _serialize_datetime(resource.copyright_date),
             "publisher": resource.publisher,
-            "print_issn": resource.print_issn,
-            "online_issn": resource.online_issn,
             "volumes": resource.volumes,
-            "abbreviation_synonyms": resource.abbreviation_synonyms,
+            "title_abbreviation_synonyms": resource.title_abbreviation_synonyms,
             "pages": resource.pages,
-            "abstract": resource.abstract,
-            "summary": resource.summary,
-            "open_access": resource.open_access,
             "copyright_license_id": resource.copyright_license_id,
             "license_list": resource.license_list,
             "license_start_year": resource.license_start_year,
