@@ -22,6 +22,7 @@ SCRUM-5870
 import argparse
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 
@@ -239,6 +240,7 @@ def main():
     _progress["done"] = 0
 
     logger.info("Starting conversion with %d worker(s)...", args.workers)
+    t_start = time.monotonic()
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
@@ -265,10 +267,21 @@ def main():
                         done, total, converted, failed,
                     )
 
-    logger.info(
-        "Done. converted=%d, failed=%d, total=%d",
-        converted, failed, total,
-    )
+    elapsed = time.monotonic() - t_start
+    mins, secs = divmod(elapsed, 60)
+    hours, mins = divmod(mins, 60)
+    rate = converted / elapsed if elapsed > 0 else 0
+
+    logger.info("=" * 60)
+    logger.info("CONVERSION COMPLETE")
+    logger.info("=" * 60)
+    logger.info("Converted:    %d", converted)
+    logger.info("Failed:       %d", failed)
+    logger.info("Total:        %d", total)
+    logger.info("Workers:      %d", args.workers)
+    logger.info("Elapsed:      %dh %dm %ds", hours, mins, secs)
+    logger.info("Rate:         %.1f files/min", rate * 60)
+    logger.info("=" * 60)
 
     if errors:
         logger.info("Errors:")
