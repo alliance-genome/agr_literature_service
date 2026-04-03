@@ -19,8 +19,7 @@ def find_resources_in_db(db: Session, nlm_id: str = None,
                          issns: list = None) -> list:
     """Search for existing resources by NLM ID and/or ISSNs.
 
-    Checks cross_reference table for NLM:<nlm_id> and ISSN:<issn>,
-    and resource.print_issn / online_issn columns for each ISSN.
+    Checks cross_reference table for NLM:<nlm_id> and ISSN:<issn>.
 
     When ISBN are supported, add them here.
 
@@ -30,16 +29,12 @@ def find_resources_in_db(db: Session, nlm_id: str = None,
     seen_ids = set()
     results = []
 
-    if nlm_id:
-        xref = db.query(CrossReferenceModel).filter(
-            CrossReferenceModel.curie == "NLM:" + nlm_id,
-            CrossReferenceModel.resource_id.isnot(None)
-        ).one_or_none()
-        if xref:
+    def _add_resource_from_xref(xref):
+        if xref.resource_id not in seen_ids:
             resource = db.query(ResourceModel).filter_by(
                 resource_id=xref.resource_id
             ).one_or_none()
-            if resource and resource.resource_id not in seen_ids:
+            if resource:
                 seen_ids.add(resource.resource_id)
                 results.append({
                     'curie': resource.curie,
@@ -47,40 +42,24 @@ def find_resources_in_db(db: Session, nlm_id: str = None,
                     'title': resource.title or ''
                 })
 
+    if nlm_id:
+        xref = db.query(CrossReferenceModel).filter(
+            CrossReferenceModel.curie == "NLM:" + nlm_id,
+            CrossReferenceModel.resource_id.isnot(None)
+        ).one_or_none()
+        if xref:
+            _add_resource_from_xref(xref)
+
     if issns:
         for issn in issns:
             if not issn:
                 continue
-            # Check resource table columns
-            resources = db.query(ResourceModel).filter(
-                (ResourceModel.print_issn == issn)
-                | (ResourceModel.online_issn == issn)
-            ).all()
-            for resource in resources:
-                if resource.resource_id not in seen_ids:
-                    seen_ids.add(resource.resource_id)
-                    results.append({
-                        'curie': resource.curie,
-                        'resource_id': resource.resource_id,
-                        'title': resource.title or ''
-                    })
-            # Check cross_reference table
             xrefs = db.query(CrossReferenceModel).filter(
                 CrossReferenceModel.curie == "ISSN:" + issn,
                 CrossReferenceModel.resource_id.isnot(None)
             ).all()
             for xref in xrefs:
-                if xref.resource_id not in seen_ids:
-                    resource = db.query(ResourceModel).filter_by(
-                        resource_id=xref.resource_id
-                    ).one_or_none()
-                    if resource:
-                        seen_ids.add(resource.resource_id)
-                        results.append({
-                            'curie': resource.curie,
-                            'resource_id': resource.resource_id,
-                            'title': resource.title or ''
-                        })
+                _add_resource_from_xref(xref)
 
     return results
 
@@ -222,12 +201,10 @@ def parse_nlm_catalog_xml(xml: str) -> dict:
 def _parsed_dict_to_schema(parsed: dict) -> ResourceSchemaPost:
     """Convert a camelCase parsed dict to a ResourceSchemaPost."""
     schema_data = {'title': parsed.get('title', '')}
-    if 'medlineAbbreviation' in parsed:
-        schema_data['medline_abbreviation'] = parsed['medlineAbbreviation']
-    if 'printISSN' in parsed:
-        schema_data['print_issn'] = parsed['printISSN']
-    if 'onlineISSN' in parsed:
-        schema_data['online_issn'] = parsed['onlineISSN']
+    if 'titleAbbreviation' in parsed:
+        schema_data['title_abbreviation'] = parsed['titleAbbreviation']
+    elif 'medlineAbbreviation' in parsed:
+        schema_data['title_abbreviation'] = parsed['medlineAbbreviation']
     if 'publisher' in parsed:
         schema_data['publisher'] = parsed['publisher']
     if 'titleSynonyms' in parsed:

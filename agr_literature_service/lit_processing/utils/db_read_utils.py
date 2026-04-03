@@ -425,8 +425,8 @@ def get_journal_data(db_session: Session):
     journal_to_resource_id = {}
 
     for x in db_session.query(ResourceModel).order_by(ResourceModel.resource_id).all():
-        if x.iso_abbreviation not in journal_to_resource_id:
-            journal_to_resource_id[x.iso_abbreviation] = (x.resource_id, x.title)
+        if x.title_abbreviation not in journal_to_resource_id:
+            journal_to_resource_id[x.title_abbreviation] = (x.resource_id, x.title)
 
     return journal_to_resource_id
 
@@ -514,7 +514,7 @@ def get_reference_by_pmid(db_session: Session, pmid):
 def get_journal_by_resource_id(db_session: Session):
     resource_id_to_journal = {}
 
-    rs = db_session.execute(text("SELECT resource_id, curie, title, medline_abbreviation FROM resource"))
+    rs = db_session.execute(text("SELECT resource_id, curie, title, title_abbreviation FROM resource"))
 
     rows = rs.fetchall()
 

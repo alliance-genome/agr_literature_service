@@ -22,7 +22,7 @@ def test_resource(db, auth_headers): # noqa
     print("***** Adding a test resource *****")
     with TestClient(app) as client:
         resource_data = {
-            "title": "Bob", "abstract": "3", "open_access": True
+            "title": "Bob"
         }
         response = client.post(url="/resource/", json=resource_data, headers=auth_headers)
         yield ResourceTestData(response, response.json())
@@ -61,7 +61,6 @@ class TestResource:
             assert response.status_code == status.HTTP_200_OK
             resource = response.json()
             assert resource['title'] == "Bob"
-            assert resource['abstract'] == '3'
 
             # Lookup 1 that does not exist
             response = client.get(url="/resource/does_not_exist", headers=auth_headers)
@@ -79,12 +78,11 @@ class TestResource:
 
             # do we have the new title?
             assert new_resource['title'] == "new title"
-            assert new_resource['abstract'] == "3"
 
     def test_resource_create_large(self, db, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
-                "abbreviation_synonyms": ["Jackson, Mathews, Wickens, 1996"],
+                "title_abbreviation_synonyms": ["Jackson, Mathews, Wickens, 1996"],
                 "cross_references": [
                     {
                         "curie": "FB:FBrf0044885",
@@ -139,14 +137,11 @@ class TestResource:
                     assert editor["name"] == "M.P. Wickens"
             assert new_resource['title'] == "Abstracts of papers presented at the 1996 meeting"
             assert new_resource['pages'] == "lxi + 351pp"
-            assert new_resource["abbreviation_synonyms"][0] == "Jackson, Mathews, Wickens, 1996"
-            assert not new_resource['open_access']
+            assert new_resource["title_abbreviation_synonyms"][0] == "Jackson, Mathews, Wickens, 1996"
 
             res = db.query(ResourceModel).filter(ResourceModel.curie == curie).one()
             assert res.title == "Abstracts of papers presented at the 1996 meeting"
             assert len(res.editor) == 3
-            # open access defaults to False
-            assert not res.open_access
 
             assert len(res.cross_reference) == 1
 
@@ -175,8 +170,7 @@ class TestResource:
                 "title": "Journal of Testing Alpha",
                 "cross_references": [{"curie": "NLM:111111"}],
                 "editors": [{"order": 1, "first_name": "Alice",
-                             "last_name": "Smith", "name": "Alice Smith"}],
-                "open_access": True
+                             "last_name": "Smith", "name": "Alice Smith"}]
             }, headers=auth_headers)
             assert res1.status_code == status.HTTP_201_CREATED
             curie1 = res1.json()
@@ -186,8 +180,7 @@ class TestResource:
                 "title": "Journal of Testing Beta",
                 "cross_references": [{"curie": "NLM:222222"}],
                 "editors": [{"order": 1, "first_name": "Bob",
-                             "last_name": "Jones", "name": "Bob Jones"}],
-                "open_access": True
+                             "last_name": "Jones", "name": "Bob Jones"}]
             }, headers=auth_headers)
             assert res2.status_code == status.HTTP_201_CREATED
             curie2 = res2.json()
@@ -197,8 +190,7 @@ class TestResource:
                 "title": "Journal of Testing Gamma",
                 "cross_references": [{"curie": "NLM:333333"}],
                 "editors": [{"order": 1, "first_name": "Carol",
-                             "last_name": "White", "name": "Carol White"}],
-                "open_access": False
+                             "last_name": "White", "name": "Carol White"}]
             }, headers=auth_headers)
             assert res3.status_code == status.HTTP_201_CREATED
             curie3 = res3.json()
@@ -322,7 +314,7 @@ class TestResource:
         with TestClient(app) as client:
             res = client.post(url="/resource/", json={
                 "title": "Test ISSN Journal",
-                "print_issn": "1234-5678"
+                "cross_references": [{"curie": "ISSN:1234-5678", "issn_type": "print"}]
             }, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
             resource_curie = res.json()
@@ -531,9 +523,7 @@ class TestResource:
             assert res.status_code == status.HTTP_200_OK
             data = res.json()
             assert data['title'] == 'Nature.'
-            assert data['medline_abbreviation'] == 'Nature'
-            assert data['print_issn'] == '0028-0836'
-            assert data['online_issn'] == '1476-4687'
+            assert data['title_abbreviation'] == 'Nature'
 
     @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.fetch_nlm_catalog_xml")
     @patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup.search_nlm_catalog")
