@@ -2620,7 +2620,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     - Otherwise → ATP:0000141 (file needed)
 
     Also restore text conversion workflow:
-    - If there's a main PDF AND a TEI or MD file (file_extension in ('tei', 'md'))
+    - If there's a main PDF AND a TEI or MD file (file_class in ('tei', 'converted_merged_main'))
       → ATP:0000163 (file converted to text)
 
     Args:
@@ -2744,7 +2744,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
             main_pdf_and_text_file_query = text("""
                 SELECT
                     SUM(CASE WHEN rf.file_class = 'main' THEN 1 ELSE 0 END) AS main_pdf_count,
-                    SUM(CASE WHEN rf.file_extension IN ('tei', 'md') THEN 1 ELSE 0 END) AS text_file_count
+                    SUM(CASE WHEN rf.file_class IN ('tei', 'converted_merged_main') THEN 1 ELSE 0 END) AS text_file_count
                 FROM referencefile rf
                 JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
                 WHERE rf.reference_id = :reference_id
