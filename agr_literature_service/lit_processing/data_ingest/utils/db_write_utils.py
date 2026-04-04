@@ -28,6 +28,9 @@ file_upload_process_atp_id = "ATP:0000140"  # file upload
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 file_upload_in_progress_tag_atp_id = "ATP:0000139"  # file upload in progress
 file_uploaded_tag_atp_id = "ATP:0000134"  # files uploaded
+text_conversion_process_atp_id = "ATP:0000161"  # text conversion
+file_converted_to_text_tag_atp_id = "ATP:0000163"  # file converted to text
+text_conversion_needed_tag_atp_id = "ATP:0000162"  # text conversion needed
 
 # One "Lastname, Initials" pair.
 # - last: anything up to a comma (handles hyphens, apostrophes, spaces like "van der Ven")
@@ -2607,13 +2610,18 @@ def set_retraction_status(db, logger):
 
 def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     """
-    Restore file upload workflow tags for a reference when retraction_status is cleared.
+    Restore file upload and text conversion workflow tags for a reference when
+    retraction_status is cleared.
 
     For each MOD associated with this reference (corpus=True), determine the appropriate
     file upload workflow tag based on the files:
     - If there's a main PDF (file_class = 'main') → ATP:0000134 (files uploaded)
     - If there's any file but no main PDF → ATP:0000139 (file upload in progress)
     - Otherwise → ATP:0000141 (file needed)
+
+    Also restore text conversion workflow:
+    - If there's a main PDF AND a TEI or MD file (file_class in ('tei', 'converted_merged_main'))
+      → ATP:0000163 (file converted to text)
 
     Args:
         db: Database session
@@ -2625,6 +2633,7 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
     """
     stats: Dict[str, Any] = {
         'workflow_tags_added': 0,
+        'text_conversion_tags_added': 0,
         'mods_processed': []
     }
 
@@ -2640,92 +2649,144 @@ def restore_file_upload_workflow_tags(db, logger, reference_id: int) -> dict:
         """)
         mods = db.execute(mods_query, {'reference_id': reference_id}).fetchall()
 
+        # Get reference object once for all mods
+        reference = db.query(ReferenceModel).filter(
+            ReferenceModel.reference_id == reference_id
+        ).first()
+
         for mod_row in mods:
             mod_id = mod_row[0]
             mod_abbreviation = mod_row[1]
 
-            # Check if there's already a file upload workflow tag for this mod
+            # Handle file upload workflow
             current_status = get_current_workflow_status(
                 db, str(reference_id), file_upload_process_atp_id, mod_abbreviation
             )
-            if current_status is not None:
-                # Already has a file upload workflow tag, skip
-                continue
-
-            # Determine the appropriate workflow tag based on files
-            # First, check if there's a main PDF
-            main_pdf_query = text("""
-                SELECT COUNT(*)
-                FROM referencefile rf
-                JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
-                WHERE rf.reference_id = :reference_id
-                AND rf.file_class = 'main'
-                AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
-            """)
-            main_pdf_count = db.execute(main_pdf_query, {
-                'reference_id': reference_id,
-                'mod_id': mod_id
-            }).scalar()
-
-            if main_pdf_count > 0:
-                # Has main PDF → files uploaded
-                new_tag = file_uploaded_tag_atp_id
-            else:
-                # Check if there are any files (not main PDF)
-                any_file_query = text("""
+            if current_status is None:
+                # Determine the appropriate workflow tag based on files
+                # First, check if there's a main PDF
+                main_pdf_query = text("""
                     SELECT COUNT(*)
                     FROM referencefile rf
                     JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
                     WHERE rf.reference_id = :reference_id
+                    AND rf.file_class = 'main'
                     AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
                 """)
-                any_file_count = db.execute(any_file_query, {
+                main_pdf_count = db.execute(main_pdf_query, {
                     'reference_id': reference_id,
                     'mod_id': mod_id
                 }).scalar()
 
-                if any_file_count > 0:
-                    # Has files but no main PDF → file upload in progress
-                    new_tag = file_upload_in_progress_tag_atp_id
+                if main_pdf_count > 0:
+                    # Has main PDF → files uploaded
+                    new_tag = file_uploaded_tag_atp_id
                 else:
-                    # No files → file needed
-                    new_tag = file_needed_tag_atp_id
+                    # Check if there are any files (not main PDF)
+                    any_file_query = text("""
+                        SELECT COUNT(*)
+                        FROM referencefile rf
+                        JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                        WHERE rf.reference_id = :reference_id
+                        AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
+                    """)
+                    any_file_count = db.execute(any_file_query, {
+                        'reference_id': reference_id,
+                        'mod_id': mod_id
+                    }).scalar()
 
-            # Add the workflow tag using transition_to_workflow_status
-            # Note: transition_to_workflow_status only allows ATP:0000141 (file needed) as
-            # initial state. For other states, we need to first add file_needed, then transition.
-            try:
-                reference = db.query(ReferenceModel).filter(
-                    ReferenceModel.reference_id == reference_id
-                ).first()
-                if reference:
-                    if new_tag == file_needed_tag_atp_id:
-                        # Can directly add file needed as initial state
-                        transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                    if any_file_count > 0:
+                        # Has files but no main PDF → file upload in progress
+                        new_tag = file_upload_in_progress_tag_atp_id
                     else:
-                        # First add file needed, then transition to the target state
-                        transition_to_workflow_status(
-                            db, reference.curie, mod_abbreviation, file_needed_tag_atp_id
+                        # No files → file needed
+                        new_tag = file_needed_tag_atp_id
+
+                # Add the workflow tag using transition_to_workflow_status
+                # Note: transition_to_workflow_status only allows ATP:0000141 (file needed) as
+                # initial state. For other states, we need to first add file_needed, then transition.
+                try:
+                    if reference:
+                        if new_tag == file_needed_tag_atp_id:
+                            # Can directly add file needed as initial state
+                            transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                        else:
+                            # First add file needed, then transition to the target state
+                            transition_to_workflow_status(
+                                db, reference.curie, mod_abbreviation, file_needed_tag_atp_id
+                            )
+                            transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
+                        stats['workflow_tags_added'] += 1
+                        stats['mods_processed'].append({
+                            'mod_abbreviation': mod_abbreviation,
+                            'workflow_tag': new_tag
+                        })
+                        logger.info(
+                            f"Added file upload workflow tag {new_tag} for reference_id={reference_id}, "
+                            f"mod={mod_abbreviation}"
                         )
-                        transition_to_workflow_status(db, reference.curie, mod_abbreviation, new_tag)
-                    stats['workflow_tags_added'] += 1
-                    stats['mods_processed'].append({
-                        'mod_abbreviation': mod_abbreviation,
-                        'workflow_tag': new_tag
-                    })
-                    logger.info(
-                        f"Added file upload workflow tag {new_tag} for reference_id={reference_id}, "
-                        f"mod={mod_abbreviation}"
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to add file upload workflow tag for reference_id={reference_id}, "
+                        f"mod={mod_abbreviation}: {e}"
                     )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to add file upload workflow tag for reference_id={reference_id}, "
-                    f"mod={mod_abbreviation}: {e}"
-                )
+
+            # Handle text conversion workflow
+            current_text_conversion_status = get_current_workflow_status(
+                db, str(reference_id), text_conversion_process_atp_id, mod_abbreviation
+            )
+            # Skip if already converted to text
+            if current_text_conversion_status == file_converted_to_text_tag_atp_id:
+                continue
+
+            # Check if there's a main PDF AND a TEI or MD file for this reference and mod
+            # Only transition to "file converted to text" if both conditions are met
+            main_pdf_and_text_file_query = text("""
+                SELECT
+                    SUM(CASE WHEN rf.file_class = 'main' THEN 1 ELSE 0 END) AS main_pdf_count,
+                    SUM(CASE WHEN rf.file_class IN ('tei', 'converted_merged_main') THEN 1 ELSE 0 END) AS text_file_count
+                FROM referencefile rf
+                JOIN referencefile_mod rfm ON rf.referencefile_id = rfm.referencefile_id
+                WHERE rf.reference_id = :reference_id
+                AND (rfm.mod_id = :mod_id OR rfm.mod_id IS NULL)
+            """)
+            result = db.execute(main_pdf_and_text_file_query, {
+                'reference_id': reference_id,
+                'mod_id': mod_id
+            }).fetchone()
+            has_main_pdf = (result[0] or 0) > 0
+            has_text_file = (result[1] or 0) > 0
+
+            if has_main_pdf and has_text_file:
+                # Has main PDF and TEI/MD file → transition to file converted to text
+                try:
+                    if reference:
+                        # Only add initial state if no text conversion tag exists
+                        if current_text_conversion_status is None:
+                            transition_to_workflow_status(
+                                db, reference.curie, mod_abbreviation,
+                                text_conversion_needed_tag_atp_id
+                            )
+                        transition_to_workflow_status(
+                            db, reference.curie, mod_abbreviation,
+                            file_converted_to_text_tag_atp_id
+                        )
+                        stats['text_conversion_tags_added'] += 1
+                        logger.info(
+                            f"Added text conversion workflow tag "
+                            f"{file_converted_to_text_tag_atp_id} for "
+                            f"reference_id={reference_id}, mod={mod_abbreviation}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to add text conversion workflow tag for "
+                        f"reference_id={reference_id}, mod={mod_abbreviation}: {e}"
+                    )
 
         logger.info(
             f"restore_file_upload_workflow_tags complete for reference_id={reference_id}: "
-            f"workflow_tags_added={stats['workflow_tags_added']}"
+            f"workflow_tags_added={stats['workflow_tags_added']}, "
+            f"text_conversion_tags_added={stats['text_conversion_tags_added']}"
         )
 
         return stats
