@@ -160,3 +160,79 @@ class TestParseDqmJsonResource:
             okay, message = process_resource_entry(db, entry)
             assert not okay
             assert message == "Not allowed same prefix ZFIN multiple time for the same resource"
+
+    def test_title_based_merge_prevents_duplicates(self, db):  # noqa
+        """
+        Test that when two MODs submit the same journal with different identifiers,
+        the second submission merges cross-references with the first instead of
+        creating a duplicate resource.
+
+        This simulates the scenario where:
+        - FB submits "Journal of xenobiotics" with FB:FBmultipub_11437
+        - ZFIN submits "Journal of xenobiotics" with ZFIN:ZDB-JRNL-* + NLM + ISSN
+        - The ZFIN xrefs should be added to the FB resource, not create a duplicate
+        """
+        reset_xref()
+        load_xref_data(db, 'resource')
+
+        # First MOD (FB) creates the resource with FB-specific identifier
+        fb_entry = {
+            "primaryId": "FB:FBmultipub_99999",
+            "title": "Test Journal for Title Merge",
+            "medlineAbbreviation": "Test J Title Merge",
+            "crossReferences": [
+                {"id": "FB:FBmultipub_99999", "pages": ["journal"]}
+            ]
+        }
+        okay, message = process_resource_entry(db, fb_entry)
+        assert okay, f"FB entry should be created successfully: {message}"
+
+        # Get the resource that was created
+        res_after_fb = db.query(ResourceModel).filter_by(
+            title='Test Journal for Title Merge'
+        ).one()
+        resource_id = res_after_fb.resource_id
+        initial_xref_count = len(res_after_fb.cross_reference)
+        assert initial_xref_count == 1, "Should have 1 xref from FB"
+        assert res_after_fb.cross_reference[0].curie == "FB:FBmultipub_99999"
+
+        # Reload xref data to include the newly created resource
+        load_xref_data(db, 'resource')
+
+        # Second MOD (ZFIN) submits the same journal with different identifiers
+        # This should NOT create a new resource, but should add xrefs to existing
+        zfin_entry = {
+            "primaryId": "ZFIN:ZDB-JRNL-999999-1",
+            "title": "Test Journal for Title Merge",  # Same title!
+            "medlineAbbreviation": "Test J Title Merge",
+            "crossReferences": [
+                {"id": "ZFIN:ZDB-JRNL-999999-1", "pages": ["journal"]},
+                {"id": "NLM:999999999", "pages": []},
+                {"id": "ISSN:9999-9999", "pages": []}
+            ]
+        }
+        okay, message = process_resource_entry(db, zfin_entry)
+        assert okay, f"ZFIN entry should merge successfully: {message}"
+        assert "Title-merged" in message, f"Should indicate title-based merge: {message}"
+
+        # Verify no duplicate was created - should still be just one resource
+        resources = db.query(ResourceModel).filter_by(
+            title='Test Journal for Title Merge'
+        ).all()
+        assert len(resources) == 1, \
+            f"Should have exactly 1 resource, not duplicates. Found {len(resources)}"
+
+        # Verify the resource now has cross-references from both MODs
+        res_after_merge = db.query(ResourceModel).filter_by(
+            title='Test Journal for Title Merge'
+        ).one()
+        assert res_after_merge.resource_id == resource_id, \
+            "Should be the same resource, not a new one"
+
+        xref_curies = {xref.curie for xref in res_after_merge.cross_reference}
+        assert "FB:FBmultipub_99999" in xref_curies, "Should still have FB xref"
+        assert "ZFIN:ZDB-JRNL-999999-1" in xref_curies, "Should have ZFIN xref added"
+        assert "NLM:999999999" in xref_curies, "Should have NLM xref added"
+        assert "ISSN:9999-9999" in xref_curies, "Should have ISSN xref added"
+        assert len(xref_curies) == 4, \
+            f"Should have 4 xrefs total (1 FB + 3 ZFIN). Found: {xref_curies}"
