@@ -74,16 +74,21 @@ NXML_QUERY = """
            rf.md5sum,
            rf.reference_id,
            rf.display_name,
+           rf.file_class,
            r.curie AS reference_curie
     FROM referencefile rf
     JOIN reference r ON r.reference_id = rf.reference_id
-    JOIN workflow_tag wt ON wt.reference_id = rf.reference_id
     WHERE rf.file_class = 'nXML'
       AND rf.file_publication_status = 'final'
-      AND wt.workflow_tag_id = :wft_atp
-      AND rf.reference_id NOT IN (
-          SELECT reference_id FROM referencefile
-          WHERE file_class = 'converted_merged_main'
+      AND EXISTS (
+          SELECT 1 FROM workflow_tag wt
+          WHERE wt.reference_id = rf.reference_id
+            AND wt.workflow_tag_id = :wft_atp
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM referencefile cmm
+          WHERE cmm.reference_id = rf.reference_id
+            AND cmm.file_class = 'converted_merged_main'
       )
     ORDER BY rf.reference_id, rf.referencefile_id DESC
 """
@@ -94,20 +99,27 @@ TEI_QUERY = """
            rf.md5sum,
            rf.reference_id,
            rf.display_name,
+           rf.file_class,
            r.curie AS reference_curie
     FROM referencefile rf
     JOIN reference r ON r.reference_id = rf.reference_id
-    JOIN workflow_tag wt ON wt.reference_id = rf.reference_id
     WHERE rf.file_class = 'tei'
       AND rf.file_publication_status = 'final'
-      AND wt.workflow_tag_id = :wft_atp
-      AND rf.reference_id NOT IN (
-          SELECT reference_id FROM referencefile
-          WHERE file_class = 'converted_merged_main'
+      AND EXISTS (
+          SELECT 1 FROM workflow_tag wt
+          WHERE wt.reference_id = rf.reference_id
+            AND wt.workflow_tag_id = :wft_atp
       )
-      AND rf.reference_id NOT IN (
-          SELECT reference_id FROM referencefile
-          WHERE file_class = 'nXML' AND file_publication_status = 'final'
+      AND NOT EXISTS (
+          SELECT 1 FROM referencefile cmm
+          WHERE cmm.reference_id = rf.reference_id
+            AND cmm.file_class = 'converted_merged_main'
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM referencefile nxml
+          WHERE nxml.reference_id = rf.reference_id
+            AND nxml.file_class = 'nXML'
+            AND nxml.file_publication_status = 'final'
       )
     ORDER BY rf.reference_id, rf.referencefile_id DESC
 """
@@ -122,13 +134,17 @@ BOTH_QUERY = """
            r.curie AS reference_curie
     FROM referencefile rf
     JOIN reference r ON r.reference_id = rf.reference_id
-    JOIN workflow_tag wt ON wt.reference_id = rf.reference_id
     WHERE rf.file_class IN ('nXML', 'tei')
       AND rf.file_publication_status = 'final'
-      AND wt.workflow_tag_id = :wft_atp
-      AND rf.reference_id NOT IN (
-          SELECT reference_id FROM referencefile
-          WHERE file_class = 'converted_merged_main'
+      AND EXISTS (
+          SELECT 1 FROM workflow_tag wt
+          WHERE wt.reference_id = rf.reference_id
+            AND wt.workflow_tag_id = :wft_atp
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM referencefile cmm
+          WHERE cmm.reference_id = rf.reference_id
+            AND cmm.file_class = 'converted_merged_main'
       )
     ORDER BY rf.reference_id,
              CASE rf.file_class WHEN 'nXML' THEN 0 ELSE 1 END,
