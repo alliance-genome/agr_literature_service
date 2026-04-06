@@ -1,22 +1,29 @@
-"""Oneoff script to batch-convert NXML files to ABC Markdown.
+"""Oneoff script to batch-convert NXML or TEI files to ABC Markdown.
 
 Finds all references that:
-  - have an NXML file (file_class='nXML', file_publication_status='final')
+  - have a source file (NXML or TEI depending on --source)
   - have been converted to text (workflow_tag ATP:0000163)
   - do NOT already have a converted_merged_main file
 
-For each, downloads the NXML from S3, converts to Markdown via
-agr_abc_document_parsers, and uploads the result as a new referencefile
-with file_class='converted_merged_main'.
+For NXML (default): converts publisher-provided JATS XML — highest quality.
+For TEI (--source tei): converts GROBID TEI from PDF extraction — only for
+references that have no NXML file available.
 
 Usage::
 
-    ENV_STATE=prod python3 nxml2md.py [--dry-run] [--limit N] [--workers 8]
+    # Convert NXML files (default, highest quality)
+    python3 nxml2md.py --workers 100
+
+    # Convert TEI files (only refs without NXML)
+    python3 nxml2md.py --source tei --workers 100
+
+    # Dry run for either source
+    python3 nxml2md.py --source tei --dry-run
 
 Requires AWS credentials and database access configured via environment
 variables or .env file.
 
-SCRUM-5870
+SCRUM-5870, SCRUM-5872
 """
 
 import argparse
@@ -55,7 +62,13 @@ logger = logging.getLogger(__name__)
 # ATP:0000163 = "file converted to text"
 FILE_CONVERTED_TO_TEXT_ATP = "ATP:0000163"
 
-QUERY = """
+# Source configurations: file_class, source_format for the parser
+SOURCE_CONFIG = {
+    "nxml": {"file_class": "nXML", "parser_format": "jats"},
+    "tei": {"file_class": "tei", "parser_format": "tei"},
+}
+
+NXML_QUERY = """
     SELECT DISTINCT ON (rf.reference_id)
            rf.referencefile_id,
            rf.md5sum,
@@ -75,10 +88,65 @@ QUERY = """
     ORDER BY rf.reference_id, rf.referencefile_id DESC
 """
 
+TEI_QUERY = """
+    SELECT DISTINCT ON (rf.reference_id)
+           rf.referencefile_id,
+           rf.md5sum,
+           rf.reference_id,
+           rf.display_name,
+           r.curie AS reference_curie
+    FROM referencefile rf
+    JOIN reference r ON r.reference_id = rf.reference_id
+    JOIN workflow_tag wt ON wt.reference_id = rf.reference_id
+    WHERE rf.file_class = 'tei'
+      AND rf.file_publication_status = 'final'
+      AND wt.workflow_tag_id = :wft_atp
+      AND rf.reference_id NOT IN (
+          SELECT reference_id FROM referencefile
+          WHERE file_class = 'converted_merged_main'
+      )
+      AND rf.reference_id NOT IN (
+          SELECT reference_id FROM referencefile
+          WHERE file_class = 'nXML' AND file_publication_status = 'final'
+      )
+    ORDER BY rf.reference_id, rf.referencefile_id DESC
+"""
+
+BOTH_QUERY = """
+    SELECT DISTINCT ON (rf.reference_id)
+           rf.referencefile_id,
+           rf.md5sum,
+           rf.reference_id,
+           rf.display_name,
+           rf.file_class,
+           r.curie AS reference_curie
+    FROM referencefile rf
+    JOIN reference r ON r.reference_id = rf.reference_id
+    JOIN workflow_tag wt ON wt.reference_id = rf.reference_id
+    WHERE rf.file_class IN ('nXML', 'tei')
+      AND rf.file_publication_status = 'final'
+      AND wt.workflow_tag_id = :wft_atp
+      AND rf.reference_id NOT IN (
+          SELECT reference_id FROM referencefile
+          WHERE file_class = 'converted_merged_main'
+      )
+    ORDER BY rf.reference_id,
+             CASE rf.file_class WHEN 'nXML' THEN 0 ELSE 1 END,
+             rf.referencefile_id DESC
+"""
+
+QUERIES = {"nxml": NXML_QUERY, "tei": TEI_QUERY, "both": BOTH_QUERY}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Batch convert NXML files to Markdown",
+        description="Batch convert NXML or TEI files to Markdown",
+    )
+    parser.add_argument(
+        "--source",
+        choices=["nxml", "tei", "both"],
+        default="nxml",
+        help="Source format: nxml, tei, or both (nxml preferred) (default: nxml)",
     )
     parser.add_argument(
         "--dry-run",
@@ -106,8 +174,8 @@ def parse_args():
     return parser.parse_args()
 
 
-def download_nxml_from_s3(s3_client, md5sum):
-    """Download and decompress an NXML file from S3 entirely in memory."""
+def download_from_s3(s3_client, md5sum):
+    """Download and decompress a file from S3 entirely in memory."""
     folder = get_s3_folder_from_md5sum(md5sum)
     s3_key = f"{folder}/{md5sum}.gz"
     response = s3_client.get_object(
@@ -141,21 +209,28 @@ def upload_md_to_s3(s3_client, md_bytes, md5sum):
     )
 
 
-def convert_one(session_factory, s3_client, row):
-    """Convert a single NXML file to Markdown. Runs in a worker thread."""
+FORMAT_FROM_CLASS = {"nXML": "jats", "tei": "tei"}
+
+
+def convert_one(session_factory, s3_client, row, parser_format=None):
+    """Convert a single XML file to Markdown. Runs in a worker thread."""
     ref_curie = row.reference_curie
-    nxml_md5sum = row.md5sum
+    src_md5sum = row.md5sum
     display_name = row.display_name
+
+    # In "both" mode, derive format from the row's file_class
+    if parser_format is None:
+        parser_format = FORMAT_FROM_CLASS[row.file_class]
 
     db = session_factory()
     try:
-        # Download NXML from S3 in memory
-        xml_content = download_nxml_from_s3(s3_client, nxml_md5sum)
+        # Download source file from S3 in memory
+        xml_content = download_from_s3(s3_client, src_md5sum)
         if not xml_content:
             raise ValueError("Empty content returned from S3")
 
         # Convert to markdown
-        markdown = convert_xml_to_markdown(xml_content, "jats")
+        markdown = convert_xml_to_markdown(xml_content, parser_format)
         md_bytes = markdown.encode("utf-8")
 
         # Compute md5sum of markdown
@@ -209,6 +284,8 @@ _progress = {"done": 0}
 
 def main():
     args = parse_args()
+    source = args.source
+    config = SOURCE_CONFIG.get(source)
 
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
@@ -219,8 +296,15 @@ def main():
     Session = sessionmaker(bind=engine, autoflush=True)
     db = Session()
 
-    logger.info("Querying for NXML files to convert...")
-    query = QUERY
+    if config:
+        logger.info(
+            "Source: %s (file_class=%s, format=%s)",
+            source, config["file_class"], config["parser_format"],
+        )
+    else:
+        logger.info("Source: both (nXML preferred, TEI fallback)")
+    logger.info("Querying for files to convert...")
+    query = QUERIES[source]
     if args.limit:
         query += f" LIMIT {args.limit}"
 
@@ -229,66 +313,42 @@ def main():
         {"wft_atp": FILE_CONVERTED_TO_TEXT_ATP},
     ).fetchall()
 
-    logger.info("Found %d NXML files to convert.", len(rows))
+    logger.info("Found %d files to convert.", len(rows))
 
     if args.dry_run:
-        # Gather stats
-        total_nxml = db.execute(text(
-            "SELECT COUNT(*) FROM referencefile"
-            " WHERE file_class = 'nXML' AND file_publication_status = 'final'"
-        )).scalar()
+        if source == "both":
+            from collections import Counter
+            source_counts = Counter(row.file_class for row in rows)
+            nxml_count = source_counts.get("nXML", 0)
+            tei_count = source_counts.get("tei", 0)
+        else:
+            nxml_count = len(rows) if source == "nxml" else 0
+            tei_count = len(rows) if source == "tei" else 0
+
         already_converted = db.execute(text(
-            "SELECT COUNT(DISTINCT rf.reference_id) FROM referencefile rf"
-            " WHERE rf.file_class = 'nXML' AND rf.file_publication_status = 'final'"
-            " AND rf.reference_id IN ("
-            "   SELECT reference_id FROM referencefile"
-            "   WHERE file_class = 'converted_merged_main')"
+            "SELECT COUNT(DISTINCT reference_id) FROM referencefile"
+            " WHERE file_class = 'converted_merged_main'"
         )).scalar()
-        no_text_wft = total_nxml - len(rows) - already_converted
 
         logger.info("=" * 60)
-        logger.info("DRY RUN SUMMARY")
+        logger.info("DRY RUN SUMMARY (%s)", source.upper())
         logger.info("=" * 60)
-        logger.info("Total NXML files in database:       %d", total_nxml)
+        if source == "both":
+            logger.info("  From NXML:                        %d", nxml_count)
+            logger.info("  From TEI (no NXML available):     %d", tei_count)
         logger.info("Already have converted_merged_main: %d", already_converted)
-        logger.info("Missing text conversion WFT:        %d", no_text_wft)
         logger.info("Eligible for conversion:            %d", len(rows))
         logger.info("=" * 60)
-
-        # Investigate references with multiple NXML files
-        from collections import defaultdict
-        refs_by_id = defaultdict(list)
-        for row in rows:
-            refs_by_id[row.reference_id].append(row)
-        multi_nxml = {rid: rlist for rid, rlist in refs_by_id.items()
-                      if len(rlist) > 1}
-
-        if multi_nxml:
-            logger.info("")
-            logger.info("References with multiple NXML files: %d", len(multi_nxml))
-            shown = 0
-            for rid, rlist in sorted(multi_nxml.items()):
-                if shown >= 50:
-                    logger.info("  ... and %d more references with duplicates",
-                                len(multi_nxml) - shown)
-                    break
-                logger.info("  %s (reference_id=%d) — %d NXML files:",
-                            rlist[0].reference_curie, rid, len(rlist))
-                for row in rlist:
-                    logger.info(
-                        "    referencefile_id=%d  display_name=%-30s  md5sum=%s",
-                        row.referencefile_id, row.display_name, row.md5sum,
-                    )
-                shown += 1
 
         if rows:
             logger.info("")
             logger.info("Sample files to convert (first 20):")
             for row in rows[:20]:
+                fc = getattr(row, "file_class", source)
                 logger.info(
-                    "  %s  referencefile_id=%d  md5sum=%s  display_name=%s",
+                    "  %s  referencefile_id=%d  source=%s  display_name=%s",
                     row.reference_curie, row.referencefile_id,
-                    row.md5sum, row.display_name,
+                    fc, row.display_name,
                 )
             if len(rows) > 20:
                 logger.info("  ... and %d more", len(rows) - 20)
@@ -308,12 +368,16 @@ def main():
         config=BotoConfig(max_pool_connections=max(10, args.workers)),
     )
 
-    logger.info("Starting conversion with %d worker(s)...", args.workers)
+    logger.info("Starting %s conversion with %d worker(s)...",
+                source.upper(), args.workers)
     t_start = time.monotonic()
+
+    # In "both" mode, parser_format is derived per-row from file_class
+    fmt = config["parser_format"] if config else None
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(convert_one, Session, s3_client, row): row
+            pool.submit(convert_one, Session, s3_client, row, fmt): row
             for row in rows
         }
         for future in as_completed(futures):
@@ -350,7 +414,7 @@ def main():
     rate = converted / elapsed if elapsed > 0 else 0
 
     logger.info("=" * 60)
-    logger.info("CONVERSION COMPLETE")
+    logger.info("CONVERSION COMPLETE (%s)", source.upper())
     logger.info("=" * 60)
     logger.info("Converted:    %d", converted)
     logger.info("Failed:       %d", failed)
