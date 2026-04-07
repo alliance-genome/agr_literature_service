@@ -27,8 +27,7 @@ DECLARE
    --- build <volume>(<issue>):<page(s)> into ref_details
    ref_details TEXT default '';
    -- used in queries for short
-   iso resource.iso_abbreviation%type;
-   medline resource.iso_abbreviation%type;
+   title_abbr resource.title_abbreviation%type;
 -- Long citation
 --  citation = get_citation_from_args(authorNames, year, title, journal,
 --                                     ref_db_obj.volume or '',
@@ -68,14 +67,12 @@ BEGIN
     END IF;
     -- raise notice 'Authors %', authors;
     -- Get the resource abbr
-    SELECT res.iso_abbreviation, res.medline_abbreviation, res.title into iso, medline, journal
+    SELECT res.title_abbreviation, res.title into title_abbr, journal
       FROM reference ref, resource res
       WHERE ref.resource_id = res.resource_id AND
             ref.reference_id = ref_id;
-    IF iso is not NULL THEN
-        res_abbr := iso;
-    ELSIF  medline is not NULL THEN
-        res_abbr :=  medline;
+    IF title_abbr is not NULL THEN
+        res_abbr := title_abbr;
     ELSE
         res_abbr := ' ';
     END IF;

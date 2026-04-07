@@ -37,6 +37,7 @@ class CrossReferenceSchemaRelated(AuditedObjectModelSchema):
     url: Optional[str] = None
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
     is_obsolete: Optional[bool] = None
+    issn_type: Optional[str] = None
 
     @field_validator('curie')
     def validate_curie(cls, v: str) -> str:
@@ -55,6 +56,7 @@ class CrossReferenceSchemaCreate(BaseModel):
     curie: str
     pages: Optional[List[str]] = None
     is_obsolete: Optional[bool] = False
+    issn_type: Optional[str] = None
 
 
 class CrossReferenceSchemaPost(CrossReferenceSchemaCreate):
@@ -90,6 +92,7 @@ class CrossReferenceSchemaShow(AuditedObjectModelSchema):
     reference_curie: Optional[str] = None
     resource_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
+    issn_type: Optional[str] = None
 
     @field_validator('pages', mode='before')
     def _handle_string_pages(cls, v):
@@ -117,3 +120,4 @@ class CrossReferenceSchemaUpdate(BaseModel):
     resource_curie: Optional[str] = None
     reference_curie: Optional[str] = None
     is_obsolete: Optional[bool] = None
+    issn_type: Optional[str] = None

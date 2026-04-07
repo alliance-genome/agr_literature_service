@@ -17,20 +17,14 @@ class ResourceSchemaPost(BaseModel):
 
     title: str
     title_synonyms: List[str] = Field(default_factory=list)
-    abbreviation_synonyms: List[str] = Field(default_factory=list)
-    iso_abbreviation: Optional[str] = None
-    medline_abbreviation: Optional[str] = None
+    title_abbreviation_synonyms: List[str] = Field(default_factory=list)
+    title_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None
-    print_issn: Optional[str] = None
-    online_issn: Optional[str] = None
     pages: Optional[str] = None
     volumes: List[str] = Field(default_factory=list)
-    abstract: Optional[str] = None
-    summary: Optional[str] = None
     cross_references: List[CrossReferenceSchemaCreate] = Field(default_factory=list)
     editors: List[EditorSchemaPost] = Field(default_factory=list)
-    open_access: Optional[bool] = False
 
     @field_validator('title')
     def title_is_some(cls, v: str) -> str:
@@ -48,18 +42,12 @@ class ResourceSchemaUpdate(BaseModel):
 
     title: Optional[str] = None
     title_synonyms: List[str] = Field(default_factory=list)
-    abbreviation_synonyms: List[str] = Field(default_factory=list)
-    iso_abbreviation: Optional[str] = None
-    medline_abbreviation: Optional[str] = None
+    title_abbreviation_synonyms: List[str] = Field(default_factory=list)
+    title_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None
-    print_issn: Optional[str] = None
-    online_issn: Optional[str] = None
     pages: Optional[str] = None
     volumes: List[str] = Field(default_factory=list)
-    abstract: Optional[str] = None
-    summary: Optional[str] = None
-    open_access: Optional[bool] = False
 
     @field_validator('title')
     def title_is_some(cls, v: Optional[str]) -> Optional[str]:
@@ -80,20 +68,14 @@ class ResourceSchemaShow(AuditedObjectModelSchema):
     title: str
 
     title_synonyms: Optional[List[str]] = None
-    abbreviation_synonyms: Optional[List[str]] = None
-    iso_abbreviation: Optional[str] = None
-    medline_abbreviation: Optional[str] = None
+    title_abbreviation_synonyms: Optional[List[str]] = None
+    title_abbreviation: Optional[str] = None
     copyright_date: Optional[datetime] = None
     publisher: Optional[str] = None
-    print_issn: Optional[str] = None
-    online_issn: Optional[str] = None
     pages: Optional[str] = None
     volumes: Optional[List[str]] = None
-    abstract: Optional[str] = None
-    summary: Optional[str] = None
     cross_references: Optional[List[CrossReferenceSchemaRelated]] = Field(default_factory=list)
     editors: Optional[List[EditorSchemaShow]] = Field(default_factory=list)
-    open_access: Optional[bool] = None
     copyright_license_id: Optional[int] = None
     copyright_license: Optional[CopyrightLicenseSchemaShow] = None
     license_list: Optional[List[str]] = None
