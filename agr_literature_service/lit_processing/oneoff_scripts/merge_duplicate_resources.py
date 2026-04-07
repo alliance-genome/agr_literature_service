@@ -80,6 +80,11 @@ def find_duplicate_resources(db_session: Session) -> Dict[str, List[Tuple[int, s
 
     Returns:
         Dict mapping normalized title to list of (resource_id, curie, reference_count)
+
+    Note:
+        The query on func.lower(func.trim(ResourceModel.title)) will result in a
+        sequential scan since there is no index on resource.title. This is acceptable
+        for a one-off cleanup script but would need an index for production use.
     """
     # Find titles that have multiple resources
     duplicate_titles = db_session.query(
