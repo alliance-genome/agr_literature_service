@@ -30,7 +30,8 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     agr_has_xref_of_prefix,
     is_obsolete,
     add_xref,
-    find_existing_resource
+    find_existing_resource,
+    find_existing_resource_by_title
 )
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
@@ -255,6 +256,16 @@ def process_single_resource(
 
     # Use comprehensive duplicate detection
     existing = find_existing_resource(resource_dict, allow_title_match=False)
+
+    # If no match by xref/ISSN, try title match for merging cross-references
+    # This prevents duplicate resources when different MODs submit the same journal
+    # with different identifiers (e.g., FB:FBmultipub vs ZFIN:ZDB-JRNL + NLM + ISSN)
+    if not existing:
+        title_match = find_existing_resource_by_title(resource_dict)
+        if title_match:
+            agr_title, resource_id_title = title_match
+            existing = (agr_title, resource_id_title, 'title')
+            logger.info(f"Title-based match found for {primary_id}: merging with existing resource {agr_title}")
 
     if existing:
         agr, resource_id, match_type = existing

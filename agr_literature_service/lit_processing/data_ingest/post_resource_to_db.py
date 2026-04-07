@@ -20,6 +20,7 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     add_xref,
     load_xref_data,
     find_existing_resource,
+    find_existing_resource_by_title,
     update_issn_mapping,
     update_title_mapping
 )
@@ -180,6 +181,38 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             f"(matched via {match_type} for {primary_id})"
         )
         return True, ""
+
+    # If no match by xref/ISSN, check for title match to merge cross-references
+    # This prevents duplicate resources when different MODs submit the same journal
+    # with different identifiers (e.g., FB:FBmultipub vs ZFIN:ZDB-JRNL + NLM + ISSN)
+    title_match = find_existing_resource_by_title(entry)
+    if title_match:
+        agr, existing_resource_id = title_match
+        logger.info(
+            f"Title-based match found for {primary_id}: merging cross-references "
+            f"with existing resource {agr} (resource_id={existing_resource_id})"
+        )
+        # Add cross-references from this entry to the existing resource
+        cross_references = entry.get('crossReferences', [])
+        if cross_references:
+            xref_okay, message = process_cross_references(
+                db_session, existing_resource_id, agr, cross_references
+            )
+            if not xref_okay:
+                logger.warning(f"Some cross-references could not be added: {message}")
+            db_session.commit()
+
+        # Update ISSN mapping from entry's printISSN/onlineISSN fields
+        # (in addition to ISSN values in crossReferences, which add_xref handles)
+        issn_values = []
+        if entry.get('printISSN'):
+            issn_values.append(entry['printISSN'])
+        if entry.get('onlineISSN'):
+            issn_values.append(entry['onlineISSN'])
+        if issn_values:
+            update_issn_mapping(agr, existing_resource_id, issn_values)
+
+        return True, f"Title-merged: {primary_id} -> {agr}\n"
 
     new_entry = remap_keys_get_new_entry(entry)
     try:
