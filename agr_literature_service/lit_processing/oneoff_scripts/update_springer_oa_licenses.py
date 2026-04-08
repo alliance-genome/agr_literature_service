@@ -19,12 +19,11 @@ Options:
     --dry-run    Show what would be updated without making changes
 """
 import argparse
-import csv
 import io
 import logging
 import sys
 from os import path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from sqlalchemy.orm import Session
@@ -45,13 +44,70 @@ CC_BY_LICENSE_ID = 1
 CC_BY_LICENSE_NAME = "CC BY"
 
 
+def _find_column_index(headers: Dict[str, int], column_names: List[str]) -> Optional[int]:
+    """Find column index by trying multiple possible column names."""
+    for col_name in column_names:
+        if col_name in headers:
+            return headers[col_name]
+    return None
+
+
+def _parse_excel_headers(sheet) -> Tuple[Optional[Dict[str, int]], Optional[int]]:
+    """Parse Excel sheet to find header row and column indices."""
+    for row_idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+        if not row or not any(row):
+            continue
+        # Check if this looks like a header row
+        row_values = [str(cell).strip().lower() if cell else '' for cell in row]
+        if any('issn' in val or 'title' in val for val in row_values):
+            headers: Dict[str, int] = {}
+            for col_idx, cell in enumerate(row):
+                if cell:
+                    headers[str(cell).strip().lower()] = col_idx
+            return headers, row_idx
+    return None, None
+
+
+def _parse_excel_data(sheet, header_row: int, eissn_col: int, title_col: int) -> Dict[str, str]:
+    """Parse data rows from Excel sheet."""
+    journals: Dict[str, str] = {}
+    max_col = max(eissn_col, title_col)
+
+    for row_idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+        if row_idx <= header_row:
+            continue
+        if not row or len(row) <= max_col:
+            continue
+
+        eissn = row[eissn_col]
+        title = row[title_col]
+
+        if eissn and title:
+            eissn_str = str(eissn).strip()
+            title_str = str(title).strip()
+            if eissn_str and title_str:
+                # Normalize ISSN (remove hyphens)
+                normalized_issn = eissn_str.replace('-', '')
+                journals[normalized_issn] = title_str
+
+    return journals
+
+
 def fetch_springer_oa_journals() -> Dict[str, str]:
     """
     Fetch the list of Springer Nature fully open access journals from the API.
 
+    The API returns an Excel file (.xlsx) containing journal information.
+
     Returns:
         Dictionary mapping normalized ISSN (no hyphens) to journal title
     """
+    try:
+        from openpyxl import load_workbook
+    except ImportError:
+        logger.error("openpyxl is required to read Excel files. Install with: pip install openpyxl")
+        return {}
+
     logger.info(f"Fetching Springer Nature OA journal list from: {SPRINGER_OA_URL}")
 
     try:
@@ -61,36 +117,28 @@ def fetch_springer_oa_journals() -> Dict[str, str]:
         logger.error(f"Failed to fetch Springer OA journal list: {e}")
         return {}
 
-    # Parse CSV content
-    journals: Dict[str, str] = {}
-    content = response.content.decode('utf-8-sig')  # Handle BOM if present
-
     try:
-        reader = csv.DictReader(io.StringIO(content))
-        for row in reader:
-            # Look for eISSN column (may have different names)
-            eissn = None
-            title = None
+        workbook = load_workbook(filename=io.BytesIO(response.content), read_only=True)
+        sheet = workbook.active
 
-            # Try common column name variations for eISSN
-            for col in ['eISSN', 'eissn', 'EISSN', 'e-ISSN', 'Electronic ISSN']:
-                if col in row and row[col]:
-                    eissn = row[col].strip()
-                    break
+        headers, header_row = _parse_excel_headers(sheet)
+        if not headers or header_row is None:
+            logger.error("Could not find header row in Excel file")
+            return {}
 
-            # Try common column name variations for title
-            for col in ['Journal Title', 'Title', 'Journal', 'title', 'Journal title']:
-                if col in row and row[col]:
-                    title = row[col].strip()
-                    break
+        # Find eISSN and title column indices
+        eissn_col = _find_column_index(headers, ['eissn', 'e-issn', 'electronic issn', 'issn (electronic)'])
+        title_col = _find_column_index(headers, ['journal title', 'title', 'journal', 'journal name'])
 
-            if eissn and title:
-                # Normalize ISSN (remove hyphens)
-                normalized_issn = eissn.replace('-', '')
-                journals[normalized_issn] = title
+        if eissn_col is None or title_col is None:
+            logger.error(f"Could not find required columns. Found headers: {list(headers.keys())}")
+            return {}
 
-    except csv.Error as e:
-        logger.error(f"Failed to parse CSV content: {e}")
+        journals = _parse_excel_data(sheet, header_row, eissn_col, title_col)
+        workbook.close()
+
+    except Exception as e:
+        logger.error(f"Failed to parse Excel content: {e}")
         return {}
 
     logger.info(f"Found {len(journals)} Springer Nature OA journals")
