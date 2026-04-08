@@ -1617,3 +1617,18 @@ def get_recently_deleted_references(db: Session, mod_abbreviation, days):
         "metaData": metaData,
         "data": data
     }
+
+
+def get_obsolete_mod_curies(db: Session, mod_abbreviation: str) -> List[str]:
+
+    sql_query = text(
+        "SELECT curie FROM cross_reference "
+        "WHERE curie_prefix = :mod_abbreviation "
+        "AND is_obsolete IS TRUE"
+    )
+
+    rows = db.execute(sql_query, {
+        "mod_abbreviation": mod_abbreviation
+    }).fetchall()
+
+    return [row[0] for row in rows]
