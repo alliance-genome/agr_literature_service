@@ -422,6 +422,15 @@ def get_recently_deleted_references(mod_abbreviation: str,
     return references
 
 
+@router.get('/obsolete_mod_curies/{mod_abbreviation}',
+            status_code=status.HTTP_200_OK)
+def get_obsolete_mod_curies(mod_abbreviation: str,
+                            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                            db: Session = db_session):
+    set_global_user_from_cognito(db, user)
+    return reference_crud.get_obsolete_mod_curies(db, mod_abbreviation)
+
+
 @router.get('/lock_status/{referenceCurie}',
             status_code=status.HTTP_200_OK)
 def lock_status(referenceCurie: str,
