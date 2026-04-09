@@ -4,10 +4,13 @@ update_springer_oa_licenses.py
 Update Resource table to add CC BY license for Springer Nature fully open access
 journals that are currently missing license information.
 
-This script fetches the list of Springer Nature fully open access journals from:
-https://cms-resources.apps.public.k8s.springernature.io/springer-cms/rest/v1/content/27820860/data/v2
+The list of Springer Nature fully open access journals is loaded from:
+    data/springer_oa_journals.json
 
-It then queries the database to find resources matching those ISSNs and updates
+Source PDF:
+    https://cms-resources.apps.public.k8s.springernature.io/springer-cms/rest/v1/content/27820860/data/v2
+
+It queries the database to find resources matching those ISSNs and updates
 resources that are missing license information to set:
 - license_list = ['CC BY']
 - copyright_license_id = 1 (CC BY)
@@ -19,13 +22,12 @@ Options:
     --dry-run    Show what would be updated without making changes
 """
 import argparse
-import io
+import json
 import logging
 import sys
 from os import path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
-import requests
 from sqlalchemy.orm import Session
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -36,112 +38,44 @@ logging.basicConfig(format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Springer Nature fully open access journal list URL
-SPRINGER_OA_URL = "https://cms-resources.apps.public.k8s.springernature.io/springer-cms/rest/v1/content/27820860/data/v2"
+# Path to the JSON file containing Springer Nature OA journals
+SCRIPT_DIR = path.dirname(path.abspath(__file__))
+SPRINGER_OA_JSON = path.join(SCRIPT_DIR, "data", "springer_oa_journals.json")
 
 # CC BY license ID (most common Springer Nature OA license)
 CC_BY_LICENSE_ID = 1
 CC_BY_LICENSE_NAME = "CC BY"
 
 
-def _find_column_index(headers: Dict[str, int], column_names: List[str]) -> Optional[int]:
-    """Find column index by trying multiple possible column names."""
-    for col_name in column_names:
-        if col_name in headers:
-            return headers[col_name]
-    return None
-
-
-def _parse_excel_headers(sheet) -> Tuple[Optional[Dict[str, int]], Optional[int]]:
-    """Parse Excel sheet to find header row and column indices."""
-    for row_idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
-        if not row or not any(row):
-            continue
-        # Check if this looks like a header row
-        row_values = [str(cell).strip().lower() if cell else '' for cell in row]
-        if any('issn' in val or 'title' in val for val in row_values):
-            headers: Dict[str, int] = {}
-            for col_idx, cell in enumerate(row):
-                if cell:
-                    headers[str(cell).strip().lower()] = col_idx
-            return headers, row_idx
-    return None, None
-
-
-def _parse_excel_data(sheet, header_row: int, eissn_col: int, title_col: int) -> Dict[str, str]:
-    """Parse data rows from Excel sheet."""
-    journals: Dict[str, str] = {}
-    max_col = max(eissn_col, title_col)
-
-    for row_idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
-        if row_idx <= header_row:
-            continue
-        if not row or len(row) <= max_col:
-            continue
-
-        eissn = row[eissn_col]
-        title = row[title_col]
-
-        if eissn and title:
-            eissn_str = str(eissn).strip()
-            title_str = str(title).strip()
-            if eissn_str and title_str:
-                # Normalize ISSN (remove hyphens)
-                normalized_issn = eissn_str.replace('-', '')
-                journals[normalized_issn] = title_str
-
-    return journals
-
-
-def fetch_springer_oa_journals() -> Dict[str, str]:
+def load_springer_oa_journals() -> Dict[str, str]:
     """
-    Fetch the list of Springer Nature fully open access journals from the API.
-
-    The API returns an Excel file (.xlsx) containing journal information.
+    Load the list of Springer Nature fully open access journals from JSON file.
 
     Returns:
         Dictionary mapping normalized ISSN (no hyphens) to journal title
     """
-    try:
-        from openpyxl import load_workbook
-    except ImportError:
-        logger.error("openpyxl is required to read Excel files. Install with: pip install openpyxl")
-        return {}
+    logger.info(f"Loading Springer Nature OA journal list from: {SPRINGER_OA_JSON}")
 
-    logger.info(f"Fetching Springer Nature OA journal list from: {SPRINGER_OA_URL}")
-
-    try:
-        response = requests.get(SPRINGER_OA_URL, timeout=60)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch Springer OA journal list: {e}")
+    if not path.exists(SPRINGER_OA_JSON):
+        logger.error(f"Journal list file not found: {SPRINGER_OA_JSON}")
         return {}
 
     try:
-        workbook = load_workbook(filename=io.BytesIO(response.content), read_only=True)
-        sheet = workbook.active
-
-        headers, header_row = _parse_excel_headers(sheet)
-        if not headers or header_row is None:
-            logger.error("Could not find header row in Excel file")
-            return {}
-
-        # Find eISSN and title column indices
-        eissn_col = _find_column_index(headers, ['eissn', 'e-issn', 'electronic issn', 'issn (electronic)'])
-        title_col = _find_column_index(headers, ['journal title', 'title', 'journal', 'journal name'])
-
-        if eissn_col is None or title_col is None:
-            logger.error(f"Could not find required columns. Found headers: {list(headers.keys())}")
-            return {}
-
-        journals = _parse_excel_data(sheet, header_row, eissn_col, title_col)
-        workbook.close()
-
-    except Exception as e:
-        logger.error(f"Failed to parse Excel content: {e}")
+        with open(SPRINGER_OA_JSON, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, IOError) as e:
+        logger.error(f"Failed to load journal list: {e}")
         return {}
 
-    logger.info(f"Found {len(journals)} Springer Nature OA journals")
+    journals_raw = data.get("journals", {})
+
+    # Normalize ISSNs (remove hyphens) for matching
+    journals: Dict[str, str] = {}
+    for issn, title in journals_raw.items():
+        normalized_issn = issn.replace("-", "")
+        journals[normalized_issn] = title
+
+    logger.info(f"Loaded {len(journals)} Springer Nature OA journals")
     return journals
 
 
@@ -263,14 +197,14 @@ def main():
     args = parser.parse_args()
 
     logger.info("Springer Nature OA License Update Script")
-    logger.info(f"Source: {SPRINGER_OA_URL}")
+    logger.info(f"Source: {SPRINGER_OA_JSON}")
     logger.info(f"Dry run: {args.dry_run}")
     logger.info("=" * 60)
 
-    # Fetch Springer Nature OA journal list
-    issn_to_title = fetch_springer_oa_journals()
+    # Load Springer Nature OA journal list
+    issn_to_title = load_springer_oa_journals()
     if not issn_to_title:
-        logger.error("Failed to fetch Springer OA journal list. Exiting.")
+        logger.error("Failed to load Springer OA journal list. Exiting.")
         sys.exit(1)
 
     # Connect to database
