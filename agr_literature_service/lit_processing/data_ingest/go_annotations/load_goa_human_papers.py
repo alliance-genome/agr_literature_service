@@ -131,7 +131,9 @@ def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading GOA human file from {GOA_HUMAN_URL}")
-    download_file(GOA_HUMAN_URL, file_with_path)
+    if not download_file(GOA_HUMAN_URL, file_with_path):
+        logger.error(f"Failed to download GOA human file from {GOA_HUMAN_URL}")
+        return file_name, set()
 
     all_pmids: Set[str] = set()
 

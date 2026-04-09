@@ -196,7 +196,9 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading HUMAN GAF from {s3_url}")
-    download_file(s3_url, file_with_path)
+    if not download_file(s3_url, file_with_path):
+        logger.error(f"Failed to download HUMAN GAF from {s3_url}")
+        return "<p><b>HUMAN (AGR)</b>: Failed to download GAF file</p>"
 
     all_pmids = extract_pmids_from_gaf(file_with_path)
     if not all_pmids:
@@ -266,7 +268,9 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading {data_sub_type} GAF from {s3_url}")
-    download_file(s3_url, file_with_path)
+    if not download_file(s3_url, file_with_path):
+        logger.error(f"Failed to download {data_sub_type} GAF from {s3_url}")
+        return f"<p><b>{data_sub_type} ({mod_abbr})</b>: Failed to download GAF file</p>"
 
     all_pmids = extract_pmids_from_gaf(file_with_path)
     if not all_pmids:
