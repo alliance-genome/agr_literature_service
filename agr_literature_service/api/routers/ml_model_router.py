@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Union, Dict, Any, Optional
+from typing import List, Union, Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, Security, status, UploadFile, File, HTTPException
 
@@ -45,7 +45,8 @@ def upload_model(
         production: bool = False,
         negated: bool = True,
         data_novelty: str = None,
-        species: str = None):
+        species: str = None,
+        file_classes: List[str] = None):
     model_data = None
     if task_type and mod_abbreviation:
         model_data = {
@@ -63,7 +64,8 @@ def upload_model(
             "production": production,
             "negated": negated,
             "data_novelty": data_novelty,
-            "species": species
+            "species": species,
+            "file_classes": file_classes
         }
     elif model_data_file is not None:
         try:
@@ -89,7 +91,8 @@ def upload_model(
         production=model_data["production"],
         negated=model_data["negated"],
         data_novelty=model_data["data_novelty"],
-        species=model_data["species"]
+        species=model_data["species"],
+        file_classes=model_data.get("file_classes")
     )
     set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)
