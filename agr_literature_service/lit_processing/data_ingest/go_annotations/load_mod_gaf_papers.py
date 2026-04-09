@@ -2,10 +2,9 @@ import argparse
 import logging
 import requests
 import gzip
-import shutil
 from datetime import datetime, timezone, timedelta
-from typing import Set, List, Dict, Optional
-from os import environ, makedirs, path
+from typing import Any, Set, List, Dict, Optional
+from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
@@ -14,9 +13,6 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_all_pmids, get_mod_papers
-from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel
-from agr_literature_service.api.schemas import ModCorpusSortSourceType
-from sqlalchemy import text
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
@@ -26,6 +22,10 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pu
     sanitize_pubmed_json_list
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_utils import (
+    associate_papers_with_alliance,
+    clean_up_tmp_directories,
+)
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -35,8 +35,6 @@ load_dotenv()
 init_tmp_dir()
 
 FMS_GAF_API_URL = "https://fms.alliancegenome.org/api/datafile/by/GAF?latest=true"
-pubmed_efetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-pubmed_search_url = f"{pubmed_efetch_url}?api_key={environ.get('NCBI_API_KEY', '')}&db=pubmed&id="
 
 base_path = environ.get("XML_PATH", "")
 file_path = base_path + "gaf_data/"
@@ -75,7 +73,7 @@ def load_mod_gaf_papers(force: bool = False, hours: int = 24) -> str:
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, script_name)
 
-    clean_up_tmp_directories()
+    clean_up_tmp_directories([file_path, xml_path, json_path])
 
     # Fetch GAF file list from FMS API
     gaf_files = fetch_gaf_file_list()
@@ -208,7 +206,7 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
     logger.info(f"HUMAN GAF: {len(all_pmids)} total PMIDs, {len(new_pmids)} new")
 
     # Associate existing papers with AGR MOD if not in any MOD corpus
-    papers_associated = associate_human_papers_with_alliance(db_session, all_pmids)
+    papers_associated = associate_papers_with_alliance(db_session, all_pmids, 'AGR')
 
     pmids_loaded: Set[str] = set()
     if new_pmids:
@@ -217,7 +215,7 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
         generate_json(list(new_pmids), [])
 
         # Sanitize and post references
-        inject_object = {}
+        inject_object: Dict[str, Any] = {}
         sanitize_pubmed_json_list(new_pmids, [inject_object])
 
         json_filepath = base_path + 'sanitized_reference_json/REFERENCE_PUBMED_PMID.json'
@@ -235,7 +233,7 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
 
         # Associate newly loaded papers with AGR MOD
         if pmids_loaded:
-            newly_associated = associate_human_papers_with_alliance(db_session, pmids_loaded)
+            newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR')
             papers_associated += newly_associated
 
     message = "<p><b>HUMAN (AGR)</b></p>"
@@ -362,97 +360,6 @@ def extract_pmids_from_gaf(file_with_path: str) -> Set[str]:
         logger.error(f"Error reading GAF file {file_with_path}: {e}")
 
     return all_pmids
-
-
-def associate_human_papers_with_alliance(db_session, all_pmids: Set[str]) -> int:
-    """
-    Associate HUMAN GAF papers with the 'AGR' MOD.
-    Only associate papers that do NOT already have a mod_corpus_association
-    with corpus=True for any MOD.
-
-    Args:
-        db_session: Database session
-        all_pmids: Set of PMIDs to associate
-
-    Returns:
-        Number of papers associated with AGR MOD
-    """
-    alliance_mod = db_session.query(ModModel).filter(
-        ModModel.abbreviation == 'AGR'
-    ).first()
-    if not alliance_mod:
-        logger.warning("AGR MOD not found in database")
-        return 0
-
-    alliance_mod_id = alliance_mod.mod_id
-
-    if not all_pmids:
-        return 0
-
-    pmid_curies = [f"PMID:{pmid}" for pmid in all_pmids]
-
-    query = text(
-        "SELECT cr.curie, cr.reference_id "
-        "FROM cross_reference cr "
-        "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
-    )
-    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
-
-    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
-    reference_ids_in_db = set(pmid_to_ref_id.values())
-
-    if not reference_ids_in_db:
-        return 0
-
-    ref_ids_list = list(reference_ids_in_db)
-
-    refs_to_exclude_query = text(
-        "SELECT DISTINCT reference_id FROM mod_corpus_association "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND (corpus = True OR mod_id = :alliance_mod_id)"
-    )
-    refs_to_exclude = db_session.execute(
-        refs_to_exclude_query,
-        {"ref_ids": ref_ids_list, "alliance_mod_id": alliance_mod_id}
-    ).fetchall()
-
-    already_excluded = {row[0] for row in refs_to_exclude}
-
-    count = 0
-    for ref_id in reference_ids_in_db:
-        if ref_id not in already_excluded:
-            mca = ModCorpusAssociationModel(
-                reference_id=ref_id,
-                mod_id=alliance_mod_id,
-                corpus=True,
-                mod_corpus_sort_source=ModCorpusSortSourceType.Automated_alliance
-            )
-            db_session.add(mca)
-            count += 1
-
-    if count > 0:
-        db_session.commit()
-        logger.info(f"Associated {count} HUMAN GAF paper(s) with AGR MOD")
-
-    return count
-
-
-def clean_up_tmp_directories():
-    """Clean up and recreate temporary directories."""
-    try:
-        if path.exists(file_path):
-            shutil.rmtree(file_path)
-        if path.exists(xml_path):
-            shutil.rmtree(xml_path)
-        if path.exists(json_path):
-            shutil.rmtree(json_path)
-    except OSError as e:
-        logger.info(f"Error deleting old gaf/xml/json files: {e.strerror}")
-
-    makedirs(file_path, exist_ok=True)
-    makedirs(xml_path, exist_ok=True)
-    makedirs(json_path, exist_ok=True)
 
 
 def send_slack_report(message: str):

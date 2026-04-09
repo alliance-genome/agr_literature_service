@@ -1,10 +1,8 @@
 import argparse
 import logging
-import requests
 import gzip
-import shutil
 from typing import Set
-from os import environ, makedirs, path
+from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
@@ -25,6 +23,11 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.sanitize_pu
     sanitize_pubmed_json_list
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
+from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_utils import (
+    associate_papers_with_alliance,
+    search_pubmed_for_validity,
+    clean_up_tmp_directories,
+)
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -33,8 +36,6 @@ logger.setLevel(logging.INFO)
 load_dotenv()
 init_tmp_dir()
 
-pubmed_efetch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
-pubmed_search_url = f"{pubmed_efetch_url}?api_key={environ['NCBI_API_KEY']}&db=pubmed&id="
 download_url = "https://fms.alliancegenome.org/download/"
 
 has_interactions = {
@@ -64,7 +65,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     scriptNm = path.basename(__file__).replace(".py", "")
     set_global_user_id(db_session, scriptNm)
 
-    clean_up_tmp_directories()
+    clean_up_tmp_directories([file_path, xml_path, json_path])
 
     file_name, all_pmids, pmid_to_src = extract_pmids(db_session, datasetName, dataType)
     all_pmids_db = retrieve_all_pmids(db_session)
@@ -72,7 +73,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     # Associate HUMAN papers with AGR MOD
     if datasetName == "HUMAN":
-        associate_human_papers_with_alliance(db_session, all_pmids)
+        associate_papers_with_alliance(db_session, all_pmids, 'AGR')
 
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
@@ -101,7 +102,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     # Associate newly loaded HUMAN papers with AGR MOD
     if datasetName == "HUMAN" and len(pmids_loaded) > 0:
-        associate_human_papers_with_alliance(db_session, pmids_loaded)
+        associate_papers_with_alliance(db_session, pmids_loaded, 'AGR')
 
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,
@@ -234,7 +235,9 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         pmids_in_db_but_not_associated_with_mod_set = set(all_pmids) - pmids_out_db_set
         logger.info(f"In Database: {len(pmids_in_db_but_not_associated_with_mod_set)}")
         message += f"<li>In Database: {len(pmids_in_db_but_not_associated_with_mod_set)}"
-    obsolete_pmids, valid_pmids = search_pubmed(pmids_out_db_set)
+
+    api_key = environ.get('NCBI_API_KEY', '')
+    obsolete_pmids, valid_pmids = search_pubmed_for_validity(pmids_out_db_set, api_key)
     if len(obsolete_pmids) > 0:
         logger.info(f"Obsolete PMIDs: {obsolete_pmids}")
         message += f"<li>Obsolete PMIDs: {obsolete_pmids}"
@@ -257,22 +260,6 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         message += f"<li><a href='{log_file}'>log file</a>"
     message += "</ul>"
     return message
-
-
-def search_pubmed(pmids):
-
-    obsolete_pmids = []
-    valid_pmids = []
-    for pmid in pmids:
-        url = f"{pubmed_search_url}{pmid}"
-        response = requests.get(url)
-        content = response.text.replace("\n", "")
-        if "<PubmedArticleSet></PubmedArticleSet>" in content:
-            obsolete_pmids.append(pmid)
-        else:
-            valid_pmids.append(pmid)
-
-    return obsolete_pmids, valid_pmids
 
 
 def update_sgd_corpus_flag_to_true(db_session, pmids):
@@ -433,98 +420,6 @@ def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
         logger.info(f"Associated {count} SGD interaction paper(s) with SGD corpus")
 
     return count, pmids_added
-
-
-def associate_human_papers_with_alliance(db_session, all_pmids):
-    """
-    Associate HUMAN dataset papers with the 'AGR' MOD.
-    Only associate papers that do NOT already have a mod_corpus_association
-    with corpus=True for any MOD. This ensures we only add papers to 'AGR'
-    that are not already in another MOD's corpus.
-    """
-    # Get AGR mod_id
-    alliance_mod = db_session.query(ModModel).filter(
-        ModModel.abbreviation == 'AGR'
-    ).first()
-    if not alliance_mod:
-        logger.warning("Alliance MOD not found in database")
-        return 0
-
-    alliance_mod_id = alliance_mod.mod_id
-
-    if not all_pmids:
-        return 0
-
-    # Build parameterized query for PMIDs
-    pmid_curies = [f"PMID:{pmid}" for pmid in all_pmids]
-
-    # Get reference_ids for PMIDs in the HUMAN dataset using parameterized query
-    query = text(
-        "SELECT cr.curie, cr.reference_id "
-        "FROM cross_reference cr "
-        "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
-    )
-    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
-
-    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
-    reference_ids_in_db = set(pmid_to_ref_id.values())
-
-    if not reference_ids_in_db:
-        return 0
-
-    ref_ids_list = list(reference_ids_in_db)
-
-    # Get reference_ids that already have corpus=True for any MOD
-    # OR already have an association with the AGR MOD (to avoid unique constraint violation)
-    refs_to_exclude_query = text(
-        "SELECT DISTINCT reference_id FROM mod_corpus_association "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND (corpus = True OR mod_id = :alliance_mod_id)"
-    )
-    refs_to_exclude = db_session.execute(
-        refs_to_exclude_query,
-        {"ref_ids": ref_ids_list, "alliance_mod_id": alliance_mod_id}
-    ).fetchall()
-
-    already_excluded = {row[0] for row in refs_to_exclude}
-
-    # Add mod_corpus_association for papers not yet in any MOD's corpus
-    # and not already associated with AGR MOD
-    count = 0
-    for ref_id in reference_ids_in_db:
-        if ref_id not in already_excluded:
-            mca = ModCorpusAssociationModel(
-                reference_id=ref_id,
-                mod_id=alliance_mod_id,
-                corpus=True,
-                mod_corpus_sort_source=ModCorpusSortSourceType.Automated_alliance
-            )
-            db_session.add(mca)
-            count += 1
-
-    if count > 0:
-        db_session.commit()
-        logger.info("Associated %d HUMAN paper(s) with AGR MOD", count)
-
-    return count
-
-
-def clean_up_tmp_directories():
-
-    try:
-        if path.exists(file_path):
-            shutil.rmtree(file_path)
-        if path.exists(xml_path):
-            shutil.rmtree(xml_path)
-        if path.exists(json_path):
-            shutil.rmtree(json_path)
-    except OSError as e:
-        logger.info("Error deleting old interaction/xml/json files: %s" % (e.strerror))
-
-    makedirs(file_path)
-    makedirs(xml_path)
-    makedirs(json_path)
 
 
 def load_all(full_obsolete_set, message):
