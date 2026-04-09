@@ -13,7 +13,12 @@ Source PDF:
 It queries the database to find resources matching those ISSNs and updates
 resources that are missing license information to set:
 - license_list = ['CC BY']
-- copyright_license_id = 1 (CC BY)
+- copyright_license_id = (looked up from copyright_license table)
+
+Note: This script applies CC BY to all Springer Nature fully-OA journals. While
+CC BY is the default for most Springer Nature OA titles, some may use CC BY-NC
+or other variants. This simplification was manually verified as acceptable for
+this batch update.
 
 Usage:
     python update_springer_oa_licenses.py [--dry-run]
@@ -31,7 +36,7 @@ from typing import Dict, List, Tuple
 from sqlalchemy.orm import Session
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.api.models import ResourceModel, CrossReferenceModel
+from agr_literature_service.api.models import ResourceModel, CrossReferenceModel, CopyrightLicenseModel
 from agr_literature_service.api.user import set_global_user_id
 
 logging.basicConfig(format="%(message)s")
@@ -42,9 +47,29 @@ logger.setLevel(logging.INFO)
 SCRIPT_DIR = path.dirname(path.abspath(__file__))
 SPRINGER_OA_JSON = path.join(SCRIPT_DIR, "data", "springer_oa_journals.json")
 
-# CC BY license ID (most common Springer Nature OA license)
-CC_BY_LICENSE_ID = 1
+# License name to apply (most Springer Nature OA journals use CC BY)
 CC_BY_LICENSE_NAME = "CC BY"
+
+
+def get_license_id(db: Session, license_name: str) -> int:
+    """
+    Look up the copyright_license_id for a given license name.
+
+    Args:
+        db: Database session
+        license_name: Name of the license (e.g., 'CC BY')
+
+    Returns:
+        The copyright_license_id, or raises an error if not found
+    """
+    license_obj = db.query(CopyrightLicenseModel).filter(
+        CopyrightLicenseModel.name == license_name
+    ).first()
+
+    if not license_obj:
+        raise ValueError(f"License '{license_name}' not found in copyright_license table")
+
+    return license_obj.copyright_license_id
 
 
 def load_springer_oa_journals() -> Dict[str, str]:
@@ -136,13 +161,15 @@ def find_resources_by_issn(db: Session, issn_to_title: Dict[str, str]) -> List[T
     return unique_resources
 
 
-def update_resources(db: Session, resources: List[Tuple[int, str, str]], dry_run: bool = False) -> None:
+def update_resources(db: Session, resources: List[Tuple[int, str, str]],
+                     license_id: int, dry_run: bool = False) -> None:
     """
     Update resources to add CC BY license information.
 
     Args:
         db: Database session
         resources: List of (resource_id, title, eissn) tuples
+        license_id: The copyright_license_id to set
         dry_run: If True, don't commit changes
     """
     updated_count = 0
@@ -162,7 +189,7 @@ def update_resources(db: Session, resources: List[Tuple[int, str, str]], dry_run
             # Update resource with CC BY license
             if not dry_run:
                 resource.license_list = [CC_BY_LICENSE_NAME]
-                resource.copyright_license_id = CC_BY_LICENSE_ID
+                resource.copyright_license_id = license_id
                 db.add(resource)
                 # Commit each update individually to handle replication errors gracefully
                 db.commit()
@@ -217,6 +244,10 @@ def main():
     set_global_user_id(db, script_name)
 
     try:
+        # Look up the license ID for CC BY
+        license_id = get_license_id(db, CC_BY_LICENSE_NAME)
+        logger.info(f"Using license: {CC_BY_LICENSE_NAME} (ID={license_id})")
+
         # Find resources matching the ISSNs that need updating
         resources = find_resources_by_issn(db, issn_to_title)
         if not resources:
@@ -224,7 +255,7 @@ def main():
             return
 
         logger.info(f"Found {len(resources)} resources to update")
-        update_resources(db, resources, dry_run=args.dry_run)
+        update_resources(db, resources, license_id, dry_run=args.dry_run)
     finally:
         db.close()
 
