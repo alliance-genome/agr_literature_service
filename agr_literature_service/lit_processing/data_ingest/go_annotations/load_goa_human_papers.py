@@ -2,7 +2,7 @@ import argparse
 import logging
 import gzip
 import requests
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, IO, Set, Tuple, cast
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -133,9 +133,9 @@ def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:
     try:
         response = requests.get(GOA_HUMAN_URL, timeout=300, stream=True)
         response.raise_for_status()
-        with open(file_with_path, 'wb') as f:
+        with open(file_with_path, 'wb') as outfile:
             for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
+                outfile.write(chunk)
         logger.info(f"Downloaded {file_name} successfully")
     except requests.RequestException as e:
         logger.error(f"Failed to download GOA human file from {GOA_HUMAN_URL}: {e}")
@@ -143,8 +143,8 @@ def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:
 
     all_pmids: Set[str] = set()
 
-    with gzip.open(file_with_path, "rt") as f:
-        for line in f:
+    with gzip.open(file_with_path, "rt") as gaf_file:
+        for line in cast(IO[str], gaf_file):
             # Skip comment lines
             if line.startswith("!"):
                 continue

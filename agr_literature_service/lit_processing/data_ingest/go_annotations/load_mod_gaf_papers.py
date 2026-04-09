@@ -162,13 +162,19 @@ def parse_upload_date(date_str: str) -> Optional[datetime]:
         date_str: ISO 8601 formatted date string
 
     Returns:
-        datetime object or None if parsing fails
+        datetime object with UTC timezone, or None if parsing fails
     """
+    if not date_str:
+        return None
     try:
         # Handle various ISO 8601 formats
         if date_str.endswith('Z'):
             date_str = date_str[:-1] + '+00:00'
-        return datetime.fromisoformat(date_str)
+        dt = datetime.fromisoformat(date_str)
+        # Ensure timezone is set (assume UTC if not specified)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except ValueError:
         try:
             # Try parsing without timezone
