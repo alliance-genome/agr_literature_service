@@ -164,6 +164,8 @@ def update_resources(db: Session, resources: List[Tuple[int, str, str]], dry_run
                 resource.license_list = [CC_BY_LICENSE_NAME]
                 resource.copyright_license_id = CC_BY_LICENSE_ID
                 db.add(resource)
+                # Commit each update individually to handle replication errors gracefully
+                db.commit()
 
             updated_count += 1
             action = "Would update" if dry_run else "Updated"
@@ -172,13 +174,13 @@ def update_resources(db: Session, resources: List[Tuple[int, str, str]], dry_run
         except Exception as e:
             error_count += 1
             logger.error(f"Error updating resource ID={resource_id}: {e}")
+            # Rollback the failed transaction and continue with the next resource
+            db.rollback()
 
-    # Commit all changes
-    if not dry_run:
-        db.commit()
-        logger.info("Changes committed to database.")
-    else:
+    if dry_run:
         logger.info("DRY RUN - No changes were made.")
+    else:
+        logger.info("All updates committed individually.")
 
     logger.info("=" * 60)
     logger.info(f"Summary: Updated={updated_count}, Errors={error_count}")
