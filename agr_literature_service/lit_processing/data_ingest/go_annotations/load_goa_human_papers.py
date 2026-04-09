@@ -1,12 +1,11 @@
 import argparse
 import logging
 import gzip
+import requests
 from typing import Any, Dict, Set, Tuple
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
@@ -131,8 +130,15 @@ def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading GOA human file from {GOA_HUMAN_URL}")
-    if not download_file(GOA_HUMAN_URL, file_with_path):
-        logger.error(f"Failed to download GOA human file from {GOA_HUMAN_URL}")
+    try:
+        response = requests.get(GOA_HUMAN_URL, timeout=300, stream=True)
+        response.raise_for_status()
+        with open(file_with_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        logger.info(f"Downloaded {file_name} successfully")
+    except requests.RequestException as e:
+        logger.error(f"Failed to download GOA human file from {GOA_HUMAN_URL}: {e}")
         return file_name, set()
 
     all_pmids: Set[str] = set()

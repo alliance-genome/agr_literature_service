@@ -7,8 +7,6 @@ from typing import Any, Set, List, Dict, Optional
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
-from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
-    download_file
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
@@ -196,8 +194,15 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading HUMAN GAF from {s3_url}")
-    if not download_file(s3_url, file_with_path):
-        logger.error(f"Failed to download HUMAN GAF from {s3_url}")
+    try:
+        response = requests.get(s3_url, timeout=300, stream=True)
+        response.raise_for_status()
+        with open(file_with_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        logger.info(f"Downloaded {file_name} successfully")
+    except requests.RequestException as e:
+        logger.error(f"Failed to download HUMAN GAF from {s3_url}: {e}")
         return "<p><b>HUMAN (AGR)</b>: Failed to download GAF file</p>"
 
     all_pmids = extract_pmids_from_gaf(file_with_path)
@@ -268,8 +273,15 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading {data_sub_type} GAF from {s3_url}")
-    if not download_file(s3_url, file_with_path):
-        logger.error(f"Failed to download {data_sub_type} GAF from {s3_url}")
+    try:
+        response = requests.get(s3_url, timeout=300, stream=True)
+        response.raise_for_status()
+        with open(file_with_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        logger.info(f"Downloaded {file_name} successfully")
+    except requests.RequestException as e:
+        logger.error(f"Failed to download {data_sub_type} GAF from {s3_url}: {e}")
         return f"<p><b>{data_sub_type} ({mod_abbr})</b>: Failed to download GAF file</p>"
 
     all_pmids = extract_pmids_from_gaf(file_with_path)
