@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers import (
     compose_report_message,
+    send_slack_report,
 )
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_utils import (
     associate_papers_with_alliance,
@@ -201,6 +202,71 @@ class TestComposeReportMessage:
             assert "New references loaded: 1" in message
             assert "Papers associated with AGR MOD: 1" in message
 
+    def test_compose_report_message_with_obsolete_pmids(self):
+        """Test report message with obsolete PMIDs listed inline and written to log."""
+        mock_session = MagicMock()
+        with patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.retrieve_all_pmids') as mock_retrieve, \
+             patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.search_pubmed_for_validity') as mock_search, \
+             patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.log_path', '/tmp/'):
+            mock_retrieve.return_value = ["11111111"]
+            mock_search.return_value = ({"99999999"}, set())
+
+            all_pmids = {"11111111", "99999999"}
+            pmids_loaded: set = set()
+            papers_associated = 1
+            obsolete_pmids: set = set()
+
+            message = compose_report_message(
+                mock_session, "test.gaf.gz", all_pmids, pmids_loaded,
+                papers_associated, obsolete_pmids
+            )
+
+            # Check inline PMIDs in message
+            assert "Obsolete PMIDs (1):" in message
+            assert "PMID:99999999" in message
+            # Verify log file was written
+            assert os.path.exists("/tmp/goa_human_obsolete_pmids.log")
+
+    def test_compose_report_message_all_pmids_in_db(self):
+        """Test report message when all PMIDs are already in database."""
+        mock_session = MagicMock()
+        with patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.retrieve_all_pmids') as mock_retrieve:
+            mock_retrieve.return_value = ["11111111", "22222222"]
+
+            all_pmids = {"11111111", "22222222"}
+            pmids_loaded: set = set()
+            papers_associated = 2
+            obsolete_pmids: set = set()
+
+            message = compose_report_message(
+                mock_session, "test.gaf.gz", all_pmids, pmids_loaded,
+                papers_associated, obsolete_pmids
+            )
+
+            assert "New references loaded: 0" in message
+            assert "PMIDs already in database: 2" in message
+
+    def test_compose_report_message_valid_not_loaded(self):
+        """Test report message with valid PMIDs that failed to load."""
+        mock_session = MagicMock()
+        with patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.retrieve_all_pmids') as mock_retrieve, \
+             patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.search_pubmed_for_validity') as mock_search:
+            mock_retrieve.return_value = []
+            # Return empty obsolete, meaning PMIDs are valid but not loaded
+            mock_search.return_value = (set(), {"12345678", "87654321"})
+
+            all_pmids = {"12345678", "87654321"}
+            pmids_loaded: set = set()
+            papers_associated = 0
+            obsolete_pmids: set = set()
+
+            message = compose_report_message(
+                mock_session, "test.gaf.gz", all_pmids, pmids_loaded,
+                papers_associated, obsolete_pmids
+            )
+
+            assert "Valid PMIDs not loaded (possible errors): 2" in message
+
 
 class TestAssociatePapersWithAlliance:
     """Tests for associating papers with AGR MOD using shared utility."""
@@ -222,3 +288,19 @@ class TestAssociatePapersWithAlliance:
         result = associate_papers_with_alliance(mock_session, {"12345678"}, 'AGR')
 
         assert result == 0
+
+
+class TestSendSlackReport:
+    """Tests for send_slack_report function."""
+
+    @patch('agr_literature_service.lit_processing.data_ingest.go_annotations.load_goa_human_papers.send_report')
+    def test_send_slack_report_calls_send_report(self, mock_send_report):
+        """Test that send_slack_report calls send_report with correct args."""
+        test_message = "<b>GOA Human Paper Loading Report</b><p>Test content</p>"
+
+        send_slack_report(test_message)
+
+        mock_send_report.assert_called_once_with(
+            "GOA Human Paper Loading Report",
+            test_message
+        )

@@ -39,7 +39,6 @@ file_path = base_path + "goa_data/"
 json_path = base_path + "pubmed_json/"
 xml_path = base_path + "pubmed_xml/"
 log_path = environ.get("LOG_PATH", "")
-log_url = environ.get("LOG_URL", "")
 
 
 def load_goa_human_papers() -> str:
@@ -205,16 +204,16 @@ def compose_report_message(db_session, file_name: str, all_pmids: Set[str],
     message += f"<li>Papers associated with AGR MOD: {papers_associated}"
 
     if obsolete_pmids:
-        message += f"<li>Obsolete PMIDs: {len(obsolete_pmids)}"
-        # Write obsolete PMIDs to log file
-        logfile_name = "goa_human_obsolete_pmids.log"
-        with open(log_path + logfile_name, "w") as fw:
-            fw.write("Obsolete PMIDs:\n\n")
-            for pmid in sorted(obsolete_pmids):
-                fw.write(f"PMID:{pmid}\n")
-        if log_url:
-            log_file = log_url + logfile_name
-            message += f"<li><a href='{log_file}'>Obsolete PMIDs log</a>"
+        message += f"<li>Obsolete PMIDs ({len(obsolete_pmids)}):<br>"
+        for pmid in sorted(obsolete_pmids):
+            message += f"PMID:{pmid}<br>"
+        # Write obsolete PMIDs to log file for reference
+        if log_path:
+            logfile_name = "goa_human_obsolete_pmids.log"
+            with open(log_path + logfile_name, "w") as fw:
+                fw.write("Obsolete PMIDs:\n\n")
+                for pmid in sorted(obsolete_pmids):
+                    fw.write(f"PMID:{pmid}\n")
 
     # Check for valid PMIDs that were not loaded (possible errors)
     valid_not_loaded = (pmids_not_in_db - pmids_loaded) - obsolete_pmids
