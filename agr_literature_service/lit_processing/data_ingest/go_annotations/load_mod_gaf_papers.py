@@ -108,6 +108,13 @@ def load_mod_gaf_papers(force: bool = False, hours: int = 24) -> str:  # pragma:
         db_session.close()
         return message
 
+    # Sort files: HUMAN first, then alphabetically by dataSubType name
+    def sort_key(gaf_file: Dict) -> tuple:
+        name = gaf_file.get("dataSubType", {}).get("name", "Unknown")
+        return (0 if name == "HUMAN" else 1, name)
+
+    files_to_process.sort(key=sort_key)
+
     message = "<b>MOD GAF Paper Loading Report</b><p>"
     all_pmids_db = set(retrieve_all_pmids(db_session))
 
@@ -301,11 +308,11 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
         logger.info(f"Downloaded {file_name} successfully")
     except requests.RequestException as e:
         logger.error(f"Failed to download {data_sub_type} GAF from {s3_url}: {e}")
-        return f"<p><b>{data_sub_type} ({mod_abbr})</b>: Failed to download GAF file</p>"
+        return f"<p><b>{mod_abbr}</b>: Failed to download GAF file</p>"
 
     all_pmids, pmid_sources = extract_pmids_with_sources_from_gaf(file_with_path)
     if not all_pmids:
-        return f"<p><b>{data_sub_type} ({mod_abbr})</b>: No PMIDs found in GAF file</p>"
+        return f"<p><b>{mod_abbr}</b>: No PMIDs found in GAF file</p>"
 
     # Get MOD corpus papers
     in_corpus_set, out_corpus_set = get_mod_papers(db_session, mod_abbr)
@@ -315,13 +322,13 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
     pmids_not_in_db = all_pmids - all_pmids_db
     pmids_in_db_not_associated = (all_pmids & all_pmids_db) - in_corpus_set - out_corpus_set
 
-    logger.info(f"{data_sub_type} GAF: {len(all_pmids)} total, "
+    logger.info(f"{mod_abbr} GAF: {len(all_pmids)} total, "
                 f"{len(pmids_in_corpus)} in corpus, "
                 f"{len(pmids_out_corpus)} associated but out of corpus, "
                 f"{len(pmids_in_db_not_associated)} in DB not associated, "
                 f"{len(pmids_not_in_db)} not in DB")
 
-    message = f"<p><b>{data_sub_type} ({mod_abbr})</b></p>"
+    message = f"<p><b>{mod_abbr}</b></p>"
     message += "<ul>"
     message += f"<li>Total PMIDs in GAF: {len(all_pmids)}"
     message += f"<li>In {mod_abbr} corpus: {len(pmids_in_corpus)}"
