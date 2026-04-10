@@ -23,6 +23,7 @@ from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp
 from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_utils import (
     associate_papers_with_alliance,
     clean_up_tmp_directories,
+    search_pubmed_for_validity,
 )
 
 logging.basicConfig(format='%(message)s')
@@ -248,12 +249,25 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  
             newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR')
             papers_associated += newly_associated
 
+    # Check for obsolete PMIDs among those not loaded
+    obsolete_pmids: Set[str] = set()
+    pmids_not_loaded = new_pmids - pmids_loaded
+    if pmids_not_loaded:
+        api_key = environ.get('NCBI_API_KEY', '')
+        obsolete_pmids, valid_pmids = search_pubmed_for_validity(pmids_not_loaded, api_key)
+
     message = "<p><b>HUMAN (AGR)</b></p>"
     message += "<ul>"
     message += f"<li>Total PMIDs in GAF: {len(all_pmids)}"
     message += f"<li>Already in database: {len(all_pmids) - len(new_pmids)}"
     message += f"<li>New references loaded: {len(pmids_loaded)}"
     message += f"<li>Papers associated with AGR: {papers_associated}"
+
+    if obsolete_pmids:
+        message += f"<li>Obsolete PMIDs ({len(obsolete_pmids)}):<br>"
+        for pmid in sorted(obsolete_pmids):
+            message += f"PMID:{pmid}<br>"
+
     message += "</ul>"
 
     return message
@@ -315,6 +329,12 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
     message += f"<li>In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}"
     message += f"<li>Not in database: {len(pmids_not_in_db)}"
 
+    # Check for obsolete PMIDs among those not in database
+    obsolete_pmids: Set[str] = set()
+    if pmids_not_in_db:
+        api_key = environ.get('NCBI_API_KEY', '')
+        obsolete_pmids, valid_pmids = search_pubmed_for_validity(pmids_not_in_db, api_key)
+
     # Write log file for PMIDs not in corpus (for debugging)
     pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
     if pmids_not_in_corpus and log_path:
@@ -334,13 +354,15 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
             if pmids_not_in_db:
                 fw.write(f"Not in database ({len(pmids_not_in_db)}):\n")
                 for pmid in sorted(pmids_not_in_db):
-                    fw.write(f"PMID:{pmid}\n")
+                    obsolete_label = " (obsolete)" if pmid in obsolete_pmids else ""
+                    fw.write(f"PMID:{pmid}{obsolete_label}\n")
 
     # List PMIDs not in corpus inline in the report
     if pmids_not_in_corpus:
         message += f"<li>PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):<br>"
         for pmid in sorted(pmids_not_in_corpus):
-            message += f"PMID:{pmid}<br>"
+            obsolete_label = " (obsolete)" if pmid in obsolete_pmids else ""
+            message += f"PMID:{pmid}{obsolete_label}<br>"
 
     message += "</ul>"
     return message
