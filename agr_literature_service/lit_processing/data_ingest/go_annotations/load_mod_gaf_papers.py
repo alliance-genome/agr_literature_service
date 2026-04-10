@@ -3,7 +3,7 @@ import logging
 import requests
 import gzip
 from datetime import datetime, timezone, timedelta
-from typing import Any, Set, List, Dict, Optional
+from typing import Any, Set, List, Dict, Optional, Tuple
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -303,7 +303,7 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
         logger.error(f"Failed to download {data_sub_type} GAF from {s3_url}: {e}")
         return f"<p><b>{data_sub_type} ({mod_abbr})</b>: Failed to download GAF file</p>"
 
-    all_pmids = extract_pmids_from_gaf(file_with_path)
+    all_pmids, pmid_sources = extract_pmids_with_sources_from_gaf(file_with_path)
     if not all_pmids:
         return f"<p><b>{data_sub_type} ({mod_abbr})</b>: No PMIDs found in GAF file</p>"
 
@@ -335,6 +335,13 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
         api_key = environ.get('NCBI_API_KEY', '')
         obsolete_pmids, valid_pmids = search_pubmed_for_validity(pmids_not_in_db, api_key)
 
+    # Helper function to format PMID with source and obsolete label
+    def format_pmid_with_source(pmid: str) -> str:
+        sources = pmid_sources.get(pmid, set())
+        source_str = f" [{', '.join(sorted(sources))}]" if sources else ""
+        obsolete_label = " (obsolete)" if pmid in obsolete_pmids else ""
+        return f"PMID:{pmid}{source_str}{obsolete_label}"
+
     # Write log file for PMIDs not in corpus (for debugging)
     pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
     if pmids_not_in_corpus and log_path:
@@ -344,25 +351,23 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
             if pmids_out_corpus:
                 fw.write(f"Associated but outside corpus ({len(pmids_out_corpus)}):\n")
                 for pmid in sorted(pmids_out_corpus):
-                    fw.write(f"PMID:{pmid}\n")
+                    fw.write(f"{format_pmid_with_source(pmid)}\n")
                 fw.write("\n")
             if pmids_in_db_not_associated:
                 fw.write(f"In DB but not associated with {mod_abbr} ({len(pmids_in_db_not_associated)}):\n")
                 for pmid in sorted(pmids_in_db_not_associated):
-                    fw.write(f"PMID:{pmid}\n")
+                    fw.write(f"{format_pmid_with_source(pmid)}\n")
                 fw.write("\n")
             if pmids_not_in_db:
                 fw.write(f"Not in database ({len(pmids_not_in_db)}):\n")
                 for pmid in sorted(pmids_not_in_db):
-                    obsolete_label = " (obsolete)" if pmid in obsolete_pmids else ""
-                    fw.write(f"PMID:{pmid}{obsolete_label}\n")
+                    fw.write(f"{format_pmid_with_source(pmid)}\n")
 
     # List PMIDs not in corpus inline in the report
     if pmids_not_in_corpus:
         message += f"<li>PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):<br>"
         for pmid in sorted(pmids_not_in_corpus):
-            obsolete_label = " (obsolete)" if pmid in obsolete_pmids else ""
-            message += f"PMID:{pmid}{obsolete_label}<br>"
+            message += f"{format_pmid_with_source(pmid)}<br>"
 
     message += "</ul>"
     return message
@@ -378,21 +383,44 @@ def extract_pmids_from_gaf(file_with_path: str) -> Set[str]:
     Returns:
         Set of PMIDs (without PMID: prefix)
     """
+    pmids, _ = extract_pmids_with_sources_from_gaf(file_with_path)
+    return pmids
+
+
+def extract_pmids_with_sources_from_gaf(file_with_path: str) -> Tuple[Set[str], Dict[str, Set[str]]]:
+    """
+    Extract all unique PMIDs and their annotation sources from a GAF file.
+
+    Args:
+        file_with_path: Path to the GAF file (gzipped or plain text)
+
+    Returns:
+        Tuple of (Set of PMIDs, Dict mapping PMID to set of sources)
+    """
     all_pmids: Set[str] = set()
+    pmid_sources: Dict[str, Set[str]] = {}
 
     try:
-        with gzip.open(file_with_path, "rt") as f:
+        # Handle both gzipped and plain text files
+        if file_with_path.endswith('.gz'):
+            f = gzip.open(file_with_path, "rt")
+        else:
+            f = open(file_with_path, "r")
+
+        with f:
             for line in f:
                 # Skip comment lines
                 if line.startswith("!"):
                     continue
 
                 parts = line.strip().split("\t")
-                if len(parts) < 6:
+                if len(parts) < 15:
                     continue
 
                 # Column 6 (index 5) contains the DB:Reference field
+                # Column 15 (index 14) contains the assigned_by field
                 ref_col = parts[5]
+                source = parts[14] if len(parts) > 14 else "Unknown"
                 refs = ref_col.split("|")
 
                 for ref in refs:
@@ -401,10 +429,13 @@ def extract_pmids_from_gaf(file_with_path: str) -> Set[str]:
                         pmid = ref.replace("PMID:", "")
                         if pmid.isdigit():
                             all_pmids.add(pmid)
+                            if pmid not in pmid_sources:
+                                pmid_sources[pmid] = set()
+                            pmid_sources[pmid].add(source)
     except Exception as e:
         logger.error(f"Error reading GAF file {file_with_path}: {e}")
 
-    return all_pmids
+    return all_pmids, pmid_sources
 
 
 def send_slack_report(message: str):
