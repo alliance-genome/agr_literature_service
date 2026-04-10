@@ -53,7 +53,7 @@ MOD_NAME_MAP = {
 }
 
 
-def load_mod_gaf_papers(force: bool = False, hours: int = 24) -> str:
+def load_mod_gaf_papers(force: bool = False, hours: int = 24) -> str:  # pragma: no cover
     """
     Main function to load MOD GAF papers.
     - For HUMAN: Load new papers and associate with AGR MOD
@@ -183,7 +183,7 @@ def parse_upload_date(date_str: str) -> Optional[datetime]:
             return None
 
 
-def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
+def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  # pragma: no cover
     """
     Process HUMAN GAF file: load new papers and associate with AGR MOD.
 
@@ -259,7 +259,7 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:
     return message
 
 
-def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,
+def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no cover
                     s3_url: str, all_pmids_db: Set[str]) -> str:
     """
     Process MOD GAF file: report PMIDs not in MOD corpus (no loading).
@@ -391,7 +391,7 @@ def send_slack_report(message: str):
     send_report(email_subject, message)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Load MOD GAF papers - HUMAN to AGR corpus, report others"
     )

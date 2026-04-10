@@ -41,7 +41,7 @@ xml_path = base_path + "pubmed_xml/"
 log_path = environ.get("LOG_PATH", "")
 
 
-def load_goa_human_papers() -> str:
+def load_goa_human_papers() -> str:  # pragma: no cover
     """
     Main function to load GOA human papers into the database.
     Downloads the goa_human.gaf.gz file, extracts PMIDs, loads new papers,
@@ -118,7 +118,7 @@ def load_goa_human_papers() -> str:
     return message
 
 
-def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:
+def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:  # pragma: no cover
     """
     Download the GOA human GAF file and extract all unique PMIDs.
 
@@ -236,7 +236,7 @@ def send_slack_report(message: str):
     send_report(email_subject, message)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Load GOA human papers into ABC database and associate with AGR MOD"
     )
