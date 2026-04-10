@@ -8,7 +8,7 @@ between workflow tags.
 import logging
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, text, func
+from sqlalchemy import and_, text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.exc import NoResultFound
 from datetime import datetime, timedelta
@@ -48,33 +48,94 @@ logger = logging.getLogger(__name__)
 
 
 def get_workflow_tag_diagram(mod: str, db: Session):
+    mod_obj = db.query(ModModel).filter(
+        ModModel.abbreviation == mod
+    ).first()
+    if not mod_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mod abbreviation '{mod}' does not exist"
+        )
     try:
-        tags = db.query(WorkflowTransitionModel.transition_from, func.array_agg(WorkflowTransitionModel.transition_to)).group_by(WorkflowTransitionModel.transition_from).all()
-        data = []
-        tags_to = db.query(WorkflowTransitionModel.transition_to)
-        tag_ids = list(o.transition_from for o in tags)
-        tag_ids.extend(list(o.transition_to for o in tags_to))
-        unique_tags = list(set(tag_ids))
+        transitions = db.query(WorkflowTransitionModel).filter(
+            WorkflowTransitionModel.mod_id == mod_obj.mod_id
+        ).all()
 
-        atp_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=unique_tags)
+        atp_curies = set()
+        for t in transitions:
+            atp_curies.add(t.transition_from)
+            atp_curies.add(t.transition_to)
+        atp_curie_to_name = get_map_ateam_curies_to_names(
+            category="atpterm", curies=list(atp_curies)
+        )
 
-        for tag in tags:
-            result = {}
-            result['tag'] = tag.transition_from
-            result['transitions_to'] = tag[1]
-            result['tag_name'] = atp_curie_to_name[tag.transition_from]
-            del atp_curie_to_name[tag.transition_from]
-            data.append(result)
+        # Resolve workflow process for each tag
+        root_terms = {'ATP:0000177', 'ATP:0000335'}
+        process_cache = {}
+        extra_curies = set()
+        for tag_id in atp_curies:
+            ancestors = get_workflow_process_from_tag(tag_id)
+            if ancestors:
+                for i, anc in enumerate(ancestors):
+                    if anc in root_terms:
+                        pid = ancestors[i - 1] if i > 0 else tag_id
+                        process_cache[tag_id] = pid
+                        if pid not in atp_curie_to_name:
+                            extra_curies.add(pid)
+                        break
+        if extra_curies:
+            atp_curie_to_name.update(get_map_ateam_curies_to_names(
+                category="atpterm", curies=list(extra_curies)
+            ))
 
-        for tag in atp_curie_to_name:
-            result = {}
-            result['tag'] = tag
-            result['tag_name'] = atp_curie_to_name[tag]
-            data.append(result)
+        def _process_info(tag_id):
+            pid = process_cache.get(tag_id)
+            return {
+                'workflow_process': pid,
+                'workflow_process_name': atp_curie_to_name.get(pid, pid) if pid else None
+            }
 
+        grouped = {}
+        for t in transitions:
+            from_id = t.transition_from
+            if from_id not in grouped:
+                grouped[from_id] = {
+                    'tag': from_id,
+                    'tag_name': atp_curie_to_name.get(from_id, from_id),
+                    **_process_info(from_id),
+                    'transitions': []
+                }
+            transition_entry = {
+                'to': t.transition_to,
+                'to_name': atp_curie_to_name.get(t.transition_to, t.transition_to),
+                'transition_type': t.transition_type,
+                'condition': t.condition,
+                'requirements': t.requirements or [],
+                'actions': t.actions or []
+            }
+            grouped[from_id]['transitions'].append(transition_entry)
+
+        data = list(grouped.values())
+
+        # Add leaf nodes (tags that only appear as targets)
+        from_ids = set(grouped.keys())
+        to_ids = {t.transition_to for t in transitions}
+        leaf_ids = to_ids - from_ids
+        for leaf_id in leaf_ids:
+            data.append({
+                'tag': leaf_id,
+                'tag_name': atp_curie_to_name.get(leaf_id, leaf_id),
+                **_process_info(leaf_id),
+                'transitions': []
+            })
+
+    except HTTPException:
+        raise
     except Exception as ex:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"""Cant search WF transition tag diagram. {ex}""")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Error fetching workflow diagram for {mod}. {ex}"
+        )
     return data
 
 
