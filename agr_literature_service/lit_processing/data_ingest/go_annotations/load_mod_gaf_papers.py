@@ -39,7 +39,6 @@ file_path = base_path + "gaf_data/"
 json_path = base_path + "pubmed_json/"
 xml_path = base_path + "pubmed_xml/"
 log_path = environ.get("LOG_PATH", "")
-log_url = environ.get("LOG_URL", "")
 
 # Map dataSubType names to MOD abbreviations used in the database
 MOD_NAME_MAP = {
@@ -316,9 +315,9 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,
     message += f"<li>In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}"
     message += f"<li>Not in database: {len(pmids_not_in_db)}"
 
-    # Write log file for PMIDs not in corpus
+    # Write log file for PMIDs not in corpus (for debugging)
     pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
-    if pmids_not_in_corpus:
+    if pmids_not_in_corpus and log_path:
         logfile_name = f"gaf_{data_sub_type.lower()}_not_in_corpus.log"
         with open(log_path + logfile_name, "w") as fw:
             fw.write(f"PMIDs from {data_sub_type} GAF not in {mod_abbr} corpus:\n\n")
@@ -337,9 +336,11 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,
                 for pmid in sorted(pmids_not_in_db):
                     fw.write(f"PMID:{pmid}\n")
 
-        if log_url:
-            log_file = log_url + logfile_name
-            message += f"<li><a href='{log_file}'>PMIDs not in corpus log</a>"
+    # List PMIDs not in corpus inline in the report
+    if pmids_not_in_corpus:
+        message += f"<li>PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):<br>"
+        for pmid in sorted(pmids_not_in_corpus):
+            message += f"PMID:{pmid}<br>"
 
     message += "</ul>"
     return message
