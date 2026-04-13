@@ -67,6 +67,20 @@ Output:
         Columns: last, first, zdb, email, address.
     zfin_users_A_summary.txt - Counts of matched, no-match, and no-address
         entries (also printed to stdout).
+
+Note:
+    The pattern-matching steps run in a fixed order, and earlier steps take
+    priority. This can cause misclassification when different countries use
+    overlapping codes. The most significant case is US vs. Brazilian state
+    codes: both countries use 2-letter abbreviations, and several overlap
+    (AL, PA, SC, PR, MA, MT, SE). Because the US "City, ST" pattern runs
+    early (step 4d) while the Brazilian state check is a late fallback
+    (step 4j), a Brazilian address like "Maceio, AL" would be claimed as
+    Alabama rather than Alagoas, Brazil. This is not an issue in the current
+    A-surname dataset, but if processing other files and seeing
+    misclassifications, add the ambiguous city names to CITY_TO_COUNTRY
+    (e.g. 'maceio': 'Brazil') so the city-based country inference (step 4k)
+    can correct it.
 """
 
 import re
