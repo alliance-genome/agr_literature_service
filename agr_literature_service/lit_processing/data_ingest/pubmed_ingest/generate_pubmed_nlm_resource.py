@@ -69,14 +69,21 @@ def populate_nlm_info(file_data):
         elif re.search("MedAbbr: (.+)", entry):
             medline_abbreviation_group = re.search("MedAbbr: (.+)", entry)
             data_dict['titleAbbreviation'] = medline_abbreviation_group.group(1)
+        # Add ISSN values as cross-references (ISSNs are stored in cross_reference table)
         if re.search(r"ISSN \(Print\): (.+)", entry):
             print_issn_group = re.search(r"ISSN \(Print\): (.+)", entry)
             print_issn = print_issn_group.group(1)
-            data_dict['printISSN'] = print_issn
+            data_dict['crossReferences'].append({
+                'id': 'ISSN:' + print_issn,
+                'issn_type': 'Print'
+            })
         if re.search(r"ISSN \(Online\): (.+)", entry):
             online_issn_group = re.search(r"ISSN \(Online\): (.+)", entry)
             online_issn = online_issn_group.group(1)
-            data_dict['onlineISSN'] = online_issn
+            data_dict['crossReferences'].append({
+                'id': 'ISSN:' + online_issn,
+                'issn_type': 'Online'
+            })
 
         #     print nlm
         #     data_dict['nlm'] = nlm

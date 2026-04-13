@@ -339,6 +339,9 @@ def add_xref(agr: str, new_xref: Dict[str, Any]) -> None:
     """
     Create xref and update the tracking dicts.
     NOTE: new_xref['resource_id'] is used to link to resource
+
+    For ISSN cross-references, also updates the issn_to_resource mapping
+    for future duplicate detection.
     """
     crossRefs = db_session.query(CrossReferenceModel).filter_by(curie=new_xref['curie']).all()
     if len(crossRefs) > 0:
@@ -351,13 +354,25 @@ def add_xref(agr: str, new_xref: Dict[str, Any]) -> None:
         logger.info("Adding resource info into cross_reference table for " + new_xref['curie'])
 
         rid = new_xref.get("resource_id")
+        prefix = str(new_xref.get('curie_prefix', ''))
+        curie = str(new_xref.get('curie', ''))
+
         update_xref_dicts(
             agr,
-            str(new_xref.get('curie_prefix', '')),
-            str(new_xref.get('curie', '')),
+            prefix,
+            curie,
             is_obsolete=False,
             resource_id=int(rid) if rid is not None else None
         )
+
+        # Update ISSN mapping for future duplicate detection
+        if prefix == 'ISSN' and rid is not None:
+            issn_value = curie.split(':', 1)[1] if ':' in curie else curie
+            if issn_value and issn_value not in issn_to_resource:
+                issn_to_resource[issn_value] = {
+                    'curie': agr,
+                    'resource_id': int(rid)
+                }
     except Exception as e:
         logger.error(e)
 
