@@ -105,10 +105,9 @@ def load_mod_gaf_papers(force: bool = False, hours: int = 24) -> str:  # pragma:
                         f"(uploaded: {upload_date_str})")
 
     if not files_to_process:
-        message = "<b>MOD GAF Paper Loading Report</b><p>"
-        message += f"<p>No GAF files updated within the last {hours} hours.</p>"
+        logger.info(f"No GAF files updated within the last {hours} hours. Skipping report.")
         db_session.close()
-        return message
+        return ""  # Return empty string to indicate no report needed
 
     # Sort files: HUMAN first, then alphabetically by dataSubType name
     def sort_key(gaf_file: Dict) -> tuple:
@@ -531,7 +530,9 @@ if __name__ == "__main__":  # pragma: no cover
 
     message = load_mod_gaf_papers(force=args.force, hours=args.hours)
 
-    if not args.no_slack:
+    if not message:
+        logger.info("No report to send (no GAF files updated).")
+    elif not args.no_slack:
         send_slack_report(message)
     else:
         logger.info("Slack report disabled. Message content:")
