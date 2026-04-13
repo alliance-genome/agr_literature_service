@@ -240,7 +240,7 @@ def extract_email(address_lines, name_email):
         email = ''
 
     remaining = []
-    for i, line in enumerate(address_lines):
+    for _i, line in enumerate(address_lines):
         if EMAIL_RE.match(line):
             if not email:
                 email = line.strip()
@@ -483,7 +483,7 @@ def extract_address_components(lines):  # noqa: C901
             if scan_idx in consumed:
                 continue
             line = work[scan_idx].strip().rstrip('.')
-            for country_lower, canonical in COUNTRIES.items():
+            for _country_lower, canonical in COUNTRIES.items():
                 # "..., Country" or "...PostalCode Country" at end of line
                 pattern = r'[,\s]\s*' + re.escape(canonical) + r'\s*\.?\s*$'
                 m_country = re.search(pattern, line, re.IGNORECASE)
