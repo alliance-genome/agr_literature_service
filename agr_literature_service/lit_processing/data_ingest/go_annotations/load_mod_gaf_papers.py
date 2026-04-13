@@ -10,7 +10,9 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_xml import \
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
-from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_all_pmids, get_mod_papers
+from agr_literature_service.lit_processing.utils.db_read_utils import (
+    retrieve_all_pmids, get_mod_papers, get_pmids_with_obsolete_mod_curie
+)
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
@@ -317,16 +319,30 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
     # Get MOD corpus papers
     in_corpus_set, out_corpus_set = get_mod_papers(db_session, mod_abbr)
 
+    # Get PMIDs with obsolete MOD curies (invalid MOD reference)
+    pmids_with_obsolete_mod_curie = get_pmids_with_obsolete_mod_curie(db_session, mod_abbr)
+
     pmids_in_corpus = all_pmids & in_corpus_set
     pmids_out_corpus = all_pmids & out_corpus_set
     pmids_not_in_db = all_pmids - all_pmids_db
     pmids_in_db_not_associated = (all_pmids & all_pmids_db) - in_corpus_set - out_corpus_set
 
+    # Filter out PMIDs with obsolete MOD curies from all "not in corpus" categories
+    pmids_obsolete_mod_curie_out_corpus = pmids_out_corpus & pmids_with_obsolete_mod_curie
+    pmids_obsolete_mod_curie_not_associated = pmids_in_db_not_associated & pmids_with_obsolete_mod_curie
+
+    pmids_out_corpus = pmids_out_corpus - pmids_with_obsolete_mod_curie
+    pmids_in_db_not_associated = pmids_in_db_not_associated - pmids_with_obsolete_mod_curie
+
+    # Combine all PMIDs with obsolete MOD curies
+    all_pmids_obsolete_mod_curie = pmids_obsolete_mod_curie_out_corpus | pmids_obsolete_mod_curie_not_associated
+
     logger.info(f"{mod_abbr} GAF: {len(all_pmids)} total, "
                 f"{len(pmids_in_corpus)} in corpus, "
                 f"{len(pmids_out_corpus)} associated but out of corpus, "
                 f"{len(pmids_in_db_not_associated)} in DB not associated, "
-                f"{len(pmids_not_in_db)} not in DB")
+                f"{len(pmids_not_in_db)} not in DB, "
+                f"{len(all_pmids_obsolete_mod_curie)} with obsolete MOD curie")
 
     message = f"<p><b>{mod_abbr}</b></p>"
     message += "<ul>"
@@ -350,34 +366,74 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
         return f"PMID:{pmid}{source_str}{obsolete_label}"
 
     # Write log file for PMIDs not in corpus (for debugging)
-    pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
-    if pmids_not_in_corpus and log_path:
-        logfile_name = f"gaf_{data_sub_type.lower()}_not_in_corpus.log"
-        with open(log_path + logfile_name, "w") as fw:
-            fw.write(f"PMIDs from {data_sub_type} GAF not in {mod_abbr} corpus:\n\n")
-            if pmids_out_corpus:
-                fw.write(f"Associated but outside corpus ({len(pmids_out_corpus)}):\n")
-                for pmid in sorted(pmids_out_corpus):
-                    fw.write(f"{format_pmid_with_source(pmid)}\n")
-                fw.write("\n")
-            if pmids_in_db_not_associated:
-                fw.write(f"In DB but not associated with {mod_abbr} ({len(pmids_in_db_not_associated)}):\n")
-                for pmid in sorted(pmids_in_db_not_associated):
-                    fw.write(f"{format_pmid_with_source(pmid)}\n")
-                fw.write("\n")
-            if pmids_not_in_db:
-                fw.write(f"Not in database ({len(pmids_not_in_db)}):\n")
-                for pmid in sorted(pmids_not_in_db):
-                    fw.write(f"{format_pmid_with_source(pmid)}\n")
+    write_mod_gaf_log_file(data_sub_type, mod_abbr, pmids_out_corpus,
+                           pmids_in_db_not_associated, pmids_not_in_db,
+                           all_pmids_obsolete_mod_curie, format_pmid_with_source)
 
     # List PMIDs not in corpus inline in the report
+    pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
     if pmids_not_in_corpus:
         message += f"<li>PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):<br>"
         for pmid in sorted(pmids_not_in_corpus):
             message += f"{format_pmid_with_source(pmid)}<br>"
 
+    # List PMIDs with obsolete MOD curies
+    if all_pmids_obsolete_mod_curie:
+        message += f"<li>PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):<br>"
+        for pmid in sorted(all_pmids_obsolete_mod_curie):
+            message += f"PMID:{pmid}<br>"
+
     message += "</ul>"
     return message
+
+
+def write_mod_gaf_log_file(data_sub_type: str, mod_abbr: str,
+                           pmids_out_corpus: Set[str],
+                           pmids_in_db_not_associated: Set[str],
+                           pmids_not_in_db: Set[str],
+                           all_pmids_obsolete_mod_curie: Set[str],
+                           format_pmid_func) -> None:
+    """
+    Write log file for PMIDs not in MOD corpus.
+
+    Args:
+        data_sub_type: The data sub type name (e.g., "MGI", "SGD")
+        mod_abbr: The MOD abbreviation
+        pmids_out_corpus: PMIDs associated but outside corpus
+        pmids_in_db_not_associated: PMIDs in DB but not associated with MOD
+        pmids_not_in_db: PMIDs not in database
+        all_pmids_obsolete_mod_curie: PMIDs with obsolete MOD curie
+        format_pmid_func: Function to format PMID with source/label
+    """
+    if not log_path:
+        return
+
+    pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
+    if not pmids_not_in_corpus and not all_pmids_obsolete_mod_curie:
+        return
+
+    logfile_name = f"gaf_{data_sub_type.lower()}_not_in_corpus.log"
+    with open(log_path + logfile_name, "w") as fw:
+        fw.write(f"PMIDs from {data_sub_type} GAF not in {mod_abbr} corpus:\n\n")
+        if pmids_out_corpus:
+            fw.write(f"Associated but outside corpus ({len(pmids_out_corpus)}):\n")
+            for pmid in sorted(pmids_out_corpus):
+                fw.write(f"{format_pmid_func(pmid)}\n")
+            fw.write("\n")
+        if pmids_in_db_not_associated:
+            fw.write(f"In DB but not associated with {mod_abbr} ({len(pmids_in_db_not_associated)}):\n")
+            for pmid in sorted(pmids_in_db_not_associated):
+                fw.write(f"{format_pmid_func(pmid)}\n")
+            fw.write("\n")
+        if pmids_not_in_db:
+            fw.write(f"Not in database ({len(pmids_not_in_db)}):\n")
+            for pmid in sorted(pmids_not_in_db):
+                fw.write(f"{format_pmid_func(pmid)}\n")
+            fw.write("\n")
+        if all_pmids_obsolete_mod_curie:
+            fw.write(f"PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):\n")
+            for pmid in sorted(all_pmids_obsolete_mod_curie):
+                fw.write(f"PMID:{pmid}\n")
 
 
 def extract_pmids_from_gaf(file_with_path: str) -> Set[str]:
