@@ -110,7 +110,6 @@ def get_model_metadata(task_type: str,
                        version: str = None,
                        db: Session = db_session,
                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return ml_model_crud.get_model_metadata(db, task_type, mod_abbreviation, topic, version)
 
 
@@ -129,5 +128,4 @@ def download_model_file(task_type: str,
                         version: str = None,
                         db: Session = db_session,
                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return ml_model_crud.download_model_file(db, task_type, mod_abbreviation, topic, version)

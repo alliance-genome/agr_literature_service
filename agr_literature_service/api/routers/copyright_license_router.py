@@ -34,5 +34,4 @@ def create(request: CopyrightLicenseSchemaPost,
             status_code=200)
 def show_all(db: Session = db_session,
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return copyright_license_crud.show_all(db)

@@ -79,7 +79,6 @@ def show(
     """
     Get a person_setting row by internal ID.
     """
-    set_global_user_from_cognito(db, user)
     return person_setting_crud.show(db, person_setting_id)
 
 
@@ -97,7 +96,6 @@ def get_by_email(
     Get person_setting rows by email (exact match).
     Returns 200 with a list (possibly multiple rows) or 204 if none.
     """
-    set_global_user_from_cognito(db, user)
     person_setting_list = person_setting_crud.get_by_email(db, email)
     if not person_setting_list:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -118,5 +116,4 @@ def get_by_name(
     Find person_setting rows by person display name.
     Matching strategy (exact/ILIKE) is implemented inside person_setting_crud.
     """
-    set_global_user_from_cognito(db, user)
     return person_setting_crud.find_by_name(db, name)

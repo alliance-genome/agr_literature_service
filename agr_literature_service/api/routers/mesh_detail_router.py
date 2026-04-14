@@ -58,7 +58,6 @@ async def patch(mesh_detail_id: int,
 def show(mesh_detail_id: int,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mesh_detail_crud.show(db, mesh_detail_id)
 
 
@@ -67,5 +66,4 @@ def show(mesh_detail_id: int,
 def show_versions(mesh_detail_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mesh_detail_crud.show_changesets(db, mesh_detail_id)
