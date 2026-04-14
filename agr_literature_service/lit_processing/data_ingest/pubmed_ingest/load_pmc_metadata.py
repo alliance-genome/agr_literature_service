@@ -180,11 +180,13 @@ def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]):
         AND mca.corpus = TRUE
     """)).fetchall()
 
-    # Group by reference_id
+    # Group by reference_id (skip AGR as it doesn't have file upload workflow)
     ref_to_mods: Dict[int, List[str]] = {}
     for row in rows:
         ref_id = row[0]
         mod_abbr = row[1]
+        if mod_abbr == 'AGR':
+            continue  # Skip AGR - no file upload workflow transitions
         if ref_id not in ref_to_mods:
             ref_to_mods[ref_id] = []
         ref_to_mods[ref_id].append(mod_abbr)

@@ -343,6 +343,9 @@ def get_mod_corpus_associations(db) -> Dict[int, Set[str]]:
     for row in rows:
         ref_id = row[0]
         mod_abbr = row[1]
+        # Skip AGR - it doesn't have file upload workflow transitions configured
+        if mod_abbr == 'AGR':
+            continue
         if ref_id not in ref_to_mods:
             ref_to_mods[ref_id] = set()
         ref_to_mods[ref_id].add(mod_abbr)
