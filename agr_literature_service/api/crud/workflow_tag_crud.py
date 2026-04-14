@@ -47,6 +47,49 @@ text_conversion_in_progress_atp_id = "ATP:0000198"
 logger = logging.getLogger(__name__)
 
 
+def _resolve_process_hierarchy(atp_curies, atp_curie_to_name):
+    """For each ATP tag, find its workflow process and subprocess via ancestors."""
+    root_terms = {'ATP:0000177', 'ATP:0000335'}
+    process_cache = {}
+    subprocess_cache = {}
+    extra_curies = set()
+    for tag_id in atp_curies:
+        ancestors = get_workflow_process_from_tag(tag_id)
+        if not ancestors:
+            continue
+        for i, anc in enumerate(ancestors):
+            if anc in root_terms:
+                pid = ancestors[i - 1] if i > 0 else tag_id
+                process_cache[tag_id] = pid
+                if pid not in atp_curie_to_name:
+                    extra_curies.add(pid)
+                if i >= 2:
+                    spid = ancestors[i - 2]
+                    subprocess_cache[tag_id] = spid
+                    if spid not in atp_curie_to_name:
+                        extra_curies.add(spid)
+                break
+    if extra_curies:
+        atp_curie_to_name.update(get_map_ateam_curies_to_names(
+            category="atpterm", curies=list(extra_curies)
+        ))
+    return process_cache, subprocess_cache
+
+
+def _build_process_info(tag_id, process_cache, subprocess_cache, atp_curie_to_name):
+    """Return workflow process/subprocess dict for a given tag."""
+    pid = process_cache.get(tag_id)
+    spid = subprocess_cache.get(tag_id)
+    result = {
+        'workflow_process': pid,
+        'workflow_process_name': atp_curie_to_name.get(pid, pid) if pid else None
+    }
+    if spid and spid != pid:
+        result['workflow_subprocess'] = spid
+        result['workflow_subprocess_name'] = atp_curie_to_name.get(spid, spid)
+    return result
+
+
 def get_workflow_tag_diagram(mod: str, db: Session):
     mod_obj = db.query(ModModel).filter(
         ModModel.abbreviation == mod
@@ -69,31 +112,9 @@ def get_workflow_tag_diagram(mod: str, db: Session):
             category="atpterm", curies=list(atp_curies)
         )
 
-        # Resolve workflow process for each tag
-        root_terms = {'ATP:0000177', 'ATP:0000335'}
-        process_cache = {}
-        extra_curies = set()
-        for tag_id in atp_curies:
-            ancestors = get_workflow_process_from_tag(tag_id)
-            if ancestors:
-                for i, anc in enumerate(ancestors):
-                    if anc in root_terms:
-                        pid = ancestors[i - 1] if i > 0 else tag_id
-                        process_cache[tag_id] = pid
-                        if pid not in atp_curie_to_name:
-                            extra_curies.add(pid)
-                        break
-        if extra_curies:
-            atp_curie_to_name.update(get_map_ateam_curies_to_names(
-                category="atpterm", curies=list(extra_curies)
-            ))
-
-        def _process_info(tag_id):
-            pid = process_cache.get(tag_id)
-            return {
-                'workflow_process': pid,
-                'workflow_process_name': atp_curie_to_name.get(pid, pid) if pid else None
-            }
+        process_cache, subprocess_cache = _resolve_process_hierarchy(
+            atp_curies, atp_curie_to_name
+        )
 
         grouped = {}
         for t in transitions:
@@ -102,7 +123,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
                 grouped[from_id] = {
                     'tag': from_id,
                     'tag_name': atp_curie_to_name.get(from_id, from_id),
-                    **_process_info(from_id),
+                    **_build_process_info(from_id, process_cache, subprocess_cache, atp_curie_to_name),
                     'transitions': []
                 }
             transition_entry = {
@@ -125,7 +146,7 @@ def get_workflow_tag_diagram(mod: str, db: Session):
             data.append({
                 'tag': leaf_id,
                 'tag_name': atp_curie_to_name.get(leaf_id, leaf_id),
-                **_process_info(leaf_id),
+                **_build_process_info(leaf_id, process_cache, subprocess_cache, atp_curie_to_name),
                 'transitions': []
             })
 
