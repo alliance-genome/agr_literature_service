@@ -1,6 +1,7 @@
 import logging
 from os import path
 from sqlalchemy import text
+from typing import Dict, List, Set
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
@@ -10,6 +11,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import \
     classify_pmc_file
 from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.crud.workflow_tag_crud import transition_to_workflow_status
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
@@ -20,6 +22,9 @@ infile = "data/pmc_oa_files_uploaded.txt"
 # file_class = "supplement"
 file_publication_status = "final"
 batch_commit_size = 250
+
+# Workflow tag ATP IDs
+FILE_UPLOADED_TAG_ATP_ID = "ATP:0000134"  # file uploaded
 
 
 def build_file_root_mappings(input_file):
@@ -94,6 +99,9 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
     pmcid_to_xml_root, pmcid_to_pdf_roots = build_file_root_mappings(infile)
     logger.info(f"Found {len(pmcid_to_xml_root)} PMCIDs with XML files for main PDF identification")
 
+    # Track reference_ids that get a new main PDF for workflow transitions
+    references_with_new_main_pdf: Set[int] = set()
+
     # Second pass: Process files and load metadata
     with open(infile) as f:
         for line_num, line in enumerate(f):
@@ -118,6 +126,7 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 if referencefile_id in ref_files_id_pmc_set:
                     continue
 
+            file_class = None
             if not referencefile_id:
                 file_extension = file_name_with_suffix.split(".")[-1].lower()
                 file_name = file_name_with_suffix.replace("." + file_extension, "")
@@ -128,6 +137,9 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                                                         file_name_with_suffix,
                                                         reference_id, md5sum,
                                                         logger)
+                # Track if this is a new main PDF
+                if referencefile_id and file_class == 'main' and file_extension == 'pdf':
+                    references_with_new_main_pdf.add(reference_id)
 
             if referencefile_id:
                 insert_referencefile_mod_for_pmc(db_session, pmid, file_name_with_suffix,
@@ -137,7 +149,82 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 ref_file_uniq_filename_set.add((reference_id, file_name_with_suffix))
 
         db_session.commit()
-        db_session.close()
+
+    # Transition workflow tags for references with new main PDFs
+    if references_with_new_main_pdf:
+        logger.info(f"Transitioning workflow tags for {len(references_with_new_main_pdf)} "
+                    f"references with new main PDFs...")
+        transition_workflow_for_uploaded_pdfs(db_session, references_with_new_main_pdf)
+
+    db_session.close()
+
+
+def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]):  # pragma: no cover
+    """
+    Transition workflow tags to 'file uploaded' for references that received a new main PDF.
+
+    Args:
+        db_session: Database session
+        reference_ids: Set of reference_ids that have new main PDFs
+    """
+    if not reference_ids:
+        return
+
+    # Get MOD associations for these references (corpus=True)
+    ref_id_list = ','.join(str(rid) for rid in reference_ids)
+    rows = db_session.execute(text(f"""
+        SELECT mca.reference_id, m.abbreviation
+        FROM mod_corpus_association mca
+        JOIN mod m ON mca.mod_id = m.mod_id
+        WHERE mca.reference_id IN ({ref_id_list})
+        AND mca.corpus = TRUE
+    """)).fetchall()
+
+    # Group by reference_id (skip AGR as it doesn't have file upload workflow)
+    ref_to_mods: Dict[int, List[str]] = {}
+    for row in rows:
+        ref_id = row[0]
+        mod_abbr = row[1]
+        if mod_abbr == 'AGR':
+            continue  # Skip AGR - no file upload workflow transitions
+        if ref_id not in ref_to_mods:
+            ref_to_mods[ref_id] = []
+        ref_to_mods[ref_id].append(mod_abbr)
+
+    # Get references that already have 'file uploaded' workflow tag
+    rows = db_session.execute(text(f"""
+        SELECT wt.reference_id, m.abbreviation
+        FROM workflow_tag wt
+        JOIN mod m ON wt.mod_id = m.mod_id
+        WHERE wt.reference_id IN ({ref_id_list})
+        AND wt.workflow_tag_id = '{FILE_UPLOADED_TAG_ATP_ID}'
+    """)).fetchall()
+
+    already_transitioned = {(row[0], row[1]) for row in rows}
+
+    transition_count = 0
+    error_count = 0
+    for reference_id, mods in ref_to_mods.items():
+        for mod_abbr in mods:
+            if (reference_id, mod_abbr) in already_transitioned:
+                continue
+            try:
+                transition_to_workflow_status(db_session, str(reference_id), mod_abbr,
+                                              FILE_UPLOADED_TAG_ATP_ID)
+                transition_count += 1
+                logger.info(f"Transitioned workflow to 'file uploaded' for "
+                            f"reference_id={reference_id}, mod={mod_abbr}")
+            except Exception as e:
+                error_count += 1
+                logger.error(f"Failed to transition workflow for reference_id={reference_id}, "
+                             f"mod={mod_abbr}: {e}")
+                db_session.rollback()
+
+            if transition_count % batch_commit_size == 0:
+                db_session.commit()
+
+    db_session.commit()
+    logger.info(f"Workflow transitions complete: {transition_count} successful, {error_count} errors")
 
 
 def resolve_displayname_conflict(ref_file_uniq_filename_set, file_name_with_suffix, reference_id):
