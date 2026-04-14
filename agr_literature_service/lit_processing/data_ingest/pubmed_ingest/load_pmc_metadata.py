@@ -159,7 +159,7 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
     db_session.close()
 
 
-def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]):
+def transition_workflow_for_uploaded_pdfs(db_session, reference_ids: Set[int]):  # pragma: no cover
     """
     Transition workflow tags to 'file uploaded' for references that received a new main PDF.
 

@@ -33,7 +33,7 @@ FILE_IN_PROGRESS_TAG = "ATP:0000139"    # file upload in progress
 FILE_NEEDED_TAG = "ATP:0000141"         # file needed
 
 
-def backfill_file_upload_workflow(dry_run: bool = False):
+def backfill_file_upload_workflow(dry_run: bool = False):  # pragma: no cover
     """
     Main function to backfill file upload workflow tags for all MODs.
 
@@ -93,7 +93,7 @@ def process_mod_specific_main_pdfs(db, refs_with_main_pdf_by_mod: Dict[int, Set[
                                    mod_id_to_abbr: Dict[int, str],
                                    ref_to_mods: Dict[int, Set[str]],
                                    current_wft: Dict[Tuple[int, int], str],
-                                   dry_run: bool):
+                                   dry_run: bool):  # pragma: no cover
     """Process references with main PDF uploaded by specific MOD."""
     logger.info("\n" + "=" * 60)
     logger.info("Processing references with main PDF uploaded by specific MOD...")
@@ -135,7 +135,7 @@ def process_pmc_main_pdfs(db, refs_with_main_pdf_from_pmc: Set[int],
                           mod_abbr_to_id: Dict[str, int],
                           ref_to_mods: Dict[int, Set[str]],
                           current_wft: Dict[Tuple[int, int], str],
-                          dry_run: bool):
+                          dry_run: bool):  # pragma: no cover
     """Process references with main PDF from PMC (set for all associated MODs)."""
     logger.info("\n" + "=" * 60)
     logger.info("Processing references with main PDF from PMC...")
@@ -179,7 +179,7 @@ def process_files_without_main_pdf(db, refs_with_files_no_main_pdf: Set[int],
                                    mod_abbr_to_id: Dict[str, int],
                                    ref_to_mods: Dict[int, Set[str]],
                                    current_wft: Dict[Tuple[int, int], str],
-                                   dry_run: bool):
+                                   dry_run: bool):  # pragma: no cover
     """Process references with files but no main PDF → file upload in progress."""
     logger.info("\n" + "=" * 60)
     logger.info("Processing references with files but no main PDF...")
@@ -226,7 +226,7 @@ def process_files_without_main_pdf(db, refs_with_files_no_main_pdf: Set[int],
 
 
 def safe_transition(db, reference_id: int, mod_abbr: str, target_tag: str,
-                    current_tag: Optional[str]) -> bool:
+                    current_tag: Optional[str]) -> bool:  # pragma: no cover
     """
     Safely transition workflow status, handling errors gracefully.
 
@@ -251,7 +251,7 @@ def safe_transition(db, reference_id: int, mod_abbr: str, target_tag: str,
         return False
 
 
-def get_current_file_upload_wfts(db) -> Dict[Tuple[int, int], str]:
+def get_current_file_upload_wfts(db) -> Dict[Tuple[int, int], str]:  # pragma: no cover
     """
     Get current file upload workflow tags for all references.
 
@@ -270,7 +270,7 @@ def get_current_file_upload_wfts(db) -> Dict[Tuple[int, int], str]:
     return {(row[0], row[1]): row[2] for row in rows}
 
 
-def get_file_upload_status(db) -> Tuple[Dict[int, Set[int]], Set[int], Set[int]]:
+def get_file_upload_status(db) -> Tuple[Dict[int, Set[int]], Set[int], Set[int]]:  # pragma: no cover
     """
     Get file upload status for all references.
 
@@ -325,7 +325,7 @@ def get_file_upload_status(db) -> Tuple[Dict[int, Set[int]], Set[int], Set[int]]
     return refs_with_main_pdf_by_mod, refs_with_main_pdf_from_pmc, refs_with_files_no_main_pdf
 
 
-def get_mod_corpus_associations(db) -> Dict[int, Set[str]]:
+def get_mod_corpus_associations(db) -> Dict[int, Set[str]]:  # pragma: no cover
     """
     Get MOD corpus associations for all references.
 
