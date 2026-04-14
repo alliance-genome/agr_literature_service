@@ -48,7 +48,6 @@ async def patch(mod_id: int,
 def show(abbreviation: str,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_crud.show(db, abbreviation)
 
 
@@ -57,7 +56,6 @@ def show(abbreviation: str,
 def taxons(type: str,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_crud.taxons(db, type)
 
 
@@ -66,5 +64,4 @@ def taxons(type: str,
 def show_versions(mod_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_crud.show_changesets(db, mod_id)

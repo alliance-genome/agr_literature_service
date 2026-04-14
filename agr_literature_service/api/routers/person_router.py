@@ -92,7 +92,6 @@ def show(
     """
     Get a person by internal ID.
     """
-    set_global_user_from_cognito(db, user)
     return person_crud.show(db, person_id)
 
 
@@ -110,7 +109,6 @@ def get_by_email(
     Get a single person by email (exact match).
     Returns 200 with the person if found; 204 (no content) if not found.
     """
-    set_global_user_from_cognito(db, user)
     person = person_crud.get_by_email(db, email)
     if not person:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -131,5 +129,4 @@ def get_by_name(
     Find people by name. Returns a (possibly empty) list.
     Implement the matching strategy (exact/ILIKE) inside person_crud.
     """
-    set_global_user_from_cognito(db, user)
     return person_crud.find_by_name(db, name)

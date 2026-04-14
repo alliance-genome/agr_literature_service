@@ -79,7 +79,6 @@ def show(
     db: Session = db_session,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> IndexingPrioritySchemaShow:
-    set_global_user_from_cognito(db, user)
     data = indexing_priority_crud.show(db, indexing_priority_id)
     return IndexingPrioritySchemaShow.model_validate(data)
 
@@ -94,7 +93,6 @@ def get_indexing_priority_tag(
     db: Session = db_session,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ):
-    set_global_user_from_cognito(db, user)
     if mod_abbreviation != 'ZFIN':
         return {}
     return indexing_priority_crud.get_indexing_priority_tag(
