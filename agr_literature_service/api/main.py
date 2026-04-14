@@ -82,10 +82,7 @@ async def log_requests(request: Request, call_next):
             f'{response.status_code} '
             f'- {process_time:.3f}s'
         )
-        print(log_message, flush=True)
-
-        # Also try with logging
-        logger = logging.getLogger("uvicorn.access")
+        logger = logging.getLogger("agr_literature_service.access")
         logger.info(log_message)
 
     return response
