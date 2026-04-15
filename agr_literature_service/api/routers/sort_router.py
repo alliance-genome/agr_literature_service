@@ -7,7 +7,6 @@ from agr_literature_service.api import database
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud import sort_crud
 from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow
-from agr_literature_service.api.user import set_global_user_from_cognito
 
 
 router = APIRouter(
@@ -26,7 +25,6 @@ def show_need_review(mod_abbreviation: str,
                      count: int = None,
                      user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                      db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return sort_crud.show_need_review(mod_abbreviation, count, db)
 
 
@@ -37,7 +35,6 @@ def show_prepublication_pipeline(mod_abbreviation: str,
                                  count: int = None,
                                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                  db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return sort_crud.show_prepublication_pipeline(mod_abbreviation, count, db)
 
 
@@ -49,5 +46,4 @@ def show_recently_sorted(mod_abbreviation: str,
                          db: Session = db_session,
                          curator: str = None,
                          day: int = 7):
-    set_global_user_from_cognito(db, user)
     return sort_crud.show_recently_sorted(db, mod_abbreviation, count, curator, day)

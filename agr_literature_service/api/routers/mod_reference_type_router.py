@@ -61,7 +61,6 @@ async def patch(mod_reference_type_id: int,
 def show(mod_reference_type_id: int,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_reference_type_crud.show(db, mod_reference_type_id)
 
 
@@ -70,7 +69,6 @@ def show(mod_reference_type_id: int,
 def show_versions(mod_reference_type_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_reference_type_crud.show_changesets(db, mod_reference_type_id)
 
 
@@ -80,7 +78,6 @@ def show_versions(mod_reference_type_id: int,
 def show_by_mod(abbreviation: str,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_reference_type_crud.show_by_mod(db=db, mod_abbreviation=abbreviation)
 
 
@@ -89,5 +86,4 @@ def show_by_mod(abbreviation: str,
 def mod_reftype_to_mods_endpoint(
         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_reference_type_crud.mod_reftype_to_mods(db=db)

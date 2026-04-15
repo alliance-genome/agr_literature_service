@@ -87,7 +87,6 @@ def show(
     db: Session = db_session,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> ManualIndexingTagSchemaShow:
-    set_global_user_from_cognito(db, user)
     data = manual_indexing_tag_crud.show(db, manual_indexing_tag_id)
     return ManualIndexingTagSchemaShow.model_validate(data)
 
@@ -102,7 +101,6 @@ def get_manual_indexing_tag(
     db: Session = db_session,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ):
-    set_global_user_from_cognito(db, user)
     return manual_indexing_tag_crud.get_manual_indexing_tag(
         db, reference_curie, mod_abbreviation
     )

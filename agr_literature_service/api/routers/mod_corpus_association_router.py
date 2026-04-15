@@ -61,7 +61,6 @@ async def patch(mod_corpus_association_id: int,
 def show(mod_corpus_association_id: int,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.show(db, mod_corpus_association_id)
 
 
@@ -71,7 +70,6 @@ def show(mod_corpus_association_id: int,
 def show_id(curie: str, mod_abbreviation: str,
             user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
             db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.show_by_reference_mod_abbreviation(db, curie, mod_abbreviation)
 
 
@@ -80,5 +78,4 @@ def show_id(curie: str, mod_abbreviation: str,
 def show_versions(mod_corpus_association_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.show_changesets(db, mod_corpus_association_id)
