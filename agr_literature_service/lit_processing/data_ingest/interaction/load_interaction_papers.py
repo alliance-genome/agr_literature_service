@@ -11,9 +11,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_pubmed_
     download_pubmed_xml
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.xml_to_json import generate_json
 from agr_literature_service.lit_processing.utils.db_read_utils import retrieve_all_pmids, get_mod_papers
-from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel
 from agr_literature_service.api.schemas import ModCorpusSortSourceType
-from sqlalchemy import text
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.lit_processing.data_ingest.post_reference_to_db import post_references
 from agr_literature_service.lit_processing.utils.s3_utils import upload_xml_file_to_s3
@@ -27,6 +25,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
     associate_papers_with_alliance,
     search_pubmed_for_validity,
     clean_up_tmp_directories,
+    update_sgd_corpus_flag_to_true,
+    associate_sgd_papers_with_corpus,
 )
 
 logging.basicConfig(format='%(message)s')
@@ -213,8 +213,9 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
             pmids_added_to_corpus = set()
             # For SGD, add these papers to the SGD corpus
             if datasetName == "SGD":
-                added_count, pmids_added_to_corpus = associate_sgd_interaction_papers_with_corpus(
-                    db_session, pmids_in_db_but_not_associated_with_mod_set
+                added_count, pmids_added_to_corpus = associate_sgd_papers_with_corpus(
+                    db_session, pmids_in_db_but_not_associated_with_mod_set,
+                    ModCorpusSortSourceType.Interaction
                 )
                 if added_count > 0:
                     logger.info(f"Added {added_count} paper(s) to SGD corpus")
@@ -262,166 +263,6 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         message += f"<li><a href='{log_file}'>log file</a>"
     message += "</ul>"
     return message
-
-
-def update_sgd_corpus_flag_to_true(db_session, pmids):
-    """
-    Update SGD interaction papers that are associated but outside corpus
-    to be inside the corpus (corpus=True).
-
-    Args:
-        db_session: Database session
-        pmids: Set of PMIDs to update
-
-    Returns:
-        Tuple of (count of papers updated, set of PMIDs that were updated)
-    """
-    if not pmids:
-        return 0, set()
-
-    sgd_mod = db_session.query(ModModel).filter(
-        ModModel.abbreviation == 'SGD'
-    ).first()
-    if not sgd_mod:
-        logger.warning("SGD MOD not found in database")
-        return 0, set()
-
-    sgd_mod_id = sgd_mod.mod_id
-
-    # Build parameterized query for PMIDs
-    pmid_curies = [f"PMID:{pmid}" for pmid in pmids]
-
-    # Get reference_ids for PMIDs using parameterized query
-    query = text(
-        "SELECT cr.curie, cr.reference_id "
-        "FROM cross_reference cr "
-        "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
-    )
-    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
-
-    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
-    reference_ids_in_db = set(pmid_to_ref_id.values())
-
-    if not reference_ids_in_db:
-        return 0, set()
-
-    ref_ids_list = list(reference_ids_in_db)
-
-    # Build reverse mapping: ref_id -> pmid
-    ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
-
-    # Update mod_corpus_association records where corpus=False to corpus=True
-    # Use RETURNING to get the reference_ids that were actually updated
-    update_query = text(
-        "UPDATE mod_corpus_association "
-        "SET corpus = True "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND mod_id = :sgd_mod_id "
-        "AND corpus = False "
-        "RETURNING reference_id"
-    )
-    result = db_session.execute(
-        update_query,
-        {
-            "ref_ids": ref_ids_list,
-            "sgd_mod_id": sgd_mod_id
-        }
-    )
-    updated_ref_ids = {row[0] for row in result.fetchall()}
-    count = len(updated_ref_ids)
-
-    # Map back to PMIDs
-    updated_pmids = {ref_id_to_pmid[ref_id] for ref_id in updated_ref_ids if ref_id in ref_id_to_pmid}
-
-    if count > 0:
-        db_session.commit()
-
-    return count, updated_pmids
-
-
-def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
-    """
-    Associate SGD interaction papers with the SGD corpus.
-    Only associates papers that do NOT already have a mod_corpus_association
-    with SGD.
-
-    Args:
-        db_session: Database session
-        pmids: Set of PMIDs to associate
-
-    Returns:
-        Tuple of (count of papers associated, set of PMIDs that were added)
-    """
-    if not pmids:
-        return 0, set()
-
-    sgd_mod = db_session.query(ModModel).filter(
-        ModModel.abbreviation == 'SGD'
-    ).first()
-    if not sgd_mod:
-        logger.warning("SGD MOD not found in database")
-        return 0, set()
-
-    sgd_mod_id = sgd_mod.mod_id
-
-    # Build parameterized query for PMIDs
-    pmid_curies = [f"PMID:{pmid}" for pmid in pmids]
-
-    # Get reference_ids for PMIDs using parameterized query
-    query = text(
-        "SELECT cr.curie, cr.reference_id "
-        "FROM cross_reference cr "
-        "WHERE cr.curie = ANY(:pmid_curies) "
-        "AND cr.is_obsolete = False"
-    )
-    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
-
-    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
-    reference_ids_in_db = set(pmid_to_ref_id.values())
-
-    if not reference_ids_in_db:
-        return 0, set()
-
-    ref_ids_list = list(reference_ids_in_db)
-
-    # Get reference_ids that already have an association with SGD
-    refs_already_associated_query = text(
-        "SELECT DISTINCT reference_id FROM mod_corpus_association "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND mod_id = :sgd_mod_id"
-    )
-    refs_already_associated = db_session.execute(
-        refs_already_associated_query,
-        {"ref_ids": ref_ids_list, "sgd_mod_id": sgd_mod_id}
-    ).fetchall()
-
-    already_associated = {row[0] for row in refs_already_associated}
-
-    # Build reverse mapping: ref_id -> pmid
-    ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
-
-    # Add mod_corpus_association for papers not yet associated with SGD
-    count = 0
-    pmids_added = set()
-    for ref_id in reference_ids_in_db:
-        if ref_id not in already_associated:
-            mca = ModCorpusAssociationModel(
-                reference_id=ref_id,
-                mod_id=sgd_mod_id,
-                corpus=True,
-                mod_corpus_sort_source=ModCorpusSortSourceType.Interaction
-            )
-            db_session.add(mca)
-            count += 1
-            if ref_id in ref_id_to_pmid:
-                pmids_added.add(ref_id_to_pmid[ref_id])
-
-    if count > 0:
-        db_session.commit()
-        logger.info(f"Associated {count} SGD interaction paper(s) with SGD corpus")
-
-    return count, pmids_added
 
 
 def load_all(full_obsolete_set, message):

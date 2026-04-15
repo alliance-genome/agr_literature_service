@@ -1,8 +1,7 @@
 import argparse
 import logging
-import gzip
 import requests
-from typing import Any, Dict, IO, Set, Tuple, cast
+from typing import Any, Dict, Set, Tuple
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -23,6 +22,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
     associate_papers_with_alliance,
     search_pubmed_for_validity,
     clean_up_tmp_directories,
+    extract_pmids_from_gaf,
 )
 from agr_literature_service.api.schemas import ModCorpusSortSourceType
 
@@ -143,30 +143,8 @@ def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:  # pragma: no cover
         logger.error(f"Failed to download GOA human file from {GOA_HUMAN_URL}: {e}")
         return file_name, set()
 
-    all_pmids: Set[str] = set()
-
-    with gzip.open(file_with_path, "rt") as gaf_file:
-        for line in cast(IO[str], gaf_file):
-            # Skip comment lines
-            if line.startswith("!"):
-                continue
-
-            parts = line.strip().split("\t")
-            if len(parts) < 6:
-                continue
-
-            # Column 6 (index 5) contains the DB:Reference field
-            # Format: DB:Reference(|DB:Reference) - can have multiple refs separated by |
-            ref_col = parts[5]
-            refs = ref_col.split("|")
-
-            for ref in refs:
-                ref = ref.strip()
-                if ref.startswith("PMID:"):
-                    pmid = ref.replace("PMID:", "")
-                    if pmid.isdigit():
-                        all_pmids.add(pmid)
-
+    # Use shared GAF extraction function
+    all_pmids = extract_pmids_from_gaf(file_with_path)
     logger.info(f"Extracted {len(all_pmids)} unique PMIDs from {file_name}")
     return file_name, all_pmids
 
