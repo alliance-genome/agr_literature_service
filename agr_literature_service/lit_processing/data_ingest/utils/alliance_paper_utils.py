@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 def associate_papers_with_alliance(db_session, all_pmids: Set[str],
-                                   mod_abbr: str = 'AGR') -> int:
+                                   mod_abbr: str = 'AGR',
+                                   sort_source: ModCorpusSortSourceType = ModCorpusSortSourceType.Automated_alliance) -> int:
     """
     Associate papers with a MOD (default: AGR).
     Only associate papers that do NOT already have a mod_corpus_association
@@ -32,6 +33,8 @@ def associate_papers_with_alliance(db_session, all_pmids: Set[str],
         db_session: Database session
         all_pmids: Set of PMIDs to associate (without PMID: prefix)
         mod_abbr: MOD abbreviation to associate with (default: 'AGR')
+        sort_source: The source type for mod_corpus_sort_source column
+                     (default: Automated_alliance)
 
     Returns:
         Number of papers associated with the MOD
@@ -92,7 +95,7 @@ def associate_papers_with_alliance(db_session, all_pmids: Set[str],
                 reference_id=ref_id,
                 mod_id=mod_id,
                 corpus=True,
-                mod_corpus_sort_source=ModCorpusSortSourceType.Automated_alliance
+                mod_corpus_sort_source=sort_source
             )
             db_session.add(mca)
             count += 1

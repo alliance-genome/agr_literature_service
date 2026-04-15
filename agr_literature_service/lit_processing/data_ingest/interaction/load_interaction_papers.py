@@ -73,7 +73,8 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     # Associate HUMAN papers with AGR MOD
     if datasetName == "HUMAN":
-        associate_papers_with_alliance(db_session, all_pmids, 'AGR')
+        associate_papers_with_alliance(db_session, all_pmids, 'AGR',
+                                       ModCorpusSortSourceType.Interaction)
 
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
@@ -102,7 +103,8 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     # Associate newly loaded HUMAN papers with AGR MOD
     if datasetName == "HUMAN" and len(pmids_loaded) > 0:
-        associate_papers_with_alliance(db_session, pmids_loaded, 'AGR')
+        associate_papers_with_alliance(db_session, pmids_loaded, 'AGR',
+                                       ModCorpusSortSourceType.Interaction)
 
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,
@@ -408,7 +410,7 @@ def associate_sgd_interaction_papers_with_corpus(db_session, pmids):
                 reference_id=ref_id,
                 mod_id=sgd_mod_id,
                 corpus=True,
-                mod_corpus_sort_source=ModCorpusSortSourceType.Automated_alliance
+                mod_corpus_sort_source=ModCorpusSortSourceType.Interaction
             )
             db_session.add(mca)
             count += 1

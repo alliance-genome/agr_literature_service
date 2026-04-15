@@ -24,6 +24,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
     search_pubmed_for_validity,
     clean_up_tmp_directories,
 )
+from agr_literature_service.api.schemas import ModCorpusSortSourceType
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -77,7 +78,8 @@ def load_goa_human_papers() -> str:  # pragma: no cover
     logger.info(f"New PMIDs to load: {len(new_pmids)}")
 
     # Associate existing papers with AGR MOD if not in any MOD corpus
-    papers_associated = associate_papers_with_alliance(db_session, all_pmids, 'AGR')
+    papers_associated = associate_papers_with_alliance(db_session, all_pmids, 'AGR',
+                                                       ModCorpusSortSourceType.Gaf)
     logger.info(f"Papers associated with AGR MOD: {papers_associated}")
 
     pmids_loaded: Set[str] = set()
@@ -105,7 +107,8 @@ def load_goa_human_papers() -> str:  # pragma: no cover
 
         # Associate newly loaded papers with AGR MOD
         if len(pmids_loaded) > 0:
-            newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR')
+            newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR',
+                                                              ModCorpusSortSourceType.Gaf)
             papers_associated += newly_associated
 
     # Compose the report message

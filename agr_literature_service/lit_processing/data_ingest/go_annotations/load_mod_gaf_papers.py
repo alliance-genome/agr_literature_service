@@ -27,6 +27,9 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
     clean_up_tmp_directories,
     search_pubmed_for_validity,
 )
+from agr_literature_service.api.models import ModCorpusAssociationModel, ModModel
+from agr_literature_service.api.schemas import ModCorpusSortSourceType
+from sqlalchemy import text
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -227,7 +230,8 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  
     logger.info(f"HUMAN GAF: {len(all_pmids)} total PMIDs, {len(new_pmids)} new")
 
     # Associate existing papers with AGR MOD if not in any MOD corpus
-    papers_associated = associate_papers_with_alliance(db_session, all_pmids, 'AGR')
+    papers_associated = associate_papers_with_alliance(db_session, all_pmids, 'AGR',
+                                                       ModCorpusSortSourceType.Gaf)
 
     pmids_loaded: Set[str] = set()
     if new_pmids:
@@ -254,7 +258,8 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  
 
         # Associate newly loaded papers with AGR MOD
         if pmids_loaded:
-            newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR')
+            newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR',
+                                                              ModCorpusSortSourceType.Gaf)
             papers_associated += newly_associated
 
     # Check for obsolete PMIDs among those not loaded
@@ -278,6 +283,98 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  
 
     message += "</ul>"
 
+    return message
+
+
+def process_sgd_corpus_updates(db_session, pmids_out_corpus: Set[str],  # pragma: no cover
+                               pmids_in_db_not_associated: Set[str]) -> Tuple[int, int, Set[str], Set[str]]:
+    """
+    Process SGD-specific corpus updates: add missing GAF papers to SGD corpus.
+
+    Args:
+        db_session: Database session
+        pmids_out_corpus: PMIDs associated but outside corpus
+        pmids_in_db_not_associated: PMIDs in DB but not associated with SGD
+
+    Returns:
+        Tuple of (updated_count, added_count, pmids_still_outside, pmids_still_not_associated)
+    """
+    sgd_updated_count = 0
+    sgd_added_count = 0
+    pmids_still_outside_corpus = pmids_out_corpus
+    pmids_still_not_associated = pmids_in_db_not_associated
+
+    # Update papers that are associated but outside corpus to be in corpus
+    if pmids_out_corpus:
+        sgd_updated_count, updated_pmids = update_sgd_corpus_flag_to_true(
+            db_session, pmids_out_corpus
+        )
+        if sgd_updated_count > 0:
+            logger.info(f"Updated {sgd_updated_count} paper(s) to SGD corpus (corpus=True)")
+        pmids_still_outside_corpus = pmids_out_corpus - updated_pmids
+
+    # Add papers in DB but not associated with SGD to SGD corpus
+    if pmids_in_db_not_associated:
+        sgd_added_count, added_pmids = associate_sgd_gaf_papers_with_corpus(
+            db_session, pmids_in_db_not_associated
+        )
+        if sgd_added_count > 0:
+            logger.info(f"Added {sgd_added_count} paper(s) to SGD corpus")
+        pmids_still_not_associated = pmids_in_db_not_associated - added_pmids
+
+    return sgd_updated_count, sgd_added_count, pmids_still_outside_corpus, pmids_still_not_associated
+
+
+def build_mod_gaf_report_message(mod_abbr: str, data_sub_type: str,  # pragma: no cover
+                                 all_pmids: Set[str], pmids_in_corpus: Set[str],
+                                 pmids_out_corpus: Set[str], pmids_in_db_not_associated: Set[str],
+                                 pmids_not_in_db: Set[str], all_pmids_obsolete_mod_curie: Set[str],
+                                 sgd_updated_count: int, sgd_added_count: int,
+                                 pmids_still_outside_corpus: Set[str],
+                                 pmids_still_not_associated: Set[str],
+                                 format_pmid_func) -> str:
+    """
+    Build HTML report message for MOD GAF processing.
+
+    Returns:
+        HTML formatted message for the report
+    """
+    message = f"<p><b>{mod_abbr}</b></p>"
+    message += "<ul>"
+    message += f"<li>Total PMIDs in GAF: {len(all_pmids)}"
+    message += f"<li>In {mod_abbr} corpus: {len(pmids_in_corpus)}"
+
+    if data_sub_type == "SGD":
+        if sgd_updated_count > 0:
+            message += f"<li>Updated to SGD Corpus: {sgd_updated_count}"
+        message += f"<li>Associated but outside corpus: {len(pmids_still_outside_corpus)}"
+        if sgd_added_count > 0:
+            message += f"<li>Added to SGD Corpus: {sgd_added_count}"
+        message += f"<li>In DB but not associated with {mod_abbr}: {len(pmids_still_not_associated)}"
+        pmids_out_corpus_for_report = pmids_still_outside_corpus
+        pmids_not_associated_for_report = pmids_still_not_associated
+    else:
+        message += f"<li>Associated but outside corpus: {len(pmids_out_corpus)}"
+        message += f"<li>In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}"
+        pmids_out_corpus_for_report = pmids_out_corpus
+        pmids_not_associated_for_report = pmids_in_db_not_associated
+
+    message += f"<li>Not in database: {len(pmids_not_in_db)}"
+
+    # List PMIDs not in corpus inline in the report
+    pmids_not_in_corpus = pmids_out_corpus_for_report | pmids_not_associated_for_report | pmids_not_in_db
+    if pmids_not_in_corpus:
+        message += f"<li>PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):<br>"
+        for pmid in sorted(pmids_not_in_corpus):
+            message += f"{format_pmid_func(pmid)}<br>"
+
+    # List PMIDs with obsolete MOD curies
+    if all_pmids_obsolete_mod_curie:
+        message += f"<li>PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):<br>"
+        for pmid in sorted(all_pmids_obsolete_mod_curie):
+            message += f"PMID:{pmid}<br>"
+
+    message += "</ul>"
     return message
 
 
@@ -343,19 +440,22 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
                 f"{len(pmids_not_in_db)} not in DB, "
                 f"{len(all_pmids_obsolete_mod_curie)} with obsolete MOD curie")
 
-    message = f"<p><b>{mod_abbr}</b></p>"
-    message += "<ul>"
-    message += f"<li>Total PMIDs in GAF: {len(all_pmids)}"
-    message += f"<li>In {mod_abbr} corpus: {len(pmids_in_corpus)}"
-    message += f"<li>Associated but outside corpus: {len(pmids_out_corpus)}"
-    message += f"<li>In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}"
-    message += f"<li>Not in database: {len(pmids_not_in_db)}"
+    # SGD-specific: add missing GAF papers to SGD corpus
+    sgd_updated_count = 0
+    sgd_added_count = 0
+    pmids_still_outside_corpus = pmids_out_corpus
+    pmids_still_not_associated = pmids_in_db_not_associated
+    if data_sub_type == "SGD":
+        (sgd_updated_count, sgd_added_count,
+         pmids_still_outside_corpus, pmids_still_not_associated) = process_sgd_corpus_updates(
+            db_session, pmids_out_corpus, pmids_in_db_not_associated
+        )
 
     # Check for obsolete PMIDs among those not in database
     obsolete_pmids: Set[str] = set()
     if pmids_not_in_db:
         api_key = environ.get('NCBI_API_KEY', '')
-        obsolete_pmids, valid_pmids = search_pubmed_for_validity(pmids_not_in_db, api_key)
+        obsolete_pmids, _ = search_pubmed_for_validity(pmids_not_in_db, api_key)
 
     # Helper function to format PMID with source and obsolete label
     def format_pmid_with_source(pmid: str) -> str:
@@ -364,75 +464,94 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
         obsolete_label = " (obsolete)" if pmid in obsolete_pmids else ""
         return f"PMID:{pmid}{source_str}{obsolete_label}"
 
-    # Write log file for PMIDs not in corpus (for debugging)
-    write_mod_gaf_log_file(data_sub_type, mod_abbr, pmids_out_corpus,
-                           pmids_in_db_not_associated, pmids_not_in_db,
-                           all_pmids_obsolete_mod_curie, format_pmid_with_source)
+    # Write log file for MOD (use original sets to show all missing PMIDs, even those added for SGD)
+    write_mod_gaf_log_file(data_sub_type, mod_abbr, all_pmids, pmids_in_corpus,
+                           pmids_out_corpus, pmids_in_db_not_associated,
+                           pmids_not_in_db, all_pmids_obsolete_mod_curie,
+                           format_pmid_with_source, sgd_updated_count, sgd_added_count)
 
-    # List PMIDs not in corpus inline in the report
-    pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
-    if pmids_not_in_corpus:
-        message += f"<li>PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):<br>"
-        for pmid in sorted(pmids_not_in_corpus):
-            message += f"{format_pmid_with_source(pmid)}<br>"
-
-    # List PMIDs with obsolete MOD curies
-    if all_pmids_obsolete_mod_curie:
-        message += f"<li>PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):<br>"
-        for pmid in sorted(all_pmids_obsolete_mod_curie):
-            message += f"PMID:{pmid}<br>"
-
-    message += "</ul>"
-    return message
+    # Build and return the report message
+    return build_mod_gaf_report_message(
+        mod_abbr, data_sub_type, all_pmids, pmids_in_corpus,
+        pmids_out_corpus, pmids_in_db_not_associated, pmids_not_in_db,
+        all_pmids_obsolete_mod_curie, sgd_updated_count, sgd_added_count,
+        pmids_still_outside_corpus, pmids_still_not_associated,
+        format_pmid_with_source
+    )
 
 
-def write_mod_gaf_log_file(data_sub_type: str, mod_abbr: str,
+def write_mod_gaf_log_file(data_sub_type: str, mod_abbr: str,  # pragma: no cover
+                           all_pmids: Set[str],
+                           pmids_in_corpus: Set[str],
                            pmids_out_corpus: Set[str],
                            pmids_in_db_not_associated: Set[str],
                            pmids_not_in_db: Set[str],
                            all_pmids_obsolete_mod_curie: Set[str],
-                           format_pmid_func) -> None:
+                           format_pmid_func,
+                           sgd_updated_count: int = 0,
+                           sgd_added_count: int = 0) -> None:
     """
-    Write log file for PMIDs not in MOD corpus.
+    Write log file for MOD GAF processing with missing PMIDs and their sources.
 
     Args:
         data_sub_type: The data sub type name (e.g., "MGI", "SGD")
         mod_abbr: The MOD abbreviation
-        pmids_out_corpus: PMIDs associated but outside corpus
-        pmids_in_db_not_associated: PMIDs in DB but not associated with MOD
+        all_pmids: All PMIDs extracted from GAF file
+        pmids_in_corpus: PMIDs already in MOD corpus
+        pmids_out_corpus: PMIDs associated but outside corpus (original, before SGD updates)
+        pmids_in_db_not_associated: PMIDs in DB but not associated with MOD (original, before SGD adds)
         pmids_not_in_db: PMIDs not in database
         all_pmids_obsolete_mod_curie: PMIDs with obsolete MOD curie
         format_pmid_func: Function to format PMID with source/label
+        sgd_updated_count: Number of papers updated to SGD corpus (SGD only)
+        sgd_added_count: Number of papers added to SGD corpus (SGD only)
     """
     if not log_path:
         return
 
-    pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
-    if not pmids_not_in_corpus and not all_pmids_obsolete_mod_curie:
-        return
-
-    logfile_name = f"gaf_{data_sub_type.lower()}_not_in_corpus.log"
+    logfile_name = f"gaf_{data_sub_type.lower()}.log"
     with open(log_path + logfile_name, "w") as fw:
-        fw.write(f"PMIDs from {data_sub_type} GAF not in {mod_abbr} corpus:\n\n")
-        if pmids_out_corpus:
-            fw.write(f"Associated but outside corpus ({len(pmids_out_corpus)}):\n")
-            for pmid in sorted(pmids_out_corpus):
+        fw.write(f"{mod_abbr} GAF Processing Report\n")
+        fw.write("=" * 50 + "\n\n")
+
+        # Summary statistics
+        fw.write("Summary:\n")
+        fw.write(f"  Total PMIDs in GAF: {len(all_pmids)}\n")
+        fw.write(f"  In {mod_abbr} corpus: {len(pmids_in_corpus)}\n")
+        if data_sub_type == "SGD":
+            if sgd_updated_count > 0:
+                fw.write(f"  Updated to SGD Corpus: {sgd_updated_count}\n")
+            fw.write(f"  Associated but outside corpus: {len(pmids_out_corpus) - sgd_updated_count}\n")
+            if sgd_added_count > 0:
+                fw.write(f"  Added to SGD Corpus: {sgd_added_count}\n")
+            fw.write(f"  In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated) - sgd_added_count}\n")
+        else:
+            fw.write(f"  Associated but outside corpus: {len(pmids_out_corpus)}\n")
+            fw.write(f"  In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}\n")
+        fw.write(f"  Not in database: {len(pmids_not_in_db)}\n")
+        if all_pmids_obsolete_mod_curie:
+            fw.write(f"  PMIDs with obsolete {mod_abbr} curie: {len(all_pmids_obsolete_mod_curie)}\n")
+        fw.write("\n")
+
+        # List all missing PMIDs (not in corpus) with their sources
+        pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
+        if pmids_not_in_corpus:
+            if data_sub_type == "SGD":
+                fw.write(f"PMIDs not in {mod_abbr} corpus - added to corpus ({len(pmids_not_in_corpus)}):\n")
+            else:
+                fw.write(f"PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):\n")
+            fw.write("-" * 40 + "\n")
+            for pmid in sorted(pmids_not_in_corpus):
                 fw.write(f"{format_pmid_func(pmid)}\n")
             fw.write("\n")
-        if pmids_in_db_not_associated:
-            fw.write(f"In DB but not associated with {mod_abbr} ({len(pmids_in_db_not_associated)}):\n")
-            for pmid in sorted(pmids_in_db_not_associated):
-                fw.write(f"{format_pmid_func(pmid)}\n")
-            fw.write("\n")
-        if pmids_not_in_db:
-            fw.write(f"Not in database ({len(pmids_not_in_db)}):\n")
-            for pmid in sorted(pmids_not_in_db):
-                fw.write(f"{format_pmid_func(pmid)}\n")
-            fw.write("\n")
+
+        # PMIDs with obsolete MOD curie
         if all_pmids_obsolete_mod_curie:
             fw.write(f"PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):\n")
+            fw.write("-" * 40 + "\n")
             for pmid in sorted(all_pmids_obsolete_mod_curie):
                 fw.write(f"PMID:{pmid}\n")
+            fw.write("\n")
 
 
 def extract_pmids_from_gaf(file_with_path: str) -> Set[str]:
@@ -498,6 +617,166 @@ def extract_pmids_with_sources_from_gaf(file_with_path: str) -> Tuple[Set[str], 
         logger.error(f"Error reading GAF file {file_with_path}: {e}")
 
     return all_pmids, pmid_sources
+
+
+def update_sgd_corpus_flag_to_true(db_session, pmids: Set[str]) -> Tuple[int, Set[str]]:  # pragma: no cover
+    """
+    Update SGD GAF papers that are associated but outside corpus
+    to be inside the corpus (corpus=True).
+
+    Args:
+        db_session: Database session
+        pmids: Set of PMIDs to update
+
+    Returns:
+        Tuple of (count of papers updated, set of PMIDs that were updated)
+    """
+    if not pmids:
+        return 0, set()
+
+    sgd_mod = db_session.query(ModModel).filter(
+        ModModel.abbreviation == 'SGD'
+    ).first()
+    if not sgd_mod:
+        logger.warning("SGD MOD not found in database")
+        return 0, set()
+
+    sgd_mod_id = sgd_mod.mod_id
+
+    # Build parameterized query for PMIDs
+    pmid_curies = [f"PMID:{pmid}" for pmid in pmids]
+
+    # Get reference_ids for PMIDs using parameterized query
+    query = text(
+        "SELECT cr.curie, cr.reference_id "
+        "FROM cross_reference cr "
+        "WHERE cr.curie = ANY(:pmid_curies) "
+        "AND cr.is_obsolete = False"
+    )
+    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
+
+    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
+    reference_ids_in_db = set(pmid_to_ref_id.values())
+
+    if not reference_ids_in_db:
+        return 0, set()
+
+    ref_ids_list = list(reference_ids_in_db)
+
+    # Build reverse mapping: ref_id -> pmid
+    ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
+
+    # Update mod_corpus_association records where corpus=False to corpus=True
+    # Use RETURNING to get the reference_ids that were actually updated
+    update_query = text(
+        "UPDATE mod_corpus_association "
+        "SET corpus = True "
+        "WHERE reference_id = ANY(:ref_ids) "
+        "AND mod_id = :sgd_mod_id "
+        "AND corpus = False "
+        "RETURNING reference_id"
+    )
+    result = db_session.execute(
+        update_query,
+        {
+            "ref_ids": ref_ids_list,
+            "sgd_mod_id": sgd_mod_id
+        }
+    )
+    updated_ref_ids = {row[0] for row in result.fetchall()}
+    count = len(updated_ref_ids)
+
+    # Map back to PMIDs
+    updated_pmids = {ref_id_to_pmid[ref_id] for ref_id in updated_ref_ids if ref_id in ref_id_to_pmid}
+
+    if count > 0:
+        db_session.commit()
+
+    return count, updated_pmids
+
+
+def associate_sgd_gaf_papers_with_corpus(db_session, pmids: Set[str]) -> Tuple[int, Set[str]]:  # pragma: no cover
+    """
+    Associate SGD GAF papers with the SGD corpus.
+    Only associates papers that do NOT already have a mod_corpus_association
+    with SGD.
+
+    Args:
+        db_session: Database session
+        pmids: Set of PMIDs to associate
+
+    Returns:
+        Tuple of (count of papers associated, set of PMIDs that were added)
+    """
+    if not pmids:
+        return 0, set()
+
+    sgd_mod = db_session.query(ModModel).filter(
+        ModModel.abbreviation == 'SGD'
+    ).first()
+    if not sgd_mod:
+        logger.warning("SGD MOD not found in database")
+        return 0, set()
+
+    sgd_mod_id = sgd_mod.mod_id
+
+    # Build parameterized query for PMIDs
+    pmid_curies = [f"PMID:{pmid}" for pmid in pmids]
+
+    # Get reference_ids for PMIDs using parameterized query
+    query = text(
+        "SELECT cr.curie, cr.reference_id "
+        "FROM cross_reference cr "
+        "WHERE cr.curie = ANY(:pmid_curies) "
+        "AND cr.is_obsolete = False"
+    )
+    rows = db_session.execute(query, {"pmid_curies": pmid_curies}).fetchall()
+
+    pmid_to_ref_id = {row[0].replace('PMID:', ''): row[1] for row in rows}
+    reference_ids_in_db = set(pmid_to_ref_id.values())
+
+    if not reference_ids_in_db:
+        return 0, set()
+
+    ref_ids_list = list(reference_ids_in_db)
+
+    # Get reference_ids that already have an association with SGD
+    refs_already_associated_query = text(
+        "SELECT DISTINCT reference_id FROM mod_corpus_association "
+        "WHERE reference_id = ANY(:ref_ids) "
+        "AND mod_id = :sgd_mod_id"
+    )
+    refs_already_associated = db_session.execute(
+        refs_already_associated_query,
+        {"ref_ids": ref_ids_list, "sgd_mod_id": sgd_mod_id}
+    ).fetchall()
+
+    already_associated = {row[0] for row in refs_already_associated}
+
+    # Build reverse mapping: ref_id -> pmid
+    ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
+
+    # Add mod_corpus_association for papers not yet associated with SGD
+    count = 0
+    pmids_added = set()
+    for ref_id in reference_ids_in_db:
+        if ref_id not in already_associated:
+            mca = ModCorpusAssociationModel(
+                reference_id=ref_id,
+                mod_id=sgd_mod_id,
+                corpus=True,
+                mod_corpus_sort_source=ModCorpusSortSourceType.Gaf
+            )
+            db_session.add(mca)
+            count += 1
+            if ref_id in ref_id_to_pmid:
+                pmids_added.add(ref_id_to_pmid[ref_id])
+
+    if count > 0:
+        db_session.commit()
+        logger.info(f"Associated {count} SGD GAF paper(s) with SGD corpus")
+
+    return count, pmids_added
 
 
 def send_slack_report(message: str):
