@@ -784,3 +784,34 @@ def get_mod_papers(db_session: Session, mod):
         else:
             out_corpus_set.add(pmid)
     return in_corpus_set, out_corpus_set
+
+
+def get_pmids_with_obsolete_mod_curie(db_session: Session, mod: str) -> set:
+    """
+    Get PMIDs that have an obsolete MOD curie (invalid MOD reference).
+
+    For a paper to have an obsolete MOD curie, it means the MOD curie
+    (e.g., SGD:S000001234) was marked as obsolete in the cross_reference table.
+
+    Args:
+        db_session: Database session
+        mod: MOD abbreviation (e.g., 'SGD', 'WB', 'XB')
+
+    Returns:
+        Set of PMIDs (without PMID: prefix) that have obsolete MOD curies
+    """
+    # XB uses 'Xenbase' as curie_prefix instead of 'XB'
+    curie_prefix = 'Xenbase' if mod == 'XB' else mod
+
+    # Find reference_ids with obsolete MOD curies, then get their PMIDs
+    rows = db_session.execute(text("""
+        SELECT DISTINCT pmid_cr.curie
+        FROM cross_reference mod_cr
+        JOIN cross_reference pmid_cr ON mod_cr.reference_id = pmid_cr.reference_id
+        WHERE mod_cr.curie_prefix = :curie_prefix
+        AND mod_cr.is_obsolete = True
+        AND pmid_cr.curie_prefix = 'PMID'
+        AND pmid_cr.is_obsolete = False
+    """), {"curie_prefix": curie_prefix}).fetchall()
+
+    return {row[0].replace('PMID:', '') for row in rows}
