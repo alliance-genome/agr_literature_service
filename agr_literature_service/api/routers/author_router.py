@@ -56,7 +56,6 @@ async def patch(author_id: int,
 def show(author_id: int,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return author_crud.show(db, author_id)
 
 
@@ -65,5 +64,4 @@ def show(author_id: int,
 def show_versions(author_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return author_crud.show_changesets(db, author_id)

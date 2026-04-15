@@ -54,7 +54,6 @@ def show(
     db: Session = db_session,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 ) -> ReferencefileModSchemaShow:
-    set_global_user_from_cognito(db, user)
     return referencefile_mod_crud.show(db, referencefile_mod_id)
 
 

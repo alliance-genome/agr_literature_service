@@ -43,7 +43,6 @@ def create(request: ResourceSchemaPost,
 def external_lookup(external_curie: str,
                     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                     db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     prefix, identifier, _ = split_identifier(external_curie, ignore_error=True)
     if not prefix:
         raise HTTPException(
@@ -118,7 +117,6 @@ def patch(curie: str,
                         "Use curl or programmatic access instead.")
 def show_all(user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return resource_crud.show_all(db)
 
 
@@ -128,7 +126,6 @@ def show_all(user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
 def show(curie: str,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return resource_crud.show(db, curie)
 
 
@@ -137,5 +134,4 @@ def show(curie: str,
 def show_versions(curie: str,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return resource_crud.show_changesets(db, curie)

@@ -128,7 +128,6 @@ def file_upload(reference_curie: str = None,
 def download_file(referencefile_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return referencefile_crud.download_file(db, referencefile_id, get_mod_access(user) if user else [])
 
 
@@ -137,7 +136,6 @@ def download_file(referencefile_id: int,
 def download_additional_files_tarball(reference_id: int,
                                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                       db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user) if user else [])
 
 
@@ -157,7 +155,6 @@ def delete(referencefile_id: int,
 def show(referencefile_id: int,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return referencefile_crud.show(db, referencefile_id)
 
 
@@ -167,7 +164,6 @@ def show(referencefile_id: int,
 def show_all(curie_or_reference_id: str,
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return referencefile_crud.show_all(db, curie_or_reference_id)
 
 
@@ -178,7 +174,6 @@ def show_all(curie_or_reference_id: str,
 def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
                                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                  db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return referencefile_crud.get_main_pdf_referencefile_ids_for_ref_curies_list(
         db=db, curies=data.curies, mod_abbreviation=data.mod_abbreviation)
 
