@@ -1,8 +1,8 @@
 import json
 from json import JSONDecodeError
-from typing import List, Union, Dict, Any, Optional
+from typing import Union, Dict, Any, Optional
 
-from fastapi import APIRouter, Depends, Query, Security, status, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, Security, status, UploadFile, File, HTTPException
 
 from sqlalchemy.orm import Session
 
@@ -39,14 +39,14 @@ def upload_model(
         parameters: str = None,
         dataset_id: int = None,
         file: UploadFile = File(...),  # noqa: B008
-        model_data_file: Union[UploadFile, str, None] = File(default=None),  # noqa: B008
+        model_data_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session,
         production: bool = False,
         negated: bool = True,
         data_novelty: str = None,
         species: str = None,
-        file_classes: str = Query(default=None)):
+        file_classes: str = None):
     model_data = None
     if task_type and mod_abbreviation:
         file_classes_list = [c.strip() for c in file_classes.split(",") if c.strip()] if file_classes else None
@@ -68,7 +68,7 @@ def upload_model(
             "species": species,
             "file_classes": file_classes_list
         }
-    elif isinstance(model_data_file, UploadFile):
+    elif model_data_file is not None:
         try:
             model_data = json.load(model_data_file.file)
         except JSONDecodeError:
