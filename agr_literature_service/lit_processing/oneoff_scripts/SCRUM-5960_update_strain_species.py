@@ -146,7 +146,7 @@ def update_strain_species(dry_run: bool = True, mod_filter: str = None):
                 correct_taxon = curie_to_taxon.get(entity_curie)
 
                 if not correct_taxon:
-                    logger.debug(f"No taxon found for entity {entity_curie}")
+                    logger.warning(f"No taxon found for entity {entity_curie} (reference: {tag.reference_id}, tag_id: {tag.topic_entity_tag_id}, current_species: {current_species})")
                     total_not_found += 1
                     continue
 
