@@ -24,6 +24,7 @@ Usage:
 import argparse
 import logging
 from collections import defaultdict
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -31,7 +32,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.models import TopicEntityTagModel
 
 # Import the A-team API client
-from agr_curation_api import AGRCurationAPIClient, APIConfig
+from agr_curation_api import AGRCurationAPIClient
 
 logging.basicConfig(
     level=logging.INFO,
@@ -46,14 +47,18 @@ SOURCE_ID = 174  # ML extractor source ID
 PAGE_LIMIT = 1000
 
 
-def get_strain_curie_to_taxon_mapping(mod_abbreviation: str) -> dict[str, str]:
+def get_strain_curie_to_taxon_mapping(
+    mod_abbreviation: str,
+    api_client: AGRCurationAPIClient
+) -> dict[str, str]:
     """
     Fetch all strains for a MOD and build a mapping from strain CURIE to taxon ID.
+
+    Args:
+        mod_abbreviation: The MOD prefix (e.g., 'WB', 'MGI').
+        api_client: Shared AGRCurationAPIClient instance.
     """
     logger.info(f"Fetching strain taxon mappings for {mod_abbreviation}...")
-
-    api_config = APIConfig()
-    api_client = AGRCurationAPIClient(api_config)
 
     curie_to_taxon: dict[str, str] = {}
     current_page = 0
@@ -77,7 +82,10 @@ def get_strain_curie_to_taxon_mapping(mod_abbreviation: str) -> dict[str, str]:
             # taxon is a dict with 'curie' key
             taxon = getattr(entity, 'taxon', None)
             if taxon:
-                taxon_curie = taxon.get('curie') if isinstance(taxon, dict) else getattr(taxon, 'curie', None)
+                taxon_curie = (
+                    taxon.get('curie') if isinstance(taxon, dict)
+                    else getattr(taxon, 'curie', None)
+                )
                 if taxon_curie:
                     curie_to_taxon[curie] = taxon_curie
 
@@ -87,7 +95,7 @@ def get_strain_curie_to_taxon_mapping(mod_abbreviation: str) -> dict[str, str]:
     return curie_to_taxon
 
 
-def update_strain_species(dry_run: bool = True, mod_filter: str = None):
+def update_strain_species(dry_run: bool = True, mod_filter: Optional[str] = None):
     """
     Update species column for strain topic_entity_tag rows.
 
@@ -96,6 +104,8 @@ def update_strain_species(dry_run: bool = True, mod_filter: str = None):
         mod_filter: If provided, only process strains from this MOD (e.g., 'WB').
     """
     db_session: Session = create_postgres_session(False)
+    # Create API client once for reuse across all MODs (singleton pattern)
+    api_client = AGRCurationAPIClient()
 
     try:
         # Query all strain topic_entity_tags from the ML extractor
@@ -135,7 +145,7 @@ def update_strain_species(dry_run: bool = True, mod_filter: str = None):
 
             # Fetch taxon mappings for this MOD
             try:
-                curie_to_taxon = get_strain_curie_to_taxon_mapping(mod)
+                curie_to_taxon = get_strain_curie_to_taxon_mapping(mod, api_client)
             except Exception as e:
                 logger.error(f"Failed to fetch taxon mappings for {mod}: {e}")
                 continue
@@ -146,7 +156,11 @@ def update_strain_species(dry_run: bool = True, mod_filter: str = None):
                 correct_taxon = curie_to_taxon.get(entity_curie)
 
                 if not correct_taxon:
-                    logger.warning(f"No taxon found for entity {entity_curie} (reference: {tag.reference_id}, tag_id: {tag.topic_entity_tag_id}, current_species: {current_species})")
+                    logger.warning(
+                        f"No taxon found for entity {entity_curie} "
+                        f"(reference: {tag.reference_id}, tag_id: {tag.topic_entity_tag_id}, "
+                        f"current_species: {current_species})"
+                    )
                     total_not_found += 1
                     continue
 
@@ -160,7 +174,8 @@ def update_strain_species(dry_run: bool = True, mod_filter: str = None):
 
                 if not dry_run:
                     tag.species = correct_taxon
-                    db_session.add(tag)
+                    # No need to call db_session.add(tag) - tag is already tracked
+                    # by the session since it was loaded via query.all()
 
                 total_updated += 1
 
