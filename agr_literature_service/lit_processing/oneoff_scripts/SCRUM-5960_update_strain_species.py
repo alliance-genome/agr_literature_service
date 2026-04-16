@@ -170,7 +170,7 @@ def update_strain_species(dry_run: bool = True, mod_filter: str = None):
         else:
             logger.info(f"DRY RUN: Would update {total_updated} rows")
 
-        logger.info(f"Summary:")
+        logger.info("Summary:")
         logger.info(f"  Updated: {total_updated}")
         logger.info(f"  Skipped (already correct): {total_skipped}")
         logger.info(f"  Not found in curation DB: {total_not_found}")
