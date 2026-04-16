@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Union, Dict, Any, Optional
+from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, Depends, Security, status, UploadFile, File, HTTPException
 
@@ -39,15 +39,17 @@ def upload_model(
         parameters: str = None,
         dataset_id: int = None,
         file: UploadFile = File(...),  # noqa: B008
-        model_data_file: Union[UploadFile, None] = File(default=None),  # noqa: B008
+        model_data_file: Optional[bytes] = File(default=None),  # noqa: B008
         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session,
         production: bool = False,
         negated: bool = True,
         data_novelty: str = None,
-        species: str = None):
+        species: str = None,
+        file_classes: str = None):
     model_data = None
     if task_type and mod_abbreviation:
+        file_classes_list = [c.strip() for c in file_classes.split(",") if c.strip()] if file_classes else None
         model_data = {
             "task_type": task_type,
             "mod_abbreviation": mod_abbreviation,
@@ -63,12 +65,13 @@ def upload_model(
             "production": production,
             "negated": negated,
             "data_novelty": data_novelty,
-            "species": species
+            "species": species,
+            "file_classes": file_classes_list
         }
-    elif model_data_file is not None:
+    elif model_data_file:
         try:
-            model_data = json.load(model_data_file.file)
-        except JSONDecodeError:
+            model_data = json.loads(model_data_file)
+        except (JSONDecodeError, ValueError):
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="The provided model data file is not a valid json file")
     if not model_data:
@@ -89,7 +92,8 @@ def upload_model(
         production=model_data["production"],
         negated=model_data["negated"],
         data_novelty=model_data["data_novelty"],
-        species=model_data["species"]
+        species=model_data["species"],
+        file_classes=model_data.get("file_classes")
     )
     set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)
