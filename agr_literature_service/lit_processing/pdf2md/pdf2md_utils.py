@@ -23,7 +23,8 @@ from agr_literature_service.api.models import (
     ReferencefileModel,
     ReferenceModel,
 )
-from agr_cognito_py import ModAccess
+from agr_cognito_py import ModAccess, get_authentication_token
+from agr_cognito_py.config import CognitoAdminConfig
 
 
 logger = logging.getLogger(__name__)
@@ -46,7 +47,14 @@ _token_cache: Dict[str, Any] = {
 def get_pdfx_token() -> str:
     """
     Obtain PDFX bearer token using Cognito client_credentials grant.
+    Uses agr_cognito_py with custom CognitoAdminConfig for PDFX credentials.
     Token is cached and refreshed when expired.
+
+    Environment variables:
+        PDFX_CLIENT_ID: Cognito client ID for PDFX service.
+        PDFX_CLIENT_SECRET: Cognito client secret for PDFX service.
+        PDFX_TOKEN_URL: OAuth token endpoint (default: https://auth.alliancegenome.org/oauth2/token).
+        PDFX_SCOPE: OAuth scope (default: pdfx-api/extract).
 
     Returns:
         str: The access token for PDFX API authentication.
@@ -73,20 +81,21 @@ def get_pdfx_token() -> str:
             "PDFX_CLIENT_ID and PDFX_CLIENT_SECRET environment variables must be set"
         )
 
-    response = requests.post(
-        token_url,
-        auth=(client_id, client_secret),
-        data={"grant_type": "client_credentials", "scope": scope},
-        timeout=30
+    # Use agr_cognito_py with custom config for PDFX
+    config = CognitoAdminConfig(
+        client_id=client_id,
+        client_secret=client_secret,
+        token_url=token_url,
+        scope=scope
     )
-    response.raise_for_status()
 
-    token_data = response.json()
-    _token_cache["token"] = token_data["access_token"]
-    # Cache expiry time (typically 3600 seconds)
-    _token_cache["expires_at"] = current_time + token_data.get("expires_in", 3600)
+    token = get_authentication_token(config)
 
-    return _token_cache["token"]
+    # Cache the token (agr_cognito_py tokens typically expire in 3600 seconds)
+    _token_cache["token"] = token
+    _token_cache["expires_at"] = current_time + 3600
+
+    return token
 
 
 def submit_pdf_to_pdfx(
