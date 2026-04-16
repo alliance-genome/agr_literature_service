@@ -125,6 +125,25 @@ def search_species(species: str) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(data))
 
 
+def get_or_create_species(taxon_id: str) -> JSONResponse:
+    """Get or create a species (NCBITaxonTerm) in the A-Team system.
+
+    Returns the existing taxon if found, or auto-imports it from NCBI
+    if it doesn't exist yet.
+
+    Args:
+        taxon_id: Numeric NCBI Taxon ID (e.g., '6239') or full CURIE
+                  (e.g., 'NCBITaxon:6239')
+    """
+    cli = _get_client()
+    try:
+        term = cli.get_or_create_species(taxon_id)
+    except AGRAPIError as e:
+        raise HTTPException(status_code=502, detail=f"Get or create species failed: {e}")
+    data = {"curie": term.curie, "name": term.name}
+    return JSONResponse(content=jsonable_encoder(data))
+
+
 def search_ancestors_or_descendants(ontology_node: str, ancestors_or_descendants: str) -> List[str]:
     """
     Return a list of ancestor or descendant curies for the given ontology node.
