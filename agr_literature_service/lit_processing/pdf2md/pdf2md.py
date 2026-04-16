@@ -6,13 +6,11 @@ https://pdfx.alliancegenome.org. It supports multiple extraction methods
 (grobid, docling, marker, merged) and stores each output as a separate file.
 """
 import logging
-import os
 import time
 from datetime import datetime
 from io import BytesIO
-from typing import Optional, Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-import requests
 from fastapi import UploadFile
 from sqlalchemy import create_engine, desc, select
 from sqlalchemy.orm import sessionmaker, Session
@@ -28,226 +26,17 @@ from agr_literature_service.api.models import (
 from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
+# Import PDFX utilities from pdf2md_utils
+from .pdf2md_utils import (
+    EXTRACTION_METHODS,
+    get_pdfx_token,
+    submit_pdf_to_pdfx,
+    poll_pdfx_status,
+    download_pdfx_result,
+)
+
 
 logger = logging.getLogger(__name__)
-
-# Extraction methods and their corresponding file classes
-EXTRACTION_METHODS = {
-    "grobid": "converted_grobid_main",
-    "docling": "converted_docling_main",
-    "marker": "converted_marker_main",
-    "merged": "converted_merged_main",
-}
-
-# Token cache
-_token_cache: Dict[str, any] = {
-    "token": None,
-    "expires_at": 0
-}
-
-
-def get_pdfx_token() -> str:
-    """
-    Obtain PDFX bearer token using Cognito client_credentials grant.
-    Token is cached and refreshed when expired.
-
-    Returns:
-        str: The access token for PDFX API authentication.
-
-    Raises:
-        ValueError: If required environment variables are not set.
-        requests.RequestException: If token request fails.
-    """
-    current_time = time.time()
-
-    # Return cached token if still valid (with 60 second buffer)
-    if _token_cache["token"] and _token_cache["expires_at"] > current_time + 60:
-        return _token_cache["token"]
-
-    client_id = os.environ.get("PDFX_CLIENT_ID")
-    client_secret = os.environ.get("PDFX_CLIENT_SECRET")
-    token_url = os.environ.get("PDFX_TOKEN_URL", "https://auth.alliancegenome.org/oauth2/token")
-    scope = os.environ.get("PDFX_SCOPE", "pdfx-api/extract")
-
-    if not client_id or not client_secret:
-        raise ValueError("PDFX_CLIENT_ID and PDFX_CLIENT_SECRET environment variables must be set")
-
-    response = requests.post(
-        token_url,
-        auth=(client_id, client_secret),
-        data={"grant_type": "client_credentials", "scope": scope},
-        timeout=30
-    )
-    response.raise_for_status()
-
-    token_data = response.json()
-    _token_cache["token"] = token_data["access_token"]
-    # Cache expiry time (typically 3600 seconds)
-    _token_cache["expires_at"] = current_time + token_data.get("expires_in", 3600)
-
-    return _token_cache["token"]
-
-
-def submit_pdf_to_pdfx(
-    file_content: bytes,
-    token: str,
-    methods: str = "grobid,docling,marker",
-    merge: bool = True,
-    reference_curie: str = None,
-    mod_abbreviation: str = None,
-    max_retries: int = 3,
-    retry_delay: int = 5
-) -> str:
-    """
-    Submit a PDF to the PDFX service for processing.
-
-    Args:
-        file_content: The PDF file content as bytes.
-        token: The bearer token for authentication.
-        methods: Comma-separated extraction methods to use.
-        merge: Whether to generate merged output.
-        reference_curie: Optional reference identifier for logging.
-        mod_abbreviation: Optional MOD abbreviation for logging.
-        max_retries: Maximum number of retry attempts for transient failures.
-        retry_delay: Delay between retries in seconds.
-
-    Returns:
-        str: The process_id for tracking the extraction job.
-
-    Raises:
-        requests.RequestException: If submission fails after all retries.
-    """
-    pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
-    url = f"{pdfx_api_url}/api/v1/extract"
-
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
-    # Prepare multipart form data
-    data = {
-        "methods": methods,
-        "merge": str(merge).lower()
-    }
-
-    logger.info(f"Submitting PDF to PDFX for {reference_curie or 'unknown reference'}")
-
-    last_exception = None
-    for attempt in range(max_retries):
-        try:
-            # Recreate files dict for each attempt (file pointer may be exhausted)
-            files = {
-                "file": ("document.pdf", file_content, "application/pdf")
-            }
-            response = requests.post(url, headers=headers, files=files, data=data, timeout=120)
-            response.raise_for_status()
-
-            result = response.json()
-            process_id = result.get("process_id")
-
-            if not process_id:
-                raise ValueError(f"No process_id returned from PDFX: {result}")
-
-            logger.info(f"PDFX submission successful. Process ID: {process_id}")
-            return process_id
-
-        except (requests.exceptions.SSLError,
-                requests.exceptions.ConnectionError,
-                requests.exceptions.Timeout) as e:
-            last_exception = e
-            if attempt < max_retries - 1:
-                logger.warning(f"PDFX submission attempt {attempt + 1} failed: {e}. Retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-            else:
-                logger.error(f"PDFX submission failed after {max_retries} attempts")
-                raise
-
-    raise last_exception
-
-
-def poll_pdfx_status(
-    process_id: str,
-    token: str,
-    timeout: int = 900,
-    poll_interval: int = 10
-) -> Dict:
-    """
-    Poll the PDFX service for job completion.
-
-    Args:
-        process_id: The process ID to check.
-        token: The bearer token for authentication.
-        timeout: Maximum time to wait in seconds (default 15 minutes).
-        poll_interval: Time between polls in seconds.
-
-    Returns:
-        dict: The status response containing job state and results.
-
-    Raises:
-        TimeoutError: If job doesn't complete within timeout.
-        requests.RequestException: If polling request fails.
-    """
-    pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
-    url = f"{pdfx_api_url}/api/v1/extract/{process_id}"
-
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
-    start_time = time.time()
-    last_status = None
-
-    while time.time() - start_time < timeout:
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-
-        status_data = response.json()
-        current_status = status_data.get("status")
-
-        if current_status != last_status:
-            logger.info(f"PDFX job {process_id} status: {current_status}")
-            last_status = current_status
-
-        if current_status in ["completed", "complete"]:
-            return status_data
-        elif current_status == "failed":
-            error_msg = status_data.get("error", "Unknown error")
-            raise RuntimeError(f"PDFX job failed: {error_msg}")
-        elif current_status in ["queued", "warming", "processing", "progress", "pending", "started"]:
-            time.sleep(poll_interval)
-        else:
-            logger.warning(f"Unknown PDFX status: {current_status}")
-            time.sleep(poll_interval)
-
-    raise TimeoutError(f"PDFX job {process_id} timed out after {timeout} seconds")
-
-
-def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:
-    """
-    Download the markdown result for a specific extraction method.
-
-    Args:
-        process_id: The process ID of the completed job.
-        method: The extraction method (grobid, docling, marker, merged).
-        token: The bearer token for authentication.
-
-    Returns:
-        bytes: The markdown content.
-
-    Raises:
-        requests.RequestException: If download fails.
-    """
-    pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
-    url = f"{pdfx_api_url}/api/v1/extract/{process_id}/download/{method}"
-
-    headers = {
-        "Authorization": f"Bearer {token}"
-    }
-
-    response = requests.get(url, headers=headers, timeout=60)
-    response.raise_for_status()
-
-    return response.content
 
 
 def get_newest_main_pdfs(db: Session, limit: int = 50) -> List[Dict]:
