@@ -27,13 +27,22 @@ from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 # Import PDFX utilities from pdf2md_utils
-from .pdf2md_utils import (
-    EXTRACTION_METHODS,
-    get_pdfx_token,
-    submit_pdf_to_pdfx,
-    poll_pdfx_status,
-    download_pdfx_result,
-)
+try:
+    from .pdf2md_utils import (
+        EXTRACTION_METHODS,
+        get_pdfx_token,
+        submit_pdf_to_pdfx,
+        poll_pdfx_status,
+        download_pdfx_result,
+    )
+except ImportError:
+    from pdf2md_utils import (
+        EXTRACTION_METHODS,
+        get_pdfx_token,
+        submit_pdf_to_pdfx,
+        poll_pdfx_status,
+        download_pdfx_result,
+    )
 
 
 logger = logging.getLogger(__name__)
