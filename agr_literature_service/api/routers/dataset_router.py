@@ -40,7 +40,6 @@ def create_dataset(request: DatasetSchemaPost,
 def show_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int = None,
                  db: Session = db_session,
                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return dataset_crud.show_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                      dataset_type=dataset_type, version=version)
 
@@ -74,7 +73,6 @@ def patch_dataset(request: DatasetSchemaUpdate, mod_abbreviation: str, data_type
 def download_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int = None,
                      db: Session = db_session,
                      user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     db_dataset = dataset_crud.download_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                                dataset_type=dataset_type, version=version)
     return db_dataset
