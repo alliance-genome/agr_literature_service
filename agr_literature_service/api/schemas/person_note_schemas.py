@@ -30,7 +30,7 @@ class PersonNoteSchemaUpdate(BaseModel):
             return None
         if not v.strip():
             raise ValueError("note cannot be empty or whitespace")
-        return v
+        return v.strip()
 
 
 class PersonNoteSchemaShow(AuditedObjectModelSchema):

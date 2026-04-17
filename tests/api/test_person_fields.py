@@ -356,8 +356,10 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
             assert body["city"] is None
-            # timestamp should still be set (bumped on clearing action)
-            assert body["address_last_updated"] is not None
+            # timestamp should be bumped, not just non-null
+            new_timestamp = body["address_last_updated"]
+            assert new_timestamp is not None
+            assert new_timestamp >= original_timestamp
 
     def test_active_status_all_three_values(self, auth_headers):  # noqa
         """All three allowed active_status values should be accepted."""
