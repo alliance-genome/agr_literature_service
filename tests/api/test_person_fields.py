@@ -359,7 +359,7 @@ class TestPersonFields:
             # timestamp should be bumped, not just non-null
             new_timestamp = body["address_last_updated"]
             assert new_timestamp is not None
-            assert new_timestamp >= original_timestamp
+            assert new_timestamp > original_timestamp
 
     def test_active_status_all_three_values(self, auth_headers):  # noqa
         """All three allowed active_status values should be accepted."""

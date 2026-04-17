@@ -15,7 +15,7 @@ class PersonNoteSchemaCreate(BaseModel):
     def _validate_note(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("note cannot be empty or whitespace")
-        return v
+        return v.strip()
 
 
 class PersonNoteSchemaUpdate(BaseModel):
