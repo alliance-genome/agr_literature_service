@@ -4,7 +4,6 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import PersonModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
@@ -312,15 +311,53 @@ class TestPersonFields:
             assert body["biography_research_interest"] is None
 
     def test_active_status_invalid_value_rejected(self, auth_headers):  # noqa
-        """CheckConstraint should reject values other than active/retired/deceased."""
+        """Pydantic Literal should reject values other than active/retired/deceased."""
         with TestClient(app) as client:
             res = client.post(
                 "/person/",
                 json={"display_name": "Bad Status", "active_status": "invalid_value"},
                 headers=auth_headers,
             )
-            # DB constraint violation — API should not return 2xx
-            assert res.status_code >= 400
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_invalid_active_status_rejected(self, auth_headers, test_person_id):  # noqa
+        """PATCH with invalid active_status should be rejected at Pydantic layer."""
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"active_status": "former"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_clear_address_field_bumps_timestamp(self, auth_headers):  # noqa
+        """PATCHing city=null should still bump address_last_updated."""
+        with TestClient(app) as client:
+            # Create person with city set
+            res = client.post(
+                "/person/",
+                json={"display_name": "Clear Address Test", "city": "Boston"},
+                headers=auth_headers,
+            )
+            person_id = res.json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            original_timestamp = fetched.json()["address_last_updated"]
+            assert original_timestamp is not None
+
+            # PATCH city to null (clearing it)
+            res = client.patch(
+                f"/person/{person_id}",
+                json={"city": None},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_202_ACCEPTED
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            body = fetched.json()
+            assert body["city"] is None
+            # timestamp should still be set (bumped on clearing action)
+            assert body["address_last_updated"] is not None
 
     def test_active_status_all_three_values(self, auth_headers):  # noqa
         """All three allowed active_status values should be accepted."""

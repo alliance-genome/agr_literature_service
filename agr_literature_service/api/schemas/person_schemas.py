@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict
 
 from .base_schemas import AuditedObjectModelSchema
@@ -12,6 +12,8 @@ from .person_cross_reference_schemas import (
 )
 from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
 from .person_note_schemas import PersonNoteSchemaRelated
+
+ActiveStatus = Literal["active", "retired", "deceased"]
 
 _types = {
     "EmailSchemaCreate": EmailSchemaCreate,
@@ -33,7 +35,7 @@ class PersonSchemaPost(BaseModel):
     orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
-    active_status: str = "active"
+    active_status: ActiveStatus = "active"
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
@@ -59,7 +61,7 @@ class PersonSchemaUpdate(BaseModel):
     orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
-    active_status: Optional[str] = None
+    active_status: Optional[ActiveStatus] = None
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
@@ -78,7 +80,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
-    active_status: str = "active"
+    active_status: ActiveStatus = "active"
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None

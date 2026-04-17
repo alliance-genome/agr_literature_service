@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from agr_literature_service.api.schemas.base_schemas import AuditedObjectModelSchema
 
@@ -13,6 +13,13 @@ class PersonNameSchemaCreate(BaseModel):
     last_name: str
     primary: Optional[bool] = None
 
+    @field_validator("last_name")
+    @classmethod
+    def _validate_last_name(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("last_name cannot be empty or whitespace")
+        return v.strip()
+
 
 class PersonNameSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
@@ -21,6 +28,15 @@ class PersonNameSchemaUpdate(BaseModel):
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
     primary: Optional[bool] = None
+
+    @field_validator("last_name")
+    @classmethod
+    def _validate_last_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        if not v.strip():
+            raise ValueError("last_name cannot be empty or whitespace")
+        return v.strip()
 
 
 class PersonNameSchemaShow(AuditedObjectModelSchema):

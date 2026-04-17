@@ -1,7 +1,7 @@
 """add_person_name_note_and_profile_fields
 
 Revision ID: a7b4c9d2e5f8
-Revises: 78e9d4f87ed5
+Revises: b9cadadb4c32
 Create Date: 2026-04-17
 """
 from alembic import op
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "a7b4c9d2e5f8"
-down_revision = "78e9d4f87ed5"
+down_revision = "b9cadadb4c32"
 branch_labels = None
 depends_on = None
 
@@ -192,6 +192,9 @@ def upgrade():
         "address_last_updated", sa.DateTime(), autoincrement=False, nullable=True))
     op.add_column("person_version", sa.Column(
         "biography_research_interest", sa.String(), autoincrement=False, nullable=True))
+    op.create_index(
+        op.f("ix_person_version_orcid"), "person_version", ["orcid"], unique=False
+    )
     # _mod columns for versioning
     op.add_column("person_version", sa.Column(
         "orcid_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False))
@@ -353,7 +356,8 @@ def downgrade():
                 "postal_code_mod", "state_mod", "city_mod", "active_status_mod",
                 "webpage_mod", "orcid_mod"]:
         op.drop_column("person_version", col)
-    # person_version data columns
+    # person_version index + data columns
+    op.drop_index(op.f("ix_person_version_orcid"), table_name="person_version")
     for col in ["biography_research_interest", "address_last_updated",
                 "street_address", "country", "postal_code",
                 "state", "city", "active_status", "webpage", "orcid"]:
