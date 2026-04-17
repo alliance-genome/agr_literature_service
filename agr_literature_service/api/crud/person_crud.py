@@ -34,7 +34,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
     names_data = data.pop("names", None)
 
     # Set address_last_updated if any address field is provided
-    has_address = any(data.get(f) for f in ADDRESS_FIELDS)
+    has_address = bool(ADDRESS_FIELDS & payload.model_fields_set)
 
     obj = PersonModel(**data)
     if has_address:
