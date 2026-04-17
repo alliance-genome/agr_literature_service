@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict
 
@@ -9,12 +10,15 @@ from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate,
     PersonCrossReferenceSchemaRelated,
 )
+from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
 
 _types = {
     "EmailSchemaCreate": EmailSchemaCreate,
     "EmailSchemaRelated": EmailSchemaRelated,
     "PersonCrossReferenceSchemaCreate": PersonCrossReferenceSchemaCreate,
     "PersonCrossReferenceSchemaRelated": PersonCrossReferenceSchemaRelated,
+    "PersonNameSchemaCreate": PersonNameSchemaCreate,
+    "PersonNameSchemaRelated": PersonNameSchemaRelated,
 }
 
 
@@ -24,10 +28,19 @@ class PersonSchemaPost(BaseModel):
     display_name: str
     curie: Optional[str] = None
     okta_id: Optional[str] = None
+    orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
+    webpage: Optional[List[str]] = None
+    active_status: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    street_address: Optional[str] = None
     # forward-ref strings
     emails: Optional[List["EmailSchemaCreate"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaCreate"]] = None
+    names: Optional[List["PersonNameSchemaCreate"]] = None
 
 
 # Back-compat alias
@@ -40,7 +53,15 @@ class PersonSchemaUpdate(BaseModel):
     display_name: Optional[str] = None
     curie: Optional[str] = None
     okta_id: Optional[str] = None
+    orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
+    webpage: Optional[List[str]] = None
+    active_status: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    street_address: Optional[str] = None
 
 
 class PersonSchemaShow(AuditedObjectModelSchema):
@@ -50,6 +71,16 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     display_name: str
     curie: Optional[str] = None
     okta_id: Optional[str] = None
+    orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
+    webpage: Optional[List[str]] = None
+    active_status: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    postal_code: Optional[str] = None
+    country: Optional[str] = None
+    street_address: Optional[str] = None
+    address_last_updated: Optional[datetime] = None
     emails: Optional[List["EmailSchemaRelated"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaRelated"]] = None
+    names: Optional[List["PersonNameSchemaRelated"]] = None
