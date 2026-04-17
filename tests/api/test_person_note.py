@@ -152,6 +152,16 @@ class TestPersonNote:
             )
             assert fetched.json()["note"] == multiline
 
+    def test_patch_null_note_rejected(self, auth_headers, test_person_note):  # noqa
+        """PATCH with note=null should be rejected at Pydantic layer with 422."""
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person_note/{test_person_note.new_person_note_id}",
+                json={"note": None},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_destroy_person_note(self, test_person_note, auth_headers):  # noqa
         with TestClient(app) as client:
             res = client.delete(

@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Any, Optional
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from agr_literature_service.api.schemas.base_schemas import AuditedObjectModelSchema
 
@@ -28,6 +28,15 @@ class PersonNameSchemaUpdate(BaseModel):
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
     primary: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_last_name(cls, data: Any) -> Any:
+        # last_name is NOT NULL in the DB — reject explicit null from clients.
+        # Omitting the field is still fine (PATCH no-op for that field).
+        if isinstance(data, dict) and "last_name" in data and data["last_name"] is None:
+            raise ValueError("last_name cannot be null; omit the field to leave it unchanged")
+        return data
 
     @field_validator("last_name")
     @classmethod

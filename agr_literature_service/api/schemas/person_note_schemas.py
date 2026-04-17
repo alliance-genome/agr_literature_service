@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Optional
-from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Any, Optional
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from agr_literature_service.api.schemas.base_schemas import AuditedObjectModelSchema
 
@@ -22,6 +22,15 @@ class PersonNoteSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     note: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_note(cls, data: Any) -> Any:
+        # note is NOT NULL in the DB — reject explicit null from clients.
+        # Omitting the field is still fine (PATCH no-op for that field).
+        if isinstance(data, dict) and "note" in data and data["note"] is None:
+            raise ValueError("note cannot be null; omit the field to leave it unchanged")
+        return data
 
     @field_validator("note")
     @classmethod

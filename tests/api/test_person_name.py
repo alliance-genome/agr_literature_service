@@ -244,6 +244,16 @@ class TestPersonName:
             )
             assert fetched.json()["primary"] is False
 
+    def test_patch_null_last_name_rejected(self, auth_headers, test_person_name):  # noqa
+        """PATCH with last_name=null should be rejected at Pydantic layer with 422."""
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person_name/{test_person_name.new_person_name_id}",
+                json={"last_name": None},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_destroy_person_name(self, auth_headers, seeded_person):  # noqa
         """Delete a non-primary name."""
         with TestClient(app) as client:
