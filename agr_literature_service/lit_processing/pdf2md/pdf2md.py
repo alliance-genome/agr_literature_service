@@ -39,20 +39,21 @@ from .pdf2md_utils import (
 logger = logging.getLogger(__name__)
 
 
-def get_newest_main_pdfs(db: Session, limit: int = 50) -> List[Dict]:
+def get_newest_main_pdfs(db: Session, limit: int = 50, skip_xml: bool = False) -> List[Dict]:
     """
     Get the newest main PDF files from the database.
 
     Args:
         db: Database session.
         limit: Maximum number of PDFs to return.
+        skip_xml: If True, skip papers that already have XML/nXML files.
 
     Returns:
         List of dicts with referencefile info.
     """
     results = []
 
-    # Query for main PDFs ordered by date_created descending
+    # Base query for main PDFs ordered by date_created descending
     query = (
         db.query(ReferencefileModel)
         .filter(
@@ -60,9 +61,18 @@ def get_newest_main_pdfs(db: Session, limit: int = 50) -> List[Dict]:
             ReferencefileModel.file_publication_status == "final",
             ReferencefileModel.pdf_type == "pdf"
         )
-        .order_by(desc(ReferencefileModel.date_created))
-        .limit(limit)
     )
+
+    # Optionally exclude references that already have XML files
+    if skip_xml:
+        xml_exists_subquery = (
+            select(ReferencefileModel.reference_id)
+            .where(ReferencefileModel.file_extension.in_(["xml", "nxml"]))
+            .distinct()
+        )
+        query = query.filter(~ReferencefileModel.reference_id.in_(xml_exists_subquery))
+
+    query = query.order_by(desc(ReferencefileModel.date_created)).limit(limit)
 
     for ref_file in query.all():
         reference = db.query(ReferenceModel).filter(
@@ -91,7 +101,7 @@ def get_newest_main_pdfs(db: Session, limit: int = 50) -> List[Dict]:
     return results
 
 
-def get_unprocessed_pdfs_since_year(db: Session, since_year: int) -> List[Dict]:
+def get_unprocessed_pdfs_since_year(db: Session, since_year: int, skip_xml: bool = False) -> List[Dict]:
     """
     Get main PDF files created since a given year that haven't been converted to markdown.
 
@@ -101,6 +111,7 @@ def get_unprocessed_pdfs_since_year(db: Session, since_year: int) -> List[Dict]:
     Args:
         db: Database session.
         since_year: Year to filter from (e.g., 2025 means Jan 1, 2025 onwards).
+        skip_xml: If True, skip papers that already have XML/nXML files.
 
     Returns:
         List of dicts with referencefile info for PDFs needing processing.
@@ -132,8 +143,18 @@ def get_unprocessed_pdfs_since_year(db: Session, since_year: int) -> List[Dict]:
             ReferencefileModel.date_created >= start_date,
             ~ReferencefileModel.reference_id.in_(md_exists_subquery)
         )
-        .order_by(desc(ReferencefileModel.date_created))
     )
+
+    # Optionally exclude references that already have XML files
+    if skip_xml:
+        xml_exists_subquery = (
+            select(ReferencefileModel.reference_id)
+            .where(ReferencefileModel.file_extension.in_(["xml", "nxml"]))
+            .distinct()
+        )
+        query = query.filter(~ReferencefileModel.reference_id.in_(xml_exists_subquery))
+
+    query = query.order_by(desc(ReferencefileModel.date_created))
 
     all_pdfs = query.all()
     logger.info(f"Found {len(all_pdfs)} unprocessed PDFs since {since_year}")
@@ -166,12 +187,13 @@ def get_unprocessed_pdfs_since_year(db: Session, since_year: int) -> List[Dict]:
     return results
 
 
-def process_pdfs_since_year(since_year: int):
+def process_pdfs_since_year(since_year: int, skip_xml: bool = False):
     """
     Process all unprocessed PDFs since a given year.
 
     Args:
         since_year: Year to filter from (e.g., 2025 means Jan 1, 2025 onwards).
+        skip_xml: If True, skip papers that already have XML/nXML files.
     """
     start_time = time.time()
 
@@ -180,6 +202,8 @@ def process_pdfs_since_year(since_year: int):
     db = new_session()
 
     logger.info(f"Starting PDF to Markdown conversion for PDFs since {since_year}")
+    if skip_xml:
+        logger.info("Skipping papers that already have XML/nXML files")
 
     # Get token
     try:
@@ -189,7 +213,7 @@ def process_pdfs_since_year(since_year: int):
         return
 
     # Get unprocessed PDFs
-    pdf_list = get_unprocessed_pdfs_since_year(db, since_year=since_year)
+    pdf_list = get_unprocessed_pdfs_since_year(db, since_year=since_year, skip_xml=skip_xml)
     logger.info(f"Found {len(pdf_list)} unprocessed PDFs to convert")
 
     if not pdf_list:
@@ -387,12 +411,13 @@ def process_single_pdf(
         return False, error_msg
 
 
-def process_newest_pdfs(limit: int = 50):
+def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):
     """
     Process the newest main PDFs and convert them to markdown.
 
     Args:
         limit: Number of newest PDFs to process.
+        skip_xml: If True, skip papers that already have XML/nXML files.
     """
     start_time = time.time()
 
@@ -401,6 +426,8 @@ def process_newest_pdfs(limit: int = 50):
     db = new_session()
 
     logger.info(f"Starting PDF to Markdown conversion for {limit} newest PDFs")
+    if skip_xml:
+        logger.info("Skipping papers that already have XML/nXML files")
 
     # Get token
     try:
@@ -410,7 +437,7 @@ def process_newest_pdfs(limit: int = 50):
         return
 
     # Get newest PDFs
-    pdf_list = get_newest_main_pdfs(db, limit=limit)
+    pdf_list = get_newest_main_pdfs(db, limit=limit, skip_xml=skip_xml)
     logger.info(f"Found {len(pdf_list)} PDFs to process")
 
     # Processing statistics
@@ -684,6 +711,9 @@ Examples:
 
   # Process all unprocessed PDFs since 2025
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --since 2025
+
+  # Process newest PDFs, skipping those with XML files
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50 --skip-xml
         """
     )
     parser.add_argument(
@@ -698,6 +728,11 @@ Examples:
         metavar="YEAR",
         help="Process all unprocessed PDFs since YEAR (e.g., 2025)"
     )
+    parser.add_argument(
+        "--skip-xml",
+        action="store_true",
+        help="Skip papers that already have XML/nXML files"
+    )
 
     args = parser.parse_args()
 
@@ -705,13 +740,21 @@ Examples:
         print("Error: Cannot use --newest and --since together. Choose one.")
         exit(1)
 
+    if args.skip_xml and not (args.newest or args.since):
+        print("Error: --skip-xml requires --newest or --since mode.")
+        exit(1)
+
     if args.newest:
         print(f"Processing {args.newest} newest main PDFs...")
-        result = process_newest_pdfs(limit=args.newest)
+        if args.skip_xml:
+            print("Skipping papers with existing XML/nXML files.")
+        result = process_newest_pdfs(limit=args.newest, skip_xml=args.skip_xml)
         print(f"\nResults: {result}")
     elif args.since:
         print(f"Processing all unprocessed PDFs since {args.since}...")
-        result = process_pdfs_since_year(since_year=args.since)
+        if args.skip_xml:
+            print("Skipping papers with existing XML/nXML files.")
+        result = process_pdfs_since_year(since_year=args.since, skip_xml=args.skip_xml)
         print(f"\nResults: {result}")
     else:
         # Workflow mode (default)
