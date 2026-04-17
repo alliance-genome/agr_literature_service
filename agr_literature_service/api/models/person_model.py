@@ -1,5 +1,8 @@
 from typing import Dict
-from sqlalchemy import Column, DateTime, Integer, String, ARRAY, Index, UniqueConstraint
+from sqlalchemy import (
+    Column, DateTime, Integer, String, ARRAY,
+    Index, UniqueConstraint, CheckConstraint,
+)
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -20,7 +23,12 @@ class PersonModel(Base, AuditedModel):
     orcid = Column(String(), nullable=True, index=True)
     mod_roles = Column(ARRAY(String), nullable=True)
     webpage = Column(ARRAY(String), nullable=True)
-    active_status = Column(String(), nullable=True)
+    active_status = Column(
+        String(),
+        nullable=False,
+        default="active",
+        server_default="active",
+    )
 
     # Address fields
     city = Column(String(), nullable=True)
@@ -39,6 +47,10 @@ class PersonModel(Base, AuditedModel):
     __table_args__ = (
         UniqueConstraint("okta_id", name="uq_person_okta_id"),
         Index("ix_person_display_name_trigram", "display_name"),
+        CheckConstraint(
+            "active_status IN ('active', 'retired', 'deceased')",
+            name="ck_person_active_status",
+        ),
     )
 
     def __str__(self) -> str:

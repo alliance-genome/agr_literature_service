@@ -259,10 +259,36 @@ class TestPersonFields:
             body = fetched.json()
             assert body["orcid"] is None
             assert body["webpage"] is None
-            assert body["active_status"] is None
+            # active_status is NOT NULL with default "active"
+            assert body["active_status"] == "active"
             assert body["city"] is None
             assert body["state"] is None
             assert body["postal_code"] is None
             assert body["country"] is None
             assert body["street_address"] is None
             assert body["address_last_updated"] is None
+
+    def test_active_status_invalid_value_rejected(self, auth_headers):  # noqa
+        """CheckConstraint should reject values other than active/retired/deceased."""
+        with TestClient(app) as client:
+            res = client.post(
+                "/person/",
+                json={"display_name": "Bad Status", "active_status": "invalid_value"},
+                headers=auth_headers,
+            )
+            # DB constraint violation — API should not return 2xx
+            assert res.status_code >= 400
+
+    def test_active_status_all_three_values(self, auth_headers):  # noqa
+        """All three allowed active_status values should be accepted."""
+        with TestClient(app) as client:
+            for status_value in ["active", "retired", "deceased"]:
+                res = client.post(
+                    "/person/",
+                    json={"display_name": f"Status {status_value}", "active_status": status_value},
+                    headers=auth_headers,
+                )
+                assert res.status_code == status.HTTP_201_CREATED
+                person_id = res.json()["person_id"]
+                fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+                assert fetched.json()["active_status"] == status_value

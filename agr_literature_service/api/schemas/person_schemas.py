@@ -31,7 +31,7 @@ class PersonSchemaPost(BaseModel):
     orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
-    active_status: Optional[str] = None
+    active_status: str = "active"
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
@@ -74,7 +74,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
-    active_status: Optional[str] = None
+    active_status: str = "active"
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None

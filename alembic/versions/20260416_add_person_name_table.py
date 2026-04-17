@@ -146,7 +146,20 @@ def upgrade():
     # -------------------------------------------------------
     op.add_column("person", sa.Column("orcid", sa.String(), nullable=True))
     op.add_column("person", sa.Column("webpage", sa.ARRAY(sa.String()), nullable=True))
-    op.add_column("person", sa.Column("active_status", sa.String(), nullable=True))
+    op.add_column(
+        "person",
+        sa.Column(
+            "active_status",
+            sa.String(),
+            nullable=False,
+            server_default="active",
+        ),
+    )
+    op.create_check_constraint(
+        "ck_person_active_status",
+        "person",
+        "active_status IN ('active', 'retired', 'deceased')",
+    )
     op.add_column("person", sa.Column("city", sa.String(), nullable=True))
     op.add_column("person", sa.Column("state", sa.String(), nullable=True))
     op.add_column("person", sa.Column("postal_code", sa.String(), nullable=True))
@@ -212,6 +225,7 @@ def downgrade():
         op.drop_column("person_version", col)
     # person columns
     op.drop_index(op.f("ix_person_orcid"), table_name="person")
+    op.drop_constraint("ck_person_active_status", "person", type_="check")
     for col in ["address_last_updated", "street_address", "country", "postal_code",
                 "state", "city", "active_status", "webpage", "orcid"]:
         op.drop_column("person", col)
