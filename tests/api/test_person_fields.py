@@ -235,6 +235,7 @@ class TestPersonFields:
                 "postal_code": "02139",
                 "country": "USA",
                 "street_address": "77 Mass Ave",
+                "biography_research_interest": "Studies ion channels.",
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             person_id = res.json()["person_id"]
@@ -243,8 +244,49 @@ class TestPersonFields:
             body = fetched.json()
             # All new fields should be present
             for field in ["orcid", "webpage", "active_status", "city", "state",
-                          "postal_code", "country", "street_address", "address_last_updated"]:
+                          "postal_code", "country", "street_address",
+                          "address_last_updated", "biography_research_interest"]:
                 assert field in body, f"Missing field: {field}"
+
+    def test_create_person_with_biography(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            bio = "Research focuses on CRISPR gene editing in nematodes."
+            res = client.post(
+                "/person/",
+                json={"display_name": "Bio Person", "biography_research_interest": bio},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            person_id = res.json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.json()["biography_research_interest"] == bio
+
+    def test_create_person_with_multiline_biography(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            bio = "Line one of biography.\nLine two.\n\nPara two starts here."
+            res = client.post(
+                "/person/",
+                json={"display_name": "Multiline Bio Person", "biography_research_interest": bio},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            person_id = res.json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.json()["biography_research_interest"] == bio
+
+    def test_patch_biography(self, auth_headers, test_person_id):  # noqa
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"biography_research_interest": "Updated biography."},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_202_ACCEPTED
+
+            fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
+            assert fetched.json()["biography_research_interest"] == "Updated biography."
 
     def test_person_fields_default_null(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -267,6 +309,7 @@ class TestPersonFields:
             assert body["country"] is None
             assert body["street_address"] is None
             assert body["address_last_updated"] is None
+            assert body["biography_research_interest"] is None
 
     def test_active_status_invalid_value_rejected(self, auth_headers):  # noqa
         """CheckConstraint should reject values other than active/retired/deceased."""

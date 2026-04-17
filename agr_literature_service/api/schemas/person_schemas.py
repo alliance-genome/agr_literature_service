@@ -11,6 +11,7 @@ from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaRelated,
 )
 from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
+from .person_note_schemas import PersonNoteSchemaRelated
 
 _types = {
     "EmailSchemaCreate": EmailSchemaCreate,
@@ -19,6 +20,7 @@ _types = {
     "PersonCrossReferenceSchemaRelated": PersonCrossReferenceSchemaRelated,
     "PersonNameSchemaCreate": PersonNameSchemaCreate,
     "PersonNameSchemaRelated": PersonNameSchemaRelated,
+    "PersonNoteSchemaRelated": PersonNoteSchemaRelated,
 }
 
 
@@ -37,6 +39,7 @@ class PersonSchemaPost(BaseModel):
     postal_code: Optional[str] = None
     country: Optional[str] = None
     street_address: Optional[str] = None
+    biography_research_interest: Optional[str] = None
     # forward-ref strings
     emails: Optional[List["EmailSchemaCreate"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaCreate"]] = None
@@ -62,6 +65,7 @@ class PersonSchemaUpdate(BaseModel):
     postal_code: Optional[str] = None
     country: Optional[str] = None
     street_address: Optional[str] = None
+    biography_research_interest: Optional[str] = None
 
 
 class PersonSchemaShow(AuditedObjectModelSchema):
@@ -81,6 +85,8 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     country: Optional[str] = None
     street_address: Optional[str] = None
     address_last_updated: Optional[datetime] = None
+    biography_research_interest: Optional[str] = None
     emails: Optional[List["EmailSchemaRelated"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaRelated"]] = None
     names: Optional[List["PersonNameSchemaRelated"]] = None
+    notes: Optional[List["PersonNoteSchemaRelated"]] = None

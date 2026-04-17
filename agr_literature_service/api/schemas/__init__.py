@@ -135,6 +135,10 @@ from .person_name_schemas import (
     PersonNameSchemaCreate, PersonNameSchemaUpdate,
     PersonNameSchemaShow, PersonNameSchemaRelated
 )
+from .person_note_schemas import (
+    PersonNoteSchemaCreate, PersonNoteSchemaUpdate,
+    PersonNoteSchemaShow, PersonNoteSchemaRelated
+)
 from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
 from .person_setting_schemas import (
     PersonSettingSchemaCreate,

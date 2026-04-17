@@ -144,7 +144,7 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     # update only scalar/column fields; skip relationship fields
-    RELATIONSHIP_FIELDS = {"emails", "cross_references", "names"}
+    RELATIONSHIP_FIELDS = {"emails", "cross_references", "names", "notes"}
     for field, _value in list(data.items()):
         if field in RELATIONSHIP_FIELDS:
             data.pop(field, None)
@@ -153,6 +153,7 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
         "display_name", "curie", "mod_roles",
         "orcid", "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
+        "biography_research_interest",
     }
     for field, value in data.items():
         if field in ALLOWED:
@@ -173,6 +174,7 @@ def show(db: Session, person_id: int) -> PersonModel:
             joinedload(PersonModel.emails),
             joinedload(PersonModel.cross_references),
             joinedload(PersonModel.names),
+            joinedload(PersonModel.notes),
         )
         .filter(PersonModel.person_id == person_id)
         .first()
@@ -196,6 +198,7 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
             joinedload(PersonModel.emails),
             joinedload(PersonModel.cross_references),
             joinedload(PersonModel.names),
+            joinedload(PersonModel.notes),
         )
         .filter(func.lower(EmailModel.email_address) == email_norm)
         .first()
@@ -215,6 +218,7 @@ def find_by_name(db: Session, name: str) -> List[PersonModel]:
             joinedload(PersonModel.emails),
             joinedload(PersonModel.cross_references),
             joinedload(PersonModel.names),
+            joinedload(PersonModel.notes),
         )
         .filter(PersonModel.display_name.ilike(pattern))
         .order_by(PersonModel.display_name.asc())
