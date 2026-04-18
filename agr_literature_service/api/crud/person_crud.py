@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonModel, EmailModel, PersonCrossReferenceModel, PersonNameModel
 from agr_literature_service.api.schemas import PersonSchemaCreate
@@ -171,10 +171,10 @@ def show(db: Session, person_id: int) -> PersonModel:
     obj: Optional[PersonModel] = (
         db.query(PersonModel)
         .options(
-            joinedload(PersonModel.emails),
-            joinedload(PersonModel.cross_references),
-            joinedload(PersonModel.names),
-            joinedload(PersonModel.notes),
+            selectinload(PersonModel.emails),
+            selectinload(PersonModel.cross_references),
+            selectinload(PersonModel.names),
+            selectinload(PersonModel.notes),
         )
         .filter(PersonModel.person_id == person_id)
         .first()
@@ -195,10 +195,10 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
         db.query(PersonModel)
         .join(EmailModel, EmailModel.person_id == PersonModel.person_id)
         .options(
-            joinedload(PersonModel.emails),
-            joinedload(PersonModel.cross_references),
-            joinedload(PersonModel.names),
-            joinedload(PersonModel.notes),
+            selectinload(PersonModel.emails),
+            selectinload(PersonModel.cross_references),
+            selectinload(PersonModel.names),
+            selectinload(PersonModel.notes),
         )
         .filter(func.lower(EmailModel.email_address) == email_norm)
         .first()
@@ -215,10 +215,10 @@ def find_by_name(db: Session, name: str) -> List[PersonModel]:
     return (
         db.query(PersonModel)
         .options(
-            joinedload(PersonModel.emails),
-            joinedload(PersonModel.cross_references),
-            joinedload(PersonModel.names),
-            joinedload(PersonModel.notes),
+            selectinload(PersonModel.emails),
+            selectinload(PersonModel.cross_references),
+            selectinload(PersonModel.names),
+            selectinload(PersonModel.notes),
         )
         .filter(PersonModel.display_name.ilike(pattern))
         .order_by(PersonModel.display_name.asc())
