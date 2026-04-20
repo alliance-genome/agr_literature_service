@@ -10,8 +10,6 @@ Tests cover:
 - PDF file retrieval
 - Processing result structures
 """
-import os
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -27,7 +25,6 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     download_pdfx_result,
     resolve_curie_to_reference,
     get_pdf_files_for_reference,
-    _token_cache,
 )
 
 
@@ -81,42 +78,14 @@ class TestTypedDicts:
 class TestGetPdfxToken:
     """Test get_pdfx_token function."""
 
-    def setup_method(self):
-        """Reset token cache before each test."""
-        _token_cache["token"] = None
-        _token_cache["expires_at"] = 0
-
-    def test_raises_value_error_when_credentials_not_set(self):
-        """Test that ValueError is raised when env vars are missing."""
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError) as exc_info:
-                get_pdfx_token()
-            assert "PDFX_CLIENT_ID" in str(exc_info.value)
-
-    def test_returns_cached_token_when_valid(self):
-        """Test that cached token is returned when still valid."""
-        _token_cache["token"] = "cached_token"
-        _token_cache["expires_at"] = time.time() + 3600  # Valid for an hour
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_authentication_token")
+    def test_returns_token_from_get_authentication_token(self, mock_get_auth):
+        """Test that get_pdfx_token delegates to get_authentication_token."""
+        mock_get_auth.return_value = "test_token"
 
         token = get_pdfx_token()
-        assert token == "cached_token"
 
-    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_authentication_token")
-    def test_fetches_new_token_when_expired(self, mock_get_auth):
-        """Test that new token is fetched when cache is expired."""
-        _token_cache["token"] = "old_token"
-        _token_cache["expires_at"] = time.time() - 100  # Expired
-
-        mock_get_auth.return_value = "new_token"
-
-        with patch.dict(os.environ, {
-            "PDFX_CLIENT_ID": "test_id",
-            "PDFX_CLIENT_SECRET": "test_secret"
-        }):
-            token = get_pdfx_token()
-
-        assert token == "new_token"
-        assert _token_cache["token"] == "new_token"
+        assert token == "test_token"
         mock_get_auth.assert_called_once()
 
 
