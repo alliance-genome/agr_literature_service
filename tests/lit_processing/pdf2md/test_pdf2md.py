@@ -8,7 +8,6 @@ Tests cover:
 - process_newest_pdfs
 - process_pdfs_since_year
 """
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md import (
@@ -91,16 +90,18 @@ class TestGetUnprocessedPdfsSinceYear:
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.order_by.return_value = mock_query
+        mock_query.limit.return_value = mock_query
         mock_query.all.return_value = []
 
         result = get_unprocessed_pdfs_since_year(mock_db, since_year=2025)
 
         assert result == []
 
-    def test_returns_pdf_info_with_date_created(self):
-        """Test that PDF info includes date_created field."""
+    def test_returns_pdf_info_with_date_published(self):
+        """Test that PDF info includes date_published field."""
         mock_db = MagicMock()
         mock_query = MagicMock()
 
@@ -110,25 +111,27 @@ class TestGetUnprocessedPdfsSinceYear:
         mock_reffile.reference_id = 456
         mock_reffile.display_name = "test_paper"
         mock_reffile.file_extension = "pdf"
-        mock_reffile.date_created = datetime(2025, 3, 15)
         mock_reffile.referencefile_mods = []
 
         # Create mock reference
         mock_reference = MagicMock()
         mock_reference.reference_id = 456
         mock_reference.curie = "AGRKB:101000000000001"
+        mock_reference.date_published = "2025-03-15"
 
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.order_by.return_value = mock_query
+        mock_query.limit.return_value = mock_query
         mock_query.all.return_value = [mock_reffile]
         mock_query.one_or_none.return_value = mock_reference
 
         result = get_unprocessed_pdfs_since_year(mock_db, since_year=2025)
 
         assert len(result) == 1
-        assert "date_created" in result[0]
-        assert result[0]["date_created"] == datetime(2025, 3, 15)
+        assert "date_published" in result[0]
+        assert result[0]["date_published"] == "2025-03-15"
 
     def test_extracts_mod_abbreviation(self):
         """Test that MOD abbreviation is extracted from referencefile_mods."""
@@ -149,17 +152,19 @@ class TestGetUnprocessedPdfsSinceYear:
         mock_reffile.reference_id = 456
         mock_reffile.display_name = "test_paper"
         mock_reffile.file_extension = "pdf"
-        mock_reffile.date_created = datetime(2025, 3, 15)
         mock_reffile.referencefile_mods = [mock_reffile_mod]
 
         # Create mock reference
         mock_reference = MagicMock()
         mock_reference.reference_id = 456
         mock_reference.curie = "AGRKB:101000000000001"
+        mock_reference.date_published = "2025-03-15"
 
         mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.order_by.return_value = mock_query
+        mock_query.limit.return_value = mock_query
         mock_query.all.return_value = [mock_reffile]
         mock_query.one_or_none.return_value = mock_reference
 
