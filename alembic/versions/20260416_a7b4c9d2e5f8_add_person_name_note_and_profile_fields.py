@@ -144,7 +144,6 @@ def upgrade():
     # -------------------------------------------------------
     # New columns on person table
     # -------------------------------------------------------
-    op.add_column("person", sa.Column("orcid", sa.String(), nullable=True))
     op.add_column("person", sa.Column("webpage", sa.ARRAY(sa.String()), nullable=True))
     op.add_column(
         "person",
@@ -167,13 +166,10 @@ def upgrade():
     op.add_column("person", sa.Column("street_address", sa.String(), nullable=True))
     op.add_column("person", sa.Column("address_last_updated", sa.DateTime(), nullable=True))
     op.add_column("person", sa.Column("biography_research_interest", sa.String(), nullable=True))
-    op.create_index(op.f("ix_person_orcid"), "person", ["orcid"], unique=False)
 
     # -------------------------------------------------------
     # New columns on person_version table (for versioning)
     # -------------------------------------------------------
-    op.add_column("person_version", sa.Column(
-        "orcid", sa.String(), autoincrement=False, nullable=True))
     op.add_column("person_version", sa.Column(
         "webpage", sa.ARRAY(sa.String()), autoincrement=False, nullable=True))
     op.add_column("person_version", sa.Column(
@@ -192,12 +188,7 @@ def upgrade():
         "address_last_updated", sa.DateTime(), autoincrement=False, nullable=True))
     op.add_column("person_version", sa.Column(
         "biography_research_interest", sa.String(), autoincrement=False, nullable=True))
-    op.create_index(
-        op.f("ix_person_version_orcid"), "person_version", ["orcid"], unique=False
-    )
     # _mod columns for versioning
-    op.add_column("person_version", sa.Column(
-        "orcid_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False))
     op.add_column("person_version", sa.Column(
         "webpage_mod", sa.Boolean(), server_default=sa.text("false"), nullable=False))
     op.add_column("person_version", sa.Column(
@@ -354,20 +345,18 @@ def downgrade():
     for col in ["biography_research_interest_mod", "address_last_updated_mod",
                 "street_address_mod", "country_mod",
                 "postal_code_mod", "state_mod", "city_mod", "active_status_mod",
-                "webpage_mod", "orcid_mod"]:
+                "webpage_mod"]:
         op.drop_column("person_version", col)
-    # person_version index + data columns
-    op.drop_index(op.f("ix_person_version_orcid"), table_name="person_version")
+    # person_version data columns
     for col in ["biography_research_interest", "address_last_updated",
                 "street_address", "country", "postal_code",
-                "state", "city", "active_status", "webpage", "orcid"]:
+                "state", "city", "active_status", "webpage"]:
         op.drop_column("person_version", col)
     # person columns
-    op.drop_index(op.f("ix_person_orcid"), table_name="person")
     op.drop_constraint("ck_person_active_status", "person", type_="check")
     for col in ["biography_research_interest", "address_last_updated",
                 "street_address", "country", "postal_code",
-                "state", "city", "active_status", "webpage", "orcid"]:
+                "state", "city", "active_status", "webpage"]:
         op.drop_column("person", col)
 
     # person_name_version

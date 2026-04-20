@@ -32,7 +32,6 @@ class PersonSchemaPost(BaseModel):
     display_name: str
     curie: Optional[str] = None
     okta_id: Optional[str] = None
-    orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
@@ -58,7 +57,6 @@ class PersonSchemaUpdate(BaseModel):
     display_name: Optional[str] = None
     curie: Optional[str] = None
     okta_id: Optional[str] = None
-    orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
@@ -77,7 +75,6 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     display_name: str
     curie: Optional[str] = None
     okta_id: Optional[str] = None
-    orcid: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: str = "active"

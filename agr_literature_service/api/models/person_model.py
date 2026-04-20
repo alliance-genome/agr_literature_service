@@ -20,7 +20,6 @@ class PersonModel(Base, AuditedModel):
 
     curie = Column(String(), nullable=True, index=True)     # optional (e.g., MATI)
     okta_id = Column(String(), nullable=True, index=True)   # optional
-    orcid = Column(String(), nullable=True, index=True)
     mod_roles = Column(ARRAY(String), nullable=True)
     webpage = Column(ARRAY(String), nullable=True)
     active_status = Column(

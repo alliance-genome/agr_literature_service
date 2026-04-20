@@ -24,7 +24,6 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Full Fields Person",
-                "orcid": "0000-0001-2345-6789",
                 "webpage": ["https://example.com", "https://lab.example.com"],
                 "active_status": "active",
                 "city": "Davis",
@@ -40,7 +39,6 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.status_code == status.HTTP_200_OK
             body = fetched.json()
-            assert body["orcid"] == "0000-0001-2345-6789"
             assert body["webpage"] == ["https://example.com", "https://lab.example.com"]
             assert body["active_status"] == "active"
             assert body["city"] == "Davis"
@@ -49,19 +47,6 @@ class TestPersonFields:
             assert body["country"] == "USA"
             assert body["street_address"] == "123 Main St"
             assert body["address_last_updated"] is not None
-
-    def test_create_person_with_orcid(self, auth_headers):  # noqa
-        with TestClient(app) as client:
-            payload = {
-                "display_name": "ORCID Person",
-                "orcid": "0000-0002-9999-8888",
-            }
-            res = client.post("/person/", json=payload, headers=auth_headers)
-            assert res.status_code == status.HTTP_201_CREATED
-            person_id = res.json()["person_id"]
-
-            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
-            assert fetched.json()["orcid"] == "0000-0002-9999-8888"
 
     def test_create_person_with_webpage_array(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -121,7 +106,6 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "No Address Person",
-                "orcid": "0000-0003-1111-2222",
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
@@ -129,18 +113,6 @@ class TestPersonFields:
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["address_last_updated"] is None
-
-    def test_patch_orcid(self, auth_headers, test_person_id):  # noqa
-        with TestClient(app) as client:
-            res = client.patch(
-                f"/person/{test_person_id}",
-                json={"orcid": "0000-0001-0000-0001"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_202_ACCEPTED
-
-            fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
-            assert fetched.json()["orcid"] == "0000-0001-0000-0001"
 
     def test_patch_webpage(self, auth_headers, test_person_id):  # noqa
         with TestClient(app) as client:
@@ -226,7 +198,6 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Show Fields Person",
-                "orcid": "0000-0004-5678-1234",
                 "webpage": ["https://show.example.com"],
                 "active_status": "deceased",
                 "city": "Cambridge",
@@ -242,7 +213,7 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
             # All new fields should be present
-            for field in ["orcid", "webpage", "active_status", "city", "state",
+            for field in ["webpage", "active_status", "city", "state",
                           "postal_code", "country", "street_address",
                           "address_last_updated", "biography_research_interest"]:
                 assert field in body, f"Missing field: {field}"
@@ -298,7 +269,6 @@ class TestPersonFields:
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
-            assert body["orcid"] is None
             assert body["webpage"] is None
             # active_status is NOT NULL with default "active"
             assert body["active_status"] == "active"

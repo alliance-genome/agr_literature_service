@@ -151,7 +151,7 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
 
     ALLOWED = {
         "display_name", "curie", "mod_roles",
-        "orcid", "webpage", "active_status",
+        "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
     }
