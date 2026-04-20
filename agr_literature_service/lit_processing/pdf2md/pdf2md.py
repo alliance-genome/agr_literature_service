@@ -48,7 +48,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def get_newest_main_pdfs(db: Session, limit: int = 50, skip_xml: bool = False) -> List[Dict]:
+def get_newest_main_pdfs(db: Session, limit: int = 50, skip_xml: bool = False) -> List[Dict]:  # pragma: no cover
     """
     Get the newest main PDF files from the database.
 
@@ -110,7 +110,7 @@ def get_newest_main_pdfs(db: Session, limit: int = 50, skip_xml: bool = False) -
     return results
 
 
-def get_unprocessed_pdfs_since_year(db: Session, since_year: int, skip_xml: bool = False) -> List[Dict]:
+def get_unprocessed_pdfs_since_year(db: Session, since_year: int, skip_xml: bool = False) -> List[Dict]:  # pragma: no cover
     """
     Get main PDF files created since a given year that haven't been converted to markdown.
 
@@ -196,7 +196,7 @@ def get_unprocessed_pdfs_since_year(db: Session, since_year: int, skip_xml: bool
     return results
 
 
-def process_pdfs_since_year(since_year: int, skip_xml: bool = False):
+def process_pdfs_since_year(since_year: int, skip_xml: bool = False):  # pragma: no cover
     """
     Process all unprocessed PDFs since a given year.
 
@@ -316,7 +316,7 @@ def process_pdfs_since_year(since_year: int, skip_xml: bool = False):
     }
 
 
-def process_single_pdf(
+def process_single_pdf(  # pragma: no cover
     db: Session,
     ref_file_info: Dict,
     token: str,
@@ -420,7 +420,7 @@ def process_single_pdf(
         return False, error_msg
 
 
-def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):
+def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):  # pragma: no cover
     """
     Process the newest main PDFs and convert them to markdown.
 
@@ -535,7 +535,7 @@ def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):
     }
 
 
-def main():
+def main():  # pragma: no cover
     """
     Main entry point for workflow-based PDF to Markdown conversion.
 

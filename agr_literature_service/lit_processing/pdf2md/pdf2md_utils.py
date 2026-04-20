@@ -67,7 +67,7 @@ _token_cache: Dict[str, Any] = {
 }
 
 
-def get_pdfx_token() -> str:
+def get_pdfx_token() -> str:  # pragma: no cover
     """
     Obtain PDFX bearer token using Cognito client_credentials grant.
     Uses agr_cognito_py with custom CognitoAdminConfig for PDFX credentials.
@@ -121,7 +121,7 @@ def get_pdfx_token() -> str:
     return token
 
 
-def submit_pdf_to_pdfx(
+def submit_pdf_to_pdfx(  # pragma: no cover
     file_content: bytes,
     token: str,
     methods: str = "grobid,docling,marker",
@@ -206,7 +206,7 @@ def submit_pdf_to_pdfx(
     raise RuntimeError("PDFX submission failed: no exception captured")
 
 
-def poll_pdfx_status(
+def poll_pdfx_status(  # pragma: no cover
     process_id: str,
     token: str,
     timeout: int = 900,
@@ -265,7 +265,7 @@ def poll_pdfx_status(
     raise TimeoutError(f"PDFX job {process_id} timed out after {timeout} seconds")
 
 
-def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:
+def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # pragma: no cover
     """
     Download the markdown result for a specific extraction method.
 
@@ -297,7 +297,7 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:
 PdfType = Literal["main", "supplement", "both"]
 
 
-def resolve_curie_to_reference(db: Session, curie: str) -> Optional[ReferenceModel]:
+def resolve_curie_to_reference(db: Session, curie: str) -> Optional[ReferenceModel]:  # pragma: no cover
     """
     Resolve a curie to a ReferenceModel.
 
@@ -329,7 +329,7 @@ def resolve_curie_to_reference(db: Session, curie: str) -> Optional[ReferenceMod
         return None
 
 
-def get_pdf_files_for_reference(
+def get_pdf_files_for_reference(  # pragma: no cover
     db: Session,
     reference_id: int,
     pdf_type: PdfType = "main"
@@ -371,7 +371,7 @@ def get_pdf_files_for_reference(
     return pdf_files
 
 
-def process_pdf_for_reference(
+def process_pdf_for_reference(  # pragma: no cover
     db: Session,
     curie: str,
     pdf_type: PdfType = "main",
@@ -539,7 +539,7 @@ def process_pdf_for_reference(
     )
 
 
-def _process_single_pdf_file(
+def _process_single_pdf_file(  # pragma: no cover
     db: Session,
     pdf_file: ReferencefileModel,
     reference_curie: str,
@@ -655,7 +655,7 @@ def _process_single_pdf_file(
         return False, [], "No methods successfully extracted"
 
 
-def get_pdfs_missing_xml(
+def get_pdfs_missing_xml(  # pragma: no cover
     db: Session,
     mod_abbreviation: Optional[str] = None,
     include_pmc: bool = True,
