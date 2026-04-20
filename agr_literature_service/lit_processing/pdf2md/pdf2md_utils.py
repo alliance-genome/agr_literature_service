@@ -8,7 +8,7 @@ import logging
 import os
 import time
 from io import BytesIO
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
 
 import requests
 from fastapi import HTTPException, UploadFile
@@ -30,12 +30,35 @@ from agr_cognito_py.config import CognitoAdminConfig
 logger = logging.getLogger(__name__)
 
 # Extraction methods and their corresponding file classes
-EXTRACTION_METHODS = {
+EXTRACTION_METHODS: Dict[str, str] = {
     "grobid": "converted_grobid_main",
     "docling": "converted_docling_main",
     "marker": "converted_marker_main",
     "merged": "converted_merged_main",
 }
+
+
+class PdfDetail(TypedDict):
+    """Type for PDF processing detail."""
+    referencefile_id: int
+    display_name: str
+    file_class: str
+    success: bool
+    methods_uploaded: List[str]
+    error: Optional[str]
+
+
+class ProcessingResult(TypedDict):
+    """Type for PDF processing result."""
+    success: bool
+    reference_curie: Optional[str]
+    input_curie: str
+    pdfs_processed: int
+    pdfs_succeeded: int
+    pdfs_failed: int
+    details: List[PdfDetail]
+    error: Optional[str]
+
 
 # Token cache for PDFX API
 _token_cache: Dict[str, Any] = {
@@ -177,7 +200,10 @@ def submit_pdf_to_pdfx(
                 logger.error(f"PDFX submission failed after {max_retries} attempts")
                 raise
 
-    raise last_exception
+    # This should never be reached if max_retries >= 1, but satisfy mypy
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("PDFX submission failed: no exception captured")
 
 
 def poll_pdfx_status(
@@ -351,7 +377,7 @@ def process_pdf_for_reference(
     pdf_type: PdfType = "main",
     methods_to_extract: Optional[List[str]] = None,
     token: Optional[str] = None
-) -> Dict:
+) -> ProcessingResult:
     """
     Process PDF(s) for a single reference and convert to Markdown.
 
@@ -401,33 +427,47 @@ def process_pdf_for_reference(
     if methods_to_extract is None:
         methods_to_extract = list(EXTRACTION_METHODS.keys())
 
-    result = {
-        "success": False,
-        "reference_curie": None,
-        "input_curie": curie,
-        "pdfs_processed": 0,
-        "pdfs_succeeded": 0,
-        "pdfs_failed": 0,
-        "details": [],
-        "error": None
-    }
+    # Use explicit typed variables for counters and lists
+    pdfs_processed: int = 0
+    pdfs_succeeded: int = 0
+    pdfs_failed: int = 0
+    details: List[PdfDetail] = []
+    error_msg: Optional[str] = None
+    reference_curie: Optional[str] = None
 
     # Resolve curie to reference
     reference = resolve_curie_to_reference(db, curie)
     if not reference:
-        result["error"] = f"Could not resolve curie to reference: {curie}"
-        logger.error(result["error"])
-        return result
+        error_msg = f"Could not resolve curie to reference: {curie}"
+        logger.error(error_msg)
+        return ProcessingResult(
+            success=False,
+            reference_curie=None,
+            input_curie=curie,
+            pdfs_processed=0,
+            pdfs_succeeded=0,
+            pdfs_failed=0,
+            details=[],
+            error=error_msg
+        )
 
-    result["reference_curie"] = reference.curie
     reference_curie = reference.curie
 
     # Get PDF files
     pdf_files = get_pdf_files_for_reference(db, reference.reference_id, pdf_type)
     if not pdf_files:
-        result["error"] = f"No PDF files found for {reference_curie} with pdf_type='{pdf_type}'"
-        logger.warning(result["error"])
-        return result
+        error_msg = f"No PDF files found for {reference_curie} with pdf_type='{pdf_type}'"
+        logger.warning(error_msg)
+        return ProcessingResult(
+            success=False,
+            reference_curie=reference_curie,
+            input_curie=curie,
+            pdfs_processed=0,
+            pdfs_succeeded=0,
+            pdfs_failed=0,
+            details=[],
+            error=error_msg
+        )
 
     logger.info(f"Found {len(pdf_files)} PDF file(s) for {reference_curie} (pdf_type={pdf_type})")
 
@@ -436,14 +476,23 @@ def process_pdf_for_reference(
         try:
             token = get_pdfx_token()
         except Exception as e:
-            result["error"] = f"Failed to obtain PDFX token: {e}"
-            logger.error(result["error"])
-            return result
+            error_msg = f"Failed to obtain PDFX token: {e}"
+            logger.error(error_msg)
+            return ProcessingResult(
+                success=False,
+                reference_curie=reference_curie,
+                input_curie=curie,
+                pdfs_processed=0,
+                pdfs_succeeded=0,
+                pdfs_failed=0,
+                details=[],
+                error=error_msg
+            )
 
     # Process each PDF file
     for pdf_file in pdf_files:
-        result["pdfs_processed"] += 1
-        pdf_detail = {
+        pdfs_processed += 1
+        pdf_detail: PdfDetail = {
             "referencefile_id": pdf_file.referencefile_id,
             "display_name": pdf_file.display_name,
             "file_class": pdf_file.file_class,
@@ -453,7 +502,7 @@ def process_pdf_for_reference(
         }
 
         try:
-            success, methods_uploaded, error_msg = _process_single_pdf_file(
+            success, methods_uploaded, detail_error = _process_single_pdf_file(
                 db=db,
                 pdf_file=pdf_file,
                 reference_curie=reference_curie,
@@ -463,24 +512,31 @@ def process_pdf_for_reference(
 
             pdf_detail["success"] = success
             pdf_detail["methods_uploaded"] = methods_uploaded
-            pdf_detail["error"] = error_msg
+            pdf_detail["error"] = detail_error
 
             if success:
-                result["pdfs_succeeded"] += 1
+                pdfs_succeeded += 1
             else:
-                result["pdfs_failed"] += 1
+                pdfs_failed += 1
 
         except Exception as e:
             pdf_detail["error"] = str(e)
-            result["pdfs_failed"] += 1
+            pdfs_failed += 1
             logger.error(f"Error processing PDF {pdf_file.display_name}: {e}")
 
-        result["details"].append(pdf_detail)
+        details.append(pdf_detail)
 
     # Overall success if at least one PDF was successfully processed
-    result["success"] = result["pdfs_succeeded"] > 0
-
-    return result
+    return ProcessingResult(
+        success=pdfs_succeeded > 0,
+        reference_curie=reference_curie,
+        input_curie=curie,
+        pdfs_processed=pdfs_processed,
+        pdfs_succeeded=pdfs_succeeded,
+        pdfs_failed=pdfs_failed,
+        details=details,
+        error=None
+    )
 
 
 def _process_single_pdf_file(

@@ -36,13 +36,13 @@ try:
         download_pdfx_result,
     )
 except ImportError:
-    from pdf2md_utils import (
-        EXTRACTION_METHODS,
-        get_pdfx_token,
-        submit_pdf_to_pdfx,
-        poll_pdfx_status,
-        download_pdfx_result,
-    )
+    # Fallback for direct script execution
+    import pdf2md_utils as _pdf2md_utils  # type: ignore[import-not-found]
+    EXTRACTION_METHODS = _pdf2md_utils.EXTRACTION_METHODS
+    get_pdfx_token = _pdf2md_utils.get_pdfx_token
+    submit_pdf_to_pdfx = _pdf2md_utils.submit_pdf_to_pdfx
+    poll_pdfx_status = _pdf2md_utils.poll_pdfx_status
+    download_pdfx_result = _pdf2md_utils.download_pdfx_result
 
 
 logger = logging.getLogger(__name__)
@@ -320,7 +320,7 @@ def process_single_pdf(
     db: Session,
     ref_file_info: Dict,
     token: str,
-    methods_to_extract: List[str] = None
+    methods_to_extract: Optional[List[str]] = None
 ) -> Tuple[bool, Optional[str]]:
     """
     Process a single PDF file through PDFX.
