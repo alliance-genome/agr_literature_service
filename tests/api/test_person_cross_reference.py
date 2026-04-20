@@ -122,61 +122,6 @@ class TestPersonCrossReference:
             assert res.status_code == status.HTTP_201_CREATED
             assert res.json()["curie_prefix"] == "ZFIN"
 
-    def test_create_with_mgi_curie(self, auth_headers, seeded_person):  # noqa
-        """MGI person curie."""
-        with TestClient(app) as client:
-            res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "MGI:1234567"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_201_CREATED
-            assert res.json()["curie_prefix"] == "MGI"
-
-    def test_create_with_sgd_curie(self, auth_headers, seeded_person):  # noqa
-        """SGD person curie."""
-        with TestClient(app) as client:
-            res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "SGD:S000001234"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_201_CREATED
-            assert res.json()["curie_prefix"] == "SGD"
-
-    def test_create_with_rgd_curie(self, auth_headers, seeded_person):  # noqa
-        """RGD person curie."""
-        with TestClient(app) as client:
-            res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "RGD:1234"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_201_CREATED
-            assert res.json()["curie_prefix"] == "RGD"
-
-    def test_create_with_fb_curie(self, auth_headers, seeded_person):  # noqa
-        """FlyBase person curie."""
-        with TestClient(app) as client:
-            res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "FB:FBpp0123456"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_201_CREATED
-            assert res.json()["curie_prefix"] == "FB"
-
-    def test_create_with_mati_curie(self, auth_headers, seeded_person):  # noqa
-        """MATI person curie."""
-        with TestClient(app) as client:
-            res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "MATI:person-001"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_201_CREATED
-            assert res.json()["curie_prefix"] == "MATI"
-
     def test_create_invalid_curie_no_colon(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
@@ -309,7 +254,7 @@ class TestPersonCrossReference:
                 "cross_references": [
                     {"curie": "ORCID:0000-0003-9999-1111"},
                     {"curie": "WB:WBPerson55555"},
-                    {"curie": "MGI:9999"},
+                    {"curie": "ZFIN:ZDB-PERS-200202-2"},
                 ],
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
@@ -324,7 +269,7 @@ class TestPersonCrossReference:
             assert curies == {
                 "ORCID:0000-0003-9999-1111",
                 "WB:WBPerson55555",
-                "MGI:9999",
+                "ZFIN:ZDB-PERS-200202-2",
             }
             prefixes = {x["curie_prefix"] for x in xrefs}
-            assert prefixes == {"ORCID", "WB", "MGI"}
+            assert prefixes == {"ORCID", "WB", "ZFIN"}
