@@ -1,20 +1,27 @@
 """
-Utility functions for PDF to Markdown conversion.
+Utility functions for PDF/nXML to Markdown conversion.
 
-This module provides helper functions for processing PDFs for individual papers,
-including PDFX API integration, reference lookup by curie, and PDF file retrieval.
+This module provides helper functions for processing references for individual papers,
+including PDFX API integration, reference lookup by curie, nXML conversion, and file
+retrieval for both main and supplemental files.
 """
+import gzip
 import logging
 import os
 import time
 from io import BytesIO
 from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
+import boto3
 import requests
 from fastapi import HTTPException, UploadFile
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from agr_abc_document_parsers import convert_xml_to_markdown
+
 from agr_literature_service.api.crud.referencefile_crud import download_file, file_upload
+from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
 from agr_literature_service.api.crud.reference_utils import (
     normalize_reference_curie,
     get_reference,
@@ -754,3 +761,187 @@ def get_pdfs_missing_xml(  # pragma: no cover
         })
 
     return results
+
+
+def get_nxml_referencefile(  # pragma: no cover
+    db: Session,
+    reference_id: int
+) -> Optional[ReferencefileModel]:
+    """
+    Find the most recent final nXML file for a reference.
+
+    Args:
+        db: Database session.
+        reference_id: The reference ID to search.
+
+    Returns:
+        The ReferencefileModel for the nXML file, or None if not found.
+    """
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "nXML",
+            ReferencefileModel.file_publication_status == "final"
+        )
+        .order_by(desc(ReferencefileModel.referencefile_id))
+        .first()
+    )
+
+
+def download_xml_from_s3(s3_client, md5sum: str) -> bytes:  # pragma: no cover
+    """
+    Download and decompress an XML file from S3 by md5sum.
+
+    Args:
+        s3_client: boto3 S3 client.
+        md5sum: The md5sum used to locate the file in S3.
+
+    Returns:
+        The file content as bytes (decompressed if it was gzipped).
+    """
+    folder = get_s3_folder_from_md5sum(md5sum)
+    s3_key = f"{folder}/{md5sum}.gz"
+    response = s3_client.get_object(Bucket="agr-literature", Key=s3_key)
+    compressed = response["Body"].read()
+    try:
+        return gzip.decompress(compressed)
+    except (gzip.BadGzipFile, OSError):
+        return compressed
+
+
+def process_nxml_to_markdown(  # pragma: no cover
+    db: Session,
+    nxml_ref_file: ReferencefileModel,
+    reference_curie: str,
+    mod_abbreviation: Optional[str],
+    s3_client=None
+) -> Tuple[bool, Optional[str]]:
+    """
+    Convert an nXML file to Markdown and store the result.
+
+    The nXML is downloaded from S3, converted to markdown via
+    agr_abc_document_parsers.convert_xml_to_markdown (JATS format), and the
+    result is uploaded via file_upload with file_class='converted_merged_main',
+    matching the convention used by the nxml2md oneoff script.
+
+    Args:
+        db: Database session.
+        nxml_ref_file: ReferencefileModel for the nXML source file.
+        reference_curie: Reference curie for the output file metadata.
+        mod_abbreviation: Optional MOD abbreviation for the output file metadata.
+        s3_client: Optional boto3 S3 client; one is created if not provided.
+
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str]).
+    """
+    try:
+        if s3_client is None:
+            s3_client = boto3.client("s3")
+
+        xml_content = download_xml_from_s3(s3_client, nxml_ref_file.md5sum)
+        if not xml_content:
+            return False, "Empty nXML content returned from S3"
+
+        markdown = convert_xml_to_markdown(xml_content, "jats")
+        md_bytes = markdown.encode("utf-8")
+
+        if len(md_bytes) < 10:
+            return False, "nXML conversion produced empty or minimal content"
+
+        output_display_name = f"{nxml_ref_file.display_name}_nxml"
+        metadata = {
+            "reference_curie": reference_curie,
+            "display_name": output_display_name,
+            "file_class": "converted_merged_main",
+            "file_publication_status": "final",
+            "file_extension": "md",
+            "pdf_type": None,
+            "is_annotation": None,
+            "mod_abbreviation": mod_abbreviation
+        }
+
+        file_upload(
+            db=db,
+            metadata=metadata,
+            file=UploadFile(
+                file=BytesIO(md_bytes),
+                filename=f"{output_display_name}.md"
+            ),
+            upload_if_already_converted=True
+        )
+
+        logger.info(
+            f"Uploaded nXML-derived markdown for {reference_curie} "
+            f"(nxml referencefile_id={nxml_ref_file.referencefile_id})"
+        )
+        return True, None
+
+    except Exception as e:
+        error_msg = f"nXML->markdown failed: {e}"
+        logger.error(f"{error_msg} (reference_curie={reference_curie})")
+        return False, error_msg
+
+
+def process_supplemental_pdfs(  # pragma: no cover
+    db: Session,
+    reference_id: int,
+    reference_curie: str,
+    token: str,
+    methods_to_extract: Optional[List[str]] = None
+) -> Tuple[int, int, List[str]]:
+    """
+    Convert all supplemental PDFs for a reference to Markdown via PDFX.
+
+    Uses the existing per-PDF helper (_process_single_pdf_file), which already
+    handles supplement file_class naming ('converted_{method}_supplement').
+
+    Args:
+        db: Database session.
+        reference_id: The reference ID whose supplements should be processed.
+        reference_curie: The reference curie for metadata/logging.
+        token: PDFX bearer token.
+        methods_to_extract: List of methods to extract (default: all).
+
+    Returns:
+        Tuple of (succeeded_count, failed_count, per_supplement_errors). Each
+        entry in per_supplement_errors is a "<display_name>: <error>" string.
+    """
+    if methods_to_extract is None:
+        methods_to_extract = list(EXTRACTION_METHODS.keys())
+
+    supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
+    if not supplements:
+        return 0, 0, []
+
+    logger.info(
+        f"Processing {len(supplements)} supplemental PDF(s) for {reference_curie}"
+    )
+
+    succeeded = 0
+    failed = 0
+    errors: List[str] = []
+
+    for pdf_file in supplements:
+        try:
+            success, _methods, error = _process_single_pdf_file(
+                db=db,
+                pdf_file=pdf_file,
+                reference_curie=reference_curie,
+                token=token,
+                methods_to_extract=methods_to_extract
+            )
+            if success:
+                succeeded += 1
+            else:
+                failed += 1
+                errors.append(f"{pdf_file.display_name}: {error or 'unknown error'}")
+        except Exception as e:
+            failed += 1
+            errors.append(f"{pdf_file.display_name}: {e}")
+            logger.error(
+                f"Error processing supplemental PDF {pdf_file.display_name} "
+                f"for {reference_curie}: {e}"
+            )
+
+    return succeeded, failed, errors

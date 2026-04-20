@@ -1,9 +1,15 @@
 """
-PDF to Markdown conversion using PDFX service.
+Reference to Markdown conversion.
 
-This script converts PDF files to Markdown using the PDFX service at
-https://pdfx.alliancegenome.org. It supports multiple extraction methods
-(grobid, docling, marker, merged) and stores each output as a separate file.
+For each reference processed, this script prefers converting a publisher-provided
+nXML/JATS file to Markdown (via agr_abc_document_parsers) when available, and
+falls back to extracting the main PDF via the PDFX service
+(https://pdfx.alliancegenome.org) otherwise. All supplemental PDFs for the
+reference are also converted via PDFX.
+
+PDFX supports multiple extraction methods (grobid, docling, marker, merged) and
+stores each output as a separate file; nXML conversion produces a single
+merged-style markdown output.
 """
 import logging
 import time
@@ -31,6 +37,9 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     submit_pdf_to_pdfx,
     poll_pdfx_status,
     download_pdfx_result,
+    get_nxml_referencefile,
+    process_nxml_to_markdown,
+    process_supplemental_pdfs,
 )
 
 
@@ -196,38 +205,45 @@ def get_unprocessed_pdfs_since_year(
     return results
 
 
-def _process_pdf_list(  # pragma: no cover
+def _process_reference_list(  # pragma: no cover
     db: Session,
-    pdf_list: List[Dict],
+    reference_list: List[Dict],
     token: str,
     start_time: float,
     summary_suffix: str = "",
-    report_subject: str = "pdf2md conversion errors"
+    report_subject: str = "pdf2md conversion errors",
+    prefer_nxml: bool = True,
+    process_supplements: bool = True
 ) -> Dict:
     """
-    Common processing loop for PDF to Markdown conversion.
+    Common processing loop for reference-to-Markdown conversion.
 
-    This is a shared helper function used by process_pdfs_since_year and process_newest_pdfs.
+    Used by process_references_since_year and process_newest_references. Each
+    reference is converted via nXML when available (unless prefer_nxml is
+    False), or via PDFX otherwise; supplemental PDFs are also processed when
+    process_supplements is True.
 
     Args:
         db: Database session.
-        pdf_list: List of PDF info dicts to process.
+        reference_list: List of reference info dicts to process.
         token: Initial PDFX bearer token.
         start_time: Start time for timing statistics.
         summary_suffix: Suffix for log summary title (e.g., " (Since 2025)").
         report_subject: Subject line for error report email.
+        prefer_nxml: Prefer nXML over PDFX for main-file conversion.
+        process_supplements: Also convert supplemental PDFs.
 
     Returns:
         Dict with processing statistics.
     """
-    total_count = len(pdf_list)
+    total_count = len(reference_list)
     success_count = 0
     failure_count = 0
     objects_with_errors: List[Dict] = []
-    pdf_times: List[float] = []
+    ref_times: List[float] = []
 
-    for idx, ref_file_info in enumerate(pdf_list, 1):
-        pdf_start_time = time.time()
+    for idx, ref_file_info in enumerate(reference_list, 1):
+        ref_start_time = time.time()
         reference_curie = ref_file_info["reference_curie"]
 
         logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
@@ -247,14 +263,18 @@ def _process_pdf_list(  # pragma: no cover
             })
             continue
 
-        success, error_msg = process_single_pdf(db, ref_file_info, token)
+        success, error_msg = process_single_reference(
+            db, ref_file_info, token,
+            prefer_nxml=prefer_nxml,
+            process_supplements=process_supplements
+        )
 
-        pdf_elapsed = time.time() - pdf_start_time
-        pdf_times.append(pdf_elapsed)
+        ref_elapsed = time.time() - ref_start_time
+        ref_times.append(ref_elapsed)
 
         if success:
             success_count += 1
-            logger.info(f"Completed {reference_curie} in {pdf_elapsed:.2f}s")
+            logger.info(f"Completed {reference_curie} in {ref_elapsed:.2f}s")
         else:
             failure_count += 1
             objects_with_errors.append({
@@ -264,34 +284,34 @@ def _process_pdf_list(  # pragma: no cover
                 "mod_abbreviation": ref_file_info.get("mod_abbreviation", "N/A"),
                 "error": error_msg
             })
-            logger.error(f"Failed {reference_curie} after {pdf_elapsed:.2f}s: {error_msg}")
+            logger.error(f"Failed {reference_curie} after {ref_elapsed:.2f}s: {error_msg}")
 
     # Calculate timing statistics
     total_elapsed = time.time() - start_time
-    avg_time = sum(pdf_times) / len(pdf_times) if pdf_times else 0
-    min_time = min(pdf_times) if pdf_times else 0
-    max_time = max(pdf_times) if pdf_times else 0
+    avg_time = sum(ref_times) / len(ref_times) if ref_times else 0
+    min_time = min(ref_times) if ref_times else 0
+    max_time = max(ref_times) if ref_times else 0
 
     # Log summary
     logger.info("=" * 60)
-    logger.info(f"PDF to Markdown Conversion Summary{summary_suffix}")
+    logger.info(f"Reference to Markdown Conversion Summary{summary_suffix}")
     logger.info("=" * 60)
-    logger.info(f"Total PDFs processed: {total_count}")
+    logger.info(f"Total references processed: {total_count}")
     logger.info(f"Successful: {success_count}")
     logger.info(f"Failed: {failure_count}")
     logger.info("-" * 60)
     logger.info("Timing Statistics:")
     logger.info(f"  Total time: {total_elapsed:.2f}s ({total_elapsed / 60:.2f} minutes)")
-    logger.info(f"  Average per PDF: {avg_time:.2f}s")
+    logger.info(f"  Average per reference: {avg_time:.2f}s")
     logger.info(f"  Min time: {min_time:.2f}s")
     logger.info(f"  Max time: {max_time:.2f}s")
     logger.info("=" * 60)
 
     # Send error report if there were failures
     if objects_with_errors:
-        error_message = f"PDF to Markdown Conversion Errors{summary_suffix}\n\n"
+        error_message = f"Reference to Markdown Conversion Errors{summary_suffix}\n\n"
         error_message += f"Total: {total_count}, Success: {success_count}, Failed: {failure_count}\n\n"
-        error_message += f"Total time: {total_elapsed:.2f}s, Avg per PDF: {avg_time:.2f}s\n\n"
+        error_message += f"Total time: {total_elapsed:.2f}s, Avg per reference: {avg_time:.2f}s\n\n"
         error_message += "Failed conversions:\n"
         for error_obj in objects_with_errors:
             error_message += f"{error_obj['mod_abbreviation']}\t{error_obj['reference_curie']}\t"
@@ -304,20 +324,32 @@ def _process_pdf_list(  # pragma: no cover
         "success": success_count,
         "failed": failure_count,
         "total_time_seconds": total_elapsed,
-        "avg_time_per_pdf": avg_time,
+        "avg_time_per_reference": avg_time,
         "min_time": min_time,
         "max_time": max_time
     }
 
 
-def process_pdfs_since_year(since_year: int, skip_xml: bool = False, limit: Optional[int] = None):  # pragma: no cover
+def process_references_since_year(  # pragma: no cover
+    since_year: int,
+    skip_xml: bool = False,
+    limit: Optional[int] = None,
+    prefer_nxml: bool = True,
+    process_supplements: bool = True
+):
     """
-    Process all unprocessed PDFs since a given year.
+    Process all unconverted references whose main PDF is from a given year onwards.
+
+    Enumeration is keyed on main-PDF presence (see get_unprocessed_pdfs_since_year);
+    per-reference processing prefers nXML (unless prefer_nxml=False) and also
+    handles supplemental PDFs (unless process_supplements=False).
 
     Args:
         since_year: Year to filter from (e.g., 2025 means Jan 1, 2025 onwards).
         skip_xml: If True, skip papers that already have XML/nXML files.
-        limit: Optional limit on number of PDFs to process. If None, process all.
+        limit: Optional limit on number of references to process. If None, process all.
+        prefer_nxml: Prefer nXML over PDFX for main-file conversion.
+        process_supplements: Also convert supplemental PDFs.
     """
     start_time = time.time()
 
@@ -326,11 +358,15 @@ def process_pdfs_since_year(since_year: int, skip_xml: bool = False, limit: Opti
     db = new_session()
 
     try:
-        logger.info(f"Starting PDF to Markdown conversion for PDFs since {since_year}")
+        logger.info(f"Starting reference-to-Markdown conversion for papers since {since_year}")
         if skip_xml:
             logger.info("Skipping papers that already have XML/nXML files")
         if limit:
-            logger.info(f"Limiting to {limit} PDFs")
+            logger.info(f"Limiting to {limit} references")
+        if not prefer_nxml:
+            logger.info("Forcing PDFX for main file (nXML preference disabled)")
+        if not process_supplements:
+            logger.info("Skipping supplemental PDFs")
 
         # Get token
         try:
@@ -339,56 +375,46 @@ def process_pdfs_since_year(since_year: int, skip_xml: bool = False, limit: Opti
             logger.error(f"Failed to obtain PDFX token: {e}")
             return None
 
-        # Get unprocessed PDFs
-        pdf_list = get_unprocessed_pdfs_since_year(
+        # Get unprocessed references
+        reference_list = get_unprocessed_pdfs_since_year(
             db, since_year=since_year, skip_xml=skip_xml, limit=limit
         )
-        logger.info(f"Found {len(pdf_list)} unprocessed PDFs to convert")
+        logger.info(f"Found {len(reference_list)} unprocessed references to convert")
 
-        if not pdf_list:
-            logger.info("No unprocessed PDFs found. Exiting.")
+        if not reference_list:
+            logger.info("No unprocessed references found. Exiting.")
             return {"total": 0, "success": 0, "failed": 0}
 
-        return _process_pdf_list(
+        return _process_reference_list(
             db=db,
-            pdf_list=pdf_list,
+            reference_list=reference_list,
             token=token,
             start_time=start_time,
             summary_suffix=f" (Since {since_year})",
-            report_subject=f"pdf2md conversion errors (since {since_year})"
+            report_subject=f"pdf2md conversion errors (since {since_year})",
+            prefer_nxml=prefer_nxml,
+            process_supplements=process_supplements
         )
     finally:
         db.close()
 
 
-def process_single_pdf(  # pragma: no cover
+def _convert_main_pdf_via_pdfx(  # pragma: no cover
     db: Session,
-    ref_file_info: Dict,
+    referencefile_id: int,
+    reference_curie: str,
+    display_name: str,
+    mod_abbreviation: Optional[str],
     token: str,
-    methods_to_extract: Optional[List[str]] = None
+    methods_to_extract: List[str]
 ) -> Tuple[bool, Optional[str]]:
     """
-    Process a single PDF file through PDFX.
-
-    Args:
-        db: Database session.
-        ref_file_info: Dict with referencefile info.
-        token: PDFX bearer token.
-        methods_to_extract: List of methods to extract (default: all 4).
+    Convert a main PDF via PDFX and upload the resulting markdown files.
 
     Returns:
         Tuple of (success: bool, error_message: Optional[str]).
     """
-    if methods_to_extract is None:
-        methods_to_extract = list(EXTRACTION_METHODS.keys())
-
-    referencefile_id = ref_file_info["referencefile_id"]
-    reference_curie = ref_file_info["reference_curie"]
-    display_name = ref_file_info["display_name"]
-    mod_abbreviation = ref_file_info.get("mod_abbreviation")
-
     try:
-        # Download the PDF content
         file_content = download_file(
             db=db,
             referencefile_id=referencefile_id,
@@ -400,7 +426,6 @@ def process_single_pdf(  # pragma: no cover
         request_methods = [m for m in methods_to_extract if m != "merged"]
         include_merge = "merged" in methods_to_extract
 
-        # Submit to PDFX
         process_id = submit_pdf_to_pdfx(
             file_content=file_content,
             token=token,
@@ -410,10 +435,8 @@ def process_single_pdf(  # pragma: no cover
             mod_abbreviation=mod_abbreviation
         )
 
-        # Poll for completion
         poll_pdfx_status(process_id, token)
 
-        # Download and store each method's output
         successful_methods = []
         for method in methods_to_extract:
             try:
@@ -454,24 +477,155 @@ def process_single_pdf(  # pragma: no cover
                 logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
 
         if successful_methods:
-            logger.info(f"Successfully processed {reference_curie} with methods: {successful_methods}")
+            logger.info(
+                f"Successfully processed main PDF for {reference_curie} "
+                f"with methods: {successful_methods}"
+            )
             return True, None
-        else:
-            return False, "No methods successfully extracted"
+        return False, "No methods successfully extracted"
 
     except Exception as e:
         error_msg = str(e)
-        logger.error(f"Failed to process {reference_curie}: {error_msg}")
+        logger.error(f"Failed to process main PDF for {reference_curie}: {error_msg}")
         return False, error_msg
 
 
-def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):  # pragma: no cover
+def process_single_reference(  # pragma: no cover
+    db: Session,
+    ref_file_info: Dict,
+    token: str,
+    methods_to_extract: Optional[List[str]] = None,
+    prefer_nxml: bool = True,
+    process_supplements: bool = True
+) -> Tuple[bool, Optional[str]]:
     """
-    Process the newest main PDFs and convert them to markdown.
+    Convert the main content of a single reference to Markdown, plus any
+    supplemental PDFs.
+
+    Flow:
+      1. If prefer_nxml is True and the reference has an nXML file, convert
+         it to markdown via agr_abc_document_parsers. On nXML failure, fall
+         back to PDFX.
+      2. Otherwise, run the main PDF through PDFX (grobid, docling, marker, merged).
+      3. If process_supplements is True, process every supplemental PDF for
+         the reference via PDFX.
+
+    Supplement failures are logged/reported but do not fail the reference; the
+    reference succeeds if its main conversion produced any markdown output.
 
     Args:
-        limit: Number of newest PDFs to process.
+        db: Database session.
+        ref_file_info: Dict with reference/file info. Must include
+            reference_id, reference_curie, display_name, and (for PDF fallback)
+            referencefile_id of the main PDF plus file_extension. May include
+            mod_abbreviation.
+        token: PDFX bearer token.
+        methods_to_extract: List of methods to extract (default: all 4).
+        prefer_nxml: When True (default), prefer nXML conversion over PDFX for
+            the main file when an nXML file is available. When False, always
+            use PDFX on the main PDF.
+        process_supplements: When True (default), also convert supplemental
+            PDFs via PDFX. When False, skip supplement processing.
+
+    Returns:
+        Tuple of (success: bool, error_message: Optional[str]).
+    """
+    if methods_to_extract is None:
+        methods_to_extract = list(EXTRACTION_METHODS.keys())
+
+    reference_id = ref_file_info["reference_id"]
+    reference_curie = ref_file_info["reference_curie"]
+    display_name = ref_file_info["display_name"]
+    mod_abbreviation = ref_file_info.get("mod_abbreviation")
+
+    main_success = False
+    main_error: Optional[str] = None
+
+    # 1. Prefer nXML when available (unless forced to PDFX)
+    if prefer_nxml:
+        nxml_ref_file = get_nxml_referencefile(db, reference_id)
+        if nxml_ref_file is not None:
+            main_success, main_error = process_nxml_to_markdown(
+                db=db,
+                nxml_ref_file=nxml_ref_file,
+                reference_curie=reference_curie,
+                mod_abbreviation=mod_abbreviation
+            )
+            if not main_success:
+                logger.warning(
+                    f"nXML conversion failed for {reference_curie} ({main_error}); "
+                    f"falling back to PDFX on main PDF"
+                )
+
+    # 2. Fall back to (or use directly) PDFX on the main PDF
+    if not main_success:
+        referencefile_id = ref_file_info.get("referencefile_id")
+        if referencefile_id is None:
+            combined = "No nXML conversion succeeded and no main PDF available"
+            if main_error:
+                combined = f"{combined} (nXML error: {main_error})"
+            return False, combined
+
+        pdfx_success, pdfx_error = _convert_main_pdf_via_pdfx(
+            db=db,
+            referencefile_id=referencefile_id,
+            reference_curie=reference_curie,
+            display_name=display_name,
+            mod_abbreviation=mod_abbreviation,
+            token=token,
+            methods_to_extract=methods_to_extract
+        )
+        main_success = pdfx_success
+        if not pdfx_success:
+            if main_error:
+                main_error = f"nXML error: {main_error}; PDFX error: {pdfx_error}"
+            else:
+                main_error = pdfx_error
+
+    # 3. Optionally convert supplemental PDFs regardless of main path used
+    if process_supplements:
+        try:
+            sup_succeeded, sup_failed, sup_errors = process_supplemental_pdfs(
+                db=db,
+                reference_id=reference_id,
+                reference_curie=reference_curie,
+                token=token,
+                methods_to_extract=methods_to_extract
+            )
+            if sup_succeeded or sup_failed:
+                logger.info(
+                    f"Supplemental PDFs for {reference_curie}: "
+                    f"{sup_succeeded} succeeded, {sup_failed} failed"
+                )
+            for err in sup_errors:
+                logger.error(f"Supplemental PDF error for {reference_curie}: {err}")
+        except Exception as e:
+            logger.error(
+                f"Unexpected error while processing supplemental PDFs for "
+                f"{reference_curie}: {e}"
+            )
+
+    if main_success:
+        return True, None
+    return False, main_error or "Main reference conversion failed"
+
+
+def process_newest_references(  # pragma: no cover
+    limit: int = 50,
+    skip_xml: bool = False,
+    prefer_nxml: bool = True,
+    process_supplements: bool = True
+):
+    """
+    Process the newest references (keyed on main-PDF enumeration) and convert
+    them to markdown (nXML-preferred unless disabled) plus their supplemental
+    PDFs (unless disabled).
+
+    Args:
+        limit: Number of newest references to process.
         skip_xml: If True, skip papers that already have XML/nXML files.
+        prefer_nxml: Prefer nXML over PDFX for main-file conversion.
+        process_supplements: Also convert supplemental PDFs.
     """
     start_time = time.time()
 
@@ -480,9 +634,15 @@ def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):  # pragma: no 
     db = new_session()
 
     try:
-        logger.info(f"Starting PDF to Markdown conversion for {limit} newest PDFs")
+        logger.info(
+            f"Starting reference-to-Markdown conversion for {limit} newest references"
+        )
         if skip_xml:
             logger.info("Skipping papers that already have XML/nXML files")
+        if not prefer_nxml:
+            logger.info("Forcing PDFX for main file (nXML preference disabled)")
+        if not process_supplements:
+            logger.info("Skipping supplemental PDFs")
 
         # Get token
         try:
@@ -491,31 +651,120 @@ def process_newest_pdfs(limit: int = 50, skip_xml: bool = False):  # pragma: no 
             logger.error(f"Failed to obtain PDFX token: {e}")
             return None
 
-        # Get newest PDFs
-        pdf_list = get_newest_main_pdfs(db, limit=limit, skip_xml=skip_xml)
-        logger.info(f"Found {len(pdf_list)} PDFs to process")
+        # Enumerate via newest main PDFs
+        reference_list = get_newest_main_pdfs(db, limit=limit, skip_xml=skip_xml)
+        logger.info(f"Found {len(reference_list)} references to process")
 
-        if not pdf_list:
-            logger.info("No PDFs found to process. Exiting.")
+        if not reference_list:
+            logger.info("No references found to process. Exiting.")
             return {"total": 0, "success": 0, "failed": 0}
 
-        return _process_pdf_list(
+        return _process_reference_list(
             db=db,
-            pdf_list=pdf_list,
+            reference_list=reference_list,
             token=token,
             start_time=start_time,
             summary_suffix="",
-            report_subject="pdf2md conversion errors"
+            report_subject="pdf2md conversion errors",
+            prefer_nxml=prefer_nxml,
+            process_supplements=process_supplements
         )
     finally:
         db.close()
 
 
-def main():  # pragma: no cover
+def _resolve_workflow_ref_file_info(  # pragma: no cover
+    db: Session,
+    ref_id: int,
+    reference_curie: str,
+    mod_abbreviation: str,
+    prefer_nxml: bool
+) -> Tuple[Optional[Dict], Optional[str]]:
     """
-    Main entry point for workflow-based PDF to Markdown conversion.
+    Look up the main source file (nXML preferred when enabled, else main PDF)
+    for a workflow job and build the ref_file_info dict.
 
-    This processes PDFs based on workflow tags (text_convert_job).
+    Returns:
+        (ref_file_info, None) when a source was found; (None, error_msg) when
+        neither an nXML nor a main PDF is available for the reference.
+    """
+    nxml_ref_file = (
+        get_nxml_referencefile(db, ref_id) if prefer_nxml else None
+    )
+    ref_file_id = get_main_pdf_referencefile_id(
+        db=db,
+        curie_or_reference_id=str(ref_id),
+        mod_abbreviation=mod_abbreviation
+    )
+
+    if nxml_ref_file is None and not ref_file_id:
+        if prefer_nxml:
+            return None, "No nXML or main PDF found for reference"
+        return None, "No main PDF found for reference"
+
+    if nxml_ref_file is not None:
+        display_name = nxml_ref_file.display_name
+        file_extension = nxml_ref_file.file_extension
+    else:
+        pdf_ref_obj = db.query(ReferencefileModel).filter(
+            ReferencefileModel.referencefile_id == ref_file_id
+        ).one()
+        display_name = pdf_ref_obj.display_name
+        file_extension = pdf_ref_obj.file_extension
+
+    return {
+        "referencefile_id": ref_file_id,
+        "reference_id": ref_id,
+        "reference_curie": reference_curie,
+        "display_name": display_name,
+        "file_extension": file_extension,
+        "mod_abbreviation": mod_abbreviation
+    }, None
+
+
+def _build_workflow_error_record(  # pragma: no cover
+    db: Session,
+    reference_curie: str,
+    display_name: str,
+    file_extension: str,
+    mod_abbreviation: str,
+    error_msg: str
+) -> Dict:
+    """Build a failure record for workflow-mode error reporting."""
+    mod_cross_ref = db.query(CrossReferenceModel).join(
+        ReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id
+    ).filter(
+        ReferenceModel.curie == reference_curie,
+        CrossReferenceModel.curie_prefix == mod_abbreviation
+    ).one_or_none()
+
+    return {
+        "reference_curie": reference_curie,
+        "display_name": display_name,
+        "file_extension": file_extension,
+        "mod_abbreviation": mod_abbreviation,
+        "mod_cross_ref": mod_cross_ref.curie if mod_cross_ref else "N/A",
+        "error": error_msg
+    }
+
+
+def main(  # pragma: no cover
+    prefer_nxml: bool = True,
+    process_supplements: bool = True
+):
+    """
+    Main entry point for workflow-based reference-to-Markdown conversion.
+
+    Processes references based on workflow tags (text_convert_job). For each
+    reference: prefers nXML over PDF for the main content conversion (unless
+    prefer_nxml=False) and also converts supplemental PDFs (unless
+    process_supplements=False). When prefer_nxml is True, jobs are marked
+    failed only if neither an nXML nor a main PDF is available; when
+    prefer_nxml is False, a main PDF is required.
+
+    Args:
+        prefer_nxml: Prefer nXML over PDFX for main-file conversion.
+        process_supplements: Also convert supplemental PDFs.
     """
     start_time = time.time()
 
@@ -527,6 +776,11 @@ def main():  # pragma: no cover
         limit = 1000
         offset = 0
         all_jobs = []
+
+        if not prefer_nxml:
+            logger.info("Forcing PDFX for main file (nXML preference disabled)")
+        if not process_supplements:
+            logger.info("Skipping supplemental PDFs")
 
         logger.info("Started loading all text conversion jobs.")
         seen_wf_tag_ids = set()
@@ -550,16 +804,16 @@ def main():  # pragma: no cover
             logger.error(f"Failed to obtain PDFX token: {e}")
             return
 
-        mod_abbreviation_from_mod_id = {}
+        mod_abbreviation_from_mod_id: Dict[int, str] = {}
         objects_with_errors = []
         total_count = len(all_jobs)
         success_count = 0
         failure_count = 0
         skipped_count = 0
-        pdf_times = []
+        ref_times = []
 
         for idx, job in enumerate(all_jobs, 1):
-            pdf_start_time = time.time()
+            ref_start_time = time.time()
             error_msg: Optional[str] = None
 
             ref_id = job['reference_id']
@@ -577,49 +831,26 @@ def main():  # pragma: no cover
             else:
                 mod_abbreviation = mod_abbreviation_from_mod_id[mod_id]
 
-            ref_file_id_to_convert = get_main_pdf_referencefile_id(
+            ref_file_info, resolve_error = _resolve_workflow_ref_file_info(
                 db=db,
-                curie_or_reference_id=ref_id,
-                mod_abbreviation=mod_abbreviation
+                ref_id=ref_id,
+                reference_curie=reference_curie,
+                mod_abbreviation=mod_abbreviation,
+                prefer_nxml=prefer_nxml
             )
 
-            if not ref_file_id_to_convert:
-                # No main PDF found for this reference - mark as failed and continue
+            if ref_file_info is None:
                 skipped_count += 1
-                error_msg = "No main PDF found for reference"
-                logger.warning(f"No main PDF found for {reference_curie}, marking job as failed")
+                error_msg = resolve_error or "Could not resolve reference source file"
+                logger.warning(f"{error_msg} for {reference_curie}; marking job as failed")
                 job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-
-                # Add to error list for reporting
-                mod_cross_ref = db.query(CrossReferenceModel).join(
-                    ReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id
-                ).filter(
-                    ReferenceModel.curie == reference_curie,
-                    CrossReferenceModel.curie_prefix == mod_abbreviation
-                ).one_or_none()
-
-                objects_with_errors.append({
-                    "reference_curie": reference_curie,
-                    "display_name": "N/A",
-                    "file_extension": "N/A",
-                    "mod_abbreviation": mod_abbreviation,
-                    "mod_cross_ref": mod_cross_ref.curie if mod_cross_ref else "N/A",
-                    "error": error_msg
-                })
+                objects_with_errors.append(_build_workflow_error_record(
+                    db, reference_curie, "N/A", "N/A", mod_abbreviation, error_msg
+                ))
                 continue
 
-            ref_file_obj: ReferencefileModel = db.query(ReferencefileModel).filter(
-                ReferencefileModel.referencefile_id == ref_file_id_to_convert
-            ).one()
-
-            ref_file_info = {
-                "referencefile_id": ref_file_id_to_convert,
-                "reference_id": ref_id,
-                "reference_curie": reference_curie,
-                "display_name": ref_file_obj.display_name,
-                "file_extension": ref_file_obj.file_extension,
-                "mod_abbreviation": mod_abbreviation
-            }
+            display_name = ref_file_info["display_name"]
+            file_extension = ref_file_info["file_extension"]
 
             # Refresh token if needed
             try:
@@ -629,83 +860,62 @@ def main():  # pragma: no cover
                 logger.error(error_msg)
                 failure_count += 1
                 job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-
-                # Add to error list for reporting
-                mod_cross_ref = db.query(CrossReferenceModel).join(
-                    ReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id
-                ).filter(
-                    ReferenceModel.curie == reference_curie,
-                    CrossReferenceModel.curie_prefix == mod_abbreviation
-                ).one_or_none()
-
-                objects_with_errors.append({
-                    "reference_curie": reference_curie,
-                    "display_name": ref_file_obj.display_name,
-                    "file_extension": ref_file_obj.file_extension,
-                    "mod_abbreviation": mod_abbreviation,
-                    "mod_cross_ref": mod_cross_ref.curie if mod_cross_ref else "N/A",
-                    "error": error_msg
-                })
+                objects_with_errors.append(_build_workflow_error_record(
+                    db, reference_curie, display_name, file_extension,
+                    mod_abbreviation, error_msg
+                ))
                 continue
 
-            success, error_msg = process_single_pdf(db, ref_file_info, token)
+            success, error_msg = process_single_reference(
+                db, ref_file_info, token,
+                prefer_nxml=prefer_nxml,
+                process_supplements=process_supplements
+            )
 
-            pdf_elapsed = time.time() - pdf_start_time
-            pdf_times.append(pdf_elapsed)
+            ref_elapsed = time.time() - ref_start_time
+            ref_times.append(ref_elapsed)
 
             if success:
                 success_count += 1
                 job_change_atp_code(db, reference_workflow_tag_id, "on_success")
-                logger.info(f"Completed {reference_curie} in {pdf_elapsed:.2f}s")
+                logger.info(f"Completed {reference_curie} in {ref_elapsed:.2f}s")
             else:
                 failure_count += 1
                 job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-                logger.error(f"Failed {reference_curie} after {pdf_elapsed:.2f}s")
-
-                mod_cross_ref = db.query(CrossReferenceModel).join(
-                    ReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id
-                ).filter(
-                    ReferenceModel.curie == reference_curie,
-                    CrossReferenceModel.curie_prefix == mod_abbreviation
-                ).one_or_none()
-
-                objects_with_errors.append({
-                    "reference_curie": reference_curie,
-                    "display_name": ref_file_obj.display_name,
-                    "file_extension": ref_file_obj.file_extension,
-                    "mod_abbreviation": mod_abbreviation,
-                    "mod_cross_ref": mod_cross_ref.curie if mod_cross_ref else "N/A",
-                    "error": error_msg
-                })
+                logger.error(f"Failed {reference_curie} after {ref_elapsed:.2f}s")
+                objects_with_errors.append(_build_workflow_error_record(
+                    db, reference_curie, display_name, file_extension,
+                    mod_abbreviation, error_msg or "Unknown"
+                ))
 
         # Calculate timing statistics
         total_elapsed = time.time() - start_time
-        avg_time = sum(pdf_times) / len(pdf_times) if pdf_times else 0
-        min_time = min(pdf_times) if pdf_times else 0
-        max_time = max(pdf_times) if pdf_times else 0
+        avg_time = sum(ref_times) / len(ref_times) if ref_times else 0
+        min_time = min(ref_times) if ref_times else 0
+        max_time = max(ref_times) if ref_times else 0
 
         # Log summary
         logger.info("=" * 60)
-        logger.info("PDF to Markdown Conversion Summary (Workflow Mode)")
+        logger.info("Reference to Markdown Conversion Summary (Workflow Mode)")
         logger.info("=" * 60)
         logger.info(f"Total jobs processed: {total_count}")
         logger.info(f"Successful: {success_count}")
         logger.info(f"Failed: {failure_count}")
-        logger.info(f"Skipped (no PDF): {skipped_count}")
+        logger.info(f"Skipped (no nXML or main PDF): {skipped_count}")
         logger.info("-" * 60)
         logger.info("Timing Statistics:")
         logger.info(f"  Total time: {total_elapsed:.2f}s ({total_elapsed / 60:.2f} minutes)")
-        logger.info(f"  Average per PDF: {avg_time:.2f}s")
+        logger.info(f"  Average per reference: {avg_time:.2f}s")
         logger.info(f"  Min time: {min_time:.2f}s")
         logger.info(f"  Max time: {max_time:.2f}s")
         logger.info("=" * 60)
 
         # Send error report
         if objects_with_errors:
-            error_message = "PDF to Markdown Conversion Errors (Workflow Mode)\n\n"
+            error_message = "Reference to Markdown Conversion Errors (Workflow Mode)\n\n"
             error_message += f"Total: {total_count}, Success: {success_count}, "
             error_message += f"Failed: {failure_count}, Skipped: {skipped_count}\n\n"
-            error_message += f"Total time: {total_elapsed:.2f}s, Avg per PDF: {avg_time:.2f}s\n\n"
+            error_message += f"Total time: {total_elapsed:.2f}s, Avg per reference: {avg_time:.2f}s\n\n"
             error_message += "Failed conversions:\n"
             for error_obj in objects_with_errors:
                 error_message += f"{error_obj['mod_abbreviation']}\t{error_obj['mod_cross_ref']}\t"
@@ -728,20 +938,23 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Convert PDF files to Markdown using PDFX service.",
+        description=(
+            "Convert references to Markdown. Prefers nXML over PDF for the main "
+            "file and always processes supplemental PDFs via the PDFX service."
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Process PDFs via workflow jobs (default)
+  # Process references via workflow jobs (default)
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md
 
-  # Process N newest PDFs
+  # Process N newest references (enumerated by newest main PDFs)
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50
 
-  # Process all unprocessed PDFs for papers published since 2025
+  # Process all unconverted references for papers published since 2025
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --since 2025
 
-  # Process newest PDFs, skipping those with XML files
+  # Process newest references, skipping those with XML files
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50 --skip-xml
         """
     )
@@ -749,13 +962,13 @@ Examples:
         "--newest",
         type=int,
         metavar="N",
-        help="Process N newest main PDFs (regardless of processing status)"
+        help="Process N newest references (enumerated by newest main PDFs)"
     )
     parser.add_argument(
         "--since",
         type=int,
         metavar="YEAR",
-        help="Process unprocessed PDFs for papers published since YEAR (e.g., 2025)"
+        help="Process unconverted references for papers published since YEAR (e.g., 2025)"
     )
     parser.add_argument(
         "--skip-xml",
@@ -766,7 +979,22 @@ Examples:
         "--limit",
         type=int,
         metavar="N",
-        help="Limit number of PDFs to process (only applies to --since mode)"
+        help="Limit number of references to process (only applies to --since mode)"
+    )
+    parser.add_argument(
+        "--no-xml",
+        dest="prefer_nxml",
+        action="store_false",
+        help=(
+            "Always use PDFX for the main file, even when an nXML file is "
+            "available (default: prefer nXML when present)"
+        )
+    )
+    parser.add_argument(
+        "--no-supplements",
+        dest="process_supplements",
+        action="store_false",
+        help="Skip supplemental PDFs (default: process all supplemental PDFs)"
     )
 
     args = parser.parse_args()
@@ -784,21 +1012,41 @@ Examples:
         exit(1)
 
     if args.newest:
-        print(f"Processing {args.newest} newest main PDFs...")
+        print(f"Processing {args.newest} newest references...")
         if args.skip_xml:
             print("Skipping papers with existing XML/nXML files.")
-        result = process_newest_pdfs(limit=args.newest, skip_xml=args.skip_xml)
+        if not args.prefer_nxml:
+            print("Forcing PDFX for main file (--no-xml).")
+        if not args.process_supplements:
+            print("Skipping supplemental PDFs (--no-supplements).")
+        result = process_newest_references(
+            limit=args.newest,
+            skip_xml=args.skip_xml,
+            prefer_nxml=args.prefer_nxml,
+            process_supplements=args.process_supplements
+        )
         print(f"\nResults: {result}")
     elif args.since:
-        print(f"Processing unprocessed PDFs since {args.since}...")
+        print(f"Processing unconverted references since {args.since}...")
         if args.limit:
-            print(f"Limiting to {args.limit} PDFs.")
+            print(f"Limiting to {args.limit} references.")
         if args.skip_xml:
             print("Skipping papers with existing XML/nXML files.")
-        result = process_pdfs_since_year(
-            since_year=args.since, skip_xml=args.skip_xml, limit=args.limit
+        if not args.prefer_nxml:
+            print("Forcing PDFX for main file (--no-xml).")
+        if not args.process_supplements:
+            print("Skipping supplemental PDFs (--no-supplements).")
+        result = process_references_since_year(
+            since_year=args.since,
+            skip_xml=args.skip_xml,
+            limit=args.limit,
+            prefer_nxml=args.prefer_nxml,
+            process_supplements=args.process_supplements
         )
         print(f"\nResults: {result}")
     else:
         # Workflow mode (default)
-        main()
+        main(
+            prefer_nxml=args.prefer_nxml,
+            process_supplements=args.process_supplements
+        )
