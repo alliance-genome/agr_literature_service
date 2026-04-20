@@ -8,7 +8,7 @@ import logging
 import os
 import time
 from io import BytesIO
-from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict
 
 import requests
 from fastapi import HTTPException, UploadFile
@@ -24,7 +24,6 @@ from agr_literature_service.api.models import (
     ReferenceModel,
 )
 from agr_cognito_py import ModAccess, get_authentication_token
-from agr_cognito_py.config import CognitoAdminConfig
 
 
 logger = logging.getLogger(__name__)
@@ -60,65 +59,14 @@ class ProcessingResult(TypedDict):
     error: Optional[str]
 
 
-# Token cache for PDFX API
-_token_cache: Dict[str, Any] = {
-    "token": None,
-    "expires_at": 0
-}
-
-
 def get_pdfx_token() -> str:  # pragma: no cover
     """
-    Obtain PDFX bearer token using Cognito client_credentials grant.
-    Uses agr_cognito_py with custom CognitoAdminConfig for PDFX credentials.
-    Token is cached and refreshed when expired.
-
-    Environment variables:
-        PDFX_CLIENT_ID: Cognito client ID for PDFX service.
-        PDFX_CLIENT_SECRET: Cognito client secret for PDFX service.
-        PDFX_TOKEN_URL: OAuth token endpoint (default: https://auth.alliancegenome.org/oauth2/token).
-        PDFX_SCOPE: OAuth scope (default: pdfx-api/extract).
+    Obtain authentication token using agr_cognito_py.
 
     Returns:
-        str: The access token for PDFX API authentication.
-
-    Raises:
-        ValueError: If required environment variables are not set.
-        requests.RequestException: If token request fails.
+        str: The access token for API authentication.
     """
-    current_time = time.time()
-
-    # Return cached token if still valid (with 60 second buffer)
-    if _token_cache["token"] and _token_cache["expires_at"] > current_time + 60:
-        return _token_cache["token"]
-
-    client_id = os.environ.get("PDFX_CLIENT_ID")
-    client_secret = os.environ.get("PDFX_CLIENT_SECRET")
-    token_url = os.environ.get(
-        "PDFX_TOKEN_URL", "https://auth.alliancegenome.org/oauth2/token"
-    )
-    scope = os.environ.get("PDFX_SCOPE", "pdfx-api/extract")
-
-    if not client_id or not client_secret:
-        raise ValueError(
-            "PDFX_CLIENT_ID and PDFX_CLIENT_SECRET environment variables must be set"
-        )
-
-    # Use agr_cognito_py with custom config for PDFX
-    config = CognitoAdminConfig(
-        client_id=client_id,
-        client_secret=client_secret,
-        token_url=token_url,
-        scope=scope
-    )
-
-    token = get_authentication_token(config)
-
-    # Cache the token (agr_cognito_py tokens typically expire in 3600 seconds)
-    _token_cache["token"] = token
-    _token_cache["expires_at"] = current_time + 3600
-
-    return token
+    return get_authentication_token()
 
 
 def submit_pdf_to_pdfx(  # pragma: no cover

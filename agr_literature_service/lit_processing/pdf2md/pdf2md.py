@@ -7,7 +7,6 @@ https://pdfx.alliancegenome.org. It supports multiple extraction methods
 """
 import logging
 import time
-from datetime import datetime
 from io import BytesIO
 from typing import Dict, List, Optional, Tuple
 
@@ -26,23 +25,13 @@ from agr_literature_service.api.models import (
 from agr_cognito_py import ModAccess
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
-# Import PDFX utilities from pdf2md_utils
-try:
-    from .pdf2md_utils import (
-        EXTRACTION_METHODS,
-        get_pdfx_token,
-        submit_pdf_to_pdfx,
-        poll_pdfx_status,
-        download_pdfx_result,
-    )
-except ImportError:
-    # Fallback for direct script execution
-    import pdf2md_utils as _pdf2md_utils  # type: ignore[import-not-found]
-    EXTRACTION_METHODS = _pdf2md_utils.EXTRACTION_METHODS
-    get_pdfx_token = _pdf2md_utils.get_pdfx_token
-    submit_pdf_to_pdfx = _pdf2md_utils.submit_pdf_to_pdfx
-    poll_pdfx_status = _pdf2md_utils.poll_pdfx_status
-    download_pdfx_result = _pdf2md_utils.download_pdfx_result
+from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    EXTRACTION_METHODS,
+    get_pdfx_token,
+    submit_pdf_to_pdfx,
+    poll_pdfx_status,
+    download_pdfx_result,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -117,14 +106,14 @@ def get_unprocessed_pdfs_since_year(
     limit: Optional[int] = None
 ) -> List[Dict]:  # pragma: no cover
     """
-    Get main PDF files created since a given year that haven't been converted to markdown.
+    Get main PDF files for papers published since a given year that haven't been converted to markdown.
 
     A PDF is considered "unprocessed" if it has no associated markdown files
     (none of the 4 extraction methods: grobid, docling, marker, merged).
 
     Args:
         db: Database session.
-        since_year: Year to filter from (e.g., 2025 means Jan 1, 2025 onwards).
+        since_year: Year to filter from (e.g., 2025 means papers published in 2025 or later).
         skip_xml: If True, skip papers that already have XML/nXML files.
         limit: Optional limit on number of PDFs to return. If None, return all.
 
@@ -133,13 +122,14 @@ def get_unprocessed_pdfs_since_year(
     """
     results = []
 
-    # Start date is January 1st of the given year
-    start_date = datetime(since_year, 1, 1)
+    # date_published is a String column with formats like '2025-01-01' or '2025'
+    # String comparison with year works correctly for ISO-like formats
+    since_year_str = str(since_year)
 
     # File classes for markdown outputs
     md_file_classes = list(EXTRACTION_METHODS.values())
 
-    logger.info(f"Querying for unprocessed PDFs since {start_date.strftime('%Y-%m-%d')}...")
+    logger.info(f"Querying for unprocessed PDFs for papers published since {since_year}...")
 
     # Subquery to find reference_ids that already have markdown files
     md_exists_subquery = (
@@ -148,14 +138,15 @@ def get_unprocessed_pdfs_since_year(
         .distinct()
     )
 
-    # Query for main PDFs since the given year that don't have markdown files
+    # Query for main PDFs for papers published since the given year
     query = (
         db.query(ReferencefileModel)
+        .join(ReferenceModel, ReferencefileModel.reference_id == ReferenceModel.reference_id)
         .filter(
             ReferencefileModel.file_class == "main",
             ReferencefileModel.file_publication_status == "final",
             ReferencefileModel.pdf_type == "pdf",
-            ReferencefileModel.date_created >= start_date,
+            ReferenceModel.date_published >= since_year_str,
             ~ReferencefileModel.reference_id.in_(md_exists_subquery)
         )
     )
@@ -169,13 +160,13 @@ def get_unprocessed_pdfs_since_year(
         )
         query = query.filter(~ReferencefileModel.reference_id.in_(xml_exists_subquery))
 
-    query = query.order_by(desc(ReferencefileModel.date_created))
+    query = query.order_by(desc(ReferenceModel.date_published))
 
     if limit:
         query = query.limit(limit)
 
     all_pdfs = query.all()
-    logger.info(f"Found {len(all_pdfs)} unprocessed PDFs since {since_year}")
+    logger.info(f"Found {len(all_pdfs)} unprocessed PDFs for papers published since {since_year}")
 
     for ref_file in all_pdfs:
         reference = db.query(ReferenceModel).filter(
@@ -199,7 +190,7 @@ def get_unprocessed_pdfs_since_year(
             "display_name": ref_file.display_name,
             "file_extension": ref_file.file_extension,
             "mod_abbreviation": mod_abbreviation,
-            "date_created": ref_file.date_created
+            "date_published": reference.date_published
         })
 
     return results
@@ -747,7 +738,7 @@ Examples:
   # Process N newest PDFs
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50
 
-  # Process all unprocessed PDFs since 2025
+  # Process all unprocessed PDFs for papers published since 2025
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --since 2025
 
   # Process newest PDFs, skipping those with XML files
@@ -764,7 +755,7 @@ Examples:
         "--since",
         type=int,
         metavar="YEAR",
-        help="Process all unprocessed PDFs since YEAR (e.g., 2025)"
+        help="Process unprocessed PDFs for papers published since YEAR (e.g., 2025)"
     )
     parser.add_argument(
         "--skip-xml",
