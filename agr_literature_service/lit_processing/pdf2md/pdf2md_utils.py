@@ -363,9 +363,9 @@ def get_pdf_files_for_reference(  # pragma: no cover
         ReferencefileModel.file_publication_status == "final"
     )
 
-    # Order by file_class to process main PDFs first
+    # Order by file_class (ordering doesn't affect correctness since all PDFs are processed)
     pdf_files = query.order_by(
-        ReferencefileModel.file_class.desc()  # 'supplement' > 'main' alphabetically, so desc puts main first
+        ReferencefileModel.file_class.asc()  # 'main' < 'supplement' alphabetically, so asc puts main first
     ).all()
 
     return pdf_files
