@@ -433,7 +433,6 @@ def process_pdf_for_reference(
     pdfs_failed: int = 0
     details: List[PdfDetail] = []
     error_msg: Optional[str] = None
-    reference_curie: Optional[str] = None
 
     # Resolve curie to reference
     reference = resolve_curie_to_reference(db, curie)
@@ -451,7 +450,8 @@ def process_pdf_for_reference(
             error=error_msg
         )
 
-    reference_curie = reference.curie
+    # After this point, reference is guaranteed to be non-None
+    reference_curie: str = reference.curie
 
     # Get PDF files
     pdf_files = get_pdf_files_for_reference(db, reference.reference_id, pdf_type)
