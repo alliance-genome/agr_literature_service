@@ -47,7 +47,6 @@ def list_for_person(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return person_note_crud.list_for_person(db, person_id)
 
 
@@ -61,7 +60,6 @@ def show(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return person_note_crud.show(db, person_note_id)
 
 
