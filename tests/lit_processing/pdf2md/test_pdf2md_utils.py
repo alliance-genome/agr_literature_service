@@ -14,12 +14,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+from agr_cognito_py import get_admin_token
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     EXTRACTION_METHODS,
     PdfDetail,
     ProcessingResult,
-    get_pdfx_token,
     submit_pdf_to_pdfx,
     poll_pdfx_status,
     download_pdfx_result,
@@ -86,7 +86,7 @@ class TestGetPdfxToken:
         """Test that get_pdfx_token delegates to get_authentication_token."""
         mock_get_auth.return_value = "test_token"
 
-        token = get_pdfx_token()
+        token = get_admin_token()
 
         assert token == "test_token"
         mock_get_auth.assert_called_once()
