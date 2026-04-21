@@ -30,8 +30,7 @@ from agr_literature_service.api.models import (
     ReferencefileModel,
     ReferenceModel,
 )
-from agr_cognito_py import ModAccess, get_authentication_token
-
+from agr_cognito_py import ModAccess, get_admin_token
 
 logger = logging.getLogger(__name__)
 
@@ -419,7 +418,7 @@ def process_pdf_for_reference(  # pragma: no cover
     # Get token if not provided
     if token is None:
         try:
-            token = get_pdfx_token()
+            token = get_admin_token()
         except Exception as e:
             error_msg = f"Failed to obtain PDFX token: {e}"
             logger.error(error_msg)
