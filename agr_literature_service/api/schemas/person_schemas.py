@@ -11,7 +11,7 @@ from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaRelated,
 )
 from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
-from .person_note_schemas import PersonNoteSchemaRelated
+from .person_note_schemas import PersonNoteSchemaCreate, PersonNoteSchemaRelated
 
 ActiveStatus = Literal["active", "retired", "deceased"]
 
@@ -22,6 +22,7 @@ _types = {
     "PersonCrossReferenceSchemaRelated": PersonCrossReferenceSchemaRelated,
     "PersonNameSchemaCreate": PersonNameSchemaCreate,
     "PersonNameSchemaRelated": PersonNameSchemaRelated,
+    "PersonNoteSchemaCreate": PersonNoteSchemaCreate,
     "PersonNoteSchemaRelated": PersonNoteSchemaRelated,
 }
 
@@ -45,6 +46,7 @@ class PersonSchemaPost(BaseModel):
     emails: Optional[List["EmailSchemaCreate"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaCreate"]] = None
     names: Optional[List["PersonNameSchemaCreate"]] = None
+    notes: Optional[List["PersonNoteSchemaCreate"]] = None
 
 
 # Back-compat alias

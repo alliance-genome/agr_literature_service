@@ -7,7 +7,13 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
-from agr_literature_service.api.models import PersonModel, EmailModel, PersonCrossReferenceModel, PersonNameModel
+from agr_literature_service.api.models import (
+    PersonModel,
+    EmailModel,
+    PersonCrossReferenceModel,
+    PersonNameModel,
+    PersonNoteModel,
+)
 from agr_literature_service.api.schemas import PersonSchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
@@ -32,6 +38,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
     emails_data = data.pop("emails", None)
     xrefs_data = data.pop("cross_references", None)
     names_data = data.pop("names", None)
+    notes_data = data.pop("notes", None)
 
     # Set address_last_updated if any address field is provided
     has_address = bool(ADDRESS_FIELDS & payload.model_fields_set)
@@ -105,6 +112,16 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
                     curie_prefix=curie_prefix,
                     pages=xr.get("pages"),
                     is_obsolete=bool(xr.get("is_obsolete", False)),
+                )
+            )
+
+    # Create child notes
+    if notes_data:
+        for n in notes_data:
+            db.add(
+                PersonNoteModel(
+                    person_id=obj.person_id,
+                    note=n["note"],
                 )
             )
 

@@ -344,3 +344,83 @@ class TestPersonFields:
                 person_id = res.json()["person_id"]
                 fetched = client.get(f"/person/{person_id}", headers=auth_headers)
                 assert fetched.json()["active_status"] == status_value
+
+    def test_create_person_with_fields_and_inline_collections(self, auth_headers):  # noqa
+        """POST /person/ with all person fields AND inline names, emails, cross_references, notes."""
+        with TestClient(app) as client:
+            multiline_note = "Initial note line one.\nLine two of the same note."
+            payload = {
+                "display_name": "Jane Comprehensive",
+                "webpage": ["https://jane.example.com"],
+                "active_status": "active",
+                "city": "Seattle",
+                "state": "WA",
+                "postal_code": "98101",
+                "country": "USA",
+                "street_address": "1 Pine St",
+                "biography_research_interest": "Studies zebrafish development.",
+                "names": [
+                    {"first_name": "Jane", "last_name": "Doe"},
+                    {
+                        "first_name": "Jane",
+                        "middle_name": "C",
+                        "last_name": "Comprehensive",
+                        "primary": True,
+                    },
+                ],
+                "emails": [
+                    {"email_address": "jane.doe@example.com"},
+                    {"email_address": "jane.c@example.org"},
+                ],
+                "cross_references": [
+                    {"curie": "ORCID:0000-0005-1111-2222"},
+                    {"curie": "WB:WBPerson77777"},
+                ],
+                "notes": [
+                    {"note": "First note about Jane."},
+                    {"note": multiline_note},
+                ],
+            }
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            person_id = res.json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.status_code == status.HTTP_200_OK
+            body = fetched.json()
+
+            # Scalar fields persisted
+            assert body["webpage"] == ["https://jane.example.com"]
+            assert body["active_status"] == "active"
+            assert body["city"] == "Seattle"
+            assert body["state"] == "WA"
+            assert body["postal_code"] == "98101"
+            assert body["country"] == "USA"
+            assert body["street_address"] == "1 Pine St"
+            assert body["biography_research_interest"] == "Studies zebrafish development."
+            # Address timestamp bumped because address fields were provided
+            assert body["address_last_updated"] is not None
+
+            # Names: 2 present, second is primary
+            names = body.get("names") or []
+            assert len(names) == 2
+            primary_names = [n for n in names if n.get("primary") is True]
+            assert len(primary_names) == 1
+            assert primary_names[0]["last_name"] == "Comprehensive"
+
+            # Emails: 2 present
+            emails = body.get("emails") or []
+            email_addresses = {e["email_address"] for e in emails}
+            assert email_addresses == {"jane.doe@example.com", "jane.c@example.org"}
+
+            # Cross-references: 2 present with derived curie_prefix
+            xrefs = body.get("cross_references") or []
+            curies = {x["curie"] for x in xrefs}
+            assert curies == {"ORCID:0000-0005-1111-2222", "WB:WBPerson77777"}
+            prefixes = {x["curie_prefix"] for x in xrefs}
+            assert prefixes == {"ORCID", "WB"}
+
+            # Notes: 2 present, multiline preserved
+            notes = body.get("notes") or []
+            note_texts = {n["note"] for n in notes}
+            assert note_texts == {"First note about Jane.", multiline_note}
