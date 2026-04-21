@@ -603,6 +603,93 @@ def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no
     )
 
 
+def _write_log_summary_stats(fw, mod_abbr: str, data_sub_type: str,
+                             all_pmids: Set[str], pmids_in_corpus: Set[str],
+                             pmids_out_corpus: Set[str], pmids_in_db_not_associated: Set[str],
+                             pmids_not_in_db: Set[str], all_pmids_obsolete_mod_curie: Set[str],
+                             sgd_updated_count: int, sgd_added_count: int,
+                             sgd_newly_loaded_count: int) -> None:
+    """Write summary statistics section of the log file."""
+    fw.write("Summary:\n")
+    fw.write(f"  Total PMIDs in GAF: {len(all_pmids)}\n")
+    fw.write(f"  In {mod_abbr} corpus: {len(pmids_in_corpus)}\n")
+    if data_sub_type == "SGD":
+        _write_sgd_summary_stats(fw, mod_abbr, pmids_out_corpus, pmids_in_db_not_associated,
+                                 sgd_updated_count, sgd_added_count, sgd_newly_loaded_count)
+    else:
+        fw.write(f"  Associated but outside corpus: {len(pmids_out_corpus)}\n")
+        fw.write(f"  In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}\n")
+    fw.write(f"  Not in database: {len(pmids_not_in_db)}\n")
+    if all_pmids_obsolete_mod_curie:
+        fw.write(f"  PMIDs with obsolete {mod_abbr} curie: {len(all_pmids_obsolete_mod_curie)}\n")
+    fw.write("\n")
+
+
+def _write_sgd_summary_stats(fw, mod_abbr: str, pmids_out_corpus: Set[str],
+                             pmids_in_db_not_associated: Set[str],
+                             sgd_updated_count: int, sgd_added_count: int,
+                             sgd_newly_loaded_count: int) -> None:
+    """Write SGD-specific summary statistics."""
+    if sgd_updated_count > 0:
+        fw.write(f"  Updated to SGD Corpus: {sgd_updated_count}\n")
+    fw.write(f"  Associated but outside corpus: {len(pmids_out_corpus) - sgd_updated_count}\n")
+    if sgd_added_count > 0:
+        fw.write(f"  Added to SGD Corpus (existing in DB): {sgd_added_count}\n")
+    if sgd_newly_loaded_count > 0:
+        fw.write(f"  New references loaded and added to SGD Corpus: {sgd_newly_loaded_count}\n")
+    fw.write(f"  In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated) - sgd_added_count}\n")
+
+
+def _write_sgd_papers_added(fw, pmids_updated: Set[str], pmids_added_existing: Set[str],
+                            pmids_added_new: Set[str], format_pmid_func) -> None:
+    """Write SGD papers added to corpus section."""
+    all_papers_added = pmids_updated | pmids_added_existing | pmids_added_new
+    if not all_papers_added:
+        return
+    fw.write(f"Papers added to SGD Corpus ({len(all_papers_added)}):\n")
+    fw.write("-" * 40 + "\n")
+    for pmid in sorted(all_papers_added):
+        source_label = _get_pmid_source_label(pmid, pmids_added_new, pmids_updated)
+        fw.write(f"{format_pmid_func(pmid)}{source_label}\n")
+    fw.write("\n")
+
+
+def _get_pmid_source_label(pmid: str, pmids_added_new: Set[str], pmids_updated: Set[str]) -> str:
+    """Get the source label for a PMID based on how it was added."""
+    if pmid in pmids_added_new:
+        return " (new)"
+    if pmid in pmids_updated:
+        return " (updated)"
+    return " (existing)"
+
+
+def _write_pmids_not_in_corpus(fw, mod_abbr: str, data_sub_type: str,
+                               pmids_out_corpus: Set[str], pmids_in_db_not_associated: Set[str],
+                               pmids_not_in_db: Set[str], format_pmid_func) -> None:
+    """Write PMIDs not in corpus section."""
+    pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
+    if not pmids_not_in_corpus:
+        return
+    header = "PMIDs originally not in" if data_sub_type == "SGD" else "PMIDs not in"
+    fw.write(f"{header} {mod_abbr} corpus ({len(pmids_not_in_corpus)}):\n")
+    fw.write("-" * 40 + "\n")
+    for pmid in sorted(pmids_not_in_corpus):
+        fw.write(f"{format_pmid_func(pmid)}\n")
+    fw.write("\n")
+
+
+def _write_obsolete_curie_pmids(fw, mod_abbr: str,
+                                all_pmids_obsolete_mod_curie: Set[str]) -> None:
+    """Write PMIDs with obsolete MOD curie section."""
+    if not all_pmids_obsolete_mod_curie:
+        return
+    fw.write(f"PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):\n")
+    fw.write("-" * 40 + "\n")
+    for pmid in sorted(all_pmids_obsolete_mod_curie):
+        fw.write(f"PMID:{pmid}\n")
+    fw.write("\n")
+
+
 def write_mod_gaf_log_file(data_sub_type: str, mod_abbr: str,  # pragma: no cover
                            all_pmids: Set[str],
                            pmids_in_corpus: Set[str],
@@ -637,12 +724,9 @@ def write_mod_gaf_log_file(data_sub_type: str, mod_abbr: str,  # pragma: no cove
         pmids_added_new: Set of PMIDs loaded from PubMed and added (SGD only)
         pmids_updated: Set of PMIDs updated from corpus=False/NULL to True (SGD only)
     """
-    if pmids_added_existing is None:
-        pmids_added_existing = set()
-    if pmids_added_new is None:
-        pmids_added_new = set()
-    if pmids_updated is None:
-        pmids_updated = set()
+    pmids_added_existing = pmids_added_existing or set()
+    pmids_added_new = pmids_added_new or set()
+    pmids_updated = pmids_updated or set()
 
     if not log_path:
         return
@@ -652,62 +736,19 @@ def write_mod_gaf_log_file(data_sub_type: str, mod_abbr: str,  # pragma: no cove
         fw.write(f"{mod_abbr} GAF Processing Report\n")
         fw.write("=" * 50 + "\n\n")
 
-        # Summary statistics
-        fw.write("Summary:\n")
-        fw.write(f"  Total PMIDs in GAF: {len(all_pmids)}\n")
-        fw.write(f"  In {mod_abbr} corpus: {len(pmids_in_corpus)}\n")
+        _write_log_summary_stats(fw, mod_abbr, data_sub_type, all_pmids, pmids_in_corpus,
+                                 pmids_out_corpus, pmids_in_db_not_associated, pmids_not_in_db,
+                                 all_pmids_obsolete_mod_curie, sgd_updated_count, sgd_added_count,
+                                 sgd_newly_loaded_count)
+
         if data_sub_type == "SGD":
-            if sgd_updated_count > 0:
-                fw.write(f"  Updated to SGD Corpus: {sgd_updated_count}\n")
-            fw.write(f"  Associated but outside corpus: {len(pmids_out_corpus) - sgd_updated_count}\n")
-            if sgd_added_count > 0:
-                fw.write(f"  Added to SGD Corpus (existing in DB): {sgd_added_count}\n")
-            if sgd_newly_loaded_count > 0:
-                fw.write(f"  New references loaded and added to SGD Corpus: {sgd_newly_loaded_count}\n")
-            fw.write(f"  In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated) - sgd_added_count}\n")
-        else:
-            fw.write(f"  Associated but outside corpus: {len(pmids_out_corpus)}\n")
-            fw.write(f"  In DB but not associated with {mod_abbr}: {len(pmids_in_db_not_associated)}\n")
-        fw.write(f"  Not in database: {len(pmids_not_in_db)}\n")
-        if all_pmids_obsolete_mod_curie:
-            fw.write(f"  PMIDs with obsolete {mod_abbr} curie: {len(all_pmids_obsolete_mod_curie)}\n")
-        fw.write("\n")
+            _write_sgd_papers_added(fw, pmids_updated, pmids_added_existing,
+                                    pmids_added_new, format_pmid_func)
 
-        # For SGD: List all papers added to corpus
-        if data_sub_type == "SGD":
-            all_papers_added = pmids_updated | pmids_added_existing | pmids_added_new
-            if all_papers_added:
-                fw.write(f"Papers added to SGD Corpus ({len(all_papers_added)}):\n")
-                fw.write("-" * 40 + "\n")
-                for pmid in sorted(all_papers_added):
-                    if pmid in pmids_added_new:
-                        source_label = " (new)"
-                    elif pmid in pmids_updated:
-                        source_label = " (updated)"
-                    else:
-                        source_label = " (existing)"
-                    fw.write(f"{format_pmid_func(pmid)}{source_label}\n")
-                fw.write("\n")
+        _write_pmids_not_in_corpus(fw, mod_abbr, data_sub_type, pmids_out_corpus,
+                                   pmids_in_db_not_associated, pmids_not_in_db, format_pmid_func)
 
-        # List all missing PMIDs (not in corpus) with their sources
-        pmids_not_in_corpus = pmids_out_corpus | pmids_in_db_not_associated | pmids_not_in_db
-        if pmids_not_in_corpus:
-            if data_sub_type == "SGD":
-                fw.write(f"PMIDs originally not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):\n")
-            else:
-                fw.write(f"PMIDs not in {mod_abbr} corpus ({len(pmids_not_in_corpus)}):\n")
-            fw.write("-" * 40 + "\n")
-            for pmid in sorted(pmids_not_in_corpus):
-                fw.write(f"{format_pmid_func(pmid)}\n")
-            fw.write("\n")
-
-        # PMIDs with obsolete MOD curie
-        if all_pmids_obsolete_mod_curie:
-            fw.write(f"PMIDs with obsolete {mod_abbr} curie ({len(all_pmids_obsolete_mod_curie)}):\n")
-            fw.write("-" * 40 + "\n")
-            for pmid in sorted(all_pmids_obsolete_mod_curie):
-                fw.write(f"PMID:{pmid}\n")
-            fw.write("\n")
+        _write_obsolete_curie_pmids(fw, mod_abbr, all_pmids_obsolete_mod_curie)
 
 
 def send_slack_report(message: str):
