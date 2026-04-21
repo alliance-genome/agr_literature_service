@@ -2,7 +2,6 @@
 Unit tests for pdf2md_utils.py
 
 Tests cover:
-- PDFX token management
 - PDF submission to PDFX
 - PDFX status polling
 - Result downloading
@@ -14,7 +13,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
-from agr_cognito_py import get_admin_token
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     EXTRACTION_METHODS,
@@ -76,20 +74,6 @@ class TestTypedDicts:
         }
         assert result["success"] is True
         assert result["pdfs_processed"] == 1
-
-
-class TestGetPdfxToken:
-    """Test get_pdfx_token function."""
-
-    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_authentication_token")
-    def test_returns_token_from_get_authentication_token(self, mock_get_auth):
-        """Test that get_pdfx_token delegates to get_authentication_token."""
-        mock_get_auth.return_value = "test_token"
-
-        token = get_admin_token()
-
-        assert token == "test_token"
-        mock_get_auth.assert_called_once()
 
 
 class TestSubmitPdfToPdfx:
