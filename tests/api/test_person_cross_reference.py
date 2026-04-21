@@ -122,6 +122,17 @@ class TestPersonCrossReference:
             assert res.status_code == status.HTTP_201_CREATED
             assert res.json()["curie_prefix"] == "ZFIN"
 
+    def test_create_with_xenbase_curie(self, auth_headers, seeded_person):  # noqa
+        """XenBase person curie."""
+        with TestClient(app) as client:
+            res = client.post(
+                f"/person_cross_reference/person/{seeded_person['person_id']}",
+                json={"curie": "XenBase:XB-PERS-3617"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            assert res.json()["curie_prefix"] == "XenBase"
+
     def test_create_invalid_curie_no_colon(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
