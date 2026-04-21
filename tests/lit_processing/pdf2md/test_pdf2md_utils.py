@@ -25,6 +25,9 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     download_pdfx_result,
     resolve_curie_to_reference,
     get_pdf_files_for_reference,
+    get_nxml_referencefile,
+    process_nxml_to_markdown,
+    process_supplemental_pdfs,
 )
 
 
@@ -343,3 +346,201 @@ class TestGetPdfFilesForReference:
         get_pdf_files_for_reference(mock_db, 123, "both")
 
         assert mock_query.filter.called
+
+
+class TestGetNxmlReferencefile:
+    """Test get_nxml_referencefile function."""
+
+    def test_returns_nxml_when_present(self):
+        """A final nXML file is returned when present."""
+        mock_db = MagicMock()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+
+        expected = MagicMock()
+        expected.file_class = "nXML"
+        mock_query.first.return_value = expected
+
+        result = get_nxml_referencefile(mock_db, 123)
+
+        assert result is expected
+        assert mock_query.filter.called
+        assert mock_query.order_by.called
+
+    def test_returns_none_when_absent(self):
+        """Returns None when no nXML present for the reference."""
+        mock_db = MagicMock()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+        mock_query.first.return_value = None
+
+        result = get_nxml_referencefile(mock_db, 123)
+
+        assert result is None
+
+
+class TestProcessNxmlToMarkdown:
+    """Test process_nxml_to_markdown function."""
+
+    def _nxml_ref(self, md5sum="abc123", display_name="paper", ref_id=42):
+        mock_ref = MagicMock()
+        mock_ref.md5sum = md5sum
+        mock_ref.display_name = display_name
+        mock_ref.referencefile_id = ref_id
+        return mock_ref
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.convert_xml_to_markdown")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_xml_from_s3")
+    def test_successful_conversion_and_upload(
+        self, mock_download, mock_convert, mock_upload
+    ):
+        """XML is downloaded, converted, and uploaded with correct metadata."""
+        mock_db = MagicMock()
+        mock_download.return_value = b"<xml>content</xml>"
+        mock_convert.return_value = "# Converted markdown content"
+        mock_s3 = MagicMock()
+
+        success, error = process_nxml_to_markdown(
+            db=mock_db,
+            nxml_ref_file=self._nxml_ref(),
+            reference_curie="AGRKB:101000000000001",
+            mod_abbreviation="WB",
+            s3_client=mock_s3
+        )
+
+        assert success is True
+        assert error is None
+        mock_download.assert_called_once_with(mock_s3, "abc123")
+        mock_convert.assert_called_once_with(b"<xml>content</xml>", "jats")
+        mock_upload.assert_called_once()
+        _args, kwargs = mock_upload.call_args
+        metadata = kwargs["metadata"]
+        assert metadata["file_class"] == "converted_merged_main"
+        assert metadata["file_extension"] == "md"
+        assert metadata["reference_curie"] == "AGRKB:101000000000001"
+        assert metadata["mod_abbreviation"] == "WB"
+        assert metadata["display_name"] == "paper_nxml"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_xml_from_s3")
+    def test_empty_s3_content_returns_failure(self, mock_download):
+        """Empty S3 content produces a failure tuple."""
+        mock_download.return_value = b""
+
+        success, error = process_nxml_to_markdown(
+            db=MagicMock(),
+            nxml_ref_file=self._nxml_ref(),
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+            s3_client=MagicMock()
+        )
+
+        assert success is False
+        assert "Empty nXML content" in error
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.convert_xml_to_markdown")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_xml_from_s3")
+    def test_conversion_exception_returns_failure(self, mock_download, mock_convert):
+        """Parser exceptions are caught and returned as failure."""
+        mock_download.return_value = b"<xml/>"
+        mock_convert.side_effect = ValueError("bad xml")
+
+        success, error = process_nxml_to_markdown(
+            db=MagicMock(),
+            nxml_ref_file=self._nxml_ref(),
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+            s3_client=MagicMock()
+        )
+
+        assert success is False
+        assert "bad xml" in error
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.convert_xml_to_markdown")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_xml_from_s3")
+    def test_minimal_markdown_returns_failure(self, mock_download, mock_convert):
+        """Conversion producing too-short content is rejected."""
+        mock_download.return_value = b"<xml/>"
+        mock_convert.return_value = "."
+
+        success, error = process_nxml_to_markdown(
+            db=MagicMock(),
+            nxml_ref_file=self._nxml_ref(),
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+            s3_client=MagicMock()
+        )
+
+        assert success is False
+        assert "empty or minimal" in error
+
+
+class TestProcessSupplementalPdfs:
+    """Test process_supplemental_pdfs function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_no_supplements_returns_zero_counts(self, mock_get_pdfs):
+        """Zero supplements -> (0, 0, [])."""
+        mock_get_pdfs.return_value = []
+
+        succeeded, failed, errors = process_supplemental_pdfs(
+            db=MagicMock(),
+            reference_id=42,
+            reference_curie="AGRKB:1",
+            token="t"
+        )
+
+        assert succeeded == 0
+        assert failed == 0
+        assert errors == []
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_mixed_success_and_failure(self, mock_get_pdfs, mock_process):
+        """Mix of succeeding/failing supplements counted separately."""
+        s1 = MagicMock(display_name="s1")
+        s2 = MagicMock(display_name="s2")
+        s3 = MagicMock(display_name="s3")
+        mock_get_pdfs.return_value = [s1, s2, s3]
+        mock_process.side_effect = [
+            (True, ["grobid"], None),
+            (False, [], "pdfx err"),
+            (True, ["merged"], None),
+        ]
+
+        succeeded, failed, errors = process_supplemental_pdfs(
+            db=MagicMock(),
+            reference_id=42,
+            reference_curie="AGRKB:1",
+            token="t"
+        )
+
+        assert succeeded == 2
+        assert failed == 1
+        assert len(errors) == 1
+        assert "s2" in errors[0]
+        assert "pdfx err" in errors[0]
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_exception_in_helper_counted_as_failure(self, mock_get_pdfs, mock_process):
+        """Exceptions from the per-file helper are caught."""
+        s1 = MagicMock(display_name="s1")
+        mock_get_pdfs.return_value = [s1]
+        mock_process.side_effect = RuntimeError("boom")
+
+        succeeded, failed, errors = process_supplemental_pdfs(
+            db=MagicMock(),
+            reference_id=42,
+            reference_curie="AGRKB:1",
+            token="t"
+        )
+
+        assert succeeded == 0
+        assert failed == 1
+        assert len(errors) == 1
+        assert "boom" in errors[0]
