@@ -66,16 +66,6 @@ class ProcessingResult(TypedDict):
     error: Optional[str]
 
 
-def get_pdfx_token() -> str:  # pragma: no cover
-    """
-    Obtain authentication token using agr_cognito_py.
-
-    Returns:
-        str: The access token for API authentication.
-    """
-    return get_authentication_token()
-
-
 def submit_pdf_to_pdfx(  # pragma: no cover
     file_content: bytes,
     token: str,

@@ -28,12 +28,11 @@ from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     ModModel, ReferencefileModel, ReferenceModel, CrossReferenceModel
 )
-from agr_cognito_py import ModAccess
+from agr_cognito_py import ModAccess, get_admin_token
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     EXTRACTION_METHODS,
-    get_pdfx_token,
     submit_pdf_to_pdfx,
     poll_pdfx_status,
     download_pdfx_result,
@@ -250,7 +249,7 @@ def _process_reference_list(  # pragma: no cover
 
         # Refresh token if needed
         try:
-            token = get_pdfx_token()
+            token = get_admin_token()
         except Exception as e:
             logger.error(f"Failed to refresh token: {e}")
             failure_count += 1
@@ -370,7 +369,7 @@ def process_references_since_year(  # pragma: no cover
 
         # Get token
         try:
-            token = get_pdfx_token()
+            token = get_admin_token()
         except Exception as e:
             logger.error(f"Failed to obtain PDFX token: {e}")
             return None
@@ -646,7 +645,7 @@ def process_newest_references(  # pragma: no cover
 
         # Get token
         try:
-            token = get_pdfx_token()
+            token = get_admin_token()
         except Exception as e:
             logger.error(f"Failed to obtain PDFX token: {e}")
             return None
@@ -794,15 +793,7 @@ def main(  # pragma: no cover
                     seen_wf_tag_ids.add(job["reference_workflow_tag_id"])
             offset += limit
             logger.info(f"Loaded batch of {len(jobs)} jobs. Total jobs loaded: {len(all_jobs)}")
-
         logger.info("Finished loading all text conversion jobs.")
-
-        # Get token
-        try:
-            token = get_pdfx_token()
-        except Exception as e:
-            logger.error(f"Failed to obtain PDFX token: {e}")
-            return
 
         mod_abbreviation_from_mod_id: Dict[int, str] = {}
         objects_with_errors = []
@@ -853,18 +844,7 @@ def main(  # pragma: no cover
             file_extension = ref_file_info["file_extension"]
 
             # Refresh token if needed
-            try:
-                token = get_pdfx_token()
-            except Exception as e:
-                error_msg = f"Failed to refresh token: {e}"
-                logger.error(error_msg)
-                failure_count += 1
-                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
-                objects_with_errors.append(_build_workflow_error_record(
-                    db, reference_curie, display_name, file_extension,
-                    mod_abbreviation, error_msg
-                ))
-                continue
+            token = get_admin_token()
 
             success, error_msg = process_single_reference(
                 db, ref_file_info, token,
