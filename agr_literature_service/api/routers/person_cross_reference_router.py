@@ -15,7 +15,7 @@ from agr_literature_service.api.schemas import (
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
 
-router = APIRouter(prefix="/person_cross_reference", tags=["Person CrossReference"])
+router = APIRouter(prefix="/person_cross_reference", tags=["Person"])
 
 get_db = database.get_db
 db_session: Session = Depends(get_db)
