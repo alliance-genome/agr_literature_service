@@ -26,7 +26,7 @@ def normalize_email(s: str) -> str:
     return s.strip().lower()
 
 
-def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
+def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C901
     data: Dict[str, Any] = jsonable_encoder(payload)
 
     if "created_by" in data and data["created_by"] is not None:
@@ -51,7 +51,9 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
 
     # Create child emails
     if emails_data:
-        for e in emails_data:
+        # Check if any email in the batch explicitly marks itself primary
+        has_primary_set = any(e.get("primary") is True for e in emails_data)
+        for idx, e in enumerate(emails_data):
             email_addr = normalize_email(e["email_address"])
             # skip duplicates for this person
             dup = (
@@ -62,11 +64,19 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:
             )
             if dup:
                 continue
+            # Determine primary flag — EmailModel requires primary to be
+            # non-NULL when person_id is non-NULL (ck_email_person_primary_nulls_together).
+            requested_primary = e.get("primary")
+            if requested_primary is None:
+                primary_value = (idx == 0 and not has_primary_set)
+            else:
+                primary_value = bool(requested_primary)
             db.add(
                 EmailModel(
                     person_id=obj.person_id,
                     email_address=email_addr,
                     date_invalidated=e.get("date_invalidated"),
+                    primary=primary_value,
                 )
             )
 

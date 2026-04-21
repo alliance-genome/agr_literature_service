@@ -408,10 +408,13 @@ class TestPersonFields:
             assert len(primary_names) == 1
             assert primary_names[0]["last_name"] == "Comprehensive"
 
-            # Emails: 2 present
+            # Emails: 2 present, first is auto-primary since none explicitly marked
             emails = body.get("emails") or []
             email_addresses = {e["email_address"] for e in emails}
             assert email_addresses == {"jane.doe@example.com", "jane.c@example.org"}
+            primary_emails = [e for e in emails if e.get("primary") is True]
+            assert len(primary_emails) == 1
+            assert primary_emails[0]["email_address"] == "jane.doe@example.com"
 
             # Cross-references: 2 present with derived curie_prefix
             xrefs = body.get("cross_references") or []
