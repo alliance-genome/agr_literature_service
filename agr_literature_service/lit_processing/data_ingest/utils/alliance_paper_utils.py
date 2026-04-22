@@ -212,14 +212,14 @@ def update_sgd_corpus_flag_to_true(db_session,  # pragma: no cover
     # Build reverse mapping: ref_id -> pmid
     ref_id_to_pmid = {v: k for k, v in pmid_to_ref_id.items()}
 
-    # Update mod_corpus_association records where corpus=False to corpus=True
+    # Update mod_corpus_association records where corpus=False or NULL to corpus=True
     # Use RETURNING to get the reference_ids that were actually updated
     update_query = text(
         "UPDATE mod_corpus_association "
         "SET corpus = True "
         "WHERE reference_id = ANY(:ref_ids) "
         "AND mod_id = :sgd_mod_id "
-        "AND corpus = False "
+        "AND (corpus = False OR corpus IS NULL) "
         "RETURNING reference_id"
     )
     result = db_session.execute(
