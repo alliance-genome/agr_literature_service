@@ -131,6 +131,14 @@ from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaUpdate,
     PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated
 )
+from .person_name_schemas import (
+    PersonNameSchemaCreate, PersonNameSchemaUpdate,
+    PersonNameSchemaShow, PersonNameSchemaRelated
+)
+from .person_note_schemas import (
+    PersonNoteSchemaCreate, PersonNoteSchemaUpdate,
+    PersonNoteSchemaShow, PersonNoteSchemaRelated
+)
 from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
 from .person_setting_schemas import (
     PersonSettingSchemaCreate,
