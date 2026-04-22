@@ -413,6 +413,14 @@
       "cross_references.is_obsolete": {
         "type": "boolean"
       },
+      "retraction_status": {
+        "type": "keyword",
+        "normalizer": "sortNormalizer"
+      },
+      "retraction_status_name": {
+        "type": "keyword",
+        "normalizer": "sortNormalizer"
+      },
       "workflow_tags": {
         "type": "nested",
         "properties": {
