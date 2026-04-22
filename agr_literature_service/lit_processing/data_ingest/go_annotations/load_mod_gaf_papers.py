@@ -476,7 +476,10 @@ def build_mod_gaf_report_message(mod_abbr: str, data_sub_type: str,  # pragma: n
 def process_mod_gaf(db_session, data_sub_type: str, mod_abbr: str,  # pragma: no cover
                     s3_url: str, all_pmids_db: Set[str]) -> str:
     """
-    Process MOD GAF file: report PMIDs not in MOD corpus (no loading).
+    Process MOD GAF file and report corpus status.
+
+    For SGD: loads new papers from PubMed and adds them to corpus.
+    For other MODs: reports PMIDs not in MOD corpus (no loading).
 
     Args:
         db_session: Database session
