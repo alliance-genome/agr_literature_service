@@ -811,8 +811,9 @@ def process_nxml_to_markdown(  # pragma: no cover
 
     The nXML is downloaded from S3, converted to markdown via
     agr_abc_document_parsers.convert_xml_to_markdown (JATS format), and the
-    result is uploaded via file_upload with file_class='converted_merged_main',
-    matching the convention used by the nxml2md oneoff script.
+    result is uploaded with file_class='converted_merged_main' and a '_nxml'
+    display_name suffix so the UI can group it under the source file alongside
+    PDFX method outputs.
 
     Args:
         db: Database session.

@@ -227,12 +227,18 @@ def upload_md_to_s3(s3_client, md_bytes, md5sum):
 
 FORMAT_FROM_CLASS = {"nXML": "jats", "tei": "tei"}
 
+# Appended to display_name so the UI can distinguish nXML-derived and
+# TEI-derived converted_merged_main outputs from PDFX merged outputs; the
+# UI's METHOD_SUFFIXES list strips these to recover the source display_name
+# for grouping.
+SUFFIX_FROM_CLASS = {"nXML": "_nxml", "tei": "_tei"}
+
 
 def convert_one(session_factory, s3_client, row, parser_format=None):
     """Convert a single XML file to Markdown. Runs in a worker thread."""
     ref_curie = row.reference_curie
     src_md5sum = row.md5sum
-    display_name = row.display_name
+    display_name = f"{row.display_name}{SUFFIX_FROM_CLASS[row.file_class]}"
 
     # In "both" mode, derive format from the row's file_class
     if parser_format is None:
