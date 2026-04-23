@@ -309,7 +309,7 @@ class TestConvertedEndpoint:
                             "main", "pdf", "md5_pdf_wait", pdf_type="pdf")
         ref_curie = test_reference.new_ref_curie
 
-        def fake_sync_job(job_id, reference_id, reference_curie):
+        def fake_sync_job(job_id, reference_id, reference_curie, overwrite_tei_md=False):
             create_metadata(
                 db,
                 ReferencefileSchemaPost(
