@@ -69,13 +69,17 @@ def get_next_local_curie(subdomain, db):
     # db_session = db
     # if db is None:
     #    db_session = create_postgres_session(False)
-    curie_start = "AGRKB:102"
-    rs = None
     if subdomain == 'reference':
         curie_start = "AGRKB:101"
         rs = db.execute(text("SELECT curie FROM reference order by reference_id desc limit 1"))
-    else:
+    elif subdomain == 'resource':
+        curie_start = "AGRKB:102"
         rs = db.execute(text("SELECT curie FROM resource order by resource_id desc limit 1"))
+    elif subdomain == 'person':
+        curie_start = "AGRKB:103"
+        rs = db.execute(text("SELECT curie FROM person order by person_id desc limit 1"))
+    else:
+        raise ValueError(f"Unknown MATI subdomain: {subdomain}")
     rows = None
     if rs:
         rows = rs.fetchall()
@@ -99,3 +103,8 @@ def get_next_reference_curie(db=None):  # pragma: no cover
 def get_next_resource_curie(db=None):  # pragma: no cover
 
     return get_next_curie('resource', db)
+
+
+def get_next_person_curie(db=None):  # pragma: no cover
+
+    return get_next_curie('person', db)

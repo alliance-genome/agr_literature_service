@@ -427,3 +427,52 @@ class TestPersonFields:
             notes = body.get("notes") or []
             note_texts = {n["note"] for n in notes}
             assert note_texts == {"First note about Jane.", multiline_note}
+
+
+class TestPersonCurie:
+
+    def test_create_person_assigns_agrkb_103_curie(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {"display_name": "Curie Assignment Person"}
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            body = res.json()
+            assert body["curie"] is not None
+            assert body["curie"].startswith("AGRKB:103")
+            assert len(body["curie"]) == len("AGRKB:103000000000001")
+
+    def test_consecutive_persons_have_monotonic_curies(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res1 = client.post(
+                "/person/", json={"display_name": "Monotonic A"}, headers=auth_headers
+            )
+            res2 = client.post(
+                "/person/", json={"display_name": "Monotonic B"}, headers=auth_headers
+            )
+            assert res1.status_code == status.HTTP_201_CREATED
+            assert res2.status_code == status.HTTP_201_CREATED
+            curie1 = res1.json()["curie"]
+            curie2 = res2.json()["curie"]
+            assert curie1.startswith("AGRKB:103")
+            assert curie2.startswith("AGRKB:103")
+            num1 = int(curie1[len("AGRKB:103"):])
+            num2 = int(curie2[len("AGRKB:103"):])
+            assert num2 == num1 + 1
+
+    def test_create_person_rejects_caller_supplied_curie(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "display_name": "Rejected Curie Person",
+                "curie": "AGRKB:999000000000001",
+            }
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_person_rejects_curie_update(self, db, auth_headers, test_person_id):  # noqa
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"curie": "AGRKB:999000000000002"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

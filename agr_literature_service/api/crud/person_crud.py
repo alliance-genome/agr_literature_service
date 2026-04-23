@@ -16,6 +16,7 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas import PersonSchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.global_utils import get_next_person_curie
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,8 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
     xrefs_data = data.pop("cross_references", None)
     names_data = data.pop("names", None)
     notes_data = data.pop("notes", None)
+
+    data["curie"] = get_next_person_curie(db)
 
     # Set address_last_updated if any address field is provided
     has_address = bool(ADDRESS_FIELDS & payload.model_fields_set)
@@ -177,7 +180,7 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
             data.pop(field, None)
 
     ALLOWED = {
-        "display_name", "curie", "mod_roles",
+        "display_name", "mod_roles",
         "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
