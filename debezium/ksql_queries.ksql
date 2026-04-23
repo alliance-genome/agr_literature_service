@@ -28,7 +28,8 @@ CREATE TABLE reference (
     pubmed_types array<string>,
     resource_id string,
     title string,
-    volume string
+    volume string,
+    retraction_status string
   ) WITH (
     KAFKA_TOPIC='abc.public.reference',
     VALUE_FORMAT='json'
@@ -66,7 +67,8 @@ CREATE TABLE normalized_copyright_reference AS
       ELSE resource_id
     END AS resource_id,
     title,
-    volume
+    volume,
+    retraction_status
   FROM reference
   EMIT CHANGES;
 
@@ -332,6 +334,13 @@ CREATE TABLE reference_with_citation AS
     normalized_copyright_reference.resource_id,
     normalized_copyright_reference.title,
     normalized_copyright_reference.volume,
+    normalized_copyright_reference.retraction_status,
+    CASE
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
+      ELSE NULL
+    END AS retraction_status_name,
     citation.citation \"CITATION\",
     citation.short_citation \"SHORT_CITATION\"
     FROM normalized_copyright_reference normalized_copyright_reference
@@ -365,6 +374,8 @@ CREATE TABLE reference_xref AS
     reference.resource_id,
     reference.title,
     reference.volume,
+    reference.retraction_status,
+    reference.retraction_status_name,
     reference.citation,
     reference.short_citation,
     cross_references.cross_references
@@ -399,6 +410,8 @@ CREATE TABLE reference_xref_author AS
     reference_xref.resource_id,
     reference_xref.title,
     reference_xref.volume,
+    reference_xref.retraction_status,
+    reference_xref.retraction_status_name,
     reference_xref.citation,
     reference_xref.short_citation,
     reference_xref.cross_references,
@@ -434,6 +447,8 @@ CREATE TABLE reference_xref_author_mods_in_corpus AS
     reference_xref_author.resource_id,
     reference_xref_author.title,
     reference_xref_author.volume,
+    reference_xref_author.retraction_status,
+    reference_xref_author.retraction_status_name,
     reference_xref_author.citation,
     reference_xref_author.short_citation,
     reference_xref_author.cross_references,
@@ -470,6 +485,8 @@ CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
     reference_xref_author_mods_in_corpus.resource_id,
     reference_xref_author_mods_in_corpus.title,
     reference_xref_author_mods_in_corpus.volume,
+    reference_xref_author_mods_in_corpus.retraction_status,
+    reference_xref_author_mods_in_corpus.retraction_status_name,
     reference_xref_author_mods_in_corpus.citation,
     reference_xref_author_mods_in_corpus.short_citation,
     reference_xref_author_mods_in_corpus.cross_references,
@@ -507,6 +524,8 @@ CREATE TABLE reference_xref_all_mods_corpus AS
     reference_xref_author_mods_in_corpus_mods_needs_review.resource_id,
     reference_xref_author_mods_in_corpus_mods_needs_review.title,
     reference_xref_author_mods_in_corpus_mods_needs_review.volume,
+    reference_xref_author_mods_in_corpus_mods_needs_review.retraction_status,
+    reference_xref_author_mods_in_corpus_mods_needs_review.retraction_status_name,
     reference_xref_author_mods_in_corpus_mods_needs_review.citation,
     reference_xref_author_mods_in_corpus_mods_needs_review.short_citation,
     reference_xref_author_mods_in_corpus_mods_needs_review.cross_references,
@@ -544,6 +563,8 @@ CREATE TABLE reference_obsolete_curies AS SELECT
     reference_xref_all_mods_corpus.resource_id,
     reference_xref_all_mods_corpus.title,
     reference_xref_all_mods_corpus.volume,
+    reference_xref_all_mods_corpus.retraction_status,
+    reference_xref_all_mods_corpus.retraction_status_name,
     reference_xref_all_mods_corpus.citation,
     reference_xref_all_mods_corpus.short_citation,
     reference_xref_all_mods_corpus.cross_references,
@@ -581,6 +602,8 @@ CREATE TABLE reference_mod_reference_types AS SELECT
     reference_obsolete_curies.resource_id,
     reference_obsolete_curies.title,
     reference_obsolete_curies.volume,
+    reference_obsolete_curies.retraction_status,
+    reference_obsolete_curies.retraction_status_name,
     reference_obsolete_curies.citation,
     reference_obsolete_curies.short_citation,
     reference_obsolete_curies.cross_references,
@@ -739,6 +762,8 @@ CREATE TABLE reference_with_resource AS
     reference_with_citation.resource_id,
     reference_with_citation.title \"TITLE\",
     reference_with_citation.volume,
+    reference_with_citation.retraction_status,
+    reference_with_citation.retraction_status_name,
     reference_with_citation.CITATION,
     reference_with_citation.SHORT_CITATION,
     resource.title \"RESOURCE_TITLE\"
@@ -775,6 +800,8 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.resource_id \"resource_id\",
     reference_mod_reference_types.title \"title\",
     reference_mod_reference_types.volume \"volume\",
+    reference_mod_reference_types.retraction_status \"retraction_status\",
+    reference_mod_reference_types.retraction_status_name \"retraction_status_name\",
     reference_mod_reference_types.citation \"citation\",
     reference_mod_reference_types.short_citation \"short_citation\",
     reference_mod_reference_types.cross_references \"cross_references\",
@@ -814,6 +841,8 @@ CREATE TABLE reference_with_copyright AS
     reference_with_resource.keywords,
     reference_with_resource.CITATION,
     reference_with_resource.SHORT_CITATION,
+    reference_with_resource.retraction_status,
+    reference_with_resource.retraction_status_name,
     copyright_license.open_access,
     copyright_license.name \"copyright_license\"
     FROM reference_with_resource reference_with_resource
@@ -848,10 +877,13 @@ CREATE TABLE public_reference_joined WITH (
     reference_with_copyright.SHORT_CITATION \"short_citation\",
     reference_with_copyright.open_access \"open_access\",
     reference_with_copyright.\"copyright_license\" \"copyright_license\",
+    reference_with_copyright.retraction_status \"retraction_status\",
+    reference_with_copyright.retraction_status_name \"retraction_status_name\",
     cross_references.cross_references \"cross_references\",
     authors.authors \"authors\",
     reference_relations.relations \"relations\",
-    mesh_terms.mesh_terms \"mesh_terms\"
+    mesh_terms.mesh_terms \"mesh_terms\",
+    mods_in_corpus.mods_in_corpus \"mods_in_corpus\"
     FROM reference_with_copyright reference_with_copyright
     LEFT OUTER JOIN cross_references cross_references ON reference_with_copyright.REFERENCE_ID = cross_references.REFERENCE_ID
     LEFT OUTER JOIN authors authors ON reference_with_copyright.REFERENCE_ID = authors.REFERENCE_ID
