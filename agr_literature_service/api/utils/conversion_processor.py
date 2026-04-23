@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def _record_pdf_details(db: Any, job_id: str, reference_id: int,
-                        details: List[Dict[str, Any]], output_file_class: str) -> None:
+                        details: List[Any], output_file_class: str) -> None:
     """Translate process_pdf_for_reference per-PDF details into job progress entries.
     Each source PDF produces one entry; if the 'merged' method succeeded, the
     converted side points at the merged output row for that PDF."""
