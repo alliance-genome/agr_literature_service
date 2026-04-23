@@ -52,7 +52,7 @@ def show_need_review(
     Args:
         mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
         count: Maximum number of results to return (default 100)
-        search_query: Optional keyword to search in title, journal, author
+        search_query: Optional keyword to search in title, abstract, journal, author (uses ES)
         sort_source: Optional mod_corpus_sort_source value to filter by
         sort_by: Field to sort by ('curie' or 'date_published')
         sort_order: Sort order ('asc' or 'desc')

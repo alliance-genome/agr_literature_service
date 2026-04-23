@@ -2,12 +2,12 @@ import logging
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, text
+from sqlalchemy import text
 
 from agr_literature_service.api.models import (
     ReferenceModel, WorkflowTagModel, CrossReferenceModel,
     ModCorpusAssociationModel, ModModel, ResourceDescriptorModel,
-    ReferencefileModAssociationModel, AuthorModel, ResourceModel
+    ReferencefileModAssociationModel
 )
 from agr_literature_service.api.schemas import (
     ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow,
@@ -15,6 +15,7 @@ from agr_literature_service.api.schemas import (
     ModCorpusSortSourceType
 )
 from agr_literature_service.api.crud.reference_crud import get_past_to_present_date_range
+from agr_literature_service.api.crud import search_crud
 
 logger = logging.getLogger(__name__)
 
@@ -51,18 +52,53 @@ def get_need_review_sort_sources(mod_abbreviation: str, db: Session) -> List[str
     return sorted(sources)
 
 
-def _build_need_review_query(
+def _search_es_for_curies(
+    mod_abbreviation: str,
+    search_query: str,
+    max_results: int = 500
+) -> List[str]:
+    """
+    Use Elasticsearch to find matching reference curies for needs_review papers.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        search_query: Keyword to search in title, abstract, journal, author
+        max_results: Maximum number of curies to return
+
+    Returns:
+        List of curie strings matching the search
+    """
+    try:
+        # Use existing search infrastructure with mods_needs_review filter
+        result = search_crud.search_references(
+            query=search_query,
+            facets_values={"mods_needs_review.keyword": [mod_abbreviation]},
+            size_result_count=max_results,
+            page=1,
+            return_facets_only=False,
+            query_fields="All",
+            partial_match=True
+        )
+
+        # Extract curies from search results
+        curies = [hit.get("curie") for hit in result.get("hits", []) if hit.get("curie")]
+        return curies
+    except Exception as e:
+        logger.error(f"ES search failed: {e}")
+        return []
+
+
+def _build_need_review_base_query(
     mod_abbreviation: str,
     db: Session,
-    search_query: Optional[str] = None,
     sort_source: Optional[str] = None
 ):
     """
-    Build the base query for needs_review references with filters applied.
+    Build the base query for needs_review references (without text search).
 
-    Returns the query object (without sorting/limit) for reuse in count and results.
+    Returns the query object for reuse in count and results.
     """
-    # Base query - use distinct to avoid duplicates from joins
+    # Base query
     references_query = db.query(
         ReferenceModel
     ).join(
@@ -83,34 +119,7 @@ def _build_need_review_query(
                 ModCorpusAssociationModel.mod_corpus_sort_source == source_enum
             )
         except ValueError:
-            # Invalid sort_source value, ignore filter
             logger.warning(f"Invalid sort_source value: {sort_source}")
-
-    # Apply keyword search filter (case-insensitive ILIKE)
-    # Searches: title, journal (resource.title), author names
-    # Note: Abstract search removed for performance - ILIKE on large text fields is slow
-    if search_query:
-        search_pattern = f"%{search_query}%"
-
-        # Use exists() for author search - more efficient than IN subquery
-        from sqlalchemy import exists
-        author_exists = exists().where(
-            AuthorModel.reference_id == ReferenceModel.reference_id,
-            AuthorModel.name.ilike(search_pattern)
-        )
-
-        # Join resource for journal search
-        references_query = references_query.outerjoin(
-            ReferenceModel.resource
-        )
-
-        references_query = references_query.filter(
-            or_(
-                ReferenceModel.title.ilike(search_pattern),
-                ResourceModel.title.ilike(search_pattern),
-                author_exists
-            )
-        )
 
     return references_query
 
@@ -126,6 +135,8 @@ def show_need_review(
 ):
     """
     Get references needing review with optional search, filter, and sort.
+
+    Uses Elasticsearch for text search (fast), then fetches full details from DB.
 
     Args:
         mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
@@ -143,18 +154,24 @@ def show_need_review(
     if count is None:
         count = 100
 
-    # Build base query with filters
-    base_query = _build_need_review_query(
-        mod_abbreviation, db, search_query, sort_source
-    )
+    # Build base query (without text search)
+    base_query = _build_need_review_base_query(mod_abbreviation, db, sort_source)
 
-    # Get total count (efficient count query)
+    # If there's a search query, use ES to get matching curies (fast text search)
+    es_curies = None
+    if search_query and search_query.strip():
+        es_curies = _search_es_for_curies(mod_abbreviation, search_query, max_results=500)
+        if not es_curies:
+            # No ES matches - return empty result
+            return {"total_count": 0, "references": []}
+        # Filter DB query by ES-matched curies
+        base_query = base_query.filter(ReferenceModel.curie.in_(es_curies))
+
+    # Get total count
     total_count = base_query.distinct(ReferenceModel.reference_id).count()
 
-    # Now build the full query for results
-    references_query = base_query.outerjoin(
-        ReferenceModel.copyright_license
-    )
+    # Build full query for results with copyright license join
+    references_query = base_query.outerjoin(ReferenceModel.copyright_license)
 
     # Apply sorting
     if sort_by == "date_published":
