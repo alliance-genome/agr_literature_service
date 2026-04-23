@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Security
 from agr_literature_service.api import database
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud import sort_crud
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow
+from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, ReferenceSchemaNeedReviewResponse
 
 
 router = APIRouter(
@@ -35,10 +35,10 @@ def get_need_review_sort_sources(
 
 @router.get('/need_review',
             status_code=200,
-            response_model=List[ReferenceSchemaNeedReviewShow])
+            response_model=ReferenceSchemaNeedReviewResponse)
 def show_need_review(
     mod_abbreviation: str,
-    count: int = None,
+    count: int = 100,
     search_query: Optional[str] = None,
     sort_source: Optional[str] = None,
     sort_by: Optional[str] = "curie",
@@ -51,11 +51,14 @@ def show_need_review(
 
     Args:
         mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
-        count: Maximum number of results to return
+        count: Maximum number of results to return (default 100)
         search_query: Optional keyword to search in title, abstract, journal, author
         sort_source: Optional mod_corpus_sort_source value to filter by
         sort_by: Field to sort by ('curie' or 'date_published')
         sort_order: Sort order ('asc' or 'desc')
+
+    Returns:
+        Response with total_count and list of references
     """
     return sort_crud.show_need_review(
         mod_abbreviation, count, db,

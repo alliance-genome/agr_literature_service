@@ -51,31 +51,18 @@ def get_need_review_sort_sources(mod_abbreviation: str, db: Session) -> List[str
     return sorted(sources)
 
 
-def show_need_review(
+def _build_need_review_query(
     mod_abbreviation: str,
-    count: Optional[int],
     db: Session,
     search_query: Optional[str] = None,
-    sort_source: Optional[str] = None,
-    sort_by: str = "curie",
-    sort_order: str = "desc"
+    sort_source: Optional[str] = None
 ):
     """
-    Get references needing review with optional search, filter, and sort.
+    Build the base query for needs_review references with filters applied.
 
-    Args:
-        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
-        count: Maximum number of results to return
-        db: Database session
-        search_query: Optional keyword to search in title, abstract, journal, author
-        sort_source: Optional mod_corpus_sort_source value to filter by
-        sort_by: Field to sort by ('curie' or 'date_published')
-        sort_order: Sort order ('asc' or 'desc')
-
-    Returns:
-        List of references matching the criteria
+    Returns the query object (without sorting/limit) for reuse in count and results.
     """
-    # Base query
+    # Base query - use distinct to avoid duplicates from joins
     references_query = db.query(
         ReferenceModel
     ).join(
@@ -86,8 +73,6 @@ def show_need_review(
         ModCorpusAssociationModel.mod
     ).filter(
         ModModel.abbreviation == mod_abbreviation
-    ).outerjoin(
-        ReferenceModel.copyright_license
     )
 
     # Filter by mod_corpus_sort_source
@@ -127,6 +112,50 @@ def show_need_review(
             )
         )
 
+    return references_query
+
+
+def show_need_review(
+    mod_abbreviation: str,
+    count: Optional[int],
+    db: Session,
+    search_query: Optional[str] = None,
+    sort_source: Optional[str] = None,
+    sort_by: str = "curie",
+    sort_order: str = "desc"
+):
+    """
+    Get references needing review with optional search, filter, and sort.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        count: Maximum number of results to return (default 100)
+        db: Database session
+        search_query: Optional keyword to search in title, abstract, journal, author
+        sort_source: Optional mod_corpus_sort_source value to filter by
+        sort_by: Field to sort by ('curie' or 'date_published')
+        sort_order: Sort order ('asc' or 'desc')
+
+    Returns:
+        Dict with total_count and list of references matching the criteria
+    """
+    # Default limit
+    if count is None:
+        count = 100
+
+    # Build base query with filters
+    base_query = _build_need_review_query(
+        mod_abbreviation, db, search_query, sort_source
+    )
+
+    # Get total count (efficient count query)
+    total_count = base_query.distinct(ReferenceModel.reference_id).count()
+
+    # Now build the full query for results
+    references_query = base_query.outerjoin(
+        ReferenceModel.copyright_license
+    )
+
     # Apply sorting
     if sort_by == "date_published":
         order_col = ReferenceModel.date_published
@@ -139,11 +168,15 @@ def show_need_review(
         references_query = references_query.order_by(order_col.desc().nulls_last())
 
     # Apply limit
-    if count:
-        references_query = references_query.limit(count)
+    references_query = references_query.limit(count)
 
     references = references_query.all()
-    return show_sort_result(references, mod_abbreviation, db)
+    results = show_sort_result(references, mod_abbreviation, db)
+
+    return {
+        "total_count": total_count,
+        "references": results
+    }
 
 
 def show_sort_result(references, mod_abbreviation, db):

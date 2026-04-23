@@ -107,7 +107,8 @@ from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaPost,
     ReferenceSchemaUpdate,
     ReferenceSchemaShow,
-    ReferenceSchemaNeedReviewShow)
+    ReferenceSchemaNeedReviewShow,
+    ReferenceSchemaNeedReviewResponse)
 
 from agr_literature_service.api.schemas.copyright_license_schemas import (
     CopyrightLicenseSchemaPost, CopyrightLicenseSchemaShow)

@@ -239,3 +239,13 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_open_access: Optional[bool] = False
     authors: Optional[List[AuthorSchemaShow]] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
+
+
+class ReferenceSchemaNeedReviewResponse(BaseModel):
+    """Schema for paginated needs_review response with total count."""
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+
+    total_count: int
+    references: List[ReferenceSchemaNeedReviewShow]
