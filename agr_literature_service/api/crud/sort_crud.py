@@ -1,11 +1,19 @@
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from typing import List, Optional
 
-from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel, \
-    ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, \
-    CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, text
+
+from agr_literature_service.api.models import (
+    ReferenceModel, WorkflowTagModel, CrossReferenceModel,
+    ModCorpusAssociationModel, ModModel, ResourceDescriptorModel,
+    ReferencefileModAssociationModel, AuthorModel, ResourceModel
+)
+from agr_literature_service.api.schemas import (
+    ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow,
+    ReferencefileSchemaRelated, ReferencefileModSchemaShow,
+    ModCorpusSortSourceType
+)
 from agr_literature_service.api.crud.reference_crud import get_past_to_present_date_range
 
 logger = logging.getLogger(__name__)
@@ -18,22 +26,122 @@ def convert_xref_curie_to_url(curie, resource_descriptor_default_urls):
     return None
 
 
-def show_need_review(mod_abbreviation, count, db: Session):
+def get_need_review_sort_sources(mod_abbreviation: str, db: Session) -> List[str]:
+    """
+    Get distinct mod_corpus_sort_source values for needs_review papers.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        db: Database session
+
+    Returns:
+        List of sort source values that exist for this MOD's needs_review papers
+    """
+    result = db.query(
+        ModCorpusAssociationModel.mod_corpus_sort_source
+    ).join(
+        ModCorpusAssociationModel.mod
+    ).filter(
+        ModCorpusAssociationModel.corpus == None,  # noqa - needs review papers only
+        ModModel.abbreviation == mod_abbreviation
+    ).distinct().all()
+
+    # Convert enum values to strings, filter out None, and sort
+    sources = [row[0].value for row in result if row[0] is not None]
+    return sorted(sources)
+
+
+def show_need_review(
+    mod_abbreviation: str,
+    count: Optional[int],
+    db: Session,
+    search_query: Optional[str] = None,
+    sort_source: Optional[str] = None,
+    sort_by: str = "curie",
+    sort_order: str = "desc"
+):
+    """
+    Get references needing review with optional search, filter, and sort.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        count: Maximum number of results to return
+        db: Database session
+        search_query: Optional keyword to search in title, abstract, journal, author
+        sort_source: Optional mod_corpus_sort_source value to filter by
+        sort_by: Field to sort by ('curie' or 'date_published')
+        sort_order: Sort order ('asc' or 'desc')
+
+    Returns:
+        List of references matching the criteria
+    """
+    # Base query
     references_query = db.query(
         ReferenceModel
     ).join(
         ReferenceModel.mod_corpus_association
     ).filter(
-        ModCorpusAssociationModel.corpus == None # noqa
+        ModCorpusAssociationModel.corpus == None  # noqa
     ).join(
         ModCorpusAssociationModel.mod
     ).filter(
         ModModel.abbreviation == mod_abbreviation
     ).outerjoin(
         ReferenceModel.copyright_license
-    ).order_by(
-        ReferenceModel.curie.desc()
-    ).limit(count)
+    )
+
+    # Filter by mod_corpus_sort_source
+    if sort_source:
+        try:
+            source_enum = ModCorpusSortSourceType(sort_source)
+            references_query = references_query.filter(
+                ModCorpusAssociationModel.mod_corpus_sort_source == source_enum
+            )
+        except ValueError:
+            # Invalid sort_source value, ignore filter
+            logger.warning(f"Invalid sort_source value: {sort_source}")
+
+    # Apply keyword search filter (case-insensitive ILIKE)
+    # Searches: title, abstract, journal (resource.title), author names
+    if search_query:
+        search_pattern = f"%{search_query}%"
+
+        # Subquery for references matching author names
+        author_match_subq = db.query(
+            AuthorModel.reference_id
+        ).filter(
+            AuthorModel.name.ilike(search_pattern)
+        ).distinct().subquery()
+
+        # Join resource for journal search
+        references_query = references_query.outerjoin(
+            ReferenceModel.resource
+        )
+
+        references_query = references_query.filter(
+            or_(
+                ReferenceModel.title.ilike(search_pattern),
+                ReferenceModel.abstract.ilike(search_pattern),
+                ResourceModel.title.ilike(search_pattern),
+                ReferenceModel.reference_id.in_(author_match_subq)
+            )
+        )
+
+    # Apply sorting
+    if sort_by == "date_published":
+        order_col = ReferenceModel.date_published
+    else:
+        order_col = ReferenceModel.curie
+
+    if sort_order == "asc":
+        references_query = references_query.order_by(order_col.asc().nulls_last())
+    else:
+        references_query = references_query.order_by(order_col.desc().nulls_last())
+
+    # Apply limit
+    if count:
+        references_query = references_query.limit(count)
+
     references = references_query.all()
     return show_sort_result(references, mod_abbreviation, db)
 
@@ -52,6 +160,7 @@ def show_sort_result(references, mod_abbreviation, db):
             title=reference.title,
             abstract=reference.abstract,
             category=reference.category,
+            date_published=reference.date_published,
             copyright_license_name=reference.copyright_license.name if reference.copyright_license else "",
             copyright_license_url=reference.copyright_license.url if reference.copyright_license else "",
             copyright_license_description=reference.copyright_license.description if reference.copyright_license else "",

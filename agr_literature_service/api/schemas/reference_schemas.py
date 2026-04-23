@@ -226,6 +226,7 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     category: Optional[str] = None
     pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     abstract: Optional[str] = None
+    date_published: Optional[str] = None
     mod_corpus_association_id: int
     mod_corpus_association_corpus: Optional[bool] = None
     prepublication_pipeline: Optional[bool] = None
