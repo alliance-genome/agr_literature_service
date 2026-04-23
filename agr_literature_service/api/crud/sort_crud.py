@@ -87,16 +87,17 @@ def _build_need_review_query(
             logger.warning(f"Invalid sort_source value: {sort_source}")
 
     # Apply keyword search filter (case-insensitive ILIKE)
-    # Searches: title, abstract, journal (resource.title), author names
+    # Searches: title, journal (resource.title), author names
+    # Note: Abstract search removed for performance - ILIKE on large text fields is slow
     if search_query:
         search_pattern = f"%{search_query}%"
 
-        # Subquery for references matching author names
-        author_match_subq = db.query(
-            AuthorModel.reference_id
-        ).filter(
+        # Use exists() for author search - more efficient than IN subquery
+        from sqlalchemy import exists
+        author_exists = exists().where(
+            AuthorModel.reference_id == ReferenceModel.reference_id,
             AuthorModel.name.ilike(search_pattern)
-        ).distinct().subquery()
+        )
 
         # Join resource for journal search
         references_query = references_query.outerjoin(
@@ -106,9 +107,8 @@ def _build_need_review_query(
         references_query = references_query.filter(
             or_(
                 ReferenceModel.title.ilike(search_pattern),
-                ReferenceModel.abstract.ilike(search_pattern),
                 ResourceModel.title.ilike(search_pattern),
-                ReferenceModel.reference_id.in_(author_match_subq)
+                author_exists
             )
         )
 
