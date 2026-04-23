@@ -6,7 +6,7 @@ Dispatches to the existing batch conversion primitives in
 re-implementing any conversion logic here.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 from agr_literature_service.api.database.main import SessionLocal
 from agr_literature_service.api.utils.conversion_job_manager import conversion_manager
