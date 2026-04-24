@@ -31,8 +31,7 @@ class PersonSchemaPost(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     display_name: str
-    curie: Optional[str] = None
-    okta_id: Optional[str] = None
+    curie: str  # required
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
@@ -58,7 +57,6 @@ class PersonSchemaUpdate(BaseModel):
 
     display_name: Optional[str] = None
     curie: Optional[str] = None
-    okta_id: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
@@ -75,8 +73,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
 
     person_id: int
     display_name: str
-    curie: Optional[str] = None
-    okta_id: Optional[str] = None
+    curie: str  # required
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: str = "active"
