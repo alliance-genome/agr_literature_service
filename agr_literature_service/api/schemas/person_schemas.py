@@ -31,7 +31,6 @@ class PersonSchemaPost(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     display_name: str
-    curie: Optional[str] = None
     okta_id: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
@@ -57,7 +56,6 @@ class PersonSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     display_name: Optional[str] = None
-    curie: Optional[str] = None
     okta_id: Optional[str] = None
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None

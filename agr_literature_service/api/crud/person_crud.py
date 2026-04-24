@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import (
@@ -16,6 +16,7 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas import PersonSchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.global_utils import get_next_person_curie
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,26 @@ ADDRESS_FIELDS = {"city", "state", "postal_code", "country", "street_address"}
 
 def normalize_email(s: str) -> str:
     return s.strip().lower()
+
+
+def resolve_person_id(db: Session, curie_or_person_id: str) -> int:
+    person_id = int(curie_or_person_id) if curie_or_person_id.isdigit() else None
+    person = (
+        db.query(PersonModel.person_id)
+        .filter(
+            or_(
+                PersonModel.curie == curie_or_person_id,
+                PersonModel.person_id == person_id,
+            )
+        )
+        .one_or_none()
+    )
+    if not person:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Person with curie or person_id {curie_or_person_id} not found",
+        )
+    return person[0]
 
 
 def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C901
@@ -39,6 +60,8 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
     xrefs_data = data.pop("cross_references", None)
     names_data = data.pop("names", None)
     notes_data = data.pop("notes", None)
+
+    data["curie"] = get_next_person_curie(db)
 
     # Set address_last_updated if any address field is provided
     has_address = bool(ADDRESS_FIELDS & payload.model_fields_set)
@@ -137,30 +160,32 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
 
     db.commit()
     db.refresh(obj)
-    return obj
+    return obj.curie
 
 
-def destroy(db: Session, person_id: int) -> None:
+def destroy(db: Session, curie_or_person_id: str) -> None:
+    person_id = resolve_person_id(db, curie_or_person_id)
     obj: Optional[PersonModel] = (
         db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     )
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Person with person_id {person_id} not found",
+            detail=f"Person with curie or person_id {curie_or_person_id} not found",
         )
     db.delete(obj)
     db.commit()
 
 
-def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, Any]:
+def patch(db: Session, curie_or_person_id: str, patch_dict: Dict[str, Any]) -> Dict[str, Any]:
+    person_id = resolve_person_id(db, curie_or_person_id)
     obj: Optional[PersonModel] = (
         db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     )
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Person with person_id {person_id} not found",
+            detail=f"Person with curie or person_id {curie_or_person_id} not found",
         )
 
     data = jsonable_encoder(patch_dict)
@@ -177,7 +202,7 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
             data.pop(field, None)
 
     ALLOWED = {
-        "display_name", "curie", "mod_roles",
+        "display_name", "mod_roles",
         "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
@@ -194,7 +219,8 @@ def patch(db: Session, person_id: int, patch_dict: Dict[str, Any]) -> Dict[str, 
     return {"message": "updated"}
 
 
-def show(db: Session, person_id: int) -> PersonModel:
+def show(db: Session, curie_or_person_id: str) -> PersonModel:
+    person_id = resolve_person_id(db, curie_or_person_id)
     obj: Optional[PersonModel] = (
         db.query(PersonModel)
         .options(
@@ -209,7 +235,7 @@ def show(db: Session, person_id: int) -> PersonModel:
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Person with person_id {person_id} not found",
+            detail=f"Person with curie or person_id {curie_or_person_id} not found",
         )
     return obj
 

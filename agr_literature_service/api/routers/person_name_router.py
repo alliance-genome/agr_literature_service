@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import person_name_crud
+from agr_literature_service.api.crud import person_crud, person_name_crud
 from agr_literature_service.api.schemas import (
     PersonNameSchemaCreate,
     PersonNameSchemaShow,
@@ -22,33 +22,35 @@ get_db = database.get_db
 db_session: Session = Depends(get_db)
 
 
-# Create a name for a person (person_id from path)
+# Create a name for a person (curie or person_id from path)
 @router.post(
-    "/person/{person_id}",
+    "/person/{curie_or_person_id}",
     status_code=status.HTTP_201_CREATED,
     response_model=PersonNameSchemaShow,
 )
 def create_for_person(
-    person_id: int,
+    curie_or_person_id: str,
     request: PersonNameSchemaCreate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
+    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
     return person_name_crud.create_for_person(db, person_id, request)
 
 
 # List all names for a person
 @router.get(
-    "/person/{person_id}",
+    "/person/{curie_or_person_id}",
     status_code=status.HTTP_200_OK,
     response_model=List[PersonNameSchemaRelated],
 )
 def list_for_person(
-    person_id: int,
+    curie_or_person_id: str,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
     return person_name_crud.list_for_person(db, person_id)
 
 
