@@ -4,11 +4,9 @@ Revision ID: d9e0f1a2b3c4
 Revises: c8d9e0f1a2b3
 Create Date: 2026-04-24
 
-This migration cleans up any Okta IDs (starting with '00u' or '0oa') in
-created_by/updated_by columns that weren't mapped to person curies.
-These are replaced with 'default_user'.
-
-Script names like 'load_pmc_metadata' are left unchanged.
+This migration cleans up the admin Okta ID (0oa1cs2ineBqEFiD85d7) in
+created_by/updated_by columns, replacing it with 'default_user'.
+Also removes the admin Okta ID user from the users table.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -64,32 +62,26 @@ def upgrade():
             VALUES ('default_user', 'default_user')
         """))
 
-    # Update all Okta IDs (starting with '00u' or '0oa') to 'default_user'
-    # in created_by and updated_by columns
+    # Update the admin Okta ID to 'default_user' in all audit columns
+    admin_okta_id = '0oa1cs2ineBqEFiD85d7'
+
     for table in TABLES_WITH_AUDIT_COLUMNS:
-        # Update created_by where it looks like an Okta ID
         op.execute(sa.text(f"""
             UPDATE {table}
             SET created_by = 'default_user'
-            WHERE created_by ~ '^0(0u|oa)[a-zA-Z0-9]+$'
-        """))
+            WHERE created_by = :okta_id
+        """), {"okta_id": admin_okta_id})
 
-        # Update updated_by where it looks like an Okta ID
         op.execute(sa.text(f"""
             UPDATE {table}
             SET updated_by = 'default_user'
-            WHERE updated_by ~ '^0(0u|oa)[a-zA-Z0-9]+$'
-        """))
+            WHERE updated_by = :okta_id
+        """), {"okta_id": admin_okta_id})
 
-    # Also clean up the users table - remove orphan Okta ID users
-    # that are no longer referenced anywhere
-    # First, find Okta IDs in users table that have no person_id
-    # and are not referenced by any table
+    # Remove the admin Okta ID user from users table
     op.execute(sa.text("""
-        DELETE FROM users
-        WHERE id ~ '^0(0u|oa)[a-zA-Z0-9]+$'
-          AND person_id IS NULL
-    """))
+        DELETE FROM users WHERE id = :okta_id
+    """), {"okta_id": admin_okta_id})
 
 
 def downgrade():
