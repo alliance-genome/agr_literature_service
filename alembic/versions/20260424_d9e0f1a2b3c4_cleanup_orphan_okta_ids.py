@@ -78,10 +78,10 @@ def upgrade():
             WHERE updated_by = '{admin_okta_id}'
         """))
 
-    # Remove the admin Okta ID user from users table
-    op.execute(sa.text(f"""
-        DELETE FROM users WHERE id = '{admin_okta_id}'
-    """))
+    # Note: We do NOT delete the admin Okta ID user from users table
+    # because the transaction table (for versioning) references users.user_id
+    # and we don't want to orphan historical transaction records.
+    # The user is now effectively orphaned from created_by/updated_by columns.
 
 
 def downgrade():
