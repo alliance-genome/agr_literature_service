@@ -4,6 +4,10 @@
 
 This document outlines the plan to update the `users.id` column (currently using Okta IDs) to use `person.curie` values for human users (those with `person_id` not null).
 
+**Additional changes in this migration:**
+- Makes `person.curie` NOT NULL (required for all persons)
+- Removes `person.okta_id` column (no longer needed after migration)
+
 ## Current State Analysis
 
 ### Users Table Structure
@@ -68,17 +72,22 @@ The `users.id` column is referenced by `created_by` and `updated_by` columns in 
 
 ### 1. Populate person.curie Values
 
-Before the migration, all 85 persons linked to users must have their `curie` populated.
+Before the migration, **ALL persons** must have their `curie` populated (not just those linked to users).
 
 **Source options for curie values:**
 - MATI identifier service (e.g., `AGR:person0000000001`)
 - Or another naming convention determined by the team
 
+**Query to verify all persons have curie:**
+```sql
+-- This must return 0 before running the migration
+SELECT COUNT(*) FROM person WHERE curie IS NULL OR curie = '';
+```
+
 **Query to identify persons needing curie:**
 ```sql
-SELECT p.person_id, p.display_name, p.okta_id, u.id as current_user_id
+SELECT p.person_id, p.display_name, p.okta_id
 FROM person p
-JOIN users u ON u.person_id = p.person_id
 WHERE p.curie IS NULL OR p.curie = ''
 ORDER BY p.person_id;
 ```
@@ -534,8 +543,16 @@ WHERE u.person_id IS NOT NULL
 
 ## Notes
 
-1. **Duplicate FK constraints**: The current database has duplicate FK constraints on many tables (e.g., `author_created_by_fkey` and `author_created_by_fkey1`). This migration is an opportunity to clean these up.
+1. **Duplicate FK constraints**: The current database has duplicate FK constraints on many tables (e.g., `author_created_by_fkey` and `author_created_by_fkey1`). This migration cleans these up.
 
 2. **SQLAlchemy model inconsistency**: The `UserModel` in code shows `user_id` as `primary_key=True`, but the database has `id` as the PRIMARY KEY. This should be verified and corrected.
 
-3. **Versioned tables**: Some tables use `__versioned__`. The history tables may also need updates if they store `created_by`/`updated_by` values.
+3. **Versioned tables**: Some tables use `__versioned__`. The migration also updates `person_version` table to:
+   - Make `curie` NOT NULL
+   - Remove `okta_id` and `okta_id_mod` columns
+
+4. **okta_id removal**: The `person.okta_id` column is removed after this migration since authentication will use the curie-based `users.id` lookup via email. The backup table preserves `okta_id` values for rollback if needed.
+
+5. **Model updates required**: After running this migration, update `PersonModel` in code to:
+   - Remove `okta_id` column
+   - Make `curie` non-nullable: `curie = Column(String(), nullable=False, index=True)`
