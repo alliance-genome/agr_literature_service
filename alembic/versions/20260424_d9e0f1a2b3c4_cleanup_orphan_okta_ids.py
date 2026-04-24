@@ -69,19 +69,19 @@ def upgrade():
         op.execute(sa.text(f"""
             UPDATE {table}
             SET created_by = 'default_user'
-            WHERE created_by = :okta_id
-        """), {"okta_id": admin_okta_id})
+            WHERE created_by = '{admin_okta_id}'
+        """))
 
         op.execute(sa.text(f"""
             UPDATE {table}
             SET updated_by = 'default_user'
-            WHERE updated_by = :okta_id
-        """), {"okta_id": admin_okta_id})
+            WHERE updated_by = '{admin_okta_id}'
+        """))
 
     # Remove the admin Okta ID user from users table
-    op.execute(sa.text("""
-        DELETE FROM users WHERE id = :okta_id
-    """), {"okta_id": admin_okta_id})
+    op.execute(sa.text(f"""
+        DELETE FROM users WHERE id = '{admin_okta_id}'
+    """))
 
 
 def downgrade():
