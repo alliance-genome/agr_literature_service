@@ -93,6 +93,17 @@ def upgrade():
         )
 
     # -------------------------------------------------------------------------
+    # Step 0.5: Create indexes on created_by/updated_by for faster updates
+    # -------------------------------------------------------------------------
+    for table in TABLES_WITH_AUDIT_COLUMNS:
+        op.execute(sa.text(
+            f"CREATE INDEX IF NOT EXISTS ix_{table}_created_by ON {table}(created_by)"
+        ))
+        op.execute(sa.text(
+            f"CREATE INDEX IF NOT EXISTS ix_{table}_updated_by ON {table}(updated_by)"
+        ))
+
+    # -------------------------------------------------------------------------
     # Step 1: Create temporary mapping table (old_id -> new_id)
     # -------------------------------------------------------------------------
     op.execute(sa.text("""
