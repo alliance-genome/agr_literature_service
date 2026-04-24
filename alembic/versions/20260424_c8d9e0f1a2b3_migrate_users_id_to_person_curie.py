@@ -186,11 +186,8 @@ def upgrade():
     # -------------------------------------------------------------------------
     op.alter_column("person", "curie", nullable=False)
 
-    # Also make curie NOT NULL in person_version table if it exists
-    op.execute(sa.text("""
-        ALTER TABLE person_version
-        ALTER COLUMN curie SET NOT NULL
-    """))
+    # Note: We do NOT make curie NOT NULL in person_version because historical
+    # records from before curie was populated legitimately have NULL values.
 
     # -------------------------------------------------------------------------
     # Step 7: Drop person.okta_id column and its constraints/indexes
@@ -273,11 +270,6 @@ def downgrade():
     # Step 2: Make person.curie nullable again
     # -------------------------------------------------------------------------
     op.alter_column("person", "curie", nullable=True)
-
-    op.execute(sa.text("""
-        ALTER TABLE person_version
-        ALTER COLUMN curie DROP NOT NULL
-    """))
 
     # -------------------------------------------------------------------------
     # Step 3: Create reverse mapping (new_id -> old_id)
