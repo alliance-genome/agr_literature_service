@@ -4,9 +4,10 @@ Revision ID: d9e0f1a2b3c4
 Revises: c8d9e0f1a2b3
 Create Date: 2026-04-24
 
-This migration cleans up the admin Okta ID (0oa1cs2ineBqEFiD85d7) in
-created_by/updated_by columns, replacing it with 'default_user'.
-Also removes the admin Okta ID user from the users table.
+This migration cleans up orphan IDs in created_by/updated_by columns,
+replacing them with 'default_user':
+1. Admin Okta ID (0oa1cs2ineBqEFiD85d7)
+2. UUID-format automation user IDs (AWS Cognito IDs)
 """
 from alembic import op
 import sqlalchemy as sa
@@ -78,10 +79,34 @@ def upgrade():
             WHERE updated_by = '{admin_okta_id}'
         """))
 
-    # Note: We do NOT delete the admin Okta ID user from users table
+    # -------------------------------------------------------------------------
+    # Clean up UUID-format automation user IDs (AWS Cognito IDs)
+    # These were used by some API clients/scripts but are not meaningful
+    # -------------------------------------------------------------------------
+    uuid_automation_users = [
+        'b4a874c8-9051-7001-b629-9f86dbabffda',
+        '74e854e8-70a1-7001-07e9-7c8d755cd538',
+        '14881418-3031-7079-b093-25a52efb4a39',
+        '1498f4a8-1041-7032-2de7-85fa5ab77658',
+    ]
+
+    for table in TABLES_WITH_AUDIT_COLUMNS:
+        for uuid_user in uuid_automation_users:
+            op.execute(sa.text(f"""
+                UPDATE {table}
+                SET created_by = 'default_user'
+                WHERE created_by = '{uuid_user}'
+            """))
+            op.execute(sa.text(f"""
+                UPDATE {table}
+                SET updated_by = 'default_user'
+                WHERE updated_by = '{uuid_user}'
+            """))
+
+    # Note: We do NOT delete these users from the users table
     # because the transaction table (for versioning) references users.user_id
     # and we don't want to orphan historical transaction records.
-    # The user is now effectively orphaned from created_by/updated_by columns.
+    # These users are now effectively orphaned from created_by/updated_by columns.
 
 
 def downgrade():
