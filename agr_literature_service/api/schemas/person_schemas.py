@@ -31,7 +31,7 @@ class PersonSchemaPost(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     display_name: str
-    curie: Optional[str] = None  # auto-generated if not provided
+    # curie is server-generated, not accepted from clients
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
@@ -56,7 +56,7 @@ class PersonSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     display_name: Optional[str] = None
-    curie: Optional[str] = None
+    # curie is server-generated, not modifiable by clients
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
