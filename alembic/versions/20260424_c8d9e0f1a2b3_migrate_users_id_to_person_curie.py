@@ -193,9 +193,17 @@ def upgrade():
         """))
 
     # -------------------------------------------------------------------------
-    # Step 6: Make person.curie NOT NULL (required)
+    # Step 5.5: Drop temporary indexes (no longer needed for normal queries)
+    # -------------------------------------------------------------------------
+    for table in TABLES_WITH_AUDIT_COLUMNS:
+        op.execute(sa.text(f"DROP INDEX IF EXISTS ix_{table}_created_by"))
+        op.execute(sa.text(f"DROP INDEX IF EXISTS ix_{table}_updated_by"))
+
+    # -------------------------------------------------------------------------
+    # Step 6: Make person.curie NOT NULL and UNIQUE (required)
     # -------------------------------------------------------------------------
     op.alter_column("person", "curie", nullable=False)
+    op.create_unique_constraint("uq_person_curie", "person", ["curie"])
 
     # Note: We do NOT make curie NOT NULL in person_version because historical
     # records from before curie was populated legitimately have NULL values.
@@ -278,8 +286,9 @@ def downgrade():
     op.create_unique_constraint("uq_person_okta_id", "person", ["okta_id"])
 
     # -------------------------------------------------------------------------
-    # Step 2: Make person.curie nullable again
+    # Step 2: Drop unique constraint and make person.curie nullable again
     # -------------------------------------------------------------------------
+    op.drop_constraint("uq_person_curie", "person", type_="unique")
     op.alter_column("person", "curie", nullable=True)
 
     # -------------------------------------------------------------------------

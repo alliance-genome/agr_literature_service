@@ -18,7 +18,7 @@ class PersonModel(Base, AuditedModel):
     person_id = Column(Integer, primary_key=True, autoincrement=True)
     display_name = Column(String(), nullable=False)
 
-    curie = Column(String(), nullable=False, index=True)    # required (e.g., MATI)
+    curie = Column(String(), nullable=False, unique=True, index=True)    # required, server-generated
     mod_roles = Column(ARRAY(String), nullable=True)
     webpage = Column(ARRAY(String), nullable=True)
     active_status = Column(
@@ -54,4 +54,4 @@ class PersonModel(Base, AuditedModel):
     )
 
     def __str__(self) -> str:
-        return f"{self.display_name} ({self.curie or 'no-curie'})"
+        return f"{self.display_name} ({self.curie})"

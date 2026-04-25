@@ -63,45 +63,29 @@ def upgrade():
             VALUES ('default_user', 'default_user')
         """))
 
-    # Update the admin Okta ID to 'default_user' in all audit columns
-    admin_okta_id = '0oa1cs2ineBqEFiD85d7'
-
-    for table in TABLES_WITH_AUDIT_COLUMNS:
-        op.execute(sa.text(f"""
-            UPDATE {table}
-            SET created_by = 'default_user'
-            WHERE created_by = '{admin_okta_id}'
-        """))
-
-        op.execute(sa.text(f"""
-            UPDATE {table}
-            SET updated_by = 'default_user'
-            WHERE updated_by = '{admin_okta_id}'
-        """))
-
-    # -------------------------------------------------------------------------
-    # Clean up UUID-format automation user IDs (AWS Cognito IDs)
-    # These were used by some API clients/scripts but are not meaningful
-    # -------------------------------------------------------------------------
-    uuid_automation_users = [
+    # All orphan IDs to clean up:
+    # - Admin Okta ID
+    # - UUID-format automation user IDs (AWS Cognito IDs)
+    orphan_ids = [
+        '0oa1cs2ineBqEFiD85d7',  # admin Okta ID
         'b4a874c8-9051-7001-b629-9f86dbabffda',
         '74e854e8-70a1-7001-07e9-7c8d755cd538',
         '14881418-3031-7079-b093-25a52efb4a39',
         '1498f4a8-1041-7032-2de7-85fa5ab77658',
     ]
+    placeholders = ", ".join(f"'{uid}'" for uid in orphan_ids)
 
     for table in TABLES_WITH_AUDIT_COLUMNS:
-        for uuid_user in uuid_automation_users:
-            op.execute(sa.text(f"""
-                UPDATE {table}
-                SET created_by = 'default_user'
-                WHERE created_by = '{uuid_user}'
-            """))
-            op.execute(sa.text(f"""
-                UPDATE {table}
-                SET updated_by = 'default_user'
-                WHERE updated_by = '{uuid_user}'
-            """))
+        op.execute(sa.text(f"""
+            UPDATE {table}
+            SET created_by = 'default_user'
+            WHERE created_by IN ({placeholders})
+        """))
+        op.execute(sa.text(f"""
+            UPDATE {table}
+            SET updated_by = 'default_user'
+            WHERE updated_by IN ({placeholders})
+        """))
 
     # Note: We do NOT delete these users from the users table
     # because the transaction table (for versioning) references users.user_id
