@@ -20,22 +20,21 @@ PersonSettingTestData = namedtuple(
         "response",
         "new_person_setting_id",
         "person_id",
-        "okta_id",
     ],
 )
 
 
 @pytest.fixture
 def seeded_person(db):
-    """Create a Person with okta_id for lookup endpoints."""
+    """Create a Person with curie for lookup endpoints."""
     person = PersonModel(
         display_name="Alice Curator",
-        okta_id="okta-alice-123",
+        curie="AGRKB:test-alice-curator",
     )
     db.add(person)
     db.commit()
     db.refresh(person)
-    return {"person_id": person.person_id, "okta_id": person.okta_id}
+    return {"person_id": person.person_id}
 
 
 @pytest.fixture
@@ -55,7 +54,6 @@ def test_person_setting(db, auth_headers, seeded_person):  # noqa
             response=response,
             new_person_setting_id=body.get("person_setting_id"),
             person_id=seeded_person["person_id"],
-            okta_id=seeded_person["okta_id"],
         )
 
 

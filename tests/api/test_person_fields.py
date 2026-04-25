@@ -1,4 +1,5 @@
 # flake8: noqa: F811
+import uuid
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
@@ -8,11 +9,16 @@ from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
 
+def unique_curie(prefix: str = "test") -> str:
+    """Generate a unique curie for testing."""
+    return f"AGRKB:{prefix}-{uuid.uuid4().hex[:8]}"
+
+
 @pytest.fixture
 def test_person_id(db, auth_headers):  # noqa
     """Create a minimal person and return person_id."""
     with TestClient(app) as client:
-        payload = {"display_name": "Field Test Person"}
+        payload = {"display_name": "Field Test Person", "curie": unique_curie("field")}
         response = client.post("/person/", json=payload, headers=auth_headers)
         assert response.status_code == status.HTTP_201_CREATED
         yield response.json()["person_id"]
@@ -24,6 +30,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Full Fields Person",
+                "curie": unique_curie("full-fields"),
                 "webpage": ["https://example.com", "https://lab.example.com"],
                 "active_status": "active",
                 "city": "Davis",
@@ -53,6 +60,7 @@ class TestPersonFields:
             urls = ["https://one.com", "https://two.com", "https://three.com"]
             payload = {
                 "display_name": "Webpage Person",
+                "curie": unique_curie("webpage"),
                 "webpage": urls,
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
@@ -66,6 +74,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Retired Person",
+                "curie": unique_curie("retired"),
                 "active_status": "retired",
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
@@ -80,6 +89,7 @@ class TestPersonFields:
             address = "123 Main St\nApt 4B\nBuilding C"
             payload = {
                 "display_name": "Multiline Address Person",
+                "curie": unique_curie("multiline-addr"),
                 "street_address": address,
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
@@ -93,6 +103,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Address Timestamp Person",
+                "curie": unique_curie("addr-ts"),
                 "city": "Boston",
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
@@ -106,6 +117,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "No Address Person",
+                "curie": unique_curie("no-addr"),
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
@@ -179,7 +191,7 @@ class TestPersonFields:
             # Create person without address
             res = client.post(
                 "/person/",
-                json={"display_name": "Timestamp Test"},
+                json={"display_name": "Timestamp Test", "curie": unique_curie("ts-test")},
                 headers=auth_headers,
             )
             person_id = res.json()["person_id"]
@@ -198,6 +210,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Show Fields Person",
+                "curie": unique_curie("show-fields"),
                 "webpage": ["https://show.example.com"],
                 "active_status": "deceased",
                 "city": "Cambridge",
@@ -223,7 +236,7 @@ class TestPersonFields:
             bio = "Research focuses on CRISPR gene editing in nematodes."
             res = client.post(
                 "/person/",
-                json={"display_name": "Bio Person", "biography_research_interest": bio},
+                json={"display_name": "Bio Person", "curie": unique_curie("bio"), "biography_research_interest": bio},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -237,7 +250,11 @@ class TestPersonFields:
             bio = "Line one of biography.\nLine two.\n\nPara two starts here."
             res = client.post(
                 "/person/",
-                json={"display_name": "Multiline Bio Person", "biography_research_interest": bio},
+                json={
+                    "display_name": "Multiline Bio Person",
+                    "curie": unique_curie("multiline-bio"),
+                    "biography_research_interest": bio,
+                },
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -262,7 +279,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             res = client.post(
                 "/person/",
-                json={"display_name": "Minimal Person"},
+                json={"display_name": "Minimal Person", "curie": unique_curie("minimal")},
                 headers=auth_headers,
             )
             person_id = res.json()["person_id"]
@@ -285,7 +302,7 @@ class TestPersonFields:
         with TestClient(app) as client:
             res = client.post(
                 "/person/",
-                json={"display_name": "Bad Status", "active_status": "invalid_value"},
+                json={"display_name": "Bad Status", "curie": unique_curie("bad-status"), "active_status": "invalid_value"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -306,7 +323,7 @@ class TestPersonFields:
             # Create person with city set
             res = client.post(
                 "/person/",
-                json={"display_name": "Clear Address Test", "city": "Boston"},
+                json={"display_name": "Clear Address Test", "curie": unique_curie("clear-addr"), "city": "Boston"},
                 headers=auth_headers,
             )
             person_id = res.json()["person_id"]
@@ -337,7 +354,11 @@ class TestPersonFields:
             for status_value in ["active", "retired", "deceased"]:
                 res = client.post(
                     "/person/",
-                    json={"display_name": f"Status {status_value}", "active_status": status_value},
+                    json={
+                        "display_name": f"Status {status_value}",
+                        "curie": unique_curie(f"status-{status_value}"),
+                        "active_status": status_value,
+                    },
                     headers=auth_headers,
                 )
                 assert res.status_code == status.HTTP_201_CREATED
@@ -351,6 +372,7 @@ class TestPersonFields:
             multiline_note = "Initial note line one.\nLine two of the same note."
             payload = {
                 "display_name": "Jane Comprehensive",
+                "curie": unique_curie("jane-comprehensive"),
                 "webpage": ["https://jane.example.com"],
                 "active_status": "active",
                 "city": "Seattle",

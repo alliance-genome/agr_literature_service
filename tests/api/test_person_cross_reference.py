@@ -29,6 +29,7 @@ def seeded_person(db):
     """Create a Person for cross-reference tests."""
     person = PersonModel(
         display_name="Xref Test Person",
+        curie="AGRKB:test-xref-person",
     )
     db.add(person)
     db.commit()
@@ -262,6 +263,7 @@ class TestPersonCrossReference:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Inline Xref Test",
+                "curie": "AGRKB:test-inline-xref",
                 "cross_references": [
                     {"curie": "ORCID:0000-0003-9999-1111"},
                     {"curie": "WB:WBPerson55555"},
