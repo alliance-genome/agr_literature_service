@@ -330,7 +330,7 @@ class TestPersonName:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = res.json()["person_id"]
+            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
 
             # Fetch person to check names
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
@@ -357,7 +357,7 @@ class TestPersonName:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = res.json()["person_id"]
+            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()

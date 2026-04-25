@@ -4,17 +4,19 @@ import logging
 from json import JSONDecodeError
 from typing import Union, List, Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, Security, status, File, UploadFile, \
+from fastapi import APIRouter, Depends, Response, Security, status, File, UploadFile, \
     BackgroundTasks, HTTPException
 from fastapi.responses import PlainTextResponse
 
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import referencefile_crud
+from agr_literature_service.api.crud import file_conversion_crud, referencefile_crud
 from agr_literature_service.api.deps import s3_auth
 from agr_cognito_py import get_mod_access
 from agr_literature_service.api.schemas import ResponseMessageSchema
+from agr_literature_service.api.schemas.file_conversion_schemas import \
+    ConversionStatusResponseSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
     ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
 from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
@@ -165,6 +167,80 @@ def show_all(curie_or_reference_id: str,
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
     return referencefile_crud.show_all(db, curie_or_reference_id)
+
+
+@router.get('/conversion_request/{curie_or_reference_id}',
+            responses={
+                status.HTTP_200_OK: {"model": ConversionStatusResponseSchema},
+                status.HTTP_202_ACCEPTED: {"model": ConversionStatusResponseSchema},
+            })
+def get_converted(curie_or_reference_id: str,
+                  response: Response,
+                  background_tasks: BackgroundTasks,
+                  wait: bool = False,
+                  overwrite_tei_md: bool = False,
+                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                  db: Session = db_session):
+    """
+    Request on-demand conversion of a reference's files to Markdown and report
+    the conversion state. Returns status only — use the existing endpoint
+    ``GET /reference/referencefile/show_all/{curie_or_reference_id}`` to fetch
+    the resulting file listing once the status is ``converted``.
+
+    Re-calling this endpoint acts as a poll: the response surfaces the current
+    conversion state plus ``per_file_progress`` for the most recent job. There
+    is no separate status endpoint — poll this URL for updates.
+
+    Status values returned in the response body:
+    - ``converted``: every convertible source has a converted Markdown row
+      in the DB (whether produced by this call or a prior one). HTTP 200.
+    - ``running``: a background conversion job is in progress. HTTP 202.
+      Re-call this URL to poll; ``converted_classes`` already lists any rows
+      that are done so partial results can be consumed without waiting.
+    - ``failed``: the most recent conversion attempt failed. See
+      ``error_message`` and ``per_file_progress`` for details. HTTP 200.
+    - ``no_sources``: the reference has nothing to convert (no nXML, no main
+      PDF, no supplement PDFs). HTTP 200.
+
+    Behavior:
+    - If everything convertible already has a converted row, returns 200
+      immediately with status=``converted`` and no job is started.
+    - If only an nXML source is missing its Markdown, the conversion is run
+      synchronously and 200 with status=``converted`` is returned.
+    - If PDF conversion is needed, the default returns 202 with
+      status=``running`` and a ``job_id``. Re-call the same URL to poll.
+    - Pass ``wait=true`` to block until PDF conversion finishes (can take
+      minutes; may hit HTTP/gateway timeouts).
+    - Pass ``overwrite_tei_md=true`` to ignore legacy TEI-derived Markdown
+      rows (display_name ending in ``_tei``) when checking cache, forcing a
+      fresh higher-quality nXML/PDFX conversion. On success, the legacy
+      TEI-derived rows are deleted so the new output replaces them.
+
+    The response includes ``converted_classes`` — the list of converted
+    file_class values currently present in the DB. Clients can act on
+    partial results (for example, fetching ``converted_merged_main`` as soon
+    as it appears, while a longer-running supplement conversion is still in
+    progress). ``per_file_progress`` reports, for each file the most recent
+    job attempted, the source file info and the resulting converted file
+    info (or null on failure).
+
+    Idempotent: concurrent calls for the same reference share a job_id.
+    """
+    mod_access = get_mod_access(user) if user else []
+    user_id = "unknown"
+    if user:
+        user_id = str(user.get("cognito:username") or user.get("sub", "unknown"))
+    status_code, payload = file_conversion_crud.handle_conversion_request(
+        db=db,
+        curie_or_reference_id=curie_or_reference_id,
+        wait=wait,
+        background_tasks=background_tasks,
+        mod_access=mod_access,
+        user_id=user_id,
+        overwrite_tei_md=overwrite_tei_md,
+    )
+    response.status_code = status_code
+    return payload
 
 
 @router.post('/show_main_pdf_ids_for_curies',

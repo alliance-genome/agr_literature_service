@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import person_note_crud
+from agr_literature_service.api.crud import person_crud, person_note_crud
 from agr_literature_service.api.schemas import (
     PersonNoteSchemaCreate,
     PersonNoteSchemaShow,
@@ -23,30 +23,32 @@ db_session: Session = Depends(get_db)
 
 
 @router.post(
-    "/person/{person_id}",
+    "/person/{curie_or_person_id}",
     status_code=status.HTTP_201_CREATED,
     response_model=PersonNoteSchemaShow,
 )
 def create_for_person(
-    person_id: int,
+    curie_or_person_id: str,
     request: PersonNoteSchemaCreate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
+    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
     return person_note_crud.create_for_person(db, person_id, request)
 
 
 @router.get(
-    "/person/{person_id}",
+    "/person/{curie_or_person_id}",
     status_code=status.HTTP_200_OK,
     response_model=List[PersonNoteSchemaRelated],
 )
 def list_for_person(
-    person_id: int,
+    curie_or_person_id: str,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
     return person_note_crud.list_for_person(db, person_id)
 
 

@@ -21,7 +21,7 @@ get_db = database.get_db
 db_session: Session = Depends(get_db)
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=PersonSchemaShow)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=str)
 def create(
     request: PersonSchemaCreate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
@@ -34,34 +34,34 @@ def create(
     return person_crud.create(db, request)
 
 
-@router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{curie_or_person_id}", status_code=status.HTTP_204_NO_CONTENT)
 def destroy(
-    person_id: int,
+    curie_or_person_id: str,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
-    Delete a person by internal ID.
+    Delete a person by curie or internal ID.
     """
     set_global_user_from_cognito(db, user)
-    person_crud.destroy(db, person_id)
+    person_crud.destroy(db, curie_or_person_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch(
-    "/{person_id}",
+    "/{curie_or_person_id}",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ResponseMessageSchema,
 )
 def patch(
-    person_id: int,
+    curie_or_person_id: str,
     request: PersonSchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return person_crud.patch(db, person_id, patch_data)
+    return person_crud.patch(db, curie_or_person_id, patch_data)
 
 
 @router.get('/whoami')
@@ -80,19 +80,19 @@ def get_user_info_from_cognito(
 
 
 @router.get(
-    "/{person_id}",
+    "/{curie_or_person_id}",
     response_model=PersonSchemaShow,
     status_code=status.HTTP_200_OK,
 )
 def show(
-    person_id: int,
+    curie_or_person_id: str,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     """
-    Get a person by internal ID.
+    Get a person by curie or internal ID.
     """
-    return person_crud.show(db, person_id)
+    return person_crud.show(db, curie_or_person_id)
 
 
 @router.get(
