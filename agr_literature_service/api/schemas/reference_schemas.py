@@ -226,6 +226,7 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     category: Optional[str] = None
     pubmed_publication_status: Optional[PubMedPublicationStatus] = None
     abstract: Optional[str] = None
+    date_published: Optional[str] = None
     mod_corpus_association_id: int
     mod_corpus_association_corpus: Optional[bool] = None
     prepublication_pipeline: Optional[bool] = None
@@ -238,3 +239,13 @@ class ReferenceSchemaNeedReviewShow(BaseModel):
     copyright_license_open_access: Optional[bool] = False
     authors: Optional[List[AuthorSchemaShow]] = None
     referencefiles: Optional[List[ReferencefileSchemaRelated]] = None
+
+
+class ReferenceSchemaNeedReviewResponse(BaseModel):
+    """Schema for paginated needs_review response with total count."""
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+
+    total_count: int
+    references: List[ReferenceSchemaNeedReviewShow]
