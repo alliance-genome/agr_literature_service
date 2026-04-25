@@ -31,7 +31,7 @@ class PersonSchemaPost(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     display_name: str
-    curie: str  # required
+    curie: Optional[str] = None  # auto-generated if not provided
     mod_roles: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"

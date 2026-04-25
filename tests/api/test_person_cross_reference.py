@@ -263,7 +263,6 @@ class TestPersonCrossReference:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Inline Xref Test",
-                "curie": "AGRKB:test-inline-xref",
                 "cross_references": [
                     {"curie": "ORCID:0000-0003-9999-1111"},
                     {"curie": "WB:WBPerson55555"},

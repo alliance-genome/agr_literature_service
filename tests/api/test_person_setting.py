@@ -26,7 +26,7 @@ PersonSettingTestData = namedtuple(
 
 @pytest.fixture
 def seeded_person(db):
-    """Create a Person with curie for lookup endpoints."""
+    """Create a Person for lookup endpoints."""
     person = PersonModel(
         display_name="Alice Curator",
         curie="AGRKB:test-alice-curator",

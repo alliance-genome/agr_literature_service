@@ -322,7 +322,6 @@ class TestPersonName:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Inline Test",
-                "curie": "AGRKB:test-inline-names",
                 "names": [
                     {"first_name": "John", "last_name": "Smith"},
                     {"first_name": "Juan", "middle_name": "Carlos", "last_name": "Garcia", "primary": True},
@@ -349,7 +348,6 @@ class TestPersonName:
         with TestClient(app) as client:
             payload = {
                 "display_name": "Default Primary Test",
-                "curie": "AGRKB:test-default-primary",
                 "names": [
                     {"first_name": "Alpha", "last_name": "First"},
                     {"first_name": "Beta", "last_name": "Second"},
