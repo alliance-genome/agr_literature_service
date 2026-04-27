@@ -29,6 +29,7 @@ def seeded_person(db):
     """Create a Person for name tests."""
     person = PersonModel(
         display_name="Test Person",
+        curie="AGRKB:test-name-person",
     )
     db.add(person)
     db.commit()
