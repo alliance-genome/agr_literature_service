@@ -32,7 +32,12 @@ What this script does (idempotent — safe to re-run):
       their actions arrays — so newly text-converted WB Experimental
       references automatically receive ATP:0000366.
 
+  (c) INSERTs a workflow_tag_topic row mapping ATP:0000366 -> ATP:0000096
+      (antibody topic) so load_all_jobs("antibody_string_matching_job")
+      can resolve the topic via its outerjoin on workflow_tag_topic.
+
 ATP curies (confirmed):
+  ATP:0000096 = antibody (topic)
   ATP:0000162 = text conversion needed
   ATP:0000198 = text conversion in progress
   ATP:0000163 = file converted to text
@@ -67,6 +72,8 @@ ANTIBODY_FAILED = "ATP:0000364"
 TEXT_CONV_NEEDED = "ATP:0000162"
 TEXT_CONV_IN_PROGRESS = "ATP:0000198"
 FILE_CONVERTED = "ATP:0000163"
+
+ANTIBODY_TOPIC = "ATP:0000096"
 
 NEW_ACTION = (
     f"proceed_on_value::reference_type::Experimental::{ANTIBODY_NEEDED}"
@@ -146,6 +153,32 @@ def append_action_to_text_conversion_rows(db, mod_id):
     logger.info(f"text-conversion action append: rows updated = {result.rowcount}")
 
 
+def upsert_workflow_tag_topic(db):
+    """Map ANTIBODY_NEEDED -> ANTIBODY_TOPIC in workflow_tag_topic so that
+    load_all_jobs() (which outerjoins workflow_tag_topic on workflow_tag) can
+    return the topic_id alongside polled jobs. Idempotent: workflow_tag has a
+    UNIQUE index, so we INSERT only if missing.
+    """
+    existing = db.execute(text("""
+        SELECT topic FROM workflow_tag_topic WHERE workflow_tag = :wt
+    """), {"wt": ANTIBODY_NEEDED}).first()
+    if existing:
+        if existing[0] == ANTIBODY_TOPIC:
+            logger.info(f"  [skip] workflow_tag_topic {ANTIBODY_NEEDED} -> "
+                        f"{ANTIBODY_TOPIC} already present")
+        else:
+            logger.warning(f"  [conflict] workflow_tag_topic has "
+                           f"{ANTIBODY_NEEDED} -> {existing[0]} "
+                           f"(expected {ANTIBODY_TOPIC}); leaving as-is")
+        return
+    db.execute(text("""
+        INSERT INTO workflow_tag_topic (workflow_tag, topic, date_created)
+        VALUES (:wt, :topic, NOW())
+    """), {"wt": ANTIBODY_NEEDED, "topic": ANTIBODY_TOPIC})
+    db.commit()
+    logger.info(f"  [insert] workflow_tag_topic {ANTIBODY_NEEDED} -> {ANTIBODY_TOPIC}")
+
+
 def main():
     db = create_postgres_session(False)
     set_global_user_id(db, path.basename(__file__).replace(".py", ""))
@@ -163,6 +196,9 @@ def main():
 
     logger.info("(b) appending action to text-conversion -> file converted to text rows")
     append_action_to_text_conversion_rows(db, mod_id)
+
+    logger.info(f"(c) mapping {ANTIBODY_NEEDED} -> {ANTIBODY_TOPIC} in workflow_tag_topic")
+    upsert_workflow_tag_topic(db)
 
     logger.info("done.")
 
