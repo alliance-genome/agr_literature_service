@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import PersonModel, PersonCrossReferenceModel
@@ -85,6 +86,27 @@ def list_for_person(db: Session, person_id: int) -> List[PersonCrossReferenceMod
         .order_by(PersonCrossReferenceModel.person_cross_reference_id.asc())
         .all()
     )
+
+
+def get_by_curie_or_id(db: Session, curie_or_id: str) -> PersonCrossReferenceModel:
+    pcr_id = int(curie_or_id) if curie_or_id.isdigit() else None
+    obj = (
+        db.query(PersonCrossReferenceModel)
+        .filter(
+            or_(
+                PersonCrossReferenceModel.curie == curie_or_id,
+                PersonCrossReferenceModel.person_cross_reference_id == pcr_id,
+            )
+        )
+        .order_by(PersonCrossReferenceModel.is_obsolete)
+        .first()
+    )
+    if not obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"PersonCrossReference with curie or id {curie_or_id} not found",
+        )
+    return obj
 
 
 def show(db: Session, person_cross_reference_id: int) -> PersonCrossReferenceModel:

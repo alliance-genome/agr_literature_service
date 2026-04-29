@@ -260,20 +260,31 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
 
 def find_by_name(db: Session, name: str) -> List[PersonModel]:
     """
-    Case-insensitive partial match on display_name.
+    Case-insensitive partial match on Person.display_name OR on
+    PersonName.first_name / middle_name / last_name. Returns a deduplicated
+    list of PersonModel ordered by display_name.
     """
     if not name:
         return []
     pattern = f"%{name.strip()}%"
     return (
         db.query(PersonModel)
+        .outerjoin(PersonNameModel, PersonNameModel.person_id == PersonModel.person_id)
         .options(
             selectinload(PersonModel.emails),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
         )
-        .filter(PersonModel.display_name.ilike(pattern))
+        .filter(
+            or_(
+                PersonModel.display_name.ilike(pattern),
+                PersonNameModel.first_name.ilike(pattern),
+                PersonNameModel.middle_name.ilike(pattern),
+                PersonNameModel.last_name.ilike(pattern),
+            )
+        )
+        .distinct()
         .order_by(PersonModel.display_name.asc())
         .all()
     )

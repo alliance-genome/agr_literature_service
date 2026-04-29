@@ -525,3 +525,181 @@ class TestPersonCurie:
             assert listed.status_code == status.HTTP_200_OK
             xref_curies = {x["curie"] for x in listed.json()}
             assert "ORCID:0000-0009-8888-7777" in xref_curies
+
+
+class TestPersonLookups:
+
+    # ---- /person/by_email/{email} ----
+
+    def test_by_email_found(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Email Lookup Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            email_post = client.post(
+                f"/email/person/{person_id}",
+                json={"email_address": "lookup@example.com"},
+                headers=auth_headers,
+            )
+            assert email_post.status_code == status.HTTP_201_CREATED
+            res = client.get("/person/by_email/lookup@example.com", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_by_email_not_found_returns_204(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person/by_email/nobody@example.com", headers=auth_headers)
+            assert res.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_old_by_slash_email_path_is_gone(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person/by/email/anything@example.com", headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    # ---- /person/by_name (aggregates display_name + person_name) ----
+
+    def test_by_name_matches_display_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            client.post(
+                "/person/",
+                json={"display_name": "Zelda Display Match"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Zelda"}, headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert any("Zelda" in p["display_name"] for p in res.json())
+
+    def test_by_name_matches_person_name_first_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Totally Unrelated"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_name/person/{person_id}",
+                json={"first_name": "Borogove", "last_name": "Smith"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Borogove"}, headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert any(p["person_id"] == person_id for p in res.json())
+
+    def test_by_name_matches_person_name_last_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Totally Different Display"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_name/person/{person_id}",
+                json={"first_name": "X", "last_name": "Slithytove"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Slithytove"}, headers=auth_headers)
+            assert any(p["person_id"] == person_id for p in res.json())
+
+    def test_by_name_matches_person_name_middle_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "No Match Here"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_name/person/{person_id}",
+                json={"first_name": "F", "middle_name": "Mimsy", "last_name": "L"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Mimsy"}, headers=auth_headers)
+            assert any(p["person_id"] == person_id for p in res.json())
+
+    def test_by_name_dedupes_when_multiple_person_names_match(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Dedupe Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            for last in ["Jabberwocky", "Jabberwocky-Hyphenated"]:
+                client.post(
+                    f"/person_name/person/{person_id}",
+                    json={"first_name": "F", "last_name": last},
+                    headers=auth_headers,
+                )
+            res = client.get("/person/by_name", params={"name": "Jabberwocky"}, headers=auth_headers)
+            matches = [p for p in res.json() if p["person_id"] == person_id]
+            assert len(matches) == 1
+
+    def test_by_name_no_match_returns_empty_list(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                "/person/by_name",
+                params={"name": "ZZZ_DEFINITELY_NOT_PRESENT"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json() == []
+
+    def test_old_by_slash_name_path_is_gone(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person/by/name", params={"name": "X"}, headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    # ---- /person/by_person_cross_reference/{curie_or_id} ----
+
+    def test_by_person_cross_reference_found_by_curie(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "PCR Lookup Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_cross_reference/person/{person_id}",
+                json={"curie": "ORCID:0000-0001-2345-6789"},
+                headers=auth_headers,
+            )
+            res = client.get(
+                "/person/by_person_cross_reference/ORCID:0000-0001-2345-6789",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_by_person_cross_reference_found_by_id(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "PCR-by-id Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            pcr = client.post(
+                f"/person_cross_reference/person/{person_id}",
+                json={"curie": "ORCID:0000-9999-9999-9999"},
+                headers=auth_headers,
+            ).json()
+            res = client.get(
+                f"/person/by_person_cross_reference/{pcr['person_cross_reference_id']}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_by_person_cross_reference_not_found(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                "/person/by_person_cross_reference/ORCID:0000-0000-0000-0000",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_404_NOT_FOUND
