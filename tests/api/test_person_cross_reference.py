@@ -29,6 +29,7 @@ def seeded_person(db):
     """Create a Person for cross-reference tests."""
     person = PersonModel(
         display_name="Xref Test Person",
+        curie="AGRKB:test-xref-person",
     )
     db.add(person)
     db.commit()

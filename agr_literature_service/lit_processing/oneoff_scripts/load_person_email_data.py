@@ -1,3 +1,8 @@
+"""
+DEPRECATED: This script was designed for the old data model with person.okta_id.
+The okta_id column has been removed and person.curie is now required.
+This script needs significant refactoring to work with the new model.
+"""
 import logging
 from os import path
 from typing import Iterable, List, Optional
@@ -185,14 +190,14 @@ def insert_email(db: Session, person_id: int, email: str) -> None:
     db.add(x)
 
 
-def insert_person(db: Session, display_name: str, okta: str, mod_roles: Iterable[str]) -> int:
+def insert_person(db: Session, display_name: str, curie: str, mod_roles: Iterable[str]) -> int:
     """
     Insert a Person and return its person_id.
     Uses flush to obtain PK without committing early.
     """
     x = PersonModel(
-        display_name=as_single_spaced(display_name) or okta,
-        okta_id=okta,
+        display_name=as_single_spaced(display_name) or curie,
+        curie=curie,
         mod_roles=list(mod_roles) if mod_roles else None,
     )
     db.add(x)
