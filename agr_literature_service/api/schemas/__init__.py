@@ -57,7 +57,10 @@ from agr_literature_service.api.schemas.mod_corpus_association_schemas import (
     ModCorpusAssociationSchemaShow,
     ModCorpusAssociationSchemaUpdate,
     ModCorpusAssociationSchemaRelated,
-    ModCorpusAssociationSchemaShowID)
+    ModCorpusAssociationSchemaShowID,
+    ModCorpusAssociationSchemaBatchUpdate,
+    ModCorpusAssociationBatchResultItem,
+    ModCorpusAssociationSchemaBatchResponse)
 
 
 from agr_literature_service.api.schemas.mod_schemas import (

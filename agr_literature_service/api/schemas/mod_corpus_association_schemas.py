@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Optional, List
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from agr_literature_service.api.schemas import ModCorpusSortSourceType, AuditedObjectModelSchema
 
@@ -77,3 +77,40 @@ class ModCorpusAssociationSchemaUpdate(BaseModel):
     corpus: Optional[bool] = None
     index_wft_id: Optional[str] = None
     force_out: Optional[bool] = None
+
+
+class ModCorpusAssociationSchemaBatchUpdate(BaseModel):
+    """Schema for batch updating mod-corpus associations."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True
+    )
+
+    mod_corpus_association_ids: List[int]
+    corpus: bool
+    force_out: Optional[bool] = False
+
+    @field_validator('mod_corpus_association_ids')
+    @classmethod
+    def validate_ids_not_empty(cls, v):
+        if not v:
+            raise ValueError('mod_corpus_association_ids cannot be empty')
+        if len(v) > 1000:
+            raise ValueError('Cannot update more than 1000 associations at once')
+        return v
+
+
+class ModCorpusAssociationBatchResultItem(BaseModel):
+    """Result for a single item in batch update."""
+    mod_corpus_association_id: int
+    success: bool
+    message: str
+    reference_curie: Optional[str] = None
+
+
+class ModCorpusAssociationSchemaBatchResponse(BaseModel):
+    """Response schema for batch update."""
+    total_requested: int
+    successful: int
+    failed: int
+    results: List[ModCorpusAssociationBatchResultItem]

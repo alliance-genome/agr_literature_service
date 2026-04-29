@@ -124,6 +124,138 @@ class TestModCorpusAssociation:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
+    def test_batch_update_mca_move_out(self, db, test_reference, auth_headers):  # noqa
+        """Test batch update to move multiple papers OUT of corpus."""
+        with TestClient(app) as client:
+            populate_test_mods()
+
+            # Create multiple MCAs to test batch update
+            mca_ids = []
+            for i in range(3):
+                # Create a new reference for each MCA
+                new_ref = {
+                    "title": f"Test Reference {i} for batch",
+                    "category": "research_article"
+                }
+                ref_response = client.post(url="/reference/", json=new_ref, headers=auth_headers)
+                ref_curie = ref_response.json()
+
+                new_mca = {
+                    "mod_abbreviation": "WB",
+                    "reference_curie": ref_curie,
+                    "mod_corpus_sort_source": "mod_pubmed_search",
+                    "corpus": True
+                }
+                mca_response = client.post(url="/reference/mod_corpus_association/",
+                                           json=new_mca, headers=auth_headers)
+                assert mca_response.status_code == status.HTTP_201_CREATED
+                mca_ids.append(mca_response.json())
+
+            # Batch update to move all OUT
+            batch_request = {
+                "mod_corpus_association_ids": mca_ids,
+                "corpus": False,
+                "force_out": False
+            }
+            batch_response = client.patch(url="/reference/mod_corpus_association/batch",
+                                          json=batch_request, headers=auth_headers)
+            assert batch_response.status_code == status.HTTP_200_OK
+
+            result = batch_response.json()
+            assert result["total_requested"] == 3
+            assert result["successful"] == 3
+            assert result["failed"] == 0
+
+            # Verify all MCAs are now corpus=False
+            for mca_id in mca_ids:
+                mca_response = client.get(url=f"/reference/mod_corpus_association/{mca_id}",
+                                          headers=auth_headers)
+                assert mca_response.json()["corpus"] is False
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_batch_update_mca_with_invalid_ids(self, auth_headers):  # noqa
+        """Test batch update with some invalid IDs."""
+        with TestClient(app) as client:
+            batch_request = {
+                "mod_corpus_association_ids": [999999, 999998],
+                "corpus": False,
+                "force_out": False
+            }
+            batch_response = client.patch(url="/reference/mod_corpus_association/batch",
+                                          json=batch_request, headers=auth_headers)
+            assert batch_response.status_code == status.HTTP_200_OK
+
+            result = batch_response.json()
+            assert result["total_requested"] == 2
+            assert result["successful"] == 0
+            assert result["failed"] == 2
+            for item in result["results"]:
+                assert item["success"] is False
+                assert "not found" in item["message"]
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_batch_update_mca_empty_list(self, auth_headers):  # noqa
+        """Test batch update with empty list returns validation error."""
+        with TestClient(app) as client:
+            batch_request = {
+                "mod_corpus_association_ids": [],
+                "corpus": False
+            }
+            batch_response = client.patch(url="/reference/mod_corpus_association/batch",
+                                          json=batch_request, headers=auth_headers)
+            assert batch_response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_batch_update_mca_move_in(self, db, auth_headers):  # noqa
+        """Test batch update to move papers IN to corpus."""
+        with TestClient(app) as client:
+            populate_test_mods()
+
+            # Create MCAs with corpus=None (needs sorting)
+            mca_ids = []
+            for i in range(2):
+                new_ref = {
+                    "title": f"Test Reference {i} for batch IN",
+                    "category": "research_article"
+                }
+                ref_response = client.post(url="/reference/", json=new_ref, headers=auth_headers)
+                ref_curie = ref_response.json()
+
+                new_mca = {
+                    "mod_abbreviation": "WB",
+                    "reference_curie": ref_curie,
+                    "mod_corpus_sort_source": "mod_pubmed_search"
+                    # corpus is None by default
+                }
+                mca_response = client.post(url="/reference/mod_corpus_association/",
+                                           json=new_mca, headers=auth_headers)
+                assert mca_response.status_code == status.HTTP_201_CREATED
+                mca_ids.append(mca_response.json())
+
+            # Batch update to move all IN
+            batch_request = {
+                "mod_corpus_association_ids": mca_ids,
+                "corpus": True
+            }
+            batch_response = client.patch(url="/reference/mod_corpus_association/batch",
+                                          json=batch_request, headers=auth_headers)
+            assert batch_response.status_code == status.HTTP_200_OK
+
+            result = batch_response.json()
+            assert result["successful"] == 2
+            assert result["failed"] == 0
+
+            # Verify all MCAs are now corpus=True
+            for mca_id in mca_ids:
+                mca_response = client.get(url=f"/reference/mod_corpus_association/{mca_id}",
+                                          headers=auth_headers)
+                assert mca_response.json()["corpus"] is True
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     def test_mca_modid_wb(self, db, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
             populate_test_mods()
