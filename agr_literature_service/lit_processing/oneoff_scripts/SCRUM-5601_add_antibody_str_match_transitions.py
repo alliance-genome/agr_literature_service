@@ -47,6 +47,7 @@ from os import path
 
 from sqlalchemy import text
 
+from agr_literature_service.api.models import WorkflowTransitionModel  # noqa: F401  (load models first to avoid circular import via api.user)
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
