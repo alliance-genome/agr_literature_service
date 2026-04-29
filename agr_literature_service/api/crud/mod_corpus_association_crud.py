@@ -18,8 +18,10 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
     get_current_workflow_status, delete_workflow_tags
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, \
     ModModel, WorkflowTagModel
-from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost
+from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost, \
+    ModCorpusAssociationBatchResultItem
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from typing import List
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
@@ -276,3 +278,94 @@ def show_changesets(db: Session, mod_corpus_association_id: int):
                         "changeset": version.changeset})
 
     return history
+
+
+def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
+                        corpus: bool, force_out: bool = False) -> List[ModCorpusAssociationBatchResultItem]:
+    """
+    Batch update corpus value for multiple mod_corpus_associations.
+
+    :param db: Database session
+    :param mod_corpus_association_ids: List of mod_corpus_association_ids to update
+    :param corpus: New corpus value (True=in, False=out)
+    :param force_out: If True, force removal even if manual tags exist
+    :return: List of results for each association
+    """
+    results = []
+
+    # Fetch all associations in one query
+    associations = db.query(ModCorpusAssociationModel).filter(
+        ModCorpusAssociationModel.mod_corpus_association_id.in_(mod_corpus_association_ids)
+    ).all()
+
+    # Create a map for quick lookup
+    association_map = {a.mod_corpus_association_id: a for a in associations}
+
+    for mca_id in mod_corpus_association_ids:
+        mca = association_map.get(mca_id)
+
+        if not mca:
+            results.append(ModCorpusAssociationBatchResultItem(
+                mod_corpus_association_id=mca_id,
+                success=False,
+                message=f"ModCorpusAssociation with id {mca_id} not found",
+                reference_curie=None
+            ))
+            continue
+
+        reference_curie = mca.reference.curie if mca.reference else None
+        mod_abbreviation = mca.mod.abbreviation if mca.mod else None
+
+        try:
+            # Setting corpus to False (moving OUT)
+            if corpus is False and mca.corpus is True:
+                has_manual_tags = has_manual_tet(db, str(mca.reference_id), mod_abbreviation)
+                if has_manual_tags and not force_out:
+                    results.append(ModCorpusAssociationBatchResultItem(
+                        mod_corpus_association_id=mca_id,
+                        success=False,
+                        message="Has manual topic/entity tags. Use force_out=true to override.",
+                        reference_curie=reference_curie
+                    ))
+                    continue
+
+                # Delete associated data
+                delete_non_manual_tets(db, str(mca.reference_id), mod_abbreviation)
+                if has_manual_tags:
+                    delete_manual_tets(db, str(mca.reference_id), mod_abbreviation)
+                delete_workflow_tags(db, str(mca.reference_id), mod_abbreviation)
+                set_mod_curie_to_invalid(db, mca.reference_id, mod_abbreviation)
+
+            # Setting corpus to True (moving IN)
+            elif corpus is True and mca.corpus is not True:
+                check_xref_and_generate_mod_id(db, mca.reference, mod_abbreviation)
+                # Skip workflow transitions for Alliance MOD
+                if mod_abbreviation != 'AGR' and get_current_workflow_status(
+                        db, str(mca.reference_id), "ATP:0000140",
+                        mod_abbreviation=mod_abbreviation) is None:
+                    transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
+
+            # Update the corpus value
+            mca.corpus = corpus
+            mca.dateUpdated = datetime.utcnow()
+            db.add(mca)
+
+            results.append(ModCorpusAssociationBatchResultItem(
+                mod_corpus_association_id=mca_id,
+                success=True,
+                message="Updated successfully",
+                reference_curie=reference_curie
+            ))
+
+        except Exception as e:
+            results.append(ModCorpusAssociationBatchResultItem(
+                mod_corpus_association_id=mca_id,
+                success=False,
+                message=str(e),
+                reference_curie=reference_curie
+            ))
+
+    # Commit all changes at once
+    db.commit()
+
+    return results
