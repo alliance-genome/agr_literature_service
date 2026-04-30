@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import (
@@ -60,6 +61,56 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
     xrefs_data = data.pop("cross_references", None)
     names_data = data.pop("names", None)
     notes_data = data.pop("notes", None)
+
+    def curie_prefix_from(curie: str) -> str:
+        curie = curie.strip()
+        if curie.count(":") != 1:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid CURIE '{curie}': expected exactly one colon",
+            )
+        return curie.split(":", 1)[0]
+
+    # Validate cross-references BEFORE calling MATI for a new person curie.
+    # MATI's counter is external and does not roll back with the local
+    # transaction, so a failure after the MATI call permanently wastes an ID.
+    # Defends against both unique constraints on person_cross_reference:
+    # curie is globally unique, and (person_id, curie_prefix) is unique
+    # per-person.
+    if xrefs_data:
+        seen_curies: set = set()
+        seen_prefixes: set = set()
+        for xr in xrefs_data:
+            curie = xr["curie"].strip()
+            curie_prefix = curie_prefix_from(curie)
+
+            if curie in seen_curies:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Cross-reference '{curie}' is duplicated in the request",
+                )
+            seen_curies.add(curie)
+
+            if curie_prefix in seen_prefixes:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Multiple cross-references with prefix '{curie_prefix}' "
+                        "in the request; at most one per prefix is allowed."
+                    ),
+                )
+            seen_prefixes.add(curie_prefix)
+
+            existing = (
+                db.query(PersonCrossReferenceModel.person_cross_reference_id)
+                .filter(PersonCrossReferenceModel.curie == curie)
+                .first()
+            )
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Cross-reference '{curie}' already exists",
+                )
 
     data["curie"] = get_next_person_curie(db)
 
@@ -126,17 +177,10 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
                 )
             )
 
-    def curie_prefix_from(curie: str) -> str:
-        curie = curie.strip()
-        if curie.count(":") != 1:
-            raise ValueError(f"Invalid CURIE '{curie}': expected exactly one colon")
-        return curie.split(":", 1)[0]
-
-    # Create child cross-references
+    # Insert cross-references (already validated above, before MATI call).
     if xrefs_data:
         for xr in xrefs_data:
-            curie = xr["curie"]
-            curie = curie.strip()
+            curie = xr["curie"].strip()
             curie_prefix = curie_prefix_from(curie)
             db.add(
                 PersonCrossReferenceModel(
@@ -158,7 +202,17 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
                 )
             )
 
-    db.commit()
+    # Belt-and-suspenders: a concurrent insert could have inserted a
+    # conflicting xref between our pre-check and this commit. Convert the
+    # resulting IntegrityError into a 422 instead of letting it leak as 500.
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Database constraint violation; please verify input and retry.",
+        )
     db.refresh(obj)
     return obj.curie
 
@@ -260,20 +314,31 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
 
 def find_by_name(db: Session, name: str) -> List[PersonModel]:
     """
-    Case-insensitive partial match on display_name.
+    Case-insensitive partial match on Person.display_name OR on
+    PersonName.first_name / middle_name / last_name. Returns a deduplicated
+    list of PersonModel ordered by display_name.
     """
     if not name:
         return []
     pattern = f"%{name.strip()}%"
     return (
         db.query(PersonModel)
+        .outerjoin(PersonNameModel, PersonNameModel.person_id == PersonModel.person_id)
         .options(
             selectinload(PersonModel.emails),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
         )
-        .filter(PersonModel.display_name.ilike(pattern))
+        .filter(
+            or_(
+                PersonModel.display_name.ilike(pattern),
+                PersonNameModel.first_name.ilike(pattern),
+                PersonNameModel.middle_name.ilike(pattern),
+                PersonNameModel.last_name.ilike(pattern),
+            )
+        )
+        .distinct()
         .order_by(PersonModel.display_name.asc())
         .all()
     )
