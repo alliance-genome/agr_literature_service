@@ -46,6 +46,8 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
     if not curie:
         raise HTTPException(status_code=422, detail="curie is required")
 
+    curie_prefix = _curie_prefix(curie)
+
     # curie is globally unique on person_cross_reference (uq_person_xref_curie).
     dup = (
         db.query(PersonCrossReferenceModel.person_cross_reference_id)
@@ -58,10 +60,28 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
             detail=f"Cross-reference '{curie}' already exists",
         )
 
+    # (person_id, curie_prefix) is unique per-person (uq_person_xref_person_prefix).
+    prefix_dup = (
+        db.query(PersonCrossReferenceModel.person_cross_reference_id)
+        .filter(
+            PersonCrossReferenceModel.person_id == person_id,
+            PersonCrossReferenceModel.curie_prefix == curie_prefix,
+        )
+        .first()
+    )
+    if prefix_dup:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Another cross-reference with prefix '{curie_prefix}' "
+                f"already exists for this person."
+            ),
+        )
+
     obj = PersonCrossReferenceModel(
         person_id=person_id,
         curie=curie,
-        curie_prefix=_curie_prefix(curie),
+        curie_prefix=curie_prefix,
         pages=_clean_pages(data.get("pages")),
         is_obsolete=bool(data.get("is_obsolete", False)),
     )
