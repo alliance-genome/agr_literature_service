@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import PersonModel, PersonCrossReferenceModel
@@ -45,19 +46,16 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
     if not curie:
         raise HTTPException(status_code=422, detail="curie is required")
 
-    # prevent duplicate for the same person
+    # curie is globally unique on person_cross_reference (uq_person_xref_curie).
     dup = (
         db.query(PersonCrossReferenceModel.person_cross_reference_id)
-        .filter(
-            PersonCrossReferenceModel.person_id == person_id,
-            PersonCrossReferenceModel.curie == curie,
-        )
+        .filter(PersonCrossReferenceModel.curie == curie)
         .first()
     )
     if dup:
         raise HTTPException(
             status_code=422,
-            detail=f"Cross-reference '{curie}' already exists for person_id {person_id}",
+            detail=f"Cross-reference '{curie}' already exists",
         )
 
     obj = PersonCrossReferenceModel(
@@ -68,7 +66,14 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
         is_obsolete=bool(data.get("is_obsolete", False)),
     )
     db.add(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Database constraint violation; please verify input and retry.",
+        )
     db.refresh(obj)
     return obj
 
@@ -141,11 +146,12 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
 
     if "curie" in data and data["curie"] is not None:
         new_curie = data["curie"].strip()
-        # duplicate check for same person
+        new_prefix = _curie_prefix(new_curie)
+
+        # curie is globally unique on person_cross_reference (uq_person_xref_curie).
         dup = (
             db.query(PersonCrossReferenceModel.person_cross_reference_id)
             .filter(
-                PersonCrossReferenceModel.person_id == obj.person_id,
                 PersonCrossReferenceModel.curie == new_curie,
                 PersonCrossReferenceModel.person_cross_reference_id != person_cross_reference_id,
             )
@@ -154,10 +160,33 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
         if dup:
             raise HTTPException(
                 status_code=422,
-                detail=f"Cross-reference '{new_curie}' already exists for person_id {obj.person_id}",
+                detail=f"Cross-reference '{new_curie}' already exists",
             )
+
+        # (person_id, curie_prefix) is unique per-person (uq_person_xref_person_prefix).
+        # NULL person_ids are exempt — Postgres treats NULLs in unique constraints
+        # as distinct, so the constraint only fires when person_id is non-null.
+        if obj.person_id is not None:
+            prefix_dup = (
+                db.query(PersonCrossReferenceModel.person_cross_reference_id)
+                .filter(
+                    PersonCrossReferenceModel.person_id == obj.person_id,
+                    PersonCrossReferenceModel.curie_prefix == new_prefix,
+                    PersonCrossReferenceModel.person_cross_reference_id != person_cross_reference_id,
+                )
+                .first()
+            )
+            if prefix_dup:
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"Another cross-reference with prefix '{new_prefix}' "
+                        f"already exists for this person."
+                    ),
+                )
+
         obj.curie = new_curie
-        obj.curie_prefix = _curie_prefix(new_curie)
+        obj.curie_prefix = new_prefix
 
     if "pages" in data:
         obj.pages = _clean_pages(data["pages"])
@@ -165,7 +194,14 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
     if "is_obsolete" in data:
         obj.is_obsolete = bool(data["is_obsolete"])
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Database constraint violation; please verify input and retry.",
+        )
     return {"message": "updated"}
 
 

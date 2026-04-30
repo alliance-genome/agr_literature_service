@@ -1,9 +1,12 @@
 # flake8: noqa: F811
+from unittest.mock import MagicMock
+
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.crud import person_crud
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
@@ -703,3 +706,81 @@ class TestPersonLookups:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestPersonCreateDuplicates:
+    """
+    Re-POSTing /person/ with the same cross_reference curies must return 422,
+    not 500 from a leaked IntegrityError on the global uq_person_xref_curie
+    constraint.
+    """
+
+    def test_post_person_with_duplicate_xref_curie_across_persons_returns_422(
+        self, db, auth_headers
+    ):  # noqa
+        payload = {
+            "display_name": "Dup XRef Person",
+            "cross_references": [{"curie": "ORCID:0000-0005-1111-3333"}],
+        }
+        with TestClient(app) as client:
+            first = client.post("/person/", json=payload, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+
+            second = client.post("/person/", json=payload, headers=auth_headers)
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "ORCID:0000-0005-1111-3333" in second.json()["detail"]
+
+    def test_post_person_with_duplicate_curie_within_payload_returns_422(
+        self, db, auth_headers
+    ):  # noqa
+        payload = {
+            "display_name": "Same Curie Twice",
+            "cross_references": [
+                {"curie": "ORCID:0000-0006-2222-4444"},
+                {"curie": "ORCID:0000-0006-2222-4444"},
+            ],
+        }
+        with TestClient(app) as client:
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "duplicated in the request" in res.json()["detail"]
+
+    def test_post_person_with_duplicate_prefix_within_payload_returns_422(
+        self, db, auth_headers
+    ):  # noqa
+        # Two different curies with the same prefix violate
+        # uq_person_xref_person_prefix on commit; check it surfaces as 422.
+        payload = {
+            "display_name": "Two Same-Prefix XRefs",
+            "cross_references": [
+                {"curie": "ORCID:0000-0007-3333-5555"},
+                {"curie": "ORCID:0000-0007-3333-6666"},
+            ],
+        }
+        with TestClient(app) as client:
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "at most one per prefix" in res.json()["detail"]
+
+    def test_duplicate_xref_does_not_consume_mati_id(
+        self, db, auth_headers, monkeypatch
+    ):  # noqa
+        """Regression guard for the validation reorder.
+
+        The xref pre-check must run BEFORE get_next_person_curie() in
+        person_crud.create(). If the order is reversed, this test fails.
+        """
+        payload = {
+            "display_name": "MATI Skip Test",
+            "cross_references": [{"curie": "ORCID:0000-0008-4444-7777"}],
+        }
+        with TestClient(app) as client:
+            first = client.post("/person/", json=payload, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+
+            spy = MagicMock()
+            monkeypatch.setattr(person_crud, "get_next_person_curie", spy)
+
+            second = client.post("/person/", json=payload, headers=auth_headers)
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            spy.assert_not_called()
