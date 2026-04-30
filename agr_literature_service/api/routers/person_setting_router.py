@@ -33,6 +33,45 @@ def create(
     return person_setting_crud.create(db, request)
 
 
+# Lookup routes — declared BEFORE /{person_setting_id} so the int-typed
+# catch-all does not 422 on single-segment lookup paths like /by_name.
+@router.get(
+    "/by_email/{email}",
+    response_model=List[PersonSettingSchemaShow],
+    status_code=status.HTTP_200_OK,
+)
+def get_by_email(
+    email: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Get person_setting rows by email (exact match).
+    Returns 200 with a list (possibly multiple rows) or 204 if none.
+    """
+    person_setting_list = person_setting_crud.get_by_email(db, email)
+    if not person_setting_list:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return person_setting_list
+
+
+@router.get(
+    "/by_name",
+    response_model=List[PersonSettingSchemaShow],
+    status_code=status.HTTP_200_OK,
+)
+def get_by_name(
+    name: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Find person_setting rows by person display name.
+    Matching strategy (exact/ILIKE) is implemented inside person_setting_crud.
+    """
+    return person_setting_crud.find_by_name(db, name)
+
+
 @router.delete("/{person_setting_id}", status_code=status.HTTP_204_NO_CONTENT)
 def destroy(
     person_setting_id: int,
@@ -80,40 +119,3 @@ def show(
     Get a person_setting row by internal ID.
     """
     return person_setting_crud.show(db, person_setting_id)
-
-
-@router.get(
-    "/by/email/{email}",
-    response_model=List[PersonSettingSchemaShow],
-    status_code=status.HTTP_200_OK,
-)
-def get_by_email(
-    email: str,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    """
-    Get person_setting rows by email (exact match).
-    Returns 200 with a list (possibly multiple rows) or 204 if none.
-    """
-    person_setting_list = person_setting_crud.get_by_email(db, email)
-    if not person_setting_list:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    return person_setting_list
-
-
-@router.get(
-    "/by/name",
-    response_model=List[PersonSettingSchemaShow],
-    status_code=status.HTTP_200_OK,
-)
-def get_by_name(
-    name: str,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    """
-    Find person_setting rows by person display name.
-    Matching strategy (exact/ILIKE) is implemented inside person_setting_crud.
-    """
-    return person_setting_crud.find_by_name(db, name)

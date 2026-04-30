@@ -1,9 +1,12 @@
 # flake8: noqa: F811
+from unittest.mock import MagicMock
+
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.crud import person_crud
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
@@ -525,3 +528,259 @@ class TestPersonCurie:
             assert listed.status_code == status.HTTP_200_OK
             xref_curies = {x["curie"] for x in listed.json()}
             assert "ORCID:0000-0009-8888-7777" in xref_curies
+
+
+class TestPersonLookups:
+
+    # ---- /person/by_email/{email} ----
+
+    def test_by_email_found(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Email Lookup Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            email_post = client.post(
+                f"/email/person/{person_id}",
+                json={"email_address": "lookup@example.com"},
+                headers=auth_headers,
+            )
+            assert email_post.status_code == status.HTTP_201_CREATED
+            res = client.get("/person/by_email/lookup@example.com", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_by_email_not_found_returns_204(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person/by_email/nobody@example.com", headers=auth_headers)
+            assert res.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_old_by_slash_email_path_is_gone(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person/by/email/anything@example.com", headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    # ---- /person/by_name (aggregates display_name + person_name) ----
+
+    def test_by_name_matches_display_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            client.post(
+                "/person/",
+                json={"display_name": "Zelda Display Match"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Zelda"}, headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert any("Zelda" in p["display_name"] for p in res.json())
+
+    def test_by_name_matches_person_name_first_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Totally Unrelated"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_name/person/{person_id}",
+                json={"first_name": "Borogove", "last_name": "Smith"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Borogove"}, headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            assert any(p["person_id"] == person_id for p in res.json())
+
+    def test_by_name_matches_person_name_last_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Totally Different Display"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_name/person/{person_id}",
+                json={"first_name": "X", "last_name": "Slithytove"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Slithytove"}, headers=auth_headers)
+            assert any(p["person_id"] == person_id for p in res.json())
+
+    def test_by_name_matches_person_name_middle_name(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "No Match Here"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_name/person/{person_id}",
+                json={"first_name": "F", "middle_name": "Mimsy", "last_name": "L"},
+                headers=auth_headers,
+            )
+            res = client.get("/person/by_name", params={"name": "Mimsy"}, headers=auth_headers)
+            assert any(p["person_id"] == person_id for p in res.json())
+
+    def test_by_name_dedupes_when_multiple_person_names_match(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Dedupe Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            for last in ["Jabberwocky", "Jabberwocky-Hyphenated"]:
+                client.post(
+                    f"/person_name/person/{person_id}",
+                    json={"first_name": "F", "last_name": last},
+                    headers=auth_headers,
+                )
+            res = client.get("/person/by_name", params={"name": "Jabberwocky"}, headers=auth_headers)
+            matches = [p for p in res.json() if p["person_id"] == person_id]
+            assert len(matches) == 1
+
+    def test_by_name_no_match_returns_empty_list(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                "/person/by_name",
+                params={"name": "ZZZ_DEFINITELY_NOT_PRESENT"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json() == []
+
+    def test_old_by_slash_name_path_is_gone(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person/by/name", params={"name": "X"}, headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    # ---- /person/by_person_cross_reference/{curie_or_id} ----
+
+    def test_by_person_cross_reference_found_by_curie(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "PCR Lookup Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            client.post(
+                f"/person_cross_reference/person/{person_id}",
+                json={"curie": "ORCID:0000-0001-2345-6789"},
+                headers=auth_headers,
+            )
+            res = client.get(
+                "/person/by_person_cross_reference/ORCID:0000-0001-2345-6789",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_by_person_cross_reference_found_by_id(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "PCR-by-id Person"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
+            pcr = client.post(
+                f"/person_cross_reference/person/{person_id}",
+                json={"curie": "ORCID:0000-9999-9999-9999"},
+                headers=auth_headers,
+            ).json()
+            res = client.get(
+                f"/person/by_person_cross_reference/{pcr['person_cross_reference_id']}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_by_person_cross_reference_not_found(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                "/person/by_person_cross_reference/ORCID:0000-0000-0000-0000",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestPersonCreateDuplicates:
+    """
+    Re-POSTing /person/ with the same cross_reference curies must return 422,
+    not 500 from a leaked IntegrityError on the global uq_person_xref_curie
+    constraint.
+    """
+
+    def test_post_person_with_duplicate_xref_curie_across_persons_returns_422(
+        self, db, auth_headers
+    ):  # noqa
+        payload = {
+            "display_name": "Dup XRef Person",
+            "cross_references": [{"curie": "ORCID:0000-0005-1111-3333"}],
+        }
+        with TestClient(app) as client:
+            first = client.post("/person/", json=payload, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+
+            second = client.post("/person/", json=payload, headers=auth_headers)
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "ORCID:0000-0005-1111-3333" in second.json()["detail"]
+
+    def test_post_person_with_duplicate_curie_within_payload_returns_422(
+        self, db, auth_headers
+    ):  # noqa
+        payload = {
+            "display_name": "Same Curie Twice",
+            "cross_references": [
+                {"curie": "ORCID:0000-0006-2222-4444"},
+                {"curie": "ORCID:0000-0006-2222-4444"},
+            ],
+        }
+        with TestClient(app) as client:
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "duplicated in the request" in res.json()["detail"]
+
+    def test_post_person_with_duplicate_prefix_within_payload_returns_422(
+        self, db, auth_headers
+    ):  # noqa
+        # Two different curies with the same prefix violate
+        # uq_person_xref_person_prefix on commit; check it surfaces as 422.
+        payload = {
+            "display_name": "Two Same-Prefix XRefs",
+            "cross_references": [
+                {"curie": "ORCID:0000-0007-3333-5555"},
+                {"curie": "ORCID:0000-0007-3333-6666"},
+            ],
+        }
+        with TestClient(app) as client:
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "at most one per prefix" in res.json()["detail"]
+
+    def test_duplicate_xref_does_not_consume_mati_id(
+        self, db, auth_headers, monkeypatch
+    ):  # noqa
+        """Regression guard for the validation reorder.
+
+        The xref pre-check must run BEFORE get_next_person_curie() in
+        person_crud.create(). If the order is reversed, this test fails.
+        """
+        payload = {
+            "display_name": "MATI Skip Test",
+            "cross_references": [{"curie": "ORCID:0000-0008-4444-7777"}],
+        }
+        with TestClient(app) as client:
+            first = client.post("/person/", json=payload, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+
+            spy = MagicMock()
+            monkeypatch.setattr(person_crud, "get_next_person_curie", spy)
+
+            second = client.post("/person/", json=payload, headers=auth_headers)
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            spy.assert_not_called()
