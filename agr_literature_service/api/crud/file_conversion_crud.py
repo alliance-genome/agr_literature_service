@@ -217,6 +217,7 @@ def _job_progress_payload(job: Optional[ConversionJob]) -> List[Dict[str, Any]]:
                 "referencefile_id": p.source_referencefile_id,
             },
             "converted": converted_info,
+            "figures": [],
             "status": p.status,
             "error": p.error,
         })
@@ -293,10 +294,67 @@ def _db_derived_progress(reference: ReferenceModel) -> List[Dict[str, Any]]:
                 "file_class": ref_file.file_class,
                 "referencefile_id": int(ref_file.referencefile_id),
             },
+            "figures": [],
             "status": "success",
             "error": None,
         })
     return out
+
+
+# Mapping from source PDF file_class to the figure file_class that
+# process_extracted_images uploads. Kept in sync with FIGURE_FILE_CLASSES
+# in pdf2md_utils — duplicated here to avoid an inter-module dependency.
+_FIGURE_FILE_CLASS_FOR_SOURCE: Dict[str, str] = {
+    "main": "converted_main_figure",
+    "supplement": "converted_supplement_figure",
+}
+
+
+def _figures_for_source(reference: ReferenceModel,
+                        source_display_name: Optional[str],
+                        source_file_class: Optional[str]) -> List[Dict[str, Any]]:
+    """Return ConversionFileInfo dicts for every extracted-figure row in the
+    DB whose source PDF matches ``(source_display_name, source_file_class)``.
+
+    Figures uploaded by ``pdf2md_utils.process_extracted_images`` use the
+    ``{source_display_name}_image_{idx:03d}`` convention and one of the
+    ``converted_main_figure`` / ``converted_supplement_figure`` file_classes,
+    so we match on display_name prefix + the corresponding figure file_class.
+    """
+    if not source_display_name or not source_file_class:
+        return []
+    figure_file_class = _FIGURE_FILE_CLASS_FOR_SOURCE.get(source_file_class)
+    if figure_file_class is None:
+        return []
+    prefix = f"{source_display_name}_image_"
+    figures: List[Dict[str, Any]] = []
+    for ref_file in reference.referencefiles or []:
+        if ref_file.file_class != figure_file_class:
+            continue
+        if ref_file.file_publication_status != "final":
+            continue
+        if not (ref_file.display_name or "").startswith(prefix):
+            continue
+        figures.append({
+            "display_name": ref_file.display_name,
+            "file_class": ref_file.file_class,
+            "referencefile_id": int(ref_file.referencefile_id),
+        })
+    figures.sort(key=lambda f: f["display_name"] or "")
+    return figures
+
+
+def _attach_figures(reference: ReferenceModel,
+                    progress: List[Dict[str, Any]]) -> None:
+    """Mutate ``progress`` in place: set each entry's ``figures`` list to the
+    extracted-figure rows currently in the DB for that source PDF."""
+    for entry in progress:
+        source = entry.get("source") or {}
+        entry["figures"] = _figures_for_source(
+            reference,
+            source.get("display_name"),
+            source.get("file_class"),
+        )
 
 
 def _merge_progress(job_progress: List[Dict[str, Any]],
@@ -344,6 +402,7 @@ def _status_payload(reference: ReferenceModel, *, status_str: str,
         _job_progress_payload(job),
         _db_derived_progress(reference),
     )
+    _attach_figures(reference, progress)
     payload: Dict[str, Any] = {
         "reference_curie": reference.curie,
         "status": status_str,

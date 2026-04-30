@@ -137,6 +137,150 @@ class TestConversionJobManager:
 
 
 # ---------------------------------------------------------------------------
+# Unit tests for the figures-in-response helpers (no DB, no HTTP)
+# ---------------------------------------------------------------------------
+
+class TestFiguresHelpers:
+    """Tests for _figures_for_source and _attach_figures.
+
+    These verify that extracted-figure rows in the DB are surfaced under the
+    correct per-file-progress entry in the conversion_request response,
+    grouped by their source PDF's display_name and file_class.
+    """
+
+    @staticmethod
+    def _make_ref_file(file_class, display_name, referencefile_id,
+                       file_extension="png", file_publication_status="final"):
+        from unittest.mock import MagicMock
+        rf = MagicMock()
+        rf.file_class = file_class
+        rf.display_name = display_name
+        rf.referencefile_id = referencefile_id
+        rf.file_extension = file_extension
+        rf.file_publication_status = file_publication_status
+        return rf
+
+    def _make_reference(self, ref_files):
+        from unittest.mock import MagicMock
+        ref = MagicMock()
+        ref.referencefiles = ref_files
+        return ref
+
+    def test_figures_for_source_returns_matching_rows_sorted(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        # Two figures for "paper" (main), plus an unrelated supp figure and
+        # a different paper's figure that must be excluded.
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_002", 11),
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+            self._make_ref_file("converted_supplement_figure", "supp_image_001", 20),
+            self._make_ref_file("converted_main_figure", "other_image_001", 30),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        # Sorted by display_name; only main-class figures whose name has the
+        # 'paper_image_' prefix.
+        assert [r["display_name"] for r in result] == ["paper_image_001", "paper_image_002"]
+        assert [r["referencefile_id"] for r in result] == [10, 11]
+        assert all(r["file_class"] == "converted_main_figure" for r in result)
+
+    def test_figures_for_source_supplement_uses_supplement_class(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_supplement_figure", "supp1_image_001", 1),
+            self._make_ref_file("converted_main_figure", "supp1_image_002", 2),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "supp1", "supplement")
+        assert [r["referencefile_id"] for r in result] == [1]
+
+    def test_figures_for_source_skips_non_final_rows(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 1,
+                                file_publication_status="temp"),
+            self._make_ref_file("converted_main_figure", "paper_image_002", 2),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert [r["referencefile_id"] for r in result] == [2]
+
+    def test_figures_for_source_unknown_file_class_returns_empty(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [self._make_ref_file("converted_main_figure", "paper_image_001", 1)]
+        # nXML / tei / unknown source classes have no figure mapping.
+        assert _figures_for_source(self._make_reference(rfs), "paper", "nXML") == []
+        assert _figures_for_source(self._make_reference(rfs), "paper", None) == []
+        assert _figures_for_source(self._make_reference(rfs), None, "main") == []
+
+    def test_figures_for_source_no_referencefiles_returns_empty(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        ref = self._make_reference([])
+        assert _figures_for_source(ref, "paper", "main") == []
+
+    def test_attach_figures_mutates_each_progress_entry(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _attach_figures,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 100),
+            self._make_ref_file("converted_supplement_figure", "supp_image_001", 200),
+            self._make_ref_file("converted_supplement_figure", "supp_image_002", 201),
+        ]
+        progress = [
+            {
+                "source": {"display_name": "paper", "file_class": "main",
+                           "referencefile_id": 1},
+                "converted": {"display_name": "paper_merged",
+                              "file_class": "converted_merged_main",
+                              "referencefile_id": 50},
+                "figures": [],
+                "status": "success",
+                "error": None,
+            },
+            {
+                "source": {"display_name": "supp", "file_class": "supplement",
+                           "referencefile_id": 2},
+                "converted": {"display_name": "supp_merged",
+                              "file_class": "converted_merged_supplement",
+                              "referencefile_id": 51},
+                "figures": [],
+                "status": "success",
+                "error": None,
+            },
+        ]
+        _attach_figures(self._make_reference(rfs), progress)
+        assert [f["referencefile_id"] for f in progress[0]["figures"]] == [100]
+        assert [f["referencefile_id"] for f in progress[1]["figures"]] == [200, 201]
+
+    def test_attach_figures_handles_entries_with_null_source(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _attach_figures,
+        )
+        rfs = [self._make_ref_file("converted_main_figure", "paper_image_001", 1)]
+        progress = [
+            {
+                "source": None,
+                "converted": {"display_name": "orphan_merged",
+                              "file_class": "converted_merged_main",
+                              "referencefile_id": 7},
+                "figures": [],
+                "status": "success",
+                "error": None,
+            },
+        ]
+        _attach_figures(self._make_reference(rfs), progress)
+        assert progress[0]["figures"] == []
+
+
+# ---------------------------------------------------------------------------
 # Integration tests for the /converted and /conversion_status endpoints
 # ---------------------------------------------------------------------------
 

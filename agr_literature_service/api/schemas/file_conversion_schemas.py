@@ -20,11 +20,18 @@ class ConversionPerFileProgressSchema(BaseModel):
     display_name and file_class; for ``failed`` entries ``converted`` is
     null and ``error`` is populated. ``source`` may be null for entries
     derived purely from the DB — call ``show_all`` if you need the original
-    source file info for those."""
+    source file info for those.
+
+    ``figures`` lists every ``converted_main_figure`` /
+    ``converted_supplement_figure`` row currently in the DB that was
+    extracted from this entry's source PDF (matched by display_name prefix).
+    Empty when image extraction was not run, returned no figures, or the
+    source isn't a PDF."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
     source: Optional[ConversionFileInfo] = None
     converted: Optional[ConversionFileInfo] = None
+    figures: List[ConversionFileInfo] = []
     status: str
     error: Optional[str] = None
 
