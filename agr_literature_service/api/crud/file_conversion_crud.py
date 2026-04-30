@@ -30,6 +30,7 @@ from agr_literature_service.api.utils.conversion_processor import run_conversion
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     get_nxml_referencefile,
     get_pdf_files_for_reference,
+    is_eligible_for_supplement_conversion,
     process_nxml_to_markdown,
 )
 
@@ -127,7 +128,16 @@ def _assess_reference(db: Session, reference: ReferenceModel,
 
     nxml_source = None if main_cached else get_nxml_referencefile(db, reference.reference_id)
     main_pdfs = [] if main_cached else get_pdf_files_for_reference(db, reference.reference_id, "main")
-    supp_pdfs = [] if supp_cached else get_pdf_files_for_reference(db, reference.reference_id, "supplement")
+
+    # Supplement conversion is restricted to references in corpus for WB/ZFIN/FB
+    # (SCRUM-6026). Treat ineligible references as if they have no supplement
+    # PDFs so the endpoint reports "converted" cleanly once main is done and
+    # never schedules supplement work.
+    supp_eligible = is_eligible_for_supplement_conversion(db, reference.reference_id)
+    if supp_cached or not supp_eligible:
+        supp_pdfs: List[Any] = []
+    else:
+        supp_pdfs = get_pdf_files_for_reference(db, reference.reference_id, "supplement")
 
     main_pdf_available = bool(main_pdfs)
     supp_pdf_available = bool(supp_pdfs)

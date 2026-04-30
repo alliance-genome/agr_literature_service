@@ -15,12 +15,14 @@ import pytest
 import requests
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    ELIGIBLE_SUPPLEMENT_MODS,
     EXTRACTION_METHODS,
     PdfDetail,
     ProcessingResult,
     submit_pdf_to_pdfx,
     poll_pdfx_status,
     download_pdfx_result,
+    is_eligible_for_supplement_conversion,
     resolve_curie_to_reference,
     get_pdf_files_for_reference,
     get_nxml_referencefile,
@@ -528,3 +530,59 @@ class TestProcessSupplementalPdfs:
         assert failed == 1
         assert len(errors) == 1
         assert "boom" in errors[0]
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils."
+           "is_eligible_for_supplement_conversion")
+    def test_skips_when_reference_not_eligible(
+        self, mock_eligible, mock_get_pdfs, mock_process
+    ):
+        """Ineligible references early-return without consulting supplement
+        PDFs or processing anything."""
+        mock_eligible.return_value = False
+
+        succeeded, failed, errors = process_supplemental_pdfs(
+            db=MagicMock(),
+            reference_id=42,
+            reference_curie="AGRKB:1",
+            token="t"
+        )
+
+        assert (succeeded, failed, errors) == (0, 0, [])
+        # Critical: the eligibility check happens BEFORE any DB / PDFX work.
+        mock_get_pdfs.assert_not_called()
+        mock_process.assert_not_called()
+
+
+class TestEligibleSupplementMods:
+    """Tests for the supplement-conversion eligibility helper."""
+
+    def test_constant_contains_expected_mods(self):
+        assert ELIGIBLE_SUPPLEMENT_MODS == frozenset({"WB", "ZFIN", "FB"})
+
+    def _build_query_chain(self, first_result):
+        """Build a MagicMock chain that mimics
+        db.query(...).join(...).filter(...).first() -> first_result."""
+        mock_db = MagicMock()
+        chain = MagicMock()
+        mock_db.query.return_value = chain
+        chain.join.return_value = chain
+        chain.filter.return_value = chain
+        chain.first.return_value = first_result
+        return mock_db, chain
+
+    def test_returns_true_when_corpus_row_exists(self):
+        """A non-None .first() result -> eligible."""
+        mock_db, chain = self._build_query_chain(first_result=MagicMock())
+        assert is_eligible_for_supplement_conversion(mock_db, 42) is True
+        # Sanity: the chain went query -> join -> filter -> first.
+        assert mock_db.query.call_count == 1
+        assert chain.join.call_count == 1
+        assert chain.filter.call_count == 1
+        assert chain.first.call_count == 1
+
+    def test_returns_false_when_no_corpus_row(self):
+        """A None .first() result -> not eligible."""
+        mock_db, _ = self._build_query_chain(first_result=None)
+        assert is_eligible_for_supplement_conversion(mock_db, 42) is False

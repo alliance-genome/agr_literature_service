@@ -27,6 +27,8 @@ from agr_literature_service.api.crud.reference_utils import (
     get_reference,
 )
 from agr_literature_service.api.models import (
+    ModCorpusAssociationModel,
+    ModModel,
     ReferencefileModel,
     ReferenceModel,
 )
@@ -41,6 +43,34 @@ EXTRACTION_METHODS: Dict[str, str] = {
     "marker": "converted_marker_main",
     "merged": "converted_merged_main",
 }
+
+# MODs whose corpus membership makes a reference eligible for supplemental-PDF
+# conversion. Curating the supplements is expensive and only WB/ZFIN/FB
+# currently consume them, so all other references skip supplement conversion.
+ELIGIBLE_SUPPLEMENT_MODS: frozenset = frozenset({"WB", "ZFIN", "FB"})
+
+
+def is_eligible_for_supplement_conversion(db: Session, reference_id: int) -> bool:
+    """
+    Return True iff the reference is in corpus for at least one of the MODs
+    eligible for supplemental-PDF conversion (see ``ELIGIBLE_SUPPLEMENT_MODS``).
+
+    A reference is "in corpus" for a MOD when ``mod_corpus_association.corpus``
+    is True for that ``(reference_id, mod_id)`` pair. The check is at the
+    reference level — it does not depend on which MOD uploaded the supplement
+    PDFs themselves.
+    """
+    return (
+        db.query(ModCorpusAssociationModel)
+        .join(ModModel, ModModel.mod_id == ModCorpusAssociationModel.mod_id)
+        .filter(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True),
+            ModModel.abbreviation.in_(ELIGIBLE_SUPPLEMENT_MODS),
+        )
+        .first()
+        is not None
+    )
 
 
 class PdfDetail(TypedDict):
@@ -899,6 +929,14 @@ def process_supplemental_pdfs(  # pragma: no cover
     """
     if methods_to_extract is None:
         methods_to_extract = list(EXTRACTION_METHODS.keys())
+
+    if not is_eligible_for_supplement_conversion(db, reference_id):
+        logger.info(
+            f"Skipping supplemental PDF conversion for {reference_curie}: "
+            f"reference is not in corpus for any of "
+            f"{sorted(ELIGIBLE_SUPPLEMENT_MODS)}"
+        )
+        return 0, 0, []
 
     supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
     if not supplements:
