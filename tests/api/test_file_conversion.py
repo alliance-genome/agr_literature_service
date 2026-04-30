@@ -432,7 +432,15 @@ class TestConvertedEndpoint:
         _make_referencefile(db, test_reference.new_ref_curie, "paper_supp",
                             "supplement", "pdf", "md5_partial_supp_pdf")
 
+        # SCRUM-6026: supplement conversion only runs for refs in corpus for
+        # WB/ZFIN/FB. This test asserts the endpoint behavior when supplement
+        # conversion is in flight, so make the eligibility helper return True
+        # (eligibility itself is unit-tested in test_pdf2md_utils.py).
         with patch(
+            "agr_literature_service.api.crud.file_conversion_crud."
+            "is_eligible_for_supplement_conversion",
+            return_value=True,
+        ), patch(
             "agr_literature_service.api.crud.file_conversion_crud.run_conversion_job",
             return_value=None,
         ):
