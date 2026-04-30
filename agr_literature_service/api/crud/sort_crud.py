@@ -56,7 +56,7 @@ def _search_es_for_curies(
     mod_abbreviation: str,
     search_query: str,
     max_results: int = 500
-) -> List[str]:
+) -> tuple:
     """
     Use Elasticsearch to find matching reference curies for needs_review papers.
 
@@ -66,7 +66,7 @@ def _search_es_for_curies(
         max_results: Maximum number of curies to return
 
     Returns:
-        List of curie strings matching the search
+        Tuple of (list of curie strings, total count from ES)
     """
     try:
         # Use existing search infrastructure with mods_needs_review filter
@@ -82,10 +82,11 @@ def _search_es_for_curies(
 
         # Extract curies from search results
         curies = [hit.get("curie") for hit in result.get("hits", []) if hit.get("curie")]
-        return curies
+        total_count = result.get("return_count", len(curies))
+        return curies, total_count
     except Exception as e:
         logger.error(f"ES search failed: {e}")
-        return []
+        return [], 0
 
 
 def _build_need_review_base_query(
@@ -159,16 +160,20 @@ def show_need_review(
 
     # If there's a search query, use ES to get matching curies (fast text search)
     es_curies = None
+    es_total_count = None
     if search_query and search_query.strip():
-        es_curies = _search_es_for_curies(mod_abbreviation, search_query, max_results=500)
+        es_curies, es_total_count = _search_es_for_curies(mod_abbreviation, search_query, max_results=500)
         if not es_curies:
             # No ES matches - return empty result
             return {"total_count": 0, "references": []}
         # Filter DB query by ES-matched curies
         base_query = base_query.filter(ReferenceModel.curie.in_(es_curies))
 
-    # Get total count
-    total_count = base_query.distinct(ReferenceModel.reference_id).count()
+    # Get total count - use ES count if search was performed, otherwise count from DB
+    if es_total_count is not None:
+        total_count = es_total_count
+    else:
+        total_count = base_query.distinct(ReferenceModel.reference_id).count()
 
     # Build full query for results with copyright license join
     references_query = base_query.outerjoin(ReferenceModel.copyright_license)
