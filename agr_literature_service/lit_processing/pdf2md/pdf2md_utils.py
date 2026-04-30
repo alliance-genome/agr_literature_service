@@ -85,6 +85,7 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     retry_delay: int = 5,
     extract_images: bool = True,
     review_images: Optional[bool] = None,
+    clear_cache_scope: Optional[str] = "extraction",
 ) -> str:
     """
     Submit a PDF to the PDFX service for processing.
@@ -103,6 +104,12 @@ def submit_pdf_to_pdfx(  # pragma: no cover
         review_images: Optional override for the text-only LLM image review
             stage. When None, the PDFX default applies (review on when images
             are extracted). Pass False to skip the review stage explicitly.
+        clear_cache_scope: PDFX cache-clearing scope. Defaults to ``"extraction"``
+            so every submission re-runs the extractors and regenerates image
+            artifacts; this works around a server-side cache bug where a
+            stale image manifest can survive after the on-disk image files
+            have been TTL'd, producing silent zero-image results. Pass None
+            to omit the field and rely on PDFX's default behavior.
 
     Returns:
         str: The process_id for tracking the extraction job.
@@ -125,6 +132,8 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     }
     if review_images is not None:
         data["review_images"] = str(review_images).lower()
+    if clear_cache_scope is not None:
+        data["clear_cache_scope"] = clear_cache_scope
 
     logger.info(f"Submitting PDF to PDFX for {reference_curie or 'unknown reference'}")
 

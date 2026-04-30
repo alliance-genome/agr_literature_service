@@ -107,6 +107,9 @@ class TestSubmitPdfToPdfx:
         assert sent_data["extract_images"] == "true"
         # review_images is omitted unless the caller overrides it (server default is on).
         assert "review_images" not in sent_data
+        # clear_cache_scope defaults to "extraction" so a stale server-side
+        # image manifest can't silently produce zero-image results.
+        assert sent_data["clear_cache_scope"] == "extraction"
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
     def test_extract_images_can_be_disabled(self, mock_post):
@@ -126,6 +129,23 @@ class TestSubmitPdfToPdfx:
         sent_data = mock_post.call_args.kwargs["data"]
         assert sent_data["extract_images"] == "false"
         assert sent_data["review_images"] == "false"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
+    def test_clear_cache_scope_can_be_disabled(self, mock_post):
+        """Passing clear_cache_scope=None omits the field entirely."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"process_id": "abc123"}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        submit_pdf_to_pdfx(
+            file_content=b"pdf_content",
+            token="test_token",
+            clear_cache_scope=None,
+        )
+
+        sent_data = mock_post.call_args.kwargs["data"]
+        assert "clear_cache_scope" not in sent_data
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
     def test_raises_error_when_no_process_id(self, mock_post):
