@@ -42,6 +42,15 @@ EXTRACTION_METHODS: Dict[str, str] = {
     "merged": "converted_merged_main",
 }
 
+# file_class assigned to figure images extracted from PDFs by PDFX/Marker,
+# parallel to the converted_*_main / converted_*_supplement Markdown classes.
+FIGURE_FILE_CLASSES: Dict[str, str] = {
+    "main": "converted_main_figure",
+    "supplement": "converted_supplement_figure",
+}
+# Marker emits .png; the manifest filenames also end in .png.
+CONVERTED_FIGURE_FILE_EXTENSION = "png"
+
 
 class PdfDetail(TypedDict):
     """Type for PDF processing detail."""
@@ -73,7 +82,9 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     reference_curie: Optional[str] = None,
     mod_abbreviation: Optional[str] = None,
     max_retries: int = 3,
-    retry_delay: int = 5
+    retry_delay: int = 5,
+    extract_images: bool = True,
+    review_images: Optional[bool] = None,
 ) -> str:
     """
     Submit a PDF to the PDFX service for processing.
@@ -87,6 +98,11 @@ def submit_pdf_to_pdfx(  # pragma: no cover
         mod_abbreviation: Optional MOD abbreviation for logging.
         max_retries: Maximum number of retry attempts for transient failures.
         retry_delay: Delay between retries in seconds.
+        extract_images: Whether to ask PDFX to extract figure images via Marker.
+            Defaults to True so all conversions also produce image artifacts.
+        review_images: Optional override for the text-only LLM image review
+            stage. When None, the PDFX default applies (review on when images
+            are extracted). Pass False to skip the review stage explicitly.
 
     Returns:
         str: The process_id for tracking the extraction job.
@@ -104,8 +120,11 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     # Prepare multipart form data
     data = {
         "methods": methods,
-        "merge": str(merge).lower()
+        "merge": str(merge).lower(),
+        "extract_images": str(extract_images).lower(),
     }
+    if review_images is not None:
+        data["review_images"] = str(review_images).lower()
 
     logger.info(f"Submitting PDF to PDFX for {reference_curie or 'unknown reference'}")
 
@@ -235,6 +254,167 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # 
     response.raise_for_status()
 
     return response.content
+
+
+def download_pdfx_image_manifest(process_id: str, token: str) -> Dict:  # pragma: no cover
+    """
+    Fetch the image manifest produced by a PDFX extraction job.
+
+    Returns the parsed JSON payload from
+    ``/api/v1/extract/{process_id}/images/urls``. The payload's ``images``
+    list contains one entry per extracted image, each with a presigned ``url``
+    plus marker metadata (figure_label, figure_number, image_review_*, etc.).
+    The list will be empty when ``extract_images=true`` was not requested.
+    """
+    pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
+    url = f"{pdfx_api_url}/api/v1/extract/{process_id}/images/urls"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers, timeout=60)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"Unexpected manifest payload type for PDFX job {process_id}: "
+            f"{type(payload).__name__}"
+        )
+    return payload
+
+
+def download_pdfx_image(image_url: str) -> bytes:  # pragma: no cover
+    """
+    Download a single image artifact from a presigned S3 URL returned by
+    :func:`download_pdfx_image_manifest`.
+
+    No bearer token is needed — the URL is already pre-signed.
+    """
+    response = requests.get(image_url, timeout=60)
+    response.raise_for_status()
+    return response.content
+
+
+def process_extracted_images(  # pragma: no cover
+    db: Session,
+    process_id: str,
+    token: str,
+    source_display_name: str,
+    source_file_class: str,
+    reference_curie: str,
+    mod_abbreviation: Optional[str],
+) -> Tuple[int, int, List[str]]:
+    """
+    Fetch the PDFX image manifest for ``process_id`` and upload each image as
+    a referencefile under the dedicated figure file_class.
+
+    The output file_class is derived from the source PDF's file_class:
+    ``main`` → ``converted_main_figure`` and ``supplement`` →
+    ``converted_supplement_figure`` (see :data:`FIGURE_FILE_CLASSES`). Display
+    names follow the existing converted-output convention
+    ``{source_display_name}_{suffix}`` so each figure is grouped under its
+    source PDF in the UI; the suffix is ``image_{idx:03d}`` (1-indexed by
+    manifest order) so names stay stable, sortable, and unique within a
+    source PDF.
+
+    Returns ``(succeeded_count, failed_count, errors)``. Image-extraction
+    failures never raise — the caller's overall conversion still succeeds
+    based on the Markdown outputs.
+    """
+    figure_file_class = FIGURE_FILE_CLASSES.get(source_file_class)
+    if figure_file_class is None:
+        logger.warning(
+            f"No figure file_class mapping for source file_class "
+            f"'{source_file_class}'; skipping image extraction for "
+            f"{reference_curie}"
+        )
+        return 0, 0, []
+
+    try:
+        manifest = download_pdfx_image_manifest(process_id, token)
+    except Exception as e:
+        msg = f"Failed to fetch PDFX image manifest: {e}"
+        logger.warning(f"{msg} (process_id={process_id}, ref={reference_curie})")
+        return 0, 0, [msg]
+
+    images = manifest.get("images") or []
+    if not images:
+        logger.info(
+            f"No extracted images returned by PDFX for {reference_curie} "
+            f"({source_file_class} '{source_display_name}', process_id={process_id})"
+        )
+        return 0, 0, []
+
+    succeeded = 0
+    failed = 0
+    errors: List[str] = []
+
+    for idx, image in enumerate(images, start=1):
+        image_url = image.get("url")
+        if not image_url:
+            failed += 1
+            errors.append(f"image {idx}: manifest entry missing 'url'")
+            continue
+
+        # display_name: {source}_image_{idx:03d}, mirroring the {source}_{method}
+        # convention used for converted Markdown outputs. file_upload_single's
+        # find_first_available_display_name will append _N if needed for
+        # uniqueness within the reference.
+        output_display_name = f"{source_display_name}_image_{idx:03d}"
+
+        try:
+            image_bytes = download_pdfx_image(image_url)
+        except Exception as e:
+            failed += 1
+            errors.append(f"image {idx} ({output_display_name}): download failed: {e}")
+            logger.error(
+                f"Failed to download image {idx} for {reference_curie} "
+                f"({source_file_class} '{source_display_name}'): {e}"
+            )
+            continue
+
+        if not image_bytes:
+            failed += 1
+            errors.append(f"image {idx} ({output_display_name}): empty content")
+            continue
+
+        metadata = {
+            "reference_curie": reference_curie,
+            "display_name": output_display_name,
+            "file_class": figure_file_class,
+            "file_publication_status": "final",
+            "file_extension": CONVERTED_FIGURE_FILE_EXTENSION,
+            "pdf_type": None,
+            "is_annotation": None,
+            "mod_abbreviation": mod_abbreviation,
+        }
+
+        try:
+            file_upload(
+                db=db,
+                metadata=metadata,
+                file=UploadFile(
+                    file=BytesIO(image_bytes),
+                    filename=f"{output_display_name}.{CONVERTED_FIGURE_FILE_EXTENSION}",
+                ),
+                upload_if_already_converted=True,
+            )
+            succeeded += 1
+            logger.info(
+                f"Uploaded extracted figure for {reference_curie} as "
+                f"{figure_file_class} '{output_display_name}'"
+            )
+        except Exception as e:
+            failed += 1
+            errors.append(f"image {idx} ({output_display_name}): upload failed: {e}")
+            logger.error(
+                f"Failed to upload extracted image {idx} for {reference_curie}: {e}"
+            )
+
+    if succeeded or failed:
+        logger.info(
+            f"Image extraction for {reference_curie} "
+            f"({source_file_class} '{source_display_name}'): "
+            f"{succeeded} succeeded, {failed} failed"
+        )
+    return succeeded, failed, errors
 
 
 # Valid pdf_type values
@@ -526,18 +706,24 @@ def _process_single_pdf_file(  # pragma: no cover
     if not file_content:
         return False, [], "Failed to download PDF content"
 
-    # Determine which methods to request
+    # Determine which methods to request. Image extraction requires marker, so
+    # ensure it is in the request set whenever it would otherwise be omitted —
+    # we still only upload Markdown for the methods the caller asked for.
     request_methods = [m for m in methods_to_extract if m != "merged"]
     include_merge = "merged" in methods_to_extract
+    if "marker" not in request_methods:
+        request_methods.append("marker")
 
-    # Submit to PDFX
+    # Submit to PDFX with image extraction enabled (default), so the same job
+    # produces both Markdown and figure images in one PDFX run per source PDF.
     process_id = submit_pdf_to_pdfx(
         file_content=file_content,
         token=token,
-        methods=",".join(request_methods) if request_methods else "grobid,docling,marker",
+        methods=",".join(request_methods),
         merge=include_merge,
         reference_curie=reference_curie,
-        mod_abbreviation=mod_abbreviation
+        mod_abbreviation=mod_abbreviation,
+        extract_images=True,
     )
 
     # Poll for completion
@@ -588,6 +774,25 @@ def _process_single_pdf_file(  # pragma: no cover
 
         except Exception as e:
             logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+    # Always attempt image extraction after the Markdown outputs. Failures here
+    # are reported but do not flip the per-file success — the converted MD
+    # rows are the contract callers depend on.
+    try:
+        process_extracted_images(
+            db=db,
+            process_id=process_id,
+            token=token,
+            source_display_name=display_name,
+            source_file_class=file_class,
+            reference_curie=reference_curie,
+            mod_abbreviation=mod_abbreviation,
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during image extraction for {reference_curie} "
+            f"({file_class} '{display_name}'): {e}"
+        )
 
     if successful_methods:
         logger.info(

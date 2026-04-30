@@ -37,6 +37,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     poll_pdfx_status,
     download_pdfx_result,
     get_nxml_referencefile,
+    process_extracted_images,
     process_nxml_to_markdown,
     process_supplemental_pdfs,
 )
@@ -421,17 +422,23 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             use_in_api=False
         )
 
-        # Determine which methods to request (merged requires merge=True)
+        # Determine which methods to request (merged requires merge=True).
+        # Marker is required for figure image extraction, so ensure it is in
+        # the request set even when the caller did not explicitly ask for it
+        # (we still only upload Markdown for the methods the caller wants).
         request_methods = [m for m in methods_to_extract if m != "merged"]
         include_merge = "merged" in methods_to_extract
+        if "marker" not in request_methods:
+            request_methods.append("marker")
 
         process_id = submit_pdf_to_pdfx(
             file_content=file_content,
             token=token,
-            methods=",".join(request_methods) if request_methods else "grobid,docling,marker",
+            methods=",".join(request_methods),
             merge=include_merge,
             reference_curie=reference_curie,
-            mod_abbreviation=mod_abbreviation
+            mod_abbreviation=mod_abbreviation,
+            extract_images=True,
         )
 
         poll_pdfx_status(process_id, token)
@@ -474,6 +481,25 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
 
             except Exception as e:
                 logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+        # Always attempt image extraction after the Markdown outputs. Failures
+        # here are reported but do not flip the per-file success — the
+        # converted MD rows are the contract callers depend on.
+        try:
+            process_extracted_images(
+                db=db,
+                process_id=process_id,
+                token=token,
+                source_display_name=display_name,
+                source_file_class="main",
+                reference_curie=reference_curie,
+                mod_abbreviation=mod_abbreviation,
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during image extraction for {reference_curie} "
+                f"(main '{display_name}'): {e}"
+            )
 
         if successful_methods:
             logger.info(

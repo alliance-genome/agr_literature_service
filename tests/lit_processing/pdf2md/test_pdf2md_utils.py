@@ -15,12 +15,17 @@ import pytest
 import requests
 
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    CONVERTED_FIGURE_FILE_EXTENSION,
     EXTRACTION_METHODS,
+    FIGURE_FILE_CLASSES,
     PdfDetail,
     ProcessingResult,
     submit_pdf_to_pdfx,
     poll_pdfx_status,
     download_pdfx_result,
+    download_pdfx_image,
+    download_pdfx_image_manifest,
+    process_extracted_images,
     resolve_curie_to_reference,
     get_pdf_files_for_reference,
     get_nxml_referencefile,
@@ -97,6 +102,30 @@ class TestSubmitPdfToPdfx:
 
         assert process_id == "abc123"
         mock_post.assert_called_once()
+        # extract_images defaults to True so every conversion also yields figure images.
+        sent_data = mock_post.call_args.kwargs["data"]
+        assert sent_data["extract_images"] == "true"
+        # review_images is omitted unless the caller overrides it (server default is on).
+        assert "review_images" not in sent_data
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
+    def test_extract_images_can_be_disabled(self, mock_post):
+        """Caller can opt out of image extraction explicitly."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"process_id": "abc123"}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        submit_pdf_to_pdfx(
+            file_content=b"pdf_content",
+            token="test_token",
+            extract_images=False,
+            review_images=False,
+        )
+
+        sent_data = mock_post.call_args.kwargs["data"]
+        assert sent_data["extract_images"] == "false"
+        assert sent_data["review_images"] == "false"
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
     def test_raises_error_when_no_process_id(self, mock_post):
@@ -528,3 +557,239 @@ class TestProcessSupplementalPdfs:
         assert failed == 1
         assert len(errors) == 1
         assert "boom" in errors[0]
+
+
+class TestFigureFileClasses:
+    """Tests for the figure file_class mapping constants."""
+
+    def test_main_and_supplement_have_distinct_classes(self):
+        assert FIGURE_FILE_CLASSES["main"] == "converted_main_figure"
+        assert FIGURE_FILE_CLASSES["supplement"] == "converted_supplement_figure"
+
+    def test_default_extension_is_png(self):
+        assert CONVERTED_FIGURE_FILE_EXTENSION == "png"
+
+
+class TestDownloadPdfxImageManifest:
+    """Test download_pdfx_image_manifest function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_returns_parsed_manifest(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "process_id": "abc123",
+            "images": [{"filename": "_page_0_Figure_1.png", "url": "https://s3/x"}],
+            "manifest_ttl_seconds": 3600,
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = download_pdfx_image_manifest("abc123", "test_token")
+
+        assert result["process_id"] == "abc123"
+        assert len(result["images"]) == 1
+        call_args = mock_get.call_args
+        assert "abc123" in call_args[0][0]
+        assert "/images/urls" in call_args[0][0]
+        assert call_args.kwargs["headers"]["Authorization"] == "Bearer test_token"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_rejects_non_dict_payload(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.json.return_value = ["not", "a", "dict"]
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        with pytest.raises(ValueError):
+            download_pdfx_image_manifest("abc123", "test_token")
+
+
+class TestDownloadPdfxImage:
+    """Test download_pdfx_image function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_returns_image_bytes(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.content = b"\x89PNGfake"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = download_pdfx_image("https://s3.example/foo.png")
+
+        assert result == b"\x89PNGfake"
+        # Pre-signed URLs are unauthenticated — no Authorization header is sent.
+        kwargs = mock_get.call_args.kwargs
+        assert "headers" not in kwargs or "Authorization" not in (kwargs.get("headers") or {})
+
+
+class TestProcessExtractedImages:
+    """Test process_extracted_images function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_unknown_source_file_class_returns_no_op(self, mock_manifest):
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="weird",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+        assert (succeeded, failed, errors) == (0, 0, [])
+        mock_manifest.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_manifest_fetch_failure_is_reported_not_raised(self, mock_manifest):
+        mock_manifest.side_effect = RuntimeError("network down")
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+        assert succeeded == 0
+        assert failed == 0
+        assert len(errors) == 1
+        assert "network down" in errors[0]
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_empty_manifest_is_silent_success(self, mock_manifest):
+        mock_manifest.return_value = {"images": []}
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+        )
+        assert (succeeded, failed, errors) == (0, 0, [])
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_uploads_each_image_with_correct_metadata(
+        self, mock_manifest, mock_download, mock_upload
+    ):
+        mock_manifest.return_value = {
+            "images": [
+                {"filename": "_page_0_Figure_1.png", "url": "https://s3/a"},
+                {"filename": "_page_0_Figure_2.png", "url": "https://s3/b"},
+            ]
+        }
+        mock_download.side_effect = [b"\x89PNGdata1", b"\x89PNGdata2"]
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+
+        assert succeeded == 2
+        assert failed == 0
+        assert errors == []
+        assert mock_upload.call_count == 2
+        # Verify the first image's metadata mirrors the converted-MD convention.
+        first_metadata = mock_upload.call_args_list[0].kwargs["metadata"]
+        assert first_metadata["display_name"] == "paper_image_001"
+        assert first_metadata["file_class"] == "converted_main_figure"
+        assert first_metadata["file_extension"] == "png"
+        assert first_metadata["file_publication_status"] == "final"
+        assert first_metadata["mod_abbreviation"] == "WB"
+        assert first_metadata["reference_curie"] == "AGRKB:1"
+        assert first_metadata["pdf_type"] is None
+        assert first_metadata["is_annotation"] is None
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_supplement_uses_distinct_file_class(
+        self, mock_manifest, mock_download, mock_upload
+    ):
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png", "url": "https://s3/a"}]
+        }
+        mock_download.return_value = b"\x89PNG"
+
+        process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="supp1",
+            source_file_class="supplement",
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+        )
+
+        metadata = mock_upload.call_args.kwargs["metadata"]
+        assert metadata["file_class"] == "converted_supplement_figure"
+        assert metadata["display_name"] == "supp1_image_001"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_per_image_failure_does_not_abort_remaining(
+        self, mock_manifest, mock_download, mock_upload
+    ):
+        mock_manifest.return_value = {
+            "images": [
+                {"filename": "x.png", "url": "https://s3/a"},
+                {"filename": "y.png", "url": "https://s3/b"},
+                {"filename": "z.png", "url": "https://s3/c"},
+            ]
+        }
+        mock_download.side_effect = [b"\x89PNGa", RuntimeError("S3 timeout"), b"\x89PNGc"]
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+
+        assert succeeded == 2
+        assert failed == 1
+        assert len(errors) == 1
+        assert "S3 timeout" in errors[0]
+        # Two successful uploads should have been attempted.
+        assert mock_upload.call_count == 2
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_manifest_entry_missing_url_is_recorded_as_failure(self, mock_manifest):
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png"}, {"filename": "y.png", "url": "https://s3/b"}]
+        }
+
+        with patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image",
+            return_value=b"\x89PNG",
+        ), patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload"
+        ):
+            succeeded, failed, errors = process_extracted_images(
+                db=MagicMock(),
+                process_id="abc",
+                token="t",
+                source_display_name="paper",
+                source_file_class="main",
+                reference_curie="AGRKB:1",
+                mod_abbreviation=None,
+            )
+
+        assert succeeded == 1
+        assert failed == 1
+        assert any("missing 'url'" in e for e in errors)
