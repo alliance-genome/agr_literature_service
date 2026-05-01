@@ -170,6 +170,9 @@ def show_need_review(
         base_query = base_query.filter(ReferenceModel.curie.in_(es_curies))
 
     # Get total count - use ES count if search was performed, otherwise count from DB
+    # Note: When both search_query and sort_source are provided, total_count may be an
+    # approximation since ES count doesn't account for sort_source filtering. This is
+    # acceptable for UI display purposes as the user sees the actual returned result count.
     if es_total_count is not None:
         total_count = es_total_count
     else:

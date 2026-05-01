@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, Security
@@ -41,8 +41,8 @@ def show_need_review(
     count: int = 100,
     search_query: Optional[str] = None,
     sort_source: Optional[str] = None,
-    sort_by: str = "curie",
-    sort_order: str = "desc",
+    sort_by: Literal["curie", "date_published"] = "curie",
+    sort_order: Literal["asc", "desc"] = "desc",
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):

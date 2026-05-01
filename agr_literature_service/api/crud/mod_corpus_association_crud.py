@@ -316,11 +316,15 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
         reference_curie = mca.reference.curie if mca.reference else None
         mod_abbreviation = mca.mod.abbreviation if mca.mod else None
 
+        # Use savepoint for each item to enable individual rollback on failure
         try:
+            nested = db.begin_nested()  # SAVEPOINT
+
             # Setting corpus to False (moving OUT)
             if corpus is False and mca.corpus is True:
                 has_manual_tags = has_manual_tet(db, str(mca.reference_id), mod_abbreviation)
                 if has_manual_tags and not force_out:
+                    nested.rollback()
                     results.append(ModCorpusAssociationBatchResultItem(
                         mod_corpus_association_id=mca_id,
                         success=False,
@@ -344,12 +348,19 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                         db, str(mca.reference_id), "ATP:0000140",
                         mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
+                # Add ZFIN-specific workflow tag
+                if mod_abbreviation == 'ZFIN':
+                    wft_obj = WorkflowTagModel(reference_id=mca.reference_id,
+                                               mod_id=mca.mod_id,
+                                               workflow_tag_id=name_to_atp["pre-indexing prioritization needed"])
+                    db.add(wft_obj)
 
             # Update the corpus value
             mca.corpus = corpus
             mca.dateUpdated = datetime.utcnow()
             db.add(mca)
 
+            nested.commit()  # Commit savepoint
             results.append(ModCorpusAssociationBatchResultItem(
                 mod_corpus_association_id=mca_id,
                 success=True,
@@ -358,6 +369,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
             ))
 
         except Exception as e:
+            nested.rollback()  # Rollback savepoint on failure
             results.append(ModCorpusAssociationBatchResultItem(
                 mod_corpus_association_id=mca_id,
                 success=False,
@@ -365,7 +377,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                 reference_curie=reference_curie
             ))
 
-    # Commit all changes at once
+    # Commit all successful changes
     db.commit()
 
     return results
