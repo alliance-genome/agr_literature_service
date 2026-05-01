@@ -28,9 +28,12 @@ from agr_literature_service.api.models import ReferenceModel, ReferencefileModel
 from agr_literature_service.api.utils.conversion_job_manager import ConversionJob, conversion_manager
 from agr_literature_service.api.utils.conversion_processor import run_conversion_job
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    PendingMainSource,
     get_nxml_referencefile,
     get_pdf_files_for_reference,
     is_eligible_for_supplement_conversion,
+    pending_main_sources,
+    pending_supplement_sources,
     process_nxml_to_markdown,
 )
 
@@ -83,21 +86,32 @@ def _assess_reference(db: Session, reference: ReferenceModel,
                       overwrite_tei_md: bool = False) -> Dict[str, Any]:
     """
     Inspect a reference's files and sources. Return a dict with:
-        - main_cached: bool — a converted_merged_main row exists
-        - supp_cached: bool — any converted_merged_supplement row exists
+        - main_cached: bool — at least one converted_merged_main row exists
+        - supp_cached: bool — at least one converted_merged_supplement row exists
         - nxml_source: ReferencefileModel | None
-        - main_pdfs: list[ReferencefileModel] of eligible main PDFs
-        - supp_pdfs: list[ReferencefileModel] of eligible supplement PDFs
+        - main_pdfs: list[ReferencefileModel] of all main PDFs
+        - supp_pdfs: list[ReferencefileModel] of all supplement PDFs
         - main_pdf_available: bool
         - supp_pdf_available: bool
-        - main_missing: bool — needs conversion AND has a source
-        - supp_missing: bool — needs conversion AND has a source
-        - needs_async: bool — at least one missing class needs PDFX
+        - pending_main: list[PendingMainSource] — main-side sources still
+            needing conversion (per-source dedup; nXML preferred over PDF)
+        - pending_supplements: list[ReferencefileModel] — supplement PDFs
+            still needing conversion (per-source dedup)
+        - main_missing: bool — pending_main is non-empty
+        - supp_missing: bool — pending_supplements is non-empty
+        - needs_async: bool — at least one pending source needs PDFX
         - mod_abbreviation: str | None — first available mod abbrev for metadata
 
-    When ``overwrite_tei_md`` is True, converted rows whose display_name ends
-    with ``_tei`` (produced by the legacy TEI→MD batch job) are NOT counted as
-    cached — so the endpoint will re-convert from nXML or PDF and the
+    Per-source dedup: a source is "already converted" iff a
+    ``converted_merged_*`` row exists with the matching ``_nxml`` / ``_merged``
+    display_name suffix (and ``_tei`` for legacy TEI-derived rows unless
+    ``overwrite_tei_md`` is True). This means a later batch tick (or a later
+    MOD's "conversion needed" tag) only processes sources that haven't been
+    converted yet — supplements MOD A processed earlier are skipped while
+    supplements MOD B added later are picked up.
+
+    When ``overwrite_tei_md`` is True, ``_tei``-suffixed rows are NOT
+    counted, so the endpoint re-converts from nXML or PDF and the
     higher-quality output supersedes the TEI-derived fallback.
     """
     main_cached = False
@@ -126,28 +140,36 @@ def _assess_reference(db: Session, reference: ReferenceModel,
             if mod_abbreviation is None and ref_file_mod.mod is not None:
                 mod_abbreviation = ref_file_mod.mod.abbreviation
 
-    nxml_source = None if main_cached else get_nxml_referencefile(db, reference.reference_id)
-    main_pdfs = [] if main_cached else get_pdf_files_for_reference(db, reference.reference_id, "main")
+    nxml_source = get_nxml_referencefile(db, reference.reference_id)
+    main_pdfs = get_pdf_files_for_reference(db, reference.reference_id, "main")
+    supp_pdfs = get_pdf_files_for_reference(db, reference.reference_id, "supplement")
+
+    pending_main: List[PendingMainSource] = pending_main_sources(
+        db, reference.reference_id,
+        prefer_nxml=True, ignore_tei_derived=overwrite_tei_md,
+    )
 
     # Supplement conversion is restricted to references in corpus for WB/ZFIN/FB
-    # (SCRUM-6026). Treat ineligible references as if they have no supplement
-    # PDFs so the endpoint reports "converted" cleanly once main is done and
-    # never schedules supplement work.
+    # (SCRUM-6026). Treat ineligible references as if they have no pending
+    # supplements so the endpoint reports "converted" cleanly once main is
+    # done and never schedules supplement work.
     supp_eligible = is_eligible_for_supplement_conversion(db, reference.reference_id)
-    if supp_cached or not supp_eligible:
-        supp_pdfs: List[Any] = []
+    if supp_eligible:
+        pending_supplements: List[Any] = pending_supplement_sources(
+            db, reference.reference_id, ignore_tei_derived=overwrite_tei_md,
+        )
     else:
-        supp_pdfs = get_pdf_files_for_reference(db, reference.reference_id, "supplement")
+        pending_supplements = []
 
     main_pdf_available = bool(main_pdfs)
     supp_pdf_available = bool(supp_pdfs)
 
-    main_missing = (not main_cached) and (nxml_source is not None or main_pdf_available)
-    supp_missing = (not supp_cached) and supp_pdf_available
+    main_missing = bool(pending_main)
+    supp_missing = bool(pending_supplements)
 
-    main_needs_pdf = main_missing and nxml_source is None and main_pdf_available
-    supp_needs_pdf = supp_missing and supp_pdf_available
-    needs_async = main_needs_pdf or supp_needs_pdf
+    # PDF-only pending sources need the async PDFX path; nXML can be done sync.
+    main_needs_pdf = any(p["kind"] == "pdf" for p in pending_main)
+    needs_async = main_needs_pdf or supp_missing
 
     return {
         "main_cached": main_cached,
@@ -157,6 +179,8 @@ def _assess_reference(db: Session, reference: ReferenceModel,
         "supp_pdfs": supp_pdfs,
         "main_pdf_available": main_pdf_available,
         "supp_pdf_available": supp_pdf_available,
+        "pending_main": pending_main,
+        "pending_supplements": pending_supplements,
         "main_missing": main_missing,
         "supp_missing": supp_missing,
         "needs_async": needs_async,
@@ -167,43 +191,44 @@ def _assess_reference(db: Session, reference: ReferenceModel,
 def _expected_source_files_from_assessment(
     assessment: Dict[str, Any],
 ) -> List[Dict[str, Optional[str]]]:
-    """Build the list of eligible source files for the upcoming conversion job.
+    """Build the list of eligible source files for the upcoming conversion job
+    from the assessment's per-source pending lists.
 
     Used to seed ``per_file_progress`` with ``pending`` entries so callers
     polling while a job runs can see the full list of files in flight, not
-    only the ones already finished.
+    only the ones already finished. Each entry corresponds to a source file
+    that genuinely still needs conversion — sources that were already
+    converted in a prior run are not seeded here.
     """
     expected: List[Dict[str, Optional[str]]] = []
 
-    if assessment.get("main_missing"):
-        nxml_source = assessment.get("nxml_source")
-        if nxml_source is not None:
+    for entry in assessment.get("pending_main") or []:
+        ref_file = entry["ref_file"]
+        if entry["kind"] == "nxml":
             expected.append({
-                "source_display_name": nxml_source.display_name,
+                "source_display_name": ref_file.display_name,
                 "source_file_class": "nXML",
-                "source_referencefile_id": nxml_source.referencefile_id,
-                "expected_converted_display_name": f"{nxml_source.display_name}_nxml",
+                "source_referencefile_id": ref_file.referencefile_id,
+                "expected_converted_display_name": f"{ref_file.display_name}_nxml",
                 "expected_converted_file_class": "converted_merged_main",
             })
         else:
-            for pdf in assessment.get("main_pdfs") or []:
-                expected.append({
-                    "source_display_name": pdf.display_name,
-                    "source_file_class": "main",
-                    "source_referencefile_id": pdf.referencefile_id,
-                    "expected_converted_display_name": f"{pdf.display_name}_merged",
-                    "expected_converted_file_class": "converted_merged_main",
-                })
-
-    if assessment.get("supp_missing"):
-        for pdf in assessment.get("supp_pdfs") or []:
             expected.append({
-                "source_display_name": pdf.display_name,
-                "source_file_class": "supplement",
-                "source_referencefile_id": pdf.referencefile_id,
-                "expected_converted_display_name": f"{pdf.display_name}_merged",
-                "expected_converted_file_class": "converted_merged_supplement",
+                "source_display_name": ref_file.display_name,
+                "source_file_class": "main",
+                "source_referencefile_id": ref_file.referencefile_id,
+                "expected_converted_display_name": f"{ref_file.display_name}_merged",
+                "expected_converted_file_class": "converted_merged_main",
             })
+
+    for ref_file in assessment.get("pending_supplements") or []:
+        expected.append({
+            "source_display_name": ref_file.display_name,
+            "source_file_class": "supplement",
+            "source_referencefile_id": ref_file.referencefile_id,
+            "expected_converted_display_name": f"{ref_file.display_name}_merged",
+            "expected_converted_file_class": "converted_merged_supplement",
+        })
 
     return expected
 
@@ -559,9 +584,13 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
             completed_at=now_iso, job=recent_job,
         )
 
+    # Sync-nxml shortcut applies when the only pending main source is the
+    # nXML and there are no pending supplements — the nXML conversion is
+    # fast enough to run inline.
+    pending_main = assessment.get("pending_main") or []
     nxml_only = (
-        assessment["main_missing"]
-        and assessment["nxml_source"] is not None
+        bool(pending_main)
+        and all(p["kind"] == "nxml" for p in pending_main)
         and not assessment["supp_missing"]
     )
     if nxml_only:

@@ -82,6 +82,171 @@ def is_eligible_for_supplement_conversion(db: Session, reference_id: int) -> boo
     )
 
 
+# Suffixes appended to a source file's display_name when its converted
+# Markdown row is created. nXML conversions produce ``_nxml``; PDFX runs
+# produce ``_merged`` (the canonical "done" marker — the per-method rows
+# _grobid/_docling/_marker may or may not all be present, but a successful
+# conversion always writes the merged row). The legacy TEI->MD batch wrote
+# ``_tei``-suffixed rows; those still count as "converted" unless a caller
+# explicitly opts to overwrite them.
+_NXML_SUFFIX = "_nxml"
+_PDF_MERGED_SUFFIX = "_merged"
+_TEI_SUFFIX = "_tei"
+
+
+def _converted_main_suffixes(is_nxml: bool, ignore_tei_derived: bool) -> List[str]:
+    if is_nxml:
+        return [_NXML_SUFFIX]
+    suffixes = [_PDF_MERGED_SUFFIX]
+    if not ignore_tei_derived:
+        suffixes.append(_TEI_SUFFIX)
+    return suffixes
+
+
+def _converted_supplement_suffixes(ignore_tei_derived: bool) -> List[str]:
+    suffixes = [_PDF_MERGED_SUFFIX]
+    if not ignore_tei_derived:
+        suffixes.append(_TEI_SUFFIX)
+    return suffixes
+
+
+def is_main_source_converted(
+    db: Session,
+    reference_id: int,
+    source_display_name: str,
+    *,
+    is_nxml: bool,
+    ignore_tei_derived: bool = False,
+) -> bool:
+    """
+    Has the given main-side source file already produced a converted_merged_main
+    Markdown row? Matches by display_name suffix:
+    ``{source_display_name}_nxml`` for nXML sources, ``{source_display_name}_merged``
+    for main PDFs (plus legacy ``_tei`` rows unless ``ignore_tei_derived=True``).
+    """
+    expected_names = [
+        f"{source_display_name}{suffix}"
+        for suffix in _converted_main_suffixes(is_nxml, ignore_tei_derived)
+    ]
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "converted_merged_main",
+            ReferencefileModel.file_extension == "md",
+            ReferencefileModel.file_publication_status == "final",
+            ReferencefileModel.display_name.in_(expected_names),
+        )
+        .first()
+        is not None
+    )
+
+
+def is_supplement_source_converted(
+    db: Session,
+    reference_id: int,
+    source_display_name: str,
+    *,
+    ignore_tei_derived: bool = False,
+) -> bool:
+    """
+    Has the given supplement PDF already produced a converted_merged_supplement
+    Markdown row? Matches by display_name suffix ``_merged`` (plus legacy
+    ``_tei`` rows unless ``ignore_tei_derived=True``).
+    """
+    expected_names = [
+        f"{source_display_name}{suffix}"
+        for suffix in _converted_supplement_suffixes(ignore_tei_derived)
+    ]
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "converted_merged_supplement",
+            ReferencefileModel.file_extension == "md",
+            ReferencefileModel.file_publication_status == "final",
+            ReferencefileModel.display_name.in_(expected_names),
+        )
+        .first()
+        is not None
+    )
+
+
+class PendingMainSource(TypedDict):
+    """A main-side source file that still needs conversion."""
+    kind: Literal["nxml", "pdf"]
+    ref_file: ReferencefileModel
+
+
+def pending_main_sources(
+    db: Session,
+    reference_id: int,
+    prefer_nxml: bool = True,
+    ignore_tei_derived: bool = False,
+) -> List[PendingMainSource]:
+    """
+    Return the main-side source files for a reference whose converted
+    Markdown output is missing (and so still needs to be produced).
+
+    Per-source dedup: a source is "already converted" iff a
+    ``converted_merged_main`` row exists with the matching ``_nxml`` /
+    ``_merged`` display_name suffix (and ``_tei`` for legacy rows unless
+    ``ignore_tei_derived`` is True). This lets later batch ticks (or
+    later MOD workflow tags) pick up just the new sources, without
+    re-running PDFX/nXML on files that have already been processed.
+
+    When ``prefer_nxml`` is True (default) and an nXML source exists, it
+    is the only main source returned (its conversion is the canonical
+    main MD); main PDFs are returned only if no nXML is present. When
+    ``prefer_nxml`` is False, nXML is ignored and only pending main PDFs
+    are returned.
+    """
+    pending: List[PendingMainSource] = []
+
+    nxml = get_nxml_referencefile(db, reference_id) if prefer_nxml else None
+    if nxml is not None:
+        if not is_main_source_converted(
+            db, reference_id, nxml.display_name,
+            is_nxml=True, ignore_tei_derived=ignore_tei_derived,
+        ):
+            pending.append({"kind": "nxml", "ref_file": nxml})
+        # nXML present (converted or pending) — by convention we don't ALSO
+        # convert main PDFs when nXML is the chosen source for this reference.
+        return pending
+
+    for pdf in get_pdf_files_for_reference(db, reference_id, "main"):
+        if not is_main_source_converted(
+            db, reference_id, pdf.display_name,
+            is_nxml=False, ignore_tei_derived=ignore_tei_derived,
+        ):
+            pending.append({"kind": "pdf", "ref_file": pdf})
+    return pending
+
+
+def pending_supplement_sources(
+    db: Session,
+    reference_id: int,
+    ignore_tei_derived: bool = False,
+) -> List[ReferencefileModel]:
+    """
+    Return the supplement PDFs for a reference whose
+    ``converted_merged_supplement`` output is missing.
+
+    Per-source dedup so a later batch tick (or a later MOD's
+    "conversion needed" tag) only processes supplements that haven't been
+    converted yet — supplements MOD A converted in an earlier run are
+    skipped, supplements MOD B added later are picked up.
+    """
+    pending: List[ReferencefileModel] = []
+    for supp in get_pdf_files_for_reference(db, reference_id, "supplement"):
+        if not is_supplement_source_converted(
+            db, reference_id, supp.display_name,
+            ignore_tei_derived=ignore_tei_derived,
+        ):
+            pending.append(supp)
+    return pending
+
+
 class PdfDetail(TypedDict):
     """Type for PDF processing detail."""
     referencefile_id: int
@@ -1152,19 +1317,29 @@ def process_supplemental_pdfs(  # pragma: no cover
         )
         return 0, 0, []
 
-    supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
-    if not supplements:
+    # Per-source dedup: only process supplements whose converted_merged_supplement
+    # output is missing. Already-converted supplements (e.g., processed in an
+    # earlier batch run for a different MOD) are skipped so we don't burn
+    # PDFX time re-running them.
+    pending = pending_supplement_sources(db, reference_id)
+    if not pending:
+        all_supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
+        if all_supplements:
+            logger.info(
+                f"All {len(all_supplements)} supplemental PDF(s) for "
+                f"{reference_curie} already converted; nothing to do"
+            )
         return 0, 0, []
 
     logger.info(
-        f"Processing {len(supplements)} supplemental PDF(s) for {reference_curie}"
+        f"Processing {len(pending)} pending supplemental PDF(s) for {reference_curie}"
     )
 
     succeeded = 0
     failed = 0
     errors: List[str] = []
 
-    for pdf_file in supplements:
+    for pdf_file in pending:
         try:
             success, _methods, error = _process_single_pdf_file(
                 db=db,
