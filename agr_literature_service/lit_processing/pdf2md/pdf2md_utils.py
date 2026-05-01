@@ -253,6 +253,99 @@ def pending_main_sources(
     return pending
 
 
+_SOURCE_SUFFIXES = (
+    _NXML_SUFFIX,
+    _PDF_MERGED_SUFFIX,
+    _TEI_SUFFIX,
+    "_grobid",
+    "_docling",
+    "_marker",
+)
+
+
+def find_source_for_converted(
+    reference: ReferenceModel,
+    converted_display_name: str,
+    converted_file_class: str,
+) -> Optional[ReferencefileModel]:
+    """
+    Given a ``converted_*_main`` / ``converted_*_supplement`` Markdown row,
+    return the source ReferencefileModel it was produced from (or None if
+    the source can't be identified).
+
+    Uses the display_name suffix convention written by the conversion
+    helpers: ``{source}_{nxml|merged|tei|grobid|docling|marker}``.
+    """
+    base: Optional[str] = None
+    for suffix in _SOURCE_SUFFIXES:
+        if converted_display_name.endswith(suffix):
+            base = converted_display_name[: -len(suffix)]
+            break
+    if base is None:
+        return None
+
+    nxml_suffix_used = converted_display_name.endswith(_NXML_SUFFIX)
+    if converted_file_class.endswith("_main"):
+        source_class = "nXML" if nxml_suffix_used else "main"
+    elif converted_file_class.endswith("_supplement"):
+        source_class = "supplement"
+    else:
+        return None
+
+    for ref_file in reference.referencefiles or []:
+        if ref_file.file_class == source_class and ref_file.display_name == base:
+            return ref_file
+    return None
+
+
+def sync_converted_file_mods_to_sources(
+    db: Session,
+    reference: ReferenceModel,
+) -> int:
+    """
+    For each converted Markdown row of this reference, ensure its
+    ``referencefile_mod`` associations include every association the source
+    file has. Idempotent: only ADDS missing associations; never removes.
+
+    Returns the number of associations added (0 when everything is
+    already in sync).
+
+    SCRUM-6041: when a MOD-specific batch run converts a shared file,
+    the converted output is initially associated only with that one MOD.
+    A subsequent on-demand call can use this helper to make the converted
+    output also visible to every other MOD whose source file the same
+    reference points at — including null-mod (PMC, open-access) sources.
+    """
+    from agr_literature_service.api.models.referencefile_model import (
+        ReferencefileModAssociationModel,
+    )
+    added = 0
+    for ref_file in reference.referencefiles or []:
+        fc = ref_file.file_class or ""
+        if not fc.startswith("converted_"):
+            continue
+        if ref_file.file_extension != "md":
+            continue
+        if not (fc.endswith("_main") or fc.endswith("_supplement")):
+            continue
+        source = find_source_for_converted(
+            reference, ref_file.display_name or "", fc,
+        )
+        if source is None:
+            continue
+        target_mod_ids = {a.mod_id for a in (ref_file.referencefile_mods or [])}
+        source_mod_ids = {a.mod_id for a in (source.referencefile_mods or [])}
+        for missing_mod_id in source_mod_ids - target_mod_ids:
+            db.add(ReferencefileModAssociationModel(
+                referencefile_id=ref_file.referencefile_id,
+                mod_id=missing_mod_id,
+            ))
+            added += 1
+    if added:
+        db.commit()
+    return added
+
+
 def pending_supplement_sources(
     db: Session,
     reference_id: int,

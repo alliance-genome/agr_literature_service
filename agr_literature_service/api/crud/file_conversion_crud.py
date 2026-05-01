@@ -35,6 +35,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     pending_main_sources,
     pending_supplement_sources,
     process_nxml_to_markdown,
+    sync_converted_file_mods_to_sources,
 )
 
 logger = logging.getLogger(__name__)
@@ -186,6 +187,98 @@ def _assess_reference(db: Session, reference: ReferenceModel,
         "needs_async": needs_async,
         "mod_abbreviation": mod_abbreviation,
     }
+
+
+def per_mod_pending_status(
+    db: Session,
+    reference: ReferenceModel,
+    overwrite_tei_md: bool = False,
+) -> List[Dict[str, Any]]:
+    """
+    Return per-MOD conversion status for every MOD that currently has a
+    ``text_convert_job`` workflow tag for this reference.
+
+    Each entry: ``{mod_abbreviation, reference_workflow_tag_id,
+    pending_main_count, pending_supplement_count, all_converted}``.
+    ``all_converted`` is True iff that MOD has no pending main or
+    supplement sources — i.e., that MOD's conversion is complete.
+    """
+    from agr_literature_service.api.crud.workflow_tag_crud import get_jobs
+    from agr_literature_service.api.models import ModModel
+
+    jobs = get_jobs(db, "text_convert_job", reference=reference.curie)
+    out: List[Dict[str, Any]] = []
+    for job in jobs:
+        mod_id = job["mod_id"]
+        mod_abbr_row = (
+            db.query(ModModel.abbreviation)
+            .filter(ModModel.mod_id == mod_id)
+            .one_or_none()
+        )
+        if not mod_abbr_row:
+            continue
+        mod_abbreviation = mod_abbr_row.abbreviation
+        pending_main = pending_main_sources(
+            db, reference.reference_id,
+            prefer_nxml=True, ignore_tei_derived=overwrite_tei_md,
+            mod_abbreviation=mod_abbreviation,
+        )
+        # Only count supplements when the reference is supplement-eligible
+        # (SCRUM-6026: WB/ZFIN/FB only). Otherwise this MOD has nothing to
+        # do on the supplement side regardless of what supplement PDFs exist.
+        if is_eligible_for_supplement_conversion(db, reference.reference_id):
+            pending_supplements = pending_supplement_sources(
+                db, reference.reference_id,
+                ignore_tei_derived=overwrite_tei_md,
+                mod_abbreviation=mod_abbreviation,
+            )
+        else:
+            pending_supplements = []
+        out.append({
+            "mod_abbreviation": mod_abbreviation,
+            "reference_workflow_tag_id": job["reference_workflow_tag_id"],
+            "pending_main_count": len(pending_main),
+            "pending_supplement_count": len(pending_supplements),
+            "all_converted": (
+                len(pending_main) == 0 and len(pending_supplements) == 0
+            ),
+        })
+    return out
+
+
+def transition_completed_text_convert_tags(
+    db: Session,
+    reference: ReferenceModel,
+    overwrite_tei_md: bool = False,
+) -> int:
+    """
+    For each ``text_convert_job`` "needed" tag on this reference, transition
+    to ``on_success`` when no source files remain pending for that MOD.
+
+    Returns the number of tags transitioned.
+
+    Used by the on-demand endpoint to land all eligible MODs' workflow
+    tags after conversion + mod-association sync. Only transitions tags
+    whose MOD genuinely has nothing left to do — MODs with pending
+    sources stay in their current state.
+    """
+    from agr_literature_service.api.crud.workflow_tag_crud import job_change_atp_code
+
+    transitioned = 0
+    for entry in per_mod_pending_status(db, reference, overwrite_tei_md):
+        if entry["all_converted"]:
+            try:
+                job_change_atp_code(
+                    db, entry["reference_workflow_tag_id"], "on_success"
+                )
+                transitioned += 1
+            except Exception as exc:
+                logger.warning(
+                    f"Failed to transition text_convert_job tag "
+                    f"{entry['reference_workflow_tag_id']} for "
+                    f"{entry['mod_abbreviation']} on {reference.curie}: {exc}"
+                )
+    return transitioned
 
 
 def _expected_source_files_from_assessment(
@@ -423,21 +516,37 @@ def _converted_classes_from_assessment(assessment: Dict[str, Any]) -> List[str]:
     return out
 
 
-def _status_payload(reference: ReferenceModel, *, status_str: str,
+def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
                     converted_classes: List[str],
                     job: Optional[ConversionJob] = None,
                     error_message: Optional[str] = None,
                     started_at: Optional[str] = None,
-                    completed_at: Optional[str] = None) -> Dict[str, Any]:
+                    completed_at: Optional[str] = None,
+                    overwrite_tei_md: bool = False) -> Dict[str, Any]:
     """Build the endpoint response. ``job`` is the most recent job for the
     reference, if any — its id, timestamps, and per-file progress are surfaced.
     Per-file progress is merged with synthesized DB entries so converted rows
-    produced in prior sessions still surface their referencefile_ids."""
+    produced in prior sessions still surface their referencefile_ids.
+
+    ``per_mod_status`` lists every MOD with a text_convert_job tag for this
+    reference and that MOD's conversion state (pending counts +
+    all_converted boolean). Best-effort: any error computing per-MOD
+    status returns an empty list rather than failing the whole response.
+    """
     progress = _merge_progress(
         _job_progress_payload(job),
         _db_derived_progress(reference),
     )
     _attach_figures(reference, progress)
+    try:
+        per_mod = per_mod_pending_status(
+            db, reference, overwrite_tei_md=overwrite_tei_md
+        )
+    except Exception:
+        logger.exception(
+            f"Failed to compute per-MOD status for {reference.curie}"
+        )
+        per_mod = []
     payload: Dict[str, Any] = {
         "reference_curie": reference.curie,
         "status": status_str,
@@ -447,6 +556,7 @@ def _status_payload(reference: ReferenceModel, *, status_str: str,
         "completed_at": completed_at,
         "converted_classes": converted_classes,
         "per_file_progress": progress,
+        "per_mod_status": per_mod,
     }
     if job is not None and payload["started_at"] is None:
         payload["started_at"] = job.started_at.isoformat()
@@ -558,7 +668,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
     existing = conversion_manager.get_active_job_for_reference(reference.reference_id)
     if existing is not None:
         return status.HTTP_202_ACCEPTED, _status_payload(
-            reference, status_str=STATUS_RUNNING,
+            db, reference, status_str=STATUS_RUNNING,
             converted_classes=_converted_classes_from_assessment(assessment),
             started_at=existing.started_at.isoformat(), job=existing,
         )
@@ -574,12 +684,29 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
     if nothing_missing:
         if nothing_cached and no_sources:
             return status.HTTP_200_OK, _status_payload(
-                reference, status_str=STATUS_NO_SOURCES,
+                db, reference, status_str=STATUS_NO_SOURCES,
                 converted_classes=_converted_classes_from_assessment(assessment),
                 job=recent_job,
             )
+        # SCRUM-6041: nothing to convert, but still reconcile mod
+        # associations on existing converted rows and transition any
+        # text_convert_job tags whose MODs are now fully converted.
+        # This is the "already converted by an earlier MOD-specific run,
+        # need to fan out the result to other MODs" case.
+        try:
+            sync_converted_file_mods_to_sources(db, reference)
+            transition_completed_text_convert_tags(
+                db, reference, overwrite_tei_md=overwrite_tei_md
+            )
+            db.expire(reference)
+            reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id,
+                                      load_referencefiles=True)
+        except Exception:
+            logger.exception(
+                f"Post-conversion sync/transition failed for {reference.curie}"
+            )
         return status.HTTP_200_OK, _status_payload(
-            reference, status_str=STATUS_CONVERTED,
+            db, reference, status_str=STATUS_CONVERTED,
             converted_classes=_converted_classes_from_assessment(assessment),
             completed_at=now_iso, job=recent_job,
         )
@@ -597,7 +724,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
         success, error = _execute_sync_nxml(db, reference, assessment)
         if not success:
             return status.HTTP_200_OK, _status_payload(
-                reference, status_str=STATUS_FAILED,
+                db, reference, status_str=STATUS_FAILED,
                 converted_classes=_converted_classes_from_assessment(assessment),
                 error_message=error or "nXML conversion failed",
                 completed_at=now_iso, job=recent_job,
@@ -612,7 +739,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
                                   load_referencefiles=True)
         post_assessment = _assess_reference(db, reference)
         return status.HTTP_200_OK, _status_payload(
-            reference, status_str=STATUS_CONVERTED,
+            db, reference, status_str=STATUS_CONVERTED,
             converted_classes=_converted_classes_from_assessment(post_assessment),
             started_at=now_iso, completed_at=now_iso, job=recent_job,
         )
@@ -659,14 +786,14 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
                             if final_job and final_job.completed_at
                             else now_iso)
             return status.HTTP_200_OK, _status_payload(
-                reference, status_str=STATUS_FAILED,
+                db, reference, status_str=STATUS_FAILED,
                 converted_classes=_converted_classes_from_assessment(post_assessment),
                 error_message=error_detail,
                 started_at=job.started_at.isoformat(),
                 completed_at=completed_at, job=final_job,
             )
         return status.HTTP_200_OK, _status_payload(
-            reference, status_str=STATUS_CONVERTED,
+            db, reference, status_str=STATUS_CONVERTED,
             converted_classes=_converted_classes_from_assessment(post_assessment),
             started_at=job.started_at.isoformat(),
             completed_at=datetime.utcnow().isoformat(), job=final_job,
@@ -686,7 +813,7 @@ def handle_conversion_request(db: Session, curie_or_reference_id: str, wait: boo
         overwrite_tei_md,
     )
     return status.HTTP_202_ACCEPTED, _status_payload(
-        reference, status_str=STATUS_RUNNING,
+        db, reference, status_str=STATUS_RUNNING,
         converted_classes=_converted_classes_from_assessment(assessment),
         started_at=job.started_at.isoformat(), job=job,
     )

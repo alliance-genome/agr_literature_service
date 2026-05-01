@@ -208,8 +208,12 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
     from agr_literature_service.api.crud.file_conversion_crud import (
         _assess_reference,
         delete_tei_derived_md_rows,
+        transition_completed_text_convert_tags,
     )
     from agr_literature_service.api.crud.reference_utils import get_reference
+    from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+        sync_converted_file_mods_to_sources,
+    )
 
     db = SessionLocal()
     try:
@@ -247,6 +251,26 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
                 db, reference,
                 ["converted_merged_main", "converted_merged_supplement"],
             )
+
+        # SCRUM-6041: on-demand path always reconciles converted-file mod
+        # associations with their sources and transitions every fully-
+        # converted MOD's text_convert_job tag — even when no new
+        # conversion ran in this call (the reference may already be
+        # converted but missing some MOD associations / pending tag
+        # transitions from prior MOD-specific batch runs).
+        try:
+            db.expire_all()
+            reference = get_reference(db, str(reference_id), load_referencefiles=True)
+            sync_converted_file_mods_to_sources(db, reference)
+            transition_completed_text_convert_tags(
+                db, reference, overwrite_tei_md=overwrite_tei_md
+            )
+        except Exception:
+            logger.exception(
+                f"Conversion job {job_id}: post-conversion sync/transition failed "
+                f"for reference_id={reference_id}"
+            )
+
         conversion_manager.complete_job(
             job_id=job_id,
             success=overall_success,
