@@ -41,8 +41,8 @@ def show_need_review(
     count: int = 100,
     search_query: Optional[str] = None,
     sort_source: Optional[str] = None,
-    sort_by: Optional[str] = "curie",
-    sort_order: Optional[str] = "desc",
+    sort_by: str = "curie",
+    sort_order: str = "desc",
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
