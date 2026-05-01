@@ -317,6 +317,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
         mod_abbreviation = mca.mod.abbreviation if mca.mod else None
 
         # Use savepoint for each item to enable individual rollback on failure
+        nested = None
         try:
             nested = db.begin_nested()  # SAVEPOINT
 
@@ -369,7 +370,8 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
             ))
 
         except Exception as e:
-            nested.rollback()  # Rollback savepoint on failure
+            if nested is not None:
+                nested.rollback()  # Rollback savepoint on failure
             results.append(ModCorpusAssociationBatchResultItem(
                 mod_corpus_association_id=mca_id,
                 success=False,
