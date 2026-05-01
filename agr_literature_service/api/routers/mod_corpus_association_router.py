@@ -8,6 +8,8 @@ from agr_literature_service.api.crud import mod_corpus_association_crud
 from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
                                                 ModCorpusAssociationSchemaShow,
                                                 ModCorpusAssociationSchemaUpdate,
+                                                ModCorpusAssociationSchemaBatchUpdate,
+                                                ModCorpusAssociationSchemaBatchResponse,
                                                 ResponseMessageSchema)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -31,6 +33,39 @@ def create(request: ModCorpusAssociationSchemaPost,
            db: Session = db_session) -> int:
     set_global_user_from_cognito(db, user)
     return mod_corpus_association_crud.create(db, request)
+
+
+@router.patch('/batch',
+              status_code=status.HTTP_200_OK,
+              response_model=ModCorpusAssociationSchemaBatchResponse)
+def batch_update(request: ModCorpusAssociationSchemaBatchUpdate,
+                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                 db: Session = db_session) -> ModCorpusAssociationSchemaBatchResponse:
+    """
+    Batch update corpus value for multiple mod_corpus_associations.
+
+    Use this endpoint to move multiple papers IN or OUT of corpus at once.
+    Typical use case: bulk move papers OUT (corpus=False) based on search results.
+
+    - **mod_corpus_association_ids**: List of IDs to update (max 1000)
+    - **corpus**: True to move IN, False to move OUT
+    - **force_out**: Set to True to force removal even if manual tags exist
+    """
+    set_global_user_from_cognito(db, user)
+    results = mod_corpus_association_crud.batch_update_corpus(
+        db,
+        request.mod_corpus_association_ids,
+        request.corpus,
+        request.force_out or False
+    )
+    successful = sum(1 for r in results if r.success)
+    failed = len(results) - successful
+    return ModCorpusAssociationSchemaBatchResponse(
+        total_requested=len(request.mod_corpus_association_ids),
+        successful=successful,
+        failed=failed,
+        results=results
+    )
 
 
 @router.delete('/{mod_corpus_association_id}',
