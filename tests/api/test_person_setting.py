@@ -144,13 +144,13 @@ class TestPersonSetting:
 
     def test_find_by_name(self, test_person_setting, auth_headers):  # noqa
         with TestClient(app) as client:
-            res = client.get("/person_setting/by/name", params={"name": "Alice"}, headers=auth_headers)
+            res = client.get("/person_setting/by_name", params={"name": "Alice"}, headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             rows = res.json()
             assert isinstance(rows, list)
             assert any(r["person_setting_id"] == test_person_setting.new_person_setting_id for r in rows)
 
-            res_empty = client.get("/person_setting/by/name", params={"name": "ZZZ_NOT_FOUND"},
+            res_empty = client.get("/person_setting/by_name", params={"name": "ZZZ_NOT_FOUND"},
                                    headers=auth_headers)
             assert res_empty.status_code == status.HTTP_200_OK
             assert res_empty.json() == []

@@ -1,11 +1,11 @@
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
 
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import person_crud
+from agr_literature_service.api.crud import person_crud, person_cross_reference_crud
 from agr_literature_service.api.schemas import (
     PersonSchemaCreate,
     PersonSchemaUpdate,
@@ -32,6 +32,87 @@ def create(
     """
     set_global_user_from_cognito(db, user)
     return person_crud.create(db, request)
+
+
+@router.get('/whoami')
+def get_user_info_from_cognito(
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user)
+):
+    """Get information about the currently authenticated user."""
+    if user is None:
+        return {"error": "Not authenticated"}
+    return {
+        "user_id": user.get("sub"),
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "groups": user.get("cognito:groups", [])
+    }
+
+
+# Lookup routes — declared BEFORE /{curie_or_person_id} so the catch-all
+# does not capture single-segment lookup paths like /by_name.
+@router.get(
+    "/by_email/{email}",
+    response_model=Optional[PersonSchemaShow],
+    status_code=status.HTTP_200_OK,
+)
+def get_by_email(
+    email: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Get a single person by email (exact match).
+    Returns 200 with the person if found; 204 (no content) if not found.
+    """
+    person = person_crud.get_by_email(db, email)
+    if not person:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return person
+
+
+@router.get(
+    "/by_person_cross_reference/{curie_or_person_cross_reference_id}",
+    response_model=PersonSchemaShow,
+    status_code=status.HTTP_200_OK,
+)
+def get_by_person_cross_reference(
+    curie_or_person_cross_reference_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Get a person by a person_cross_reference curie or its internal id.
+    """
+    pcr = person_cross_reference_crud.get_by_curie_or_id(
+        db, curie_or_person_cross_reference_id
+    )
+    if pcr.person_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"PersonCrossReference {curie_or_person_cross_reference_id} "
+                "is not associated to a person"
+            ),
+        )
+    return person_crud.show(db, str(pcr.person_id))
+
+
+@router.get(
+    "/by_name",
+    response_model=List[PersonSchemaShow],
+    status_code=status.HTTP_200_OK,
+)
+def get_by_name(
+    name: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Find people by name. Returns a (possibly empty) list.
+    Implement the matching strategy (exact/ILIKE) inside person_crud.
+    """
+    return person_crud.find_by_name(db, name)
 
 
 @router.delete("/{curie_or_person_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -64,21 +145,6 @@ def patch(
     return person_crud.patch(db, curie_or_person_id, patch_data)
 
 
-@router.get('/whoami')
-def get_user_info_from_cognito(
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user)
-):
-    """Get information about the currently authenticated user."""
-    if user is None:
-        return {"error": "Not authenticated"}
-    return {
-        "user_id": user.get("sub"),
-        "email": user.get("email"),
-        "name": user.get("name"),
-        "groups": user.get("cognito:groups", [])
-    }
-
-
 @router.get(
     "/{curie_or_person_id}",
     response_model=PersonSchemaShow,
@@ -93,40 +159,3 @@ def show(
     Get a person by curie or internal ID.
     """
     return person_crud.show(db, curie_or_person_id)
-
-
-@router.get(
-    "/by/email/{email}",
-    response_model=Optional[PersonSchemaShow],
-    status_code=status.HTTP_200_OK,
-)
-def get_by_email(
-    email: str,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    """
-    Get a single person by email (exact match).
-    Returns 200 with the person if found; 204 (no content) if not found.
-    """
-    person = person_crud.get_by_email(db, email)
-    if not person:
-        return Response(status_code=status.HTTP_204_NO_CONTENT)
-    return person
-
-
-@router.get(
-    "/by/name",
-    response_model=List[PersonSchemaShow],
-    status_code=status.HTTP_200_OK,
-)
-def get_by_name(
-    name: str,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    """
-    Find people by name. Returns a (possibly empty) list.
-    Implement the matching strategy (exact/ILIKE) inside person_crud.
-    """
-    return person_crud.find_by_name(db, name)
