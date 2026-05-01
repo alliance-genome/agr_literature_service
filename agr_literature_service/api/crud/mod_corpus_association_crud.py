@@ -356,9 +356,8 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                                                workflow_tag_id=name_to_atp["pre-indexing prioritization needed"])
                     db.add(wft_obj)
 
-            # Update the corpus value
+            # Update the corpus value (date_updated is auto-set by AuditedModel event)
             mca.corpus = corpus
-            mca.dateUpdated = datetime.utcnow()
             db.add(mca)
 
             nested.commit()  # Commit savepoint
