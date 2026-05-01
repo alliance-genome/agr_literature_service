@@ -19,7 +19,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import transition_to_work
 from agr_literature_service.api.models import ModCorpusAssociationModel, ReferenceModel, \
     ModModel, WorkflowTagModel
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost, \
-    ModCorpusAssociationBatchResultItem
+    ModCorpusAssociationBatchResultItem, ModCorpusSortSourceType
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from typing import List
 
@@ -358,6 +358,9 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
 
             # Update the corpus value (date_updated is auto-set by AuditedModel event)
             mca.corpus = corpus
+            # Set sort source to manual_creation when moving papers out of corpus
+            if corpus is False:
+                mca.mod_corpus_sort_source = ModCorpusSortSourceType.Manual_creation
             db.add(mca)
 
             nested.commit()  # Commit savepoint
