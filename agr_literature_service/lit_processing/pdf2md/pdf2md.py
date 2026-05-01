@@ -627,7 +627,10 @@ def process_single_reference(  # pragma: no cover
             else:
                 main_error = pdfx_error
 
-    # 3. Optionally convert supplemental PDFs regardless of main path used
+    # 3. Optionally convert supplemental PDFs regardless of main path used.
+    # When called from the workflow batch (mod_abbreviation is set), only
+    # supplements associated with that MOD are processed; bulk modes
+    # (newest/since-year, mod_abbreviation=None) process every supplement.
     if process_supplements:
         try:
             sup_succeeded, sup_failed, sup_errors = process_supplemental_pdfs(
@@ -635,7 +638,8 @@ def process_single_reference(  # pragma: no cover
                 reference_id=reference_id,
                 reference_curie=reference_curie,
                 token=token,
-                methods_to_extract=methods_to_extract
+                methods_to_extract=methods_to_extract,
+                mod_abbreviation=mod_abbreviation,
             )
             if sup_succeeded or sup_failed:
                 logger.info(
@@ -841,66 +845,53 @@ def main(  # pragma: no cover
             logger.info(f"Loaded batch of {len(jobs)} jobs. Total jobs loaded: {len(all_jobs)}")
         logger.info("Finished loading all text conversion jobs.")
 
-        # SCRUM-6041: group jobs by reference_id so each reference is
-        # converted at most once per batch tick. After conversion, every
-        # MOD's per-reference workflow tag is transitioned (on_success or
-        # on_failed) — so a paper in WB+ZFIN+FB corpora produces one PDFX
-        # run, not three. Per-source dedup inside process_single_reference
-        # additionally skips files already converted in earlier batch ticks.
-        from collections import defaultdict
-        jobs_by_reference: Dict[int, List[Dict]] = defaultdict(list)
-        for job in all_jobs:
-            jobs_by_reference[job['reference_id']].append(job)
-
+        # Per-MOD per-job iteration: each text_convert_job processes only
+        # its own MOD's files. Per-source dedup inside the helpers means a
+        # shared file (e.g., PMC main PDF) converted by MOD A's job will
+        # be skipped when MOD B's job runs — but if MOD B has a distinct
+        # MOD-specific PDF or supplement, that file gets its own conversion.
         mod_abbreviation_from_mod_id: Dict[int, str] = {}
         objects_with_errors: List[Dict] = []
-        total_count = len(jobs_by_reference)
+        total_count = len(all_jobs)
         success_count = 0
         failure_count = 0
         skipped_count = 0
         ref_times: List[float] = []
 
-        def _mod_abbr(mod_id: int) -> str:
-            if mod_id not in mod_abbreviation_from_mod_id:
-                mod_abbreviation_from_mod_id[mod_id] = db.query(
-                    ModModel.abbreviation
-                ).filter(ModModel.mod_id == mod_id).one().abbreviation
-            return mod_abbreviation_from_mod_id[mod_id]
-
-        for idx, (ref_id, ref_jobs) in enumerate(jobs_by_reference.items(), 1):
+        for idx, job in enumerate(all_jobs, 1):
             ref_start_time = time.time()
             error_msg: Optional[str] = None
-            reference_curie = ref_jobs[0]['reference_curie']
-            tag_ids = [j['reference_workflow_tag_id'] for j in ref_jobs]
-            ref_mod_abbrs = sorted({_mod_abbr(j['mod_id']) for j in ref_jobs})
 
-            logger.info(
-                f"Processing {idx}/{total_count}: {reference_curie} "
-                f"(MODs: {','.join(ref_mod_abbrs)}, jobs: {len(ref_jobs)})"
-            )
+            ref_id = job['reference_id']
+            reference_workflow_tag_id = job['reference_workflow_tag_id']
+            mod_id = job['mod_id']
+            reference_curie = job['reference_curie']
 
-            # Use the first MOD's source resolution. That MOD's main PDF
-            # (if MOD-specific) drives display_name / file_extension; per-source
-            # dedup picks up files that any MOD added later via
-            # _resolve_workflow_ref_file_info is intentionally MOD-aware,
-            # mirroring the previous per-job behavior.
-            primary_mod = _mod_abbr(ref_jobs[0]['mod_id'])
+            logger.info(f"Processing {idx}/{total_count}: {reference_curie}")
+
+            if mod_id not in mod_abbreviation_from_mod_id:
+                mod_abbreviation = db.query(ModModel.abbreviation).filter(
+                    ModModel.mod_id == mod_id
+                ).one().abbreviation
+                mod_abbreviation_from_mod_id[mod_id] = mod_abbreviation
+            else:
+                mod_abbreviation = mod_abbreviation_from_mod_id[mod_id]
+
             ref_file_info, resolve_error = _resolve_workflow_ref_file_info(
                 db=db,
                 ref_id=ref_id,
                 reference_curie=reference_curie,
-                mod_abbreviation=primary_mod,
+                mod_abbreviation=mod_abbreviation,
                 prefer_nxml=prefer_nxml
             )
 
             if ref_file_info is None:
                 skipped_count += 1
                 error_msg = resolve_error or "Could not resolve reference source file"
-                logger.warning(f"{error_msg} for {reference_curie}; marking job(s) as failed")
-                for tag_id in tag_ids:
-                    job_change_atp_code(db, tag_id, "on_failed")
+                logger.warning(f"{error_msg} for {reference_curie}; marking job as failed")
+                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
                 objects_with_errors.append(_build_workflow_error_record(
-                    db, reference_curie, "N/A", "N/A", primary_mod, error_msg
+                    db, reference_curie, "N/A", "N/A", mod_abbreviation, error_msg
                 ))
                 continue
 
@@ -919,25 +910,17 @@ def main(  # pragma: no cover
             ref_elapsed = time.time() - ref_start_time
             ref_times.append(ref_elapsed)
 
-            transition = "on_success" if success else "on_failed"
-            for tag_id in tag_ids:
-                job_change_atp_code(db, tag_id, transition)
-
             if success:
                 success_count += 1
-                logger.info(
-                    f"Completed {reference_curie} in {ref_elapsed:.2f}s "
-                    f"({len(tag_ids)} workflow tag(s) → on_success)"
-                )
+                job_change_atp_code(db, reference_workflow_tag_id, "on_success")
+                logger.info(f"Completed {reference_curie} in {ref_elapsed:.2f}s")
             else:
                 failure_count += 1
-                logger.error(
-                    f"Failed {reference_curie} after {ref_elapsed:.2f}s "
-                    f"({len(tag_ids)} workflow tag(s) → on_failed)"
-                )
+                job_change_atp_code(db, reference_workflow_tag_id, "on_failed")
+                logger.error(f"Failed {reference_curie} after {ref_elapsed:.2f}s")
                 objects_with_errors.append(_build_workflow_error_record(
                     db, reference_curie, display_name, file_extension,
-                    primary_mod, error_msg or "Unknown"
+                    mod_abbreviation, error_msg or "Unknown"
                 ))
 
         # Calculate timing statistics

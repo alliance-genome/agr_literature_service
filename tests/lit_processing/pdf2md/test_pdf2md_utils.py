@@ -1115,3 +1115,102 @@ class TestPendingSupplementSources:
         mock_pdfs.return_value = [s1]
         mock_converted.return_value = True
         assert pending_supplement_sources(MagicMock(), 42) == []
+
+
+def _supp_for_mods(display_name: str, mods):
+    """Build a supplement ReferencefileModel mock with the given mod
+    associations. ``mods`` is a list where each entry is either a MOD
+    abbreviation string or None for a null-mod (PMC) association.
+    """
+    supp = MagicMock(display_name=display_name)
+    rf_mods = []
+    for mod_abbr in mods:
+        rf_mod = MagicMock()
+        if mod_abbr is None:
+            rf_mod.mod = None
+        else:
+            rf_mod.mod = MagicMock(abbreviation=mod_abbr)
+        rf_mods.append(rf_mod)
+    supp.referencefile_mods = rf_mods
+    return supp
+
+
+class TestFileIsForMod:
+    """Tests for the per-MOD eligibility filter used by pending_*_sources."""
+
+    def test_no_mod_filter_matches_anything(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", ["WB"])
+        assert _file_is_for_mod(f, mod_abbreviation=None) is True
+
+    def test_matching_mod_is_eligible(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", ["WB", "ZFIN"])
+        assert _file_is_for_mod(f, mod_abbreviation="WB") is True
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is True
+
+    def test_non_matching_mod_is_not_eligible(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", ["WB"])
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is False
+
+    def test_null_mod_file_is_eligible_for_any_mod(self):
+        """Files with at least one mod_id IS NULL association (PMC/shared)
+        are eligible for every MOD's job."""
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", [None])
+        assert _file_is_for_mod(f, mod_abbreviation="WB") is True
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is True
+
+    def test_null_mod_plus_specific_mod(self):
+        """A file with both null and specific associations is eligible for
+        the matching MOD AND any MOD via the null association."""
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", [None, "WB"])
+        assert _file_is_for_mod(f, mod_abbreviation="WB") is True
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is True
+
+
+class TestPendingSupplementSourcesModFilter:
+    """Tests for the mod_abbreviation filter on pending_supplement_sources."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_filters_to_mod_eligible_when_mod_provided(
+        self, mock_pdfs, mock_converted
+    ):
+        wb_supp = _supp_for_mods("wb_only", ["WB"])
+        zfin_supp = _supp_for_mods("zfin_only", ["ZFIN"])
+        shared = _supp_for_mods("shared", [None])
+        mock_pdfs.return_value = [wb_supp, zfin_supp, shared]
+        mock_converted.return_value = False  # nothing converted yet
+
+        wb_pending = pending_supplement_sources(
+            MagicMock(), 42, mod_abbreviation="WB"
+        )
+        # WB sees its own + the shared null-mod, but NOT ZFIN-only
+        assert {p.display_name for p in wb_pending} == {"wb_only", "shared"}
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_no_mod_filter_returns_all(self, mock_pdfs, mock_converted):
+        wb_supp = _supp_for_mods("wb_only", ["WB"])
+        zfin_supp = _supp_for_mods("zfin_only", ["ZFIN"])
+        shared = _supp_for_mods("shared", [None])
+        mock_pdfs.return_value = [wb_supp, zfin_supp, shared]
+        mock_converted.return_value = False
+
+        all_pending = pending_supplement_sources(MagicMock(), 42)
+        assert {p.display_name for p in all_pending} == {
+            "wb_only", "zfin_only", "shared",
+        }

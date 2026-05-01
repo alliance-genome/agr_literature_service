@@ -178,11 +178,33 @@ class PendingMainSource(TypedDict):
     ref_file: ReferencefileModel
 
 
+def _file_is_for_mod(
+    ref_file: ReferencefileModel, mod_abbreviation: Optional[str]
+) -> bool:
+    """
+    True iff ``ref_file`` should be considered owned by ``mod_abbreviation``.
+
+    A MOD owns a referencefile iff there is a ``referencefile_mod`` row
+    associating the file with that MOD, OR the file has at least one
+    referencefile_mod row with ``mod_id IS NULL`` (shared / PMC).
+    Pass ``mod_abbreviation=None`` to disable the filter (any file matches).
+    """
+    if mod_abbreviation is None:
+        return True
+    for ref_file_mod in ref_file.referencefile_mods or []:
+        if ref_file_mod.mod is None:
+            return True
+        if ref_file_mod.mod.abbreviation == mod_abbreviation:
+            return True
+    return False
+
+
 def pending_main_sources(
     db: Session,
     reference_id: int,
     prefer_nxml: bool = True,
     ignore_tei_derived: bool = False,
+    mod_abbreviation: Optional[str] = None,
 ) -> List[PendingMainSource]:
     """
     Return the main-side source files for a reference whose converted
@@ -200,11 +222,17 @@ def pending_main_sources(
     main MD); main PDFs are returned only if no nXML is present. When
     ``prefer_nxml`` is False, nXML is ignored and only pending main PDFs
     are returned.
+
+    When ``mod_abbreviation`` is provided, only main PDFs associated with
+    that MOD (or shared / null-mod files) are considered; other MODs'
+    MOD-specific PDFs are excluded so each MOD's text_convert_job only
+    processes its own files. ``mod_abbreviation=None`` disables the
+    filter (any file is eligible).
     """
     pending: List[PendingMainSource] = []
 
     nxml = get_nxml_referencefile(db, reference_id) if prefer_nxml else None
-    if nxml is not None:
+    if nxml is not None and _file_is_for_mod(nxml, mod_abbreviation):
         if not is_main_source_converted(
             db, reference_id, nxml.display_name,
             is_nxml=True, ignore_tei_derived=ignore_tei_derived,
@@ -215,6 +243,8 @@ def pending_main_sources(
         return pending
 
     for pdf in get_pdf_files_for_reference(db, reference_id, "main"):
+        if not _file_is_for_mod(pdf, mod_abbreviation):
+            continue
         if not is_main_source_converted(
             db, reference_id, pdf.display_name,
             is_nxml=False, ignore_tei_derived=ignore_tei_derived,
@@ -227,6 +257,7 @@ def pending_supplement_sources(
     db: Session,
     reference_id: int,
     ignore_tei_derived: bool = False,
+    mod_abbreviation: Optional[str] = None,
 ) -> List[ReferencefileModel]:
     """
     Return the supplement PDFs for a reference whose
@@ -236,9 +267,16 @@ def pending_supplement_sources(
     "conversion needed" tag) only processes supplements that haven't been
     converted yet — supplements MOD A converted in an earlier run are
     skipped, supplements MOD B added later are picked up.
+
+    When ``mod_abbreviation`` is provided, only supplements associated
+    with that MOD (or shared / null-mod files) are returned, so each
+    MOD's text_convert_job only processes its own supplements.
+    ``mod_abbreviation=None`` disables the filter (any file is eligible).
     """
     pending: List[ReferencefileModel] = []
     for supp in get_pdf_files_for_reference(db, reference_id, "supplement"):
+        if not _file_is_for_mod(supp, mod_abbreviation):
+            continue
         if not is_supplement_source_converted(
             db, reference_id, supp.display_name,
             ignore_tei_derived=ignore_tei_derived,
@@ -1287,10 +1325,11 @@ def process_supplemental_pdfs(  # pragma: no cover
     reference_id: int,
     reference_curie: str,
     token: str,
-    methods_to_extract: Optional[List[str]] = None
+    methods_to_extract: Optional[List[str]] = None,
+    mod_abbreviation: Optional[str] = None,
 ) -> Tuple[int, int, List[str]]:
     """
-    Convert all supplemental PDFs for a reference to Markdown via PDFX.
+    Convert supplemental PDFs for a reference to Markdown via PDFX.
 
     Uses the existing per-PDF helper (_process_single_pdf_file), which already
     handles supplement file_class naming ('converted_{method}_supplement').
@@ -1301,6 +1340,11 @@ def process_supplemental_pdfs(  # pragma: no cover
         reference_curie: The reference curie for metadata/logging.
         token: PDFX bearer token.
         methods_to_extract: List of methods to extract (default: all).
+        mod_abbreviation: When provided, only supplements associated with
+            this MOD (or shared / null-mod ones) are processed — each MOD's
+            text_convert_job is responsible only for its own supplements.
+            ``None`` (the default) processes every supplement, used by
+            bulk-mode entry points that have no MOD context.
 
     Returns:
         Tuple of (succeeded_count, failed_count, per_supplement_errors). Each
@@ -1320,14 +1364,22 @@ def process_supplemental_pdfs(  # pragma: no cover
     # Per-source dedup: only process supplements whose converted_merged_supplement
     # output is missing. Already-converted supplements (e.g., processed in an
     # earlier batch run for a different MOD) are skipped so we don't burn
-    # PDFX time re-running them.
-    pending = pending_supplement_sources(db, reference_id)
+    # PDFX time re-running them. With mod_abbreviation set, also skip
+    # supplements that don't belong to this MOD.
+    pending = pending_supplement_sources(
+        db, reference_id, mod_abbreviation=mod_abbreviation
+    )
     if not pending:
         all_supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
         if all_supplements:
+            scope = (
+                f"for {mod_abbreviation}"
+                if mod_abbreviation
+                else "across all MODs"
+            )
             logger.info(
-                f"All {len(all_supplements)} supplemental PDF(s) for "
-                f"{reference_curie} already converted; nothing to do"
+                f"All eligible supplemental PDF(s) for {reference_curie} "
+                f"({scope}) already converted; nothing to do"
             )
         return 0, 0, []
 
