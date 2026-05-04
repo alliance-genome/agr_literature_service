@@ -60,3 +60,10 @@ def search_descendants(ancestor_curie: str,
 def search_species(species: str,
                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
     return ateam_db_helpers.search_species(species)
+
+
+@router.get('/get_or_create_species/{taxon_id}',
+            status_code=200)
+def get_or_create_species(taxon_id: str,
+                          user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    return ateam_db_helpers.get_or_create_species(taxon_id)

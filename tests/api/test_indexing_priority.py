@@ -4,9 +4,7 @@ from fastapi import HTTPException
 from agr_literature_service.api.models import (
     ReferenceModel,
     IndexingPriorityModel,
-    WorkflowTagModel,
     ModModel,
-    TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.crud import indexing_priority_crud as ip_crud
 from agr_literature_service.api.schemas.indexing_priority_schemas import (
@@ -29,7 +27,6 @@ def patch_ip_helpers(monkeypatch):
     Make ip_crud independent of seeded ATP/workflow data:
       - get_workflow_tags_from_process -> fixed list of ATP codes
       - get_name_to_atp_for_descendants -> fixed name map
-      - wft_patch -> simple in-DB update of WorkflowTagModel.workflow_tag_id
     """
     def _fake_get_workflow_tags_from_process(process_atp_id):
         # Pretend the process ATP:0000210 has these two child tags
@@ -51,30 +48,6 @@ def patch_ip_helpers(monkeypatch):
     # nothing to unpatch explicitly (monkeypatch handles teardown)
 
 
-@pytest.fixture(autouse=True)
-def patch_wft_patch(monkeypatch):
-    """
-    Replace ip_crud.wft_patch with a minimal in-DB updater so set_priority
-    can flip ATP:0000306 -> {success,failed} without depending on router logic.
-    """
-    def _fake_wft_patch(db, reference_workflow_tag_id, update_dict):
-        wft = (
-            db.query(WorkflowTagModel)
-            .filter(WorkflowTagModel.reference_workflow_tag_id == reference_workflow_tag_id)
-            .first()
-        )
-        if not wft:
-            # Mirror your real patch behavior with an HTTPException if needed
-            raise HTTPException(status_code=404, detail="workflow tag not found")
-        if "workflow_tag_id" in update_dict:
-            wft.workflow_tag_id = update_dict["workflow_tag_id"]
-        db.add(wft)
-        db.commit()
-
-    monkeypatch.setattr(ip_crud, "wft_patch", _fake_wft_patch)
-    yield
-
-
 # ---------- helpers ----------
 
 def _ensure_mod(session, abbr: str) -> int:
@@ -87,61 +60,11 @@ def _ensure_mod(session, abbr: str) -> int:
     return mod.mod_id
 
 
-def _ensure_tet_source(session, data_provider: str) -> int:
-    # First ensure the MOD exists for the data_provider
-    mod_id = _ensure_mod(session, data_provider)
-
-    src = (
-        session.query(TopicEntityTagSourceModel)
-        .filter(TopicEntityTagSourceModel.source_method == "abc_document_classifier")
-        .filter(TopicEntityTagSourceModel.data_provider == data_provider)
-        .first()
-    )
-    if not src:
-        src = TopicEntityTagSourceModel(
-            source_method="abc_document_classifier",
-            data_provider=data_provider,
-            secondary_data_provider_id=mod_id,
-            source_evidence_assertion="automated_assertion",  # Provide a default value
-        )
-        session.add(src)
-        session.commit()
-        session.refresh(src)
-    return src.topic_entity_tag_source_id
-
-
-def _ensure_preindexing_wft(session, ref_curie: str, mod_abbr: str) -> int:
-    """Create ATP:0000306 workflow tag for (ref, mod) if missing."""
-    ref_id = (
-        session.query(ReferenceModel.reference_id)
-        .filter(ReferenceModel.curie == ref_curie)
-        .scalar()
-    )
-    mod_id = _ensure_mod(session, mod_abbr)
-    wft = (
-        session.query(WorkflowTagModel)
-        .filter(WorkflowTagModel.reference_id == ref_id)
-        .filter(WorkflowTagModel.mod_id == mod_id)
-        .filter(WorkflowTagModel.workflow_tag_id == "ATP:0000306")
-        .first()
-    )
-    if not wft:
-        wft = WorkflowTagModel(
-            reference_id=ref_id,
-            mod_id=mod_id,
-            workflow_tag_id="ATP:0000306",
-        )
-        session.add(wft)
-        session.commit()
-        session.refresh(wft)
-    return wft.reference_workflow_tag_id
-
-
 def _mk_payload(ref_curie: str, mod_abbr: str, ip_code: str = "ATP:0000211", score: float = 0.5):
     return IndexingPrioritySchemaPost(
         reference_curie=ref_curie,
         mod_abbreviation=mod_abbr,
-        indexing_priority=ip_code,
+        predicted_indexing_priority=ip_code,
         confidence_score=score,
     )
 
@@ -149,11 +72,10 @@ def _mk_payload(ref_curie: str, mod_abbr: str, ip_code: str = "ATP:0000211", sco
 # ---------- tests ----------
 
 class TestIndexingPriorityCRUD:
-    def test_create_and_show(self, db, test_reference): # noqa
+    def test_create_and_show(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "ZFIN"
         _ensure_mod(db, mod_abbr)
-        _ensure_tet_source(db, mod_abbr)
 
         new_id = ip_crud.create(db, _mk_payload(ref_curie, mod_abbr, score=0.87))
         assert isinstance(new_id, int)
@@ -164,13 +86,11 @@ class TestIndexingPriorityCRUD:
         assert data["mod_abbreviation"] == mod_abbr
         assert "updated_by_email" in data
 
-    def test_patch_and_show(self, db, test_reference): # noqa
+    def test_patch_and_show(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
         mod1, mod2 = "FB", "MGI"
         _ensure_mod(db, mod1)
         _ensure_mod(db, mod2)
-        _ensure_tet_source(db, mod1)
-        _ensure_tet_source(db, mod2)
 
         tag_id = ip_crud.create(db, _mk_payload(ref_curie, mod1, score=0.61))
 
@@ -180,28 +100,19 @@ class TestIndexingPriorityCRUD:
             {
                 "mod_abbreviation": mod2,
                 "confidence_score": 0.9,
-                "validation_by_biocurator": True,
+                "curator_indexing_priority": "ATP:0000211",
             },
         )
 
         data = ip_crud.show(db, tag_id)
         assert data["mod_abbreviation"] == mod2
         assert float(data["confidence_score"]) == pytest.approx(0.9, rel=0, abs=1e-6)
+        assert data["curator_indexing_priority"] == "ATP:0000211"
 
-        # Handle both string and boolean representations
-        validation_value = data["validation_by_biocurator"]
-        if isinstance(validation_value, str):
-            # If it's a string, check for 'true' (case-insensitive)
-            assert validation_value.lower() == 'true'
-        else:
-            # If it's a boolean, check for True
-            assert validation_value is True
-
-    def test_create_duplicate(self, db, test_reference): # noqa
+    def test_create_duplicate(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "SGD"
         _ensure_mod(db, mod_abbr)
-        _ensure_tet_source(db, mod_abbr)
 
         ip_crud.create(db, _mk_payload(ref_curie, mod_abbr))
         with pytest.raises(HTTPException) as ei:
@@ -209,11 +120,10 @@ class TestIndexingPriorityCRUD:
         assert ei.value.status_code == 422
         assert "already exists" in ei.value.detail
 
-    def test_create_bad_ref_or_mod(self, db): # noqa
+    def test_create_bad_ref_or_mod(self, db):  # noqa
         # bad reference
         mod_abbr = "WB"
         _ensure_mod(db, mod_abbr)
-        _ensure_tet_source(db, mod_abbr)
         with pytest.raises(HTTPException) as ei1:
             ip_crud.create(db, _mk_payload("AGRKB:NOT_A_REF", mod_abbr))
         assert ei1.value.status_code == 422
@@ -223,11 +133,10 @@ class TestIndexingPriorityCRUD:
             ip_crud.create(db, _mk_payload("AGRKB:0000000001", "NOPE"))
         assert ei2.value.status_code == 422
 
-    def test_destroy(self, db, test_reference): # noqa
+    def test_destroy(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "XB"
         _ensure_mod(db, mod_abbr)
-        _ensure_tet_source(db, mod_abbr)
 
         tag_id = ip_crud.create(db, _mk_payload(ref_curie, mod_abbr, score=0.42))
         ip_crud.destroy(db, tag_id)
@@ -236,7 +145,7 @@ class TestIndexingPriorityCRUD:
             ip_crud.show(db, tag_id)
         assert ei.value.status_code == 404
 
-    def test_get_ref_ids_with_indexing_priority_helper(self, db, test_reference): # noqa
+    def test_get_ref_ids_with_indexing_priority_helper(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
         ref_id = (
             db.query(ReferenceModel.reference_id)
@@ -248,23 +157,18 @@ class TestIndexingPriorityCRUD:
         mod_b = "WB"
         for m in (mod_a, mod_b):
             _ensure_mod(db, m)
-            _ensure_tet_source(db, m)
 
         db.add(IndexingPriorityModel(
             reference_id=ref_id,
             mod_id=db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_a).scalar(),
-            source_id=_ensure_tet_source(db, mod_a),
-            indexing_priority="ATP:0000211",
+            predicted_indexing_priority="ATP:0000211",
             confidence_score=0.5,
-            validation_by_biocurator=False,
         ))
         db.add(IndexingPriorityModel(
             reference_id=ref_id,
             mod_id=db.query(ModModel.mod_id).filter(ModModel.abbreviation == mod_b).scalar(),
-            source_id=_ensure_tet_source(db, mod_b),
-            indexing_priority="ATP:0000212",
+            predicted_indexing_priority="ATP:0000212",
             confidence_score=0.5,
-            validation_by_biocurator=False,
         ))
         db.commit()
 
@@ -275,60 +179,10 @@ class TestIndexingPriorityCRUD:
         assert ref_id in ids_mod_a_211
         assert ref_id not in ids_mod_b_211
 
-    def test_set_priority_success_and_failure_paths(self, db, test_reference): # noqa
-        ref_curie = test_reference.new_ref_curie
-        mod_abbr = "ZFIN"
-        _ensure_mod(db, mod_abbr)
-        _ensure_tet_source(db, mod_abbr)
-        _ensure_preindexing_wft(db, ref_curie, mod_abbr)
-
-        result = ip_crud.set_priority(
-            db=db,
-            reference_curie=ref_curie,
-            mod_abbreviation=mod_abbr,
-            indexing_priority="ATP:0000211",
-            confidence_score=0.777,
-        )
-        assert result["reference_curie"] == ref_curie
-        assert result["mod_abbreviation"] == mod_abbr
-        assert result["indexing_priority"] == "ATP:0000211"
-
-        wft_row = (
-            db.query(WorkflowTagModel)
-            .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
-            .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-            .filter(ReferenceModel.curie == ref_curie, ModModel.abbreviation == mod_abbr)
-            .filter(WorkflowTagModel.workflow_tag_id.in_(["ATP:0000303", "ATP:0000304", "ATP:0000306"]))
-            .order_by(WorkflowTagModel.reference_workflow_tag_id.desc())
-            .first()
-        )
-        assert wft_row.workflow_tag_id == "ATP:0000303"
-
-        _ensure_preindexing_wft(db, ref_curie, mod_abbr)  # fresh ATP:0000306 again
-        with pytest.raises(HTTPException):
-            ip_crud.set_priority(
-                db=db,
-                reference_curie=ref_curie,
-                mod_abbreviation=mod_abbr,
-                indexing_priority="ATP:0000211",
-                confidence_score=0.9,
-            )
-        wft_row2 = (
-            db.query(WorkflowTagModel)
-            .join(ReferenceModel, WorkflowTagModel.reference_id == ReferenceModel.reference_id)
-            .join(ModModel, WorkflowTagModel.mod_id == ModModel.mod_id)
-            .filter(ReferenceModel.curie == ref_curie, ModModel.abbreviation == mod_abbr)
-            .filter(WorkflowTagModel.workflow_tag_id.in_(["ATP:0000303", "ATP:0000304"]))
-            .order_by(WorkflowTagModel.reference_workflow_tag_id.desc())
-            .first()
-        )
-        assert wft_row2.workflow_tag_id == "ATP:0000304"
-
-    def test_get_indexing_priority_tag_shapes_and_names(self, db, test_reference): # noqa
+    def test_get_indexing_priority_tag_shapes_and_names(self, db, test_reference):  # noqa
         ref_curie = test_reference.new_ref_curie
         mod_abbr = "SGD"
         _ensure_mod(db, mod_abbr)
-        _ensure_tet_source(db, mod_abbr)
 
         ip_id = ip_crud.create(db, _mk_payload(ref_curie, mod_abbr, "ATP:0000211", 0.33))
         assert isinstance(ip_id, int)
@@ -342,10 +196,10 @@ class TestIndexingPriorityCRUD:
         row = out["current_priority_tag"]
         for key in [
             "indexing_priority_id",
-            "indexing_priority",
-            "indexing_priority_name",
+            "predicted_indexing_priority",
+            "predicted_indexing_priority_name",
             "confidence_score",
-            "validation_by_biocurator",
+            "curator_indexing_priority",
             "reference_curie",
             "mod_abbreviation",
             "updated_by_email",
@@ -353,4 +207,4 @@ class TestIndexingPriorityCRUD:
         ]:
             assert key in row
 
-        assert row["indexing_priority_name"]
+        assert row["predicted_indexing_priority_name"]

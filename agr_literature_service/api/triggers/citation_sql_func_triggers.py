@@ -27,8 +27,7 @@ DECLARE
    --- build <volume>(<issue>):<page(s)> into ref_details
    ref_details TEXT default '';
    -- used in queries for short
-   iso resource.iso_abbreviation%type;
-   medline resource.iso_abbreviation%type;
+   title_abbr resource.title_abbreviation%type;
 -- Long citation
 --  citation = get_citation_from_args(authorNames, year, title, journal,
 --                                     ref_db_obj.volume or '',
@@ -51,7 +50,7 @@ BEGIN
       ORDER BY author.order asc
     loop
       -- raise notice 'Record %', auth;
-      authors = CONCAT(authors , auth.name, '; ');
+      authors = CONCAT(authors, get_long_citation_author_string(auth), '; ');
       -- raise notice 'String %', authors;
       IF author_short = '' THEN
         author_short = get_short_author_string(auth);
@@ -68,14 +67,12 @@ BEGIN
     END IF;
     -- raise notice 'Authors %', authors;
     -- Get the resource abbr
-    SELECT res.iso_abbreviation, res.medline_abbreviation, res.title into iso, medline, journal
+    SELECT res.title_abbreviation, res.title into title_abbr, journal
       FROM reference ref, resource res
       WHERE ref.resource_id = res.resource_id AND
             ref.reference_id = ref_id;
-    IF iso is not NULL THEN
-        res_abbr := iso;
-    ELSIF  medline is not NULL THEN
-        res_abbr :=  medline;
+    IF title_abbr is not NULL THEN
+        res_abbr := title_abbr;
     ELSE
         res_abbr := ' ';
     END IF;
@@ -105,7 +102,11 @@ BEGIN
     -- build the ref_details
     -- <volume>(<issue>):<page(s)>
     ref_details := volume || '(' || issue_name || '):' || page_range;
-    long_citation := authors || ', (' || ref_year || ') ' || title || '.';
+    -- Build long citation, only add period after title if it doesn't already end with punctuation
+    long_citation := authors || ', (' || ref_year || ') ' || title;
+    IF title != '' AND NOT (RIGHT(title, 1) IN ('.', '?', '!')) THEN
+        long_citation := long_citation || '.';
+    END IF;
     long_citation := long_citation || ' ' || journal || ' ' || ref_details;
     -- raise notice '%', long_citation;
     sht_citation :=  author_short || ' (' || ref_year || ') ' || res_abbr || ' ' || ref_details;
@@ -152,6 +153,48 @@ END;
 $$;
 """
 
+get_long_citation_author_string = r"""
+CREATE OR REPLACE FUNCTION get_long_citation_author_string(
+    author record
+)
+  RETURNS TEXT
+  language plpgsql
+as $$
+DECLARE
+  initials TEXT default '';
+  first_name_val TEXT;
+  word TEXT;
+  words TEXT[];
+BEGIN
+    -- If we have last_name and first_name, build "Last name First initials"
+    IF NOT coalesce(author.last_name, '') = '' THEN
+        IF NOT coalesce(author.first_name, '') = '' THEN
+            first_name_val := author.first_name;
+            -- Replace hyphens with spaces to treat hyphenated names as separate words
+            first_name_val := REPLACE(first_name_val, '-', ' ');
+            -- Split by spaces and get first character of each word
+            words := string_to_array(first_name_val, ' ');
+            FOREACH word IN ARRAY words
+            LOOP
+                IF LENGTH(TRIM(word)) > 0 THEN
+                    initials := initials || UPPER(LEFT(TRIM(word), 1));
+                END IF;
+            END LOOP;
+            IF LENGTH(initials) > 0 THEN
+                return CONCAT(author.last_name, ' ', initials);
+            ELSE
+                return author.last_name;
+            END IF;
+        ELSE
+            return author.last_name;
+        END IF;
+    END IF;
+    -- Fallback to name if no last_name
+    return COALESCE(author.name, '');
+END;
+$$;
+"""
+
 citation_seq = r"""
 CREATE OR REPLACE FUNCTION get_next_citation_id()
   RETURNS int
@@ -169,6 +212,7 @@ $$;
 
 def add_citation_methods(db_session):
     db_session.execute(text(get_short_author_string))
+    db_session.execute(text(get_long_citation_author_string))
     db_session.execute(text(citation_update))
     db_session.execute(text(citation_seq))
     db_session.commit()

@@ -77,7 +77,6 @@ def show(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> ReferenceRelationSchemaShow:
-    set_global_user_from_cognito(db, user)
     return reference_relation_crud.show(db, reference_relation_id)
 
 
@@ -90,5 +89,4 @@ def show_versions(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return reference_relation_crud.show_changesets(db, reference_relation_id)

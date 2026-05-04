@@ -311,6 +311,8 @@ def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, 
     """
     Returns:
         list of tuples: (reference_id, pmcid) where pmcid is like "PMCID:PMC1234567"
+
+    Note: Excludes AGR MOD papers since AGR doesn't have file upload workflow configured.
     """
     query = """
     SELECT DISTINCT
@@ -318,10 +320,12 @@ def get_pmcids_without_main_pdf(limit: Optional[int] = None) -> List[Tuple[int, 
         cr.curie as pmcid
     FROM cross_reference cr
     INNER JOIN mod_corpus_association mca ON cr.reference_id = mca.reference_id
+    INNER JOIN mod m ON mca.mod_id = m.mod_id
     INNER JOIN reference r ON r.reference_id = cr.reference_id
     WHERE cr.curie_prefix = 'PMCID'
       AND cr.is_obsolete = false
       AND mca.corpus = true
+      AND m.abbreviation != 'AGR'
       AND (
         lower(r.language) = 'eng'
         OR lower(r.language) LIKE 'english%'

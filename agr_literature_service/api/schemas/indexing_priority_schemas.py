@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, ConfigDict, field_validator, confloat
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator, confloat
 from datetime import datetime
 from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
@@ -28,14 +28,30 @@ class IndexingPrioritySchemaCreate(ConfidenceMixin):
         from_attributes=True
     )
 
-    indexing_priority: str
+    predicted_indexing_priority: Optional[str] = None
+    curator_indexing_priority: Optional[str] = None
     mod_abbreviation: str
 
-    @field_validator('indexing_priority')
-    def _check_atp_prefix(cls, v: str) -> str:
-        if not v.startswith('ATP:'):
-            raise ValueError("indexing_priority must start with 'ATP:'")
+    @field_validator('predicted_indexing_priority')
+    def _check_predicted_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("predicted_indexing_priority must start with 'ATP:'")
         return v
+
+    @field_validator('curator_indexing_priority')
+    def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("curator_indexing_priority must start with 'ATP:'")
+        return v
+
+    @model_validator(mode='after')
+    def _at_least_one_priority(self):
+        if self.predicted_indexing_priority is None and self.curator_indexing_priority is None:
+            raise ValueError(
+                "At least one of predicted_indexing_priority or "
+                "curator_indexing_priority must be provided"
+            )
+        return self
 
 
 class IndexingPrioritySchemaPost(IndexingPrioritySchemaCreate):
@@ -56,7 +72,8 @@ class IndexingPrioritySchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     )
 
     indexing_priority_id: Optional[int] = None
-    indexing_priority: str
+    predicted_indexing_priority: Optional[str] = None
+    curator_indexing_priority: Optional[str] = None
     mod_abbreviation: Optional[str] = None
     updated_by_email: Optional[str] = None
     updated_by_name: Optional[str] = None
@@ -77,10 +94,17 @@ class IndexingPrioritySchemaUpdate(ConfidenceMixin):
 
     reference_curie: Optional[str] = None
     mod_abbreviation: Optional[str] = None
-    indexing_priority: Optional[str] = None
+    predicted_indexing_priority: Optional[str] = None
+    curator_indexing_priority: Optional[str] = None
 
-    @field_validator('indexing_priority')
-    def _check_atp_prefix_optional(cls, v: Optional[str]) -> Optional[str]:
+    @field_validator('predicted_indexing_priority')
+    def _check_predicted_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.startswith('ATP:'):
-            raise ValueError("indexing_priority must start with 'ATP:'")
+            raise ValueError("predicted_indexing_priority must start with 'ATP:'")
+        return v
+
+    @field_validator('curator_indexing_priority')
+    def _check_curator_atp_prefix(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not v.startswith('ATP:'):
+            raise ValueError("curator_indexing_priority must start with 'ATP:'")
         return v

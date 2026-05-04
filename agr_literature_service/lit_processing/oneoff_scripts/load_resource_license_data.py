@@ -1,4 +1,9 @@
 """
+WARNING: On 2026-04-02 the iso_abbreviation and medline_abbreviation columns
+were merged and renamed to title_abbreviation, and print_issn/online_issn
+were moved to the cross_reference table. Do not use this script unless you
+account for those column changes.
+
 load_resource_license_data.py
 =============================
 Load copyright license data into Resource table from DOAJ export.

@@ -204,14 +204,14 @@ def generate_json_data(ref_data, reference_id_to_xrefs, reference_id_to_authors,
         row['mod_corpus_associations'] = reference_id_to_mod_corpus_data.get(reference_id, [])
 
         if x.resource_id in resource_id_to_journal:
-            (resource_curie, resource_title, resource_medline_abbreviation) = resource_id_to_journal[resource_id]
+            (resource_curie, resource_title, resource_title_abbreviation) = resource_id_to_journal[resource_id]
             row['resource_curie'] = resource_curie
             row['resource_title'] = escape_special_characters(resource_title)
-            row['resource_medline_abbreviation'] = escape_special_characters(resource_medline_abbreviation)
+            row['resource_title_abbreviation'] = escape_special_characters(resource_title_abbreviation)
         else:
             row['resource_curie'] = None
             row['resource_title'] = None
-            row['resource_medline_abbreviation'] = None
+            row['resource_title_abbreviation'] = None
         if reference_id in reference_id_to_citation_data:
             row['citation'] = reference_id_to_citation_data[reference_id]['citation']
             row['short_citation'] = reference_id_to_citation_data[reference_id]['short_citation']

@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -25,6 +25,7 @@ class MLModelSchemaBase(BaseModel):
     negated: Optional[bool] = None
     data_novelty: Optional[str] = None
     species: Optional[str] = None
+    file_classes: Optional[List[str]] = None
 
 
 class MLModelSchemaPost(MLModelSchemaBase):

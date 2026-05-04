@@ -28,7 +28,6 @@ def show_aggregated_curation_status_and_tet_info(reference_curie: str,
                                                  mod_abbreviation: str,
                                                  db: Session = db_session,
                                                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return curation_status_crud.get_aggregated_curation_status_and_tet_info(db, reference_curie, mod_abbreviation)
 
 
@@ -37,7 +36,6 @@ def show_aggregated_curation_status_and_tet_info(reference_curie: str,
 def show(curation_status_id: int,
          db: Session = db_session,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return curation_status_crud.show(db, curation_status_id)
 
 

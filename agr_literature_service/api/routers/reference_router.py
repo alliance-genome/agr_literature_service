@@ -20,7 +20,10 @@ import datetime
 import logging
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.process_single_pmid import process_pmid
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_lookup import lookup_reference_by_pmid
 from agr_literature_service.lit_processing.data_export.export_single_mod_references_to_json import dump_data
+from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
+from agr_literature_service.api.schemas.external_lookup_schemas import ReferenceExternalLookupResponse
 
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,24 @@ def add(request: ReferenceSchemaAddPmid,
     return process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
 
 
+@router.get('/external_lookup/{external_curie}',
+            status_code=200,
+            response_model=ReferenceExternalLookupResponse)
+def external_lookup(external_curie: str,
+                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                    db: Session = db_session):
+    prefix, identifier, _ = split_identifier(external_curie, ignore_error=True)
+    if not prefix:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid curie format: {external_curie}")
+    if prefix.lower() in ('pmid', 'pubmed', 'pubmedid'):
+        return lookup_reference_by_pmid(identifier, db)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Unsupported curie prefix: {prefix}")
+
+
 @router.delete('/{curie_or_reference_id}',
                status_code=status.HTTP_204_NO_CONTENT)
 def destroy(curie_or_reference_id: str,
@@ -90,8 +111,6 @@ async def patch(curie_or_reference_id: str,
 def download_data_by_mod(mod: str,
                          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                          db: Session = db_session):
-
-    set_global_user_from_cognito(db, user)
     return download.get_json_file(mod)
 
 
@@ -100,8 +119,6 @@ def download_data_by_mod(mod: str,
 def download_data_by_filename(filename: str,
                               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                               db: Session = db_session):
-
-    set_global_user_from_cognito(db, user)
     return download.get_json_file(None, filename)
 
 
@@ -162,7 +179,6 @@ def generate_data_ondemand(mod: str,
 def show_xref(curie_or_cross_reference_id: str,
               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
               db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     cross_reference = cross_reference_crud.show(db, curie_or_cross_reference_id)
 
     if 'reference_curie' not in cross_reference:
@@ -179,7 +195,6 @@ def show_xref(curie_or_cross_reference_id: str,
 def show(curie_or_reference_id: str,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return reference_crud.show(db, curie_or_reference_id)
 
 
@@ -188,7 +203,6 @@ def show(curie_or_reference_id: str,
 def show_versions(curie_or_reference_id: str,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return reference_crud.show_changesets(db, curie_or_reference_id)
 
 
@@ -205,7 +219,6 @@ def get_reference_emails(
     """
     Get all emails associated with a given reference.
     """
-    set_global_user_from_cognito(db, user)
     return reference_crud.get_reference_emails(db, curie_or_reference_id)
 
 
@@ -303,7 +316,6 @@ def missing_files(mod_abbreviation: str,
                   filter: str,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     missing_files = reference_crud.missing_files(db, mod_abbreviation, order_by, page, filter)
     if not missing_files:
         return []
@@ -317,7 +329,6 @@ def download_tracker_table(mod_abbreviation: str,
                            filter: str,
                            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                            db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return reference_crud.download_tracker_table(db, mod_abbreviation, order_by, filter)
 
 
@@ -328,7 +339,6 @@ def get_bib_info(curie: str,
                  return_format: str = 'txt',
                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return reference_crud.get_bib_info(db, curie, mod_abbreviation, return_format)
 
 
@@ -343,7 +353,6 @@ def get_textpresso_reference_list(mod_abbreviation: str,
                                   page_size: int = 1000,
                                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                   db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return reference_crud.get_textpresso_reference_list(db, mod_abbreviation,
                                                         files_updated_from_date,
                                                         reference_type,
@@ -369,7 +378,6 @@ def get_recently_sorted_references(mod_abbreviation: str,
                                    days: int = 7,
                                    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                    db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     references = reference_crud.get_recently_sorted_references(db, mod_abbreviation, days)
 
     return references
@@ -381,7 +389,6 @@ def get_recently_sorted_pmids(mod_abbreviation: str,
                               days: int = 7,
                               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                               db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     pmid_only = True
     pmids = reference_crud.get_recently_sorted_references(db, mod_abbreviation,
                                                           days, pmid_only)
@@ -394,10 +401,17 @@ def get_recently_deleted_references(mod_abbreviation: str,
                                     days: int = 7,
                                     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                     db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     references = reference_crud.get_recently_deleted_references(db, mod_abbreviation, days)
 
     return references
+
+
+@router.get('/obsolete_mod_curies/{mod_abbreviation}',
+            status_code=status.HTTP_200_OK)
+def get_obsolete_mod_curies(mod_abbreviation: str,
+                            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                            db: Session = db_session):
+    return reference_crud.get_obsolete_mod_curies(db, mod_abbreviation)
 
 
 @router.get('/lock_status/{referenceCurie}',
@@ -405,7 +419,6 @@ def get_recently_deleted_references(mod_abbreviation: str,
 def lock_status(referenceCurie: str,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     lock_details = reference_crud.lock_status(db, referenceCurie)
 
     return lock_details

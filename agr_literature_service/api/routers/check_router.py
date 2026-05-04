@@ -7,7 +7,6 @@ from agr_literature_service.api import database
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.crud import check_crud
 from agr_literature_service.api.schemas import (AteamApiSchemaShow, DatabaseSchemaShow, EnvironmentsSchemaShow)
-from agr_literature_service.api.user import set_global_user_from_cognito
 
 router = APIRouter(
     prefix="/check",
@@ -35,7 +34,6 @@ def check_database(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return {"db_details": check_crud.check_database(db)}
 
 

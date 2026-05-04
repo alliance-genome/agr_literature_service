@@ -46,10 +46,7 @@ class MockDataFactory:
         resource = ResourceModel(
             curie=f"AGRKB:resource{resource_id:04d}",
             title=resource_pattern.get('title', f"Test Genomics Journal {resource_id}"),
-            iso_abbreviation=resource_pattern.get('iso_abbreviation', f"TGJ{resource_id}"),
-            medline_abbreviation=resource_pattern.get('medline_abbreviation', f"Test Genom J{resource_id}"),
-            print_issn=f"1234-567{resource_id}",
-            online_issn=f"8765-432{resource_id}",
+            title_abbreviation=resource_pattern.get('title_abbreviation', f"TGJ{resource_id}"),
             publisher=resource_pattern.get('publisher', "Academic Press")
         )
         db_session.add(resource)
@@ -406,8 +403,13 @@ class TestDebeziumIntegration:
             sample_doc = data['hits']['hits'][0]['_source']
 
             # Check that sample document has reasonable field count (not too many)
+            # Fields: curie, title, abstract, category, pubmed_types, resource_title, volume,
+            # issue_name, page_range, publisher, language, date_published, pubmed_publication_status,
+            # date_arrived_in_pubmed, date_last_modified_in_pubmed, date_created, keywords,
+            # citation, short_citation, open_access, copyright_license, cross_references,
+            # authors, relations, mesh_terms, retraction_status, retraction_status_name, mods_in_corpus
             doc_fields = set(sample_doc.keys())
-            assert len(doc_fields) <= 25, f"Public index has too many fields: {len(doc_fields)}"
+            assert len(doc_fields) <= 28, f"Public index has too many fields: {len(doc_fields)}"
 
             # Check for some key fields that should be present
             key_fields = {'curie', 'title', 'abstract'}

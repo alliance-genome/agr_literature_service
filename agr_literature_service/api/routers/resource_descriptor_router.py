@@ -22,7 +22,6 @@ db_session: Session = Depends(get_db)
             status_code=200)
 def show(db: Session = db_session,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    set_global_user_from_cognito(db, user)
     return resource_descriptor_crud.show(db)
 
 

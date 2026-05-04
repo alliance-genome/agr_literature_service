@@ -504,7 +504,7 @@ def get_pmids_and_pmcids():  # pragma: no cover
         logger.info(f"offset={offset} Retrieving pmids and pmcids...")
         rows = db_session.execute(text(f"SELECT cr.reference_id, cr.curie as pmid, cr2.curie as pmcid "
                                        f"FROM cross_reference cr, mod_corpus_association mca, "
-                                       f"cross_reference cr2 "
+                                       f"cross_reference cr2, mod m "
                                        f"WHERE cr.curie_prefix = 'PMID' "
                                        f"AND cr.is_obsolete is False "
                                        f"AND cr.reference_id = cr2.reference_id "
@@ -512,6 +512,8 @@ def get_pmids_and_pmcids():  # pragma: no cover
                                        f"AND cr2.is_obsolete is False "
                                        f"AND cr.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
+                                       f"AND mca.mod_id = m.mod_id "
+                                       f"AND m.abbreviation != 'AGR' "
                                        f"order by cr.reference_id "
                                        f"limit {limit} "
                                        f"offset {offset}")).mappings().fetchall()

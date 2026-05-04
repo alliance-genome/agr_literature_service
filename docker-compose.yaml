@@ -72,7 +72,7 @@ services:
       - agr-literature
 
   api:
-    container_name: agr.literature.${ENV_STATE}.api.server
+    container_name: agr.literature.${ENV_STATE}.api.server.${COMPOSE_PROJECT_NAME}
     restart: always
     logging:
       driver: gelf
@@ -142,7 +142,7 @@ services:
       - "${API_PORT}:8080"
 
   xml_processing:
-    container_name: agr.literature.${ENV_STATE}.xml_processing
+    container_name: agr.literature.${ENV_STATE}.xml_processing.${COMPOSE_PROJECT_NAME}
     restart: always
     logging:
       driver: gelf
@@ -190,7 +190,7 @@ services:
       - api
 
   automated_scripts:
-    container_name: agr.literature.${ENV_STATE}.automated_scripts
+    container_name: agr.literature.${ENV_STATE}.automated_scripts.${COMPOSE_PROJECT_NAME}
     restart: always
     logging:
       driver: gelf
@@ -359,7 +359,7 @@ services:
       - .:/usr/local/bin/src/literature
 
   dbz_zookeeper:
-    container_name: agr.literature.${ENV_STATE}.dbz.zookeeper
+    container_name: agr.literature.${ENV_STATE}.dbz.zookeeper.${COMPOSE_PROJECT_NAME}
     logging:
       driver: gelf
       options:
@@ -373,7 +373,7 @@ services:
       - agr-literature
 
   dbz_kafka:
-    container_name: agr.literature.${ENV_STATE}.dbz.kafka
+    container_name: agr.literature.${ENV_STATE}.dbz.kafka.${COMPOSE_PROJECT_NAME}
     logging:
       driver: gelf
       options:
@@ -389,7 +389,7 @@ services:
       - agr-literature
 
   dbz_connector:
-    container_name: agr.literature.${ENV_STATE}.dbz.connector
+    container_name: agr.literature.${ENV_STATE}.dbz.connector.${COMPOSE_PROJECT_NAME}
     logging:
       driver: gelf
       options:
@@ -410,7 +410,7 @@ services:
       - agr-literature
 
   dbz_setup:
-    container_name: agr.literature.${ENV_STATE}.dbz.setup
+    container_name: agr.literature.${ENV_STATE}.dbz.setup.${COMPOSE_PROJECT_NAME}
     logging:
       driver: gelf
       options:
@@ -441,7 +441,7 @@ services:
       /setup.sh
 
   dbz_ksql_server:
-    container_name: agr.literature.${ENV_STATE}.dbz.ksql
+    container_name: agr.literature.${ENV_STATE}.dbz.ksql.${COMPOSE_PROJECT_NAME}
     logging:
       driver: gelf
       options:

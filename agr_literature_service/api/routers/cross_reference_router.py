@@ -60,7 +60,6 @@ async def patch(cross_reference_id: int,
 def show_version(cross_reference_id: int,
                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return cross_reference_crud.show_changesets(db, cross_reference_id)
 
 
@@ -72,7 +71,6 @@ def autocomplete_search(
         return_prefix: bool = False,
         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)
 
 
@@ -83,7 +81,6 @@ def autocomplete_search(
 def show_all(curies: List[str],
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return cross_reference_crud.show_from_curies(db, curies)
 
 
@@ -115,5 +112,4 @@ def check_curie_reference_pattern(datatype: str,
 def show(curie: str,
          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
          db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return cross_reference_crud.show(db, curie)

@@ -17,7 +17,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.pubmed_upda
 from agr_literature_service.lit_processing.utils.db_read_utils import sort_pmids, \
     retrieve_all_pmids, get_mod_abbreviations
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    set_retraction_status
+    process_retracted_papers
 from agr_literature_service.lit_processing.utils.tmp_files_utils import init_tmp_dir
 
 logging.basicConfig(format='%(message)s')
@@ -67,7 +67,7 @@ def update_all_data():  # pragma: no cover
         except Exception as e:
             logger.info("Error occurred when updating pubmed papers for " + mod + "\n" + str(e))
         time.sleep(sleep_time)
-    set_retraction_status(db_session, logger)
+    process_retracted_papers(db_session, logger)
     db_session.close()
 
 

@@ -27,19 +27,35 @@ logger = logging.getLogger(__name__)
 
 def load_pubmed_resource_basic():
     """
+    Load PubMed resource data and build lookup dicts.
 
-    :return:
+    Returns:
+        pubmed_by_nlm: dict mapping NLM ID to entry
+        nlm_by_issn: dict mapping ISSN value to list of NLM IDs
     """
-
     filename = base_path + 'pubmed_resource_json/resource_pubmed_all.json'
     f = open(filename)
     resource_data = json.load(f)
     pubmed_by_nlm = dict()
     nlm_by_issn = dict()
+
     for entry in resource_data:
-        # primary_id = entry['primaryId']
         nlm = entry['nlm']
         pubmed_by_nlm[nlm] = entry
+
+        # Extract ISSN values from crossReferences (new schema)
+        for xref in entry.get('crossReferences', []):
+            xref_id = xref.get('id', '')
+            if xref_id.startswith('ISSN:'):
+                issn_value = xref_id.split(':', 1)[1]
+                if issn_value:
+                    if issn_value in nlm_by_issn:
+                        if nlm not in nlm_by_issn[issn_value]:
+                            nlm_by_issn[issn_value].append(nlm)
+                    else:
+                        nlm_by_issn[issn_value] = [nlm]
+
+        # Backward compatibility: also check legacy printISSN/onlineISSN fields
         if 'printISSN' in entry:
             pissn = entry['printISSN']
             if pissn in nlm_by_issn:
@@ -54,6 +70,7 @@ def load_pubmed_resource_basic():
                     nlm_by_issn[oissn].append(nlm)
             else:
                 nlm_by_issn[oissn] = [nlm]
+
     return pubmed_by_nlm, nlm_by_issn
 
 

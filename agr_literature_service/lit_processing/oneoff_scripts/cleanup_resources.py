@@ -1,4 +1,8 @@
 """
+WARNING: On 2026-04-02 the iso_abbreviation and medline_abbreviation columns
+were merged and renamed to title_abbreviation. Do not use this script unless
+you account for that column change.
+
 Script to identify duplicate resources and:
 1) write diagnostic outputs
 2) optionally delete "empty" duplicates (no refs, no non-obsolete xref curies)

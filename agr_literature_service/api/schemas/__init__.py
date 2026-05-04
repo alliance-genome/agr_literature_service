@@ -57,7 +57,10 @@ from agr_literature_service.api.schemas.mod_corpus_association_schemas import (
     ModCorpusAssociationSchemaShow,
     ModCorpusAssociationSchemaUpdate,
     ModCorpusAssociationSchemaRelated,
-    ModCorpusAssociationSchemaShowID)
+    ModCorpusAssociationSchemaShowID,
+    ModCorpusAssociationSchemaBatchUpdate,
+    ModCorpusAssociationBatchResultItem,
+    ModCorpusAssociationSchemaBatchResponse)
 
 
 from agr_literature_service.api.schemas.mod_schemas import (
@@ -107,11 +110,15 @@ from agr_literature_service.api.schemas.reference_schemas import (
     ReferenceSchemaPost,
     ReferenceSchemaUpdate,
     ReferenceSchemaShow,
-    ReferenceSchemaNeedReviewShow)
+    ReferenceSchemaNeedReviewShow,
+    ReferenceSchemaNeedReviewResponse)
 
 from agr_literature_service.api.schemas.copyright_license_schemas import (
     CopyrightLicenseSchemaPost, CopyrightLicenseSchemaShow)
 from agr_literature_service.api.schemas.search_schemas import FacetsOptionsSchema
+
+from agr_literature_service.api.schemas.external_lookup_schemas import (
+    ReferenceExternalLookupResponse, ResourceExternalLookupResponse)
 
 from agr_literature_service.api.schemas.check_schemas import (
     AteamApiSchemaShow,
@@ -127,6 +134,14 @@ from .email_schemas import EmailSchemaCreate, EmailSchemaUpdate, EmailSchemaShow
 from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaUpdate,
     PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated
+)
+from .person_name_schemas import (
+    PersonNameSchemaCreate, PersonNameSchemaUpdate,
+    PersonNameSchemaShow, PersonNameSchemaRelated
+)
+from .person_note_schemas import (
+    PersonNoteSchemaCreate, PersonNoteSchemaUpdate,
+    PersonNoteSchemaShow, PersonNoteSchemaRelated
 )
 from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
 from .person_setting_schemas import (

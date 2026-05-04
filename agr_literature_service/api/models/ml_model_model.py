@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
 
@@ -87,6 +87,11 @@ class MLModel(Base):
 
     data_novelty = Column(
         String,
+        nullable=True
+    )
+
+    file_classes = Column(
+        ARRAY(String),
         nullable=True
     )
 

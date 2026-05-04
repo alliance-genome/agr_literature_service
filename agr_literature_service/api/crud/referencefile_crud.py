@@ -331,15 +331,23 @@ def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
 
 def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
     metadata["reference_curie"] = normalize_reference_curie(db, metadata["reference_curie"])
+    # TRANSIENT (remove with SCRUM-5867): converted Markdown outputs (file_class
+    # starting with 'converted_') bypass the is_file_upload_blocked guardrail.
+    # Rationale: during the TEI→Markdown migration, pipelines that run while
+    # extraction/classification are in progress still need to write out their
+    # converted_* rows without clashing with the safeguard intended for original
+    # source files. Remove this bypass when pdf2tei is decommissioned.
+    is_converted_output = str(metadata.get("file_class") or "").startswith("converted_")
     if metadata["mod_abbreviation"]:
         inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
         if not inCorpus:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"This paper ({metadata['reference_curie']}) is not in {metadata['mod_abbreviation']}.")
-        job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
-        if job_type:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
+        if not is_converted_output:
+            job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+            if job_type:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
     if (
         metadata["file_class"] == 'main'

@@ -78,7 +78,6 @@ def show(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> EditorSchemaShow:
-    set_global_user_from_cognito(db, user)
     editor = editor_crud.show(db, editor_id)
     return EditorSchemaShow.model_validate(editor)
 
@@ -92,5 +91,4 @@ def show_versions(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
-    set_global_user_from_cognito(db, user)
     return editor_crud.show_changesets(db, editor_id)

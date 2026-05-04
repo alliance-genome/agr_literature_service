@@ -44,7 +44,8 @@ def test_ml_model(db, auth_headers, test_mod):  # noqa
                 "production": True,
                 "negated": True,
                 "data_novelty": "ATP:0000062",
-                "species": None
+                "species": None,
+                "file_classes": ["main"]
             }
             model_data_json = json.dumps(new_model)
             files = {
@@ -91,6 +92,7 @@ class TestMLModel:
         assert ml_model.topic == "ATP:0000061"
         assert ml_model.version_num == 1
         assert ml_model.data_novelty == "ATP:0000062"
+        assert ml_model.file_classes == ["main"]
 
     def test_get_model_metadata(self, test_ml_model, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:

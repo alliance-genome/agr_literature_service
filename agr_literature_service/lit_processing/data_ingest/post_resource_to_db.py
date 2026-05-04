@@ -20,6 +20,7 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     add_xref,
     load_xref_data,
     find_existing_resource,
+    find_existing_resource_by_title,
     update_issn_mapping,
     update_title_mapping
 )
@@ -114,6 +115,11 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
         xrefs_agr = get_agr_for_xref(prefix, identifier)
         new_xref['curie'] = prefix + ":" + identifier
         new_xref['curie_prefix'] = prefix
+
+        # Handle issn_type for ISSN cross-references
+        if prefix == 'ISSN' and 'issn_type' in xref:
+            new_xref['issn_type'] = xref['issn_type']
+
         if xrefs_agr:
             logger.info(f"{prefix} {identifier} ALREADY EXISTS?")
             # Just duplicated not an error as to same resource
@@ -123,16 +129,12 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
             logger.error(mess)
             okay = False
             error_mess += mess
-        # elif agr in ref_xref_valid and prefix in ref_xref_valid[agr]:  # Duplicate prefix
-        elif agr_has_xref_of_prefix(agr, prefix):
+        # For ISSN, allow multiple ISSN values per resource (print + online)
+        elif prefix != 'ISSN' and agr_has_xref_of_prefix(agr, prefix):
             okay = False
             error_mess += f"Not allowed same prefix {prefix} multiple time for the same resource"
         else:
-            # print("pre add xref")
-            # dump_xrefs()
             add_xref(agr, new_xref)
-            # print("post add xref")
-            # dump_xrefs()
     if not okay:
         return okay, error_mess
     return okay, "Cross References processed successfully"
@@ -141,14 +143,13 @@ def process_cross_references(db_session: Session, resource_id: int, agr: str, cr
 def remap_keys_get_new_entry(entry: Dict) -> Dict:
     global remap_keys
     if not remap_keys:
-        remap_keys['isoAbbreviation'] = 'iso_abbreviation'
-        remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-        remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
+        remap_keys['titleAbbreviation'] = 'title_abbreviation'
+        remap_keys['isoAbbreviation'] = 'title_abbreviation'
+        remap_keys['medlineAbbreviation'] = 'title_abbreviation'
+        remap_keys['abbreviationSynonyms'] = 'title_abbreviation_synonyms'
         remap_keys['crossReferences'] = 'cross_references'
         remap_keys['editorsOrAuthors'] = 'editors'
-        remap_keys['printISSN'] = 'print_issn'
-        remap_keys['onlineISSN'] = 'online_issn'
-    keys_to_remove = {'nlm', 'primaryId'}
+    keys_to_remove = {'nlm', 'primaryId', 'printISSN', 'onlineISSN'}
     new_entry = dict()
 
     for key in entry:
@@ -158,7 +159,7 @@ def remap_keys_get_new_entry(entry: Dict) -> Dict:
         elif key not in keys_to_remove:
             new_entry[key] = entry[key]
     for key in new_entry:
-        if key in ['title', 'iso_abbreviation', 'medline_abbreviation']:
+        if key in ['title', 'title_abbreviation']:
             new_entry[key] = html.unescape(new_entry[key])
 
     return new_entry
@@ -181,6 +182,38 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
         )
         return True, ""
 
+    # If no match by xref/ISSN, check for title match to merge cross-references
+    # This prevents duplicate resources when different MODs submit the same journal
+    # with different identifiers (e.g., FB:FBmultipub vs ZFIN:ZDB-JRNL + NLM + ISSN)
+    title_match = find_existing_resource_by_title(entry)
+    if title_match:
+        agr, existing_resource_id = title_match
+        logger.info(
+            f"Title-based match found for {primary_id}: merging cross-references "
+            f"with existing resource {agr} (resource_id={existing_resource_id})"
+        )
+        # Add cross-references from this entry to the existing resource
+        cross_references = entry.get('crossReferences', [])
+        if cross_references:
+            xref_okay, message = process_cross_references(
+                db_session, existing_resource_id, agr, cross_references
+            )
+            if not xref_okay:
+                logger.warning(f"Some cross-references could not be added: {message}")
+            db_session.commit()
+
+        # Update ISSN mapping from entry's printISSN/onlineISSN fields
+        # (in addition to ISSN values in crossReferences, which add_xref handles)
+        issn_values = []
+        if entry.get('printISSN'):
+            issn_values.append(entry['printISSN'])
+        if entry.get('onlineISSN'):
+            issn_values.append(entry['onlineISSN'])
+        if issn_values:
+            update_issn_mapping(agr, existing_resource_id, issn_values)
+
+        return True, f"Title-merged: {primary_id} -> {agr}\n"
+
     new_entry = remap_keys_get_new_entry(entry)
     try:
         curie = get_next_resource_curie(db_session)
@@ -194,10 +227,10 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
             del new_entry["editors"]
 
         new_entry['curie'] = curie
-        if 'iso_abbreviation' in new_entry:
-            logger.info("Adding resource into database for '" + new_entry['iso_abbreviation'] + "'")
+        if 'title_abbreviation' in new_entry:
+            logger.info("Adding resource into database for '" + new_entry['title_abbreviation'] + "'")
         else:
-            logger.info(" NOOO iso_abbreviation: Adding resource into database for '" + new_entry['curie'] + "'")
+            logger.info("No title_abbreviation: Adding resource into database for '" + new_entry['curie'] + "'")
 
         x = ResourceModel(**new_entry)
         db_session.add(x)
@@ -219,13 +252,13 @@ def process_resource_entry(db_session: Session, entry: Dict) -> Tuple:
 
         db_session.commit()
 
-        # Update ISSN mapping for future duplicate detection
-        update_issn_mapping(
-            curie,
-            resource_id,
-            new_entry.get('print_issn', ''),
-            new_entry.get('online_issn', '')
-        )
+        # Update ISSN mapping from cross_references for duplicate detection
+        issn_values = [
+            xref.get('id', '').split(':', 1)[1]
+            for xref in cross_references
+            if xref.get('id', '').startswith('ISSN:')
+        ]
+        update_issn_mapping(curie, resource_id, issn_values)
 
         # Update title mapping for future duplicate detection
         update_title_mapping(

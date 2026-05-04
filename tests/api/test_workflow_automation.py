@@ -26,7 +26,6 @@
 # Check main is now set to failed too.
 #
 # from collections import namedtuple
-from sqlalchemy.orm import Session
 from starlette.testclient import TestClient
 from fastapi import status
 from unittest.mock import patch
@@ -89,7 +88,7 @@ def mock_load_name_to_atp_and_relationships():
     set_globals(atp_to_name, name_to_atp, workflow_children, workflow_parent)
 
 
-def mock_get_jobs_to_run(name: str, mod_abbreviation: str, db: Session): # noqa
+def mock_get_jobs_to_run(name: str, mod_abbreviation: str): # noqa
     results = {'reference classification': ['ATP:0000166',
                                             'ATP:task1_needed',
                                             'ATP:task2_needed'],
@@ -145,7 +144,7 @@ def workflow_automation_init(db):  # noqa
 class TestWorkflowTagAutomation:
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            mock_load_name_to_atp_and_relationships)
-    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_jobs_to_run", mock_get_jobs_to_run)
+    @patch("agr_literature_service.api.crud.workflow_transition_actions.proceed_on_value.get_workflow_tags_for_mod", mock_get_jobs_to_run)
     def test_transition_actions(self, db, auth_headers, test_mod, test_reference):  # noqa
         print("test_transition_actions")
         mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()

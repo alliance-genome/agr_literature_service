@@ -82,7 +82,6 @@ def show(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ) -> WorkflowTagSchemaShow:
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
@@ -100,7 +99,6 @@ def get_jobs(
     reference: str = None,
     topic: str = None,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_jobs(
         db, job_string, limit, offset,
         mod_abbr=mod_abbreviation,
@@ -170,7 +168,6 @@ def show_versions(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.show_changesets(db, reference_workflow_tag_id)
 
 
@@ -204,7 +201,6 @@ def get_current_workflow_status(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_current_workflow_status(
         db=db,
         curie_or_reference_id=curie_or_reference_id,
@@ -227,7 +223,6 @@ def counters(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.counters(
         db=db,
         mod_abbreviation=mod_abbreviation,
@@ -251,7 +246,6 @@ def get_reference_workflow_tags(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_reference_workflow_tags_by_mod(
         db, workflow_tag_id, mod_abbreviation, startDate, endDate
     )
@@ -267,7 +261,6 @@ def get_report_workflow_tags(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.report_workflow_tags(db, workflow_tag_id, mod_abbreviation)
 
 
@@ -280,7 +273,6 @@ def get_report_workflow_diagram(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_workflow_tag_diagram(mod, db)
 
 
@@ -305,7 +297,6 @@ def get_workflow_tags_subset(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.workflow_subset_list(workflow_name, mod_abbreviation, db)
 
 
@@ -338,7 +329,6 @@ def get_indexing_and_community_workflow_tags(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    set_global_user_from_cognito(db, user)
     return workflow_tag_crud.get_indexing_and_community_workflow_tags(
         db, reference_curie, mod_abbreviation
     )

@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any
+from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -78,7 +79,10 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
     user_email: Optional[str] = cognito_user.get("email", "")
 
     if not user_email:
-        raise ValueError("Cognito user does not have an associated email address.")
+        raise HTTPException(
+            status_code=403,
+            detail="Cognito user does not have an associated email address."
+        )
 
     # Query using raw SQL to avoid circular import with EmailModel
     sql = text("""
@@ -93,7 +97,11 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
     result = db.execute(sql, {"email": user_email}).fetchone()
 
     if result is None:
-        raise ValueError(f"No user found with email address: {user_email}")
+        raise HTTPException(
+            status_code=403,
+            detail=f"No user account linked to email address: {user_email}. "
+                   "Contact an administrator to create your user account."
+        )
 
     # Set the global user ID from the query result
     _current_user_id = result[0]

@@ -6,6 +6,7 @@ This can be ran from the alliance gocd and has a pipeline setup which is called 
 import argparse
 import json
 import logging
+import os
 import requests
 from os import environ
 
@@ -14,6 +15,16 @@ from agr_cognito_py import get_authentication_token, generate_headers
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+def write_output_files(datafile, metadata, success_records, failed_records):
+    base, _ = os.path.splitext(datafile)
+    for suffix, records in [("_success.json", success_records), ("_failed.json", failed_records)]:
+        output_path = base + suffix
+        output_data = {"metaData": metadata, "data": records}
+        with open(output_path, 'w') as f:
+            json.dump(output_data, f, indent=3)
+        logger.info(f"Wrote {len(records)} records to {output_path}")
 
 
 def load_data(datafile):
@@ -36,26 +47,33 @@ def load_data(datafile):
 
     success_count = 0
     error_count = 0
+    success_records = []
+    failed_records = []
     for i, record in enumerate(records, start=1):
         try:
             response = requests.post(url=post_url, json=record, headers=auth_headers)
             if response.status_code == 201:
                 success_count += 1
+                success_records.append(record)
             else:
                 error_count += 1
-                logger.info(f"FAILED [{i}/{total}] {record['reference_curie']} "
-                            f"topic={record['topic']}: {response.status_code} {response.text}")
+                failed_records.append(record)
+                mess = f"FAILED [{i}/{total}] {record}: {response.status_code} {response.text}"
+                logger.error(mess)
         except Exception as e:
             error_count += 1
-            logger.info(f"ERROR [{i}/{total}] {record['reference_curie']}: {e}")
+            failed_records.append(record)
+            logger.error(f"ERROR [{i}/{total}] {record}: {e}")
 
         if success_count * 3 < error_count:
             rate = (success_count / (error_count + success_count)) * 100
             logger.error(f"STOPPING TOO MANY ERRORS: SUCCESS RATE {rate}% last and {i}th record{record['reference_curie']} ")
+            write_output_files(datafile, metadata, success_records, failed_records)
             exit(-1)
         if i % 500 == 0:
             logger.info(f"Progress: {i}/{total} (success={success_count}, errors={error_count})")
 
+    write_output_files(datafile, metadata, success_records, failed_records)
     logger.info(f"DONE! Total={total}, Success={success_count}, Errors={error_count}")
 
 

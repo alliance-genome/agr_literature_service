@@ -143,11 +143,11 @@ def update_resources(db_session, live_changes, resources_to_update):
     # keys_to_remove = {'nlm', 'primaryId', 'crossReferences'}
     # these are all the nlm, which is the key to find this, so it cannot change
     remap_keys = dict()
-    remap_keys['isoAbbreviation'] = 'iso_abbreviation'
-    remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-    remap_keys['printISSN'] = 'print_issn'
-    remap_keys['onlineISSN'] = 'online_issn'
-    remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
+    remap_keys['titleAbbreviation'] = 'title_abbreviation'
+    remap_keys['isoAbbreviation'] = 'title_abbreviation'
+    remap_keys['medlineAbbreviation'] = 'title_abbreviation'
+    remap_keys['titleAbbreviationSynonyms'] = 'title_abbreviation_synonyms'
+    remap_keys['abbreviationSynonyms'] = 'title_abbreviation_synonyms'
     remap_keys['titleSynonyms'] = 'title_synonyms'
     remap_keys['crossReferences'] = 'cross_references'
     remap_keys['editorsOrAuthors'] = 'editors'
@@ -164,9 +164,10 @@ def update_resources(db_session, live_changes, resources_to_update):
     # remap_cross_references_keys['id'] = 'curie'
 
     # no one is sending abstractOrSummary / 'abstract', 'summary' ; titleSynonyms ; copyrightDate data
-    simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN', 'onlineISSN',
-                     'publisher', 'pages']
-    list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
+    simple_fields = ['title', 'titleAbbreviation', 'isoAbbreviation',
+                     'medlineAbbreviation', 'publisher', 'pages']
+    list_fields = ['titleAbbreviationSynonyms', 'abbreviationSynonyms',
+                   'titleSynonyms', 'volumes']
     # complex_fields = ['crossReferences', 'editorsOrAuthors']
     # TODO deal with editors, example AGR:AGR-Resource-0000034288     FB:FBmultipub_7448
 

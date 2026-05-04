@@ -75,6 +75,11 @@ class CrossReferenceModel(Base, AuditedModel):
         nullable=True
     )
 
+    issn_type = Column(
+        String(),
+        nullable=True
+    )
+
     __table_args__ = (
         Index('idx_curie_prefix_ref_no_cgc',
               'curie_prefix', 'reference_id',

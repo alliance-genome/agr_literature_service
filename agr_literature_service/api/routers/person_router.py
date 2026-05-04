@@ -1,11 +1,11 @@
 from typing import List, Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
 
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import person_crud
+from agr_literature_service.api.crud import person_crud, person_cross_reference_crud
 from agr_literature_service.api.schemas import (
     PersonSchemaCreate,
     PersonSchemaUpdate,
@@ -21,7 +21,7 @@ get_db = database.get_db
 db_session: Session = Depends(get_db)
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=PersonSchemaShow)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=str)
 def create(
     request: PersonSchemaCreate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
@@ -32,36 +32,6 @@ def create(
     """
     set_global_user_from_cognito(db, user)
     return person_crud.create(db, request)
-
-
-@router.delete("/{person_id}", status_code=status.HTTP_204_NO_CONTENT)
-def destroy(
-    person_id: int,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    """
-    Delete a person by internal ID.
-    """
-    set_global_user_from_cognito(db, user)
-    person_crud.destroy(db, person_id)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.patch(
-    "/{person_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
-)
-def patch(
-    person_id: int,
-    request: PersonSchemaUpdate,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    set_global_user_from_cognito(db, user)
-    patch_data = request.model_dump(exclude_unset=True)
-    return person_crud.patch(db, person_id, patch_data)
 
 
 @router.get('/whoami')
@@ -79,25 +49,10 @@ def get_user_info_from_cognito(
     }
 
 
+# Lookup routes — declared BEFORE /{curie_or_person_id} so the catch-all
+# does not capture single-segment lookup paths like /by_name.
 @router.get(
-    "/{person_id}",
-    response_model=PersonSchemaShow,
-    status_code=status.HTTP_200_OK,
-)
-def show(
-    person_id: int,
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    """
-    Get a person by internal ID.
-    """
-    set_global_user_from_cognito(db, user)
-    return person_crud.show(db, person_id)
-
-
-@router.get(
-    "/by/email/{email}",
+    "/by_email/{email}",
     response_model=Optional[PersonSchemaShow],
     status_code=status.HTTP_200_OK,
 )
@@ -110,7 +65,6 @@ def get_by_email(
     Get a single person by email (exact match).
     Returns 200 with the person if found; 204 (no content) if not found.
     """
-    set_global_user_from_cognito(db, user)
     person = person_crud.get_by_email(db, email)
     if not person:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -118,7 +72,34 @@ def get_by_email(
 
 
 @router.get(
-    "/by/name",
+    "/by_person_cross_reference/{curie_or_person_cross_reference_id}",
+    response_model=PersonSchemaShow,
+    status_code=status.HTTP_200_OK,
+)
+def get_by_person_cross_reference(
+    curie_or_person_cross_reference_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Get a person by a person_cross_reference curie or its internal id.
+    """
+    pcr = person_cross_reference_crud.get_by_curie_or_id(
+        db, curie_or_person_cross_reference_id
+    )
+    if pcr.person_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"PersonCrossReference {curie_or_person_cross_reference_id} "
+                "is not associated to a person"
+            ),
+        )
+    return person_crud.show(db, str(pcr.person_id))
+
+
+@router.get(
+    "/by_name",
     response_model=List[PersonSchemaShow],
     status_code=status.HTTP_200_OK,
 )
@@ -131,5 +112,50 @@ def get_by_name(
     Find people by name. Returns a (possibly empty) list.
     Implement the matching strategy (exact/ILIKE) inside person_crud.
     """
-    set_global_user_from_cognito(db, user)
     return person_crud.find_by_name(db, name)
+
+
+@router.delete("/{curie_or_person_id}", status_code=status.HTTP_204_NO_CONTENT)
+def destroy(
+    curie_or_person_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Delete a person by curie or internal ID.
+    """
+    set_global_user_from_cognito(db, user)
+    person_crud.destroy(db, curie_or_person_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/{curie_or_person_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=ResponseMessageSchema,
+)
+def patch(
+    curie_or_person_id: str,
+    request: PersonSchemaUpdate,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    set_global_user_from_cognito(db, user)
+    patch_data = request.model_dump(exclude_unset=True)
+    return person_crud.patch(db, curie_or_person_id, patch_data)
+
+
+@router.get(
+    "/{curie_or_person_id}",
+    response_model=PersonSchemaShow,
+    status_code=status.HTTP_200_OK,
+)
+def show(
+    curie_or_person_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Get a person by curie or internal ID.
+    """
+    return person_crud.show(db, curie_or_person_id)

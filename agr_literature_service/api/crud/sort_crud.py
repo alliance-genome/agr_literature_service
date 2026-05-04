@@ -1,12 +1,21 @@
 import logging
-from sqlalchemy.orm import Session
-from sqlalchemy import text, and_
+from typing import List, Optional
 
-from agr_literature_service.api.models import ReferenceModel, WorkflowTagModel, CrossReferenceModel,\
-    ModCorpusAssociationModel, ModModel, ResourceDescriptorModel, ReferencefileModAssociationModel
-from agr_literature_service.api.schemas import ReferenceSchemaNeedReviewShow, \
-    CrossReferenceSchemaShow, ReferencefileSchemaRelated, ReferencefileModSchemaShow
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+from agr_literature_service.api.models import (
+    ReferenceModel, WorkflowTagModel, CrossReferenceModel,
+    ModCorpusAssociationModel, ModModel, ResourceDescriptorModel,
+    ReferencefileModAssociationModel
+)
+from agr_literature_service.api.schemas import (
+    ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow,
+    ReferencefileSchemaRelated, ReferencefileModSchemaShow,
+    ModCorpusSortSourceType
+)
 from agr_literature_service.api.crud.reference_crud import get_past_to_present_date_range
+from agr_literature_service.api.crud import search_crud
 
 logger = logging.getLogger(__name__)
 
@@ -18,52 +27,181 @@ def convert_xref_curie_to_url(curie, resource_descriptor_default_urls):
     return None
 
 
-def show_need_review(mod_abbreviation, count, db: Session):
-    references_query = db.query(
-        ReferenceModel
-    ).join(
-        ReferenceModel.mod_corpus_association
-    ).filter(
-        ModCorpusAssociationModel.corpus == None # noqa
+def get_need_review_sort_sources(mod_abbreviation: str, db: Session) -> List[str]:
+    """
+    Get distinct mod_corpus_sort_source values for needs_review papers.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        db: Database session
+
+    Returns:
+        List of sort source values that exist for this MOD's needs_review papers
+    """
+    result = db.query(
+        ModCorpusAssociationModel.mod_corpus_sort_source
     ).join(
         ModCorpusAssociationModel.mod
     ).filter(
+        ModCorpusAssociationModel.corpus == None,  # noqa - needs review papers only
         ModModel.abbreviation == mod_abbreviation
-    ).outerjoin(
-        ReferenceModel.copyright_license
-    ).order_by(
-        ReferenceModel.curie.desc()
-    ).limit(count)
-    references = references_query.all()
-    return show_sort_result(references, mod_abbreviation, db)
+    ).distinct().all()
+
+    # Convert enum values to strings, filter out None, and sort
+    sources = [row[0].value for row in result if row[0] is not None]
+    return sorted(sources)
 
 
-def show_need_prioritization(mod_abbreviation, count, db: Session):
-    references_query = db.query(
-        ReferenceModel
-    ).join(
-        ReferenceModel.mod_corpus_association
-    ).filter(
-        ModCorpusAssociationModel.corpus.is_(True)
-    ).join(
-        ModCorpusAssociationModel.mod
-    ).filter(
-        ModModel.abbreviation == mod_abbreviation
-    ).join(
-        WorkflowTagModel,
-        and_(
-            ReferenceModel.reference_id == WorkflowTagModel.reference_id,
-            ModCorpusAssociationModel.mod_id == WorkflowTagModel.mod_id
+def _search_es_for_curies(
+    mod_abbreviation: str,
+    search_query: str,
+    max_results: int = 500
+) -> tuple:
+    """
+    Use Elasticsearch to find matching reference curies for needs_review papers.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        search_query: Keyword to search in title, abstract, journal, author
+        max_results: Maximum number of curies to return
+
+    Returns:
+        Tuple of (list of curie strings, total count from ES)
+    """
+    try:
+        # Use existing search infrastructure with mods_needs_review filter
+        result = search_crud.search_references(
+            query=search_query,
+            facets_values={"mods_needs_review.keyword": [mod_abbreviation]},
+            size_result_count=max_results,
+            page=1,
+            return_facets_only=False,
+            query_fields="All",
+            partial_match=True
         )
+
+        # Extract curies from search results
+        curies = [hit.get("curie") for hit in result.get("hits", []) if hit.get("curie")]
+        total_count = result.get("return_count", len(curies))
+        return curies, total_count
+    except Exception as e:
+        logger.error(f"ES search failed: {e}")
+        return [], 0
+
+
+def _build_need_review_base_query(
+    mod_abbreviation: str,
+    db: Session,
+    sort_source: Optional[str] = None
+):
+    """
+    Build the base query for needs_review references (without text search).
+
+    Returns the query object for reuse in count and results.
+    """
+    # Base query
+    references_query = db.query(
+        ReferenceModel
+    ).join(
+        ReferenceModel.mod_corpus_association
     ).filter(
-        WorkflowTagModel.workflow_tag_id == 'ATP:0000306'
-    ).outerjoin(
-        ReferenceModel.copyright_license
-    ).order_by(
-        ReferenceModel.curie.desc()
-    ).limit(count)
+        ModCorpusAssociationModel.corpus == None  # noqa
+    ).join(
+        ModCorpusAssociationModel.mod
+    ).filter(
+        ModModel.abbreviation == mod_abbreviation
+    )
+
+    # Filter by mod_corpus_sort_source
+    if sort_source:
+        try:
+            source_enum = ModCorpusSortSourceType(sort_source)
+            references_query = references_query.filter(
+                ModCorpusAssociationModel.mod_corpus_sort_source == source_enum
+            )
+        except ValueError:
+            logger.warning(f"Invalid sort_source value: {sort_source}")
+
+    return references_query
+
+
+def show_need_review(
+    mod_abbreviation: str,
+    count: Optional[int],
+    db: Session,
+    search_query: Optional[str] = None,
+    sort_source: Optional[str] = None,
+    sort_by: str = "curie",
+    sort_order: str = "desc"
+):
+    """
+    Get references needing review with optional search, filter, and sort.
+
+    Uses Elasticsearch for text search (fast), then fetches full details from DB.
+
+    Args:
+        mod_abbreviation: The MOD abbreviation (e.g., 'WB', 'SGD')
+        count: Maximum number of results to return (default 100)
+        db: Database session
+        search_query: Optional keyword to search in title, abstract, journal, author
+        sort_source: Optional mod_corpus_sort_source value to filter by
+        sort_by: Field to sort by ('curie' or 'date_published')
+        sort_order: Sort order ('asc' or 'desc')
+
+    Returns:
+        Dict with total_count and list of references matching the criteria
+    """
+    # Default limit
+    if count is None:
+        count = 100
+
+    # Build base query (without text search)
+    base_query = _build_need_review_base_query(mod_abbreviation, db, sort_source)
+
+    # If there's a search query, use ES to get matching curies (fast text search)
+    es_curies = None
+    es_total_count = None
+    if search_query and search_query.strip():
+        es_curies, es_total_count = _search_es_for_curies(mod_abbreviation, search_query, max_results=500)
+        if not es_curies:
+            # No ES matches - return empty result
+            return {"total_count": 0, "references": []}
+        # Filter DB query by ES-matched curies
+        base_query = base_query.filter(ReferenceModel.curie.in_(es_curies))
+
+    # Get total count - use ES count if search was performed, otherwise count from DB
+    # Note: When both search_query and sort_source are provided, total_count may be an
+    # approximation since ES count doesn't account for sort_source filtering. This is
+    # acceptable for UI display purposes as the user sees the actual returned result count.
+    if es_total_count is not None:
+        total_count = es_total_count
+    else:
+        total_count = base_query.distinct(ReferenceModel.reference_id).count()
+
+    # Build full query for results with copyright license join
+    references_query = base_query.outerjoin(ReferenceModel.copyright_license)
+
+    # Apply sorting
+    if sort_by == "date_published":
+        order_col = ReferenceModel.date_published
+    else:
+        order_col = ReferenceModel.curie
+
+    if sort_order == "asc":
+        references_query = references_query.order_by(order_col.asc().nulls_last())
+    else:
+        references_query = references_query.order_by(order_col.desc().nulls_last())
+
+    # Apply limit
+    references_query = references_query.limit(count)
+
     references = references_query.all()
-    return show_sort_result(references, mod_abbreviation, db)
+    results = show_sort_result(references, mod_abbreviation, db)
+
+    return {
+        "total_count": total_count,
+        "references": results
+    }
 
 
 def show_sort_result(references, mod_abbreviation, db):
@@ -80,6 +218,7 @@ def show_sort_result(references, mod_abbreviation, db):
             title=reference.title,
             abstract=reference.abstract,
             category=reference.category,
+            date_published=reference.date_published,
             copyright_license_name=reference.copyright_license.name if reference.copyright_license else "",
             copyright_license_url=reference.copyright_license.url if reference.copyright_license else "",
             copyright_license_description=reference.copyright_license.description if reference.copyright_license else "",

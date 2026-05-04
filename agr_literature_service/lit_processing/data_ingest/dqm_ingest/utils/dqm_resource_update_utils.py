@@ -30,7 +30,8 @@ from agr_literature_service.lit_processing.utils.resource_reference_utils import
     agr_has_xref_of_prefix,
     is_obsolete,
     add_xref,
-    find_existing_resource
+    find_existing_resource,
+    find_existing_resource_by_title
 )
 
 warnings.filterwarnings("ignore", category=UserWarning, module='bs4')
@@ -256,6 +257,16 @@ def process_single_resource(
     # Use comprehensive duplicate detection
     existing = find_existing_resource(resource_dict, allow_title_match=False)
 
+    # If no match by xref/ISSN, try title match for merging cross-references
+    # This prevents duplicate resources when different MODs submit the same journal
+    # with different identifiers (e.g., FB:FBmultipub vs ZFIN:ZDB-JRNL + NLM + ISSN)
+    if not existing:
+        title_match = find_existing_resource_by_title(resource_dict)
+        if title_match:
+            agr_title, resource_id_title = title_match
+            existing = (agr_title, resource_id_title, 'title')
+            logger.info(f"Title-based match found for {primary_id}: merging with existing resource {agr_title}")
+
     if existing:
         agr, resource_id, match_type = existing
         logger.info(f"Found existing resource {agr} via {match_type} match for {primary_id}")
@@ -341,16 +352,17 @@ def update_resource(db_session: Session, dqm_entry: dict, db_entry: dict, shared
     global remap_keys
 
     if not simple_fields:
-        simple_fields = ['title', 'isoAbbreviation', 'medlineAbbreviation', 'printISSN',
-                         'onlineISSN', 'publisher', 'pages']
+        simple_fields = ['title', 'titleAbbreviation', 'isoAbbreviation',
+                         'medlineAbbreviation', 'publisher', 'pages']
     if not list_fields:
-        list_fields = ['abbreviationSynonyms', 'titleSynonyms', 'volumes']
+        list_fields = ['titleAbbreviationSynonyms', 'abbreviationSynonyms',
+                       'titleSynonyms', 'volumes']
     if not remap_keys:
-        remap_keys['isoAbbreviation'] = 'iso_abbreviation'
-        remap_keys['medlineAbbreviation'] = 'medline_abbreviation'
-        remap_keys['printISSN'] = 'print_issn'
-        remap_keys['onlineISSN'] = 'online_issn'
-        remap_keys['abbreviationSynonyms'] = 'abbreviation_synonyms'
+        remap_keys['titleAbbreviation'] = 'title_abbreviation'
+        remap_keys['isoAbbreviation'] = 'title_abbreviation'
+        remap_keys['medlineAbbreviation'] = 'title_abbreviation'
+        remap_keys['titleAbbreviationSynonyms'] = 'title_abbreviation_synonyms'
+        remap_keys['abbreviationSynonyms'] = 'title_abbreviation_synonyms'
         remap_keys['titleSynonyms'] = 'title_synonyms'
         remap_keys['crossReferences'] = 'cross_references'
         remap_keys['editorsOrAuthors'] = 'editors'
@@ -560,6 +572,10 @@ def compare_xref(agr, resource_id, dqm_entry, report: bool = True):
       - but does NOT populate missing_prefix_xrefs / xref_conflicts / xref_additions
         (caller can suppress reporting for NLM-controlled resources)
 
+    NOTE: ISSN cross-references are unique - one ISSN can only be associated with one resource.
+          If an ISSN already exists for another resource, it's a conflict and cannot be added.
+          Multiple ISSNs (print + online) can be associated with the same resource.
+
     :return: Tuple of (okay, error_message, missing_prefix_xrefs, xref_conflicts, xref_additions)
     """
     okay = True
@@ -584,14 +600,15 @@ def compare_xref(agr, resource_id, dqm_entry, report: bool = True):
         if agr_db_from_xref == agr:
             # Okay just duplication of same data
             logger.info(f"Prefix found {prefix} for {identifier} and agr {agr_db_from_xref}")
-        elif agr_has_xref_of_prefix(agr, prefix):
-            # Skip - this resource already has an xref of this prefix type
-            pass
         elif agr_db_from_xref:
-            # Cross-reference already assigned to another resource
+            # Cross-reference already assigned to another resource - this is a conflict
             if report:
                 xref_conflicts.append(f"{curie} -> {agr_db_from_xref}")
                 logger.warning(f"Cross-reference {curie} already assigned to {agr_db_from_xref}, cannot add to {agr}")
+        elif prefix != 'ISSN' and agr_has_xref_of_prefix(agr, prefix):
+            # Skip - this resource already has an xref of this prefix type (except ISSN)
+            # ISSN allows multiple values per resource (print + online)
+            pass
         else:
             if is_obsolete(agr, prefix, identifier):
                 pass
@@ -606,6 +623,11 @@ def compare_xref(agr, resource_id, dqm_entry, report: bool = True):
                         'resource_id': resource_id,
                         'pages': xref.get('pages', [])
                     }
+
+                    # Handle issn_type for ISSN cross-references
+                    if prefix == 'ISSN' and 'issn_type' in xref:
+                        entry['issn_type'] = xref['issn_type']
+
                     add_xref(agr, entry)
 
                     if report:

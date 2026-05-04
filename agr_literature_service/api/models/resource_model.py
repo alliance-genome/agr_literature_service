@@ -7,7 +7,6 @@ from typing import Dict
 
 from sqlalchemy import ARRAY, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
-from sqlalchemy.sql.sqltypes import Boolean
 
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -57,13 +56,7 @@ class ResourceModel(Base, AuditedModel):
         nullable=True
     )
 
-    iso_abbreviation = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    medline_abbreviation = Column(
+    title_abbreviation = Column(
         String(),
         unique=False,
         nullable=True
@@ -74,18 +67,6 @@ class ResourceModel(Base, AuditedModel):
     )
 
     publisher = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    print_issn = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    online_issn = Column(
         String(),
         unique=False,
         nullable=True
@@ -104,7 +85,7 @@ class ResourceModel(Base, AuditedModel):
         nullable=True
     )
 
-    abbreviation_synonyms: Column = Column(
+    title_abbreviation_synonyms: Column = Column(
         ARRAY(String()),
         nullable=True
     )
@@ -113,25 +94,6 @@ class ResourceModel(Base, AuditedModel):
         String(),
         unique=False,
         nullable=True
-    )
-
-    abstract = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    summary = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
-    open_access = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-        server_default="false"
     )
 
     copyright_license_id = Column(

@@ -1,3 +1,7 @@
+# WARNING: On 2026-04-02 the iso_abbreviation and medline_abbreviation columns
+# were merged and renamed to title_abbreviation. Do not use this script unless
+# you account for that column change.
+
 import logging
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session

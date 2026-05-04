@@ -71,7 +71,8 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         production=request.production,
         species=request.species,
         data_novelty=request.data_novelty,
-        negated=request.negated
+        negated=request.negated,
+        file_classes=request.file_classes
     )
     try:
         db.add(new_model)
@@ -164,7 +165,8 @@ def get_model_schema_from_orm(model: MLModel):
         "production": model.production,
         "species": model.species,
         "data_novelty": model.data_novelty,
-        "negated": model.negated
+        "negated": model.negated,
+        "file_classes": model.file_classes
     }
     return MLModelSchemaShow(**model_data)
 

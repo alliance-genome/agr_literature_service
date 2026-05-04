@@ -20,22 +20,21 @@ PersonSettingTestData = namedtuple(
         "response",
         "new_person_setting_id",
         "person_id",
-        "okta_id",
     ],
 )
 
 
 @pytest.fixture
 def seeded_person(db):
-    """Create a Person with okta_id for lookup endpoints."""
+    """Create a Person for lookup endpoints."""
     person = PersonModel(
         display_name="Alice Curator",
-        okta_id="okta-alice-123",
+        curie="AGRKB:test-alice-curator",
     )
     db.add(person)
     db.commit()
     db.refresh(person)
-    return {"person_id": person.person_id, "okta_id": person.okta_id}
+    return {"person_id": person.person_id}
 
 
 @pytest.fixture
@@ -55,7 +54,6 @@ def test_person_setting(db, auth_headers, seeded_person):  # noqa
             response=response,
             new_person_setting_id=body.get("person_setting_id"),
             person_id=seeded_person["person_id"],
-            okta_id=seeded_person["okta_id"],
         )
 
 
@@ -146,13 +144,13 @@ class TestPersonSetting:
 
     def test_find_by_name(self, test_person_setting, auth_headers):  # noqa
         with TestClient(app) as client:
-            res = client.get("/person_setting/by/name", params={"name": "Alice"}, headers=auth_headers)
+            res = client.get("/person_setting/by_name", params={"name": "Alice"}, headers=auth_headers)
             assert res.status_code == status.HTTP_200_OK
             rows = res.json()
             assert isinstance(rows, list)
             assert any(r["person_setting_id"] == test_person_setting.new_person_setting_id for r in rows)
 
-            res_empty = client.get("/person_setting/by/name", params={"name": "ZZZ_NOT_FOUND"},
+            res_empty = client.get("/person_setting/by_name", params={"name": "ZZZ_NOT_FOUND"},
                                    headers=auth_headers)
             assert res_empty.status_code == status.HTTP_200_OK
             assert res_empty.json() == []

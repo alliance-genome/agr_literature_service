@@ -30,7 +30,7 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     atp_get_all_descendants,
     atp_get_all_ancestors,
     atp_get_parent,
-    get_jobs_to_run,
+    get_workflow_tags_for_mod,
     atp_to_name
 )
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
@@ -1328,7 +1328,7 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
     if not mod:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown mod abbreviation '{mod_abbreviation}'")
 
-    curie_list = get_jobs_to_run(workflow_name, mod.abbreviation, db)
+    curie_list = get_workflow_tags_for_mod(workflow_name, mod.abbreviation)
     result = {}
     for curie in curie_list:
         result[atp_to_name[curie]] = curie
@@ -1410,7 +1410,7 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             detail=f"The reference curie '{reference_curie}' is not in the database."
         )
 
-    # Define which “parent” processes we care about
+    # Define which "parent" processes we care about
     if mod_abbreviation and mod_abbreviation in ['SGD', 'ZFIN']:
         process_atp_ids = {"ATP:0000273": "manual indexing"}
     else:

@@ -469,6 +469,18 @@
       "open_access": {
         "type": "boolean"
       },
+      "retraction_status": {
+        "type": "keyword",
+        "normalizer": "sortNormalizer"
+      },
+      "retraction_status_name": {
+        "type": "keyword",
+        "normalizer": "sortNormalizer"
+      },
+      "mods_in_corpus": {
+        "type": "keyword",
+        "normalizer": "sortNormalizer"
+      },
       "mesh_terms": {
         "type": "nested",
         "properties": {

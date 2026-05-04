@@ -41,7 +41,6 @@ def create_tag(request: TopicEntityTagSchemaPost,
 def show_tag(topic_entity_tag_id: int,
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
 
@@ -101,7 +100,6 @@ def patch_source(topic_entity_tag_source_id,
             status_code=200)
 def show_all_source(user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                     db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_all_source(db)
 
 
@@ -111,7 +109,6 @@ def show_all_source(user: Optional[Dict[str, Any]] = Security(get_authenticated_
 def show_source(topic_entity_tag_source_id: int,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
 
 
@@ -124,7 +121,6 @@ def show_source_by_name(source_evidence_assertion: str,
                         secondary_data_provider_abbreviation: str,
                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                         db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.show_source_by_name(db, source_evidence_assertion, source_method,
                                                      data_provider, secondary_data_provider_abbreviation)
 
@@ -144,7 +140,6 @@ def show_all_reference_tags(
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
 ) -> Union[List[TopicEntityTagSchemaRelated], int]:
-    set_global_user_from_cognito(db, user)
     result = topic_entity_tag_crud.show_all_reference_tags(
         db, curie_or_reference_id,
         page, page_size,
@@ -161,7 +156,6 @@ def get_reference_tags(mod_abbreviation: str,
                        days_updated: int = 7,
                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                        db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.get_all_topic_entity_tags_by_mod(db, mod_abbreviation, days_updated)
 
 
@@ -171,7 +165,6 @@ def get_reference_tags(mod_abbreviation: str,
 def get_curie_to_name_from_all_tets(curie_or_reference_id: str,
                                     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                     db: Session = db_session):
-    set_global_user_from_cognito(db, user)
     return topic_entity_tag_crud.get_curie_to_name_from_all_tets(db, curie_or_reference_id)
 
 

@@ -3,11 +3,12 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import and_, func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, func, or_
+from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from agr_literature_service.api.models.person_model import PersonModel
 from agr_literature_service.api.models.email_model import EmailModel
+from agr_literature_service.api.models.person_name_model import PersonNameModel
 from agr_literature_service.api.models.person_setting_model import PersonSettingModel
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
@@ -213,16 +214,35 @@ def get_by_email(db: Session, email: str) -> List[PersonSettingModel]:
 
 def find_by_name(db: Session, name: str) -> List[PersonSettingModel]:
     """
-    Case-insensitive partial match on Person.display_name.
+    Case-insensitive partial match on Person.display_name OR on
+    PersonName.first_name / middle_name / last_name.
+    Returns a deduplicated list of PersonSettingModel.
     """
     if not name:
         return []
     pattern = f"%{name.strip()}%"
+    # contains_eager (not joinedload) so the explicit join's PersonModel
+    # columns are added to the SELECT list — required because Postgres
+    # rejects SELECT DISTINCT when ORDER BY references columns (here
+    # PersonModel.display_name) that are not in the select list.
     return (
         db.query(PersonSettingModel)
         .join(PersonModel, PersonModel.person_id == PersonSettingModel.person_id)
-        .options(joinedload(PersonSettingModel.person))
-        .filter(PersonModel.display_name.ilike(pattern))
-        .order_by(PersonModel.display_name.asc(), PersonSettingModel.component_name.asc(), PersonSettingModel.setting_name.asc())
+        .outerjoin(PersonNameModel, PersonNameModel.person_id == PersonModel.person_id)
+        .options(contains_eager(PersonSettingModel.person))
+        .filter(
+            or_(
+                PersonModel.display_name.ilike(pattern),
+                PersonNameModel.first_name.ilike(pattern),
+                PersonNameModel.middle_name.ilike(pattern),
+                PersonNameModel.last_name.ilike(pattern),
+            )
+        )
+        .distinct()
+        .order_by(
+            PersonModel.display_name.asc(),
+            PersonSettingModel.component_name.asc(),
+            PersonSettingModel.setting_name.asc(),
+        )
         .all()
     )
