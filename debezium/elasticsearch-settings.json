@@ -289,12 +289,12 @@
       },
       "date_published_end": {
         "type": "date",
-	"format": "epoch_second||epoch_millis||strict_date_optional_time",
-	"ignore_malformed": true
+	    "format": "epoch_second||epoch_millis||strict_date_optional_time",
+	    "ignore_malformed": true
       },
       "date_created": {
         "type": "date",
-	"format": "epoch_second||epoch_millis||strict_date_optional_time",
+	    "format": "epoch_second||epoch_millis||strict_date_optional_time",
         "ignore_malformed": true
       },
       "page_range": {
@@ -491,7 +491,7 @@
           "novel_entity_data": {
             "type": "boolean"
           },
-	  "data_provider": {
+	      "data_provider": {
             "type": "keyword",
             "normalizer": "sortNormalizer"
           },
@@ -518,6 +518,9 @@
                 "ignore_above": 256
               }
             }
+          },
+          "confidence_score": {
+            "type": "double"
           }
         }
       }

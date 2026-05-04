@@ -555,7 +555,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         return agg.get(data_key, {})
 
     topics = extract_filtered_agg(res, "topic_aggregation", "topics")
-    confidence_levels = extract_filtered_agg(res, "confidence_aggregation", "confidence_levels")
+    confidence_levels = extract_filtered_agg(res, "confidence_level_aggregation", "confidence_levels")
+    confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
     data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
 
@@ -577,7 +578,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     # remove temp aggs
     for k in [
         'topic_aggregation',
-        'confidence_aggregation',
+        'confidence_level_aggregation',
+        'confidence_score_aggregation',
         'source_method_aggregation',
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
@@ -606,6 +608,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     return {
         "topics": topics,
         "confidence_levels": confidence_levels,
+        "confidence_scores" : confidence_scores,
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
         "data_novelty": data_novelty,
@@ -716,7 +719,13 @@ def add_nested_query(es_body, facet_name_values_dict, levels):  # pragma: no cov
             vals = facet_values if isinstance(facet_values, (list, tuple)) else [facet_values]
             if any(v.upper() in ("ECO:0007669", "ECO:0006155") for v in vals):
                 facet_name = "topic_entity_tags.source_evidence_assertion_group.keyword"
-        must_conditions.append({"term": {facet_name: facet_values}})
+        if facet_name == "topic_entity_tags.confidence_score":
+            must_conditions.append({"range": {facet_name: {
+                "gte": facet_values[0],
+                "lte": facet_values[1]
+            }}})
+        else:
+            must_conditions.append({"term": {facet_name: facet_values}})
 
     nested_query = {
         "nested": {
@@ -749,7 +758,7 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 "filter": {
                     "bool": {
                         "must": [
-                            {"term": {f"topic_entity_tags.{filter_field}.keyword": filter_value}}
+                            {"range": {f"topic_entity_tags.{filter_field}": {"gte": filter_value[0],"lte": filter_value[1]}}} if filter_field == "confidence_score" else {"term": {f"topic_entity_tags.{filter_field}.keyword": filter_value}}
                             for filter_field, filter_value in tet_facets.items()
                         ]
                     }
@@ -765,6 +774,16 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
         # Ensure we keep empty buckets visible for confidence_levels
         if term_field == "topic_entity_tags.confidence_level.keyword":
             tet_agg["aggs"]["filter_by_other_tet_values"]["aggs"]["confidence_levels"]["terms"]["min_doc_count"] = 0
+        elif term_field == "topic_entity_tags.confidence_score":
+            tet_agg["aggs"]["filter_by_other_tet_values"]["aggs"] = {
+                term_key:{
+                    "histogram": {
+                        "field": term_field,
+                        "interval": 0.05
+                    }
+                }
+            }
+
     else:
         tet_agg["aggs"] = {
             term_key: {
@@ -772,6 +791,18 @@ def create_filtered_aggregation(path, tet_facets, term_field, term_key, size=10)
                 "aggs": {"docs_count": {"reverse_nested": {}}}
             }
         }
+
+        if term_field == "topic_entity_tags.confidence_score":
+            tet_agg["aggs"] = {
+                term_key:{
+                    "histogram": {
+                        "field": term_field,
+                        "interval": 0.05
+                    }
+                }
+            }
+
+
     return tet_agg
 
 
@@ -787,13 +818,22 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         size=facets_limits.get("topics", 10)
     )
 
-    es_body["aggregations"]["confidence_aggregation"] = create_filtered_aggregation_with_dp(
+    es_body["aggregations"]["confidence_level_aggregation"] = create_filtered_aggregation_with_dp(
         path="topic_entity_tags",
         tet_facets=tet_facets,
         term_field="topic_entity_tags.confidence_level.keyword",
         term_key="confidence_levels",
         allowed_dp=allowed_dp,
         size=facets_limits.get("confidence_levels", 10)
+    )
+
+    es_body["aggregations"]["confidence_score_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.confidence_score",
+        term_key="confidence_scores",
+        allowed_dp=allowed_dp,
+        size=facets_limits.get("confidence_scores", 10)
     )
 
     es_body["aggregations"]["data_novelty_aggregation"] = create_filtered_aggregation_with_dp(
