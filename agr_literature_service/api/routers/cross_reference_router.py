@@ -3,7 +3,6 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, Response, Security, status
 
 from sqlalchemy.orm import Session
-from starlette.responses import PlainTextResponse
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import cross_reference_crud
@@ -61,17 +60,6 @@ def show_version(cross_reference_id: int,
                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
     return cross_reference_crud.show_changesets(db, cross_reference_id)
-
-
-@router.get('/autocomplete_on_id',
-            status_code=200, response_class=PlainTextResponse)
-def autocomplete_search(
-        prefix: str,
-        query: str,
-        return_prefix: bool = False,
-        user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-        db: Session = db_session):
-    return cross_reference_crud.autocomplete_on_id(prefix, query, return_prefix, db)
 
 
 @router.post('/show_all',
