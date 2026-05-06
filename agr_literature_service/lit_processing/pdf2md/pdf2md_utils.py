@@ -27,6 +27,8 @@ from agr_literature_service.api.crud.reference_utils import (
     get_reference,
 )
 from agr_literature_service.api.models import (
+    ModCorpusAssociationModel,
+    ModModel,
     ReferencefileModel,
     ReferenceModel,
 )
@@ -41,6 +43,339 @@ EXTRACTION_METHODS: Dict[str, str] = {
     "marker": "converted_marker_main",
     "merged": "converted_merged_main",
 }
+
+# file_class assigned to figure images extracted from PDFs by PDFX/Marker,
+# parallel to the converted_*_main / converted_*_supplement Markdown classes.
+FIGURE_FILE_CLASSES: Dict[str, str] = {
+    "main": "converted_main_figure",
+    "supplement": "converted_supplement_figure",
+}
+# Marker emits .png; the manifest filenames also end in .png.
+CONVERTED_FIGURE_FILE_EXTENSION = "png"
+
+# MODs whose corpus membership makes a reference eligible for supplemental-PDF
+# conversion. Curating the supplements is expensive and only WB/ZFIN/FB
+# currently consume them, so all other references skip supplement conversion.
+ELIGIBLE_SUPPLEMENT_MODS: frozenset = frozenset({"WB", "ZFIN", "FB"})
+
+
+def is_eligible_for_supplement_conversion(db: Session, reference_id: int) -> bool:
+    """
+    Return True iff the reference is in corpus for at least one of the MODs
+    eligible for supplemental-PDF conversion (see ``ELIGIBLE_SUPPLEMENT_MODS``).
+
+    A reference is "in corpus" for a MOD when ``mod_corpus_association.corpus``
+    is True for that ``(reference_id, mod_id)`` pair. The check is at the
+    reference level — it does not depend on which MOD uploaded the supplement
+    PDFs themselves.
+    """
+    return (
+        db.query(ModCorpusAssociationModel)
+        .join(ModModel, ModModel.mod_id == ModCorpusAssociationModel.mod_id)
+        .filter(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True),
+            ModModel.abbreviation.in_(ELIGIBLE_SUPPLEMENT_MODS),
+        )
+        .first()
+        is not None
+    )
+
+
+# Suffixes appended to a source file's display_name when its converted
+# Markdown row is created. nXML conversions produce ``_nxml``; PDFX runs
+# produce ``_merged`` (the canonical "done" marker — the per-method rows
+# _grobid/_docling/_marker may or may not all be present, but a successful
+# conversion always writes the merged row). The legacy TEI->MD batch wrote
+# ``_tei``-suffixed rows; those still count as "converted" unless a caller
+# explicitly opts to overwrite them.
+_NXML_SUFFIX = "_nxml"
+_PDF_MERGED_SUFFIX = "_merged"
+_TEI_SUFFIX = "_tei"
+
+
+def _converted_main_suffixes(is_nxml: bool, ignore_tei_derived: bool) -> List[str]:
+    if is_nxml:
+        return [_NXML_SUFFIX]
+    suffixes = [_PDF_MERGED_SUFFIX]
+    if not ignore_tei_derived:
+        suffixes.append(_TEI_SUFFIX)
+    return suffixes
+
+
+def _converted_supplement_suffixes(ignore_tei_derived: bool) -> List[str]:
+    suffixes = [_PDF_MERGED_SUFFIX]
+    if not ignore_tei_derived:
+        suffixes.append(_TEI_SUFFIX)
+    return suffixes
+
+
+def is_main_source_converted(
+    db: Session,
+    reference_id: int,
+    source_display_name: str,
+    *,
+    is_nxml: bool,
+    ignore_tei_derived: bool = False,
+) -> bool:
+    """
+    Has the given main-side source file already produced a converted_merged_main
+    Markdown row? Matches by display_name suffix:
+    ``{source_display_name}_nxml`` for nXML sources, ``{source_display_name}_merged``
+    for main PDFs (plus legacy ``_tei`` rows unless ``ignore_tei_derived=True``).
+    """
+    expected_names = [
+        f"{source_display_name}{suffix}"
+        for suffix in _converted_main_suffixes(is_nxml, ignore_tei_derived)
+    ]
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "converted_merged_main",
+            ReferencefileModel.file_extension == "md",
+            ReferencefileModel.file_publication_status == "final",
+            ReferencefileModel.display_name.in_(expected_names),
+        )
+        .first()
+        is not None
+    )
+
+
+def is_supplement_source_converted(
+    db: Session,
+    reference_id: int,
+    source_display_name: str,
+    *,
+    ignore_tei_derived: bool = False,
+) -> bool:
+    """
+    Has the given supplement PDF already produced a converted_merged_supplement
+    Markdown row? Matches by display_name suffix ``_merged`` (plus legacy
+    ``_tei`` rows unless ``ignore_tei_derived=True``).
+    """
+    expected_names = [
+        f"{source_display_name}{suffix}"
+        for suffix in _converted_supplement_suffixes(ignore_tei_derived)
+    ]
+    return (
+        db.query(ReferencefileModel)
+        .filter(
+            ReferencefileModel.reference_id == reference_id,
+            ReferencefileModel.file_class == "converted_merged_supplement",
+            ReferencefileModel.file_extension == "md",
+            ReferencefileModel.file_publication_status == "final",
+            ReferencefileModel.display_name.in_(expected_names),
+        )
+        .first()
+        is not None
+    )
+
+
+class PendingMainSource(TypedDict):
+    """A main-side source file that still needs conversion."""
+    kind: Literal["nxml", "pdf"]
+    ref_file: ReferencefileModel
+
+
+def _file_is_for_mod(
+    ref_file: ReferencefileModel, mod_abbreviation: Optional[str]
+) -> bool:
+    """
+    True iff ``ref_file`` should be considered owned by ``mod_abbreviation``.
+
+    A MOD owns a referencefile iff there is a ``referencefile_mod`` row
+    associating the file with that MOD, OR the file has at least one
+    referencefile_mod row with ``mod_id IS NULL`` (shared / PMC).
+    Pass ``mod_abbreviation=None`` to disable the filter (any file matches).
+    """
+    if mod_abbreviation is None:
+        return True
+    for ref_file_mod in ref_file.referencefile_mods or []:
+        if ref_file_mod.mod is None:
+            return True
+        if ref_file_mod.mod.abbreviation == mod_abbreviation:
+            return True
+    return False
+
+
+def pending_main_sources(
+    db: Session,
+    reference_id: int,
+    prefer_nxml: bool = True,
+    ignore_tei_derived: bool = False,
+    mod_abbreviation: Optional[str] = None,
+) -> List[PendingMainSource]:
+    """
+    Return the main-side source files for a reference whose converted
+    Markdown output is missing (and so still needs to be produced).
+
+    Per-source dedup: a source is "already converted" iff a
+    ``converted_merged_main`` row exists with the matching ``_nxml`` /
+    ``_merged`` display_name suffix (and ``_tei`` for legacy rows unless
+    ``ignore_tei_derived`` is True). This lets later batch ticks (or
+    later MOD workflow tags) pick up just the new sources, without
+    re-running PDFX/nXML on files that have already been processed.
+
+    When ``prefer_nxml`` is True (default) and an nXML source exists, it
+    is the only main source returned (its conversion is the canonical
+    main MD); main PDFs are returned only if no nXML is present. When
+    ``prefer_nxml`` is False, nXML is ignored and only pending main PDFs
+    are returned.
+
+    When ``mod_abbreviation`` is provided, only main PDFs associated with
+    that MOD (or shared / null-mod files) are considered; other MODs'
+    MOD-specific PDFs are excluded so each MOD's text_convert_job only
+    processes its own files. ``mod_abbreviation=None`` disables the
+    filter (any file is eligible).
+    """
+    pending: List[PendingMainSource] = []
+
+    nxml = get_nxml_referencefile(db, reference_id) if prefer_nxml else None
+    if nxml is not None and _file_is_for_mod(nxml, mod_abbreviation):
+        if not is_main_source_converted(
+            db, reference_id, nxml.display_name,
+            is_nxml=True, ignore_tei_derived=ignore_tei_derived,
+        ):
+            pending.append({"kind": "nxml", "ref_file": nxml})
+        # nXML present (converted or pending) — by convention we don't ALSO
+        # convert main PDFs when nXML is the chosen source for this reference.
+        return pending
+
+    for pdf in get_pdf_files_for_reference(db, reference_id, "main"):
+        if not _file_is_for_mod(pdf, mod_abbreviation):
+            continue
+        if not is_main_source_converted(
+            db, reference_id, pdf.display_name,
+            is_nxml=False, ignore_tei_derived=ignore_tei_derived,
+        ):
+            pending.append({"kind": "pdf", "ref_file": pdf})
+    return pending
+
+
+_SOURCE_SUFFIXES = (
+    _NXML_SUFFIX,
+    _PDF_MERGED_SUFFIX,
+    _TEI_SUFFIX,
+    "_grobid",
+    "_docling",
+    "_marker",
+)
+
+
+def find_source_for_converted(
+    reference: ReferenceModel,
+    converted_display_name: str,
+    converted_file_class: str,
+) -> Optional[ReferencefileModel]:
+    """
+    Given a ``converted_*_main`` / ``converted_*_supplement`` Markdown row,
+    return the source ReferencefileModel it was produced from (or None if
+    the source can't be identified).
+
+    Uses the display_name suffix convention written by the conversion
+    helpers: ``{source}_{nxml|merged|tei|grobid|docling|marker}``.
+    """
+    base: Optional[str] = None
+    for suffix in _SOURCE_SUFFIXES:
+        if converted_display_name.endswith(suffix):
+            base = converted_display_name[: -len(suffix)]
+            break
+    if base is None:
+        return None
+
+    nxml_suffix_used = converted_display_name.endswith(_NXML_SUFFIX)
+    if converted_file_class.endswith("_main"):
+        source_class = "nXML" if nxml_suffix_used else "main"
+    elif converted_file_class.endswith("_supplement"):
+        source_class = "supplement"
+    else:
+        return None
+
+    for ref_file in reference.referencefiles or []:
+        if ref_file.file_class == source_class and ref_file.display_name == base:
+            return ref_file
+    return None
+
+
+def sync_converted_file_mods_to_sources(
+    db: Session,
+    reference: ReferenceModel,
+) -> int:
+    """
+    For each converted Markdown row of this reference, ensure its
+    ``referencefile_mod`` associations include every association the source
+    file has. Idempotent: only ADDS missing associations; never removes.
+
+    Returns the number of associations added (0 when everything is
+    already in sync).
+
+    SCRUM-6041: when a MOD-specific batch run converts a shared file,
+    the converted output is initially associated only with that one MOD.
+    A subsequent on-demand call can use this helper to make the converted
+    output also visible to every other MOD whose source file the same
+    reference points at — including null-mod (PMC, open-access) sources.
+    """
+    from agr_literature_service.api.models.referencefile_model import (
+        ReferencefileModAssociationModel,
+    )
+    added = 0
+    for ref_file in reference.referencefiles or []:
+        fc = ref_file.file_class or ""
+        if not fc.startswith("converted_"):
+            continue
+        if ref_file.file_extension != "md":
+            continue
+        if not (fc.endswith("_main") or fc.endswith("_supplement")):
+            continue
+        source = find_source_for_converted(
+            reference, ref_file.display_name or "", fc,
+        )
+        if source is None:
+            continue
+        target_mod_ids = {a.mod_id for a in (ref_file.referencefile_mods or [])}
+        source_mod_ids = {a.mod_id for a in (source.referencefile_mods or [])}
+        for missing_mod_id in source_mod_ids - target_mod_ids:
+            db.add(ReferencefileModAssociationModel(
+                referencefile_id=ref_file.referencefile_id,
+                mod_id=missing_mod_id,
+            ))
+            added += 1
+    if added:
+        db.commit()
+    return added
+
+
+def pending_supplement_sources(
+    db: Session,
+    reference_id: int,
+    ignore_tei_derived: bool = False,
+    mod_abbreviation: Optional[str] = None,
+) -> List[ReferencefileModel]:
+    """
+    Return the supplement PDFs for a reference whose
+    ``converted_merged_supplement`` output is missing.
+
+    Per-source dedup so a later batch tick (or a later MOD's
+    "conversion needed" tag) only processes supplements that haven't been
+    converted yet — supplements MOD A converted in an earlier run are
+    skipped, supplements MOD B added later are picked up.
+
+    When ``mod_abbreviation`` is provided, only supplements associated
+    with that MOD (or shared / null-mod files) are returned, so each
+    MOD's text_convert_job only processes its own supplements.
+    ``mod_abbreviation=None`` disables the filter (any file is eligible).
+    """
+    pending: List[ReferencefileModel] = []
+    for supp in get_pdf_files_for_reference(db, reference_id, "supplement"):
+        if not _file_is_for_mod(supp, mod_abbreviation):
+            continue
+        if not is_supplement_source_converted(
+            db, reference_id, supp.display_name,
+            ignore_tei_derived=ignore_tei_derived,
+        ):
+            pending.append(supp)
+    return pending
 
 
 class PdfDetail(TypedDict):
@@ -73,7 +408,10 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     reference_curie: Optional[str] = None,
     mod_abbreviation: Optional[str] = None,
     max_retries: int = 3,
-    retry_delay: int = 5
+    retry_delay: int = 5,
+    extract_images: bool = True,
+    review_images: Optional[bool] = None,
+    clear_cache_scope: Optional[str] = "extraction",
 ) -> str:
     """
     Submit a PDF to the PDFX service for processing.
@@ -87,6 +425,17 @@ def submit_pdf_to_pdfx(  # pragma: no cover
         mod_abbreviation: Optional MOD abbreviation for logging.
         max_retries: Maximum number of retry attempts for transient failures.
         retry_delay: Delay between retries in seconds.
+        extract_images: Whether to ask PDFX to extract figure images via Marker.
+            Defaults to True so all conversions also produce image artifacts.
+        review_images: Optional override for the text-only LLM image review
+            stage. When None, the PDFX default applies (review on when images
+            are extracted). Pass False to skip the review stage explicitly.
+        clear_cache_scope: PDFX cache-clearing scope. Defaults to ``"extraction"``
+            so every submission re-runs the extractors and regenerates image
+            artifacts; this works around a server-side cache bug where a
+            stale image manifest can survive after the on-disk image files
+            have been TTL'd, producing silent zero-image results. Pass None
+            to omit the field and rely on PDFX's default behavior.
 
     Returns:
         str: The process_id for tracking the extraction job.
@@ -104,8 +453,13 @@ def submit_pdf_to_pdfx(  # pragma: no cover
     # Prepare multipart form data
     data = {
         "methods": methods,
-        "merge": str(merge).lower()
+        "merge": str(merge).lower(),
+        "extract_images": str(extract_images).lower(),
     }
+    if review_images is not None:
+        data["review_images"] = str(review_images).lower()
+    if clear_cache_scope is not None:
+        data["clear_cache_scope"] = clear_cache_scope
 
     logger.info(f"Submitting PDF to PDFX for {reference_curie or 'unknown reference'}")
 
@@ -235,6 +589,167 @@ def download_pdfx_result(process_id: str, method: str, token: str) -> bytes:  # 
     response.raise_for_status()
 
     return response.content
+
+
+def download_pdfx_image_manifest(process_id: str, token: str) -> Dict:  # pragma: no cover
+    """
+    Fetch the image manifest produced by a PDFX extraction job.
+
+    Returns the parsed JSON payload from
+    ``/api/v1/extract/{process_id}/images/urls``. The payload's ``images``
+    list contains one entry per extracted image, each with a presigned ``url``
+    plus marker metadata (figure_label, figure_number, image_review_*, etc.).
+    The list will be empty when ``extract_images=true`` was not requested.
+    """
+    pdfx_api_url = os.environ.get("PDFX_API_URL", "https://pdfx.alliancegenome.org")
+    url = f"{pdfx_api_url}/api/v1/extract/{process_id}/images/urls"
+    headers = {"Authorization": f"Bearer {token}"}
+    response = requests.get(url, headers=headers, timeout=60)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError(
+            f"Unexpected manifest payload type for PDFX job {process_id}: "
+            f"{type(payload).__name__}"
+        )
+    return payload
+
+
+def download_pdfx_image(image_url: str) -> bytes:  # pragma: no cover
+    """
+    Download a single image artifact from a presigned S3 URL returned by
+    :func:`download_pdfx_image_manifest`.
+
+    No bearer token is needed — the URL is already pre-signed.
+    """
+    response = requests.get(image_url, timeout=60)
+    response.raise_for_status()
+    return response.content
+
+
+def process_extracted_images(  # pragma: no cover
+    db: Session,
+    process_id: str,
+    token: str,
+    source_display_name: str,
+    source_file_class: str,
+    reference_curie: str,
+    mod_abbreviation: Optional[str],
+) -> Tuple[int, int, List[str]]:
+    """
+    Fetch the PDFX image manifest for ``process_id`` and upload each image as
+    a referencefile under the dedicated figure file_class.
+
+    The output file_class is derived from the source PDF's file_class:
+    ``main`` → ``converted_main_figure`` and ``supplement`` →
+    ``converted_supplement_figure`` (see :data:`FIGURE_FILE_CLASSES`). Display
+    names follow the existing converted-output convention
+    ``{source_display_name}_{suffix}`` so each figure is grouped under its
+    source PDF in the UI; the suffix is ``image_{idx:03d}`` (1-indexed by
+    manifest order) so names stay stable, sortable, and unique within a
+    source PDF.
+
+    Returns ``(succeeded_count, failed_count, errors)``. Image-extraction
+    failures never raise — the caller's overall conversion still succeeds
+    based on the Markdown outputs.
+    """
+    figure_file_class = FIGURE_FILE_CLASSES.get(source_file_class)
+    if figure_file_class is None:
+        logger.warning(
+            f"No figure file_class mapping for source file_class "
+            f"'{source_file_class}'; skipping image extraction for "
+            f"{reference_curie}"
+        )
+        return 0, 0, []
+
+    try:
+        manifest = download_pdfx_image_manifest(process_id, token)
+    except Exception as e:
+        msg = f"Failed to fetch PDFX image manifest: {e}"
+        logger.warning(f"{msg} (process_id={process_id}, ref={reference_curie})")
+        return 0, 0, [msg]
+
+    images = manifest.get("images") or []
+    if not images:
+        logger.info(
+            f"No extracted images returned by PDFX for {reference_curie} "
+            f"({source_file_class} '{source_display_name}', process_id={process_id})"
+        )
+        return 0, 0, []
+
+    succeeded = 0
+    failed = 0
+    errors: List[str] = []
+
+    for idx, image in enumerate(images, start=1):
+        image_url = image.get("url")
+        if not image_url:
+            failed += 1
+            errors.append(f"image {idx}: manifest entry missing 'url'")
+            continue
+
+        # display_name: {source}_image_{idx:03d}, mirroring the {source}_{method}
+        # convention used for converted Markdown outputs. file_upload_single's
+        # find_first_available_display_name will append _N if needed for
+        # uniqueness within the reference.
+        output_display_name = f"{source_display_name}_image_{idx:03d}"
+
+        try:
+            image_bytes = download_pdfx_image(image_url)
+        except Exception as e:
+            failed += 1
+            errors.append(f"image {idx} ({output_display_name}): download failed: {e}")
+            logger.error(
+                f"Failed to download image {idx} for {reference_curie} "
+                f"({source_file_class} '{source_display_name}'): {e}"
+            )
+            continue
+
+        if not image_bytes:
+            failed += 1
+            errors.append(f"image {idx} ({output_display_name}): empty content")
+            continue
+
+        metadata = {
+            "reference_curie": reference_curie,
+            "display_name": output_display_name,
+            "file_class": figure_file_class,
+            "file_publication_status": "final",
+            "file_extension": CONVERTED_FIGURE_FILE_EXTENSION,
+            "pdf_type": None,
+            "is_annotation": None,
+            "mod_abbreviation": mod_abbreviation,
+        }
+
+        try:
+            file_upload(
+                db=db,
+                metadata=metadata,
+                file=UploadFile(
+                    file=BytesIO(image_bytes),
+                    filename=f"{output_display_name}.{CONVERTED_FIGURE_FILE_EXTENSION}",
+                ),
+                upload_if_already_converted=True,
+            )
+            succeeded += 1
+            logger.info(
+                f"Uploaded extracted figure for {reference_curie} as "
+                f"{figure_file_class} '{output_display_name}'"
+            )
+        except Exception as e:
+            failed += 1
+            errors.append(f"image {idx} ({output_display_name}): upload failed: {e}")
+            logger.error(
+                f"Failed to upload extracted image {idx} for {reference_curie}: {e}"
+            )
+
+    if succeeded or failed:
+        logger.info(
+            f"Image extraction for {reference_curie} "
+            f"({source_file_class} '{source_display_name}'): "
+            f"{succeeded} succeeded, {failed} failed"
+        )
+    return succeeded, failed, errors
 
 
 # Valid pdf_type values
@@ -526,18 +1041,24 @@ def _process_single_pdf_file(  # pragma: no cover
     if not file_content:
         return False, [], "Failed to download PDF content"
 
-    # Determine which methods to request
+    # Determine which methods to request. Image extraction requires marker, so
+    # ensure it is in the request set whenever it would otherwise be omitted —
+    # we still only upload Markdown for the methods the caller asked for.
     request_methods = [m for m in methods_to_extract if m != "merged"]
     include_merge = "merged" in methods_to_extract
+    if "marker" not in request_methods:
+        request_methods.append("marker")
 
-    # Submit to PDFX
+    # Submit to PDFX with image extraction enabled (default), so the same job
+    # produces both Markdown and figure images in one PDFX run per source PDF.
     process_id = submit_pdf_to_pdfx(
         file_content=file_content,
         token=token,
-        methods=",".join(request_methods) if request_methods else "grobid,docling,marker",
+        methods=",".join(request_methods),
         merge=include_merge,
         reference_curie=reference_curie,
-        mod_abbreviation=mod_abbreviation
+        mod_abbreviation=mod_abbreviation,
+        extract_images=True,
     )
 
     # Poll for completion
@@ -588,6 +1109,25 @@ def _process_single_pdf_file(  # pragma: no cover
 
         except Exception as e:
             logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+    # Always attempt image extraction after the Markdown outputs. Failures here
+    # are reported but do not flip the per-file success — the converted MD
+    # rows are the contract callers depend on.
+    try:
+        process_extracted_images(
+            db=db,
+            process_id=process_id,
+            token=token,
+            source_display_name=display_name,
+            source_file_class=file_class,
+            reference_curie=reference_curie,
+            mod_abbreviation=mod_abbreviation,
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during image extraction for {reference_curie} "
+            f"({file_class} '{display_name}'): {e}"
+        )
 
     if successful_methods:
         logger.info(
@@ -878,10 +1418,11 @@ def process_supplemental_pdfs(  # pragma: no cover
     reference_id: int,
     reference_curie: str,
     token: str,
-    methods_to_extract: Optional[List[str]] = None
+    methods_to_extract: Optional[List[str]] = None,
+    mod_abbreviation: Optional[str] = None,
 ) -> Tuple[int, int, List[str]]:
     """
-    Convert all supplemental PDFs for a reference to Markdown via PDFX.
+    Convert supplemental PDFs for a reference to Markdown via PDFX.
 
     Uses the existing per-PDF helper (_process_single_pdf_file), which already
     handles supplement file_class naming ('converted_{method}_supplement').
@@ -892,6 +1433,11 @@ def process_supplemental_pdfs(  # pragma: no cover
         reference_curie: The reference curie for metadata/logging.
         token: PDFX bearer token.
         methods_to_extract: List of methods to extract (default: all).
+        mod_abbreviation: When provided, only supplements associated with
+            this MOD (or shared / null-mod ones) are processed — each MOD's
+            text_convert_job is responsible only for its own supplements.
+            ``None`` (the default) processes every supplement, used by
+            bulk-mode entry points that have no MOD context.
 
     Returns:
         Tuple of (succeeded_count, failed_count, per_supplement_errors). Each
@@ -900,19 +1446,45 @@ def process_supplemental_pdfs(  # pragma: no cover
     if methods_to_extract is None:
         methods_to_extract = list(EXTRACTION_METHODS.keys())
 
-    supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
-    if not supplements:
+    if not is_eligible_for_supplement_conversion(db, reference_id):
+        logger.info(
+            f"Skipping supplemental PDF conversion for {reference_curie}: "
+            f"reference is not in corpus for any of "
+            f"{sorted(ELIGIBLE_SUPPLEMENT_MODS)}"
+        )
+        return 0, 0, []
+
+    # Per-source dedup: only process supplements whose converted_merged_supplement
+    # output is missing. Already-converted supplements (e.g., processed in an
+    # earlier batch run for a different MOD) are skipped so we don't burn
+    # PDFX time re-running them. With mod_abbreviation set, also skip
+    # supplements that don't belong to this MOD.
+    pending = pending_supplement_sources(
+        db, reference_id, mod_abbreviation=mod_abbreviation
+    )
+    if not pending:
+        all_supplements = get_pdf_files_for_reference(db, reference_id, "supplement")
+        if all_supplements:
+            scope = (
+                f"for {mod_abbreviation}"
+                if mod_abbreviation
+                else "across all MODs"
+            )
+            logger.info(
+                f"All eligible supplemental PDF(s) for {reference_curie} "
+                f"({scope}) already converted; nothing to do"
+            )
         return 0, 0, []
 
     logger.info(
-        f"Processing {len(supplements)} supplemental PDF(s) for {reference_curie}"
+        f"Processing {len(pending)} pending supplemental PDF(s) for {reference_curie}"
     )
 
     succeeded = 0
     failed = 0
     errors: List[str] = []
 
-    for pdf_file in supplements:
+    for pdf_file in pending:
         try:
             success, _methods, error = _process_single_pdf_file(
                 db=db,

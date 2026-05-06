@@ -37,6 +37,8 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     poll_pdfx_status,
     download_pdfx_result,
     get_nxml_referencefile,
+    is_main_source_converted,
+    process_extracted_images,
     process_nxml_to_markdown,
     process_supplemental_pdfs,
 )
@@ -421,17 +423,23 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
             use_in_api=False
         )
 
-        # Determine which methods to request (merged requires merge=True)
+        # Determine which methods to request (merged requires merge=True).
+        # Marker is required for figure image extraction, so ensure it is in
+        # the request set even when the caller did not explicitly ask for it
+        # (we still only upload Markdown for the methods the caller wants).
         request_methods = [m for m in methods_to_extract if m != "merged"]
         include_merge = "merged" in methods_to_extract
+        if "marker" not in request_methods:
+            request_methods.append("marker")
 
         process_id = submit_pdf_to_pdfx(
             file_content=file_content,
             token=token,
-            methods=",".join(request_methods) if request_methods else "grobid,docling,marker",
+            methods=",".join(request_methods),
             merge=include_merge,
             reference_curie=reference_curie,
-            mod_abbreviation=mod_abbreviation
+            mod_abbreviation=mod_abbreviation,
+            extract_images=True,
         )
 
         poll_pdfx_status(process_id, token)
@@ -474,6 +482,25 @@ def _convert_main_pdf_via_pdfx(  # pragma: no cover
 
             except Exception as e:
                 logger.error(f"Failed to download/upload {method} for {reference_curie}: {e}")
+
+        # Always attempt image extraction after the Markdown outputs. Failures
+        # here are reported but do not flip the per-file success — the
+        # converted MD rows are the contract callers depend on.
+        try:
+            process_extracted_images(
+                db=db,
+                process_id=process_id,
+                token=token,
+                source_display_name=display_name,
+                source_file_class="main",
+                reference_curie=reference_curie,
+                mod_abbreviation=mod_abbreviation,
+            )
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during image extraction for {reference_curie} "
+                f"(main '{display_name}'): {e}"
+            )
 
         if successful_methods:
             logger.info(
@@ -540,21 +567,40 @@ def process_single_reference(  # pragma: no cover
     main_success = False
     main_error: Optional[str] = None
 
-    # 1. Prefer nXML when available (unless forced to PDFX)
-    if prefer_nxml:
-        nxml_ref_file = get_nxml_referencefile(db, reference_id)
-        if nxml_ref_file is not None:
-            main_success, main_error = process_nxml_to_markdown(
-                db=db,
-                nxml_ref_file=nxml_ref_file,
-                reference_curie=reference_curie,
-                mod_abbreviation=mod_abbreviation
+    # 0. Per-source dedup: if either the nXML source or the main PDF source
+    # has already produced a converted_merged_main row in a prior run,
+    # treat the main side as already converted and skip the conversion call.
+    nxml_ref_file = get_nxml_referencefile(db, reference_id) if prefer_nxml else None
+    main_already_converted = False
+    if nxml_ref_file is not None and is_main_source_converted(
+        db, reference_id, nxml_ref_file.display_name, is_nxml=True
+    ):
+        main_already_converted = True
+    elif is_main_source_converted(
+        db, reference_id, display_name, is_nxml=False
+    ):
+        main_already_converted = True
+
+    if main_already_converted:
+        logger.info(
+            f"Main already converted for {reference_curie}; "
+            f"skipping nXML/PDFX call"
+        )
+        main_success = True
+
+    # 1. Prefer nXML when available (unless forced to PDFX or already converted)
+    if not main_success and prefer_nxml and nxml_ref_file is not None:
+        main_success, main_error = process_nxml_to_markdown(
+            db=db,
+            nxml_ref_file=nxml_ref_file,
+            reference_curie=reference_curie,
+            mod_abbreviation=mod_abbreviation
+        )
+        if not main_success:
+            logger.warning(
+                f"nXML conversion failed for {reference_curie} ({main_error}); "
+                f"falling back to PDFX on main PDF"
             )
-            if not main_success:
-                logger.warning(
-                    f"nXML conversion failed for {reference_curie} ({main_error}); "
-                    f"falling back to PDFX on main PDF"
-                )
 
     # 2. Fall back to (or use directly) PDFX on the main PDF
     if not main_success:
@@ -581,7 +627,10 @@ def process_single_reference(  # pragma: no cover
             else:
                 main_error = pdfx_error
 
-    # 3. Optionally convert supplemental PDFs regardless of main path used
+    # 3. Optionally convert supplemental PDFs regardless of main path used.
+    # When called from the workflow batch (mod_abbreviation is set), only
+    # supplements associated with that MOD are processed; bulk modes
+    # (newest/since-year, mod_abbreviation=None) process every supplement.
     if process_supplements:
         try:
             sup_succeeded, sup_failed, sup_errors = process_supplemental_pdfs(
@@ -589,7 +638,8 @@ def process_single_reference(  # pragma: no cover
                 reference_id=reference_id,
                 reference_curie=reference_curie,
                 token=token,
-                methods_to_extract=methods_to_extract
+                methods_to_extract=methods_to_extract,
+                mod_abbreviation=mod_abbreviation,
             )
             if sup_succeeded or sup_failed:
                 logger.info(
@@ -795,13 +845,18 @@ def main(  # pragma: no cover
             logger.info(f"Loaded batch of {len(jobs)} jobs. Total jobs loaded: {len(all_jobs)}")
         logger.info("Finished loading all text conversion jobs.")
 
+        # Per-MOD per-job iteration: each text_convert_job processes only
+        # its own MOD's files. Per-source dedup inside the helpers means a
+        # shared file (e.g., PMC main PDF) converted by MOD A's job will
+        # be skipped when MOD B's job runs — but if MOD B has a distinct
+        # MOD-specific PDF or supplement, that file gets its own conversion.
         mod_abbreviation_from_mod_id: Dict[int, str] = {}
-        objects_with_errors = []
+        objects_with_errors: List[Dict] = []
         total_count = len(all_jobs)
         success_count = 0
         failure_count = 0
         skipped_count = 0
-        ref_times = []
+        ref_times: List[float] = []
 
         for idx, job in enumerate(all_jobs, 1):
             ref_start_time = time.time()
