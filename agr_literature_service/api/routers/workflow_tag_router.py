@@ -332,3 +332,20 @@ def get_indexing_and_community_workflow_tags(
     return workflow_tag_crud.get_indexing_and_community_workflow_tags(
         db, reference_curie, mod_abbreviation
     )
+
+
+@router.get(
+    "/pre_curation_overview/{reference_curie}",
+    status_code=status.HTTP_200_OK,
+)
+def get_pre_curation_workflow_overview(
+    reference_curie: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """
+    Get pre-curation workflow status overview for a reference across all MODs.
+    Returns workflow statuses for file upload, text conversion, email extraction,
+    topic classification, entity extraction, and curation classification.
+    """
+    return workflow_tag_crud.get_pre_curation_workflow_overview(db, reference_curie)
