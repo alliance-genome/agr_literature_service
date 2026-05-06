@@ -81,6 +81,10 @@ class EmailModel(Base, AuditedModel):
         # Index to support lookups by email address
         Index("ix_email_address", "email_address"),
 
+        # Functional index supporting func.lower(email_address) == :norm
+        # lookups (see crud/person_crud.py:310, crud/user_utils.py:22).
+        Index("ix_email_lower_email_address", text("lower(email_address)")),
+
         # Helpful composite index: queries like
         #   WHERE person_id = ? AND primary = TRUE
         Index("ix_email_person_primary", "person_id", "primary"),

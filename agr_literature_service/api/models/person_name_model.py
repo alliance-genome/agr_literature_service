@@ -48,6 +48,27 @@ class PersonNameModel(Base, AuditedModel):
         # Composite index for queries like
         #   WHERE person_id = ? AND primary = TRUE
         Index("ix_person_name_person_primary", "person_id", "primary"),
+
+        # Trigram GIN indices supporting ILIKE '%name%' lookups in
+        # person_crud.find_by_name and person_setting_crud equivalents.
+        Index(
+            "ix_person_name_first_name_trgm",
+            "first_name",
+            postgresql_using="gin",
+            postgresql_ops={"first_name": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_person_name_middle_name_trgm",
+            "middle_name",
+            postgresql_using="gin",
+            postgresql_ops={"middle_name": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_person_name_last_name_trgm",
+            "last_name",
+            postgresql_using="gin",
+            postgresql_ops={"last_name": "gin_trgm_ops"},
+        ),
     )
 
     def __str__(self) -> str:
