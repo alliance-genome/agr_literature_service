@@ -108,6 +108,13 @@ class ResourceModel(Base, AuditedModel):
         lazy="joined"
     )
 
+    resource_image_permissions = relationship(
+        "ResourceImagePermissionModel",
+        back_populates="resource",
+        cascade="all, delete, delete-orphan",
+        passive_deletes=True
+    )
+
     license_list: Column = Column(
         ARRAY(String()),
         unique=False,
