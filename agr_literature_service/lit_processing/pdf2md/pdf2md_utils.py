@@ -8,6 +8,7 @@ retrieval for both main and supplemental files.
 import gzip
 import logging
 import os
+import re
 import time
 from io import BytesIO
 from typing import Dict, List, Literal, Optional, Tuple, TypedDict
@@ -43,6 +44,11 @@ EXTRACTION_METHODS: Dict[str, str] = {
     "marker": "converted_marker_main",
     "merged": "converted_merged_main",
 }
+
+SUPPLEMENT_PDF_MAX_BYTES = 5 * 1024 * 1024
+SUPPLEMENT_PDF_MAX_PAGES = 20
+_PDF_PAGE_TYPE_RE = re.compile(rb"/Type\s*/Page\b")
+_PDF_PAGE_COUNT_RE = re.compile(rb"/Count\s+(\d+)")
 
 # file_class assigned to figure images extracted from PDFs by PDFX/Marker,
 # parallel to the converted_*_main / converted_*_supplement Markdown classes.
@@ -398,6 +404,52 @@ class ProcessingResult(TypedDict):
     pdfs_failed: int
     details: List[PdfDetail]
     error: Optional[str]
+
+
+def _estimate_pdf_page_count_from_bytes(file_content: bytes) -> Optional[int]:
+    page_objects = len(_PDF_PAGE_TYPE_RE.findall(file_content))
+    if page_objects > 0:
+        return page_objects
+
+    page_counts = [
+        int(match.group(1))
+        for match in _PDF_PAGE_COUNT_RE.finditer(file_content)
+    ]
+    if page_counts:
+        return max(page_counts)
+
+    return None
+
+
+def get_pdf_page_count(file_content: bytes) -> Optional[int]:
+    try:
+        from pypdf import PdfReader  # type: ignore
+
+        return len(PdfReader(BytesIO(file_content)).pages)
+    except Exception:
+        logger.debug("Could not determine PDF page count with pypdf; using byte scan fallback", exc_info=True)
+
+    return _estimate_pdf_page_count_from_bytes(file_content)
+
+
+def validate_supplement_pdf_for_pdfx(file_content: bytes) -> Optional[str]:
+    file_size = len(file_content)
+    if file_size > SUPPLEMENT_PDF_MAX_BYTES:
+        return (
+            f"Supplemental PDF exceeds {SUPPLEMENT_PDF_MAX_BYTES // (1024 * 1024)} MB "
+            f"limit for PDF conversion ({file_size} bytes)"
+        )
+
+    page_count = get_pdf_page_count(file_content)
+    if page_count is None:
+        return "Could not determine supplemental PDF page count for PDF conversion"
+    if page_count > SUPPLEMENT_PDF_MAX_PAGES:
+        return (
+            f"Supplemental PDF exceeds {SUPPLEMENT_PDF_MAX_PAGES} page limit "
+            f"for PDF conversion ({page_count} pages)"
+        )
+
+    return None
 
 
 def submit_pdf_to_pdfx(  # pragma: no cover
@@ -1040,6 +1092,14 @@ def _process_single_pdf_file(  # pragma: no cover
 
     if not file_content:
         return False, [], "Failed to download PDF content"
+
+    if file_class == "supplement":
+        validation_error = validate_supplement_pdf_for_pdfx(file_content)
+        if validation_error:
+            logger.warning(
+                f"Skipping supplemental PDF {display_name} for {reference_curie}: {validation_error}"
+            )
+            return False, [], validation_error
 
     # Determine which methods to request. Image extraction requires marker, so
     # ensure it is in the request set whenever it would otherwise be omitted —
