@@ -47,19 +47,11 @@ DEFAULT_REPORT_FILE = "data/journal_permission_load_report.tsv"
 SCRIPT_USER = path.basename(__file__).replace(".py", "")
 
 MOD_PERMISSION_COLUMNS = ["FB", "MGI", "RGD", "SGD", "WB", "XB", "ZFIN"]
-METADATA_COLUMNS = [
-    "Journal (NLM abbrev)",
-    "Publisher",
-    "Full Journal Name",
-    "Journal URL",
-    "Article URL",
-    "Publisher URL",
-    "Contact",
+NOTE_COLUMNS = [
     "Comments",
-    "Licensing Link",
-    "License type",
     "Hybrid Journal",
     "Embargo",
+    "Author permission required?",
     "Delay of Use",
 ]
 
@@ -72,6 +64,11 @@ POSITIVE_PERMISSION_PATTERNS = (
     "permission to use images",
     "contract",
     "oa",
+)
+
+PERMISSION_URL_PATTERN = re.compile(
+    r"(copyright|licens|open[-_]?access|permission|polic|reprint|rights)",
+    flags=re.IGNORECASE,
 )
 
 
@@ -139,7 +136,7 @@ def clean(value: Optional[str]) -> str:
 
 def is_blankish(value: Optional[str]) -> bool:
     text = clean(value).lower()
-    return text in {"", "n/a", "na", "none", "null", "-"}
+    return text in {"", "n/a", "na", "none", "null", "(null)", "-"}
 
 
 def normalize_for_match(value: str) -> str:
@@ -191,12 +188,19 @@ def range_label(start_year: Optional[int], end_year: Optional[int]) -> str:
     return f"{start_year}-{end_year}"
 
 
-def first_url(row: Dict[str, str]) -> Optional[str]:
-    for column in ["Licensing Link", "Publisher URL", "Journal URL", "Article URL"]:
-        value = clean(row.get(column))
-        if value and not is_blankish(value):
-            return value
-    return None
+def extract_urls(value: Optional[str]) -> List[str]:
+    if is_blankish(value):
+        return []
+    return [url.rstrip(").,;") for url in re.findall(r"https?://[^\s;,]+", clean(value))]
+
+
+def is_permission_url(url: str) -> bool:
+    return bool(PERMISSION_URL_PATTERN.search(url))
+
+
+def permission_url(row: Dict[str, str]) -> Optional[str]:
+    urls = [url for url in extract_urls(row.get("Licensing Link")) if is_permission_url(url)]
+    return "; ".join(urls) if urls else None
 
 
 def build_permission_text(row: Dict[str, str]) -> str:
@@ -204,21 +208,16 @@ def build_permission_text(row: Dict[str, str]) -> str:
     if not is_blankish(acknowledgement):
         return acknowledgement
 
-    parts = []
-    for column in ["Licensing Link", "License type", "Comments"]:
-        value = clean(row.get(column))
-        if value and not is_blankish(value):
-            parts.append(f"{column}: {value}")
-
-    if parts:
-        return "\n".join(parts)
-
-    return "No publisher image permission text supplied in journal_permission.tsv."
+    return ""
 
 
 def build_notes(row: Dict[str, str]) -> str:
     notes = []
-    for column in METADATA_COLUMNS:
+    curator_id = clean(row.get("na"))
+    if not is_blankish(curator_id):
+        notes.append(f"Curator ID: {curator_id}")
+
+    for column in NOTE_COLUMNS:
         value = clean(row.get(column))
         if value and not is_blankish(value):
             notes.append(f"{column}: {value}")
@@ -280,7 +279,7 @@ def parse_tsv(input_file: Path, subset_can_display: bool) -> Iterable[JournalPer
                 end_year=end_year,
                 permission_name=build_permission_name(normalized_row, start_year, end_year),
                 permission_text=build_permission_text(normalized_row),
-                permission_url=first_url(normalized_row),
+                permission_url=permission_url(normalized_row),
                 can_display_images=has_positive_permission_signal(normalized_row, subset_can_display),
                 notes=build_notes(normalized_row),
             )
