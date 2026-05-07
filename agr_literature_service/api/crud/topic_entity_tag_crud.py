@@ -996,7 +996,7 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                            "JOIN topic_entity_tag tet ON cr.reference_id = tet.reference_id AND cr.curie_prefix = :mod_abbreviation "
                            "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
                            "JOIN users u ON tet.updated_by = u.id "
-                           "LEFT JOIN email e ON e.person_id = u.person_id AND e.primary = TRUE "
+                           "LEFT JOIN email e ON e.person_id = u.person_id AND e.is_primary = TRUE "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
                            "AND tet.date_updated >= :last_date_updated"),

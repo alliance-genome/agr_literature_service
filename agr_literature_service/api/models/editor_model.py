@@ -46,7 +46,7 @@ class EditorModel(Base, AuditedModel):
         nullable=True
     )
 
-    order = Column(
+    editor_order = Column(
         Integer,
         nullable=True
     )
@@ -73,4 +73,4 @@ class EditorModel(Base, AuditedModel):
         """
         Overwrite the default output.
         """
-        return f"{self.name} 1st({self.first_name}) last({self.last_name}) order({self.order})"
+        return f"{self.name} 1st({self.first_name}) last({self.last_name}) order({self.editor_order})"

@@ -49,7 +49,7 @@ class AuthorModel(Base, AuditedModel):
         unique=False
     )
 
-    order = Column(
+    author_order = Column(
         Integer,
         nullable=True
     )

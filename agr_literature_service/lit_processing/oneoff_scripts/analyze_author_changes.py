@@ -152,7 +152,7 @@ def process_reference_id(db_session, reference_id, agrkb):      # noqa: C901 pra
 
     aid_tid = {}
     tids_author_set = set()
-    rs = db_session.execute(f"SELECT reference_id, author_id, transaction_id, date_updated, name, first_name, last_name, first_initial, orcid, \"order\", operation_type, affiliations FROM author_version WHERE reference_id = '{reference_id}'")
+    rs = db_session.execute(f"SELECT reference_id, author_id, transaction_id, date_updated, name, first_name, last_name, first_initial, orcid, author_order, operation_type, affiliations FROM author_version WHERE reference_id = '{reference_id}'")
     rows = rs.fetchall()
     if debug_output:
         print(f"data for reference {reference_id} ref_id, aid, tid, date, name, fn, ln, fi, orcid, order, optype, affiliations")

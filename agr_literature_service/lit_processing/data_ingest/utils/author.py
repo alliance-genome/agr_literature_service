@@ -118,11 +118,16 @@ class Author:
 
     @staticmethod
     def load_from_db_dict(x):
+        # The bridge accepts dicts from two paths:
+        #   - jsonable_encoder(AuthorModel) -> key 'author_order' (the
+        #     renamed SQL column).
+        #   - db_read_utils.adding_author_row -> literal key 'order'
+        #     (kept stable for the external MOD JSON export contract).
         loaded_author = Author(name=x['name'],
                                first_name=x.get('first_name', ''),
                                last_name=x.get('last_name', ''),
                                first_initial=x.get('first_initial', ''),
-                               order=x.get('order'),
+                               order=x.get('author_order', x.get('order')),
                                affiliations=x.get('affiliations', []),
                                orcid=x.get('orcid', None))
         normalized_author = loaded_author.get_normalized_author(set_lowercase=False)

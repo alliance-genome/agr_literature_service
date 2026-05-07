@@ -370,7 +370,7 @@ class TestPersonFields:
                         "first_name": "Jane",
                         "middle_name": "C",
                         "last_name": "Comprehensive",
-                        "primary": True,
+                        "is_primary": True,
                     },
                 ],
                 "emails": [
@@ -409,7 +409,7 @@ class TestPersonFields:
             # Names: 2 present, second is primary
             names = body.get("names") or []
             assert len(names) == 2
-            primary_names = [n for n in names if n.get("primary") is True]
+            primary_names = [n for n in names if n.get("is_primary") is True]
             assert len(primary_names) == 1
             assert primary_names[0]["last_name"] == "Comprehensive"
 
@@ -417,7 +417,7 @@ class TestPersonFields:
             emails = body.get("emails") or []
             email_addresses = {e["email_address"] for e in emails}
             assert email_addresses == {"jane.doe@example.com", "jane.c@example.org"}
-            primary_emails = [e for e in emails if e.get("primary") is True]
+            primary_emails = [e for e in emails if e.get("is_primary") is True]
             assert len(primary_emails) == 1
             assert primary_emails[0]["email_address"] == "jane.doe@example.com"
 

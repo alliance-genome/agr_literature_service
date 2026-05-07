@@ -30,6 +30,10 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
         if db_entry[datatype] is not None:
             db_authors = db_entry[datatype]
 
+    # The DB-side dicts and the patch/create payloads use the renamed
+    # column names: author_order for authors, editor_order for editors.
+    db_order_key = "author_order" if datatype == "authors" else "editor_order"
+
     dqm_key = datatype
     if datatype == 'editors':
         dqm_key = 'editorsOrAuthors'
@@ -44,11 +48,11 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
                 db_has_change = True
             if author_dict['first_author']:
                 db_has_change = True
-        if 'order' not in author_dict:
+        if db_order_key not in author_dict:
             # print('no order ')
             db_has_change = True
         else:
-            order = int(author_dict['order'])
+            order = int(author_dict[db_order_key])
             db_ordered[order] = author_dict
     if db_has_change:
         return False, None, None
@@ -58,7 +62,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
         if 'authorRank' in author_dict:
             order = int(author_dict['authorRank'])
             sanitized_dict = dict()
-            sanitized_dict['order'] = order
+            sanitized_dict[db_order_key] = order
             if 'name' in author_dict:
                 sanitized_dict['name'] = author_dict['name']
             if 'lastName' in author_dict:
@@ -76,7 +80,7 @@ def compare_authors_or_editors(db_entry, dqm_entry, datatype):   # noqa: C901
     author_subfields = ['name', 'first_name', 'last_name']
     for order in sorted(db_ordered.keys()):
         author_changed = False
-        patch_dict = {'order': order}
+        patch_dict = {db_order_key: order}
         dqm_dict = dict()
         if order in dqm_ordered:
             dqm_dict = dqm_ordered[order]

@@ -11,7 +11,7 @@ class AuthorSchemaPost(BaseModel):
         from_attributes=True,    # replaces orm_mode
         json_schema_extra={
             "example": {
-                "order": 1,
+                "author_order": 1,
                 "name": "string",
                 "first_name": "string",
                 "last_name": "string",
@@ -22,7 +22,7 @@ class AuthorSchemaPost(BaseModel):
         }
     )
 
-    order: Optional[int] = None
+    author_order: Optional[int] = None
     name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -48,7 +48,7 @@ class AuthorSchemaShow(AuditedObjectModelSchema):
     )
 
     author_id: int
-    order: Optional[int] = None
+    author_order: Optional[int] = None
     name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None

@@ -93,19 +93,19 @@ class TestResource:
                 ],
                 "editors": [
                     {
-                        "order": 1,
+                        "editor_order": 1,
                         "first_name": "R.J.",
                         "last_name": "Jackson",
                         "name": "R.J. Jackson"
                     },
                     {
-                        "order": 2,
+                        "editor_order": 2,
                         "first_name": "M.",
                         "last_name": "Mathews",
                         "name": "M. Mathews"
                     },
                     {
-                        "order": 3,
+                        "editor_order": 3,
                         "first_name": "M.P.",
                         "last_name": "Wickens",
                         "name": "M.P. Wickens"
@@ -127,11 +127,11 @@ class TestResource:
             # Not sure of order in array of the editors so:-
             assert len(new_resource['editors']) == 3
             for editor in new_resource['editors']:
-                if editor['order'] == '1':
+                if editor['editor_order'] == '1':
                     assert editor["first_name"] == "R.J."
                     assert editor["last_name"] == "Jackson"
                     assert editor["name"] == "R.J. Jackson"
-                elif editor['order'] == '3':
+                elif editor['editor_order'] == '3':
                     assert editor["first_name"] == "Wickens"
                     assert editor["last_name"] == "Jackson"
                     assert editor["name"] == "M.P. Wickens"
@@ -169,7 +169,7 @@ class TestResource:
             res1 = client.post(url="/resource/", json={
                 "title": "Journal of Testing Alpha",
                 "cross_references": [{"curie": "NLM:111111"}],
-                "editors": [{"order": 1, "first_name": "Alice",
+                "editors": [{"editor_order": 1, "first_name": "Alice",
                              "last_name": "Smith", "name": "Alice Smith"}]
             }, headers=auth_headers)
             assert res1.status_code == status.HTTP_201_CREATED
@@ -179,7 +179,7 @@ class TestResource:
             res2 = client.post(url="/resource/", json={
                 "title": "Journal of Testing Beta",
                 "cross_references": [{"curie": "NLM:222222"}],
-                "editors": [{"order": 1, "first_name": "Bob",
+                "editors": [{"editor_order": 1, "first_name": "Bob",
                              "last_name": "Jones", "name": "Bob Jones"}]
             }, headers=auth_headers)
             assert res2.status_code == status.HTTP_201_CREATED
@@ -189,7 +189,7 @@ class TestResource:
             res3 = client.post(url="/resource/", json={
                 "title": "Journal of Testing Gamma",
                 "cross_references": [{"curie": "NLM:333333"}],
-                "editors": [{"order": 1, "first_name": "Carol",
+                "editors": [{"editor_order": 1, "first_name": "Carol",
                              "last_name": "White", "name": "Carol White"}]
             }, headers=auth_headers)
             assert res3.status_code == status.HTTP_201_CREATED

@@ -11,7 +11,7 @@ class PersonNameSchemaCreate(BaseModel):
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: str
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
 
     @field_validator("last_name")
     @classmethod
@@ -27,7 +27,7 @@ class PersonNameSchemaUpdate(BaseModel):
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -56,7 +56,7 @@ class PersonNameSchemaShow(AuditedObjectModelSchema):
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: str
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
 
 
 class PersonNameSchemaRelated(AuditedObjectModelSchema):
@@ -66,4 +66,4 @@ class PersonNameSchemaRelated(AuditedObjectModelSchema):
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: str
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None

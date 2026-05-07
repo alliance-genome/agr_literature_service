@@ -52,7 +52,7 @@ AFTER UPDATE ON author
 FOR EACH ROW
 WHEN (
     NEW.name IS DISTINCT FROM OLD.name OR
-    NEW.order IS DISTINCT FROM OLD.order
+    NEW.author_order IS DISTINCT FROM OLD.author_order
 )
 EXECUTE FUNCTION public.author_update_citation();
 """

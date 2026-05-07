@@ -277,13 +277,13 @@ class TestSort:
                 ],
                 "authors": [
                     {
-                        "order": 2,
+                        "author_order": 2,
                         "first_name": "S.",
                         "last_name": "Wu",
                         "name": "S. Wu",
                     },
                     {
-                        "order": 1,
+                        "author_order": 1,
                         "first_name": "D.",
                         "last_name": "Wu",
                         "name": "D. Wu",
@@ -303,6 +303,6 @@ class TestSort:
             assert len(res.json()[0]['authors']) == 2
             for author in res.json()[0]['authors']:
                 if author['name'] == 'D. Wu':
-                    assert author['order'] == 1
+                    assert author['author_order'] == 1
                 else:
-                    assert author['order'] == 2
+                    assert author['author_order'] == 2

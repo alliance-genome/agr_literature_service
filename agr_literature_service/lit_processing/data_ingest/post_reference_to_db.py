@@ -312,7 +312,7 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
                       "first_name": firstname,
                       "last_name": lastname,
                       "first_initial": firstinit,
-                      "order": rank,
+                      "author_order": rank,
                       "affiliations": affiliations,
                       "orcid": orcid if orcid else None,
                       "first_author": False,

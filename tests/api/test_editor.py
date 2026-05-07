@@ -18,7 +18,7 @@ def test_editor(db, auth_headers, test_resource): # noqa
     print("***** Adding a test editor *****")
     with TestClient(app) as client:
         new_editor = {
-            "order": 1,
+            "editor_order": 1,
             "first_name": "string",
             "last_name": "string",
             "name": "003_TCU",
@@ -45,7 +45,7 @@ class TestEditor:
     def test_create_editor_for_ref_later(self, db, test_editor, auth_headers): # noqa
         with TestClient(app) as client:
             xml = {
-                "order": 2,
+                "editor_order": 2,
                 "first_name": "string2",
                 "last_name": "string3",
                 "name": "Name2",

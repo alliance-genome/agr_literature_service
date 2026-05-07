@@ -45,7 +45,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
         )
 
     # Determine primary flag
-    requested_primary: Optional[bool] = data.get("primary")
+    requested_primary: Optional[bool] = data.get("is_primary")
     has_existing = (
         db.query(PersonNameModel.person_name_id)
         .filter(PersonNameModel.person_id == person_id)
@@ -56,8 +56,8 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
         # Demote existing primary for this person
         db.query(PersonNameModel).filter(
             PersonNameModel.person_id == person_id,
-            PersonNameModel.primary.is_(True),
-        ).update({"primary": False}, synchronize_session=False)
+            PersonNameModel.is_primary.is_(True),
+        ).update({"is_primary": False}, synchronize_session=False)
         primary_value: Optional[bool] = True
     elif requested_primary is None and not has_existing:
         # First name for this person — auto-set primary
@@ -70,7 +70,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
         first_name=data.get("first_name"),
         middle_name=data.get("middle_name"),
         last_name=data["last_name"],
-        primary=primary_value,
+        is_primary=primary_value,
     )
     db.add(obj)
     db.commit()
@@ -91,7 +91,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonNameModel]:
     return (
         db.query(PersonNameModel)
         .filter(PersonNameModel.person_id == person_id)
-        .order_by(PersonNameModel.primary.desc().nulls_last(), PersonNameModel.person_name_id.asc())
+        .order_by(PersonNameModel.is_primary.desc().nulls_last(), PersonNameModel.person_name_id.asc())
         .all()
     )
 
@@ -112,7 +112,7 @@ def patch(db: Session, person_name_id: int, patch_dict: Dict[str, Any]) -> Dict[
 
     Supports:
       - first_name, middle_name, last_name
-      - primary: if set to True, demotes the old primary for the same person.
+      - is_primary: if set to True, demotes the old primary for the same person.
     """
     obj: Optional[PersonNameModel] = (
         db.query(PersonNameModel).filter(PersonNameModel.person_name_id == person_name_id).first()
@@ -142,16 +142,16 @@ def patch(db: Session, person_name_id: int, patch_dict: Dict[str, Any]) -> Dict[
             )
         obj.last_name = data["last_name"]
 
-    if "primary" in data:
-        new_primary = data["primary"]
+    if "is_primary" in data:
+        new_primary = data["is_primary"]
         if new_primary is True:
             # Demote other primaries for this person
             db.query(PersonNameModel).filter(
                 PersonNameModel.person_id == obj.person_id,
                 PersonNameModel.person_name_id != person_name_id,
-                PersonNameModel.primary.is_(True),
-            ).update({"primary": False}, synchronize_session=False)
-        obj.primary = new_primary
+                PersonNameModel.is_primary.is_(True),
+            ).update({"is_primary": False}, synchronize_session=False)
+        obj.is_primary = new_primary
 
     db.commit()
     return {"message": "updated"}

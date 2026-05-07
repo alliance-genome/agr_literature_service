@@ -240,7 +240,7 @@ def show_sort_result(references, mod_abbreviation, db):
                 file_extension=rf.file_extension,
                 md5sum=rf.md5sum, is_annotation=rf.is_annotation,
                 referencefile_mods=get_referencefile_mod(rf.referencefile_id, db)) for rf in reference.referencefiles],
-            authors=[{"order": author.order,
+            authors=[{"author_order": author.author_order,
                       "author_id": author.author_id,
                       "name": author.name} for author in reference.author],
             workflow_tags=[{"reference_workflow_tag_id": wft.reference_workflow_tag_id,

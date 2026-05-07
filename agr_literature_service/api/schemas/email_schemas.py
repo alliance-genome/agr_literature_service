@@ -30,10 +30,10 @@ class EmailSchemaCreate(_EmailAddressMixin):
     Payload for creating an Email row.
     `person_id` is supplied by the route (path param) or owning context.
     For person emails:
-      - primary is optional
+      - is_primary is optional
     """
     date_invalidated: Optional[datetime] = None
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
 
 
 class EmailSchemaUpdate(BaseModel):
@@ -44,7 +44,7 @@ class EmailSchemaUpdate(BaseModel):
 
     email_address: Optional[str] = None
     date_invalidated: Optional[datetime] = None
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
 
     @field_validator("email_address")
     @classmethod
@@ -62,7 +62,7 @@ class EmailSchemaShow(AuditedObjectModelSchema):
     person_id: Optional[int] = None
     email_address: str
     date_invalidated: Optional[datetime] = None
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
 
 
 class EmailSchemaRelated(AuditedObjectModelSchema):
@@ -74,4 +74,4 @@ class EmailSchemaRelated(AuditedObjectModelSchema):
     email_id: int
     email_address: str
     date_invalidated: Optional[datetime] = None
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None

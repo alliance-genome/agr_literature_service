@@ -47,7 +47,7 @@ BEGIN
 
     for auth in SELECT * FROM author
       WHERE author.reference_id = ref_id
-      ORDER BY author.order asc
+      ORDER BY author.author_order asc
     loop
       -- raise notice 'Record %', auth;
       authors = CONCAT(authors, get_long_citation_author_string(auth), '; ');

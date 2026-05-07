@@ -30,7 +30,7 @@ def get_all_author_duplicate_orcid_reference_for_mod(db, mod_abbr):
         SELECT
             r.curie,
             a.orcid,
-            STRING_AGG(a.name, ' | ' ORDER BY a."order") AS author_names
+            STRING_AGG(a.name, ' | ' ORDER BY a.author_order) AS author_names
         FROM public.author a
         JOIN public.reference r ON a.reference_id = r.reference_id
         JOIN public.mod_corpus_association mca ON a.reference_id = mca.reference_id
