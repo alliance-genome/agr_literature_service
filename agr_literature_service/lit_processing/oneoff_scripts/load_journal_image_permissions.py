@@ -13,6 +13,7 @@ the normal ORM/versioning machinery when --apply is used.
 Usage:
     python load_journal_image_permissions.py
     python load_journal_image_permissions.py --apply
+    python load_journal_image_permissions.py --report-file data/journal_permission_load_report.tsv
 """
 
 import argparse
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 DEFAULT_INPUT_FILE = "data/journal_permission.tsv"
+DEFAULT_REPORT_FILE = "data/journal_permission_load_report.tsv"
 SCRIPT_USER = path.basename(__file__).replace(".py", "")
 
 MOD_PERMISSION_COLUMNS = ["FB", "MGI", "RGD", "SGD", "WB", "XB", "ZFIN"]
@@ -96,6 +98,16 @@ class ResourceLookup:
 
 
 @dataclass
+class FailedRow:
+    line_no: int
+    journal_abbreviation: str
+    publisher: str
+    full_journal_name: str
+    reason: str
+    detail: str
+
+
+@dataclass
 class LoadStats:
     rows_seen: int = 0
     rows_skipped: int = 0
@@ -108,6 +120,11 @@ class LoadStats:
     links_updated: int = 0
     links_unchanged: int = 0
     errors: int = 0
+    failed_rows: List[FailedRow] = None
+
+    def __post_init__(self) -> None:
+        if self.failed_rows is None:
+            self.failed_rows = []
 
 
 def clean(value: Optional[str]) -> str:
@@ -335,6 +352,43 @@ def find_resource(
     return None, "not found"
 
 
+def candidate_labels(candidates: List[ResourceModel]) -> str:
+    return "; ".join(
+        f"{resource.curie} ({resource.title_abbreviation or resource.title or 'no title'})"
+        for resource in candidates
+    )
+
+
+def describe_resource_match_failure(
+    row: JournalPermissionRow,
+    lookup: ResourceLookup,
+    manual_resource_map: Dict[str, str],
+    match_reason: str,
+) -> str:
+    manual_key = row.journal_abbreviation or row.full_journal_name
+    manual_curie = manual_resource_map.get(manual_key)
+    if manual_curie:
+        return f"manual resource_curie was supplied but not found: {manual_curie}"
+
+    abbreviation_key = normalize_abbreviation(row.journal_abbreviation)
+    abbreviation_candidates = lookup.resource_by_abbreviation.get(abbreviation_key, [])
+    if abbreviation_candidates:
+        return (
+            f"{match_reason}; title_abbreviation candidates: "
+            f"{candidate_labels(abbreviation_candidates)}"
+        )
+
+    title_key = normalize_for_match(row.full_journal_name)
+    title_candidates = lookup.resource_by_title.get(title_key, [])
+    if title_candidates:
+        return f"{match_reason}; title candidates: {candidate_labels(title_candidates)}"
+
+    return (
+        "no resource matched normalized title_abbreviation "
+        f"'{abbreviation_key}' or title '{title_key}'"
+    )
+
+
 def read_manual_resource_map(map_file: Optional[Path]) -> Dict[str, str]:
     if map_file is None:
         return {}
@@ -402,12 +456,34 @@ def find_resource_link(
     ).one_or_none()
 
 
-def record_skipped_resource(stats: LoadStats, row: JournalPermissionRow, match_reason: str) -> None:
+def add_failed_row(
+    stats: LoadStats,
+    row: JournalPermissionRow,
+    reason: str,
+    detail: str,
+) -> None:
+    stats.failed_rows.append(FailedRow(
+        line_no=row.line_no,
+        journal_abbreviation=row.journal_abbreviation,
+        publisher=row.publisher,
+        full_journal_name=row.full_journal_name,
+        reason=reason,
+        detail=detail,
+    ))
+
+
+def record_skipped_resource(
+    stats: LoadStats,
+    row: JournalPermissionRow,
+    match_reason: str,
+    detail: str,
+) -> None:
     stats.rows_skipped += 1
     if "ambiguous" in match_reason:
         stats.resources_ambiguous += 1
     else:
         stats.resources_unmatched += 1
+    add_failed_row(stats, row, match_reason, detail)
     logger.warning(
         f"Line {row.line_no}: skipped resource link ({match_reason}) for "
         f"{row.journal_abbreviation or row.full_journal_name}"
@@ -511,11 +587,13 @@ def process_row(
         if savepoint:
             savepoint.rollback()
         stats.errors += 1
+        add_failed_row(stats, row, "integrity error", str(err.orig if hasattr(err, "orig") else err))
         logger.error(f"Line {row.line_no}: integrity error for {row.permission_name}: {err}")
     except Exception as err:
         if savepoint:
             savepoint.rollback()
         stats.errors += 1
+        add_failed_row(stats, row, "error", str(err))
         logger.error(f"Line {row.line_no}: error for {row.permission_name}: {err}")
 
 
@@ -537,7 +615,8 @@ def load_permissions(
         stats.rows_seen += 1
         resource, match_reason = find_resource(row, lookup, manual_resource_map)
         if resource is None:
-            record_skipped_resource(stats, row, match_reason)
+            detail = describe_resource_match_failure(row, lookup, manual_resource_map, match_reason)
+            record_skipped_resource(stats, row, match_reason, detail)
             continue
         process_row(db, row, resource, existing_permissions, stats, apply)
 
@@ -564,7 +643,36 @@ def log_summary(stats: LoadStats, apply: bool) -> None:
     logger.info(f"Resource links updated: {stats.links_updated}")
     logger.info(f"Resource links unchanged: {stats.links_unchanged}")
     logger.info(f"Errors: {stats.errors}")
+    logger.info(f"Rows in failure report: {len(stats.failed_rows)}")
     logger.info("No rows are deleted by this loader.")
+
+
+def write_failure_report(stats: LoadStats, report_file: Path) -> None:
+    report_file.parent.mkdir(parents=True, exist_ok=True)
+    with report_file.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle,
+            delimiter="\t",
+            fieldnames=[
+                "line_no",
+                "journal_abbreviation",
+                "publisher",
+                "full_journal_name",
+                "reason",
+                "detail",
+            ],
+        )
+        writer.writeheader()
+        for row in stats.failed_rows:
+            writer.writerow({
+                "line_no": row.line_no,
+                "journal_abbreviation": row.journal_abbreviation,
+                "publisher": row.publisher,
+                "full_journal_name": row.full_journal_name,
+                "reason": row.reason,
+                "detail": row.detail,
+            })
+    logger.info(f"Wrote failure report: {report_file}")
 
 
 def main() -> None:
@@ -587,6 +695,11 @@ def main() -> None:
         help="Optional TSV with Journal (NLM abbrev) and resource_curie columns for manual matches",
     )
     parser.add_argument(
+        "--report-file",
+        default=DEFAULT_REPORT_FILE,
+        help=f"TSV report for rows that could not be loaded; default: {DEFAULT_REPORT_FILE}",
+    )
+    parser.add_argument(
         "--apply",
         action="store_true",
         help="Commit inserts/updates. Default is dry-run.",
@@ -601,6 +714,7 @@ def main() -> None:
     input_file = Path(args.input_file)
     env_file = Path(args.env_file) if args.env_file else None
     resource_map_file = Path(args.resource_map) if args.resource_map else None
+    report_file = Path(args.report_file)
 
     if not input_file.exists():
         raise FileNotFoundError(f"Input file does not exist: {input_file}")
@@ -623,6 +737,7 @@ def main() -> None:
             subset_can_display=args.subset_can_display,
         )
         log_summary(stats, args.apply)
+        write_failure_report(stats, report_file)
     except Exception:
         db.rollback()
         raise
