@@ -77,6 +77,7 @@ POSITIVE_PERMISSION_PATTERNS = (
 @dataclass
 class JournalPermissionRow:
     line_no: int
+    curator_id: str
     data: Dict[str, str]
     journal_abbreviation: str
     publisher: str
@@ -100,6 +101,7 @@ class ResourceLookup:
 @dataclass
 class FailedRow:
     line_no: int
+    curator_id: str
     journal_abbreviation: str
     publisher: str
     full_journal_name: str
@@ -261,6 +263,7 @@ def parse_tsv(input_file: Path, subset_can_display: bool) -> Iterable[JournalPer
             start_year, end_year = parse_year_range(normalized_row)
             yield JournalPermissionRow(
                 line_no=line_no,
+                curator_id=clean(normalized_row.get("na")),
                 data=normalized_row,
                 journal_abbreviation=journal,
                 publisher=publisher,
@@ -464,6 +467,7 @@ def add_failed_row(
 ) -> None:
     stats.failed_rows.append(FailedRow(
         line_no=row.line_no,
+        curator_id=row.curator_id,
         journal_abbreviation=row.journal_abbreviation,
         publisher=row.publisher,
         full_journal_name=row.full_journal_name,
@@ -655,6 +659,7 @@ def write_failure_report(stats: LoadStats, report_file: Path) -> None:
             delimiter="\t",
             fieldnames=[
                 "line_no",
+                "curator_id",
                 "journal_abbreviation",
                 "publisher",
                 "full_journal_name",
@@ -666,6 +671,7 @@ def write_failure_report(stats: LoadStats, report_file: Path) -> None:
         for row in stats.failed_rows:
             writer.writerow({
                 "line_no": row.line_no,
+                "curator_id": row.curator_id,
                 "journal_abbreviation": row.journal_abbreviation,
                 "publisher": row.publisher,
                 "full_journal_name": row.full_journal_name,
