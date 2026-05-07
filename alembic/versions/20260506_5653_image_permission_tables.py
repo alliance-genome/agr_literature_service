@@ -80,6 +80,10 @@ def upgrade():
             "end_year IS NULL OR start_year IS NULL OR end_year >= start_year",
             name="ck_resource_image_permission_year_range",
         ),
+        sa.CheckConstraint(
+            "(start_year IS NULL OR start_year >= 0) AND (end_year IS NULL OR end_year >= 0)",
+            name="ck_resource_image_permission_year_nonnegative",
+        ),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
         sa.ForeignKeyConstraint(
             ["image_permission_id"],
@@ -89,13 +93,6 @@ def upgrade():
         sa.ForeignKeyConstraint(["resource_id"], ["resource.resource_id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["updated_by"], ["users.id"]),
         sa.PrimaryKeyConstraint("resource_image_permission_id"),
-        sa.UniqueConstraint(
-            "resource_id",
-            "image_permission_id",
-            "start_year",
-            "end_year",
-            name="uq_resource_image_permission_range",
-        ),
     )
     op.create_index(
         op.f("ix_resource_image_permission_date_created"),
@@ -120,6 +117,17 @@ def upgrade():
         "resource_image_permission",
         ["resource_id"],
         unique=False,
+    )
+    op.execute(
+        """
+        CREATE UNIQUE INDEX uq_resource_image_permission_range
+        ON resource_image_permission (
+            resource_id,
+            image_permission_id,
+            COALESCE(start_year, -1),
+            COALESCE(end_year, -1)
+        )
+        """
     )
 
     op.create_table(
@@ -208,6 +216,7 @@ def downgrade():
     op.drop_index(op.f("ix_resource_image_permission_image_permission_id"), table_name="resource_image_permission")
     op.drop_index(op.f("ix_resource_image_permission_date_updated"), table_name="resource_image_permission")
     op.drop_index(op.f("ix_resource_image_permission_date_created"), table_name="resource_image_permission")
+    op.drop_index("uq_resource_image_permission_range", table_name="resource_image_permission")
     op.drop_table("resource_image_permission")
 
     op.drop_index(op.f("ix_image_permission_date_updated"), table_name="image_permission")

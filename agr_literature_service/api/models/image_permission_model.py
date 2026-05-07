@@ -5,7 +5,7 @@ image_permission_model.py
 
 from typing import Dict
 
-from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Integer, String, TEXT, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Index, Integer, String, TEXT, func
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -65,12 +65,9 @@ class ResourceImagePermissionModel(Base, AuditedModel):
             "end_year IS NULL OR start_year IS NULL OR end_year >= start_year",
             name="ck_resource_image_permission_year_range"
         ),
-        UniqueConstraint(
-            "resource_id",
-            "image_permission_id",
-            "start_year",
-            "end_year",
-            name="uq_resource_image_permission_range"
+        CheckConstraint(
+            "(start_year IS NULL OR start_year >= 0) AND (end_year IS NULL OR end_year >= 0)",
+            name="ck_resource_image_permission_year_nonnegative"
         ),
     )
 
@@ -118,3 +115,13 @@ class ResourceImagePermissionModel(Base, AuditedModel):
         "ImagePermissionModel",
         back_populates="resource_image_permissions"
     )
+
+
+Index(
+    "uq_resource_image_permission_range",
+    ResourceImagePermissionModel.resource_id,
+    ResourceImagePermissionModel.image_permission_id,
+    func.coalesce(ResourceImagePermissionModel.start_year, -1),
+    func.coalesce(ResourceImagePermissionModel.end_year, -1),
+    unique=True
+)
