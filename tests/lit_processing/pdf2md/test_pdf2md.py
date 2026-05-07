@@ -185,6 +185,8 @@ class TestProcessSingleReference:
             "mod_abbreviation": "WB"
         }
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -195,7 +197,7 @@ class TestProcessSingleReference:
     def test_nxml_preferred_pdfx_skipped(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """nXML present -> convert via nXML path, skip PDFX for main."""
         mock_db = MagicMock()
@@ -216,6 +218,8 @@ class TestProcessSingleReference:
         mock_download_result.assert_not_called()
         mock_process_supps.assert_called_once()
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -226,7 +230,7 @@ class TestProcessSingleReference:
     def test_no_nxml_falls_back_to_pdfx(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """No nXML -> PDFX path runs for main, supplements still processed."""
         mock_db = MagicMock()
@@ -252,6 +256,8 @@ class TestProcessSingleReference:
             assert mock_upload.call_count == len(EXTRACTION_METHODS)
             mock_process_supps.assert_called_once()
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -262,7 +268,7 @@ class TestProcessSingleReference:
     def test_nxml_failure_falls_back_to_pdfx(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """nXML present but conversion fails -> fall back to PDFX."""
         mock_db = MagicMock()
@@ -287,12 +293,15 @@ class TestProcessSingleReference:
             mock_submit.assert_called_once()
             assert mock_upload.call_count == len(EXTRACTION_METHODS)
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.download_file")
     def test_handles_download_exception(
-        self, mock_download, mock_get_nxml, mock_nxml_convert, mock_process_supps
+        self, mock_download, mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_main_converted,
     ):
         """PDFX download exception -> failure returned with message."""
         mock_db = MagicMock()
@@ -307,6 +316,8 @@ class TestProcessSingleReference:
         assert success is False
         assert "Download failed" in error
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -317,7 +328,7 @@ class TestProcessSingleReference:
     def test_returns_failure_when_no_methods_succeed(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """All PDFX methods empty -> failure returned."""
         mock_db = MagicMock()
@@ -335,6 +346,8 @@ class TestProcessSingleReference:
         assert success is False
         assert "No methods successfully extracted" in error
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -345,7 +358,7 @@ class TestProcessSingleReference:
     def test_processes_specific_methods(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """Only specified methods are processed."""
         mock_db = MagicMock()
@@ -373,11 +386,13 @@ class TestProcessSingleReference:
             _args, kwargs = mock_process_supps.call_args
             assert kwargs["methods_to_extract"] == ["grobid", "docling"]
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
     def test_supplement_failures_do_not_fail_reference(
-        self, mock_get_nxml, mock_nxml_convert, mock_process_supps
+        self, mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted
     ):
         """Supplement failures are logged but don't fail the reference."""
         mock_db = MagicMock()
@@ -392,11 +407,13 @@ class TestProcessSingleReference:
         assert success is True
         assert error is None
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
     def test_nxml_only_no_main_pdf_succeeds(
-        self, mock_get_nxml, mock_nxml_convert, mock_process_supps
+        self, mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted
     ):
         """Reference with nXML but no main PDF succeeds via nXML path."""
         mock_db = MagicMock()
@@ -412,11 +429,13 @@ class TestProcessSingleReference:
         assert success is True
         assert error is None
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
     def test_no_nxml_and_no_main_pdf_fails(
-        self, mock_get_nxml, mock_nxml_convert, mock_process_supps
+        self, mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted
     ):
         """Reference with neither nXML nor main PDF fails."""
         mock_db = MagicMock()
@@ -431,6 +450,8 @@ class TestProcessSingleReference:
         assert success is False
         assert "no main PDF available" in error
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -441,7 +462,7 @@ class TestProcessSingleReference:
     def test_prefer_nxml_false_forces_pdfx(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """prefer_nxml=False skips nXML lookup and always uses PDFX."""
         mock_db = MagicMock()
@@ -465,11 +486,13 @@ class TestProcessSingleReference:
             mock_nxml_convert.assert_not_called()
             mock_submit.assert_called_once()
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
     def test_process_supplements_false_skips_supplements(
-        self, mock_get_nxml, mock_nxml_convert, mock_process_supps
+        self, mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted
     ):
         """process_supplements=False skips supplement processing entirely."""
         mock_db = MagicMock()
@@ -485,6 +508,8 @@ class TestProcessSingleReference:
         assert error is None
         mock_process_supps.assert_not_called()
 
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.is_main_source_converted",
+           return_value=False)
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_supplemental_pdfs")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.process_nxml_to_markdown")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md.get_nxml_referencefile")
@@ -495,7 +520,7 @@ class TestProcessSingleReference:
     def test_both_flags_false(
         self,
         mock_download, mock_submit, mock_poll, mock_download_result,
-        mock_get_nxml, mock_nxml_convert, mock_process_supps,
+        mock_get_nxml, mock_nxml_convert, mock_process_supps, mock_main_converted,
     ):
         """Both flags False -> PDFX only on main, no supplements, no nXML lookup."""
         mock_db = MagicMock()

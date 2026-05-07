@@ -31,11 +31,53 @@ from agr_literature_service.api.crud.ateam_db_helpers import (
     atp_get_all_ancestors,
     atp_get_parent,
     get_workflow_tags_for_mod,
-    atp_to_name
+    atp_to_name,
+    name_to_atp,
+    _ensure_atp_loaded
 )
 from agr_literature_service.api.crud.reference_utils import normalize_reference_curie
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
+logger = logging.getLogger(__name__)
+
+# Cache for ATP ID lookups by name
+_atp_id_cache: Dict[str, str] = {}
+
+
+def get_atp_id_by_name(atp_name: str, fallback: Optional[str] = None) -> str:
+    """
+    Look up an ATP ID by its human-readable name from the A-Team ontology.
+
+    Args:
+        atp_name: The human-readable name of the ATP term (e.g., "file needed",
+                  "reference classification in progress")
+        fallback: Optional fallback ATP ID if lookup fails
+
+    Returns:
+        The ATP ID (e.g., "ATP:0000141")
+
+    Raises:
+        ValueError: If the name is not found and no fallback is provided
+    """
+    if atp_name in _atp_id_cache:
+        return _atp_id_cache[atp_name]
+
+    _ensure_atp_loaded()
+
+    if atp_name in name_to_atp:
+        atp_id = name_to_atp[atp_name]
+        _atp_id_cache[atp_name] = atp_id
+        return atp_id
+
+    if fallback:
+        logger.warning(f"ATP name '{atp_name}' not found, using fallback: {fallback}")
+        _atp_id_cache[atp_name] = fallback
+        return fallback
+
+    raise ValueError(f"ATP name '{atp_name}' not found in ontology and no fallback provided")
+
+
+# ATP IDs looked up by name from A-Team ontology (with fallbacks for safety)
 process_atp_multiple_allowed = [
     'ATP:ont1',  # used in testing
     'ATP:0000165', 'ATP:0000169', 'ATP:0000189', 'ATP:0000178', 'ATP:0000166'  # classifications and subtasks
@@ -43,8 +85,6 @@ process_atp_multiple_allowed = [
 ref_classification_in_progress_atp_id = "ATP:0000178"
 entity_extraction_in_progress_atp_id = "ATP:0000190"
 text_conversion_in_progress_atp_id = "ATP:0000198"
-
-logger = logging.getLogger(__name__)
 
 
 def get_workflow_tag_diagram(mod: str, db: Session):
@@ -347,10 +387,11 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"Could not find wft for {reference.reference_id} {process_atp_id} {mod_abbreviation}")
 
-    # if setting to a child of 0000273 and there is no sibling term in db, add 0000274 needed first
+    # if setting to a child of manual indexing process and there is no sibling term in db, add needed first
     automatically_set_initial_state_flag = False
-    if process_atp_id == "ATP:0000273" and not current_workflow_tag_db_obj:
-        manual_indexing_needed_atp = "ATP:0000274"
+    manual_indexing_process_atp = get_atp_id_by_name('manual indexing', fallback='ATP:0000273')
+    manual_indexing_needed_atp = get_atp_id_by_name('manual indexing needed', fallback='ATP:0000274')
+    if process_atp_id == manual_indexing_process_atp and not current_workflow_tag_db_obj:
         current_workflow_tag_db_obj = WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id=manual_indexing_needed_atp)
         db.add(current_workflow_tag_db_obj)
         db.commit()
@@ -367,7 +408,8 @@ def transition_to_workflow_status(db: Session, curie_or_reference_id: str, mod_a
                 WorkflowTransitionModel.transition_type.in_(["any", f"{transition_type}_only"])
             )
         ).first()
-    if not transition and new_workflow_tag_atp_id != "ATP:0000141" and not automatically_set_initial_state_flag:
+    file_needed_atp = get_atp_id_by_name('file needed', fallback='ATP:0000141')
+    if not transition and new_workflow_tag_atp_id != file_needed_atp and not automatically_set_initial_state_flag:
         message = f"Transition to {new_workflow_tag_atp_id} not allowed as not initial state."
         "Please set initial WFT first."
         if current_workflow_tag_db_obj and current_workflow_tag_db_obj.workflow_tag_id:
@@ -415,7 +457,6 @@ def _get_current_workflow_tag_db_obj(db: Session, curie_or_reference_id: str, wo
 
 
 def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, workflow_process_atp_id: str):
-
     reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=curie_or_reference_id)
     all_workflow_tags_for_process = get_workflow_tags_from_process(workflow_process_atp_id)
     if not all_workflow_tags_for_process or not reference_id:
@@ -1130,9 +1171,12 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
                             detail=f"The mod abbreviation {mod_abbreviation} is not in the database")
     mod_id = mod.mod_id
 
-    all_text_conversion_wft = get_workflow_tags_from_process("ATP:0000161")
-    all_ref_classification_wft = get_workflow_tags_from_process("ATP:0000165")
-    all_entity_extraction_wft = get_workflow_tags_from_process("ATP:0000172")
+    text_conversion_process = get_atp_id_by_name('text conversion', fallback='ATP:0000161')
+    ref_classification_process = get_atp_id_by_name('reference classification', fallback='ATP:0000165')
+    entity_extraction_process = get_atp_id_by_name('entity extraction', fallback='ATP:0000172')
+    all_text_conversion_wft = get_workflow_tags_from_process(text_conversion_process)
+    all_ref_classification_wft = get_workflow_tags_from_process(ref_classification_process)
+    all_entity_extraction_wft = get_workflow_tags_from_process(entity_extraction_process)
     all_workflow_tags = all_text_conversion_wft + all_ref_classification_wft + all_entity_extraction_wft
     # Remove duplicates to optimize the IN clause
     all_workflow_tags = list(set(all_workflow_tags))
@@ -1169,9 +1213,11 @@ def reset_workflow_tags_after_deleting_main_pdf(db: Session, curie_or_reference_
             'mod_id': mod_id
         }).fetchall()
         # files uploaded
-        curr_atp_id = 'ATP:0000134'
-        # to ATP:0000139 (file upload in progress) or ATP:0000141 (file needed)
-        new_atp_id = 'ATP:0000139' if rows[0][0] > 0 else 'ATP:0000141'
+        curr_atp_id = get_atp_id_by_name('files uploaded', fallback='ATP:0000134')
+        # to file upload in progress or file needed
+        file_upload_in_progress = get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')
+        file_needed = get_atp_id_by_name('file needed', fallback='ATP:0000141')
+        new_atp_id = file_upload_in_progress if rows[0][0] > 0 else file_needed
         sql_query = text("""
         UPDATE workflow_tag
         SET workflow_tag_id = :new_atp_id
@@ -1204,29 +1250,37 @@ def get_field_and_status(atp):
     return field_type, field_status
 
 
-def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
-    # Do not like hard coding here BUT no choice, no easy way to get the top level
-    # overall stats list as hierarchy does not allow this programmatically.
-    overall_paper_status = {
-        'ATP:0000165': {
-            'ATP:0000169': 'reference classification complete',
-            'ATP:0000189': 'reference classification failed',
-            'ATP:0000178': 'reference classification in progress',
-            'ATP:0000166': 'reference classification needed'
+def _build_overall_paper_status() -> Dict[str, Dict[str, str]]:
+    """Build overall paper status mapping dynamically from A-Team ontology."""
+    ref_class_process = get_atp_id_by_name('reference classification', fallback='ATP:0000165')
+    entity_ext_process = get_atp_id_by_name('entity extraction', fallback='ATP:0000172')
+    curation_class_process = get_atp_id_by_name('curation classification', fallback='ATP:0000311')
+
+    return {
+        ref_class_process: {
+            get_atp_id_by_name('reference classification complete', fallback='ATP:0000169'): 'reference classification complete',
+            get_atp_id_by_name('reference classification failed', fallback='ATP:0000189'): 'reference classification failed',
+            get_atp_id_by_name('reference classification in progress', fallback='ATP:0000178'): 'reference classification in progress',
+            get_atp_id_by_name('reference classification needed', fallback='ATP:0000166'): 'reference classification needed'
         },
-        'ATP:0000172': {
-            'ATP:0000190': 'entity extraction in progress',
-            'ATP:0000187': 'entity extraction failed',
-            'ATP:0000174': 'entity extraction complete',
-            'ATP:0000173': 'entity extraction needed'
+        entity_ext_process: {
+            get_atp_id_by_name('entity extraction in progress', fallback='ATP:0000190'): 'entity extraction in progress',
+            get_atp_id_by_name('entity extraction failed', fallback='ATP:0000187'): 'entity extraction failed',
+            get_atp_id_by_name('entity extraction complete', fallback='ATP:0000174'): 'entity extraction complete',
+            get_atp_id_by_name('entity extraction needed', fallback='ATP:0000173'): 'entity extraction needed'
         },
-        'ATP:0000311': {
-            'ATP:0000312': 'curation classification complete',
-            'ATP:0000315': 'curation classification failed',
-            'ATP:0000314': 'curation classification in progress',
-            'ATP:0000313': 'curation classification needed'
+        curation_class_process: {
+            get_atp_id_by_name('curation classification complete', fallback='ATP:0000312'): 'curation classification complete',
+            get_atp_id_by_name('curation classification failed', fallback='ATP:0000315'): 'curation classification failed',
+            get_atp_id_by_name('curation classification in progress', fallback='ATP:0000314'): 'curation classification in progress',
+            get_atp_id_by_name('curation classification needed', fallback='ATP:0000313'): 'curation classification needed'
         }
     }
+
+
+def report_workflow_tags(db: Session, workflow_parent: str, mod_abbreviation: str):
+    # Build overall paper status mapping dynamically from A-Team ontology
+    overall_paper_status = _build_overall_paper_status()
 
     # get list of ALL ATPs under this parent
     name_to_atp, atp_to_name = get_name_to_atp_for_descendants(workflow_parent)
@@ -1338,14 +1392,15 @@ def workflow_subset_list(workflow_name, mod_abbreviation, db):
 def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
 
     priority_to_atp_mapping = {
-        "priority_1": "ATP:0000211",
-        "priority_2": "ATP:0000212",
-        "priority_3": "ATP:0000213"
+        "priority_1": get_atp_id_by_name('priority 1', fallback='ATP:0000211'),
+        "priority_2": get_atp_id_by_name('priority 2', fallback='ATP:0000212'),
+        "priority_3": get_atp_id_by_name('priority 3', fallback='ATP:0000213')
     }
     pre_indexing_prioritization_to_atp = {
-        "failed": "ATP:0000304",
-        "success": "ATP:0000303"
+        "failed": get_atp_id_by_name('pre-indexing prioritization failed', fallback='ATP:0000304'),
+        "success": get_atp_id_by_name('pre-indexing prioritization complete', fallback='ATP:0000303')
     }
+    pre_indexing_prio_needed_atp = get_atp_id_by_name('pre-indexing prioritization needed', fallback='ATP:0000306')
 
     priority_atp = priority_to_atp_mapping.get(priority)
     reference_workflow_tag_id = (
@@ -1357,7 +1412,7 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
             WorkflowTagModel.mod_id == ModModel.mod_id
         ).filter(
             ModModel.abbreviation == mod_abbreviation,
-            WorkflowTagModel.workflow_tag_id == 'ATP:0000306',
+            WorkflowTagModel.workflow_tag_id == pre_indexing_prio_needed_atp,
             ReferenceModel.curie == reference_curie
         ).scalar()
     )
@@ -1365,7 +1420,7 @@ def set_priority(db: Session, reference_curie, mod_abbreviation, priority):
     if reference_workflow_tag_id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No workflow‐tag ATP:0000306 for paper {reference_curie} in MOD {mod_abbreviation}"
+            detail=f"No workflow-tag {pre_indexing_prio_needed_atp} for paper {reference_curie} in MOD {mod_abbreviation}"
         )
 
     if priority_atp is None:
@@ -1411,12 +1466,14 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
         )
 
     # Define which "parent" processes we care about
+    manual_indexing_atp = get_atp_id_by_name('manual indexing', fallback='ATP:0000273')
+    community_curation_atp = get_atp_id_by_name('community curation', fallback='ATP:0000235')
     if mod_abbreviation and mod_abbreviation in ['SGD', 'ZFIN']:
-        process_atp_ids = {"ATP:0000273": "manual indexing"}
+        process_atp_ids = {manual_indexing_atp: "manual indexing"}
     else:
         process_atp_ids = {
-            "ATP:0000273": "manual indexing",
-            "ATP:0000235": "community curation"
+            manual_indexing_atp: "manual indexing",
+            community_curation_atp: "community curation"
         }
 
     result: dict[str, dict[str, Any]] = {}
@@ -1440,3 +1497,177 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             "all_workflow_tags": all_workflow_tags
         }
     return result
+
+
+# Cache for pre-curation workflow mappings
+_pre_curation_status_cache: Optional[Dict[str, Dict[str, list]]] = None
+_pre_curation_process_cache: Optional[Dict[str, str]] = None
+
+
+def _get_pre_curation_status_atp_mapping() -> Dict[str, Dict[str, list]]:
+    """Build status ATP mapping for pre-curation workflow overview dynamically."""
+    global _pre_curation_status_cache
+    if _pre_curation_status_cache is not None:
+        return _pre_curation_status_cache
+
+    _pre_curation_status_cache = {
+        "file_upload": {
+            "complete": [get_atp_id_by_name('files uploaded', fallback='ATP:0000134')],
+            "failed": [get_atp_id_by_name('file unobtainable', fallback='ATP:0000135')],
+            "in_progress": [get_atp_id_by_name('file upload in progress', fallback='ATP:0000139')],
+            "needed": [get_atp_id_by_name('file needed', fallback='ATP:0000141')]
+        },
+        "text_conversion": {
+            "complete": [get_atp_id_by_name('text conversion complete', fallback='ATP:0000163')],
+            "failed": [get_atp_id_by_name('text conversion failed', fallback='ATP:0000164')],
+            "in_progress": [get_atp_id_by_name('text conversion in progress', fallback='ATP:0000198')],
+            "needed": [get_atp_id_by_name('text conversion needed', fallback='ATP:0000162')]
+        },
+        "email_extraction": {
+            "complete": [get_atp_id_by_name('email extraction complete', fallback='ATP:0000355')],
+            "failed": [get_atp_id_by_name('email extraction failed', fallback='ATP:0000356')],
+            "in_progress": [get_atp_id_by_name('email extraction in progress', fallback='ATP:0000357')],
+            "needed": [get_atp_id_by_name('email extraction needed', fallback='ATP:0000358')]
+        },
+        "topic_classification": {
+            "complete": [get_atp_id_by_name('reference classification complete', fallback='ATP:0000169')],
+            "failed": [get_atp_id_by_name('reference classification failed', fallback='ATP:0000189')],
+            "in_progress": [get_atp_id_by_name('reference classification in progress', fallback='ATP:0000178')],
+            "needed": [get_atp_id_by_name('reference classification needed', fallback='ATP:0000166')]
+        },
+        "entity_extraction": {
+            "complete": [get_atp_id_by_name('entity extraction complete', fallback='ATP:0000174')],
+            "failed": [get_atp_id_by_name('entity extraction failed', fallback='ATP:0000187')],
+            "in_progress": [get_atp_id_by_name('entity extraction in progress', fallback='ATP:0000190')],
+            "needed": [get_atp_id_by_name('entity extraction needed', fallback='ATP:0000173')]
+        },
+        "curation_classification": {
+            "complete": [get_atp_id_by_name('curation classification complete', fallback='ATP:0000312')],
+            "failed": [get_atp_id_by_name('curation classification failed', fallback='ATP:0000315')],
+            "in_progress": [get_atp_id_by_name('curation classification in progress', fallback='ATP:0000314')],
+            "needed": [get_atp_id_by_name('curation classification needed', fallback='ATP:0000313')]
+        }
+    }
+    return _pre_curation_status_cache
+
+
+def _get_pre_curation_process_atp_ids() -> Dict[str, str]:
+    """Build process ATP IDs for pre-curation workflow dynamically."""
+    global _pre_curation_process_cache
+    if _pre_curation_process_cache is not None:
+        return _pre_curation_process_cache
+
+    _pre_curation_process_cache = {
+        "file_upload": get_atp_id_by_name('file upload', fallback='ATP:0000140'),
+        "text_conversion": get_atp_id_by_name('text conversion', fallback='ATP:0000161'),
+        "email_extraction": get_atp_id_by_name('email extraction', fallback='ATP:0000354'),
+        "topic_classification": get_atp_id_by_name('reference classification', fallback='ATP:0000165'),
+        "entity_extraction": get_atp_id_by_name('entity extraction', fallback='ATP:0000172'),
+        "curation_classification": get_atp_id_by_name('curation classification', fallback='ATP:0000311')
+    }
+    return _pre_curation_process_cache
+
+
+def _get_process_status(mod_tag_ids: list, atp_mapping: Dict[str, list]) -> tuple:
+    """Determine the status for a workflow process based on tag IDs."""
+    for check_status in ["complete", "failed", "in_progress", "needed"]:
+        for atp_id in atp_mapping.get(check_status, []):
+            if atp_id in mod_tag_ids:
+                return check_status, atp_id
+    return None, None
+
+
+def _mod_has_workflow_data(mod_data: Dict[str, Any]) -> bool:
+    """Check if a MOD has any workflow data."""
+    if mod_data.get("inside_corpus") is not None:
+        return True
+    for process_name in _get_pre_curation_status_atp_mapping().keys():
+        process_data = mod_data.get(process_name)
+        if process_data and process_data.get("status") is not None:
+            return True
+    return False
+
+
+def get_pre_curation_workflow_overview(db: Session, reference_curie: str):
+    """
+    Get pre-curation workflow status overview for a reference across all MODs.
+    Returns data structured for the Pre-curation Workflow table.
+    """
+    from agr_literature_service.api.models import ModCorpusAssociationModel
+
+    reference_id = get_reference_id_from_curie_or_id(db=db, curie_or_reference_id=reference_curie)
+    if reference_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"The reference curie '{reference_curie}' is not in the database."
+        )
+
+    # Get all MODs
+    all_mods = db.query(ModModel).all()
+    mod_abbreviations = [mod.abbreviation for mod in all_mods]
+    mod_id_to_abbrev = {mod.mod_id: mod.abbreviation for mod in all_mods}
+
+    # Get inside corpus status for each MOD
+    corpus_status: Dict[str, Any] = {}
+    mca_rows = db.query(ModCorpusAssociationModel).filter(
+        ModCorpusAssociationModel.reference_id == reference_id
+    ).all()
+    for mca in mca_rows:
+        if mca.mod_id in mod_id_to_abbrev:
+            corpus_status[mod_id_to_abbrev[mca.mod_id]] = mca.corpus
+
+    # Collect all workflow tags for all processes we need
+    all_process_tags: list = []
+    for process_atp_id in _get_pre_curation_process_atp_ids().values():
+        tags = get_workflow_tags_from_process(process_atp_id)
+        if tags:
+            all_process_tags.extend(tags)
+    all_process_tags = list(set(all_process_tags))
+
+    # Get all workflow tags for this reference
+    workflow_tags: list = []
+    if all_process_tags:
+        workflow_tags = db.query(WorkflowTagModel).filter(
+            and_(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.workflow_tag_id.in_(all_process_tags)
+            )
+        ).all()
+
+    # Organize workflow tags by mod
+    mod_workflow_tags: Dict[str, list] = {}
+    for tag in workflow_tags:
+        mod_abbrev = mod_id_to_abbrev.get(tag.mod_id)
+        if mod_abbrev:
+            if mod_abbrev not in mod_workflow_tags:
+                mod_workflow_tags[mod_abbrev] = []
+            mod_workflow_tags[mod_abbrev].append(tag)
+
+    # Build workflow status for each MOD
+    workflows: Dict[str, Any] = {}
+    for mod_abbrev in mod_abbreviations:
+        workflows[mod_abbrev] = {"inside_corpus": corpus_status.get(mod_abbrev)}
+        mod_tags = mod_workflow_tags.get(mod_abbrev, [])
+        mod_tag_ids = [t.workflow_tag_id for t in mod_tags]
+
+        for process_name, atp_mapping in _get_pre_curation_status_atp_mapping().items():
+            process_status, workflow_tag_id = _get_process_status(mod_tag_ids, atp_mapping)
+            workflows[mod_abbrev][process_name] = {
+                "status": process_status,
+                "workflow_tag_id": workflow_tag_id
+            }
+
+    # Filter out MODs that have no workflow data
+    filtered_workflows = {k: v for k, v in workflows.items() if _mod_has_workflow_data(v)}
+    filtered_mods = list(filtered_workflows.keys())
+
+    # Build details list (same format as existing File Upload Current Status)
+    # Pass str(reference_id) to avoid redundant DB lookup (isdigit() short-circuits)
+    file_upload_process = get_atp_id_by_name('file upload', fallback='ATP:0000140')
+    details = _get_current_workflow_tag_db_objs(db, str(reference_id), file_upload_process)
+
+    return {
+        "mods": filtered_mods,
+        "workflows": filtered_workflows,
+        "details": details
+    }

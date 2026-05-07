@@ -11,6 +11,23 @@ class ConversionFileInfo(BaseModel):
     referencefile_id: Optional[int] = None
 
 
+class ConversionModStatusSchema(BaseModel):
+    """Per-MOD conversion status for a reference.
+
+    Reports the conversion state from each MOD's perspective. Returned for
+    every MOD that currently has a ``text_convert_job`` workflow tag
+    pointing at this reference. ``all_converted`` is True iff that MOD has
+    no main / supplement source files left to convert (taking into account
+    SCRUM-6026 supplement eligibility for non-WB/ZFIN/FB references).
+    """
+    model_config = ConfigDict(extra='forbid', from_attributes=True)
+
+    mod_abbreviation: str
+    pending_main_count: int
+    pending_supplement_count: int
+    all_converted: bool
+
+
 class ConversionPerFileProgressSchema(BaseModel):
     """One entry per source file eligible for conversion on the most recent
     job, plus one entry per converted Markdown row currently in the DB for
@@ -20,11 +37,18 @@ class ConversionPerFileProgressSchema(BaseModel):
     display_name and file_class; for ``failed`` entries ``converted`` is
     null and ``error`` is populated. ``source`` may be null for entries
     derived purely from the DB — call ``show_all`` if you need the original
-    source file info for those."""
+    source file info for those.
+
+    ``figures`` lists every ``converted_main_figure`` /
+    ``converted_supplement_figure`` row currently in the DB that was
+    extracted from this entry's source PDF (matched by display_name prefix).
+    Empty when image extraction was not run, returned no figures, or the
+    source isn't a PDF."""
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
     source: Optional[ConversionFileInfo] = None
     converted: Optional[ConversionFileInfo] = None
+    figures: List[ConversionFileInfo] = []
     status: str
     error: Optional[str] = None
 
@@ -61,3 +85,4 @@ class ConversionStatusResponseSchema(BaseModel):
     completed_at: Optional[str] = None
     converted_classes: List[str] = []
     per_file_progress: List[ConversionPerFileProgressSchema] = []
+    per_mod_status: List[ConversionModStatusSchema] = []

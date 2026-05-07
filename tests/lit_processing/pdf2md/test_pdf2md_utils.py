@@ -9,18 +9,31 @@ Tests cover:
 - PDF file retrieval
 - Processing result structures
 """
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
+from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+    CONVERTED_FIGURE_FILE_EXTENSION,
+    ELIGIBLE_SUPPLEMENT_MODS,
     EXTRACTION_METHODS,
+    FIGURE_FILE_CLASSES,
     PdfDetail,
     ProcessingResult,
     submit_pdf_to_pdfx,
     poll_pdfx_status,
     download_pdfx_result,
+    download_pdfx_image,
+    download_pdfx_image_manifest,
+    is_eligible_for_supplement_conversion,
+    is_main_source_converted,
+    is_supplement_source_converted,
+    pending_main_sources,
+    pending_supplement_sources,
+    process_extracted_images,
     resolve_curie_to_reference,
     get_pdf_files_for_reference,
     get_nxml_referencefile,
@@ -97,6 +110,50 @@ class TestSubmitPdfToPdfx:
 
         assert process_id == "abc123"
         mock_post.assert_called_once()
+        # extract_images defaults to True so every conversion also yields figure images.
+        sent_data = mock_post.call_args.kwargs["data"]
+        assert sent_data["extract_images"] == "true"
+        # review_images is omitted unless the caller overrides it (server default is on).
+        assert "review_images" not in sent_data
+        # clear_cache_scope defaults to "extraction" so a stale server-side
+        # image manifest can't silently produce zero-image results.
+        assert sent_data["clear_cache_scope"] == "extraction"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
+    def test_extract_images_can_be_disabled(self, mock_post):
+        """Caller can opt out of image extraction explicitly."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"process_id": "abc123"}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        submit_pdf_to_pdfx(
+            file_content=b"pdf_content",
+            token="test_token",
+            extract_images=False,
+            review_images=False,
+        )
+
+        sent_data = mock_post.call_args.kwargs["data"]
+        assert sent_data["extract_images"] == "false"
+        assert sent_data["review_images"] == "false"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
+    def test_clear_cache_scope_can_be_disabled(self, mock_post):
+        """Passing clear_cache_scope=None omits the field entirely."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"process_id": "abc123"}
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        submit_pdf_to_pdfx(
+            file_content=b"pdf_content",
+            token="test_token",
+            clear_cache_scope=None,
+        )
+
+        sent_data = mock_post.call_args.kwargs["data"]
+        assert "clear_cache_scope" not in sent_data
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.post")
     def test_raises_error_when_no_process_id(self, mock_post):
@@ -464,11 +521,23 @@ class TestProcessNxmlToMarkdown:
 
 
 class TestProcessSupplementalPdfs:
-    """Test process_supplemental_pdfs function."""
+    """Test process_supplemental_pdfs function.
 
+    The function calls pending_supplement_sources internally for per-source
+    dedup, so these tests mock that helper directly to control which
+    supplements the function thinks are pending.
+    """
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.pending_supplement_sources")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
-    def test_no_supplements_returns_zero_counts(self, mock_get_pdfs):
-        """Zero supplements -> (0, 0, [])."""
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils."
+           "is_eligible_for_supplement_conversion")
+    def test_no_supplements_returns_zero_counts(
+        self, mock_eligible, mock_get_pdfs, mock_pending
+    ):
+        """Zero pending supplements -> (0, 0, [])."""
+        mock_eligible.return_value = True
+        mock_pending.return_value = []
         mock_get_pdfs.return_value = []
 
         succeeded, failed, errors = process_supplemental_pdfs(
@@ -483,13 +552,18 @@ class TestProcessSupplementalPdfs:
         assert errors == []
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
-    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
-    def test_mixed_success_and_failure(self, mock_get_pdfs, mock_process):
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.pending_supplement_sources")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils."
+           "is_eligible_for_supplement_conversion")
+    def test_mixed_success_and_failure(
+        self, mock_eligible, mock_pending, mock_process
+    ):
         """Mix of succeeding/failing supplements counted separately."""
+        mock_eligible.return_value = True
         s1 = MagicMock(display_name="s1")
         s2 = MagicMock(display_name="s2")
         s3 = MagicMock(display_name="s3")
-        mock_get_pdfs.return_value = [s1, s2, s3]
+        mock_pending.return_value = [s1, s2, s3]
         mock_process.side_effect = [
             (True, ["grobid"], None),
             (False, [], "pdfx err"),
@@ -510,11 +584,16 @@ class TestProcessSupplementalPdfs:
         assert "pdfx err" in errors[0]
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
-    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
-    def test_exception_in_helper_counted_as_failure(self, mock_get_pdfs, mock_process):
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.pending_supplement_sources")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils."
+           "is_eligible_for_supplement_conversion")
+    def test_exception_in_helper_counted_as_failure(
+        self, mock_eligible, mock_pending, mock_process
+    ):
         """Exceptions from the per-file helper are caught."""
+        mock_eligible.return_value = True
         s1 = MagicMock(display_name="s1")
-        mock_get_pdfs.return_value = [s1]
+        mock_pending.return_value = [s1]
         mock_process.side_effect = RuntimeError("boom")
 
         succeeded, failed, errors = process_supplemental_pdfs(
@@ -528,3 +607,779 @@ class TestProcessSupplementalPdfs:
         assert failed == 1
         assert len(errors) == 1
         assert "boom" in errors[0]
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.pending_supplement_sources")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils."
+           "is_eligible_for_supplement_conversion")
+    def test_skips_when_reference_not_eligible(
+        self, mock_eligible, mock_pending, mock_process
+    ):
+        """Ineligible references early-return without consulting supplement
+        PDFs or processing anything."""
+        mock_eligible.return_value = False
+
+        succeeded, failed, errors = process_supplemental_pdfs(
+            db=MagicMock(),
+            reference_id=42,
+            reference_curie="AGRKB:1",
+            token="t"
+        )
+
+        assert (succeeded, failed, errors) == (0, 0, [])
+        # Critical: eligibility check happens BEFORE any DB / PDFX work.
+        mock_pending.assert_not_called()
+        mock_process.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils._process_single_pdf_file")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.pending_supplement_sources")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils."
+           "is_eligible_for_supplement_conversion")
+    def test_skips_when_all_supplements_already_converted(
+        self, mock_eligible, mock_pending, mock_get_pdfs, mock_process
+    ):
+        """Per-source dedup: all supplements already converted → no PDFX work."""
+        mock_eligible.return_value = True
+        mock_pending.return_value = []  # nothing pending
+        mock_get_pdfs.return_value = [MagicMock(display_name="s1")]  # but supps exist
+
+        succeeded, failed, errors = process_supplemental_pdfs(
+            db=MagicMock(),
+            reference_id=42,
+            reference_curie="AGRKB:1",
+            token="t"
+        )
+
+        assert (succeeded, failed, errors) == (0, 0, [])
+        mock_process.assert_not_called()
+
+
+class TestFigureFileClasses:
+    """Tests for the figure file_class mapping constants."""
+
+    def test_main_and_supplement_have_distinct_classes(self):
+        assert FIGURE_FILE_CLASSES["main"] == "converted_main_figure"
+        assert FIGURE_FILE_CLASSES["supplement"] == "converted_supplement_figure"
+
+    def test_default_extension_is_png(self):
+        assert CONVERTED_FIGURE_FILE_EXTENSION == "png"
+
+
+class TestDownloadPdfxImageManifest:
+    """Test download_pdfx_image_manifest function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_returns_parsed_manifest(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "process_id": "abc123",
+            "images": [{"filename": "_page_0_Figure_1.png", "url": "https://s3/x"}],
+            "manifest_ttl_seconds": 3600,
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = download_pdfx_image_manifest("abc123", "test_token")
+
+        assert result["process_id"] == "abc123"
+        assert len(result["images"]) == 1
+        call_args = mock_get.call_args
+        assert "abc123" in call_args[0][0]
+        assert "/images/urls" in call_args[0][0]
+        assert call_args.kwargs["headers"]["Authorization"] == "Bearer test_token"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_rejects_non_dict_payload(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.json.return_value = ["not", "a", "dict"]
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        with pytest.raises(ValueError):
+            download_pdfx_image_manifest("abc123", "test_token")
+
+
+class TestDownloadPdfxImage:
+    """Test download_pdfx_image function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.requests.get")
+    def test_returns_image_bytes(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.content = b"\x89PNGfake"
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = download_pdfx_image("https://s3.example/foo.png")
+
+        assert result == b"\x89PNGfake"
+        # Pre-signed URLs are unauthenticated — no Authorization header is sent.
+        kwargs = mock_get.call_args.kwargs
+        assert "headers" not in kwargs or "Authorization" not in (kwargs.get("headers") or {})
+
+
+class TestProcessExtractedImages:
+    """Test process_extracted_images function."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_unknown_source_file_class_returns_no_op(self, mock_manifest):
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="weird",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+        assert (succeeded, failed, errors) == (0, 0, [])
+        mock_manifest.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_manifest_fetch_failure_is_reported_not_raised(self, mock_manifest):
+        mock_manifest.side_effect = RuntimeError("network down")
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+        assert succeeded == 0
+        assert failed == 0
+        assert len(errors) == 1
+        assert "network down" in errors[0]
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_empty_manifest_is_silent_success(self, mock_manifest):
+        mock_manifest.return_value = {"images": []}
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+        )
+        assert (succeeded, failed, errors) == (0, 0, [])
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_uploads_each_image_with_correct_metadata(
+        self, mock_manifest, mock_download, mock_upload
+    ):
+        mock_manifest.return_value = {
+            "images": [
+                {"filename": "_page_0_Figure_1.png", "url": "https://s3/a"},
+                {"filename": "_page_0_Figure_2.png", "url": "https://s3/b"},
+            ]
+        }
+        mock_download.side_effect = [b"\x89PNGdata1", b"\x89PNGdata2"]
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+
+        assert succeeded == 2
+        assert failed == 0
+        assert errors == []
+        assert mock_upload.call_count == 2
+        # Verify the first image's metadata mirrors the converted-MD convention.
+        first_metadata = mock_upload.call_args_list[0].kwargs["metadata"]
+        assert first_metadata["display_name"] == "paper_image_001"
+        assert first_metadata["file_class"] == "converted_main_figure"
+        assert first_metadata["file_extension"] == "png"
+        assert first_metadata["file_publication_status"] == "final"
+        assert first_metadata["mod_abbreviation"] == "WB"
+        assert first_metadata["reference_curie"] == "AGRKB:1"
+        assert first_metadata["pdf_type"] is None
+        assert first_metadata["is_annotation"] is None
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_supplement_uses_distinct_file_class(
+        self, mock_manifest, mock_download, mock_upload
+    ):
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png", "url": "https://s3/a"}]
+        }
+        mock_download.return_value = b"\x89PNG"
+
+        process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="supp1",
+            source_file_class="supplement",
+            reference_curie="AGRKB:1",
+            mod_abbreviation=None,
+        )
+
+        metadata = mock_upload.call_args.kwargs["metadata"]
+        assert metadata["file_class"] == "converted_supplement_figure"
+        assert metadata["display_name"] == "supp1_image_001"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_per_image_failure_does_not_abort_remaining(
+        self, mock_manifest, mock_download, mock_upload
+    ):
+        mock_manifest.return_value = {
+            "images": [
+                {"filename": "x.png", "url": "https://s3/a"},
+                {"filename": "y.png", "url": "https://s3/b"},
+                {"filename": "z.png", "url": "https://s3/c"},
+            ]
+        }
+        mock_download.side_effect = [b"\x89PNGa", RuntimeError("S3 timeout"), b"\x89PNGc"]
+
+        succeeded, failed, errors = process_extracted_images(
+            db=MagicMock(),
+            process_id="abc",
+            token="t",
+            source_display_name="paper",
+            source_file_class="main",
+            reference_curie="AGRKB:1",
+            mod_abbreviation="WB",
+        )
+
+        assert succeeded == 2
+        assert failed == 1
+        assert len(errors) == 1
+        assert "S3 timeout" in errors[0]
+        # Two successful uploads should have been attempted.
+        assert mock_upload.call_count == 2
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_manifest_entry_missing_url_is_recorded_as_failure(self, mock_manifest):
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png"}, {"filename": "y.png", "url": "https://s3/b"}]
+        }
+
+        with patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image",
+            return_value=b"\x89PNG",
+        ), patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload"
+        ):
+            succeeded, failed, errors = process_extracted_images(
+                db=MagicMock(),
+                process_id="abc",
+                token="t",
+                source_display_name="paper",
+                source_file_class="main",
+                reference_curie="AGRKB:1",
+                mod_abbreviation=None,
+            )
+
+        assert succeeded == 1
+        assert failed == 1
+        assert any("missing 'url'" in e for e in errors)
+
+
+class TestEligibleSupplementMods:
+    """Tests for the supplement-conversion eligibility helper."""
+
+    def test_constant_contains_expected_mods(self):
+        assert ELIGIBLE_SUPPLEMENT_MODS == frozenset({"WB", "ZFIN", "FB"})
+
+    def _build_query_chain(self, first_result):
+        """Build a MagicMock chain that mimics
+        db.query(...).join(...).filter(...).first() -> first_result."""
+        mock_db = MagicMock()
+        chain = MagicMock()
+        mock_db.query.return_value = chain
+        chain.join.return_value = chain
+        chain.filter.return_value = chain
+        chain.first.return_value = first_result
+        return mock_db, chain
+
+    def test_returns_true_when_corpus_row_exists(self):
+        """A non-None .first() result -> eligible."""
+        mock_db, chain = self._build_query_chain(first_result=MagicMock())
+        assert is_eligible_for_supplement_conversion(mock_db, 42) is True
+        # Sanity: the chain went query -> join -> filter -> first.
+        assert mock_db.query.call_count == 1
+        assert chain.join.call_count == 1
+        assert chain.filter.call_count == 1
+        assert chain.first.call_count == 1
+
+    def test_returns_false_when_no_corpus_row(self):
+        """A None .first() result -> not eligible."""
+        mock_db, _ = self._build_query_chain(first_result=None)
+        assert is_eligible_for_supplement_conversion(mock_db, 42) is False
+
+
+class TestIsMainSourceConverted:
+    """Tests for the per-source main-side conversion lookup."""
+
+    def _query_chain(self, first_result):
+        mock_db = MagicMock()
+        chain = MagicMock()
+        mock_db.query.return_value = chain
+        chain.filter.return_value = chain
+        chain.first.return_value = first_result
+        return mock_db, chain
+
+    def test_returns_true_when_matching_row_exists(self):
+        mock_db, _ = self._query_chain(first_result=MagicMock())
+        assert is_main_source_converted(
+            mock_db, 42, "paper", is_nxml=False
+        ) is True
+
+    def test_returns_false_when_no_matching_row(self):
+        mock_db, _ = self._query_chain(first_result=None)
+        assert is_main_source_converted(
+            mock_db, 42, "paper", is_nxml=False
+        ) is False
+
+    def test_nxml_source_only_matches_nxml_suffix(self):
+        """For an nXML source, only the _nxml suffix should be in the IN list."""
+        from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
+        suffixes = pdf2md_utils._converted_main_suffixes(
+            is_nxml=True, ignore_tei_derived=False
+        )
+        assert suffixes == ["_nxml"]
+
+    def test_pdf_source_default_includes_tei_legacy(self):
+        from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
+        suffixes = pdf2md_utils._converted_main_suffixes(
+            is_nxml=False, ignore_tei_derived=False
+        )
+        assert "_merged" in suffixes
+        assert "_tei" in suffixes
+
+    def test_pdf_source_ignore_tei_excludes_legacy(self):
+        from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
+        suffixes = pdf2md_utils._converted_main_suffixes(
+            is_nxml=False, ignore_tei_derived=True
+        )
+        assert suffixes == ["_merged"]
+
+
+class TestIsSupplementSourceConverted:
+    """Tests for the per-source supplement conversion lookup."""
+
+    def _query_chain(self, first_result):
+        mock_db = MagicMock()
+        chain = MagicMock()
+        mock_db.query.return_value = chain
+        chain.filter.return_value = chain
+        chain.first.return_value = first_result
+        return mock_db, chain
+
+    def test_returns_true_when_matching_row_exists(self):
+        mock_db, _ = self._query_chain(first_result=MagicMock())
+        assert is_supplement_source_converted(mock_db, 42, "supp_a") is True
+
+    def test_returns_false_when_no_matching_row(self):
+        mock_db, _ = self._query_chain(first_result=None)
+        assert is_supplement_source_converted(mock_db, 42, "supp_a") is False
+
+    def test_default_includes_tei_legacy(self):
+        from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
+        suffixes = pdf2md_utils._converted_supplement_suffixes(
+            ignore_tei_derived=False
+        )
+        assert "_merged" in suffixes
+        assert "_tei" in suffixes
+
+    def test_ignore_tei_excludes_legacy(self):
+        from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
+        suffixes = pdf2md_utils._converted_supplement_suffixes(
+            ignore_tei_derived=True
+        )
+        assert suffixes == ["_merged"]
+
+
+class TestPendingMainSources:
+    """Tests for pending_main_sources helper."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_main_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_nxml_referencefile")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_returns_nxml_when_present_and_pending(
+        self, mock_pdfs, mock_nxml, mock_converted
+    ):
+        nxml = MagicMock(display_name="paper")
+        mock_nxml.return_value = nxml
+        mock_converted.return_value = False  # not yet converted
+
+        result = pending_main_sources(MagicMock(), 42, prefer_nxml=True)
+
+        assert len(result) == 1
+        assert result[0]["kind"] == "nxml"
+        assert result[0]["ref_file"] is nxml
+        # Critical: when nXML is present, main PDFs are NOT also fetched.
+        mock_pdfs.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_main_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_nxml_referencefile")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_skips_nxml_when_already_converted(
+        self, mock_pdfs, mock_nxml, mock_converted
+    ):
+        nxml = MagicMock(display_name="paper")
+        mock_nxml.return_value = nxml
+        mock_converted.return_value = True  # already converted
+
+        result = pending_main_sources(MagicMock(), 42, prefer_nxml=True)
+
+        # Already-converted nXML returns []; we don't fall back to PDFs
+        # because nXML is the chosen main-text source for this reference.
+        assert result == []
+        mock_pdfs.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_main_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_nxml_referencefile")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_returns_pending_pdfs_when_no_nxml(
+        self, mock_pdfs, mock_nxml, mock_converted
+    ):
+        mock_nxml.return_value = None
+        pdf1 = MagicMock(display_name="pdf1")
+        pdf2 = MagicMock(display_name="pdf2")
+        mock_pdfs.return_value = [pdf1, pdf2]
+        # pdf1 already converted, pdf2 not.
+        mock_converted.side_effect = lambda db, ref_id, name, **kw: name == "pdf1"
+
+        result = pending_main_sources(MagicMock(), 42, prefer_nxml=True)
+
+        assert [p["ref_file"] for p in result] == [pdf2]
+        assert all(p["kind"] == "pdf" for p in result)
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_main_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_nxml_referencefile")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_prefer_nxml_false_ignores_nxml(
+        self, mock_pdfs, mock_nxml, mock_converted
+    ):
+        # prefer_nxml=False: nxml lookup is skipped entirely; only PDFs considered.
+        pdf1 = MagicMock(display_name="pdf1")
+        mock_pdfs.return_value = [pdf1]
+        mock_converted.return_value = False
+
+        result = pending_main_sources(MagicMock(), 42, prefer_nxml=False)
+
+        mock_nxml.assert_not_called()
+        assert [p["ref_file"] for p in result] == [pdf1]
+
+
+class TestPendingSupplementSources:
+    """Tests for pending_supplement_sources helper."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_returns_only_unconverted_supplements(
+        self, mock_pdfs, mock_converted
+    ):
+        s1 = MagicMock(display_name="s1")
+        s2 = MagicMock(display_name="s2")
+        s3 = MagicMock(display_name="s3")
+        mock_pdfs.return_value = [s1, s2, s3]
+        # s1 and s3 already converted; s2 still pending.
+        mock_converted.side_effect = lambda db, ref_id, name, **kw: name in {"s1", "s3"}
+
+        result = pending_supplement_sources(MagicMock(), 42)
+
+        assert result == [s2]
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_returns_empty_when_no_supplements(
+        self, mock_pdfs, mock_converted
+    ):
+        mock_pdfs.return_value = []
+        result = pending_supplement_sources(MagicMock(), 42)
+        assert result == []
+        mock_converted.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_returns_empty_when_all_converted(
+        self, mock_pdfs, mock_converted
+    ):
+        s1 = MagicMock(display_name="s1")
+        mock_pdfs.return_value = [s1]
+        mock_converted.return_value = True
+        assert pending_supplement_sources(MagicMock(), 42) == []
+
+
+def _supp_for_mods(display_name: str, mods):
+    """Build a supplement ReferencefileModel mock with the given mod
+    associations. ``mods`` is a list where each entry is either a MOD
+    abbreviation string or None for a null-mod (PMC) association.
+    """
+    supp = MagicMock(display_name=display_name)
+    rf_mods = []
+    for mod_abbr in mods:
+        rf_mod = MagicMock()
+        if mod_abbr is None:
+            rf_mod.mod = None
+        else:
+            rf_mod.mod = MagicMock(abbreviation=mod_abbr)
+        rf_mods.append(rf_mod)
+    supp.referencefile_mods = rf_mods
+    return supp
+
+
+class TestFileIsForMod:
+    """Tests for the per-MOD eligibility filter used by pending_*_sources."""
+
+    def test_no_mod_filter_matches_anything(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", ["WB"])
+        assert _file_is_for_mod(f, mod_abbreviation=None) is True
+
+    def test_matching_mod_is_eligible(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", ["WB", "ZFIN"])
+        assert _file_is_for_mod(f, mod_abbreviation="WB") is True
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is True
+
+    def test_non_matching_mod_is_not_eligible(self):
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", ["WB"])
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is False
+
+    def test_null_mod_file_is_eligible_for_any_mod(self):
+        """Files with at least one mod_id IS NULL association (PMC/shared)
+        are eligible for every MOD's job."""
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", [None])
+        assert _file_is_for_mod(f, mod_abbreviation="WB") is True
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is True
+
+    def test_null_mod_plus_specific_mod(self):
+        """A file with both null and specific associations is eligible for
+        the matching MOD AND any MOD via the null association."""
+        from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
+            _file_is_for_mod,
+        )
+        f = _supp_for_mods("x", [None, "WB"])
+        assert _file_is_for_mod(f, mod_abbreviation="WB") is True
+        assert _file_is_for_mod(f, mod_abbreviation="ZFIN") is True
+
+
+class TestPendingSupplementSourcesModFilter:
+    """Tests for the mod_abbreviation filter on pending_supplement_sources."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_filters_to_mod_eligible_when_mod_provided(
+        self, mock_pdfs, mock_converted
+    ):
+        wb_supp = _supp_for_mods("wb_only", ["WB"])
+        zfin_supp = _supp_for_mods("zfin_only", ["ZFIN"])
+        shared = _supp_for_mods("shared", [None])
+        mock_pdfs.return_value = [wb_supp, zfin_supp, shared]
+        mock_converted.return_value = False  # nothing converted yet
+
+        wb_pending = pending_supplement_sources(
+            MagicMock(), 42, mod_abbreviation="WB"
+        )
+        # WB sees its own + the shared null-mod, but NOT ZFIN-only
+        assert {p.display_name for p in wb_pending} == {"wb_only", "shared"}
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.is_supplement_source_converted")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.get_pdf_files_for_reference")
+    def test_no_mod_filter_returns_all(self, mock_pdfs, mock_converted):
+        wb_supp = _supp_for_mods("wb_only", ["WB"])
+        zfin_supp = _supp_for_mods("zfin_only", ["ZFIN"])
+        shared = _supp_for_mods("shared", [None])
+        mock_pdfs.return_value = [wb_supp, zfin_supp, shared]
+        mock_converted.return_value = False
+
+        all_pending = pending_supplement_sources(MagicMock(), 42)
+        assert {p.display_name for p in all_pending} == {
+            "wb_only", "zfin_only", "shared",
+        }
+
+
+def _pdf_bytes(page_count: int) -> bytes:
+    pages = b"\n".join(
+        f"{i} 0 obj <</Type /Page>> endobj".encode("ascii")
+        for i in range(1, page_count + 1)
+    )
+    return b"%PDF-1.4\n" + pages + b"\n%%EOF"
+
+
+def _referencefile(file_class: str = "supplement"):
+    return SimpleNamespace(
+        referencefile_id=123,
+        display_name="supplement_pdf",
+        file_class=file_class,
+        referencefile_mods=[],
+    )
+
+
+class TestSupplementPdfLimits:
+    """Tests for supplemental PDF size/page guards before PDFX submission."""
+
+    def test_supplement_pdf_over_size_limit_is_not_submitted(self, monkeypatch):
+        submitted = False
+
+        def fake_submit_pdf_to_pdfx(**kwargs):
+            nonlocal submitted
+            submitted = True
+            return "process-id"
+
+        monkeypatch.setattr(
+            pdf2md_utils,
+            "download_file",
+            lambda **kwargs: b"x" * (5 * 1024 * 1024 + 1),
+        )
+        monkeypatch.setattr(
+            pdf2md_utils, "submit_pdf_to_pdfx", fake_submit_pdf_to_pdfx,
+        )
+
+        success, methods_uploaded, error = pdf2md_utils._process_single_pdf_file(
+            db=None,
+            pdf_file=_referencefile(),
+            reference_curie="AGRKB:1",
+            token="token",
+            methods_to_extract=["merged"],
+        )
+
+        assert success is False
+        assert methods_uploaded == []
+        assert "exceeds 5 MB limit" in error
+        assert submitted is False
+
+    def test_supplement_pdf_over_page_limit_is_not_submitted(self, monkeypatch):
+        submitted = False
+
+        def fake_submit_pdf_to_pdfx(**kwargs):
+            nonlocal submitted
+            submitted = True
+            return "process-id"
+
+        monkeypatch.setattr(
+            pdf2md_utils, "download_file", lambda **kwargs: _pdf_bytes(21),
+        )
+        monkeypatch.setattr(
+            pdf2md_utils, "submit_pdf_to_pdfx", fake_submit_pdf_to_pdfx,
+        )
+
+        success, methods_uploaded, error = pdf2md_utils._process_single_pdf_file(
+            db=None,
+            pdf_file=_referencefile(),
+            reference_curie="AGRKB:1",
+            token="token",
+            methods_to_extract=["merged"],
+        )
+
+        assert success is False
+        assert methods_uploaded == []
+        assert "exceeds 20 page limit" in error
+        assert submitted is False
+
+    def test_supplement_pdf_within_limits_is_submitted(self, monkeypatch):
+        submitted = False
+        uploaded = False
+
+        def fake_submit_pdf_to_pdfx(**kwargs):
+            nonlocal submitted
+            submitted = True
+            return "process-id"
+
+        def fake_file_upload(**kwargs):
+            nonlocal uploaded
+            uploaded = True
+
+        monkeypatch.setattr(
+            pdf2md_utils, "download_file", lambda **kwargs: _pdf_bytes(20),
+        )
+        monkeypatch.setattr(
+            pdf2md_utils, "submit_pdf_to_pdfx", fake_submit_pdf_to_pdfx,
+        )
+        monkeypatch.setattr(
+            pdf2md_utils, "poll_pdfx_status", lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            pdf2md_utils,
+            "download_pdfx_result",
+            lambda *args, **kwargs: b"# Converted\n\ncontent",
+        )
+        monkeypatch.setattr(pdf2md_utils, "file_upload", fake_file_upload)
+        monkeypatch.setattr(
+            pdf2md_utils, "process_extracted_images", lambda **kwargs: 0,
+        )
+
+        success, methods_uploaded, error = pdf2md_utils._process_single_pdf_file(
+            db=None,
+            pdf_file=_referencefile(),
+            reference_curie="AGRKB:1",
+            token="token",
+            methods_to_extract=["merged"],
+        )
+
+        assert success is True
+        assert methods_uploaded == ["merged"]
+        assert error is None
+        assert submitted is True
+        assert uploaded is True
+
+    def test_main_pdf_is_not_subject_to_supplement_limits(self, monkeypatch):
+        submitted = False
+
+        def fake_submit_pdf_to_pdfx(**kwargs):
+            nonlocal submitted
+            submitted = True
+            return "process-id"
+
+        monkeypatch.setattr(
+            pdf2md_utils,
+            "download_file",
+            lambda **kwargs: b"x" * (5 * 1024 * 1024 + 1),
+        )
+        monkeypatch.setattr(
+            pdf2md_utils, "submit_pdf_to_pdfx", fake_submit_pdf_to_pdfx,
+        )
+        monkeypatch.setattr(
+            pdf2md_utils, "poll_pdfx_status", lambda *args, **kwargs: None,
+        )
+        monkeypatch.setattr(
+            pdf2md_utils,
+            "download_pdfx_result",
+            lambda *args, **kwargs: b"# Converted\n\ncontent",
+        )
+        monkeypatch.setattr(pdf2md_utils, "file_upload", lambda **kwargs: None)
+        monkeypatch.setattr(
+            pdf2md_utils, "process_extracted_images", lambda **kwargs: 0,
+        )
+
+        success, methods_uploaded, error = pdf2md_utils._process_single_pdf_file(
+            db=None,
+            pdf_file=_referencefile(file_class="main"),
+            reference_curie="AGRKB:1",
+            token="token",
+            methods_to_extract=["merged"],
+        )
+
+        assert success is True
+        assert methods_uploaded == ["merged"]
+        assert error is None
+        assert submitted is True

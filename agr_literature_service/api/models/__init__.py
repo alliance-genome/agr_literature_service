@@ -34,6 +34,7 @@ from agr_literature_service.api.models.topic_entity_tag_model import TopicEntity
 from agr_literature_service.api.models.reference_mod_md5sum_model import ReferenceModMd5sumModel
 from agr_literature_service.api.models.referencefile_model import ReferencefileModel, ReferencefileModAssociationModel
 from agr_literature_service.api.models.copyright_license_model import CopyrightLicenseModel
+from agr_literature_service.api.models.image_permission_model import ImagePermissionModel, ResourceImagePermissionModel
 from agr_literature_service.api.models.citation_model import CitationModel
 from agr_literature_service.api.models.dataset_model import DatasetModel
 from agr_literature_service.api.models.ml_model_model import MLModel
