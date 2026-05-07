@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import (
     ImagePermissionModel,
+    ReferenceModel,
     ResourceImagePermissionModel,
     ResourceModel,
 )
@@ -98,6 +99,7 @@ class ResourceLookup:
     resource_by_abbreviation: Dict[str, List[ResourceModel]]
     resource_by_title: Dict[str, List[ResourceModel]]
     resource_by_curie: Dict[str, ResourceModel]
+    reference_count_by_resource_id: Dict[int, int]
 
 
 @dataclass
@@ -302,6 +304,12 @@ def load_env_file(env_file: Optional[Path]) -> None:
 
 def build_resource_lookup(db: Session) -> ResourceLookup:
     resources = db.query(ResourceModel).all()
+    reference_counts = dict(
+        db.query(ReferenceModel.resource_id, func.count(ReferenceModel.reference_id))
+        .filter(ReferenceModel.resource_id.isnot(None))
+        .group_by(ReferenceModel.resource_id)
+        .all()
+    )
     by_exact_abbreviation: Dict[str, List[ResourceModel]] = {}
     by_exact_title: Dict[str, List[ResourceModel]] = {}
     by_abbreviation: Dict[str, List[ResourceModel]] = {}
@@ -323,6 +331,7 @@ def build_resource_lookup(db: Session) -> ResourceLookup:
         resource_by_abbreviation=by_abbreviation,
         resource_by_title=by_title,
         resource_by_curie=by_curie,
+        reference_count_by_resource_id=reference_counts,
     )
 
 
@@ -337,6 +346,15 @@ def choose_unique(candidates: List[ResourceModel]) -> Optional[ResourceModel]:
     return None
 
 
+def choose_active_resource(candidates: List[ResourceModel], lookup: ResourceLookup) -> Optional[ResourceModel]:
+    active_candidates = [
+        resource
+        for resource in candidates
+        if lookup.reference_count_by_resource_id.get(resource.resource_id, 0) > 0
+    ]
+    return choose_unique(active_candidates)
+
+
 def choose_unique_by_title(candidates: List[ResourceModel], full_journal_name: str) -> Optional[ResourceModel]:
     if not full_journal_name:
         return None
@@ -347,6 +365,45 @@ def choose_unique_by_title(candidates: List[ResourceModel], full_journal_name: s
         if normalize_for_match(resource.title or "") == title_key
     ]
     return choose_unique(title_matches)
+
+
+def choose_active_by_title(
+    candidates: List[ResourceModel],
+    full_journal_name: str,
+    lookup: ResourceLookup,
+) -> Optional[ResourceModel]:
+    if not full_journal_name:
+        return None
+    title_key = normalize_for_match(full_journal_name)
+    title_matches = [
+        resource
+        for resource in candidates
+        if normalize_for_match(resource.title or "") == title_key
+    ]
+    return choose_active_resource(title_matches, lookup)
+
+
+def resolve_candidates(
+    candidates: List[ResourceModel],
+    match_label: str,
+    row: JournalPermissionRow,
+    lookup: ResourceLookup,
+) -> Tuple[Optional[ResourceModel], Optional[str]]:
+    resource = choose_unique(candidates)
+    if resource:
+        return resource, match_label
+    resource = choose_active_resource(candidates, lookup)
+    if resource:
+        return resource, f"active {match_label}"
+    resource = choose_unique_by_title(candidates, row.full_journal_name)
+    if resource:
+        return resource, f"{match_label} plus title"
+    resource = choose_active_by_title(candidates, row.full_journal_name, lookup)
+    if resource:
+        return resource, f"active {match_label} plus title"
+    if len(candidates) > 1:
+        return None, f"ambiguous {match_label}"
+    return None, None
 
 
 def find_resource(
@@ -362,46 +419,39 @@ def find_resource(
             return resource, "manual"
         return None, f"manual curie not found: {manual_curie}"
 
-    candidates = lookup.resource_by_exact_abbreviation.get(normalize_exact(row.journal_abbreviation), [])
-    resource = choose_unique(candidates)
-    if resource:
-        return resource, "exact title_abbreviation"
-    resource = choose_unique_by_title(candidates, row.full_journal_name)
-    if resource:
-        return resource, "exact title_abbreviation plus title"
-    if len(candidates) > 1:
-        return None, "ambiguous exact title_abbreviation"
-
-    candidates = lookup.resource_by_exact_title.get(normalize_exact(row.full_journal_name), [])
-    resource = choose_unique(candidates)
-    if resource:
-        return resource, "exact title"
-    if len(candidates) > 1:
-        return None, "ambiguous exact title"
-
-    candidates = lookup.resource_by_abbreviation.get(normalize_abbreviation(row.journal_abbreviation), [])
-    resource = choose_unique(candidates)
-    if resource:
-        return resource, "title_abbreviation"
-    resource = choose_unique_by_title(candidates, row.full_journal_name)
-    if resource:
-        return resource, "title_abbreviation plus title"
-    if len(candidates) > 1:
-        return None, "ambiguous title_abbreviation"
-
-    candidates = lookup.resource_by_title.get(normalize_for_match(row.full_journal_name), [])
-    resource = choose_unique(candidates)
-    if resource:
-        return resource, "title"
-    if len(candidates) > 1:
-        return None, "ambiguous title"
+    candidate_sets = [
+        (
+            lookup.resource_by_exact_abbreviation.get(normalize_exact(row.journal_abbreviation), []),
+            "exact title_abbreviation",
+        ),
+        (
+            lookup.resource_by_exact_title.get(normalize_exact(row.full_journal_name), []),
+            "exact title",
+        ),
+        (
+            lookup.resource_by_abbreviation.get(normalize_abbreviation(row.journal_abbreviation), []),
+            "title_abbreviation",
+        ),
+        (
+            lookup.resource_by_title.get(normalize_for_match(row.full_journal_name), []),
+            "title",
+        ),
+    ]
+    for candidates, match_label in candidate_sets:
+        resource, result = resolve_candidates(candidates, match_label, row, lookup)
+        if result:
+            return resource, result
 
     return None, "not found"
 
 
-def candidate_labels(candidates: List[ResourceModel]) -> str:
+def candidate_labels_with_reference_counts(
+    candidates: List[ResourceModel],
+    lookup: ResourceLookup,
+) -> str:
     return "; ".join(
-        f"{resource.curie} ({resource.title_abbreviation or resource.title or 'no title'})"
+        f"{resource.curie} ({resource.title_abbreviation or resource.title or 'no title'}, "
+        f"references={lookup.reference_count_by_resource_id.get(resource.resource_id, 0)})"
         for resource in candidates
     )
 
@@ -422,26 +472,32 @@ def describe_resource_match_failure(
     if exact_abbreviation_candidates:
         return (
             f"{match_reason}; exact title_abbreviation candidates: "
-            f"{candidate_labels(exact_abbreviation_candidates)}"
+            f"{candidate_labels_with_reference_counts(exact_abbreviation_candidates, lookup)}"
         )
 
     exact_title_key = normalize_exact(row.full_journal_name)
     exact_title_candidates = lookup.resource_by_exact_title.get(exact_title_key, [])
     if exact_title_candidates:
-        return f"{match_reason}; exact title candidates: {candidate_labels(exact_title_candidates)}"
+        return (
+            f"{match_reason}; exact title candidates: "
+            f"{candidate_labels_with_reference_counts(exact_title_candidates, lookup)}"
+        )
 
     abbreviation_key = normalize_abbreviation(row.journal_abbreviation)
     abbreviation_candidates = lookup.resource_by_abbreviation.get(abbreviation_key, [])
     if abbreviation_candidates:
         return (
             f"{match_reason}; title_abbreviation candidates: "
-            f"{candidate_labels(abbreviation_candidates)}"
+            f"{candidate_labels_with_reference_counts(abbreviation_candidates, lookup)}"
         )
 
     title_key = normalize_for_match(row.full_journal_name)
     title_candidates = lookup.resource_by_title.get(title_key, [])
     if title_candidates:
-        return f"{match_reason}; title candidates: {candidate_labels(title_candidates)}"
+        return (
+            f"{match_reason}; title candidates: "
+            f"{candidate_labels_with_reference_counts(title_candidates, lookup)}"
+        )
 
     return (
         "no resource matched normalized title_abbreviation "
