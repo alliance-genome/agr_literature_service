@@ -93,6 +93,8 @@ class JournalPermissionRow:
 
 @dataclass
 class ResourceLookup:
+    resource_by_exact_abbreviation: Dict[str, List[ResourceModel]]
+    resource_by_exact_title: Dict[str, List[ResourceModel]]
     resource_by_abbreviation: Dict[str, List[ResourceModel]]
     resource_by_title: Dict[str, List[ResourceModel]]
     resource_by_curie: Dict[str, ResourceModel]
@@ -143,6 +145,10 @@ def normalize_for_match(value: str) -> str:
     text = text.replace("&", " and ")
     text = re.sub(r"[^a-z0-9]+", " ", text)
     return clean(text)
+
+
+def normalize_exact(value: str) -> str:
+    return clean(value).lower().rstrip(".")
 
 
 def normalize_abbreviation(value: str) -> str:
@@ -296,6 +302,8 @@ def load_env_file(env_file: Optional[Path]) -> None:
 
 def build_resource_lookup(db: Session) -> ResourceLookup:
     resources = db.query(ResourceModel).all()
+    by_exact_abbreviation: Dict[str, List[ResourceModel]] = {}
+    by_exact_title: Dict[str, List[ResourceModel]] = {}
     by_abbreviation: Dict[str, List[ResourceModel]] = {}
     by_title: Dict[str, List[ResourceModel]] = {}
     by_curie: Dict[str, ResourceModel] = {}
@@ -303,11 +311,15 @@ def build_resource_lookup(db: Session) -> ResourceLookup:
     for resource in resources:
         by_curie[resource.curie] = resource
         if resource.title_abbreviation:
+            by_exact_abbreviation.setdefault(normalize_exact(resource.title_abbreviation), []).append(resource)
             by_abbreviation.setdefault(normalize_abbreviation(resource.title_abbreviation), []).append(resource)
         if resource.title:
+            by_exact_title.setdefault(normalize_exact(resource.title), []).append(resource)
             by_title.setdefault(normalize_for_match(resource.title), []).append(resource)
 
     return ResourceLookup(
+        resource_by_exact_abbreviation=by_exact_abbreviation,
+        resource_by_exact_title=by_exact_title,
         resource_by_abbreviation=by_abbreviation,
         resource_by_title=by_title,
         resource_by_curie=by_curie,
@@ -325,6 +337,18 @@ def choose_unique(candidates: List[ResourceModel]) -> Optional[ResourceModel]:
     return None
 
 
+def choose_unique_by_title(candidates: List[ResourceModel], full_journal_name: str) -> Optional[ResourceModel]:
+    if not full_journal_name:
+        return None
+    title_key = normalize_for_match(full_journal_name)
+    title_matches = [
+        resource
+        for resource in candidates
+        if normalize_for_match(resource.title or "") == title_key
+    ]
+    return choose_unique(title_matches)
+
+
 def find_resource(
     row: JournalPermissionRow,
     lookup: ResourceLookup,
@@ -338,10 +362,30 @@ def find_resource(
             return resource, "manual"
         return None, f"manual curie not found: {manual_curie}"
 
+    candidates = lookup.resource_by_exact_abbreviation.get(normalize_exact(row.journal_abbreviation), [])
+    resource = choose_unique(candidates)
+    if resource:
+        return resource, "exact title_abbreviation"
+    resource = choose_unique_by_title(candidates, row.full_journal_name)
+    if resource:
+        return resource, "exact title_abbreviation plus title"
+    if len(candidates) > 1:
+        return None, "ambiguous exact title_abbreviation"
+
+    candidates = lookup.resource_by_exact_title.get(normalize_exact(row.full_journal_name), [])
+    resource = choose_unique(candidates)
+    if resource:
+        return resource, "exact title"
+    if len(candidates) > 1:
+        return None, "ambiguous exact title"
+
     candidates = lookup.resource_by_abbreviation.get(normalize_abbreviation(row.journal_abbreviation), [])
     resource = choose_unique(candidates)
     if resource:
         return resource, "title_abbreviation"
+    resource = choose_unique_by_title(candidates, row.full_journal_name)
+    if resource:
+        return resource, "title_abbreviation plus title"
     if len(candidates) > 1:
         return None, "ambiguous title_abbreviation"
 
@@ -372,6 +416,19 @@ def describe_resource_match_failure(
     manual_curie = manual_resource_map.get(manual_key)
     if manual_curie:
         return f"manual resource_curie was supplied but not found: {manual_curie}"
+
+    exact_abbreviation_key = normalize_exact(row.journal_abbreviation)
+    exact_abbreviation_candidates = lookup.resource_by_exact_abbreviation.get(exact_abbreviation_key, [])
+    if exact_abbreviation_candidates:
+        return (
+            f"{match_reason}; exact title_abbreviation candidates: "
+            f"{candidate_labels(exact_abbreviation_candidates)}"
+        )
+
+    exact_title_key = normalize_exact(row.full_journal_name)
+    exact_title_candidates = lookup.resource_by_exact_title.get(exact_title_key, [])
+    if exact_title_candidates:
+        return f"{match_reason}; exact title candidates: {candidate_labels(exact_title_candidates)}"
 
     abbreviation_key = normalize_abbreviation(row.journal_abbreviation)
     abbreviation_candidates = lookup.resource_by_abbreviation.get(abbreviation_key, [])
