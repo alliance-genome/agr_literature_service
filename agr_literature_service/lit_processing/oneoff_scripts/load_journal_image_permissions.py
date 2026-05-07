@@ -11,9 +11,8 @@ The script uses SQLAlchemy models so audited/version tables are populated by
 the normal ORM/versioning machinery when --apply is used.
 
 Usage:
-    python -m agr_literature_service.lit_processing.oneoff_scripts.load_journal_image_permissions
-    python -m agr_literature_service.lit_processing.oneoff_scripts.load_journal_image_permissions --apply
-    python -m agr_literature_service.lit_processing.oneoff_scripts.load_journal_image_permissions --env-file .env_codex --apply
+    python load_journal_image_permissions.py
+    python load_journal_image_permissions.py --apply
 """
 
 import argparse
@@ -41,7 +40,7 @@ logging.basicConfig(format="%(message)s")
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-DEFAULT_INPUT_FILE = "journal_permission.tsv"
+DEFAULT_INPUT_FILE = "data/journal_permission.tsv"
 SCRIPT_USER = path.basename(__file__).replace(".py", "")
 
 MOD_PERMISSION_COLUMNS = ["FB", "MGI", "RGD", "SGD", "WB", "XB", "ZFIN"]
