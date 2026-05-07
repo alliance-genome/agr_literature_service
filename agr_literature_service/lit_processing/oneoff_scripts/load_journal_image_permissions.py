@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import csv
+import hashlib
 import logging
 import re
 from dataclasses import dataclass
@@ -83,6 +84,7 @@ class JournalPermissionRow:
     start_year: Optional[int]
     end_year: Optional[int]
     permission_name: str
+    legacy_permission_name: str
     permission_text: str
     permission_url: Optional[str]
     can_display_images: bool
@@ -251,10 +253,27 @@ def has_positive_permission_signal(row: Dict[str, str], subset_can_display: bool
     return any(pattern in combined for pattern in POSITIVE_PERMISSION_PATTERNS)
 
 
-def build_permission_name(row: Dict[str, str], start_year: Optional[int], end_year: Optional[int]) -> str:
+def build_legacy_permission_name(row: Dict[str, str], start_year: Optional[int], end_year: Optional[int]) -> str:
     journal = clean(row.get("Journal (NLM abbrev)")) or clean(row.get("Full Journal Name")) or "unknown journal"
     publisher = clean(row.get("Publisher")) or "unknown publisher"
     return f"Journal image permission: {journal} | {publisher} | {range_label(start_year, end_year)}"
+
+
+def build_permission_name(
+    row: Dict[str, str],
+    permission_text: str,
+    permission_url_value: Optional[str],
+    can_display_images: bool,
+) -> str:
+    publisher = clean(row.get("Publisher")) or "unknown publisher"
+    fingerprint_source = "\n".join([
+        publisher,
+        permission_text,
+        permission_url_value or "",
+        str(can_display_images),
+    ])
+    fingerprint = hashlib.sha1(fingerprint_source.encode("utf-8")).hexdigest()[:8]
+    return f"{publisher} image permission ({fingerprint})"
 
 
 def parse_tsv(input_file: Path, subset_can_display: bool) -> Iterable[JournalPermissionRow]:
@@ -268,6 +287,9 @@ def parse_tsv(input_file: Path, subset_can_display: bool) -> Iterable[JournalPer
             if not journal and not full_journal_name:
                 continue
             start_year, end_year = parse_year_range(normalized_row)
+            permission_text = build_permission_text(normalized_row)
+            permission_url_value = permission_url(normalized_row)
+            can_display_images = has_positive_permission_signal(normalized_row, subset_can_display)
             yield JournalPermissionRow(
                 line_no=line_no,
                 curator_id=clean(normalized_row.get("na")),
@@ -277,10 +299,16 @@ def parse_tsv(input_file: Path, subset_can_display: bool) -> Iterable[JournalPer
                 full_journal_name=full_journal_name,
                 start_year=start_year,
                 end_year=end_year,
-                permission_name=build_permission_name(normalized_row, start_year, end_year),
-                permission_text=build_permission_text(normalized_row),
-                permission_url=permission_url(normalized_row),
-                can_display_images=has_positive_permission_signal(normalized_row, subset_can_display),
+                permission_name=build_permission_name(
+                    normalized_row,
+                    permission_text,
+                    permission_url_value,
+                    can_display_images,
+                ),
+                legacy_permission_name=build_legacy_permission_name(normalized_row, start_year, end_year),
+                permission_text=permission_text,
+                permission_url=permission_url_value,
+                can_display_images=can_display_images,
                 notes=build_notes(normalized_row),
             )
 
@@ -526,6 +554,7 @@ def read_manual_resource_map(map_file: Optional[Path]) -> Dict[str, str]:
 def update_permission_fields(permission: ImagePermissionModel, row: JournalPermissionRow) -> bool:
     changed = False
     desired = {
+        "name": row.permission_name,
         "permission_text": row.permission_text,
         "permission_url": row.permission_url,
         "can_display_images": row.can_display_images,
@@ -539,36 +568,50 @@ def update_permission_fields(permission: ImagePermissionModel, row: JournalPermi
 
 def permission_fields_changed(permission: ImagePermissionModel, row: JournalPermissionRow) -> bool:
     return any([
+        permission.name != row.permission_name,
         permission.permission_text != row.permission_text,
         permission.permission_url != row.permission_url,
         permission.can_display_images != row.can_display_images,
     ])
 
 
-def update_link_fields(link: ResourceImagePermissionModel, row: JournalPermissionRow) -> bool:
+def update_link_fields(
+    link: ResourceImagePermissionModel,
+    row: JournalPermissionRow,
+    image_permission_id: int,
+) -> bool:
+    changed = False
+    if link.image_permission_id != image_permission_id:
+        link.image_permission_id = image_permission_id
+        changed = True
     if link.notes != row.notes:
         link.notes = row.notes
-        return True
-    return False
+        changed = True
+    return changed
 
 
-def link_fields_changed(link: ResourceImagePermissionModel, row: JournalPermissionRow) -> bool:
-    return link.notes != row.notes
+def link_fields_changed(
+    link: ResourceImagePermissionModel,
+    row: JournalPermissionRow,
+    image_permission_id: Optional[int],
+) -> bool:
+    return any([
+        image_permission_id is not None and link.image_permission_id != image_permission_id,
+        link.notes != row.notes,
+    ])
 
 
 def find_resource_link(
     db: Session,
     resource_id: int,
-    image_permission_id: int,
     start_year: Optional[int],
     end_year: Optional[int],
 ) -> Optional[ResourceImagePermissionModel]:
     return db.query(ResourceImagePermissionModel).filter(
         ResourceImagePermissionModel.resource_id == resource_id,
-        ResourceImagePermissionModel.image_permission_id == image_permission_id,
         func.coalesce(ResourceImagePermissionModel.start_year, -1) == (start_year if start_year is not None else -1),
         func.coalesce(ResourceImagePermissionModel.end_year, -1) == (end_year if end_year is not None else -1),
-    ).one_or_none()
+    ).order_by(ResourceImagePermissionModel.resource_image_permission_id).first()
 
 
 def add_failed_row(
@@ -615,6 +658,8 @@ def upsert_permission(
 ) -> Optional[ImagePermissionModel]:
     permission = existing_permissions.get(row.permission_name)
     if permission is None:
+        permission = existing_permissions.get(row.legacy_permission_name)
+    if permission is None:
         stats.permissions_created += 1
         logger.info(f"Line {row.line_no}: create image_permission '{row.permission_name}'")
         if not apply:
@@ -634,6 +679,8 @@ def upsert_permission(
     if changed:
         stats.permissions_updated += 1
         logger.info(f"Line {row.line_no}: update image_permission '{row.permission_name}'")
+        if apply:
+            existing_permissions[row.permission_name] = permission
     else:
         stats.permissions_unchanged += 1
     return permission
@@ -653,7 +700,6 @@ def upsert_resource_link(
         link = find_resource_link(
             db,
             resource.resource_id,
-            image_permission_id,
             row.start_year,
             row.end_year,
         )
@@ -674,7 +720,11 @@ def upsert_resource_link(
             ))
         return
 
-    changed = update_link_fields(link, row) if apply else link_fields_changed(link, row)
+    changed = (
+        update_link_fields(link, row, image_permission_id)
+        if apply and image_permission_id is not None
+        else link_fields_changed(link, row, image_permission_id)
+    )
     if changed:
         stats.links_updated += 1
         logger.info(
