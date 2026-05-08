@@ -305,6 +305,8 @@ def detect_permission_type(row: Dict[str, str]) -> Optional[str]:
     if "oa" in combined or "open access" in combined:
         return "Open Access"
     if "granted" in combined:
+        if "subset" in combined:
+            return "Permission Granted (subset)"
         return "Permission Granted"
     if "publisher permission" in combined:
         return "Publisher Permission"
