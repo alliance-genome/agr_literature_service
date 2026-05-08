@@ -70,6 +70,10 @@ PERMISSION_URL_PATTERN = re.compile(
     r"(copyright|licens|open[-_]?access|permission|polic|reprint|rights)",
     flags=re.IGNORECASE,
 )
+ACTIONABLE_COMMENT_PATTERN = re.compile(
+    r"(acknowledg|attribution|copyright|creative commons|display|license|licens|permission|reproduce|reprint|rights)",
+    flags=re.IGNORECASE,
+)
 URL_LABEL_WORD_RE = re.compile(r"[a-z0-9]+", flags=re.IGNORECASE)
 
 
@@ -89,7 +93,7 @@ class JournalPermissionRow:
     permission_text: str
     permission_url: Optional[str]
     can_display_images: bool
-    notes: str
+    notes: Optional[str]
 
 
 @dataclass
@@ -234,14 +238,18 @@ def build_permission_text(row: Dict[str, str]) -> str:
     return ""
 
 
-def build_notes(row: Dict[str, str]) -> str:
+def build_notes(row: Dict[str, str]) -> Optional[str]:
     notes = []
     for column in NOTE_COLUMNS:
         value = clean(row.get(column))
+        if not value or is_blankish(value):
+            continue
+        if column == "Comments" and not ACTIONABLE_COMMENT_PATTERN.search(value):
+            continue
         if value and not is_blankish(value):
             notes.append(f"{column}: {value}")
 
-    return "\n".join(notes)
+    return "\n".join(notes) or None
 
 
 def has_positive_permission_signal(row: Dict[str, str], subset_can_display: bool) -> bool:
