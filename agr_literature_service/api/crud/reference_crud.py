@@ -134,8 +134,13 @@ def _resource_image_permission_for_reference(
     )[0]
 
 
-def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> Dict[str, Any]:
-    reference = get_reference(db, curie_or_reference_id)
+def get_effective_image_permission(
+    db: Session,
+    curie_or_reference_id: str,
+    reference: Optional[ReferenceModel] = None,
+) -> Dict[str, Any]:
+    if reference is None:
+        reference = get_reference(db, curie_or_reference_id)
     publication_year = _extract_publication_year(reference)
 
     # Always fetch resource image permission metadata to include in response
@@ -734,7 +739,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     reference = get_reference(db, curie_or_reference_id, load_authors=True, load_mod_corpus_associations=True,
                               load_mesh_terms=True, load_obsolete_references=True)
     reference_data = jsonable_encoder(reference)
-    reference_data["effective_image_permission"] = get_effective_image_permission(db, curie_or_reference_id)
+    reference_data["effective_image_permission"] = get_effective_image_permission(db, curie_or_reference_id, reference)
     if reference.resource_id:
         reference_data["resource_curie"] = \
             db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]
