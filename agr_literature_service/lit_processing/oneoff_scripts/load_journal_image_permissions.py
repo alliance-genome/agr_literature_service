@@ -63,6 +63,7 @@ POSITIVE_PERMISSION_PATTERNS = (
     "publisher permission",
     "permission to use images",
     "contract",
+    "granted",
     "oa",
 )
 
