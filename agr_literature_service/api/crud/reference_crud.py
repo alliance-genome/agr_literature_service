@@ -138,6 +138,11 @@ def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> D
     reference = get_reference(db, curie_or_reference_id)
     publication_year = _extract_publication_year(reference)
 
+    # Always fetch resource image permission metadata to include in response
+    resource_image_permission = _resource_image_permission_for_reference(db, reference)
+    resource_permission_metadata = _build_resource_permission_metadata(resource_image_permission)
+
+    # Priority 1: Reference copyright_license.open_access
     if reference.copyright_license_id:
         copyright_license = db.query(CopyrightLicenseModel).filter_by(
             copyright_license_id=reference.copyright_license_id
@@ -151,48 +156,64 @@ def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> D
                 "copyright_license_id": copyright_license.copyright_license_id,
                 "copyright_license_name": copyright_license.name,
                 "copyright_license_open_access": copyright_license.open_access,
-                "image_permission_id": None,
-                "resource_image_permission_id": None,
-                "permission_text": None,
-                "permission_url": None,
                 "resource_id": reference.resource_id,
+                **resource_permission_metadata,
             }
 
-    resource_image_permission = _resource_image_permission_for_reference(db, reference)
+    # Priority 2: Resource image permission (from journal/publisher)
     if resource_image_permission and resource_image_permission.image_permission:
         image_permission = resource_image_permission.image_permission
         return {
             "can_display_images": bool(image_permission.can_display_images),
             "source": "resource_image_permission",
-            "reason": "No reference copyright_license is set; using resource image permission.",
+            "reason": "No reference copyright_license; using resource image permission.",
             "publication_year": publication_year,
             "copyright_license_id": None,
             "copyright_license_name": None,
             "copyright_license_open_access": None,
+            "resource_id": reference.resource_id,
+            **resource_permission_metadata,
+        }
+
+    # Default: no permission
+    return {
+        "can_display_images": False,
+        "source": "none",
+        "reason": "No reference copyright_license or matching resource image permission.",
+        "publication_year": publication_year,
+        "copyright_license_id": None,
+        "copyright_license_name": None,
+        "copyright_license_open_access": None,
+        "resource_id": reference.resource_id,
+        **resource_permission_metadata,
+    }
+
+
+def _build_resource_permission_metadata(
+    resource_image_permission: Optional[ResourceImagePermissionModel],
+) -> Dict[str, Any]:
+    """Build metadata dict for resource image permission (always included in response)."""
+    if resource_image_permission and resource_image_permission.image_permission:
+        image_permission = resource_image_permission.image_permission
+        return {
             "image_permission_id": image_permission.image_permission_id,
             "image_permission_name": image_permission.name,
             "resource_image_permission_id": resource_image_permission.resource_image_permission_id,
             "permission_text": image_permission.permission_text,
             "permission_url": image_permission.permission_url,
-            "resource_id": reference.resource_id,
             "start_year": resource_image_permission.start_year,
             "end_year": resource_image_permission.end_year,
             "notes": resource_image_permission.notes,
         }
-
     return {
-        "can_display_images": False,
-        "source": "none",
-        "reason": "No reference copyright_license or matching resource image permission is set.",
-        "publication_year": publication_year,
-        "copyright_license_id": None,
-        "copyright_license_name": None,
-        "copyright_license_open_access": None,
         "image_permission_id": None,
+        "image_permission_name": None,
         "resource_image_permission_id": None,
         "permission_text": None,
         "permission_url": None,
-        "resource_id": reference.resource_id,
+        "start_year": None,
+        "end_year": None,
+        "notes": None,
     }
 
 
