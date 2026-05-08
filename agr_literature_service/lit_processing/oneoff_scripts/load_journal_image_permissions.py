@@ -246,10 +246,19 @@ def build_notes(row: Dict[str, str]) -> Optional[str]:
             continue
         if column == "Comments" and not ACTIONABLE_COMMENT_PATTERN.search(value):
             continue
-        if value and not is_blankish(value):
-            notes.append(f"{column}: {value}")
+        # For single-value columns, omit the prefix if context is clear
+        if column == "Embargo":
+            notes.append(f"Embargo: {value}")
+        elif column == "Delay of Use":
+            notes.append(f"Delay: {value}")
+        elif column == "Author permission required?":
+            if value.lower() not in ("no", "n"):
+                notes.append(f"Author permission required: {value}")
+        else:
+            # Comments - include as-is without prefix if it's actionable
+            notes.append(value)
 
-    return "\n".join(notes) or None
+    return "; ".join(notes) if notes else None
 
 
 def has_positive_permission_signal(row: Dict[str, str], subset_can_display: bool) -> bool:
@@ -276,6 +285,41 @@ def build_legacy_permission_name(row: Dict[str, str], start_year: Optional[int],
     return f"Journal image permission: {journal} | {publisher} | {range_label(start_year, end_year)}"
 
 
+def detect_permission_type(row: Dict[str, str]) -> Optional[str]:
+    """Detect permission type from MOD columns and other fields."""
+    mod_values = []
+    for column in MOD_PERMISSION_COLUMNS:
+        value = clean(row.get(column)).lower()
+        if value and not is_blankish(value):
+            mod_values.append(value)
+
+    combined = " ".join(mod_values)
+    hybrid = clean(row.get("Hybrid Journal")).lower()
+
+    # Check MOD column patterns in priority order
+    if "blanket" in combined:
+        return "Blanket Permission"
+    if "contract" in combined:
+        return "Contract"
+    if "oa" in combined or "open access" in combined:
+        return "Open Access"
+    if "granted" in combined:
+        return "Permission Granted"
+    if "publisher permission" in combined:
+        return "Publisher Permission"
+
+    # Check Hybrid Journal column
+    if hybrid:
+        if "open access" in hybrid:
+            return "Open Access"
+        if "creative commons" in hybrid:
+            return "Creative Commons"
+        if "hybrid" in hybrid or "yes" in hybrid:
+            return "Hybrid"
+
+    return None
+
+
 def build_permission_name(
     row: Dict[str, str],
     permission_text: str,
@@ -283,16 +327,30 @@ def build_permission_name(
     can_display_images: bool,
 ) -> str:
     publisher = clean(row.get("Publisher")) or "unknown publisher"
-    descriptor_parts = []
+    parts = []
+
+    # Primary: License type (e.g., "CC BY 4.0")
     license_type = clean(row.get("License type"))
     if not is_blankish(license_type):
-        descriptor_parts.append(license_type)
-    if permission_url_value:
-        descriptor_parts.append(permission_url_label(permission_url_value))
-    if permission_text:
-        descriptor_parts.append(compact_label(permission_text, 160))
-    descriptor_parts.append("display allowed" if can_display_images else "display not allowed")
-    return compact_label(f"{publisher} image permission: {' | '.join(descriptor_parts)}", 500)
+        parts.append(license_type)
+
+    # Secondary: Permission type from MOD columns (e.g., "Blanket Permission", "Open Access")
+    permission_type = detect_permission_type(row)
+    if permission_type:
+        # Avoid redundancy: don't add "Creative Commons" if license already specifies CC
+        if permission_type == "Creative Commons" and "CC " in " ".join(parts):
+            pass
+        # Avoid redundancy: don't add "Open Access" if "OA" is in license type
+        elif permission_type == "Open Access" and "oa" in " ".join(parts).lower():
+            pass
+        else:
+            parts.append(permission_type)
+
+    # If nothing specific, indicate display status
+    if not parts:
+        parts.append("Display Allowed" if can_display_images else "No Display Permission")
+
+    return f"{publisher} - {' | '.join(parts)}"
 
 
 def build_hashed_permission_name(
