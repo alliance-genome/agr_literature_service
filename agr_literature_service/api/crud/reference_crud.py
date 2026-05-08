@@ -45,6 +45,7 @@ from agr_literature_service.api.models import (
     ObsoleteReferenceModel,
     ReferenceRelationModel,
     ReferenceModel,
+    ResourceImagePermissionModel,
     ResourceModel,
     CopyrightLicenseModel,
     CitationModel,
@@ -74,6 +75,174 @@ from agr_literature_service.api.crud.person_crud import normalize_email
 logger = logging.getLogger(__name__)
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
+
+
+def _extract_publication_year(reference: ReferenceModel) -> Optional[int]:
+    for date_value in (
+        reference.date_published_start,
+        reference.date_published,
+        reference.date_published_end,
+    ):
+        if date_value:
+            match = re.search(r"(1[89]\d{2}|20\d{2})", str(date_value))
+            if match:
+                return int(match.group(1))
+    return None
+
+
+def _resource_image_permission_for_reference(
+    db: Session,
+    reference: ReferenceModel,
+) -> Optional[ResourceImagePermissionModel]:
+    if not reference.resource_id:
+        return None
+
+    rows = db.query(ResourceImagePermissionModel).filter(
+        ResourceImagePermissionModel.resource_id == reference.resource_id
+    ).all()
+    if not rows:
+        return None
+
+    publication_year = _extract_publication_year(reference)
+    if publication_year is None:
+        undated_rows = [
+            row for row in rows
+            if row.start_year is None and row.end_year is None
+        ]
+        return sorted(
+            undated_rows,
+            key=lambda row: row.resource_image_permission_id
+        )[0] if undated_rows else None
+
+    matching_rows = [
+        row for row in rows
+        if (row.start_year is None or row.start_year <= publication_year)
+        and (row.end_year is None or row.end_year >= publication_year)
+    ]
+    if not matching_rows:
+        return None
+
+    return sorted(
+        matching_rows,
+        key=lambda row: (
+            row.start_year is None,
+            -(row.start_year or 0),
+            row.end_year is None,
+            row.end_year or 9999,
+            row.resource_image_permission_id,
+        )
+    )[0]
+
+
+def get_effective_image_permission(
+    db: Session,
+    curie_or_reference_id: str,
+    reference: Optional[ReferenceModel] = None,
+) -> Dict[str, Any]:
+    if reference is None:
+        reference = get_reference(db, curie_or_reference_id)
+    publication_year = _extract_publication_year(reference)
+
+    # Always fetch resource image permission metadata to include in response
+    resource_image_permission = _resource_image_permission_for_reference(db, reference)
+    resource_permission_metadata = _build_resource_permission_metadata(resource_image_permission)
+
+    # Priority 1: Reference copyright_license.open_access (curator/PMC override)
+    if reference.copyright_license_id:
+        copyright_license = db.query(CopyrightLicenseModel).filter_by(
+            copyright_license_id=reference.copyright_license_id
+        ).one_or_none()
+        if copyright_license:
+            return {
+                "can_display_images": bool(copyright_license.open_access),
+                "source": "reference_open_access",
+                "reason": "Reference has copyright license set.",
+                "publication_year": publication_year,
+                "copyright_license_id": copyright_license.copyright_license_id,
+                "copyright_license_name": copyright_license.name,
+                "copyright_license_open_access": copyright_license.open_access,
+                "resource_id": reference.resource_id,
+                **resource_permission_metadata,
+            }
+
+    # Priority 2: Resource copyright_license.open_access (if publication_year >= license_start_year)
+    if reference.resource_id:
+        resource = db.query(ResourceModel).filter_by(
+            resource_id=reference.resource_id
+        ).one_or_none()
+        if resource and resource.copyright_license_id:
+            license_start_year = resource.license_start_year
+            # Check if publication year meets the license start year requirement
+            if license_start_year is None or (publication_year and publication_year >= license_start_year):
+                resource_license = resource.copyright_license
+                if resource_license:
+                    return {
+                        "can_display_images": bool(resource_license.open_access),
+                        "source": "resource_open_access",
+                        "reason": f"Resource has open access license (since {license_start_year or 'all years'}).",
+                        "publication_year": publication_year,
+                        "copyright_license_id": resource_license.copyright_license_id,
+                        "copyright_license_name": resource_license.name,
+                        "copyright_license_open_access": resource_license.open_access,
+                        "resource_id": reference.resource_id,
+                        **resource_permission_metadata,
+                    }
+
+    # Priority 3: Resource image permission (from journal/publisher)
+    if resource_image_permission and resource_image_permission.image_permission:
+        image_permission = resource_image_permission.image_permission
+        return {
+            "can_display_images": bool(image_permission.can_display_images),
+            "source": "resource_image_permission",
+            "reason": "Using resource image permission.",
+            "publication_year": publication_year,
+            "copyright_license_id": None,
+            "copyright_license_name": None,
+            "copyright_license_open_access": None,
+            "resource_id": reference.resource_id,
+            **resource_permission_metadata,
+        }
+
+    # Default: no permission
+    return {
+        "can_display_images": False,
+        "source": "none",
+        "reason": "No reference or resource license, and no matching resource image permission.",
+        "publication_year": publication_year,
+        "copyright_license_id": None,
+        "copyright_license_name": None,
+        "copyright_license_open_access": None,
+        "resource_id": reference.resource_id,
+        **resource_permission_metadata,
+    }
+
+
+def _build_resource_permission_metadata(
+    resource_image_permission: Optional[ResourceImagePermissionModel],
+) -> Dict[str, Any]:
+    """Build metadata dict for resource image permission (always included in response)."""
+    if resource_image_permission and resource_image_permission.image_permission:
+        image_permission = resource_image_permission.image_permission
+        return {
+            "image_permission_id": image_permission.image_permission_id,
+            "image_permission_name": image_permission.name,
+            "resource_image_permission_id": resource_image_permission.resource_image_permission_id,
+            "permission_text": image_permission.permission_text,
+            "permission_url": image_permission.permission_url,
+            "start_year": resource_image_permission.start_year,
+            "end_year": resource_image_permission.end_year,
+            "notes": resource_image_permission.notes,
+        }
+    return {
+        "image_permission_id": None,
+        "image_permission_name": None,
+        "resource_image_permission_id": None,
+        "permission_text": None,
+        "permission_url": None,
+        "start_year": None,
+        "end_year": None,
+        "notes": None,
+    }
 
 
 def create(db: Session, reference: ReferenceSchemaPost):  # noqa
@@ -570,6 +739,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
     reference = get_reference(db, curie_or_reference_id, load_authors=True, load_mod_corpus_associations=True,
                               load_mesh_terms=True, load_obsolete_references=True)
     reference_data = jsonable_encoder(reference)
+    reference_data["effective_image_permission"] = get_effective_image_permission(db, curie_or_reference_id, reference)
     if reference.resource_id:
         reference_data["resource_curie"] = \
             db.query(ResourceModel.curie).filter(ResourceModel.resource_id == reference.resource_id).first()[0]

@@ -198,6 +198,14 @@ def show(curie_or_reference_id: str,
     return reference_crud.show(db, curie_or_reference_id)
 
 
+@router.get('/{curie_or_reference_id}/image_permission',
+            status_code=200)
+def show_image_permission(curie_or_reference_id: str,
+                          user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                          db: Session = db_session):
+    return reference_crud.get_effective_image_permission(db, curie_or_reference_id)
+
+
 @router.get('/{curie_or_reference_id}/versions',
             status_code=200)
 def show_versions(curie_or_reference_id: str,

@@ -10,14 +10,14 @@ class ImagePermissionSchemaPost(BaseModel):
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
     name: str
-    permission_text: str
+    permission_text: str = ''
     permission_url: Optional[str] = None
     can_display_images: bool = False
 
-    @field_validator('name', 'permission_text')
-    def value_is_not_blank(cls, v: str) -> str:
+    @field_validator('name')
+    def name_is_not_blank(cls, v: str) -> str:
         if not v.strip():
-            raise ValueError('Value cannot be blank')
+            raise ValueError('name cannot be blank')
         return v
 
 
@@ -30,10 +30,10 @@ class ImagePermissionSchemaUpdate(BaseModel):
     permission_url: Optional[str] = None
     can_display_images: Optional[bool] = None
 
-    @field_validator('name', 'permission_text')
-    def value_is_not_blank(cls, v: Optional[str]) -> Optional[str]:
+    @field_validator('name')
+    def name_is_not_blank(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
-            raise ValueError('Value cannot be blank')
+            raise ValueError('name cannot be blank')
         return v
 
 
@@ -43,7 +43,7 @@ class ImagePermissionSchemaShow(AuditedObjectModelSchema):
 
     image_permission_id: int
     name: str
-    permission_text: str
+    permission_text: Optional[str] = None
     permission_url: Optional[str] = None
     can_display_images: bool
 
