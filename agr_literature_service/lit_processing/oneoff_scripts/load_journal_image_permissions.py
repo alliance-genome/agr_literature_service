@@ -50,7 +50,6 @@ SCRIPT_USER = path.basename(__file__).replace(".py", "")
 MOD_PERMISSION_COLUMNS = ["FB", "MGI", "RGD", "SGD", "WB", "XB", "ZFIN"]
 NOTE_COLUMNS = [
     "Comments",
-    "Hybrid Journal",
     "Embargo",
     "Author permission required?",
     "Delay of Use",
@@ -71,6 +70,7 @@ PERMISSION_URL_PATTERN = re.compile(
     r"(copyright|licens|open[-_]?access|permission|polic|reprint|rights)",
     flags=re.IGNORECASE,
 )
+URL_LABEL_WORD_RE = re.compile(r"[a-z0-9]+", flags=re.IGNORECASE)
 
 
 @dataclass
@@ -85,6 +85,7 @@ class JournalPermissionRow:
     end_year: Optional[int]
     permission_name: str
     legacy_permission_name: str
+    hashed_permission_name: str
     permission_text: str
     permission_url: Optional[str]
     can_display_images: bool
@@ -205,6 +206,26 @@ def permission_url(row: Dict[str, str]) -> Optional[str]:
     return "; ".join(urls) if urls else None
 
 
+def compact_label(value: str, max_length: int = 160) -> str:
+    text = clean(value)
+    if len(text) <= max_length:
+        return text
+    return text[:max_length].rsplit(" ", 1)[0].rstrip(".,;:") + "..."
+
+
+def permission_url_label(permission_url_value: str) -> str:
+    labels = []
+    for url in permission_url_value.split(";"):
+        url = clean(url)
+        if not url:
+            continue
+        without_scheme = re.sub(r"^https?://", "", url, flags=re.IGNORECASE)
+        host, _, path_part = without_scheme.partition("/")
+        path_words = " ".join(URL_LABEL_WORD_RE.findall(path_part))
+        labels.append(compact_label(f"{host} {path_words}".strip(), 120))
+    return " / ".join(labels)
+
+
 def build_permission_text(row: Dict[str, str]) -> str:
     acknowledgement = clean(row.get("WB Acknowledgements"))
     if not is_blankish(acknowledgement):
@@ -215,22 +236,10 @@ def build_permission_text(row: Dict[str, str]) -> str:
 
 def build_notes(row: Dict[str, str]) -> str:
     notes = []
-    curator_id = clean(row.get("na"))
-    if not is_blankish(curator_id):
-        notes.append(f"Curator ID: {curator_id}")
-
     for column in NOTE_COLUMNS:
         value = clean(row.get(column))
         if value and not is_blankish(value):
             notes.append(f"{column}: {value}")
-
-    mod_values = []
-    for column in MOD_PERMISSION_COLUMNS:
-        value = clean(row.get(column))
-        if value and not is_blankish(value):
-            mod_values.append(f"{column}={value}")
-    if mod_values:
-        notes.append("MOD permissions: " + "; ".join(mod_values))
 
     return "\n".join(notes)
 
@@ -260,6 +269,25 @@ def build_legacy_permission_name(row: Dict[str, str], start_year: Optional[int],
 
 
 def build_permission_name(
+    row: Dict[str, str],
+    permission_text: str,
+    permission_url_value: Optional[str],
+    can_display_images: bool,
+) -> str:
+    publisher = clean(row.get("Publisher")) or "unknown publisher"
+    descriptor_parts = []
+    license_type = clean(row.get("License type"))
+    if not is_blankish(license_type):
+        descriptor_parts.append(license_type)
+    if permission_url_value:
+        descriptor_parts.append(permission_url_label(permission_url_value))
+    if permission_text:
+        descriptor_parts.append(compact_label(permission_text, 160))
+    descriptor_parts.append("display allowed" if can_display_images else "display not allowed")
+    return compact_label(f"{publisher} image permission: {' | '.join(descriptor_parts)}", 500)
+
+
+def build_hashed_permission_name(
     row: Dict[str, str],
     permission_text: str,
     permission_url_value: Optional[str],
@@ -306,6 +334,12 @@ def parse_tsv(input_file: Path, subset_can_display: bool) -> Iterable[JournalPer
                     can_display_images,
                 ),
                 legacy_permission_name=build_legacy_permission_name(normalized_row, start_year, end_year),
+                hashed_permission_name=build_hashed_permission_name(
+                    normalized_row,
+                    permission_text,
+                    permission_url_value,
+                    can_display_images,
+                ),
                 permission_text=permission_text,
                 permission_url=permission_url_value,
                 can_display_images=can_display_images,
@@ -659,6 +693,8 @@ def upsert_permission(
     permission = existing_permissions.get(row.permission_name)
     if permission is None:
         permission = existing_permissions.get(row.legacy_permission_name)
+    if permission is None:
+        permission = existing_permissions.get(row.hashed_permission_name)
     if permission is None:
         stats.permissions_created += 1
         logger.info(f"Line {row.line_no}: create image_permission '{row.permission_name}'")
