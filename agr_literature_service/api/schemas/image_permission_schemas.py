@@ -10,7 +10,7 @@ class ImagePermissionSchemaPost(BaseModel):
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
     name: str
-    permission_text: Optional[str] = None
+    permission_text: str = ''
     permission_url: Optional[str] = None
     can_display_images: bool = False
 

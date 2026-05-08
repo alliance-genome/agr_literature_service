@@ -34,7 +34,7 @@ class ImagePermissionModel(Base, AuditedModel):
 
     permission_text = Column(
         TEXT(),
-        nullable=True
+        nullable=False
     )
 
     permission_url = Column(
