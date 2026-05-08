@@ -142,7 +142,7 @@ def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> D
     resource_image_permission = _resource_image_permission_for_reference(db, reference)
     resource_permission_metadata = _build_resource_permission_metadata(resource_image_permission)
 
-    # Priority 1: Reference copyright_license.open_access
+    # Priority 1: Reference copyright_license.open_access (curator/PMC override)
     if reference.copyright_license_id:
         copyright_license = db.query(CopyrightLicenseModel).filter_by(
             copyright_license_id=reference.copyright_license_id
@@ -150,8 +150,8 @@ def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> D
         if copyright_license:
             return {
                 "can_display_images": bool(copyright_license.open_access),
-                "source": "reference_copyright_license",
-                "reason": "Reference copyright_license overrides resource image permissions.",
+                "source": "reference_open_access",
+                "reason": "Reference has copyright license set.",
                 "publication_year": publication_year,
                 "copyright_license_id": copyright_license.copyright_license_id,
                 "copyright_license_name": copyright_license.name,
@@ -160,13 +160,36 @@ def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> D
                 **resource_permission_metadata,
             }
 
-    # Priority 2: Resource image permission (from journal/publisher)
+    # Priority 2: Resource copyright_license.open_access (if publication_year >= license_start_year)
+    if reference.resource_id:
+        resource = db.query(ResourceModel).filter_by(
+            resource_id=reference.resource_id
+        ).one_or_none()
+        if resource and resource.copyright_license_id:
+            license_start_year = resource.license_start_year
+            # Check if publication year meets the license start year requirement
+            if license_start_year is None or (publication_year and publication_year >= license_start_year):
+                resource_license = resource.copyright_license
+                if resource_license:
+                    return {
+                        "can_display_images": bool(resource_license.open_access),
+                        "source": "resource_open_access",
+                        "reason": f"Resource has open access license (since {license_start_year or 'all years'}).",
+                        "publication_year": publication_year,
+                        "copyright_license_id": resource_license.copyright_license_id,
+                        "copyright_license_name": resource_license.name,
+                        "copyright_license_open_access": resource_license.open_access,
+                        "resource_id": reference.resource_id,
+                        **resource_permission_metadata,
+                    }
+
+    # Priority 3: Resource image permission (from journal/publisher)
     if resource_image_permission and resource_image_permission.image_permission:
         image_permission = resource_image_permission.image_permission
         return {
             "can_display_images": bool(image_permission.can_display_images),
             "source": "resource_image_permission",
-            "reason": "No reference copyright_license; using resource image permission.",
+            "reason": "Using resource image permission.",
             "publication_year": publication_year,
             "copyright_license_id": None,
             "copyright_license_name": None,
@@ -179,7 +202,7 @@ def get_effective_image_permission(db: Session, curie_or_reference_id: str) -> D
     return {
         "can_display_images": False,
         "source": "none",
-        "reason": "No reference copyright_license or matching resource image permission.",
+        "reason": "No reference or resource license, and no matching resource image permission.",
         "publication_year": publication_year,
         "copyright_license_id": None,
         "copyright_license_name": None,
