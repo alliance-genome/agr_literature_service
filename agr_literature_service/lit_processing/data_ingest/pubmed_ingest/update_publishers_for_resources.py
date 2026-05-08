@@ -46,7 +46,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Rate limiting for NLM API (max 3 requests per second without API key)
-REQUEST_DELAY_SECONDS = 0.4
+# Each resource requires 2 API calls (search + fetch), so 0.8s ensures we stay under limit
+REQUEST_DELAY_SECONDS = 0.8
+
+# Commit after this many resources to avoid losing work on crash
+BATCH_COMMIT_SIZE = 50
 
 
 def find_resources_missing_publisher_with_nlm(db: Session, limit: Optional[int] = None) -> List[Tuple[int, str, str]]:
@@ -150,8 +154,7 @@ def update_resource(
                 resource.title_synonyms = merged_synonyms
             updated = True
 
-    if updated and not dry_run:
-        db.add(resource)
+    # No need for db.add() - resource is already tracked by the session
 
     return updated
 
@@ -163,6 +166,7 @@ def process_resources(db: Session, dry_run: bool = False, limit: Optional[int] =
         dict with statistics: {'processed', 'updated', 'skipped', 'errors'}
     """
     stats = {'processed': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
+    updates_since_commit = 0
 
     resources = find_resources_missing_publisher_with_nlm(db, limit)
     total = len(resources)
@@ -194,6 +198,13 @@ def process_resources(db: Session, dry_run: bool = False, limit: Optional[int] =
             if updated:
                 logger.info(f"  Updated: publisher={publisher}, synonyms={len(title_synonyms) if title_synonyms else 0}")
                 stats['updated'] += 1
+                updates_since_commit += 1
+
+                # Batch commit to avoid losing work on crash
+                if not dry_run and updates_since_commit >= BATCH_COMMIT_SIZE:
+                    db.commit()
+                    logger.info(f"  Batch commit ({updates_since_commit} updates)")
+                    updates_since_commit = 0
             else:
                 stats['skipped'] += 1
 
@@ -201,9 +212,10 @@ def process_resources(db: Session, dry_run: bool = False, limit: Optional[int] =
             logger.error(f"  Error processing resource: {e}")
             stats['errors'] += 1
 
-    if not dry_run:
+    # Final commit for remaining updates
+    if not dry_run and updates_since_commit > 0:
         db.commit()
-        logger.info("Changes committed to database")
+        logger.info(f"Final commit ({updates_since_commit} updates)")
 
     return stats
 

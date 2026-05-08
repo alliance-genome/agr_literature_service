@@ -109,7 +109,7 @@ class TestUpdateResource:
 
         assert result is True
         assert mock_resource.publisher == 'Nature Publishing Group'
-        mock_db.add.assert_called_once_with(mock_resource)
+        # No db.add() needed - SQLAlchemy tracks changes automatically
 
     def test_updates_publisher_when_empty_string(self):
         """Should update publisher when resource has empty string publisher."""
@@ -164,7 +164,7 @@ class TestUpdateResource:
         assert result is False
 
     def test_dry_run_does_not_modify(self):
-        """Should not modify resource in dry-run mode."""
+        """Should not modify resource attributes in dry-run mode."""
         mock_db = MagicMock()
         mock_resource = MagicMock()
         mock_resource.publisher = None
@@ -174,7 +174,8 @@ class TestUpdateResource:
         result = update_resource(mock_db, 1, 'Publisher', ['Synonym'], dry_run=True)
 
         assert result is True
-        mock_db.add.assert_not_called()
+        # In dry-run mode, attributes should not be modified
+        assert mock_resource.publisher is None
 
     def test_returns_false_when_resource_not_found(self):
         """Should return False when resource not found."""
@@ -264,3 +265,25 @@ class TestProcessResources:
         process_resources(mock_db, limit=5)
 
         mock_find.assert_called_once_with(mock_db, 5)
+
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.BATCH_COMMIT_SIZE', 2)
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.fetch_nlm_catalog_data')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.update_resource')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
+    def test_batch_commits(self, mock_sleep, mock_update, mock_fetch, mock_find):
+        """Should commit in batches to avoid losing work."""
+        mock_db = MagicMock()
+        # 5 resources, batch size of 2 = 2 batch commits + 1 final commit
+        mock_find.return_value = [
+            (i, f'AGRKB:10100000000000{i}', f'041046{i}')
+            for i in range(1, 6)
+        ]
+        mock_fetch.return_value = {'publisher': 'Publisher'}
+        mock_update.return_value = True
+
+        stats = process_resources(mock_db, dry_run=False)
+
+        assert stats['updated'] == 5
+        # With batch size 2: commits at 2, 4, and final at 5 = 3 commits
+        assert mock_db.commit.call_count == 3
