@@ -1,6 +1,6 @@
 """
-update_resources_from_nlm_catalog.py
-====================================
+update_publishers_for_resources.py
+==================================
 
 Monthly script to update resources that have an NLM ID but are missing
 publisher or title_synonyms information.
@@ -11,7 +11,7 @@ For each resource with an NLM cross-reference but no publisher:
 3. Update the resource in the database
 
 Usage:
-    python update_resources_from_nlm_catalog.py [--dry-run] [--limit N]
+    python update_publishers_for_resources.py [--dry-run] [--limit N]
 
 Options:
     --dry-run   Show what would be updated without making changes

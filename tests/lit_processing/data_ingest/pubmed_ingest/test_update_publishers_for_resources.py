@@ -1,10 +1,10 @@
 """
-Tests for update_resources_from_nlm_catalog.py
+Tests for update_publishers_for_resources.py
 """
 
 from unittest.mock import MagicMock, patch
 
-from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog import (
+from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources import (
     find_resources_missing_publisher_with_nlm,
     fetch_nlm_catalog_data,
     update_resource,
@@ -55,9 +55,9 @@ class TestFindResourcesMissingPublisherWithNlm:
 class TestFetchNlmCatalogData:
     """Tests for fetch_nlm_catalog_data function."""
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.search_nlm_catalog')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.fetch_nlm_catalog_xml')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.parse_nlm_catalog_xml')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.search_nlm_catalog')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.fetch_nlm_catalog_xml')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.parse_nlm_catalog_xml')
     def test_fetches_and_parses_catalog_data(self, mock_parse, mock_fetch, mock_search):
         """Should fetch and parse NLM catalog data successfully."""
         mock_search.return_value = '410462'
@@ -75,7 +75,7 @@ class TestFetchNlmCatalogData:
         assert result['publisher'] == 'Nature Publishing Group'
         assert result['titleSynonyms'] == ['Nature (London)']
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.search_nlm_catalog')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.search_nlm_catalog')
     def test_returns_empty_dict_when_no_uid_found(self, mock_search):
         """Should return empty dict when NLM catalog search returns no UID."""
         mock_search.return_value = ''
@@ -84,7 +84,7 @@ class TestFetchNlmCatalogData:
 
         assert result == {}
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.search_nlm_catalog')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.search_nlm_catalog')
     def test_returns_empty_dict_on_exception(self, mock_search):
         """Should return empty dict when an exception occurs."""
         mock_search.side_effect = Exception('API error')
@@ -189,10 +189,10 @@ class TestUpdateResource:
 class TestProcessResources:
     """Tests for process_resources function."""
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.find_resources_missing_publisher_with_nlm')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.fetch_nlm_catalog_data')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.update_resource')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.time.sleep')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.fetch_nlm_catalog_data')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.update_resource')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
     def test_processes_resources_successfully(self, mock_sleep, mock_update, mock_fetch, mock_find):
         """Should process resources and return correct stats."""
         mock_db = MagicMock()
@@ -214,9 +214,9 @@ class TestProcessResources:
         assert stats['errors'] == 0
         mock_db.commit.assert_called_once()
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.find_resources_missing_publisher_with_nlm')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.fetch_nlm_catalog_data')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.time.sleep')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.fetch_nlm_catalog_data')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
     def test_skips_resources_with_no_catalog_data(self, mock_sleep, mock_fetch, mock_find):
         """Should skip resources when no catalog data is found."""
         mock_db = MagicMock()
@@ -229,9 +229,9 @@ class TestProcessResources:
         assert stats['skipped'] == 1
         assert stats['updated'] == 0
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.find_resources_missing_publisher_with_nlm')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.fetch_nlm_catalog_data')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.time.sleep')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.fetch_nlm_catalog_data')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
     def test_counts_errors(self, mock_sleep, mock_fetch, mock_find):
         """Should count errors when exceptions occur."""
         mock_db = MagicMock()
@@ -243,8 +243,8 @@ class TestProcessResources:
         assert stats['processed'] == 1
         assert stats['errors'] == 1
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.find_resources_missing_publisher_with_nlm')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.time.sleep')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
     def test_dry_run_does_not_commit(self, mock_sleep, mock_find):
         """Should not commit in dry-run mode."""
         mock_db = MagicMock()
@@ -254,8 +254,8 @@ class TestProcessResources:
 
         mock_db.commit.assert_not_called()
 
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.find_resources_missing_publisher_with_nlm')
-    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_resources_from_nlm_catalog.time.sleep')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
+    @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
     def test_respects_limit_parameter(self, mock_sleep, mock_find):
         """Should pass limit to find_resources function."""
         mock_db = MagicMock()
