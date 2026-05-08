@@ -68,7 +68,7 @@ remap_keys: Dict[str, str] = dict()
 def process_editors(db_session: Session, resource_id: int, editors: Dict) -> Tuple:
     global remap_editor_keys
     if not remap_editor_keys:
-        remap_editor_keys['authorRank'] = 'order'
+        remap_editor_keys['authorRank'] = 'editor_order'
         remap_editor_keys['firstName'] = 'first_name'
         remap_editor_keys['lastName'] = 'last_name'
 

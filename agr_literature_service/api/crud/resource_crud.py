@@ -265,7 +265,7 @@ def show_all(db: Session):
                 editors.append({
                     "editor_id": editor_obj.editor_id,
                     "orcid": editor_obj.orcid,
-                    "order": editor_obj.order,
+                    "editor_order": editor_obj.editor_order,
                     "name": editor_obj.name,
                     "first_name": editor_obj.first_name,
                     "last_name": editor_obj.last_name,

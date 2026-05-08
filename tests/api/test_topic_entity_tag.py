@@ -187,14 +187,14 @@ class TestTopicEntityTag:
                 "title": "Some test 001 title",
                 "authors": [
                     {
-                        "order": 2,
+                        "author_order": 2,
                         "first_name": "S.",
                         "last_name": "Wu",
                         "name": "S. Wu",
                         "first_initial": "S"
                     },
                     {
-                        "order": 1,
+                        "author_order": 1,
                         "first_name": "D.",
                         "last_name": "Wu",
                         "name": "D. Wu",

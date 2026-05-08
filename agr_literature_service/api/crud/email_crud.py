@@ -22,15 +22,15 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> E
     Semantics:
       - email_address is normalized (lowercased, trimmed).
       - (person_id, email_address) must be unique.
-      - primary:
+      - is_primary:
           * If explicitly provided in payload:
-                - If True: set all other emails for this person to primary=False.
+                - If True: set all other emails for this person to is_primary=False.
                 - If False: just add as non-primary.
           * If not provided:
-                - If this is the first email for that person -> primary=True.
-                - Otherwise -> primary=False.
+                - If this is the first email for that person -> is_primary=True.
+                - Otherwise -> is_primary=False.
       - Because of ck_email_person_primary_nulls_together, for person emails we must
-        set primary to True/False (not None).
+        set is_primary to True/False (not None).
     """
     person = db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
     if not person:
@@ -66,7 +66,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> E
         )
 
     # Determine primary flag
-    requested_primary: Optional[bool] = data.get("primary")
+    requested_primary: Optional[bool] = data.get("is_primary")
     has_existing = (
         db.query(EmailModel.email_id)
         .filter(EmailModel.person_id == person_id)
@@ -74,7 +74,7 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> E
         is not None
     )
     if requested_primary is None:
-        # Default: first email -> primary=True, else primary=False
+        # Default: first email -> is_primary=True, else is_primary=False
         primary_value: bool = not has_existing
     else:
         primary_value = bool(requested_primary)
@@ -83,14 +83,14 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> E
     if primary_value:
         db.query(EmailModel).filter(
             EmailModel.person_id == person_id,
-            EmailModel.primary.is_(True),
-        ).update({"primary": False}, synchronize_session=False)
+            EmailModel.is_primary.is_(True),
+        ).update({"is_primary": False}, synchronize_session=False)
 
     obj = EmailModel(
         person_id=person_id,
         email_address=email_addr,
         date_invalidated=data.get("date_invalidated"),
-        primary=primary_value,
+        is_primary=primary_value,
     )
     db.add(obj)
     db.commit()
@@ -111,7 +111,7 @@ def list_for_person(db: Session, person_id: int) -> List[EmailModel]:
     return (
         db.query(EmailModel)
         .filter(EmailModel.person_id == person_id)
-        .order_by(EmailModel.primary.desc().nulls_last(), EmailModel.email_id.asc())
+        .order_by(EmailModel.is_primary.desc().nulls_last(), EmailModel.email_id.asc())
         .all()
     )
 
@@ -133,7 +133,7 @@ def patch(db: Session, email_id: int, patch_dict: Dict[str, Any]) -> Dict[str, A
     Supports:
       - email_address (normalized, uniqueness per person)
       - date_invalidated
-      - primary (for person emails, must be True/False, not None)
+      - is_primary (for person emails, must be True/False, not None)
         * If set to True, demotes other primaries for the same person.
     """
     obj: Optional[EmailModel] = db.query(EmailModel).filter(EmailModel.email_id == email_id).first()
@@ -171,23 +171,23 @@ def patch(db: Session, email_id: int, patch_dict: Dict[str, Any]) -> Dict[str, A
                 )
         obj.email_address = new_addr
 
-    # primary change
-    if "primary" in data:
-        new_primary = data["primary"]
-        # For person emails, primary cannot be None (due to check constraint)
+    # is_primary change
+    if "is_primary" in data:
+        new_primary = data["is_primary"]
+        # For person emails, is_primary cannot be None (due to check constraint)
         if obj.person_id is not None and new_primary is None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="primary must be true or false for person emails",
+                detail="is_primary must be true or false for person emails",
             )
-        obj.primary = new_primary
+        obj.is_primary = new_primary
         # If set to True, demote others
         if obj.person_id is not None and new_primary:
             db.query(EmailModel).filter(
                 EmailModel.person_id == obj.person_id,
                 EmailModel.email_id != email_id,
-                EmailModel.primary.is_(True),
-            ).update({"primary": False}, synchronize_session=False)
+                EmailModel.is_primary.is_(True),
+            ).update({"is_primary": False}, synchronize_session=False)
 
     if "date_invalidated" in data:
         obj.date_invalidated = data["date_invalidated"]

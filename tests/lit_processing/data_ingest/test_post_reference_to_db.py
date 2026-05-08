@@ -85,7 +85,7 @@ class TestPostReferenceToDb:
         ## test insert_authors()
         insert_authors(db, primaryId, reference_id, entry['authors'])
         db.commit()
-        x = db.query(AuthorModel).filter_by(last_name='Karaki', order=1).one_or_none()
+        x = db.query(AuthorModel).filter_by(last_name='Karaki', author_order=1).one_or_none()
         assert x is not None
         assert x.name == 'Shin-Ichiro Karaki'
 

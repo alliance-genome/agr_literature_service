@@ -46,7 +46,12 @@ class PersonModel(Base, AuditedModel):
     notes = relationship("PersonNoteModel", back_populates="person", cascade="all, delete-orphan")
 
     __table_args__ = (
-        Index("ix_person_display_name_trigram", "display_name"),
+        Index(
+            "ix_person_display_name_trgm",
+            "display_name",
+            postgresql_using="gin",
+            postgresql_ops={"display_name": "gin_trgm_ops"},
+        ),
         CheckConstraint(
             "active_status IN ('active', 'retired', 'deceased')",
             name="ck_person_active_status",

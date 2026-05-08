@@ -12,7 +12,7 @@ class EditorSchemaPost(BaseModel):
         from_attributes=True,
         json_schema_extra={
             "example": {
-                "order": 1,
+                "editor_order": 1,
                 "name": "string",
                 "first_name": "string",
                 "last_name": "string",
@@ -21,7 +21,7 @@ class EditorSchemaPost(BaseModel):
         }
     )
 
-    order: Optional[int] = None
+    editor_order: Optional[int] = None
     name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
@@ -44,7 +44,7 @@ class EditorSchemaShow(AuditedObjectModelSchema):
     )
 
     editor_id: int
-    order: Optional[int] = None
+    editor_order: Optional[int] = None
     name: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None

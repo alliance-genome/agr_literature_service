@@ -168,14 +168,14 @@ def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
         author_limit = 500000
         for index in range(500):
             offset = index * author_limit
-            rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
+            rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.author_order, "
                                            f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
                                            f"a.last_name, a.first_initial "
                                            f"FROM author a, mod_corpus_association mca, mod m "
                                            f"WHERE a.reference_id = mca.reference_id "
                                            f"AND mca.mod_id = m.mod_id "
                                            f"AND m.abbreviation = '{mod}' "
-                                           f"ORDER BY a.reference_id, a.order "
+                                           f"ORDER BY a.reference_id, a.author_order "
                                            f"LIMIT {author_limit} "
                                            f"OFFSET {offset}")).fetchall()
 
@@ -184,14 +184,13 @@ def get_author_data(db_session: Session, mod, reference_id_list, query_cutoff):
             for x in rows:
                 adding_author_row(x, reference_id_to_authors)
     elif reference_id_list and len(reference_id_list) > 0:
-        # name & order are keywords in postgres so have use alias 'a' for table name
         ref_ids = ", ".join([str(x) for x in reference_id_list])
-        rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.order, "
+        rows = db_session.execute(text(f"SELECT a.reference_id, a.orcid, a.first_author, a.author_order, "
                                        f"a.corresponding_author, a.name, a.affiliations, a.first_name, "
                                        f"a.last_name, a.first_initial "
                                        f"FROM author a "
                                        f"WHERE  reference_id IN ({ref_ids}) "
-                                       f"ORDER BY a.reference_id, a.order")).fetchall()
+                                       f"ORDER BY a.reference_id, a.author_order")).fetchall()
         for x in rows:
             adding_author_row(x, reference_id_to_authors)
 
@@ -602,11 +601,11 @@ def get_author_data_for_ref_ids(db_session: Session, ref_ids):
     reference_id_to_authors: Dict[int, List[Dict[str, Any]]] = {}
 
     rows = db_session.execute(text(f"SELECT a.author_id, a.reference_id, a.orcid, a.first_author, "
-                                   f"a.order, a.corresponding_author, a.name, a.affiliations, a.first_name, "
+                                   f"a.author_order, a.corresponding_author, a.name, a.affiliations, a.first_name, "
                                    f"a.last_name, a.first_initial, a.date_updated, a.date_created "
                                    f"FROM author a "
                                    f"WHERE reference_id IN ({ref_ids}) "
-                                   f"ORDER BY a.reference_id, a.order")).fetchall()
+                                   f"ORDER BY a.reference_id, a.author_order")).fetchall()
     for x in rows:
         data = []
         reference_id = x[1]

@@ -722,7 +722,7 @@ def replace_authors_from_json(db_session, reference_id: int, authors_from_json: 
     for idx, author in enumerate(authors_from_json, start=1):
         db_author = AuthorModel(
             reference_id=reference_id,
-            order=idx,
+            author_order=idx,
             name=author.name,
             first_name=author.first_name,
             last_name=author.last_name,
@@ -879,7 +879,7 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     name_removed: List[str] = []
     for author_order in sorted(author_order_to_delete_record.keys()):
         x = db_session.query(AuthorModel).filter_by(
-            reference_id=reference_id, order=author_order).one_or_none()
+            reference_id=reference_id, author_order=author_order).one_or_none()
         if x:
             name_removed.append(x.name)
             db_session.delete(x)
@@ -901,8 +901,8 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     """
     for author_id, new_order in temp_order_map.items():
         x = db_session.query(AuthorModel).filter_by(author_id=author_id).one_or_none()
-        if x and x.order != new_order:
-            x.order = new_order
+        if x and x.author_order != new_order:
+            x.author_order = new_order
             db_session.add(x)
 
     """
@@ -949,7 +949,7 @@ def insert_authors(db_session: Session, reference_id, pmid, author_order_to_add_
                 first_name=author.first_name,
                 last_name=author.last_name,
                 first_initial=author.first_initial,
-                order=author.order,
+                author_order=author.order,
                 affiliations=author.affiliations,
                 orcid=author.orcid,
                 first_author=False,
@@ -969,7 +969,7 @@ def insert_authors(db_session: Session, reference_id, pmid, author_order_to_add_
 def update_author_row(db_session: Session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, author_offset, fw, logger):  # pragma: no cover
 
     x = db_session.query(AuthorModel).filter_by(
-        reference_id=reference_id, order=author_order).one_or_none()
+        reference_id=reference_id, author_order=author_order).one_or_none()
     if x is None:
         return temp_order_map, name_updated
     try:
@@ -986,9 +986,9 @@ def update_author_row(db_session: Session, reference_id, author_order, json_auth
             x.affiliations = json_author.affiliations
         if x.orcid != json_author.orcid:
             x.orcid = json_author.orcid
-        if x.order != json_author.order:
-            tmp_order = x.order + author_offset
-            x.order = tmp_order
+        if x.author_order != json_author.order:
+            tmp_order = x.author_order + author_offset
+            x.author_order = tmp_order
             temp_order_map[x.author_id] = json_author.order
         db_session.add(x)
         log_message = f": UPDATE AUTHOR for {x.name} | {x.affiliations}"

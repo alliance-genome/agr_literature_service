@@ -122,7 +122,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 if field in ["authors"]:
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
-                        author_names_order.append((db_obj.name, db_obj.order))
+                        author_names_order.append((db_obj.name, db_obj.author_order))
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
@@ -344,7 +344,7 @@ def get_reference_emails(db: Session, curie_or_reference_id: str):
                 "email_id": email.email_id,
                 "email_address": email.email_address,
                 "person_id": email.person_id,
-                "primary": email.primary,
+                "is_primary": email.is_primary,
                 "date_invalidated": (
                     email.date_invalidated.isoformat()
                     if email.date_invalidated
@@ -415,11 +415,11 @@ def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresse
         )
 
         if email_obj is None:
-            # No active row; create a new one with person_id = NULL, primary = NULL
+            # No active row; create a new one with person_id = NULL, is_primary = NULL
             email_obj = EmailModel(
                 email_address=normalized_email,
                 person_id=None,
-                primary=None,
+                is_primary=None,
                 date_invalidated=None,
             )
             db.add(email_obj)
@@ -442,7 +442,7 @@ def add_reference_email(db: Session, curie_or_reference_id: str, email_address: 
     """
     Add a single email association to a reference.
     - Reuse active EmailModel if exists.
-    - Otherwise create a new EmailModel (person_id=NULL, primary=NULL).
+    - Otherwise create a new EmailModel (person_id=NULL, is_primary=NULL).
     - Add a new reference_email row (unless it already exists).
     """
     reference = get_reference(db, curie_or_reference_id)
@@ -486,7 +486,7 @@ def add_reference_email(db: Session, curie_or_reference_id: str, email_address: 
         email_obj = EmailModel(
             email_address=normalized_email,
             person_id=None,
-            primary=None,
+            is_primary=None,
             date_invalidated=None,
         )
         db.add(email_obj)
@@ -755,7 +755,7 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
                     "email_id": email.email_id,
                     "email_address": email.email_address,
                     "person_id": email.person_id,
-                    "primary": email.primary,
+                    "is_primary": email.is_primary,
                     "date_invalidated": (
                         email.date_invalidated.isoformat()
                         if email.date_invalidated
@@ -998,7 +998,7 @@ def merge_reference_relations(db, old_reference_id, new_reference_id, old_curie,
 
 
 def author_order_sort(author: AuthorModel):
-    return author.order
+    return author.author_order
 
 
 # Not used anymore?
@@ -1079,7 +1079,7 @@ def get_citation_from_obj(db: Session, ref_db_obj: ReferenceModel):  # pragma: n
 
     authorNames = ''
     for author in db.query(AuthorModel).filter_by(reference_id=ref_db_obj.reference_id).order_by(
-            AuthorModel.order).all():
+            AuthorModel.author_order).all():
         if author.name:
             authorNames += author.name + "; "
     authorNames = authorNames[:-2]  # remove last ';'
@@ -1279,7 +1279,7 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info = BibInfo()
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
-    for author in sorted(reference.author, key=lambda a: a.order):
+    for author in sorted(reference.author, key=lambda a: a.author_order):
         last_name = str(author.last_name or '')
         first_initial = str(author.first_initial or '')
         full_name = str(author.name or '')

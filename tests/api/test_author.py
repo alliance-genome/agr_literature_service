@@ -18,7 +18,7 @@ def test_author(db, auth_headers, test_reference): # noqa
     print("***** Adding a test author *****")
     with TestClient(app) as client:
         new_author = {
-            "order": 1,
+            "author_order": 1,
             "first_name": "string",
             "last_name": "string",
             "first_initial": "FI",

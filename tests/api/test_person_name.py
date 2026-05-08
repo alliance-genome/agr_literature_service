@@ -79,7 +79,7 @@ class TestPersonName:
         assert pn.middle_name == "M"
         assert pn.last_name == "Smith"
         # First name for person should auto-set primary=True
-        assert pn.primary is True
+        assert pn.is_primary is True
 
     def test_create_person_name_invalid_person(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -105,7 +105,7 @@ class TestPersonName:
             assert res.status_code == status.HTTP_201_CREATED
             body = res.json()
             # Second name should not be primary
-            assert body.get("primary") is not True
+            assert body.get("is_primary") is not True
 
             # Original should still be primary
             orig = (
@@ -113,7 +113,7 @@ class TestPersonName:
                 .filter(PersonNameModel.person_name_id == test_person_name.new_person_name_id)
                 .one()
             )
-            assert orig.primary is True
+            assert orig.is_primary is True
 
     def test_create_with_explicit_primary_demotes_old(self, db, auth_headers, test_person_name):  # noqa
         """Creating a name with primary=true should demote the existing primary."""
@@ -121,7 +121,7 @@ class TestPersonName:
             payload = {
                 "first_name": "Carlos",
                 "last_name": "Garcia",
-                "primary": True,
+                "is_primary": True,
             }
             res = client.post(
                 f"/person_name/person/{test_person_name.person_id}",
@@ -130,7 +130,7 @@ class TestPersonName:
             )
             assert res.status_code == status.HTTP_201_CREATED
             new_body = res.json()
-            assert new_body["primary"] is True
+            assert new_body["is_primary"] is True
 
             # Old primary should be demoted
             orig = (
@@ -139,7 +139,7 @@ class TestPersonName:
                 .one()
             )
             db.refresh(orig)
-            assert orig.primary is False
+            assert orig.is_primary is False
 
     def test_list_for_person(self, auth_headers, test_person_name):  # noqa
         with TestClient(app) as client:
@@ -211,14 +211,14 @@ class TestPersonName:
             # Patch it to primary
             res = client.patch(
                 f"/person_name/{second_id}",
-                json={"primary": True},
+                json={"is_primary": True},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_202_ACCEPTED
 
             # Verify new one is primary
             fetched = client.get(f"/person_name/{second_id}", headers=auth_headers)
-            assert fetched.json()["primary"] is True
+            assert fetched.json()["is_primary"] is True
 
             # Verify old one is demoted
             orig = (
@@ -227,14 +227,14 @@ class TestPersonName:
                 .one()
             )
             db.refresh(orig)
-            assert orig.primary is False
+            assert orig.is_primary is False
 
     def test_patch_primary_to_false(self, auth_headers, test_person_name):  # noqa
         """Patching primary=false should be allowed — no enforcement that one must stay primary."""
         with TestClient(app) as client:
             res = client.patch(
                 f"/person_name/{test_person_name.new_person_name_id}",
-                json={"primary": False},
+                json={"is_primary": False},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_202_ACCEPTED
@@ -243,7 +243,7 @@ class TestPersonName:
                 f"/person_name/{test_person_name.new_person_name_id}",
                 headers=auth_headers,
             )
-            assert fetched.json()["primary"] is False
+            assert fetched.json()["is_primary"] is False
 
     def test_patch_null_last_name_rejected(self, auth_headers, test_person_name):  # noqa
         """PATCH with last_name=null should be rejected at Pydantic layer with 422."""
@@ -310,7 +310,7 @@ class TestPersonName:
                 .one()
             )
             db.refresh(remaining)
-            assert remaining.primary is not True
+            assert remaining.is_primary is not True
 
     def test_destroy_nonexistent(self, auth_headers):  # noqa
         with TestClient(app) as client:
@@ -324,7 +324,7 @@ class TestPersonName:
                 "display_name": "Inline Test",
                 "names": [
                     {"first_name": "John", "last_name": "Smith"},
-                    {"first_name": "Juan", "middle_name": "Carlos", "last_name": "Garcia", "primary": True},
+                    {"first_name": "Juan", "middle_name": "Carlos", "last_name": "Garcia", "is_primary": True},
                 ],
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
@@ -339,7 +339,7 @@ class TestPersonName:
             assert len(names) == 2
 
             # Find which is primary
-            primary_names = [n for n in names if n.get("primary") is True]
+            primary_names = [n for n in names if n.get("is_primary") is True]
             assert len(primary_names) == 1
             assert primary_names[0]["last_name"] == "Garcia"
 
@@ -362,6 +362,6 @@ class TestPersonName:
             names = body.get("names", [])
             assert len(names) == 2
 
-            primary_names = [n for n in names if n.get("primary") is True]
+            primary_names = [n for n in names if n.get("is_primary") is True]
             assert len(primary_names) == 1
             assert primary_names[0]["last_name"] == "First"

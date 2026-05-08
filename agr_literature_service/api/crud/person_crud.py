@@ -126,7 +126,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
     # Create child emails
     if emails_data:
         # Check if any email in the batch explicitly marks itself primary
-        has_primary_set = any(e.get("primary") is True for e in emails_data)
+        has_primary_set = any(e.get("is_primary") is True for e in emails_data)
         for idx, e in enumerate(emails_data):
             email_addr = normalize_email(e["email_address"])
             # skip duplicates for this person
@@ -138,9 +138,9 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
             )
             if dup:
                 continue
-            # Determine primary flag — EmailModel requires primary to be
+            # Determine primary flag — EmailModel requires is_primary to be
             # non-NULL when person_id is non-NULL (ck_email_person_primary_nulls_together).
-            requested_primary = e.get("primary")
+            requested_primary = e.get("is_primary")
             if requested_primary is None:
                 primary_value = (idx == 0 and not has_primary_set)
             else:
@@ -150,7 +150,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
                     person_id=obj.person_id,
                     email_address=email_addr,
                     date_invalidated=e.get("date_invalidated"),
-                    primary=primary_value,
+                    is_primary=primary_value,
                 )
             )
 
@@ -159,7 +159,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
         # Find which name should be primary
         primary_idx = None
         for idx, n in enumerate(names_data):
-            if n.get("primary") is True:
+            if n.get("is_primary") is True:
                 primary_idx = idx
                 break
         # Default to first name if none marked
@@ -173,7 +173,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
                     first_name=n.get("first_name"),
                     middle_name=n.get("middle_name"),
                     last_name=n["last_name"],
-                    primary=True if idx == primary_idx else None,
+                    is_primary=True if idx == primary_idx else None,
                 )
             )
 

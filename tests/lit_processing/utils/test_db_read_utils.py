@@ -97,7 +97,7 @@ class TestDbReadUtils:
         reference_id_to_authors = get_author_data(db, 'ZFIN', ref_ids, 500)
         authors = reference_id_to_authors[refs[0].reference_id]
 
-        x = db.query(AuthorModel).filter_by(reference_id=refs[0].reference_id, order=1).one_or_none()
+        x = db.query(AuthorModel).filter_by(reference_id=refs[0].reference_id, author_order=1).one_or_none()
         assert x.last_name == authors[0]['last_name']
         assert x.name == authors[0]['name']
 

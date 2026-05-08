@@ -80,18 +80,18 @@ class TestParseDqmJsonResource:
         if res.editor[0].first_name == "f1":
             assert res.editor[0].last_name == "last1"
             assert res.editor[0].name == "f1 last1"
-            assert res.editor[0].order == 1
+            assert res.editor[0].editor_order == 1
             assert res.editor[1].last_name == "last2"
             assert res.editor[1].name == "f2 last2"
-            assert res.editor[1].order == 2
+            assert res.editor[1].editor_order == 2
         else:
             assert res.editor[0].first_name == "f2"
             assert res.editor[0].last_name == "last2"
             assert res.editor[0].name == "f2 last2"
-            assert res.editor[0].order == 2
+            assert res.editor[0].editor_order == 2
             assert res.editor[1].last_name == "last1"
             assert res.editor[1].name == "f1 last1"
-            assert res.editor[1].order == 1
+            assert res.editor[1].editor_order == 1
 
 
     def test_zfin_resource_bad_key_process(self, db): # noqa

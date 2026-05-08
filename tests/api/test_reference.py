@@ -267,14 +267,14 @@ class TestReference:
                 "date_published_end": "2022-10-02",
                 "authors": [
                     {
-                        "order": 2,
+                        "author_order": 2,
                         "first_name": "S.",
                         "last_name": "Wu",
                         "name": "S. Wu",
                         # "reference_id": "PMID:23524264"
                     },
                     {
-                        "order": 1,
+                        "author_order": 1,
                         "first_name": "D.",
                         "last_name": "Wu",
                         "name": "D. Wu",
@@ -342,10 +342,10 @@ class TestReference:
             for author in response['authors']:
                 if author['first_name'] == 'D.':
                     assert author['name'] == 'D. Wu'
-                    assert author['order'] == 1
+                    assert author['author_order'] == 1
                 else:
                     assert author['name'] == 'S. Wu'
-                    assert author['order'] == 2
+                    assert author['author_order'] == 2
 
             # Were authors created in the db?
             author = db.query(AuthorModel).filter(AuthorModel.name == "D. Wu").first()
@@ -414,12 +414,12 @@ class TestReference:
                 "authors": [
                     {
                         "name": "S. K",
-                        "order": 1
+                        "author_order": 1
                         # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
                         "name": "S. W",
-                        "order": 2
+                        "author_order": 2
                         # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
@@ -541,12 +541,12 @@ class TestReference:
                 "authors": [
                     {
                         "name": "S. K",
-                        "order": 1
+                        "author_order": 1
                         # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
                         "name": "S. W",
-                        "order": 2
+                        "author_order": 2
                         # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
@@ -592,12 +592,12 @@ class TestReference:
                 "authors": [
                     {
                         "name": "S. K",
-                        "order": 1
+                        "author_order": 1
                         # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
                         "name": "S. W",
-                        "order": 2
+                        "author_order": 2
                         # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
@@ -732,12 +732,12 @@ class TestReference:
                 "authors": [
                     {
                         "name": "S. K",
-                        "order": 1
+                        "author_order": 1
                         # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
                         "name": "S. W",
-                        "order": 2
+                        "author_order": 2
                         # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],
@@ -760,12 +760,12 @@ class TestReference:
                 "authors": [
                     {
                         "name": "S. K",
-                        "order": 1
+                        "author_order": 1
                         # "orcid": 'ORCID:1234-1234-1234-123X'
                     },
                     {
                         "name": "S. W",
-                        "order": 2
+                        "author_order": 2
                         # "orcid": 'ORCID:1111-2222-3333-444X'  # New
                     }
                 ],

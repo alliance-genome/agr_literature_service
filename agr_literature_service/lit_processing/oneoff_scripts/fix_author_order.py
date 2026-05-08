@@ -2,7 +2,7 @@
 fix_author_order.py
 
 Scan all references in the authors table and, for each one whose
-author.order values aren’t exactly 1…N in ascending order, renumber
+author.author_order values aren’t exactly 1…N in ascending order, renumber
 them sequentially to remove gaps or duplicates.
 """
 import logging
@@ -26,19 +26,19 @@ def fix_author_orders():
         authors = (
             db.query(AuthorModel)
             .filter_by(reference_id=ref_id)
-            .order_by(AuthorModel.order.asc(), AuthorModel.author_id.asc())
+            .order_by(AuthorModel.author_order.asc(), AuthorModel.author_id.asc())
             .all()
         )
 
         # build the “should be” list
         expected = list(range(1, len(authors) + 1))
-        actual = [a.order for a in authors]
+        actual = [a.author_order for a in authors]
 
         # only touch it if there’s a mismatch
         if actual != expected:
             logging.info(f"Reference {ref_id}: orders {actual} → renumbering to {expected}")
             for idx, author in enumerate(authors, start=1):
-                author.order = idx
+                author.author_order = idx
                 db.add(author)
             db.commit()
 

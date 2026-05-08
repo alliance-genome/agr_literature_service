@@ -34,7 +34,7 @@ class PersonNameModel(Base, AuditedModel):
     middle_name = Column(String(), nullable=True)
     last_name = Column(String(), nullable=False)
 
-    primary = Column("primary", Boolean, nullable=True)
+    is_primary = Column(Boolean, nullable=True)
 
     __table_args__ = (
         # At most one primary name per person
@@ -42,12 +42,33 @@ class PersonNameModel(Base, AuditedModel):
             "ux_person_name_person_primary_true",
             "person_id",
             unique=True,
-            postgresql_where=text('"primary" = TRUE'),
+            postgresql_where=text("is_primary = TRUE"),
         ),
 
         # Composite index for queries like
-        #   WHERE person_id = ? AND primary = TRUE
-        Index("ix_person_name_person_primary", "person_id", "primary"),
+        #   WHERE person_id = ? AND is_primary = TRUE
+        Index("ix_person_name_person_primary", "person_id", "is_primary"),
+
+        # Trigram GIN indices supporting ILIKE '%name%' lookups in
+        # person_crud.find_by_name and person_setting_crud equivalents.
+        Index(
+            "ix_person_name_first_name_trgm",
+            "first_name",
+            postgresql_using="gin",
+            postgresql_ops={"first_name": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_person_name_middle_name_trgm",
+            "middle_name",
+            postgresql_using="gin",
+            postgresql_ops={"middle_name": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_person_name_last_name_trgm",
+            "last_name",
+            postgresql_using="gin",
+            postgresql_ops={"last_name": "gin_trgm_ops"},
+        ),
     )
 
     def __str__(self) -> str:
@@ -58,6 +79,6 @@ class PersonNameModel(Base, AuditedModel):
             parts.append(self.middle_name)
         parts.append(self.last_name or "")
         label = " ".join(parts)
-        if self.primary:
+        if self.is_primary:
             label += " [primary]"
         return label

@@ -318,8 +318,8 @@ def authors_exact_check(agr_data, values):
     if 'authors' in agr_data:
         for aut_db in agr_data['authors']:
             db_string = ''
-            if 'order' in aut_db and aut_db['order'] is not None:
-                db_string = db_string + str(aut_db['order'])
+            if 'author_order' in aut_db and aut_db['author_order'] is not None:
+                db_string = db_string + str(aut_db['author_order'])
             if 'name' in aut_db and aut_db['name'] is not None:
                 db_string = db_string + aut_db['name']
             if 'first_name' in aut_db and aut_db['first_name'] is not None:
@@ -329,8 +329,8 @@ def authors_exact_check(agr_data, values):
             db_values.add(db_string)
     for aut_dqm in values:
         dqm_string = ''
-        if 'order' in aut_dqm:
-            dqm_string = dqm_string + str(aut_dqm['order'])
+        if 'author_order' in aut_dqm:
+            dqm_string = dqm_string + str(aut_dqm['author_order'])
         if 'name' in aut_dqm:
             dqm_string = dqm_string + aut_dqm['name']
         if 'first_name' in aut_dqm:
@@ -549,7 +549,7 @@ def test_first_corresponding_author_flag():
     if c is None:
         return result
 
-    a = db_session.query(AuthorModel).filter_by(reference_id=c.reference_id, order=1).one_or_none()
+    a = db_session.query(AuthorModel).filter_by(reference_id=c.reference_id, author_order=1).one_or_none()
     a.first_author = True
     a.corresponding_author = True
     a.name = 'TEST full name'

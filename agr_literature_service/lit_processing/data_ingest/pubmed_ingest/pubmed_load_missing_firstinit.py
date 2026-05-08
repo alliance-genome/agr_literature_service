@@ -60,16 +60,16 @@ def update_author_table(key_to_first_initial, reference_id_to_pmid):
             row_count += 1
             if row_count % commit_size == 0:
                 db_session.commit()
-            key = (x.reference_id, x.name, x.order)
+            key = (x.reference_id, x.name, x.author_order)
             if key in key_to_first_initial and x.first_initial is None:
                 pmid = reference_id_to_pmid[x.reference_id]
                 first_initial = key_to_first_initial[key]
                 try:
                     x.first_initial = key_to_first_initial[key]
                     db_session.add(x)
-                    logger.info(f"row_count={row_count} PMID:{pmid} reference_id={x.reference_id} author_id={x.author_id} name={x.name} order={x.order}: added first_initial={first_initial}")
+                    logger.info(f"row_count={row_count} PMID:{pmid} reference_id={x.reference_id} author_id={x.author_id} name={x.name} order={x.author_order}: added first_initial={first_initial}")
                 except Exception as e:
-                    logger.info(f"row_count={row_count} PMID:{pmid} reference_id={x.reference_id} author_id={x.author_id} name={x.name} order={x.order}: adding first_initial={first_initial} Falied e={e}")
+                    logger.info(f"row_count={row_count} PMID:{pmid} reference_id={x.reference_id} author_id={x.author_id} name={x.name} order={x.author_order}: adding first_initial={first_initial} Falied e={e}")
 
         db_session.commit()
 
