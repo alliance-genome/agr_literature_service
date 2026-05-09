@@ -148,7 +148,7 @@ class ReferenceEmailSchemaRelated(BaseModel):
     email_id: int
     email_address: str
     person_id: Optional[int] = None
-    primary: Optional[bool] = None
+    is_primary: Optional[bool] = None
     date_invalidated: Optional[str] = None
 
 
