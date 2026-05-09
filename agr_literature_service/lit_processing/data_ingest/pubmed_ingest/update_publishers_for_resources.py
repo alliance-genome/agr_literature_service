@@ -211,6 +211,9 @@ def process_resources(db: Session, dry_run: bool = False, limit: Optional[int] =
         except Exception as e:
             logger.error(f"  Error processing resource: {e}")
             stats['errors'] += 1
+            # Rollback to clear failed transaction state
+            db.rollback()
+            updates_since_commit = 0
 
     # Final commit for remaining updates
     if not dry_run and updates_since_commit > 0:

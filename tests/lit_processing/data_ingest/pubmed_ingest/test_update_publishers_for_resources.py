@@ -233,8 +233,8 @@ class TestProcessResources:
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.fetch_nlm_catalog_data')
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
-    def test_counts_errors(self, mock_sleep, mock_fetch, mock_find):
-        """Should count errors when exceptions occur."""
+    def test_counts_errors_and_rolls_back(self, mock_sleep, mock_fetch, mock_find):
+        """Should count errors and rollback transaction when exceptions occur."""
         mock_db = MagicMock()
         mock_find.return_value = [(1, 'AGRKB:101000000000001', '0410462')]
         mock_fetch.side_effect = Exception('Unexpected error')
@@ -243,6 +243,8 @@ class TestProcessResources:
 
         assert stats['processed'] == 1
         assert stats['errors'] == 1
+        # Should rollback to clear failed transaction state
+        mock_db.rollback.assert_called_once()
 
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.find_resources_missing_publisher_with_nlm')
     @patch('agr_literature_service.lit_processing.data_ingest.pubmed_ingest.update_publishers_for_resources.time.sleep')
