@@ -103,13 +103,13 @@ class TestUpdateResource:
         mock_resource = MagicMock()
         mock_resource.publisher = None
         mock_resource.title_synonyms = None
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
+        # Chain includes .options() now
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
 
         result = update_resource(mock_db, 1, 'Nature Publishing Group', None)
 
         assert result is True
         assert mock_resource.publisher == 'Nature Publishing Group'
-        # No db.add() needed - SQLAlchemy tracks changes automatically
 
     def test_updates_publisher_when_empty_string(self):
         """Should update publisher when resource has empty string publisher."""
@@ -117,7 +117,7 @@ class TestUpdateResource:
         mock_resource = MagicMock()
         mock_resource.publisher = ''
         mock_resource.title_synonyms = []
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
 
         result = update_resource(mock_db, 1, 'Elsevier', None)
 
@@ -130,7 +130,7 @@ class TestUpdateResource:
         mock_resource = MagicMock()
         mock_resource.publisher = 'Existing Publisher'
         mock_resource.title_synonyms = []
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
 
         result = update_resource(mock_db, 1, 'New Publisher', None)
 
@@ -143,7 +143,7 @@ class TestUpdateResource:
         mock_resource = MagicMock()
         mock_resource.publisher = 'Publisher'
         mock_resource.title_synonyms = ['Existing Synonym']
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
 
         result = update_resource(mock_db, 1, None, ['New Synonym', 'Existing Synonym'])
 
@@ -157,7 +157,7 @@ class TestUpdateResource:
         mock_resource = MagicMock()
         mock_resource.publisher = 'Publisher'
         mock_resource.title_synonyms = ['Synonym A', 'Synonym B']
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
 
         result = update_resource(mock_db, 1, None, ['Synonym A', 'Synonym B'])
 
@@ -169,7 +169,7 @@ class TestUpdateResource:
         mock_resource = MagicMock()
         mock_resource.publisher = None
         mock_resource.title_synonyms = None
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = mock_resource
 
         result = update_resource(mock_db, 1, 'Publisher', ['Synonym'], dry_run=True)
 
@@ -180,7 +180,7 @@ class TestUpdateResource:
     def test_returns_false_when_resource_not_found(self):
         """Should return False when resource not found."""
         mock_db = MagicMock()
-        mock_db.query.return_value.filter_by.return_value.one_or_none.return_value = None
+        mock_db.query.return_value.options.return_value.filter_by.return_value.one_or_none.return_value = None
 
         result = update_resource(mock_db, 999, 'Publisher', None)
 
