@@ -26,7 +26,7 @@ from os import path
 from typing import List, Optional, Tuple
 
 from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
 from agr_literature_service.api.models import CrossReferenceModel, ResourceModel
 from agr_literature_service.api.user import set_global_user_id
@@ -125,7 +125,14 @@ def update_resource(
     Returns:
         True if resource was updated, False otherwise
     """
-    resource = db.query(ResourceModel).filter_by(resource_id=resource_id).one_or_none()
+    # Only load columns we need to avoid loading relationships (e.g., editor)
+    resource = db.query(ResourceModel).options(
+        load_only(
+            ResourceModel.resource_id,
+            ResourceModel.publisher,
+            ResourceModel.title_synonyms
+        )
+    ).filter_by(resource_id=resource_id).one_or_none()
     if not resource:
         logger.warning(f"Resource {resource_id} not found")
         return False
