@@ -14,6 +14,7 @@ from agr_literature_service.api.models import (
     PersonCrossReferenceModel,
     PersonNameModel,
     PersonNoteModel,
+    ReferenceEmailModel,
 )
 from agr_literature_service.api.schemas import PersonSchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -218,6 +219,13 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
 
 
 def destroy(db: Session, curie_or_person_id: str) -> None:
+    """
+    Delete a person and handle their email records appropriately.
+
+    Emails that have reference relations are detached (person_id set to NULL)
+    instead of deleted, to preserve the reference-email links.
+    Emails without reference relations are deleted.
+    """
     person_id = resolve_person_id(db, curie_or_person_id)
     obj: Optional[PersonModel] = (
         db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
@@ -227,6 +235,25 @@ def destroy(db: Session, curie_or_person_id: str) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Person with curie or person_id {curie_or_person_id} not found",
         )
+
+    # Handle emails: detach those with reference relations, delete others
+    person_emails = db.query(EmailModel).filter(EmailModel.person_id == person_id).all()
+
+    for email in person_emails:
+        has_reference_relations = (
+            db.query(ReferenceEmailModel.reference_email_id)
+            .filter(ReferenceEmailModel.email_id == email.email_id)
+            .first()
+            is not None
+        )
+        if has_reference_relations:
+            # Detach from person but preserve the email for reference relations
+            email.person_id = None
+            email.is_primary = None
+        else:
+            # No reference relations, safe to delete
+            db.delete(email)
+
     db.delete(obj)
     db.commit()
 

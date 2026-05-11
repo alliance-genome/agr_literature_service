@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import EmailModel, PersonModel
+from agr_literature_service.api.models import EmailModel, PersonModel, ReferenceEmailModel
 from agr_literature_service.api.crud.person_crud import normalize_email
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
@@ -197,11 +197,32 @@ def patch(db: Session, email_id: int, patch_dict: Dict[str, Any]) -> Dict[str, A
 
 
 def destroy(db: Session, email_id: int) -> None:
+    """
+    Delete an email row.
+
+    This will fail if the email has any reference_email relations.
+    Use this only for emails that are not linked to any references.
+    """
     obj = db.query(EmailModel).filter(EmailModel.email_id == email_id).first()
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Email with email_id {email_id} not found",
         )
+
+    # Check if this email has any reference relations
+    has_reference_relations = (
+        db.query(ReferenceEmailModel.reference_email_id)
+        .filter(ReferenceEmailModel.email_id == email_id)
+        .first()
+        is not None
+    )
+    if has_reference_relations:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot delete email {email_id}: it has reference relations. "
+                   "Remove the reference-email links first.",
+        )
+
     db.delete(obj)
     db.commit()
