@@ -191,6 +191,13 @@ def search_references(
                     "size": facets_limits.get("pubmed_publication_status.keyword", 10)
                 }
             },
+            "retraction_status.keyword": {
+                "terms": {
+                    "field": "retraction_status",
+                    "min_doc_count": 0,
+                    "size": facets_limits.get("retraction_status.keyword", 10)
+                }
+            },
             "mods_in_corpus.keyword": {
                 "terms": {
                     "field": "mods_in_corpus.keyword",
@@ -534,6 +541,11 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         inner = agg.get("terms") if "terms" in agg else agg.get("aggs", {}).get("terms")
         if isinstance(inner, dict) and "buckets" in inner:
             res['aggregations']["authors.name.keyword"] = inner
+
+    # add human-readable names to retraction_status aggregation
+    retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
+    if retraction_status_agg:
+        add_curie_to_name_values(retraction_status_agg)
 
     return {
         "hits": hits,
