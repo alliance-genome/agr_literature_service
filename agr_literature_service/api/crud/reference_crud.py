@@ -537,6 +537,16 @@ def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresse
     Then:
       - Delete existing reference_email rows for this reference.
       - Insert new reference_email rows for each resolved email_id.
+
+    NOTE: This function only modifies the reference_email association table.
+    It does NOT delete any rows from the email table, even when email addresses
+    are removed from a reference. This is intentional because:
+      - Email rows may be shared with Person records (via person_id).
+      - Deleting an email row could corrupt person-email data.
+      - Orphaned email rows (person_id=NULL, no reference_email links) are harmless.
+
+    If you need to delete email rows, use email_crud.destroy() with caution,
+    and only after verifying the email has no Person or Reference relations.
     """
 
     reference = get_reference(db, curie_or_reference_id)
@@ -610,9 +620,13 @@ def set_reference_emails(db: Session, curie_or_reference_id: str, email_addresse
 def add_reference_email(db: Session, curie_or_reference_id: str, email_address: str):
     """
     Add a single email association to a reference.
-    - Reuse active EmailModel if exists.
+    - Reuse active EmailModel if exists (may be owned by a Person).
     - Otherwise create a new EmailModel (person_id=NULL, is_primary=NULL).
     - Add a new reference_email row (unless it already exists).
+
+    NOTE: Email rows are reused, not duplicated. If an email_address already
+    exists in the email table (including Person-owned emails), that row is
+    linked via reference_email rather than creating a duplicate.
     """
     reference = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
@@ -678,6 +692,10 @@ def add_reference_email(db: Session, curie_or_reference_id: str, email_address: 
 def delete_reference_email(db: Session, curie_or_reference_id: str, reference_email_id: int):
     """
     Remove one reference_email row linking a reference to an email.
+
+    NOTE: This only removes the association in reference_email table.
+    The underlying email row in the email table is NOT deleted.
+    See set_reference_emails() docstring for rationale.
     """
     reference = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
