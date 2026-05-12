@@ -428,10 +428,12 @@ def search_references(
                             }
                         })
                 else:
+                    # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
+                    es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
                     # Bundle multiple values under a single bool.must for this field
                     group: Dict[str, Any] = {"bool": {"must": []}}
                     for facet_value in facet_list_values:
-                        group["bool"]["must"].append({"term": {facet_field: facet_value}})
+                        group["bool"]["must"].append({"term": {es_field: facet_value}})
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(group)
 
     # Facets (negative)
@@ -449,8 +451,10 @@ def search_references(
                         }
                     })
             else:
+                # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
+                es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
                 for facet_value in facet_list_values:
-                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {facet_field: facet_value}})
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {es_field: facet_value}})
 
     # Date ranges
     date_range = apply_all_date_filters(
