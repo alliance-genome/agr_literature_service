@@ -191,6 +191,13 @@ def search_references(
                     "size": facets_limits.get("pubmed_publication_status.keyword", 10)
                 }
             },
+            "retraction_status.keyword": {
+                "terms": {
+                    "field": "retraction_status",
+                    "min_doc_count": 0,
+                    "size": facets_limits.get("retraction_status.keyword", 10)
+                }
+            },
             "mods_in_corpus.keyword": {
                 "terms": {
                     "field": "mods_in_corpus.keyword",
@@ -421,10 +428,12 @@ def search_references(
                             }
                         })
                 else:
+                    # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
+                    es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
                     # Bundle multiple values under a single bool.must for this field
                     group: Dict[str, Any] = {"bool": {"must": []}}
                     for facet_value in facet_list_values:
-                        group["bool"]["must"].append({"term": {facet_field: facet_value}})
+                        group["bool"]["must"].append({"term": {es_field: facet_value}})
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(group)
 
     # Facets (negative)
@@ -442,8 +451,10 @@ def search_references(
                         }
                     })
             else:
+                # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
+                es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
                 for facet_value in facet_list_values:
-                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {facet_field: facet_value}})
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({"term": {es_field: facet_value}})
 
     # Date ranges
     date_range = apply_all_date_filters(
@@ -534,6 +545,11 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         inner = agg.get("terms") if "terms" in agg else agg.get("aggs", {}).get("terms")
         if isinstance(inner, dict) and "buckets" in inner:
             res['aggregations']["authors.name.keyword"] = inner
+
+    # add human-readable names to retraction_status aggregation
+    retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
+    if retraction_status_agg:
+        add_curie_to_name_values(retraction_status_agg)
 
     return {
         "hits": hits,
