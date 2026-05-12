@@ -42,7 +42,9 @@ class PersonModel(Base, AuditedModel):
     # Note: cascade does NOT include "delete" or "delete-orphan" for emails.
     # Email deletion is handled manually in person_crud.destroy() to preserve
     # emails that have reference relations (they get detached instead of deleted).
-    emails = relationship("EmailModel", back_populates="person")
+    # passive_deletes=True tells SQLAlchemy to let the DB handle SET NULL via FK constraint,
+    # avoiding redundant loads and updates when a person is deleted.
+    emails = relationship("EmailModel", back_populates="person", passive_deletes=True)
     cross_references = relationship("PersonCrossReferenceModel", back_populates="person", cascade="all, delete-orphan")
     settings = relationship("PersonSettingModel", back_populates="person", cascade="all, delete-orphan")
     names = relationship("PersonNameModel", back_populates="person", cascade="all, delete-orphan")

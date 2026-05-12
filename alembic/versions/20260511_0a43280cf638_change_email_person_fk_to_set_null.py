@@ -1,6 +1,6 @@
 """change email.person_id FK from CASCADE to SET NULL
 
-Revision ID: 6a1b2c3d4e5f
+Revision ID: 0a43280cf638
 Revises: 5f3a8e2d1c4b
 Create Date: 2026-05-11
 
@@ -15,7 +15,7 @@ from alembic import op
 
 
 # revision identifiers, used by Alembic.
-revision = "6a1b2c3d4e5f"
+revision = "0a43280cf638"
 down_revision = "5f3a8e2d1c4b"
 branch_labels = None
 depends_on = None
