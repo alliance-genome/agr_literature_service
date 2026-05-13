@@ -4,7 +4,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class AuditedObjectModelSchema(BaseModel):
-    model_config = ConfigDict(extra="ignore", from_attributes=True)
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     date_created: Optional[datetime] = None
     date_updated: Optional[datetime] = None
