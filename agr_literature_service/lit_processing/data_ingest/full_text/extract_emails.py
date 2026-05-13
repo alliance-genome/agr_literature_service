@@ -390,15 +390,6 @@ def _md_bytes_to_plain_text(md_bytes: bytes) -> str:
     )
 
 
-def _tei_bytes_to_plain_text(tei_bytes: bytes) -> str:
-    """Fallback when no main MD file is available yet: convert the TEI bytes
-    to Markdown in-process, then re-use the Markdown plain-text path so both
-    code paths share the same section toggles.
-    """
-    md_text = convert_xml_to_markdown(tei_bytes, "tei")
-    return _md_bytes_to_plain_text(md_text.encode("utf-8"))
-
-
 # ----------------------------------------------------------------------
 # DB mapping (workflow-tag-based, MD preferred with TEI fallback)
 # ----------------------------------------------------------------------
