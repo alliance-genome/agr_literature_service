@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 class CopyrightLicenseSchemaPost(BaseModel):
     """Schema for creating or posting a copyright license."""
     model_config = ConfigDict(
-        extra='ignore',        # ignore unexpected fields
+        extra='forbid',        # forbid unexpected fields
         from_attributes=True    # enable ORM->model initialization
     )
 
