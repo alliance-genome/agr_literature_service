@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.models import EmailModel, PersonModel
+from agr_literature_service.api.models import EmailModel, PersonModel, ReferenceEmailModel
 from agr_literature_service.api.crud.person_crud import normalize_email
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
@@ -135,6 +135,15 @@ def patch(db: Session, email_id: int, patch_dict: Dict[str, Any]) -> Dict[str, A
       - date_invalidated
       - is_primary (for person emails, must be True/False, not None)
         * If set to True, demotes other primaries for the same person.
+
+    WARNING: Email rows may be shared between Person and Reference records.
+    An email with person_id set is owned by that Person, but it may also be
+    linked to References via the reference_email table. Patching the email_address
+    here will affect BOTH the Person's email AND any Reference associations.
+
+    Similarly, emails created via reference PUT/POST (with person_id=NULL) may
+    later be associated with a Person. Use caution when modifying email_address
+    to avoid unintended side effects on person-email data.
     """
     obj: Optional[EmailModel] = db.query(EmailModel).filter(EmailModel.email_id == email_id).first()
     if not obj:
@@ -197,11 +206,45 @@ def patch(db: Session, email_id: int, patch_dict: Dict[str, Any]) -> Dict[str, A
 
 
 def destroy(db: Session, email_id: int) -> None:
+    """
+    Delete an email row.
+
+    This will fail if the email has any reference_email relations.
+    Use this only for emails that are not linked to any references.
+
+    WARNING: Email rows may be shared between Person and Reference records.
+    Even if an email row has person_id=NULL (i.e., not currently owned by a
+    Person), it may have been created via a reference and could later be
+    associated with a Person.
+
+    Deleting Person-owned emails (person_id NOT NULL) is generally safe if
+    there are no reference relations, but be aware that:
+    - Scripts processing references only modify reference_email associations
+    - They do NOT delete underlying email rows
+    - Deleting an email that a Person relies on will remove it from their record
+
+    Always verify that the email is not in use by any Person before deleting.
+    """
     obj = db.query(EmailModel).filter(EmailModel.email_id == email_id).first()
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Email with email_id {email_id} not found",
         )
+
+    # Check if this email has any reference relations
+    has_reference_relations = (
+        db.query(ReferenceEmailModel.reference_email_id)
+        .filter(ReferenceEmailModel.email_id == email_id)
+        .first()
+        is not None
+    )
+    if has_reference_relations:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cannot delete email {email_id}: it has reference relations. "
+                   "Remove the reference-email links first.",
+        )
+
     db.delete(obj)
     db.commit()

@@ -26,9 +26,11 @@ class EmailModel(Base, AuditedModel):
     email_id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Allow person_id to be NULL
+    # Use SET NULL instead of CASCADE so emails with reference relations
+    # are preserved (detached) when a person is deleted.
     person_id = Column(
         Integer,
-        ForeignKey("person.person_id", ondelete="CASCADE"),
+        ForeignKey("person.person_id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
