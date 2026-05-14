@@ -6,7 +6,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import DatasetModel
+from agr_literature_service.api.models import DatasetModel, ReferenceModel
 from agr_literature_service.api.models.dataset_model import DatasetEntryModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
@@ -95,6 +95,35 @@ class TestDataset:
             dataset_entry: DatasetEntryModel = dataset.dataset_entries[0]
             assert dataset_entry.reference_curie == test_topic_entity_tag.related_ref_curie
 
+
+    def test_add_dataset_entry_rejects_retracted_reference(self, db, auth_headers, test_dataset, test_topic_entity_tag):  # noqa
+        ref_curie = test_topic_entity_tag.related_ref_curie
+        reference = db.query(ReferenceModel).filter(
+            ReferenceModel.curie == ref_curie).one()
+        reference.retraction_status = "ATP:0000346"
+        db.commit()
+        with TestClient(app) as client:
+            dataset_entry_data = {
+                "mod_abbreviation": test_dataset.mod_abbreviation,
+                "data_type": test_dataset.data_type,
+                "dataset_type": test_dataset.dataset_type,
+                "version": test_dataset.version,
+                "reference_curie": ref_curie,
+                "classification_value": "class_1",
+                "entity": None,
+                "supporting_topic_entity_tag_id": test_topic_entity_tag.new_tet_id
+            }
+            response = client.post(url="/datasets/data_entry/", json=dataset_entry_data, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert "retracted" in response.json()["detail"].lower()
+
+            dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
+                                              f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
+                                              f"{test_dataset.version}/",
+                                          headers=auth_headers).json()
+            dataset = db.query(DatasetModel).filter(
+                DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()
+            assert len(dataset.dataset_entries) == 0
 
     def test_remove_dataset_entry(self, db, auth_headers, test_dataset, test_topic_entity_tag):  # noqa
         with TestClient(app) as client:
