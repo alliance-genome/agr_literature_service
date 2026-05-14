@@ -205,23 +205,39 @@ def get_referencefiles_by_md5(db: Session, md5sum: str) -> List[dict]:
 
         mods_payload: List[dict] = []
         for ref_file_mod in ref_file.referencefile_mods:
-            mod_payload = jsonable_encoder(ref_file_mod)
-            mod_payload.pop("mod_id", None)
-            mod_payload.pop("referencefile_id", None)
-            mod_payload["mod_abbreviation"] = (
-                ref_file_mod.mod.abbreviation if ref_file_mod.mod is not None else None
-            )
-            mods_payload.append(mod_payload)
+            mods_payload.append({
+                "referencefile_mod_id": ref_file_mod.referencefile_mod_id,
+                "mod_abbreviation": (
+                    ref_file_mod.mod.abbreviation if ref_file_mod.mod is not None else None
+                ),
+                "date_created": ref_file_mod.date_created,
+                "date_updated": ref_file_mod.date_updated,
+                "created_by": ref_file_mod.created_by,
+                "updated_by": ref_file_mod.updated_by,
+            })
 
-        match_payload = jsonable_encoder(ref_file)
-        match_payload["reference_curie"] = reference.curie
-        match_payload["open_access"] = open_access
-        match_payload["copyright_license_name"] = copyright_license_name
-        match_payload["referencefile_mods"] = mods_payload
-        match_payload["converted_referencefiles"] = _find_converted_derived_for_source(
-            db, ref_file
-        )
-        results.append(match_payload)
+        results.append({
+            "referencefile_id": ref_file.referencefile_id,
+            "reference_id": ref_file.reference_id,
+            "reference_curie": reference.curie,
+            "display_name": ref_file.display_name,
+            "file_class": ref_file.file_class,
+            "file_publication_status": ref_file.file_publication_status,
+            "file_extension": ref_file.file_extension,
+            "pdf_type": ref_file.pdf_type,
+            "md5sum": ref_file.md5sum,
+            "is_annotation": bool(ref_file.is_annotation),
+            "open_access": open_access,
+            "copyright_license_name": copyright_license_name,
+            "date_created": ref_file.date_created,
+            "date_updated": ref_file.date_updated,
+            "created_by": ref_file.created_by,
+            "updated_by": ref_file.updated_by,
+            "referencefile_mods": mods_payload,
+            "converted_referencefiles": _find_converted_derived_for_source(
+                db, ref_file
+            ),
+        })
     return results
 
 
