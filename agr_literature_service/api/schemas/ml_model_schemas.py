@@ -26,6 +26,7 @@ class MLModelSchemaBase(BaseModel):
     data_novelty: Optional[str] = None
     species: Optional[str] = None
     file_classes: Optional[List[str]] = None
+    description: Optional[str] = None
 
 
 class MLModelSchemaPost(MLModelSchemaBase):

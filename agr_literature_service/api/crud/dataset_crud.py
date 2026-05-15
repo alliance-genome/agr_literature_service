@@ -141,7 +141,17 @@ def add_entry_to_dataset(db: Session, request: DatasetEntrySchemaPost):
     if dataset.frozen:
         raise HTTPException(status_code=403, detail="Dataset is frozen")
     # check if reference curie is valid
-    get_reference(db, curie_or_reference_id=request.reference_curie)
+    reference = get_reference(db, curie_or_reference_id=request.reference_curie)
+    # SCRUM-5784: exclude retracted references from training sets so bad
+    # data isn't used to classify papers. retraction_status is NULL for
+    # non-retracted references and an ATP curie otherwise.
+    if reference.retraction_status:
+        raise HTTPException(
+            status_code=422,
+            detail=(f"Reference {request.reference_curie} is retracted "
+                    f"(retraction_status={reference.retraction_status}) "
+                    f"and cannot be added to a dataset.")
+        )
     new_dataset_entry = DatasetEntryModel(
         dataset_id=dataset.dataset_id,
         supporting_topic_entity_tag_id=request.supporting_topic_entity_tag_id,
