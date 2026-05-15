@@ -8,9 +8,11 @@ This script:
 import json
 import logging
 import re
-from os import environ
 
-from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session
+
+from agr_literature_service.api.models.ml_model_model import MLModel
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,45 +55,39 @@ def parse_entity_extractor_params(description: str) -> dict:
 
 def load_descriptions():
     """Load descriptions from TSV file and update ml_model table."""
-    db_host = environ.get("PSQL_HOST", "localhost")
-    db_port = environ.get("PSQL_PORT", "5432")
-    db_name = environ.get("PSQL_DATABASE", "literature")
-    db_user = environ.get("PSQL_USERNAME", "")
-    db_pass = environ.get("PSQL_PASSWORD", "")
-    url = f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
-    engine = create_engine(url)
+    db_session: Session = create_postgres_session(False)
 
-    # Read TSV file
-    descriptions = {}
-    with open(TSV_FILE_PATH, 'r') as f:
-        # Skip header
-        next(f)
-        for line in f:
-            parts = line.strip().split('\t')
-            if len(parts) >= 6:
-                try:
-                    ml_model_id = int(parts[0])
-                    description = parts[5]
-                    descriptions[ml_model_id] = description
-                except ValueError:
-                    logger.warning("Could not parse ml_model_id from line: %s", line[:50])
+    try:
+        # Read TSV file
+        descriptions = {}
+        with open(TSV_FILE_PATH, 'r') as f:
+            # Skip header
+            next(f)
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) >= 6:
+                    try:
+                        ml_model_id = int(parts[0])
+                        description = parts[5]
+                        descriptions[ml_model_id] = description
+                    except ValueError:
+                        logger.warning("Could not parse ml_model_id from line: %s", line[:50])
 
-    logger.info("Loaded %d descriptions from TSV file", len(descriptions))
+        logger.info("Loaded %d descriptions from TSV file", len(descriptions))
 
-    with engine.begin() as conn:
         # Update descriptions for all models
         desc_updated = 0
         for ml_model_id, description in descriptions.items():
-            result = conn.execute(
-                text(
-                    "UPDATE ml_model SET description = :description "
-                    "WHERE ml_model_id = :ml_model_id"
-                ),
-                {"description": description, "ml_model_id": ml_model_id}
-            )
-            if result.rowcount > 0:
+            model = db_session.query(MLModel).filter(
+                MLModel.ml_model_id == ml_model_id
+            ).first()
+
+            if model:
+                model.description = description
                 desc_updated += 1
                 logger.debug("Updated description for ml_model_id=%d", ml_model_id)
+            else:
+                logger.warning("ml_model_id=%d not found in database", ml_model_id)
 
         logger.info("Updated descriptions for %d ml_model rows", desc_updated)
 
@@ -109,15 +105,13 @@ def load_descriptions():
             params = parse_entity_extractor_params(description)
 
             if params:
-                params_json = json.dumps(params)
-                result = conn.execute(
-                    text(
-                        "UPDATE ml_model SET parameters = :parameters "
-                        "WHERE ml_model_id = :ml_model_id"
-                    ),
-                    {"parameters": params_json, "ml_model_id": ml_model_id}
-                )
-                if result.rowcount > 0:
+                model = db_session.query(MLModel).filter(
+                    MLModel.ml_model_id == ml_model_id
+                ).first()
+
+                if model:
+                    params_json = json.dumps(params)
+                    model.parameters = params_json
                     params_updated += 1
                     logger.info(
                         "Updated parameters for ml_model_id=%d: %s",
@@ -129,22 +123,27 @@ def load_descriptions():
                     ml_model_id
                 )
 
+        db_session.commit()
         logger.info("Updated parameters for %d WB entity extractors", params_updated)
 
         # Report the results
         for ml_model_id in WB_ENTITY_EXTRACTOR_IDS:
-            row = conn.execute(
-                text(
-                    "SELECT ml_model_id, topic, parameters, description "
-                    "FROM ml_model WHERE ml_model_id = :ml_model_id"
-                ),
-                {"ml_model_id": ml_model_id}
-            ).fetchone()
-            if row:
+            model = db_session.query(MLModel).filter(
+                MLModel.ml_model_id == ml_model_id
+            ).first()
+
+            if model:
                 logger.info(
                     "ml_model_id=%d topic=%s parameters=%s",
-                    row[0], row[1], row[2]
+                    model.ml_model_id, model.topic, model.parameters
                 )
+
+    except Exception as e:
+        logger.error("Error during update: %s", e)
+        db_session.rollback()
+        raise
+    finally:
+        db_session.close()
 
 
 if __name__ == "__main__":
