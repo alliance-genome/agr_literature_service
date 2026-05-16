@@ -114,7 +114,67 @@ class TestPostWithRetry:
             result = mod._post_with_retry("https://example/", {"q": 1})
         assert result == {"ok": True}
         assert mock_post.call_count == 2
-        mock_sleep.assert_called_with(mod.HTTP_RETRY_WAIT_SECONDS)
+        # First retry waits BASE * 2**0 = BASE seconds.
+        mock_sleep.assert_called_with(mod.HTTP_BACKOFF_BASE_SECONDS)
+
+    @patch.object(mod.requests, "post")
+    def test_retries_on_5xx(self, mock_post):
+        server_err = MagicMock(status_code=503)
+        ok = MagicMock(status_code=200)
+        ok.json.return_value = {"ok": True}
+        mock_post.side_effect = [server_err, ok]
+        with patch.object(mod.time, "sleep"):
+            result = mod._post_with_retry("https://example/", {"q": 1})
+        assert result == {"ok": True}
+        assert mock_post.call_count == 2
+
+    @patch.object(mod.requests, "post")
+    def test_retries_on_connection_error(self, mock_post):
+        ok = MagicMock(status_code=200)
+        ok.json.return_value = {"ok": True}
+        mock_post.side_effect = [
+            mod.requests.exceptions.ConnectionError("dns failure"),
+            ok,
+        ]
+        with patch.object(mod.time, "sleep"):
+            result = mod._post_with_retry("https://example/", {"q": 1})
+        assert result == {"ok": True}
+        assert mock_post.call_count == 2
+
+    @patch.object(mod.requests, "post")
+    def test_uses_exponential_backoff(self, mock_post):
+        server_err = MagicMock(status_code=502)
+        ok = MagicMock(status_code=200)
+        ok.json.return_value = {"ok": True}
+        mock_post.side_effect = [server_err, server_err, ok]
+        with patch.object(mod.time, "sleep") as mock_sleep:
+            mod._post_with_retry("https://example/", {"q": 1})
+        # Attempt 0 fails -> sleep BASE; attempt 1 fails -> sleep BASE*2.
+        sleeps = [c.args[0] for c in mock_sleep.call_args_list]
+        assert sleeps == [
+            mod.HTTP_BACKOFF_BASE_SECONDS,
+            mod.HTTP_BACKOFF_BASE_SECONDS * 2,
+        ]
+
+    @patch.object(mod.requests, "post")
+    def test_gives_up_after_max_attempts_5xx(self, mock_post):
+        server_err = MagicMock(status_code=503)
+        server_err.raise_for_status.side_effect = mod.requests.HTTPError("503")
+        mock_post.side_effect = [server_err] * mod.HTTP_MAX_ATTEMPTS
+        with patch.object(mod.time, "sleep"):
+            with pytest.raises(mod.requests.HTTPError):
+                mod._post_with_retry("https://example/", {"q": 1})
+        assert mock_post.call_count == mod.HTTP_MAX_ATTEMPTS
+
+    @patch.object(mod.requests, "post")
+    def test_gives_up_after_max_attempts_connection(self, mock_post):
+        mock_post.side_effect = [
+            mod.requests.exceptions.ConnectionError("nope")
+        ] * mod.HTTP_MAX_ATTEMPTS
+        with patch.object(mod.time, "sleep"):
+            with pytest.raises(mod.requests.exceptions.ConnectionError):
+                mod._post_with_retry("https://example/", {"q": 1})
+        assert mock_post.call_count == mod.HTTP_MAX_ATTEMPTS
 
 
 class TestLoad:
@@ -181,6 +241,49 @@ class TestLoad:
         db, _ = self._make_db(1234)
         counts = mod.load(db=db, pairs=[("1ABC", "11111")])
         assert counts == {"created": 0, "skipped_duplicate": 0, "missing_reference": 0, "errors": 1}
+
+    @patch.object(mod, "create_tag")
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "get_reference_id_by_pmid")
+    def test_pmid_cache_avoids_repeated_lookups(
+        self, mock_get_ref, mock_set_uid, mock_get_source, mock_create_tag
+    ):
+        mock_get_ref.return_value = 1234
+        mock_create_tag.return_value = {"status": "success"}
+        db, _ = self._make_db(1234)
+
+        # Three PDB IDs share PMID 11111; a fourth uses a different PMID.
+        pairs = [
+            ("1ABC", "11111"),
+            ("2DEF", "11111"),
+            ("3GHI", "11111"),
+            ("4JKL", "22222"),
+        ]
+        counts = mod.load(db=db, pairs=pairs)
+
+        assert counts["created"] == 4
+        # One get_reference_id_by_pmid call per distinct PMID, not per pair.
+        assert mock_get_ref.call_count == 2
+        # One ReferenceModel lookup per distinct PMID too.
+        assert db.query.call_count == 2
+
+    @patch.object(mod, "create_tag")
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "get_reference_id_by_pmid", return_value=None)
+    def test_pmid_cache_remembers_missing_lookups(
+        self, mock_get_ref, mock_set_uid, mock_get_source, mock_create_tag
+    ):
+        db, _ = self._make_db(None)
+
+        pairs = [("1ABC", "99999"), ("2DEF", "99999"), ("3GHI", "99999")]
+        counts = mod.load(db=db, pairs=pairs)
+
+        assert counts == {"created": 0, "skipped_duplicate": 0, "missing_reference": 3, "errors": 0}
+        # Misses are cached too: only one DB call for the shared PMID.
+        assert mock_get_ref.call_count == 1
+        mock_create_tag.assert_not_called()
 
 
 class TestIncludeEntityFieldsFlag:

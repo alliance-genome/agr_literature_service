@@ -39,8 +39,10 @@ RCSB_SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
 RCSB_GRAPHQL_URL = "https://data.rcsb.org/graphql"
 SEARCH_PAGE_SIZE = 10000
 GRAPHQL_BATCH_SIZE = 500
-HTTP_RETRY_WAIT_SECONDS = 10
 PAGE_PAUSE_SECONDS = 0.5
+HTTP_MAX_ATTEMPTS = 4
+HTTP_BACKOFF_BASE_SECONDS = 5
+HTTP_TIMEOUT_SECONDS = 60
 
 # Entity-mode flag (see SCRUM-3982). Default is entity mode; flip via env
 # `PDB_TET_INCLUDE_ENTITY=false` to fall back to topic-only TETs while the
@@ -53,12 +55,31 @@ logger.setLevel(logging.INFO)
 
 
 def _post_with_retry(url: str, body: dict) -> dict:
-    response = requests.post(url, json=body)
-    if response.status_code == 429:
-        time.sleep(HTTP_RETRY_WAIT_SECONDS)
-        response = requests.post(url, json=body)
-    response.raise_for_status()
-    return response.json()
+    """POST with exponential backoff on 429, 5xx, and connection/timeout errors."""
+    for attempt in range(HTTP_MAX_ATTEMPTS):
+        try:
+            response = requests.post(url, json=body, timeout=HTTP_TIMEOUT_SECONDS)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if attempt == HTTP_MAX_ATTEMPTS - 1:
+                raise
+            logger.warning(
+                "Network error contacting %s (attempt %d/%d): %s",
+                url, attempt + 1, HTTP_MAX_ATTEMPTS, e,
+            )
+            time.sleep(HTTP_BACKOFF_BASE_SECONDS * (2 ** attempt))
+            continue
+        if response.status_code == 429 or response.status_code >= 500:
+            if attempt == HTTP_MAX_ATTEMPTS - 1:
+                response.raise_for_status()
+            logger.warning(
+                "HTTP %d from %s (attempt %d/%d); backing off",
+                response.status_code, url, attempt + 1, HTTP_MAX_ATTEMPTS,
+            )
+            time.sleep(HTTP_BACKOFF_BASE_SECONDS * (2 ** attempt))
+            continue
+        response.raise_for_status()
+        return response.json()
+    raise RuntimeError("_post_with_retry exhausted attempts")  # pragma: no cover
 
 
 def _fetch_all_pdb_ids_with_pubmed() -> Iterator[str]:
@@ -184,17 +205,27 @@ def load(
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
     counts = {"created": 0, "skipped_duplicate": 0, "missing_reference": 0, "errors": 0}
+    # Many PDB entries cite the same paper; cache PMID -> (reference_id, curie)
+    # to avoid redundant DB lookups across the ~220K-pair stream.
+    pmid_cache: Dict[str, Optional[Tuple[int, str]]] = {}
     try:
         source_id = get_or_create_source(db)
         pair_iter = pairs if pairs is not None else fetch_pdb_pubmed_pairs()
         for pdb_id, pmid in pair_iter:
-            reference_id = get_reference_id_by_pmid(db, pmid)
-            if reference_id is None:
+            if pmid not in pmid_cache:
+                reference_id = get_reference_id_by_pmid(db, pmid)
+                if reference_id is None:
+                    pmid_cache[pmid] = None
+                else:
+                    reference = db.query(ReferenceModel).filter_by(reference_id=reference_id).one()
+                    pmid_cache[pmid] = (reference_id, reference.curie)
+            cached = pmid_cache[pmid]
+            if cached is None:
                 counts["missing_reference"] += 1
                 continue
-            reference = db.query(ReferenceModel).filter_by(reference_id=reference_id).one()
+            _, reference_curie = cached
             try:
-                result = create_tag(db, _build_payload(reference.curie, pdb_id, source_id))
+                result = create_tag(db, _build_payload(reference_curie, pdb_id, source_id))
             except Exception as e:
                 counts["errors"] += 1
                 logger.warning("create_tag failed for PMID:%s / %s: %s", pmid, pdb_id, e)
