@@ -95,6 +95,11 @@ class MLModel(Base):
         nullable=True
     )
 
+    description = Column(
+        String,
+        nullable=True
+    )
+
     __table_args__ = (
         UniqueConstraint('task_type', 'mod_id', 'topic', 'version_num', name='uq_ml_model_task_mod_topic_version'),
     )

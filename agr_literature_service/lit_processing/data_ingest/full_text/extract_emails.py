@@ -1,20 +1,33 @@
 """
-Extract author emails from TEI reference files.
+Extract author emails from Markdown reference files.
+
+The script reads the ABC-format Markdown produced by the conversion pipeline
+(``file_class='converted_merged_main'``, ``file_extension='md'``) and falls
+back to converting the TEI in-process via
+``agr_abc_document_parsers.convert_xml_to_markdown`` when no main MD file is
+available yet. Sub-articles are excluded from the extracted plain text.
 
 Two modes:
-  1) streaming (default): download TEI bytes -> extract -> load (no files saved)
-  2) files: optionally download TEI files to disk first, then read files -> extract -> load
+  1) streaming (default): download file bytes -> convert if needed -> extract -> load
+  2) files: optionally download MD files to disk first, then read files -> extract -> load
 
-Selection: for papers with "email extraction needed" tag AND have a tei file
+Selection: for papers with "email extraction needed" tag AND have either a
+converted_merged_main MD file or a TEI file we can convert.
 """
 
 import os
 import re
 import logging
 import argparse
-from typing import Dict, List, Set, Tuple, Optional
+from typing import Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import text
+
+from agr_abc_document_parsers import (
+    convert_xml_to_markdown,
+    extract_plain_text,
+    read_markdown,
+)
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.reference_crud import set_reference_emails
@@ -31,7 +44,7 @@ failed_tag = "ATP:0000356"
 
 # Defaults
 BATCH_SIZE = 200
-DEFAULT_TEI_DIR = "tei_files_for_email_extraction/"
+DEFAULT_MD_DIR = "md_files_for_email_extraction/"
 
 
 # ----------------------------------------------------------------------
@@ -131,7 +144,7 @@ def _is_role_or_system_email(email: str) -> bool:
 
 def _looks_like_garbage_local(local: str) -> bool:
     """
-    Drop obvious TEI concatenation / glue garbage in local-part.
+    Drop obvious concatenation / glue garbage in local-part.
     Conservative to avoid dropping legitimate addresses.
     """
     if not local:
@@ -153,7 +166,7 @@ def _looks_like_garbage_local(local: str) -> bool:
     if re.match(r"^[a-z]{10,}[a-z0-9._%+-]*\.[a-z0-9._%+-]+$", local):
         return True
 
-    # domain-like fragment appears inside local-part (strong TEI glue signal)
+    # domain-like fragment appears inside local-part (strong glue signal)
     if re.search(
         r"(?:^|[._-])[a-z0-9-]{1,30}\.(?:ac|edu|org|net|gov|com|info|io|co|me)\.(?:[a-z]{2})(?:[._-]|$)",
         local,
@@ -190,11 +203,6 @@ EMAIL_RE = re.compile(
     r"([A-Za-z0-9][A-Za-z0-9._%+-]{0,63}"
     r"@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,63})"
     r"(?![A-Za-z0-9._%+-])",
-    re.IGNORECASE,
-)
-
-EMAIL_TAG_RE = re.compile(
-    r"<email\b[^>]*>\s*([^<>\s]+@[^<>\s]+)\s*</email>",
     re.IGNORECASE,
 )
 
@@ -317,18 +325,7 @@ def extract_emails_primary(content: str, exclude: Set[str]) -> Tuple[List[str], 
     bad: List[str] = []
     seen: Set[str] = set()
 
-    # 1) <email> tags
-    for m in EMAIL_TAG_RE.finditer(content):
-        raw = m.group(1)
-
-        strict_matches = [mm.group(1) for mm in EMAIL_RE.finditer(raw)]
-        if strict_matches:
-            for s in strict_matches:
-                _dedupe_add(out, seen, exclude, s, bad=bad)
-        else:
-            _dedupe_add(out, seen, exclude, raw, bad=bad)
-
-    # 2) Strict global regex
+    # Strict global regex
     for m in EMAIL_RE.finditer(content):
         _dedupe_add(out, seen, exclude, m.group(1), bad=bad)
 
@@ -369,13 +366,40 @@ def _extract_from_content(
 
 
 # ----------------------------------------------------------------------
-# DB mapping (TEI only, workflow-tag-based)
+# Markdown plain-text extraction
 # ----------------------------------------------------------------------
-def get_agrkb_tei_reffile_mapping(db) -> Dict[str, Tuple[int, int, str]]:
+def _md_bytes_to_plain_text(md_bytes: bytes) -> str:
+    """Parse an ABC-format Markdown blob and return the plain text used for
+    email extraction. Sub-articles are excluded (per SCRUM-5893 acceptance
+    criteria); author / correspondence / metadata / keyword sections are
+    included so corresponding-author emails are not missed.
     """
-    curie -> (tei_referencefile_id, reference_id, mod_abbreviation)
+    try:
+        md_text = md_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        md_text = md_bytes.decode("latin-1", errors="replace")
 
-    Ensures TEI-only selection and deterministic choice when multiple TEI files exist.
+    doc = read_markdown(md_text)
+    return extract_plain_text(
+        doc,
+        include_authors=True,
+        include_correspondence=True,
+        include_metadata=True,
+        include_keywords=True,
+        include_sub_articles=False,
+    )
+
+
+# ----------------------------------------------------------------------
+# DB mapping (workflow-tag-based, MD preferred with TEI fallback)
+# ----------------------------------------------------------------------
+def get_agrkb_md_reffile_mapping(db) -> Dict[str, Tuple[Optional[int], Optional[int], int, str]]:
+    """
+    curie -> (md_referencefile_id, tei_referencefile_id, reference_id, mod_abbreviation)
+
+    Returns one row per (reference, mod) carrying the lowest-id main MD file
+    and/or the lowest-id TEI file. Callers prefer MD and fall back to TEI on
+    a per-curie basis.
     """
     rows = db.execute(
         text(
@@ -383,21 +407,36 @@ def get_agrkb_tei_reffile_mapping(db) -> Dict[str, Tuple[int, int, str]]:
             SELECT
               r.curie,
               r.reference_id,
-              MIN(rf.referencefile_id) AS referencefile_id,
-              m.abbreviation
+              m.abbreviation,
+              MIN(CASE
+                    WHEN rf.file_class = 'converted_merged_main'
+                     AND rf.file_extension = 'md'
+                    THEN rf.referencefile_id
+                  END) AS md_referencefile_id,
+              MIN(CASE
+                    WHEN rf.file_class = 'tei'
+                     AND rf.file_extension = 'tei'
+                    THEN rf.referencefile_id
+                  END) AS tei_referencefile_id
             FROM reference r
             JOIN workflow_tag wft ON wft.reference_id = r.reference_id
             JOIN mod m ON m.mod_id = wft.mod_id
             JOIN referencefile rf ON rf.reference_id = r.reference_id
             WHERE wft.workflow_tag_id = :email_extraction_needed
-              AND rf.file_class = 'tei'
+              AND (
+                    (rf.file_class = 'converted_merged_main' AND rf.file_extension = 'md')
+                 OR (rf.file_class = 'tei' AND rf.file_extension = 'tei')
+                  )
             GROUP BY r.curie, r.reference_id, m.abbreviation
             """
         ),
         {"email_extraction_needed": needed_tag},
     ).fetchall()
 
-    return {curie: (reffile_id, ref_id, mod) for curie, ref_id, reffile_id, mod in rows}
+    return {
+        curie: (md_id, tei_id, ref_id, mod)
+        for curie, ref_id, mod, md_id, tei_id in rows
+    }
 
 
 def transition_workflow(db, reference_id: int, mod: str, email_extraction_tag: str) -> None:
@@ -417,49 +456,106 @@ def _safe_mkdir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
 
 
-def _tei_path(tei_dir: str, curie: str) -> str:
-    return os.path.join(tei_dir, f"{curie}.tei")
+def _md_path(md_dir: str, curie: str) -> str:
+    return os.path.join(md_dir, f"{curie}.md")
 
 
-def download_tei_files_first(
-    tei_dir: str,
-    mapping: Dict[str, Tuple[int, int, str]],
+def _fetch_md_bytes_via_db(
+    db,
+    md_referencefile_id: Optional[int],
+    tei_referencefile_id: Optional[int],
+    curie: str,
+) -> Optional[bytes]:
+    """Return Markdown bytes for ``curie``: prefer the main MD file, otherwise
+    download the TEI and convert in-process. Returns None when neither yields
+    usable content.
+    """
+    if md_referencefile_id is not None:
+        try:
+            blob = download_file(
+                db=db,
+                referencefile_id=md_referencefile_id,
+                mod_access=ModAccess.ALL_ACCESS,
+                use_in_api=False,
+            )
+            if blob:
+                return blob
+            logger.warning(
+                "Main MD entry exists but download returned empty for %s "
+                "(referencefile_id=%s); will try TEI fallback",
+                curie,
+                md_referencefile_id,
+            )
+        except Exception:
+            logger.exception(
+                "Main MD download failed for %s (referencefile_id=%s); "
+                "will try TEI fallback",
+                curie,
+                md_referencefile_id,
+            )
+
+    if tei_referencefile_id is None:
+        return None
+
+    try:
+        tei_blob = download_file(
+            db=db,
+            referencefile_id=tei_referencefile_id,
+            mod_access=ModAccess.ALL_ACCESS,
+            use_in_api=False,
+        )
+        if not tei_blob:
+            logger.error(
+                "TEI download returned empty for %s (referencefile_id=%s)",
+                curie,
+                tei_referencefile_id,
+            )
+            return None
+        md_text = convert_xml_to_markdown(tei_blob, "tei")
+        return md_text.encode("utf-8")
+    except Exception:
+        logger.exception(
+            "TEI->MD conversion failed for %s (referencefile_id=%s)",
+            curie,
+            tei_referencefile_id,
+        )
+        return None
+
+
+def download_md_files_first(
+    md_dir: str,
+    mapping: Dict[str, Tuple[Optional[int], Optional[int], int, str]],
     overwrite: bool = False,
 ) -> None:
     """
-    Downloads TEI files to disk for all curies in mapping.
+    Downloads main MD files to disk for all curies in mapping. Falls back to
+    converting TEI to MD in-process when no main MD row is available.
     """
-    _safe_mkdir(tei_dir)
+    _safe_mkdir(md_dir)
 
     db = create_postgres_session(False)
     try:
-        for curie, (reffile_id, _ref_id, _mod) in mapping.items():
-            out_path = _tei_path(tei_dir, curie)
+        for curie, (md_id, tei_id, _ref_id, _mod) in mapping.items():
+            out_path = _md_path(md_dir, curie)
 
             if (not overwrite) and os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 continue
 
-            try:
-                blob = download_file(
-                    db=db,
-                    referencefile_id=reffile_id,
-                    mod_access=ModAccess.ALL_ACCESS,
-                    use_in_api=False,
-                )
-                if not blob:
-                    raise RuntimeError("Empty TEI content")
+            md_bytes = _fetch_md_bytes_via_db(db, md_id, tei_id, curie)
+            if md_bytes is None:
+                logger.error("Could not obtain MD bytes for %s", curie)
+                continue
 
-                # write data into a tmp file first so if the process crashes during writing,
-                # only the .tmp file is affected, the original out_path remains intact
-                tmp_path = out_path + ".tmp"
+            # write into a tmp file first so a crash during writing only
+            # affects the .tmp file, leaving the original out_path intact
+            tmp_path = out_path + ".tmp"
+            try:
                 with open(tmp_path, "wb") as f:
-                    f.write(blob)
+                    f.write(md_bytes)
                 os.replace(tmp_path, out_path)
             except Exception:
-                logger.exception("Download failed for %s (referencefile_id=%s)", curie, reffile_id)
-                # try to remove tmp if present
+                logger.exception("Failed to write MD file for %s to %s", curie, out_path)
                 try:
-                    tmp_path = out_path + ".tmp"
                     if os.path.exists(tmp_path):
                         os.remove(tmp_path)
                 except Exception:
@@ -472,7 +568,7 @@ def download_tei_files_first(
 # Processing implementations
 # ----------------------------------------------------------------------
 def process_and_load_streaming(
-    mapping: Dict[str, Tuple[int, int, str]],
+    mapping: Dict[str, Tuple[Optional[int], Optional[int], int, str]],
     exclude_list: List[str],
     print_suspicious: bool,
     batch_size: int,
@@ -486,22 +582,23 @@ def process_and_load_streaming(
     count = 0
 
     try:
-        for curie, (reffile_id, ref_id, mod) in mapping.items():
+        for curie, (md_id, tei_id, ref_id, mod) in mapping.items():
             count += 1
 
             try:
-                blob = download_file(
-                    db=db,
-                    referencefile_id=reffile_id,
-                    mod_access=ModAccess.ALL_ACCESS,
-                    use_in_api=False,
-                )
-                if not blob:
+                md_bytes = _fetch_md_bytes_via_db(db, md_id, tei_id, curie)
+                if md_bytes is None:
                     transition_workflow(db, ref_id, mod, failed_tag)
-                    logger.error("Empty TEI content for %s (referencefile_id=%s)", curie, reffile_id)
+                    db.commit()
+                    logger.error(
+                        "No usable MD/TEI content for %s (md_id=%s tei_id=%s)",
+                        curie,
+                        md_id,
+                        tei_id,
+                    )
                     continue
 
-                content = blob.decode("utf-8", errors="replace")
+                content = _md_bytes_to_plain_text(md_bytes)
                 emails, _bad = _extract_from_content(content, exclude, print_suspicious, curie)
 
                 set_reference_emails(db, curie, emails)
@@ -515,9 +612,10 @@ def process_and_load_streaming(
             except Exception as e:
                 db.rollback()
                 logger.exception(
-                    "Error processing/loading %s (referencefile_id=%s): %s",
+                    "Error processing/loading %s (md_id=%s tei_id=%s): %s",
                     curie,
-                    reffile_id,
+                    md_id,
+                    tei_id,
                     str(e),
                 )
                 # best effort: mark failed
@@ -549,15 +647,15 @@ def process_and_load_streaming(
 
 
 def process_and_load_from_files(
-    tei_dir: str,
-    mapping: Dict[str, Tuple[int, int, str]],
+    md_dir: str,
+    mapping: Dict[str, Tuple[Optional[int], Optional[int], int, str]],
     exclude_list: List[str],
     print_suspicious: bool,
     batch_size: int,
     require_file: bool = True,
 ) -> None:
     """
-    Files: read TEI from disk -> extract -> load.
+    Files: read Markdown from disk -> extract -> load.
     """
     exclude = {_normalize_email(e) for e in (exclude_list or []) if e}
 
@@ -565,13 +663,13 @@ def process_and_load_from_files(
     count = 0
 
     try:
-        for curie, (_reffile_id, ref_id, mod) in mapping.items():
+        for curie, (_md_id, _tei_id, ref_id, mod) in mapping.items():
             count += 1
 
-            path = _tei_path(tei_dir, curie)
+            path = _md_path(md_dir, curie)
             if (not os.path.exists(path)) or os.path.getsize(path) == 0:
                 if require_file:
-                    logger.warning("Missing/empty TEI file for %s: %s", curie, path)
+                    logger.warning("Missing/empty MD file for %s: %s", curie, path)
                     try:
                         transition_workflow(db, ref_id, mod, failed_tag)
                         db.commit()
@@ -581,10 +679,10 @@ def process_and_load_from_files(
                 continue
 
             try:
-                # replaces them with the Unicode replacement character if bytes are not valid UTF-8
-                with open(path, "r", encoding="utf-8", errors="replace") as f:
-                    content = f.read()
+                with open(path, "rb") as f:
+                    md_bytes = f.read()
 
+                content = _md_bytes_to_plain_text(md_bytes)
                 emails, _bad = _extract_from_content(content, exclude, print_suspicious, curie)
 
                 set_reference_emails(db, curie, emails)
@@ -636,20 +734,20 @@ def parse_args() -> argparse.Namespace:
         "--mode",
         choices=["stream", "files"],
         default="stream",
-        help="stream: download+extract+load in memory (default). files: read TEI from disk.",
+        help="stream: download+extract+load in memory (default). files: read MD from disk.",
     )
 
     # file-mode controls
-    p.add_argument("--tei-dir", default=DEFAULT_TEI_DIR, help="Directory for cached TEI files.")
+    p.add_argument("--md-dir", default=DEFAULT_MD_DIR, help="Directory for cached MD files.")
     p.add_argument(
         "--download-first",
         action="store_true",
-        help="In --mode files, download TEIs to --tei-dir before processing.",
+        help="In --mode files, download MDs to --md-dir before processing.",
     )
     p.add_argument(
         "--download-only",
         action="store_true",
-        help="Download TEIs to --tei-dir and exit (no extraction/load).",
+        help="Download MDs to --md-dir and exit (no extraction/load).",
     )
     p.add_argument(
         "--process-only",
@@ -659,13 +757,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--overwrite",
         action="store_true",
-        help="When downloading, overwrite existing TEI files.",
+        help="When downloading, overwrite existing MD files.",
     )
 
     p.add_argument(
         "--print-suspicious",
         action="store_true",
-        help="Print rejected/invalid email candidates seen in TEI (debugging).",
+        help="Print rejected/invalid email candidates seen in Markdown (debugging).",
     )
     p.add_argument(
         "--require-file",
@@ -697,14 +795,14 @@ def main() -> None:
     # Exclude list (FB handled by blocked sets)
     exclude_list: List[str] = []
 
-    # Build mapping once (workflow-tag + TEI only)
+    # Build mapping once (workflow-tag + MD/TEI candidates)
     db = create_postgres_session(False)
     try:
-        mapping = get_agrkb_tei_reffile_mapping(db)
+        mapping = get_agrkb_md_reffile_mapping(db)
     finally:
         db.close()
 
-    logger.info("Found %s TEI files to process", len(mapping))
+    logger.info("Found %s references to process", len(mapping))
 
     # Resolve mode flags
     if args.process_only:
@@ -713,16 +811,16 @@ def main() -> None:
         args.download_only = False
 
     if args.download_only:
-        download_tei_files_first(args.tei_dir, mapping, overwrite=args.overwrite)
+        download_md_files_first(args.md_dir, mapping, overwrite=args.overwrite)
         logger.info("Download-only complete.")
         return
 
     if args.mode == "files":
         if args.download_first:
-            download_tei_files_first(args.tei_dir, mapping, overwrite=args.overwrite)
+            download_md_files_first(args.md_dir, mapping, overwrite=args.overwrite)
 
         process_and_load_from_files(
-            tei_dir=args.tei_dir,
+            md_dir=args.md_dir,
             mapping=mapping,
             exclude_list=exclude_list,
             print_suspicious=args.print_suspicious,

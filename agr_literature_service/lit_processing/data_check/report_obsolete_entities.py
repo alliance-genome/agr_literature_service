@@ -99,7 +99,7 @@ def add_missing_name_to_obsolete_ids(ateam_db, entity_type_name, obsolete_id_set
     for obsolete_id in obsolete_id_set:
         if obsolete_id in obsolete_id_to_name:
             continue
-        name = get_name_for_curie(obsolete_id)
+        name = get_name_for_curie(ateam_db, entity_type_name, obsolete_id)
         if name:
             obsolete_id_to_name[obsolete_id] = name
 

@@ -18,7 +18,8 @@ from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.file_conversion_schemas import \
     ConversionStatusResponseSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
-    ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost
+    ReferencefileSchemaUpdate, ReferencefileSchemaRelated, ReferenceFileAllMainPDFIdsSchemaPost, \
+    ReferencefileByMd5MatchSchema
 from agr_literature_service.api.utils.bulk_upload_utils import validate_archive_structure
 from agr_literature_service.api.utils.bulk_upload_manager import upload_manager
 from agr_literature_service.api.utils.bulk_upload_processor import process_bulk_upload_async
@@ -139,6 +140,28 @@ def download_additional_files_tarball(reference_id: int,
                                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                       db: Session = db_session):
     return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user) if user else [])
+
+
+@router.get('/by_md5/{md5sum}',
+            status_code=status.HTTP_200_OK,
+            response_model=List[ReferencefileByMd5MatchSchema])
+def show_by_md5(md5sum: str,
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                db: Session = db_session):
+    """
+    Look up referencefiles by MD5 checksum.
+
+    Supports PDF-only ingestion: a client that has computed the MD5 of a
+    local PDF can ask whether ABC already knows that content. Returns an
+    empty list if no referencefile matches.
+
+    Each match includes the reference curie / ABC Literature ID, MOD
+    associations, open-access flag, and any converted Markdown
+    referencefiles already derived from this source (when the match is a
+    PDF or nXML source). Multiple matches are possible when the same
+    content is attached to more than one reference.
+    """
+    return referencefile_crud.get_referencefiles_by_md5(db, md5sum)
 
 
 @router.delete('/{referencefile_id}',

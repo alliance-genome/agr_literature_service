@@ -46,7 +46,8 @@ def upload_model(
         negated: bool = True,
         data_novelty: str = None,
         species: str = None,
-        file_classes: str = None):
+        file_classes: str = None,
+        description: str = None):
     model_data = None
     if task_type and mod_abbreviation:
         file_classes_list = [c.strip() for c in file_classes.split(",") if c.strip()] if file_classes else None
@@ -66,7 +67,8 @@ def upload_model(
             "negated": negated,
             "data_novelty": data_novelty,
             "species": species,
-            "file_classes": file_classes_list
+            "file_classes": file_classes_list,
+            "description": description
         }
     elif model_data_file:
         try:
@@ -93,7 +95,8 @@ def upload_model(
         negated=model_data["negated"],
         data_novelty=model_data["data_novelty"],
         species=model_data["species"],
-        file_classes=model_data.get("file_classes")
+        file_classes=model_data.get("file_classes"),
+        description=model_data.get("description")
     )
     set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)

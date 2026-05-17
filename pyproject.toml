@@ -1,25 +1,3 @@
-[tool.poetry]
-name = "agr_literature_service"
-version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
-
-[tool.poetry.dev-dependencies]
-
-[build-system]
-version = "0.1.0"
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-
-[tool.isort]
-profile = "hug"
-src_paths = ["agr_literature_service"]
-py_version=39
-skip = [".gitignore", ".dockerignore", "__init__.py", "agr_literature_service/api/main.py"]
-skip_glob = ["docs/*"]
-multi_line_output = 3
-
 [tool.pytest.ini_options]
 addopts = "--cov --cov-fail-under=74 -vv --cov-report html --ignore non_pr_tests/"
 markers = [
