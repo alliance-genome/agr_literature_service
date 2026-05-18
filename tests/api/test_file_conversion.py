@@ -29,6 +29,7 @@ from agr_literature_service.api.utils.conversion_job_manager import (
 )
 
 from .test_reference import test_reference  # noqa: F401
+from .test_mod import test_mod  # noqa: F401
 from ..fixtures import db  # noqa: F401
 from .fixtures import auth_headers  # noqa: F401
 
@@ -622,3 +623,146 @@ class TestAssessReference:
         overwrite_assessment = _assess_reference(db, reference, overwrite_tei_md=True)
         assert overwrite_assessment["main_cached"] is False
         assert overwrite_assessment["main_missing"] is True
+
+
+# ---------------------------------------------------------------------------
+# SCRUM-6092: supplement failures must not block text_convert_job tag
+# transition. When a reference's main source is converted, the per-MOD tag
+# should land on on_success regardless of supplement outcomes (oversize PDF,
+# GROBID returning no extractable text, transient PDFX errors, etc.).
+# ---------------------------------------------------------------------------
+
+class TestSupplementFailureTagTransition:
+
+    @staticmethod
+    def _fake_job_for(reference, mod_id):
+        """Shape returned by workflow_tag_crud.get_jobs for a text_convert_job entry."""
+        return [{
+            "job_name": "text_convert_job",
+            "workflow_tag_id": "ATP:0000162",
+            "reference_id": reference.reference_id,
+            "reference_curie": reference.curie,
+            "reference_workflow_tag_id": 999_001,
+            "mod_id": mod_id,
+            "topic_id": None,
+        }]
+
+    def test_per_mod_status_exposes_main_converted_independently_of_supplements(
+        self, db, test_reference, test_mod, auth_headers,  # noqa: F811
+    ):
+        """SCRUM-6092: per_mod_pending_status must surface a main_converted
+        flag (and main_converted alone must be True when the main has a
+        converted_merged_main row, even if a supplement is still pending)."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            per_mod_pending_status,
+        )
+        from agr_literature_service.api.crud.reference_utils import get_reference
+
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_main_pdf_6092", pdf_type="pdf")
+        _make_referencefile(db, test_reference.new_ref_curie, "paper_merged",
+                            "converted_merged_main", "md", "md5_main_md_6092")
+        _make_referencefile(db, test_reference.new_ref_curie, "paper_supp",
+                            "supplement", "pdf", "md5_supp_pdf_6092")
+
+        reference = get_reference(
+            db=db,
+            curie_or_reference_id=test_reference.new_ref_curie,
+            load_referencefiles=True,
+        )
+
+        with patch(
+            "agr_literature_service.api.crud.file_conversion_crud."
+            "is_eligible_for_supplement_conversion",
+            return_value=True,
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_jobs",
+            return_value=self._fake_job_for(reference, test_mod.new_mod_id),
+        ):
+            statuses = per_mod_pending_status(db, reference)
+
+        assert len(statuses) == 1
+        entry = statuses[0]
+        assert entry["mod_abbreviation"] == test_mod.new_mod_abbreviation
+        assert entry["pending_main_count"] == 0
+        assert entry["pending_supplement_count"] == 1
+        assert entry["main_converted"] is True
+        assert entry["all_converted"] is False
+
+    def test_transition_lands_tag_when_supplement_pending_after_main_converted(
+        self, db, test_reference, test_mod, auth_headers,  # noqa: F811
+    ):
+        """SCRUM-6092: transition_completed_text_convert_tags must transition
+        the MOD's text_convert_job tag to on_success once the main source
+        is converted, even when a supplement remains pending (this is the
+        path the on-demand endpoint hits after a supplement conversion
+        fails for any reason — oversize, GROBID empty, PDFX error, etc.)."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            transition_completed_text_convert_tags,
+        )
+        from agr_literature_service.api.crud.reference_utils import get_reference
+
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_main_pdf_6092b", pdf_type="pdf")
+        _make_referencefile(db, test_reference.new_ref_curie, "paper_merged",
+                            "converted_merged_main", "md", "md5_main_md_6092b")
+        _make_referencefile(db, test_reference.new_ref_curie, "paper_supp",
+                            "supplement", "pdf", "md5_supp_pdf_6092b")
+
+        reference = get_reference(
+            db=db,
+            curie_or_reference_id=test_reference.new_ref_curie,
+            load_referencefiles=True,
+        )
+
+        with patch(
+            "agr_literature_service.api.crud.file_conversion_crud."
+            "is_eligible_for_supplement_conversion",
+            return_value=True,
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_jobs",
+            return_value=self._fake_job_for(reference, test_mod.new_mod_id),
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.job_change_atp_code",
+        ) as mock_transition:
+            transitioned = transition_completed_text_convert_tags(db, reference)
+
+        assert transitioned == 1
+        mock_transition.assert_called_once_with(db, 999_001, "on_success")
+
+    def test_transition_holds_when_main_still_pending(
+        self, db, test_reference, test_mod, auth_headers,  # noqa: F811
+    ):
+        """A main source that has not been converted must keep the tag in
+        place — supplement-failure tolerance is scoped to supplements only."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            transition_completed_text_convert_tags,
+        )
+        from agr_literature_service.api.crud.reference_utils import get_reference
+
+        _make_referencefile(db, test_reference.new_ref_curie, "paper",
+                            "main", "pdf", "md5_main_pdf_6092c", pdf_type="pdf")
+        # No converted_merged_main row → main is still pending.
+        _make_referencefile(db, test_reference.new_ref_curie, "paper_supp",
+                            "supplement", "pdf", "md5_supp_pdf_6092c")
+
+        reference = get_reference(
+            db=db,
+            curie_or_reference_id=test_reference.new_ref_curie,
+            load_referencefiles=True,
+        )
+
+        with patch(
+            "agr_literature_service.api.crud.file_conversion_crud."
+            "is_eligible_for_supplement_conversion",
+            return_value=True,
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.get_jobs",
+            return_value=self._fake_job_for(reference, test_mod.new_mod_id),
+        ), patch(
+            "agr_literature_service.api.crud.workflow_tag_crud.job_change_atp_code",
+        ) as mock_transition:
+            transitioned = transition_completed_text_convert_tags(db, reference)
+
+        assert transitioned == 0
+        mock_transition.assert_not_called()

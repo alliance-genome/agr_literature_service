@@ -205,6 +205,44 @@ def _file_is_for_mod(
     return False
 
 
+def mod_has_converted_main(
+    db: Session,
+    reference_id: int,
+    mod_abbreviation: Optional[str] = None,
+    *,
+    ignore_tei_derived: bool = False,
+) -> bool:
+    """
+    True iff at least one of this MOD's main sources (nXML or main PDF) has
+    already produced a ``converted_merged_main`` Markdown row.
+
+    Distinct from ``pending_main_sources`` returning ``[]``: that result lumps
+    together "every source converted" and "no source exists at all". For
+    deciding whether to land a MOD's text_convert_job tag we need the
+    affirmative signal that the main was actually converted.
+
+    ``mod_abbreviation=None`` disables the per-MOD filter (any main source
+    matches), mirroring the convention used by ``pending_main_sources``.
+    """
+    nxml = get_nxml_referencefile(db, reference_id)
+    if nxml is not None and _file_is_for_mod(nxml, mod_abbreviation):
+        if is_main_source_converted(
+            db, reference_id, nxml.display_name,
+            is_nxml=True, ignore_tei_derived=ignore_tei_derived,
+        ):
+            return True
+
+    for pdf in get_pdf_files_for_reference(db, reference_id, "main"):
+        if not _file_is_for_mod(pdf, mod_abbreviation):
+            continue
+        if is_main_source_converted(
+            db, reference_id, pdf.display_name,
+            is_nxml=False, ignore_tei_derived=ignore_tei_derived,
+        ):
+            return True
+    return False
+
+
 def pending_main_sources(
     db: Session,
     reference_id: int,
