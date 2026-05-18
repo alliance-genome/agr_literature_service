@@ -1,6 +1,6 @@
 import json
 from json import JSONDecodeError
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 from fastapi import APIRouter, Depends, Security, status, UploadFile, File, HTTPException
 
@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import ml_model_crud
-from agr_literature_service.api.schemas.ml_model_schemas import MLModelSchemaPost, MLModelSchemaShow
+from agr_literature_service.api.schemas.ml_model_schemas import (
+    MLModelSchemaPost,
+    MLModelSchemaShow,
+    MLModelSchemaShowWithNames,
+)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
 
@@ -100,6 +104,15 @@ def upload_model(
     )
     set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)
+
+
+@router.get('/all',
+            response_model=List[MLModelSchemaShowWithNames],
+            status_code=200)
+def get_all_models(mod_abbreviation: Optional[str] = None,
+                   db: Session = db_session,
+                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    return ml_model_crud.get_all_models(db, mod_abbreviation)
 
 
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}/{version}',

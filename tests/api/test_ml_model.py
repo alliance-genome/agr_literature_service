@@ -94,6 +94,43 @@ class TestMLModel:
         assert ml_model.data_novelty == "ATP:0000062"
         assert ml_model.file_classes == ["main"]
 
+    def test_get_all_models_no_filter(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/ml_model/all", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            payload = response.json()
+            assert isinstance(payload, list)
+            assert len(payload) >= 2
+            assert all("ml_model_id" in m for m in payload)
+
+    def test_get_all_models_filter_by_mod(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(
+                url=f"/ml_model/all?mod_abbreviation={test_mod.new_mod_abbreviation}",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            payload = response.json()
+            assert isinstance(payload, list)
+            assert len(payload) >= 2
+            assert all(m["mod_abbreviation"] == test_mod.new_mod_abbreviation for m in payload)
+
+    def test_get_all_models_unknown_mod(self, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/ml_model/all?mod_abbreviation=BOGUS", headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_get_all_models_has_atp_name_fields(self, test_ml_model, test_mod, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/ml_model/all", headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            payload = response.json()
+            assert len(payload) >= 1
+            row = next(m for m in payload if m["topic"] == "ATP:0000061")
+            assert "topic_name" in row
+            assert "data_novelty_name" in row
+            assert isinstance(row["topic_name"], str)
+            assert isinstance(row["data_novelty_name"], str)
+
     def test_get_model_metadata(self, test_ml_model, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.get(url=f"/ml_model/metadata/document_classification/{test_mod.new_mod_abbreviation}/ATP:0000061/1",

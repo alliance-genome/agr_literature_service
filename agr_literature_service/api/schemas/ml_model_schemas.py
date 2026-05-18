@@ -37,3 +37,9 @@ class MLModelSchemaPost(MLModelSchemaBase):
 class MLModelSchemaShow(MLModelSchemaBase):
     """Schema used when returning ML model with its primary key."""
     ml_model_id: int
+
+
+class MLModelSchemaShowWithNames(MLModelSchemaShow):
+    """Schema for list endpoints; adds human-readable ATP names parallel to topic/data_novelty."""
+    topic_name: Optional[str] = None
+    data_novelty_name: Optional[str] = None
