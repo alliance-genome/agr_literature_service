@@ -32,6 +32,7 @@ from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     get_nxml_referencefile,
     get_pdf_files_for_reference,
     is_eligible_for_supplement_conversion,
+    mod_has_converted_main,
     pending_main_sources,
     pending_supplement_sources,
     process_nxml_to_markdown,
@@ -199,9 +200,18 @@ def per_mod_pending_status(
     ``text_convert_job`` workflow tag for this reference.
 
     Each entry: ``{mod_abbreviation, reference_workflow_tag_id,
-    pending_main_count, pending_supplement_count, all_converted}``.
-    ``all_converted`` is True iff that MOD has no pending main or
-    supplement sources — i.e., that MOD's conversion is complete.
+    pending_main_count, pending_supplement_count, main_converted,
+    all_converted}``.
+
+    ``main_converted`` is True iff at least one of the MOD's main sources has
+    produced a ``converted_merged_main`` row — the signal that drives the
+    ``text_convert_job`` tag transition (SCRUM-6092: supplement failures
+    must not block the tag, so the transition decision keys off main only).
+
+    ``all_converted`` is True iff that MOD has no pending main or supplement
+    sources — i.e., everything PDFX/nXML could produce for the MOD is in
+    place. Useful to callers that want the complete picture; not used for
+    tag transitions.
     """
     from agr_literature_service.api.crud.workflow_tag_crud import get_jobs
     from agr_literature_service.api.models import ModModel
@@ -234,13 +244,19 @@ def per_mod_pending_status(
             )
         else:
             pending_supplements = []
+        main_converted = mod_has_converted_main(
+            db, reference.reference_id,
+            mod_abbreviation=mod_abbreviation,
+            ignore_tei_derived=overwrite_tei_md,
+        )
         out.append({
             "mod_abbreviation": mod_abbreviation,
             "reference_workflow_tag_id": job["reference_workflow_tag_id"],
             "pending_main_count": len(pending_main),
             "pending_supplement_count": len(pending_supplements),
+            "main_converted": main_converted,
             "all_converted": (
-                len(pending_main) == 0 and len(pending_supplements) == 0
+                main_converted and len(pending_supplements) == 0
             ),
         })
     return out
@@ -253,20 +269,21 @@ def transition_completed_text_convert_tags(
 ) -> int:
     """
     For each ``text_convert_job`` "needed" tag on this reference, transition
-    to ``on_success`` when no source files remain pending for that MOD.
-
-    Returns the number of tags transitioned.
+    to ``on_success`` once the MOD's main source has been converted, even
+    when supplement conversion(s) failed for any reason (SCRUM-6092:
+    oversize supplement, GROBID returning no extractable text, transient
+    PDFX errors, etc.). Returns the number of tags transitioned.
 
     Used by the on-demand endpoint to land all eligible MODs' workflow
-    tags after conversion + mod-association sync. Only transitions tags
-    whose MOD genuinely has nothing left to do — MODs with pending
-    sources stay in their current state.
+    tags after conversion + mod-association sync. The cron path
+    (pdf2md.process_single_reference) already keys success off the main
+    file alone, so this brings the on-demand path into alignment with it.
     """
     from agr_literature_service.api.crud.workflow_tag_crud import job_change_atp_code
 
     transitioned = 0
     for entry in per_mod_pending_status(db, reference, overwrite_tei_md):
-        if entry["all_converted"]:
+        if entry["main_converted"]:
             try:
                 job_change_atp_code(
                     db, entry["reference_workflow_tag_id"], "on_success"
@@ -530,8 +547,9 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
 
     ``per_mod_status`` lists every MOD with a text_convert_job tag for this
     reference and that MOD's conversion state (pending counts +
-    all_converted boolean). Best-effort: any error computing per-MOD
-    status returns an empty list rather than failing the whole response.
+    main_converted / all_converted booleans). Best-effort: any error
+    computing per-MOD status returns an empty list rather than failing
+    the whole response.
     """
     progress = _merge_progress(
         _job_progress_payload(job),
