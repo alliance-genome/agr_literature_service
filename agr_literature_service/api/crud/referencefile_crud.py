@@ -122,6 +122,125 @@ def show(db: Session, referencefile_id: int):
     return referencefile_dict
 
 
+_CONVERTED_FILE_CLASS_FOR_SOURCE = {
+    "main": "converted_merged_main",
+    "supplement": "converted_merged_supplement",
+    "nXML": "converted_merged_main",
+}
+
+# Suffixes appended to a source's display_name by the conversion pipeline
+# (pdf2md_utils, the legacy TEI→MD batch, and the nXML→MD path). Kept in
+# sync with file_conversion_crud._SUFFIX_TO_SOURCE_CLASS and
+# _PDFX_METHOD_SUFFIXES.
+_CONVERTED_DISPLAY_NAME_SUFFIXES = (
+    "_merged", "_grobid", "_docling", "_marker", "_tei", "_nxml",
+)
+
+
+def _find_converted_derived_for_source(db: Session,
+                                       source_ref_file: ReferencefileModel) -> List[dict]:
+    """Return converted Markdown referencefiles produced from ``source_ref_file``.
+
+    Uses the display_name suffix convention written by the conversion
+    pipeline to map a converted row back to its source PDF/nXML — same
+    convention used by ``file_conversion_crud._infer_source_info``.
+    """
+    converted_file_class = _CONVERTED_FILE_CLASS_FOR_SOURCE.get(source_ref_file.file_class)
+    if not converted_file_class:
+        return []
+    rows = db.query(ReferencefileModel).filter(
+        ReferencefileModel.reference_id == source_ref_file.reference_id,
+        ReferencefileModel.file_class == converted_file_class,
+        ReferencefileModel.file_extension == "md",
+        ReferencefileModel.file_publication_status == "final",
+    ).all()
+    derived: List[dict] = []
+    source_display_name = source_ref_file.display_name or ""
+    for r in rows:
+        display_name = r.display_name or ""
+        if not display_name.startswith(source_display_name):
+            continue
+        suffix = display_name[len(source_display_name):]
+        if suffix not in _CONVERTED_DISPLAY_NAME_SUFFIXES:
+            continue
+        derived.append({
+            "referencefile_id": int(r.referencefile_id),
+            "display_name": r.display_name,
+            "file_class": r.file_class,
+            "file_extension": r.file_extension,
+        })
+    return derived
+
+
+def get_referencefiles_by_md5(db: Session, md5sum: str) -> List[dict]:
+    """Look up every referencefile with the given MD5 checksum.
+
+    Supports the PDF-only ingestion flow (SCRUM-6055): given an MD5 the
+    client computed from an uploaded PDF, return any matching referencefiles
+    together with the reference curie, MOD associations, open-access /
+    license info, and (for source files) the converted Markdown rows
+    derived from that same source. A single MD5 may resolve to multiple
+    referencefiles when the same content is attached to more than one
+    reference.
+    """
+    ref_files = (
+        db.query(ReferencefileModel)
+        .filter(ReferencefileModel.md5sum == md5sum)
+        .options(
+            joinedload(ReferencefileModel.referencefile_mods).joinedload(
+                ReferencefileModAssociationModel.mod
+            ),
+            joinedload(ReferencefileModel.reference).joinedload(
+                ReferenceModel.copyright_license
+            ),
+        )
+        .all()
+    )
+    results: List[dict] = []
+    for ref_file in ref_files:
+        reference = ref_file.reference
+        copyright_license = reference.copyright_license if reference else None
+        open_access = bool(copyright_license and copyright_license.open_access)
+        copyright_license_name = copyright_license.name if copyright_license else None
+
+        mods_payload: List[dict] = []
+        for ref_file_mod in ref_file.referencefile_mods:
+            mods_payload.append({
+                "referencefile_mod_id": ref_file_mod.referencefile_mod_id,
+                "mod_abbreviation": (
+                    ref_file_mod.mod.abbreviation if ref_file_mod.mod is not None else None
+                ),
+                "date_created": ref_file_mod.date_created,
+                "date_updated": ref_file_mod.date_updated,
+                "created_by": ref_file_mod.created_by,
+                "updated_by": ref_file_mod.updated_by,
+            })
+
+        results.append({
+            "referencefile_id": ref_file.referencefile_id,
+            "reference_id": ref_file.reference_id,
+            "reference_curie": reference.curie,
+            "display_name": ref_file.display_name,
+            "file_class": ref_file.file_class,
+            "file_publication_status": ref_file.file_publication_status,
+            "file_extension": ref_file.file_extension,
+            "pdf_type": ref_file.pdf_type,
+            "md5sum": ref_file.md5sum,
+            "is_annotation": bool(ref_file.is_annotation),
+            "open_access": open_access,
+            "copyright_license_name": copyright_license_name,
+            "date_created": ref_file.date_created,
+            "date_updated": ref_file.date_updated,
+            "created_by": ref_file.created_by,
+            "updated_by": ref_file.updated_by,
+            "referencefile_mods": mods_payload,
+            "converted_referencefiles": _find_converted_derived_for_source(
+                db, ref_file
+            ),
+        })
+    return results
+
+
 def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchemaRelated]:
     logger.info("Show all referencefiles")
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
@@ -331,23 +450,15 @@ def check_if_paper_in_corpus(db, reference_curie, mod_abbr):
 
 def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already_converted: bool = False):  # pragma: no cover
     metadata["reference_curie"] = normalize_reference_curie(db, metadata["reference_curie"])
-    # TRANSIENT (remove with SCRUM-5867): converted Markdown outputs (file_class
-    # starting with 'converted_') bypass the is_file_upload_blocked guardrail.
-    # Rationale: during the TEI→Markdown migration, pipelines that run while
-    # extraction/classification are in progress still need to write out their
-    # converted_* rows without clashing with the safeguard intended for original
-    # source files. Remove this bypass when pdf2tei is decommissioned.
-    is_converted_output = str(metadata.get("file_class") or "").startswith("converted_")
     if metadata["mod_abbreviation"]:
         inCorpus = check_if_paper_in_corpus(db, metadata["reference_curie"], metadata["mod_abbreviation"])
         if not inCorpus:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"This paper ({metadata['reference_curie']}) is not in {metadata['mod_abbreviation']}.")
-        if not is_converted_output:
-            job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
-            if job_type:
-                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                    detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
+        job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+        if job_type:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
     if (
         metadata["file_class"] == 'main'

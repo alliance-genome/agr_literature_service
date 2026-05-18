@@ -233,3 +233,99 @@ class TestReferencefile:
                 assert mod["mod_abbreviation"] in mods_to_check
                 mods_to_check.remove(mod["mod_abbreviation"])
             assert len(mods_to_check) == 0
+
+    def test_show_by_md5_no_match(self, db, test_referencefile, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/reference/referencefile/by_md5/nonexistentmd5",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json() == []
+
+    def test_show_by_md5_single_match(self, db, test_referencefile, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(
+                url=f"/reference/referencefile/by_md5/{test_referencefile.md5sum}",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            matches = response.json()
+            assert len(matches) == 1
+            match = matches[0]
+            assert match["referencefile_id"] == test_referencefile.referencefile_id
+            assert match["md5sum"] == test_referencefile.md5sum
+            assert match["display_name"] == "Bob"
+            assert match["file_class"] == "main"
+            assert match["file_extension"] == "pdf"
+            assert match["pdf_type"] == "pdf"
+            assert match["reference_curie"] == test_referencefile.reference.curie
+            assert match["reference_id"] == test_referencefile.reference_id
+            # No copyright license attached → open_access defaults to False
+            assert match["open_access"] is False
+            assert match["copyright_license_name"] is None
+            # No converted Markdown rows exist for this PDF
+            assert match["converted_referencefiles"] == []
+
+    def test_show_by_md5_multi_reference_match(self, db, test_referencefile, test_reference2, auth_headers):  # noqa
+        populate_test_mods()
+        shared_md5 = test_referencefile.md5sum
+        second_file = {
+            "display_name": "Bob",
+            "reference_curie": test_reference2.new_ref_curie,
+            "file_class": "main",
+            "file_publication_status": "final",
+            "file_extension": "pdf",
+            "pdf_type": "pdf",
+            "md5sum": shared_md5,
+            "mod_abbreviation": "WB"
+        }
+        second_file_id = create_metadata(db, ReferencefileSchemaPost(**second_file))
+        with TestClient(app) as client:
+            response = client.get(
+                url=f"/reference/referencefile/by_md5/{shared_md5}",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            matches = response.json()
+            assert len(matches) == 2
+            ids = {m["referencefile_id"] for m in matches}
+            assert ids == {test_referencefile.referencefile_id, second_file_id}
+            curies = {m["reference_curie"] for m in matches}
+            assert curies == {test_referencefile.reference.curie,
+                              test_reference2.new_ref_curie}
+            mods_for_second = next(
+                m["referencefile_mods"] for m in matches
+                if m["referencefile_id"] == second_file_id
+            )
+            assert any(rm["mod_abbreviation"] == "WB" for rm in mods_for_second)
+
+    def test_show_by_md5_includes_converted_markdown(self, db, test_referencefile, auth_headers):  # noqa
+        converted = {
+            "display_name": f"{test_referencefile.display_name}_merged",
+            "reference_curie": test_referencefile.reference.curie,
+            "file_class": "converted_merged_main",
+            "file_publication_status": "final",
+            "file_extension": "md",
+            "pdf_type": None,
+            "md5sum": "9999999999"
+        }
+        converted_id = create_metadata(db, ReferencefileSchemaPost(**converted))
+        unrelated = {
+            "display_name": "Other_merged",
+            "reference_curie": test_referencefile.reference.curie,
+            "file_class": "converted_merged_main",
+            "file_publication_status": "final",
+            "file_extension": "md",
+            "pdf_type": None,
+            "md5sum": "8888888888"
+        }
+        create_metadata(db, ReferencefileSchemaPost(**unrelated))
+        with TestClient(app) as client:
+            response = client.get(
+                url=f"/reference/referencefile/by_md5/{test_referencefile.md5sum}",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            matches = response.json()
+            assert len(matches) == 1
+            derived = matches[0]["converted_referencefiles"]
+            assert len(derived) == 1
+            assert derived[0]["referencefile_id"] == converted_id
+            assert derived[0]["file_class"] == "converted_merged_main"
+            assert derived[0]["display_name"].startswith(test_referencefile.display_name)

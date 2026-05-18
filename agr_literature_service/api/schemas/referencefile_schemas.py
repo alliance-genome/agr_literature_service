@@ -87,3 +87,45 @@ class ReferenceFileAllMainPDFIdsSchemaPost(BaseModel):
 
     curies: List[str]
     mod_abbreviation: str
+
+
+class ReferencefileConvertedDerivedSchema(BaseModel):
+    """A converted Markdown referencefile derived from a given source PDF/nXML."""
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True
+    )
+
+    referencefile_id: int
+    display_name: str
+    file_class: str
+    file_extension: str
+
+
+class ReferencefileByMd5MatchSchema(AuditedObjectModelSchema):
+    """A referencefile matched by MD5 plus context needed by PDF-only callers.
+
+    Returned by ``GET /reference/referencefile/by_md5/{md5sum}``. For source
+    PDFs (file_class ``main``/``supplement``) or nXML inputs (file_class
+    ``nXML``), ``converted_referencefiles`` lists any converted Markdown
+    rows currently in the DB that were produced from this same source.
+    """
+    model_config = ConfigDict(
+        extra='forbid',
+        from_attributes=True
+    )
+
+    referencefile_id: int
+    reference_id: int
+    reference_curie: str
+    display_name: str
+    file_class: str
+    file_publication_status: str
+    file_extension: str
+    pdf_type: Optional[str] = None
+    md5sum: str
+    is_annotation: bool
+    open_access: bool
+    copyright_license_name: Optional[str] = None
+    referencefile_mods: List[ReferencefileModSchemaRelated]
+    converted_referencefiles: List[ReferencefileConvertedDerivedSchema]
