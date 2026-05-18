@@ -5,15 +5,21 @@ from os import path
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 import requests
+from fastapi import HTTPException
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud import cross_reference_crud
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
 from agr_literature_service.api.models import (
+    CrossReferenceModel,
     ModModel,
     ReferenceModel,
     TopicEntityTagModel,
     TopicEntityTagSourceModel,
+)
+from agr_literature_service.api.schemas.cross_reference_schemas import (
+    CrossReferenceSchemaPost,
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaPost,
@@ -26,6 +32,12 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import (
     create_postgres_session,
 )
 
+CURIE_PREFIX = "PDB"
+PAGE_REFERENCE = "reference"
+
+# Topic-only TET: flags each reference that has any PDB cross_reference as
+# being about protein structure, so downstream curation workflows still see
+# these papers via the TET system.
 PROTEIN_STRUCTURE_ATP = "ATP:0000091"
 DATA_NOVELTY_NOT_NEW = "ATP:0000335"
 ECO_AUTOMATIC_ASSERTION = "ECO_0006156"
@@ -33,8 +45,8 @@ SOURCE_METHOD = "PDB association pipeline"
 SOURCE_DATA_PROVIDER = "PDB"
 SECONDARY_DATA_PROVIDER_ABBR = "AGR"
 SOURCE_DESCRIPTION = (
-    "High throughput data from the PDB database associated with references "
-    "via load_pdb_associations.py"
+    "Protein-structure topic tag asserted for references with PDB cross_references "
+    "loaded by load_pdb_associations.py. PDB IDs themselves live in cross_reference."
 )
 
 RCSB_SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
@@ -46,16 +58,11 @@ HTTP_MAX_ATTEMPTS = 4
 HTTP_BACKOFF_BASE_SECONDS = 5
 HTTP_TIMEOUT_SECONDS = 60
 
-# Entity-mode flag (see SCRUM-3982). Default is entity mode; flip via env
-# `PDB_TET_INCLUDE_ENTITY=false` to fall back to topic-only TETs while the
-# exact entity field semantics are confirmed with curators.
-INCLUDE_ENTITY_FIELDS = os.environ.get("PDB_TET_INCLUDE_ENTITY", "true").lower() == "true"
-
-# Cleanup of stale TETs (PDB entries that were tagged in a previous run but
-# no longer present in RCSB) is gated behind a sanity threshold: if RCSB
+# Cleanup of stale PDB cross_references and topic-only TETs (PDB references no
+# longer represented in RCSB) is gated behind a sanity threshold: if RCSB
 # returns fewer than this many pairs we treat the fetch as suspect and skip
 # the cleanup so a bad run can't wipe out the table.
-PDB_CLEANUP_MIN_PAIRS = int(os.environ.get("PDB_TET_CLEANUP_MIN_PAIRS", "1000"))
+PDB_CLEANUP_MIN_PAIRS = int(os.environ.get("PDB_XREF_CLEANUP_MIN_PAIRS", "1000"))
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -187,24 +194,48 @@ def get_or_create_source(db: Session) -> int:
     return source.topic_entity_tag_source_id
 
 
-def _delete_stale_tets(
+def _delete_stale_xrefs(db: Session, current_curies: Set[str]) -> int:
+    """Delete non-obsolete PDB cross_references whose curie is no longer present
+    in the current RCSB view. Returns the deletion count."""
+    existing = db.query(
+        CrossReferenceModel.cross_reference_id,
+        CrossReferenceModel.curie,
+    ).filter(
+        CrossReferenceModel.curie_prefix == CURIE_PREFIX,
+        CrossReferenceModel.is_obsolete.is_(False),
+    ).all()
+    stale_ids = [
+        row.cross_reference_id
+        for row in existing
+        if row.curie not in current_curies
+    ]
+    if not stale_ids:
+        return 0
+    delete_stmt = delete(CrossReferenceModel).where(
+        CrossReferenceModel.cross_reference_id.in_(stale_ids)
+    )
+    result = db.execute(delete_stmt)
+    db.commit()
+    return result.rowcount or 0  # type: ignore[attr-defined]
+
+
+def _delete_stale_topic_tets(
     db: Session,
     source_id: int,
-    current_pairs: Set[Tuple[int, Optional[str]]],
+    current_reference_ids: Set[int],
 ) -> int:
-    """Delete TETs from this source whose (reference_id, entity) is no longer
-    present in the current RCSB view. Returns the deletion count."""
+    """Delete topic-only TETs from this source whose reference_id is no longer
+    in the current RCSB view. Returns the deletion count."""
     existing = db.query(
         TopicEntityTagModel.topic_entity_tag_id,
         TopicEntityTagModel.reference_id,
-        TopicEntityTagModel.entity,
     ).filter(
-        TopicEntityTagModel.topic_entity_tag_source_id == source_id
+        TopicEntityTagModel.topic_entity_tag_source_id == source_id,
     ).all()
     stale_ids = [
         row.topic_entity_tag_id
         for row in existing
-        if (row.reference_id, row.entity) not in current_pairs
+        if row.reference_id not in current_reference_ids
     ]
     if not stale_ids:
         return 0
@@ -216,19 +247,47 @@ def _delete_stale_tets(
     return result.rowcount or 0  # type: ignore[attr-defined]
 
 
-def _build_payload(reference_curie: str, pdb_id: str, source_id: int) -> TopicEntityTagSchemaPost:
-    data: Dict = {
-        "reference_curie": reference_curie,
-        "topic": PROTEIN_STRUCTURE_ATP,
-        "topic_entity_tag_source_id": source_id,
-        "data_novelty": DATA_NOVELTY_NOT_NEW,
-        "negated": False,
-    }
-    if INCLUDE_ENTITY_FIELDS:
-        data["entity_type"] = PROTEIN_STRUCTURE_ATP
-        data["entity"] = pdb_id
-        data["entity_id_validation"] = "alliance"
-    return TopicEntityTagSchemaPost(**data)
+def _build_xref_payload(reference_curie: str, pdb_id: str) -> CrossReferenceSchemaPost:
+    return CrossReferenceSchemaPost(
+        curie=f"{CURIE_PREFIX}:{pdb_id.upper()}",
+        reference_curie=reference_curie,
+        pages=[PAGE_REFERENCE],
+    )
+
+
+def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntityTagSchemaPost:
+    return TopicEntityTagSchemaPost(
+        reference_curie=reference_curie,
+        topic=PROTEIN_STRUCTURE_ATP,
+        topic_entity_tag_source_id=source_id,
+        data_novelty=DATA_NOVELTY_NOT_NEW,
+        negated=False,
+    )
+
+
+def _sync_topic_tets(
+    db: Session,
+    source_id: int,
+    reference_curies: Dict[int, str],
+    counts: Dict[str, int],
+) -> None:
+    """For each reference that has any PDB cross_reference this run, ensure a
+    topic-only protein-structure TET exists. `create_tag` is idempotent: it
+    returns status='exists' for duplicates."""
+    for reference_id, reference_curie in reference_curies.items():
+        try:
+            result = create_tag(db, _build_topic_tet_payload(reference_curie, source_id))
+        except Exception as e:
+            counts["errors"] += 1
+            logger.warning(
+                "topic-only TET create failed for reference_id=%s: %s",
+                reference_id, e,
+            )
+            continue
+        if result.get("status") == "success":
+            counts["topic_tet_created"] += 1
+        else:
+            counts["topic_tet_skipped_duplicate"] += 1
 
 
 def load(
@@ -247,16 +306,20 @@ def load(
         "missing_reference": 0,
         "errors": 0,
         "deleted_stale": 0,
+        "topic_tet_created": 0,
+        "topic_tet_skipped_duplicate": 0,
+        "topic_tet_deleted_stale": 0,
     }
     # Many PDB entries cite the same paper; cache PMID -> (reference_id, curie)
     # to avoid redundant DB lookups across the ~220K-pair stream.
     pmid_cache: Dict[str, Optional[Tuple[int, str]]] = {}
-    # Tracks every (reference_id, entity) we'd assert this run. After the loop
-    # we diff against the DB and delete TETs no longer in this set (i.e. PDB
-    # entries removed from RCSB since the last run). `entity` is None when
-    # running in topic-only mode; switching modes will rewrite all rows for
-    # this source, which is intentional.
-    current_pairs: Set[Tuple[int, Optional[str]]] = set()
+    # Tracks every PDB curie we'd assert this run. After the loop we diff
+    # against the DB and delete PDB cross_references no longer in this set
+    # (i.e. PDB entries removed from RCSB since the last run).
+    current_curies: Set[str] = set()
+    # reference_id -> reference_curie for every reference we've touched this
+    # run; used to (a) sync topic-only TETs, (b) drive stale TET cleanup.
+    current_reference_curies: Dict[int, str] = {}
     try:
         source_id = get_or_create_source(db)
         pair_iter = pairs if pairs is not None else fetch_pdb_pubmed_pairs()
@@ -273,37 +336,54 @@ def load(
                 counts["missing_reference"] += 1
                 continue
             reference_id, reference_curie = cached
-            entity_value = pdb_id if INCLUDE_ENTITY_FIELDS else None
-            current_pairs.add((reference_id, entity_value))
+            curie = f"{CURIE_PREFIX}:{pdb_id.upper()}"
+            current_curies.add(curie)
+            current_reference_curies[reference_id] = reference_curie
             try:
-                result = create_tag(db, _build_payload(reference_curie, pdb_id, source_id))
+                cross_reference_crud.create(db, _build_xref_payload(reference_curie, pdb_id))
+                counts["created"] += 1
+            except HTTPException as e:
+                if e.status_code == 409:
+                    counts["skipped_duplicate"] += 1
+                else:
+                    counts["errors"] += 1
+                    logger.warning(
+                        "cross_reference create failed for PMID:%s / %s: %s",
+                        pmid, pdb_id, e.detail,
+                    )
             except Exception as e:
                 counts["errors"] += 1
-                logger.warning("create_tag failed for PMID:%s / %s: %s", pmid, pdb_id, e)
-                continue
-            if result.get("status") == "success":
-                counts["created"] += 1
-            else:
-                counts["skipped_duplicate"] += 1
+                logger.warning(
+                    "cross_reference create failed for PMID:%s / %s: %s",
+                    pmid, pdb_id, e,
+                )
+
+        _sync_topic_tets(db, source_id, current_reference_curies, counts)
 
         total_pairs_seen = (
             counts["created"] + counts["skipped_duplicate"]
             + counts["missing_reference"] + counts["errors"]
         )
         if total_pairs_seen >= PDB_CLEANUP_MIN_PAIRS:
-            counts["deleted_stale"] = _delete_stale_tets(db, source_id, current_pairs)
+            counts["deleted_stale"] = _delete_stale_xrefs(db, current_curies)
+            counts["topic_tet_deleted_stale"] = _delete_stale_topic_tets(
+                db, source_id, set(current_reference_curies.keys()),
+            )
         else:
             logger.warning(
-                "Skipping stale-TET cleanup: only %d pairs seen from RCSB "
-                "(below safety threshold %d). Set PDB_TET_CLEANUP_MIN_PAIRS to override.",
+                "Skipping stale cleanup: only %d pairs seen from RCSB "
+                "(below safety threshold %d). Set PDB_XREF_CLEANUP_MIN_PAIRS to override.",
                 total_pairs_seen, PDB_CLEANUP_MIN_PAIRS,
             )
 
         logger.info(
             "PDB pipeline done: created=%d skipped_duplicate=%d missing_reference=%d "
-            "errors=%d deleted_stale=%d",
+            "errors=%d deleted_stale=%d topic_tet_created=%d "
+            "topic_tet_skipped_duplicate=%d topic_tet_deleted_stale=%d",
             counts["created"], counts["skipped_duplicate"],
             counts["missing_reference"], counts["errors"], counts["deleted_stale"],
+            counts["topic_tet_created"], counts["topic_tet_skipped_duplicate"],
+            counts["topic_tet_deleted_stale"],
         )
         return counts
     finally:
