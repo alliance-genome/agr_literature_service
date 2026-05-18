@@ -5,7 +5,7 @@ from typing import Optional
 
 import boto3
 from fastapi import UploadFile, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
@@ -186,7 +186,7 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
 
 
 def get_all_models(db: Session, mod_abbreviation: Optional[str] = None):
-    query = db.query(MLModel)
+    query = db.query(MLModel).options(joinedload(MLModel.mod))
     if mod_abbreviation is not None:
         mod = get_mod(db, mod_abbreviation)
         query = query.filter(MLModel.mod_id == mod.mod_id)
