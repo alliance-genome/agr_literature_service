@@ -2,15 +2,17 @@ import logging
 import os
 import time
 from os import path
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Tuple
 
 import requests
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
 from agr_literature_service.api.models import (
     ModModel,
     ReferenceModel,
+    TopicEntityTagModel,
     TopicEntityTagSourceModel,
 )
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
@@ -48,6 +50,12 @@ HTTP_TIMEOUT_SECONDS = 60
 # `PDB_TET_INCLUDE_ENTITY=false` to fall back to topic-only TETs while the
 # exact entity field semantics are confirmed with curators.
 INCLUDE_ENTITY_FIELDS = os.environ.get("PDB_TET_INCLUDE_ENTITY", "true").lower() == "true"
+
+# Cleanup of stale TETs (PDB entries that were tagged in a previous run but
+# no longer present in RCSB) is gated behind a sanity threshold: if RCSB
+# returns fewer than this many pairs we treat the fetch as suspect and skip
+# the cleanup so a bad run can't wipe out the table.
+PDB_CLEANUP_MIN_PAIRS = int(os.environ.get("PDB_TET_CLEANUP_MIN_PAIRS", "1000"))
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -179,6 +187,35 @@ def get_or_create_source(db: Session) -> int:
     return source.topic_entity_tag_source_id
 
 
+def _delete_stale_tets(
+    db: Session,
+    source_id: int,
+    current_pairs: Set[Tuple[int, Optional[str]]],
+) -> int:
+    """Delete TETs from this source whose (reference_id, entity) is no longer
+    present in the current RCSB view. Returns the deletion count."""
+    existing = db.query(
+        TopicEntityTagModel.topic_entity_tag_id,
+        TopicEntityTagModel.reference_id,
+        TopicEntityTagModel.entity,
+    ).filter(
+        TopicEntityTagModel.topic_entity_tag_source_id == source_id
+    ).all()
+    stale_ids = [
+        row.topic_entity_tag_id
+        for row in existing
+        if (row.reference_id, row.entity) not in current_pairs
+    ]
+    if not stale_ids:
+        return 0
+    delete_stmt = delete(TopicEntityTagModel).where(
+        TopicEntityTagModel.topic_entity_tag_id.in_(stale_ids)
+    )
+    result = db.execute(delete_stmt)
+    db.commit()
+    return result.rowcount or 0  # type: ignore[attr-defined]
+
+
 def _build_payload(reference_curie: str, pdb_id: str, source_id: int) -> TopicEntityTagSchemaPost:
     data: Dict = {
         "reference_curie": reference_curie,
@@ -204,10 +241,22 @@ def load(
     assert db is not None
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
-    counts = {"created": 0, "skipped_duplicate": 0, "missing_reference": 0, "errors": 0}
+    counts = {
+        "created": 0,
+        "skipped_duplicate": 0,
+        "missing_reference": 0,
+        "errors": 0,
+        "deleted_stale": 0,
+    }
     # Many PDB entries cite the same paper; cache PMID -> (reference_id, curie)
     # to avoid redundant DB lookups across the ~220K-pair stream.
     pmid_cache: Dict[str, Optional[Tuple[int, str]]] = {}
+    # Tracks every (reference_id, entity) we'd assert this run. After the loop
+    # we diff against the DB and delete TETs no longer in this set (i.e. PDB
+    # entries removed from RCSB since the last run). `entity` is None when
+    # running in topic-only mode; switching modes will rewrite all rows for
+    # this source, which is intentional.
+    current_pairs: Set[Tuple[int, Optional[str]]] = set()
     try:
         source_id = get_or_create_source(db)
         pair_iter = pairs if pairs is not None else fetch_pdb_pubmed_pairs()
@@ -223,7 +272,9 @@ def load(
             if cached is None:
                 counts["missing_reference"] += 1
                 continue
-            _, reference_curie = cached
+            reference_id, reference_curie = cached
+            entity_value = pdb_id if INCLUDE_ENTITY_FIELDS else None
+            current_pairs.add((reference_id, entity_value))
             try:
                 result = create_tag(db, _build_payload(reference_curie, pdb_id, source_id))
             except Exception as e:
@@ -234,10 +285,25 @@ def load(
                 counts["created"] += 1
             else:
                 counts["skipped_duplicate"] += 1
+
+        total_pairs_seen = (
+            counts["created"] + counts["skipped_duplicate"]
+            + counts["missing_reference"] + counts["errors"]
+        )
+        if total_pairs_seen >= PDB_CLEANUP_MIN_PAIRS:
+            counts["deleted_stale"] = _delete_stale_tets(db, source_id, current_pairs)
+        else:
+            logger.warning(
+                "Skipping stale-TET cleanup: only %d pairs seen from RCSB "
+                "(below safety threshold %d). Set PDB_TET_CLEANUP_MIN_PAIRS to override.",
+                total_pairs_seen, PDB_CLEANUP_MIN_PAIRS,
+            )
+
         logger.info(
-            "PDB pipeline done: created=%d skipped_duplicate=%d missing_reference=%d errors=%d",
+            "PDB pipeline done: created=%d skipped_duplicate=%d missing_reference=%d "
+            "errors=%d deleted_stale=%d",
             counts["created"], counts["skipped_duplicate"],
-            counts["missing_reference"], counts["errors"],
+            counts["missing_reference"], counts["errors"], counts["deleted_stale"],
         )
         return counts
     finally:

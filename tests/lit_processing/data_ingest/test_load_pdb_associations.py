@@ -199,7 +199,10 @@ class TestLoad:
 
         counts = mod.load(db=db, pairs=[("1ABC", "11111")])
 
-        assert counts == {"created": 1, "skipped_duplicate": 0, "missing_reference": 0, "errors": 0}
+        assert counts == {
+            "created": 1, "skipped_duplicate": 0, "missing_reference": 0,
+            "errors": 0, "deleted_stale": 0,
+        }
         mock_create_tag.assert_called_once()
         payload = mock_create_tag.call_args[0][1].dict()
         assert payload["reference_curie"] == "AGR:AGR-Reference-0000000001"
@@ -216,7 +219,10 @@ class TestLoad:
     ):
         db = MagicMock()
         counts = mod.load(db=db, pairs=[("1ABC", "99999")])
-        assert counts == {"created": 0, "skipped_duplicate": 0, "missing_reference": 1, "errors": 0}
+        assert counts == {
+            "created": 0, "skipped_duplicate": 0, "missing_reference": 1,
+            "errors": 0, "deleted_stale": 0,
+        }
         mock_create_tag.assert_not_called()
 
     @patch.object(mod, "create_tag")
@@ -229,7 +235,10 @@ class TestLoad:
         mock_create_tag.return_value = {"status": "exists", "message": "The tag already exists in the database."}
         db, _ = self._make_db(1234)
         counts = mod.load(db=db, pairs=[("1ABC", "11111")])
-        assert counts == {"created": 0, "skipped_duplicate": 1, "missing_reference": 0, "errors": 0}
+        assert counts == {
+            "created": 0, "skipped_duplicate": 1, "missing_reference": 0,
+            "errors": 0, "deleted_stale": 0,
+        }
 
     @patch.object(mod, "create_tag", side_effect=RuntimeError("boom"))
     @patch.object(mod, "get_or_create_source", return_value=42)
@@ -240,7 +249,10 @@ class TestLoad:
     ):
         db, _ = self._make_db(1234)
         counts = mod.load(db=db, pairs=[("1ABC", "11111")])
-        assert counts == {"created": 0, "skipped_duplicate": 0, "missing_reference": 0, "errors": 1}
+        assert counts == {
+            "created": 0, "skipped_duplicate": 0, "missing_reference": 0,
+            "errors": 1, "deleted_stale": 0,
+        }
 
     @patch.object(mod, "create_tag")
     @patch.object(mod, "get_or_create_source", return_value=42)
@@ -280,10 +292,116 @@ class TestLoad:
         pairs = [("1ABC", "99999"), ("2DEF", "99999"), ("3GHI", "99999")]
         counts = mod.load(db=db, pairs=pairs)
 
-        assert counts == {"created": 0, "skipped_duplicate": 0, "missing_reference": 3, "errors": 0}
+        assert counts == {
+            "created": 0, "skipped_duplicate": 0, "missing_reference": 3,
+            "errors": 0, "deleted_stale": 0,
+        }
         # Misses are cached too: only one DB call for the shared PMID.
         assert mock_get_ref.call_count == 1
         mock_create_tag.assert_not_called()
+
+
+class TestStaleCleanup:
+
+    @patch.object(mod, "_delete_stale_tets", return_value=7)
+    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "get_reference_id_by_pmid", return_value=1234)
+    def test_cleanup_runs_and_passes_current_pairs_when_threshold_met(
+        self, mock_get_ref, mock_set_uid, mock_get_source, mock_create_tag,
+        mock_delete, monkeypatch,
+    ):
+        monkeypatch.setattr(mod, "PDB_CLEANUP_MIN_PAIRS", 2)
+        monkeypatch.setattr(mod, "INCLUDE_ENTITY_FIELDS", True)
+        db = MagicMock()
+        db.query.return_value.filter_by.return_value.one.return_value = MagicMock(curie="AGR:R1")
+
+        counts = mod.load(db=db, pairs=[("1ABC", "11111"), ("2DEF", "11111")])
+
+        assert counts["deleted_stale"] == 7
+        mock_delete.assert_called_once()
+        _db_arg, source_id_arg, current_pairs_arg = mock_delete.call_args[0]
+        assert source_id_arg == 42
+        assert current_pairs_arg == {(1234, "1ABC"), (1234, "2DEF")}
+
+    @patch.object(mod, "_delete_stale_tets")
+    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "get_reference_id_by_pmid", return_value=1234)
+    def test_cleanup_skipped_when_below_threshold(
+        self, mock_get_ref, mock_set_uid, mock_get_source, mock_create_tag,
+        mock_delete, monkeypatch,
+    ):
+        # Default threshold is 1000; only 1 pair seen -> skip.
+        monkeypatch.setattr(mod, "PDB_CLEANUP_MIN_PAIRS", 1000)
+        db = MagicMock()
+        db.query.return_value.filter_by.return_value.one.return_value = MagicMock(curie="AGR:R1")
+
+        counts = mod.load(db=db, pairs=[("1ABC", "11111")])
+
+        assert counts["deleted_stale"] == 0
+        mock_delete.assert_not_called()
+
+    @patch.object(mod, "_delete_stale_tets", return_value=0)
+    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "get_reference_id_by_pmid", return_value=1234)
+    def test_current_pairs_uses_none_entity_in_topic_only_mode(
+        self, mock_get_ref, mock_set_uid, mock_get_source, mock_create_tag,
+        mock_delete, monkeypatch,
+    ):
+        monkeypatch.setattr(mod, "PDB_CLEANUP_MIN_PAIRS", 1)
+        monkeypatch.setattr(mod, "INCLUDE_ENTITY_FIELDS", False)
+        db = MagicMock()
+        db.query.return_value.filter_by.return_value.one.return_value = MagicMock(curie="AGR:R1")
+
+        mod.load(db=db, pairs=[("1ABC", "11111"), ("2DEF", "11111")])
+
+        _db_arg, _source_id_arg, current_pairs_arg = mock_delete.call_args[0]
+        # Topic-only mode: entity is None for all rows, so two pairs collapse to one.
+        assert current_pairs_arg == {(1234, None)}
+
+
+class TestDeleteStaleTets:
+
+    def test_deletes_only_rows_not_in_current_pairs(self):
+        db = MagicMock()
+        # DB has 4 TETs for this source. current_pairs covers only 2 of them.
+        row1 = MagicMock(topic_entity_tag_id=101, reference_id=1, entity="1ABC")
+        row2 = MagicMock(topic_entity_tag_id=102, reference_id=1, entity="2DEF")
+        row3 = MagicMock(topic_entity_tag_id=103, reference_id=2, entity="3GHI")
+        row4 = MagicMock(topic_entity_tag_id=104, reference_id=2, entity="4JKL")
+        db.query.return_value.filter.return_value.all.return_value = [row1, row2, row3, row4]
+        delete_result = MagicMock(rowcount=2)
+        db.execute.return_value = delete_result
+
+        current_pairs = {(1, "1ABC"), (2, "3GHI")}
+        deleted = mod._delete_stale_tets(db, source_id=42, current_pairs=current_pairs)
+
+        assert deleted == 2
+        # The delete() Core construct passed to execute should target the stale ids.
+        executed_stmt = db.execute.call_args[0][0]
+        # Inspect the where clause for the in_ binding to confirm stale ids 102 and 104.
+        compiled = executed_stmt.compile(compile_kwargs={"literal_binds": True})
+        sql = str(compiled).lower()
+        assert "102" in sql and "104" in sql
+        assert "101" not in sql and "103" not in sql
+        db.commit.assert_called_once()
+
+    def test_returns_zero_and_skips_delete_when_nothing_stale(self):
+        db = MagicMock()
+        row = MagicMock(topic_entity_tag_id=101, reference_id=1, entity="1ABC")
+        db.query.return_value.filter.return_value.all.return_value = [row]
+        current_pairs = {(1, "1ABC")}
+
+        deleted = mod._delete_stale_tets(db, source_id=42, current_pairs=current_pairs)
+
+        assert deleted == 0
+        db.execute.assert_not_called()
+        db.commit.assert_not_called()
 
 
 class TestIncludeEntityFieldsFlag:
