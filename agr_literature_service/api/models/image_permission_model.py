@@ -42,6 +42,11 @@ class ImagePermissionModel(Base, AuditedModel):
         nullable=True
     )
 
+    permission_doc_url = Column(
+        String(),
+        nullable=True
+    )
+
     can_display_images = Column(
         Boolean,
         nullable=False,
