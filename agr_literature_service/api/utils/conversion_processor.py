@@ -253,11 +253,14 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
             )
 
         # SCRUM-6041: on-demand path always reconciles converted-file mod
-        # associations with their sources and transitions every fully-
-        # converted MOD's text_convert_job tag — even when no new
-        # conversion ran in this call (the reference may already be
-        # converted but missing some MOD associations / pending tag
-        # transitions from prior MOD-specific batch runs).
+        # associations with their sources and transitions any MOD's
+        # text_convert_job tag whose main source has been converted —
+        # SCRUM-6092: supplement failures (oversize, GROBID empty, PDFX
+        # errors, etc.) do not block the tag, mirroring the cron path's
+        # main-only success semantics. Runs even when no new conversion
+        # happened in this call (the reference may already have a
+        # converted main from a prior MOD-specific batch run and just
+        # need MOD associations + a tag transition).
         try:
             db.expire_all()
             reference = get_reference(db, str(reference_id), load_referencefiles=True)

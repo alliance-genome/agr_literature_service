@@ -16,15 +16,25 @@ class ConversionModStatusSchema(BaseModel):
 
     Reports the conversion state from each MOD's perspective. Returned for
     every MOD that currently has a ``text_convert_job`` workflow tag
-    pointing at this reference. ``all_converted`` is True iff that MOD has
-    no main / supplement source files left to convert (taking into account
-    SCRUM-6026 supplement eligibility for non-WB/ZFIN/FB references).
+    pointing at this reference.
+
+    ``main_converted`` is True iff at least one of the MOD's main sources
+    has produced a ``converted_merged_main`` row — this is the signal that
+    drives the workflow-tag transition (SCRUM-6092: a supplement that
+    failed for any reason must not keep the tag pinned).
+
+    ``all_converted`` is True iff that MOD has nothing pending on either
+    side — main converted AND every eligible supplement converted
+    (taking SCRUM-6026 supplement eligibility into account for
+    non-WB/ZFIN/FB references). Surfaced for callers that want the full
+    picture; not used to decide tag transitions.
     """
     model_config = ConfigDict(extra='forbid', from_attributes=True)
 
     mod_abbreviation: str
     pending_main_count: int
     pending_supplement_count: int
+    main_converted: bool
     all_converted: bool
 
 
