@@ -15,8 +15,9 @@ Usage:
 import logging
 from datetime import datetime
 
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -107,18 +108,7 @@ NEW_PERMISSION = {
 }
 
 
-def get_database_url():
-    """Get database URL from environment or use default."""
-    import os
-    host = os.environ.get("PSQL_HOST", "localhost")
-    port = os.environ.get("PSQL_PORT", "5432")
-    database = os.environ.get("PSQL_DATABASE", "literature")
-    username = os.environ.get("PSQL_USERNAME", "postgres")
-    password = os.environ.get("PSQL_PASSWORD", "postgres")
-    return f"postgresql://{username}:{password}@{host}:{port}/{database}"
-
-
-def update_existing_permissions(session: Session):
+def update_existing_permissions(session):
     """Update existing image_permission records."""
     for update in PERMISSION_UPDATES:
         image_permission_id = update["image_permission_id"]
@@ -154,7 +144,7 @@ def update_existing_permissions(session: Session):
         logger.info(f"Updated permission ID {image_permission_id}: {update['name']}")
 
 
-def add_new_permission(session: Session):
+def add_new_permission(session):
     """Add new WormBook permission if it doesn't exist."""
     # Check if WormBook permission already exists
     result = session.execute(
@@ -195,7 +185,7 @@ def add_new_permission(session: Session):
         logger.info(f"Added new permission: {NEW_PERMISSION['name']}")
 
 
-def verify_updates(session: Session):
+def verify_updates(session):
     """Verify the updates were applied correctly."""
     result = session.execute(
         text("""
@@ -222,25 +212,25 @@ def verify_updates(session: Session):
 
 def main():
     """Main function to run the updates."""
-    database_url = get_database_url()
-    engine = create_engine(database_url)
+    session = create_postgres_session(False)
 
-    with Session(engine) as session:
-        try:
-            logger.info("Starting image permission updates...")
+    try:
+        logger.info("Starting image permission updates...")
 
-            update_existing_permissions(session)
-            add_new_permission(session)
+        update_existing_permissions(session)
+        add_new_permission(session)
 
-            session.commit()
-            logger.info("All updates committed successfully!")
+        session.commit()
+        logger.info("All updates committed successfully!")
 
-            verify_updates(session)
+        verify_updates(session)
 
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Error updating permissions: {e}")
-            raise
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error updating permissions: {e}")
+        raise
+    finally:
+        session.close()
 
 
 if __name__ == "__main__":
