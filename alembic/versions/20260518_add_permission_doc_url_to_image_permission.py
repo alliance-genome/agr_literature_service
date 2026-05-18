@@ -18,7 +18,11 @@ depends_on = None
 
 def upgrade():
     op.add_column('image_permission', sa.Column('permission_doc_url', sa.String(), nullable=True))
+    op.add_column('image_permission_version', sa.Column('permission_doc_url', sa.String(), autoincrement=False, nullable=True))
+    op.add_column('image_permission_version', sa.Column('permission_doc_url_mod', sa.Boolean(), server_default=sa.text('false'), nullable=False))
 
 
 def downgrade():
+    op.drop_column('image_permission_version', 'permission_doc_url_mod')
+    op.drop_column('image_permission_version', 'permission_doc_url')
     op.drop_column('image_permission', 'permission_doc_url')
