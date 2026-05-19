@@ -24,75 +24,76 @@ logger = logging.getLogger(__name__)
 
 
 # Permission updates based on 2026 grants
+# IDs verified against production database
 PERMISSION_UPDATES = [
     {
-        "image_permission_id": 474,
+        "image_permission_id": 54,
         "name": "Cold Spring Harbor Laboratory Press - Blanket Permission",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1lDAT5CzRsnq5MSOIqV_EB_rrV7-5PbuQ1UEa5qEfwis/edit?tab=t.0",
     },
     {
-        "image_permission_id": 478,
+        "image_permission_id": 58,
         "name": "Cold Spring Harbor Lab Press - Blanket Permission",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1lDAT5CzRsnq5MSOIqV_EB_rrV7-5PbuQ1UEa5qEfwis/edit?tab=t.0",
     },
     {
-        "image_permission_id": 460,
+        "image_permission_id": 40,
         "name": "Charles Univ Prague (Folia Biologica) - CC BY | Open Access",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1JXYczY7PJ812Wu0aB2OSULrfVht6HkEUS_fGLHJ1j5Y/edit?tab=t.0",
     },
     {
-        "image_permission_id": 430,
+        "image_permission_id": 10,
         "name": "Portland Press LTD - Blanket Permission",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1gsllpniLR4fxNGb1SKznUMOLG3pBCPGh6N_YCuNjtPs/edit?tab=t.0",
     },
     {
-        "image_permission_id": 477,
+        "image_permission_id": 57,
         "name": "Genetic Society of America (GSA), Oxford University Press? - Blanket Permission",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1MsriIc9nXmu5ne0h3rrwp2V_afKXD02LltcfxsqBdQU/edit?tab=t.0",
     },
     {
-        "image_permission_id": 490,
+        "image_permission_id": 70,
         "name": "The Rockefeller University Press - Contract",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1tJEAGm7a-Ugl6rzKxJeoknq1Pu02KkuPpvzTZ6AD350/edit?tab=t.0",
     },
     {
-        "image_permission_id": 495,
+        "image_permission_id": 75,
         "name": "The Rockefeller University Press - Open Access",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1tJEAGm7a-Ugl6rzKxJeoknq1Pu02KkuPpvzTZ6AD350/edit?tab=t.0",
     },
     {
-        "image_permission_id": 499,
+        "image_permission_id": 79,
         "name": "Society for Neuroscience - CC BY 4.0 and CC-BY-NC-SA | Open Access",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1hHdHAvaWE0zjVa2QcLqMa40pUpKy0U9rFMSKQnCyfZ4/edit?tab=t.0",
     },
     {
-        "image_permission_id": 459,
+        "image_permission_id": 39,
         "name": "Society for Neuroscience - Open Access",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/1hHdHAvaWE0zjVa2QcLqMa40pUpKy0U9rFMSKQnCyfZ4/edit?tab=t.0",
     },
     {
-        "image_permission_id": 491,
+        "image_permission_id": 71,
         "name": "The Company of Biologists - Contract",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/12e6R6i4R2AHCwD-sjQs0MZqhSr-RPIJkO9wHEQFhKIk/edit?tab=t.0",
     },
     {
-        "image_permission_id": 429,
+        "image_permission_id": 9,
         "name": "The Company of Biologists - Open Access",
         "can_display_images": True,
         "permission_doc_url": "https://docs.google.com/document/d/12e6R6i4R2AHCwD-sjQs0MZqhSr-RPIJkO9wHEQFhKIk/edit?tab=t.0",
     },
     {
-        "image_permission_id": 450,
+        "image_permission_id": 30,
         "name": "The Company of Biologists - Permission Granted (subset)",
         "can_display_images": False,  # Keep as subset
         "permission_doc_url": "https://docs.google.com/document/d/12e6R6i4R2AHCwD-sjQs0MZqhSr-RPIJkO9wHEQFhKIk/edit?tab=t.0",
