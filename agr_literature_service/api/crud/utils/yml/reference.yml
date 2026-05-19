@@ -4,6 +4,7 @@ ALL:
     - ['^ISBN:\d{13}$', 'ISBN']
     - ['^PMCID:PMC\d+$', 'PMCID']
     - ['^PMID:\d+$', 'PMID']
+    - ['^PDB:[A-Z0-9]{4}$', 'PDB']
 
 RGD:
   example: 'RGD:1311419'
