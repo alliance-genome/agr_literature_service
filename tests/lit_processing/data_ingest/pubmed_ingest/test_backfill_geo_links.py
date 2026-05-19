@@ -4,6 +4,7 @@ Database/session paths require a live Postgres + ATEAM stack and are exercised
 by the existing make run-test-bash integration target. Here we only assert the
 behaviour of the helpers that don't touch the DB.
 """
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest import backfill_geo_links
@@ -52,3 +53,19 @@ class TestInsertGeoXrefs:
                 db=db, ref_curie="AGRKB:1", missing=["GSE1"], dry_run=False
             )
         db.rollback.assert_called_once()
+
+
+class TestSinceDaysThreshold:
+
+    def test_returns_none_when_disabled(self):
+        assert backfill_geo_links._since_days_threshold(0) is None
+
+    def test_returns_none_for_negative_input(self):
+        assert backfill_geo_links._since_days_threshold(-5) is None
+
+    def test_returns_utc_datetime_n_days_in_the_past(self):
+        before = datetime.utcnow()
+        threshold = backfill_geo_links._since_days_threshold(7)
+        after = datetime.utcnow()
+        assert threshold is not None
+        assert before - timedelta(days=7) <= threshold <= after - timedelta(days=7)

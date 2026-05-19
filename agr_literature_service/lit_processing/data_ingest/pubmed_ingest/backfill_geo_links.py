@@ -9,8 +9,9 @@ multiple GEO rows per Reference.
 import argparse
 import logging
 import sys
+from datetime import datetime, timedelta
 from os import path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -45,13 +46,29 @@ def _configure_logging(log_file: str = "") -> None:
     root.setLevel(logging.INFO)
 
 
-def _references_with_pmid(db: Session, mod_abbreviation: str = "", limit: int = 0) -> List[Tuple[int, str, str]]:
-    """Return [(reference_id, reference_curie, pmid), ...] for refs with a PMID xref."""
+def _since_days_threshold(since_days: int) -> Optional[datetime]:
+    """Cutoff timestamp for 'PMID xref date_created >= threshold', or None when disabled."""
+    if since_days <= 0:
+        return None
+    return datetime.utcnow() - timedelta(days=since_days)
+
+
+def _references_with_pmid(db: Session, mod_abbreviation: str = "", limit: int = 0,
+                          since_days: int = 0) -> List[Tuple[int, str, str]]:
+    """Return [(reference_id, reference_curie, pmid), ...] for refs with a PMID xref.
+
+    `since_days`, when > 0, restricts the result to References whose PMID
+    cross-reference row was created within the last N days. The weekly cron
+    uses this to process only recently-added papers.
+    """
     q = (db.query(ReferenceModel.reference_id, ReferenceModel.curie, CrossReferenceModel.curie)
          .join(CrossReferenceModel, CrossReferenceModel.reference_id == ReferenceModel.reference_id)
          .filter(and_(CrossReferenceModel.curie_prefix == "PMID",
                       CrossReferenceModel.is_obsolete.is_(False)))
          .order_by(ReferenceModel.reference_id))
+    threshold = _since_days_threshold(since_days)
+    if threshold is not None:
+        q = q.filter(CrossReferenceModel.date_created >= threshold)
     if mod_abbreviation:
         mod_xref = (db.query(CrossReferenceModel.reference_id)
                     .filter(and_(CrossReferenceModel.curie_prefix == mod_abbreviation,
@@ -106,13 +123,19 @@ def _insert_geo_xrefs(db: Session, ref_curie: str, missing: List[str], dry_run: 
 def backfill(mod_abbreviation: str = "",
              limit: int = 0,
              batch_size: int = 200,
-             dry_run: bool = False) -> Dict[str, int]:
+             dry_run: bool = False,
+             since_days: int = 0) -> Dict[str, int]:
     db = create_postgres_session(False)
     set_global_user_id(db, path.basename(__file__).replace(".py", ""))
 
-    refs = _references_with_pmid(db, mod_abbreviation=mod_abbreviation, limit=limit)
-    logger.info("Found %d references with a PMID xref%s",
-                len(refs), f" for {mod_abbreviation}" if mod_abbreviation else "")
+    refs = _references_with_pmid(db, mod_abbreviation=mod_abbreviation,
+                                 limit=limit, since_days=since_days)
+    scope_msg = ""
+    if mod_abbreviation:
+        scope_msg += f" for {mod_abbreviation}"
+    if since_days > 0:
+        scope_msg += f" added in the last {since_days} day(s)"
+    logger.info("Found %d references with a PMID xref%s", len(refs), scope_msg)
 
     stats = {"refs_scanned": len(refs), "refs_with_new_geo": 0, "xrefs_added": 0}
 
@@ -150,12 +173,16 @@ def main() -> None:  # pragma: no cover
     parser.add_argument("--limit", type=int, default=0, help="Cap the number of References processed (0 = no cap)")
     parser.add_argument("--batch-size", type=int, default=200,
                         help="PMIDs per elink call (default 200)")
+    parser.add_argument("--since-days", type=int, default=0,
+                        help="Only process References whose PMID xref was added in the last N days "
+                             "(0 = no time filter). Weekly cron uses --since-days 8.")
     parser.add_argument("--dry-run", action="store_true", help="Log intended inserts but write nothing")
     parser.add_argument("--log-file", default="", help="Optional path to also write logs to a file")
     args = parser.parse_args()
     _configure_logging(args.log_file)
     backfill(mod_abbreviation=args.mod, limit=args.limit,
-             batch_size=args.batch_size, dry_run=args.dry_run)
+             batch_size=args.batch_size, dry_run=args.dry_run,
+             since_days=args.since_days)
 
 
 if __name__ == "__main__":  # pragma: no cover
