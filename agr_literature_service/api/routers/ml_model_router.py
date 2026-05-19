@@ -121,9 +121,6 @@ def get_all_models(mod_abbreviation: Optional[str] = None,
 @router.get('/metadata/{task_type}/{mod_abbreviation}/{topic}',
             response_model=MLModelSchemaShow,
             status_code=200)
-@router.get('/metadata/{task_type}/{mod_abbreviation}',
-            response_model=MLModelSchemaShow,
-            status_code=200)
 def get_model_metadata(task_type: str,
                        mod_abbreviation: str,
                        topic: str = None,
@@ -137,9 +134,6 @@ def get_model_metadata(task_type: str,
             response_model=MLModelSchemaShow,
             status_code=200)
 @router.get('/download/{task_type}/{mod_abbreviation}/{topic}',
-            response_model=MLModelSchemaShow,
-            status_code=200)
-@router.get('/download/{task_type}/{mod_abbreviation}',
             response_model=MLModelSchemaShow,
             status_code=200)
 def download_model_file(task_type: str,
