@@ -12,6 +12,7 @@ class ImagePermissionSchemaPost(BaseModel):
     name: str
     permission_text: str = ''
     permission_url: Optional[str] = None
+    permission_doc_url: Optional[str] = None
     can_display_images: bool = False
 
     @field_validator('name')
@@ -28,6 +29,7 @@ class ImagePermissionSchemaUpdate(BaseModel):
     name: Optional[str] = None
     permission_text: Optional[str] = None
     permission_url: Optional[str] = None
+    permission_doc_url: Optional[str] = None
     can_display_images: Optional[bool] = None
 
     @field_validator('name')
@@ -45,6 +47,7 @@ class ImagePermissionSchemaShow(AuditedObjectModelSchema):
     name: str
     permission_text: Optional[str] = None
     permission_url: Optional[str] = None
+    permission_doc_url: Optional[str] = None
     can_display_images: bool
 
 
