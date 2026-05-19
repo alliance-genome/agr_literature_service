@@ -175,7 +175,7 @@ def main() -> None:  # pragma: no cover
                         help="PMIDs per elink call (default 200)")
     parser.add_argument("--since-days", type=int, default=0,
                         help="Only process References whose PMID xref was added in the last N days "
-                             "(0 = no time filter). Weekly cron uses --since-days 8.")
+                             "(0 = no time filter). Weekly cron uses --since-days 7.")
     parser.add_argument("--dry-run", action="store_true", help="Log intended inserts but write nothing")
     parser.add_argument("--log-file", default="", help="Optional path to also write logs to a file")
     args = parser.parse_args()
