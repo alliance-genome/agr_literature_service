@@ -40,3 +40,15 @@ class TestInsertGeoXrefs:
             )
         assert n == 1
         assert create_mock.call_count == 2
+
+    def test_rolls_back_session_when_create_raises(self):
+        """Non-IntegrityError exceptions propagate out of cross_reference_crud.create
+        without rollback; the backfill must rollback itself to keep the transaction
+        usable for subsequent inserts."""
+        db = MagicMock()
+        with patch.object(backfill_geo_links.cross_reference_crud, "create",
+                          side_effect=Exception("OperationalError: server closed")):
+            backfill_geo_links._insert_geo_xrefs(
+                db=db, ref_curie="AGRKB:1", missing=["GSE1"], dry_run=False
+            )
+        db.rollback.assert_called_once()

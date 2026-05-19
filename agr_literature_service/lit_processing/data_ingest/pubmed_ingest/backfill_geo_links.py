@@ -94,6 +94,11 @@ def _insert_geo_xrefs(db: Session, ref_curie: str, missing: List[str], dry_run: 
             inserted += 1
             logger.info("Inserted %s for %s", curie, ref_curie)
         except Exception as exc:
+            # cross_reference_crud.create only rolls back on IntegrityError; any
+            # other failure (OperationalError, deadlock, connection blip) leaves
+            # the transaction aborted and breaks every subsequent insert in the
+            # run. Rollback unconditionally — it's a no-op on a clean session.
+            db.rollback()
             logger.warning("Failed to insert %s for %s: %s", curie, ref_curie, exc)
     return inserted
 
