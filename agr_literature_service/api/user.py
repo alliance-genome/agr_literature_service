@@ -42,8 +42,8 @@ def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
 
 def set_global_user_id(db: Session, id: str) -> None:
     """
-    Manually set the global users.id (e.g., script/program name).
-    Treated as an automation user.
+    Set the current users.id for this request/context (e.g., script or
+    program name). Treated as an automation user.
     """
     _current_user_id.set(id)
     _ensure_automation_user(db, id)
@@ -58,7 +58,7 @@ def add_user_if_not_exists(db: Session, user_id: str) -> None:
 
 def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, Any]]) -> None:
     """
-    Set the global user from a Cognito token.
+    Set the current request's user from a Cognito token.
 
     For ID tokens (user login): Looks up user by email via email table join.
     For access tokens (service accounts): Uses 'default_user' and creates if needed.
