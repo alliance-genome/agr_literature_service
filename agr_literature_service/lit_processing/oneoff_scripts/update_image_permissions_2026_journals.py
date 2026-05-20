@@ -4,6 +4,8 @@ Update image permissions with journal lists based on 2026 publisher permission g
 This script updates:
 1. image_permission table - permission_text with journal lists, name cleanup
 2. resource_image_permission table - links each journal (resource) to its permission
+3. Replaces MOD references with 'Alliance' in all permission_text values
+   (WormBase, FlyBase, Xenbase, SGD, WB, ZFIN, MGI, RGD, XB, FB -> Alliance)
 
 Matching is done by `name` column (not image_permission_id) so it can run
 against dev, stage, and prod databases which have different IDs.
@@ -21,10 +23,11 @@ Usage:
 
 import argparse
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from os import environ
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -33,6 +36,48 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
+
+# MOD names and abbreviations to replace with 'Alliance'
+# Order matters: longer names first to avoid partial replacements
+MOD_REPLACEMENTS: List[Tuple[str, str]] = [
+    # Full names (longer patterns first)
+    ("WormBase", "Alliance"),
+    ("FlyBase", "Alliance"),
+    ("Xenbase", "Alliance"),
+    # Abbreviations - only replace when they appear as standalone words
+    # to avoid replacing parts of other words
+]
+
+# MOD abbreviations that should only be replaced as whole words
+MOD_ABBREVIATIONS = ["SGD", "WB", "ZFIN", "MGI", "RGD", "XB", "FB"]
+
+
+def replace_mod_names_with_alliance(text_value: str) -> str:
+    """Replace MOD names and abbreviations with 'Alliance' in the given text.
+
+    Args:
+        text_value: The text to process
+
+    Returns:
+        Text with MOD names replaced by 'Alliance'
+    """
+    if not text_value:
+        return text_value
+
+    result = text_value
+
+    # Replace full MOD names (simple string replacement)
+    for old_name, new_name in MOD_REPLACEMENTS:
+        result = result.replace(old_name, new_name)
+
+    # Replace MOD abbreviations only as whole words (word boundaries)
+    for abbrev in MOD_ABBREVIATIONS:
+        # Use word boundary regex to avoid replacing parts of words
+        # e.g., don't replace "WB" in "SWIBERG"
+        pattern = r'\b' + re.escape(abbrev) + r'\b'
+        result = re.sub(pattern, "Alliance", result)
+
+    return result
 
 
 # Permission updates based on 2026 grants
@@ -530,6 +575,85 @@ def update_permission(
     )
 
 
+def update_mod_references_in_permission_text(
+    session: Session,
+    apply: bool
+) -> Dict[str, int]:
+    """Update all permission_text values to replace MOD names with 'Alliance'.
+
+    Args:
+        session: Database session
+        apply: Whether to apply changes
+
+    Returns:
+        Dictionary with update statistics
+    """
+    stats = {
+        "mod_refs_found": 0,
+        "mod_refs_updated": 0,
+        "mod_refs_unchanged": 0,
+        "mod_refs_errors": 0,
+    }
+
+    # Get all image_permission records with non-null permission_text
+    results = session.execute(
+        text("""
+            SELECT image_permission_id, name, permission_text
+            FROM image_permission
+            WHERE permission_text IS NOT NULL
+            ORDER BY image_permission_id
+        """)
+    ).fetchall()
+
+    for row in results:
+        perm_id = row[0]
+        name = row[1]
+        original_text = row[2]
+
+        if not original_text:
+            continue
+
+        # Replace MOD names with Alliance
+        updated_text = replace_mod_names_with_alliance(original_text)
+
+        if updated_text != original_text:
+            stats["mod_refs_found"] += 1
+
+            if apply:
+                try:
+                    session.execute(
+                        text("""
+                            UPDATE image_permission
+                            SET permission_text = :permission_text,
+                                date_updated = :date_updated
+                            WHERE image_permission_id = :perm_id
+                        """),
+                        {
+                            "permission_text": updated_text,
+                            "date_updated": datetime.utcnow(),
+                            "perm_id": perm_id,
+                        }
+                    )
+                    logger.info(
+                        f"MOD->ALLIANCE: ID {perm_id} '{name}' - "
+                        f"replaced MOD references with 'Alliance'"
+                    )
+                    stats["mod_refs_updated"] += 1
+                except Exception as e:
+                    logger.error(f"ERROR updating MOD refs in ID {perm_id}: {e}")
+                    stats["mod_refs_errors"] += 1
+            else:
+                logger.info(
+                    f"WOULD UPDATE MOD->ALLIANCE: ID {perm_id} '{name}' - "
+                    f"would replace MOD references with 'Alliance'"
+                )
+                stats["mod_refs_updated"] += 1
+        else:
+            stats["mod_refs_unchanged"] += 1
+
+    return stats
+
+
 def process_resource_links(
     session: Session,
     image_permission_id: int,
@@ -690,6 +814,12 @@ def main() -> None:
 
         stats = process_updates(session, args.apply)
 
+        # Update MOD references to Alliance in all permission_text values
+        logger.info("\n" + "=" * 60)
+        logger.info("UPDATING MOD REFERENCES TO 'Alliance' IN permission_text")
+        logger.info("=" * 60)
+        mod_stats = update_mod_references_in_permission_text(session, args.apply)
+
         if args.apply:
             session.commit()
             logger.info("\nChanges committed successfully!")
@@ -714,6 +844,15 @@ def main() -> None:
         logger.info(f"Links already exist: {stats['links_unchanged']}")
         logger.info(f"Link errors: {stats['link_errors']}")
 
+        logger.info("\n" + "=" * 60)
+        logger.info("SUMMARY - MOD->ALLIANCE REPLACEMENTS")
+        logger.info("=" * 60)
+        mod_action = "updated" if args.apply else "would update"
+        logger.info(f"Records with MOD references found: {mod_stats['mod_refs_found']}")
+        logger.info(f"Records {mod_action}: {mod_stats['mod_refs_updated']}")
+        logger.info(f"Records without MOD references: {mod_stats['mod_refs_unchanged']}")
+        logger.info(f"Errors: {mod_stats['mod_refs_errors']}")
+
         # Final summary for easy reading
         logger.info("\n" + "=" * 60)
         mode = "APPLIED" if args.apply else "DRY RUN"
@@ -721,9 +860,14 @@ def main() -> None:
         logger.info("=" * 60)
         perm_msg = "updated" if args.apply else "would be updated"
         link_msg = "created" if args.apply else "would be created"
+        mod_msg = "updated" if args.apply else "would be updated"
         logger.info(f"  - {stats['updated']} image_permission records {perm_msg}")
         logger.info(f"  - {stats['links_created']} resource links {link_msg}")
         logger.info(f"  - {stats['links_unchanged']} resource links already exist")
+        logger.info(
+            f"  - {mod_stats['mod_refs_updated']} records {mod_msg} "
+            f"(MOD->Alliance in permission_text)"
+        )
 
     except Exception as e:
         session.rollback()
