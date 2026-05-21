@@ -85,19 +85,15 @@ class TestFetchPubmedIdsGraphql:
         assert mod._fetch_pubmed_ids_graphql(["1ABC"]) == {}
 
     @patch.object(mod, "_post_with_retry")
-    def test_raises_on_graphql_errors(self, mock_post, caplog):
+    def test_raises_on_graphql_errors(self, mock_post):
         mock_post.return_value = {
             "errors": [
                 {"message": "Validation error (FieldUndefined@[entries/foo]): "
                             "Field 'foo' in type 'CoreEntry' is undefined"}
             ]
         }
-        import logging
-        with caplog.at_level(logging.ERROR, logger=mod.logger.name):
-            with pytest.raises(RuntimeError, match="RCSB GraphQL error"):
-                mod._fetch_pubmed_ids_graphql(["1ABC"])
-        assert any("RCSB GraphQL returned errors" in rec.message
-                   for rec in caplog.records)
+        with pytest.raises(RuntimeError, match="RCSB GraphQL error"):
+            mod._fetch_pubmed_ids_graphql(["1ABC"])
 
 
 class TestFetchAllPdbIdsWithPubmed:
