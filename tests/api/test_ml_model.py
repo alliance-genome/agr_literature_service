@@ -128,6 +128,7 @@ class TestMLModel:
             row = next(m for m in payload if m["topic"] == "ATP:0000061")
             assert "topic_name" in row
             assert "data_novelty_name" in row
+            assert "species_name" in row
             assert isinstance(row["topic_name"], str)
             assert isinstance(row["data_novelty_name"], str)
 

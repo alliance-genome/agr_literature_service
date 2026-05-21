@@ -40,6 +40,7 @@ class MLModelSchemaShow(MLModelSchemaBase):
 
 
 class MLModelSchemaShowWithNames(MLModelSchemaShow):
-    """Schema for list endpoints; adds human-readable ATP names parallel to topic/data_novelty."""
+    """Schema for list endpoints; adds human-readable names parallel to topic/data_novelty/species."""
     topic_name: Optional[str] = None
     data_novelty_name: Optional[str] = None
+    species_name: Optional[str] = None
