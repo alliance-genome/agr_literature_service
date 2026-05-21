@@ -134,17 +134,23 @@ def _fetch_pubmed_ids_graphql(pdb_ids: List[str]) -> Dict[str, Optional[str]]:
     query($ids: [String!]!) {
       entries(entry_ids: $ids) {
         rcsb_id
-        rcsb_pubmed_container_identifiers { pubmed_id }
+        pubmed { rcsb_pubmed_container_identifiers { pubmed_id } }
       }
     }
     """
     body = {"query": query, "variables": {"ids": pdb_ids}}
     payload = _post_with_retry(RCSB_GRAPHQL_URL, body)
+    errors = payload.get("errors")
+    if errors:
+        msg = (errors[0] or {}).get("message", "<no message>") if errors else "<no message>"
+        logger.error("RCSB GraphQL returned errors: %s", msg)
+        raise RuntimeError(f"RCSB GraphQL error: {msg}")
     entries = (payload.get("data") or {}).get("entries") or []
     out: Dict[str, Optional[str]] = {}
     for entry in entries:
         rcsb_id = entry.get("rcsb_id")
-        pmid_container = entry.get("rcsb_pubmed_container_identifiers") or {}
+        pubmed = entry.get("pubmed") or {}
+        pmid_container = pubmed.get("rcsb_pubmed_container_identifiers") or {}
         pmid = pmid_container.get("pubmed_id")
         if rcsb_id and pmid is not None:
             out[rcsb_id] = str(pmid)
