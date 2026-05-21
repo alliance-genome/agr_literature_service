@@ -44,12 +44,11 @@ def _ensure_user(db, uid: str): # noqa
 def _clear_global_user():
     """Ensure each test starts with no global user set."""
     from agr_literature_service.api import user as user_mod
-    prev = user_mod._current_user_id
-    user_mod._current_user_id = None
+    token = user_mod._current_user_id.set(None)
     try:
         yield
     finally:
-        user_mod._current_user_id = prev
+        user_mod._current_user_id.reset(token)
 
 
 @pytest.fixture(autouse=True)

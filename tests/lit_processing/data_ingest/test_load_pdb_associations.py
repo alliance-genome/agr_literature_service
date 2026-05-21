@@ -48,9 +48,9 @@ class TestFetchPubmedIdsGraphql:
             "data": {
                 "entries": [
                     {"rcsb_id": "1ABC",
-                     "rcsb_pubmed_container_identifiers": {"pubmed_id": 11111}},
+                     "pubmed": {"rcsb_pubmed_container_identifiers": {"pubmed_id": 11111}}},
                     {"rcsb_id": "2XYZ",
-                     "rcsb_pubmed_container_identifiers": {"pubmed_id": 22222}},
+                     "pubmed": {"rcsb_pubmed_container_identifiers": {"pubmed_id": 22222}}},
                 ]
             }
         }
@@ -66,21 +66,34 @@ class TestFetchPubmedIdsGraphql:
             "data": {
                 "entries": [
                     {"rcsb_id": "1ABC",
-                     "rcsb_pubmed_container_identifiers": {"pubmed_id": 11111}},
+                     "pubmed": {"rcsb_pubmed_container_identifiers": {"pubmed_id": 11111}}},
                     {"rcsb_id": "2XYZ",
-                     "rcsb_pubmed_container_identifiers": None},
+                     "pubmed": None},
                     {"rcsb_id": "3DEF",
-                     "rcsb_pubmed_container_identifiers": {"pubmed_id": None}},
+                     "pubmed": {"rcsb_pubmed_container_identifiers": None}},
+                    {"rcsb_id": "4GHI",
+                     "pubmed": {"rcsb_pubmed_container_identifiers": {"pubmed_id": None}}},
                 ]
             }
         }
-        result = mod._fetch_pubmed_ids_graphql(["1ABC", "2XYZ", "3DEF"])
+        result = mod._fetch_pubmed_ids_graphql(["1ABC", "2XYZ", "3DEF", "4GHI"])
         assert result == {"1ABC": "11111"}
 
     @patch.object(mod, "_post_with_retry")
     def test_handles_empty_response(self, mock_post):
         mock_post.return_value = {"data": {"entries": []}}
         assert mod._fetch_pubmed_ids_graphql(["1ABC"]) == {}
+
+    @patch.object(mod, "_post_with_retry")
+    def test_raises_on_graphql_errors(self, mock_post):
+        mock_post.return_value = {
+            "errors": [
+                {"message": "Validation error (FieldUndefined@[entries/foo]): "
+                            "Field 'foo' in type 'CoreEntry' is undefined"}
+            ]
+        }
+        with pytest.raises(RuntimeError, match="RCSB GraphQL error"):
+            mod._fetch_pubmed_ids_graphql(["1ABC"])
 
 
 class TestFetchAllPdbIdsWithPubmed:
