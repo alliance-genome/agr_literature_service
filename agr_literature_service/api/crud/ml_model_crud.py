@@ -1,17 +1,23 @@
 import gzip
 import os
 import shutil
+from typing import Optional
 
 import boto3
 from fastapi import UploadFile, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
-from agr_literature_service.api.schemas.ml_model_schemas import MLModelSchemaPost, MLModelSchemaShow
+from agr_literature_service.api.schemas.ml_model_schemas import (
+    MLModelSchemaPost,
+    MLModelSchemaShow,
+    MLModelSchemaShowWithNames,
+)
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
 s3_client = boto3.client('s3')
@@ -177,6 +183,28 @@ def get_model_metadata(db: Session, task_type: str, mod_abbreviation: str, topic
     mod = get_mod(db, mod_abbreviation)
     model = get_model(db, task_type, mod.mod_id, topic, version)
     return get_model_schema_from_orm(model)
+
+
+def get_all_models(db: Session, mod_abbreviation: Optional[str] = None):
+    query = db.query(MLModel).options(joinedload(MLModel.mod))
+    if mod_abbreviation is not None:
+        mod = get_mod(db, mod_abbreviation)
+        query = query.filter(MLModel.mod_id == mod.mod_id)
+    models = query.order_by(MLModel.ml_model_id).all()
+    atp_ids = {m.topic for m in models if m.topic} | {m.data_novelty for m in models if m.data_novelty}
+    species_ids = {m.species for m in models if m.species}
+    atp_to_name = map_curies_to_names('atpterm', atp_ids) if atp_ids else {}
+    species_to_name = map_curies_to_names('species', species_ids) if species_ids else {}
+    result = []
+    for m in models:
+        base = get_model_schema_from_orm(m)
+        result.append(MLModelSchemaShowWithNames(
+            **base.model_dump(),
+            topic_name=atp_to_name.get(m.topic) if m.topic else None,
+            data_novelty_name=atp_to_name.get(m.data_novelty) if m.data_novelty else None,
+            species_name=species_to_name.get(m.species) if m.species else None,
+        ))
+    return result
 
 
 def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topic: str = None, version: str = None):
