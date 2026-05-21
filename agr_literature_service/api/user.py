@@ -1,3 +1,4 @@
+from contextvars import ContextVar
 from typing import Optional, Dict, Any
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -6,8 +7,13 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api.crud import user_crud
 from agr_literature_service.api.models.user_model import UserModel
 
-# String primary key (users.id) of the "current user" for this process/request
-_current_user_id: Optional[str] = None
+# String primary key (users.id) of the "current user" for this request.
+# A ContextVar isolates the value per asyncio task and per FastAPI threadpool
+# worker, so concurrent requests cannot overwrite each other's identity before
+# the SQLAlchemy `before_update` listener stamps `updated_by`.
+_current_user_id: ContextVar[Optional[str]] = ContextVar(
+    "_current_user_id", default=None
+)
 
 
 def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
@@ -36,11 +42,10 @@ def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
 
 def set_global_user_id(db: Session, id: str) -> None:
     """
-    Manually set the global users.id (e.g., script/program name).
-    Treated as an automation user.
+    Set the current users.id for this request/context (e.g., script or
+    program name). Treated as an automation user.
     """
-    global _current_user_id
-    _current_user_id = id
+    _current_user_id.set(id)
     _ensure_automation_user(db, id)
 
 
@@ -53,17 +58,15 @@ def add_user_if_not_exists(db: Session, user_id: str) -> None:
 
 def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, Any]]) -> None:
     """
-    Set the global user from a Cognito token.
+    Set the current request's user from a Cognito token.
 
     For ID tokens (user login): Looks up user by email via email table join.
     For access tokens (service accounts): Uses 'default_user' and creates if needed.
     For None (VPN bypass): Sets current user to None (anonymous access).
     """
-    global _current_user_id
-
     # VPN bypass - no authenticated user (anonymous access)
     if cognito_user is None:
-        _current_user_id = None
+        _current_user_id.set(None)
         return
 
     # Check if this is a service account (access token from client_credentials flow)
@@ -71,7 +74,7 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
     if token_type == "access":
         # Service account - use default_user
         default_user_id = "default_user"
-        _current_user_id = default_user_id
+        _current_user_id.set(default_user_id)
         _ensure_automation_user(db, default_user_id)
         return
 
@@ -103,13 +106,13 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
                    "Contact an administrator to create your user account."
         )
 
-    # Set the global user ID from the query result
-    _current_user_id = result[0]
+    # Set the current user ID from the query result
+    _current_user_id.set(result[0])
 
 
 def get_global_user_id() -> Optional[str]:
     """Return the current users.id (string PK), or None."""
-    return _current_user_id
+    return _current_user_id.get()
 
 
 def get_current_user_pk(db: Session) -> Optional[int]:
@@ -117,9 +120,10 @@ def get_current_user_pk(db: Session) -> Optional[int]:
     Return the integer users.user_id for the current user (creating the automation
     user if necessary). Use this when inserting into the `transaction` table.
     """
-    if _current_user_id is None:
+    uid = _current_user_id.get()
+    if uid is None:
         return None
-    u = _ensure_automation_user(db, _current_user_id)
+    u = _ensure_automation_user(db, uid)
     return getattr(u, "user_id", None)
 
 
