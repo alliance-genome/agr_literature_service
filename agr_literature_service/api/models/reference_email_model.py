@@ -3,9 +3,10 @@ from typing import Dict
 from sqlalchemy import (
     Column,
     Integer,
+    String,
     ForeignKey,
-    UniqueConstraint,
     Index,
+    text,
 )
 from sqlalchemy.orm import relationship
 
@@ -28,31 +29,27 @@ class ReferenceEmailModel(Base, AuditedModel):
         nullable=False,
         index=True,
     )
-    email_id = Column(
-        Integer,
-        ForeignKey("email.email_id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
 
-    # Relationships (you can wire these up on the other side if/when you like)
+    email_address = Column(String(), nullable=False)
+
     reference = relationship("ReferenceModel", back_populates="reference_emails")
-    email = relationship("EmailModel", back_populates="reference_emails")
 
     __table_args__ = (
-        # Ensure each (reference, email) pair appears at most once
-        UniqueConstraint(
+        Index(
+            "uq_reference_email_reference_email_lower",
             "reference_id",
-            "email_id",
-            name="uq_reference_email_reference_email",
+            text("lower(email_address)"),
+            unique=True,
         ),
-        # Helpful composite index for joins / lookups in either direction
         Index(
             "ix_reference_email_reference_email",
             "reference_id",
-            "email_id",
+            "email_address",
         ),
     )
 
     def __str__(self) -> str:
-        return f"ReferenceEmail(reference_id={self.reference_id}, email_id={self.email_id})"
+        return (
+            f"ReferenceEmail(reference_id={self.reference_id}, "
+            f"email_address={self.email_address})"
+        )

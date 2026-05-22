@@ -23,6 +23,7 @@ from agr_literature_service.api.schemas import (
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaCreate
 from agr_literature_service.api.schemas.workflow_tag_schemas import WorkflowTagSchemaCreate, WorkflowTagSchemaRelated
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaCreate
+from agr_literature_service.api.schemas.reference_email_schemas import ReferenceEmailSchemaRelated
 
 
 class ReferenceSchemaPost(BaseModel):
@@ -135,21 +136,6 @@ class ReferenceRelationSchemaRelations(BaseModel):
 
     to_references: Optional[List[ReferenceRelationSchemaRelated]] = None
     from_references: Optional[List[ReferenceRelationSchemaRelated]] = None
-
-
-class ReferenceEmailSchemaRelated(BaseModel):
-    """Schema for emails associated with a reference via reference_email."""
-    model_config = ConfigDict(
-        extra='forbid',
-        from_attributes=True,
-    )
-
-    reference_email_id: int
-    email_id: int
-    email_address: str
-    person_id: Optional[int] = None
-    is_primary: Optional[bool] = None
-    date_invalidated: Optional[str] = None
 
 
 class ReferenceSchemaShow(AuditedObjectModelSchema):

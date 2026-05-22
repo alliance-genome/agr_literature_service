@@ -1,6 +1,6 @@
 from typing import Dict
 from sqlalchemy import (
-    Column, DateTime, Integer, String, ARRAY,
+    Column, DateTime, Integer, String, ARRAY, Boolean,
     Index, CheckConstraint,
 )
 from sqlalchemy.orm import relationship
@@ -38,13 +38,19 @@ class PersonModel(Base, AuditedModel):
 
     biography_research_interest = Column(String(), nullable=True)
 
-    # Only keep these relationships
-    # Note: cascade does NOT include "delete" or "delete-orphan" for emails.
-    # Email deletion is handled manually in person_crud.destroy() to preserve
-    # emails that have reference relations (they get detached instead of deleted).
-    # passive_deletes=True tells SQLAlchemy to let the DB handle SET NULL via FK constraint,
-    # avoiding redundant loads and updates when a person is deleted.
-    emails = relationship("EmailModel", back_populates="person", passive_deletes=True)
+    unsubscribe = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+
+    emails = relationship(
+        "PersonEmailModel",
+        back_populates="person",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
     cross_references = relationship("PersonCrossReferenceModel", back_populates="person", cascade="all, delete-orphan")
     settings = relationship("PersonSettingModel", back_populates="person", cascade="all, delete-orphan")
     names = relationship("PersonNameModel", back_populates="person", cascade="all, delete-orphan")

@@ -237,7 +237,7 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
         mit.note,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
-        COALESCE(e.email_address, mit.updated_by) AS updated_by_email,
+        COALESCE(get_most_current_email(u.person_id), mit.updated_by) AS updated_by_email,
         COALESCE(p.display_name, mit.updated_by) AS updated_by_name,
         mit.updated_by
     FROM manual_indexing_tag mit
@@ -245,14 +245,6 @@ def get_manual_indexing_tag(db: Session, curie: str, mod_abbreviation: str):
     JOIN mod m ON m.mod_id = mit.mod_id
     LEFT JOIN users u  ON u.id = mit.updated_by
     LEFT JOIN person p ON p.person_id = u.person_id
-    LEFT JOIN LATERAL (
-        SELECT em.email_address
-        FROM email em
-        WHERE em.person_id = u.person_id
-        AND em.date_invalidated IS NULL
-        ORDER BY em.email_id ASC
-        LIMIT 1
-    ) e ON TRUE
     WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()

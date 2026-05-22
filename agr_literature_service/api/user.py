@@ -28,7 +28,7 @@ def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
     u = db.query(UserModel).filter_by(id=program_name).first()
     if u is None:
         # user_crud.create sets automation_username=<id>, person_id=NULL
-        u = user_crud.create(db, program_name, None)
+        u = user_crud.create(db, program_name)
         return u
 
     # If it exists but both fields are NULL, set automation side to satisfy CHECK.
@@ -87,12 +87,16 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
             detail="Cognito user does not have an associated email address."
         )
 
-    # Query using raw SQL to avoid circular import with EmailModel
+    # Query using raw SQL to avoid circular import with PersonEmailModel.
+    # Match case-insensitively because (a) person_email may store the
+    # original mixed-case address and (b) Cognito tokens often carry
+    # mixed case. The ix_person_email_lower_email_address functional
+    # index supports the lower() match.
     sql = text("""
         SELECT u.id
         FROM users u
-        JOIN email e ON u.person_id = e.person_id
-        WHERE e.email_address = :email
+        JOIN person_email e ON u.person_id = e.person_id
+        WHERE lower(e.email_address) = lower(:email)
         ORDER BY u.id
         LIMIT 1
     """)

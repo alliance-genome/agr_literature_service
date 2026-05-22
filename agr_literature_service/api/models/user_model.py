@@ -18,8 +18,6 @@ class UserModel(Base):
         foreign_keys=[person_id]
     )
 
-    email = Column(String, nullable=True, index=True)
-
     __table_args__ = (
         CheckConstraint(
             "(person_id IS NULL) <> (automation_username IS NULL)",
