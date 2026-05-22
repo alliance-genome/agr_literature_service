@@ -1,3 +1,16 @@
+[build-system]
+requires = ["setuptools>=67.0.0", "wheel>=0.40.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agr_literature_service"
+version = "0.1.0"
+requires-python = ">=3.9"
+
+[tool.setuptools.packages.find]
+include = ["agr_literature_service*"]
+exclude = ["tests*", "examples*", "non_pr_tests*", "docker*", "alembic*", "debezium*", "reverse_proxy*", "file_uploader*", "curation_status*"]
+
 [tool.pytest.ini_options]
 addopts = "--cov --cov-fail-under=74 -vv --cov-report html --ignore non_pr_tests/"
 markers = [

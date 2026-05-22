@@ -71,10 +71,11 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
 
-    # Associate HUMAN papers with AGR MOD
+    # Associate HUMAN papers with AGR MOD (even if already in another MOD corpus)
     if datasetName == "HUMAN":
         associate_papers_with_alliance(db_session, all_pmids, 'AGR',
-                                       ModCorpusSortSourceType.Interaction)
+                                       ModCorpusSortSourceType.Interaction,
+                                       add_even_if_in_other_corpus=True)
 
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
@@ -101,10 +102,11 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     add_md5sum_to_database(db_session, None, pmids_loaded)
 
-    # Associate newly loaded HUMAN papers with AGR MOD
+    # Associate newly loaded HUMAN papers with AGR MOD (even if already in another MOD corpus)
     if datasetName == "HUMAN" and len(pmids_loaded) > 0:
         associate_papers_with_alliance(db_session, pmids_loaded, 'AGR',
-                                       ModCorpusSortSourceType.Interaction)
+                                       ModCorpusSortSourceType.Interaction,
+                                       add_even_if_in_other_corpus=True)
 
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,

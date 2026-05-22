@@ -230,9 +230,10 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  
     new_pmids = all_pmids - all_pmids_db
     logger.info(f"HUMAN GAF: {len(all_pmids)} total PMIDs, {len(new_pmids)} new")
 
-    # Associate existing papers with AGR MOD if not in any MOD corpus
+    # Associate existing papers with AGR MOD (even if already in another MOD corpus)
     papers_associated = associate_papers_with_alliance(db_session, all_pmids, 'AGR',
-                                                       ModCorpusSortSourceType.Gaf)
+                                                       ModCorpusSortSourceType.Gaf,
+                                                       add_even_if_in_other_corpus=True)
 
     pmids_loaded: Set[str] = set()
     if new_pmids:
@@ -257,10 +258,11 @@ def process_human_gaf(db_session, s3_url: str, all_pmids_db: Set[str]) -> str:  
 
         add_md5sum_to_database(db_session, None, pmids_loaded)
 
-        # Associate newly loaded papers with AGR MOD
+        # Associate newly loaded papers with AGR MOD (even if already in another MOD corpus)
         if pmids_loaded:
             newly_associated = associate_papers_with_alliance(db_session, pmids_loaded, 'AGR',
-                                                              ModCorpusSortSourceType.Gaf)
+                                                              ModCorpusSortSourceType.Gaf,
+                                                              add_even_if_in_other_corpus=True)
             papers_associated += newly_associated
 
     # Check for obsolete PMIDs among those not loaded

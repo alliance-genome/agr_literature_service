@@ -25,12 +25,18 @@ logger = logging.getLogger(__name__)
 
 def associate_papers_with_alliance(db_session, all_pmids: Set[str],
                                    mod_abbr: str = 'AGR',
-                                   sort_source: ModCorpusSortSourceType = ModCorpusSortSourceType.Automated_alliance) -> int:
+                                   sort_source: ModCorpusSortSourceType = ModCorpusSortSourceType.Automated_alliance,
+                                   add_even_if_in_other_corpus: bool = False) -> int:
     """
     Associate papers with a MOD (default: AGR).
-    Only associate papers that do NOT already have a mod_corpus_association
-    with corpus=True for any MOD. This ensures we only add papers to the
-    specified MOD that are not already in another MOD's corpus.
+
+    By default, only associate papers that do NOT already have a
+    mod_corpus_association with corpus=True for any MOD. This ensures we only
+    add papers to the specified MOD that are not already in another MOD's corpus.
+
+    When add_even_if_in_other_corpus=True, papers will be added to the target MOD
+    even if they already have corpus=True in another MOD (but not if they're already
+    associated with the target MOD).
 
     Args:
         db_session: Database session
@@ -38,6 +44,8 @@ def associate_papers_with_alliance(db_session, all_pmids: Set[str],
         mod_abbr: MOD abbreviation to associate with (default: 'AGR')
         sort_source: The source type for mod_corpus_sort_source column
                      (default: Automated_alliance)
+        add_even_if_in_other_corpus: If True, add to target MOD even if paper
+                                     is already in another MOD's corpus (default: False)
 
     Returns:
         Number of papers associated with the MOD
@@ -75,13 +83,23 @@ def associate_papers_with_alliance(db_session, all_pmids: Set[str],
 
     ref_ids_list = list(reference_ids_in_db)
 
-    # Get reference_ids that already have corpus=True for any MOD
-    # OR already have an association with the target MOD (to avoid unique constraint violation)
-    refs_to_exclude_query = text(
-        "SELECT DISTINCT reference_id FROM mod_corpus_association "
-        "WHERE reference_id = ANY(:ref_ids) "
-        "AND (corpus = True OR mod_id = :mod_id)"
-    )
+    # Get reference_ids to exclude from association
+    # When add_even_if_in_other_corpus=True: only exclude papers already associated with target MOD
+    # When add_even_if_in_other_corpus=False: also exclude papers with corpus=True for any MOD
+    if add_even_if_in_other_corpus:
+        # Only exclude papers already associated with the target MOD
+        refs_to_exclude_query = text(
+            "SELECT DISTINCT reference_id FROM mod_corpus_association "
+            "WHERE reference_id = ANY(:ref_ids) "
+            "AND mod_id = :mod_id"
+        )
+    else:
+        # Exclude papers with corpus=True for any MOD OR already associated with target MOD
+        refs_to_exclude_query = text(
+            "SELECT DISTINCT reference_id FROM mod_corpus_association "
+            "WHERE reference_id = ANY(:ref_ids) "
+            "AND (corpus = True OR mod_id = :mod_id)"
+        )
     refs_to_exclude = db_session.execute(
         refs_to_exclude_query,
         {"ref_ids": ref_ids_list, "mod_id": mod_id}
