@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.crud.ateam_db_helpers import create_ateam_db_session, \
-    atp_get_name, search_for_entity_curies
+    atp_get_name
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_entity_curies_to_names
 from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
 
@@ -182,6 +182,51 @@ def search_species(ateam_db, species_list):
     return rows
 
 
+def search_entity_obsolete_status(ateam_db, entity_type, entity_curie_list):
+    """
+    Return rows of (primaryexternalid, obsolete, name) for the given curies in
+    the A-team DB. Replaces the previous shared helper whose signature/return
+    shape diverged from this caller's needs.
+    """
+    if not entity_curie_list:
+        return []
+
+    if entity_type in ['gene', 'allele']:
+        sql_query = text(f"""
+        SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+        FROM biologicalentity be, {entity_type} ent_tbl
+        WHERE be.id = ent_tbl.id
+        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        """)
+    elif entity_type == 'construct':
+        sql_query = text("""
+        SELECT DISTINCT r.primaryexternalid, r.obsolete, r.primaryexternalid
+        FROM reagent r, construct c
+        WHERE r.id = c.id
+        AND UPPER(r.primaryexternalid) IN :entity_curie_list
+        """)
+    elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
+        sql_query = text("""
+        SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+        FROM biologicalentity be, affectedgenomicmodel agm
+        WHERE be.id = agm.id
+        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        """)
+    elif 'targeting reagent' in entity_type:
+        sql_query = text("""
+        SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
+        FROM biologicalentity be, sequencetargetingreagent str
+        WHERE be.id = str.id
+        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        """)
+    else:
+        return []
+
+    return ateam_db.execute(
+        sql_query, {'entity_curie_list': tuple(entity_curie_list)}
+    ).fetchall()
+
+
 def check_ateam_database(ateam_db, entity_type_name, mod_entity_ids, batch_size=100):
 
     valid_ids = set()
@@ -193,7 +238,7 @@ def check_ateam_database(ateam_db, entity_type_name, mod_entity_ids, batch_size=
         if entity_type_name == 'species':
             rows = search_species(ateam_db, batch) or []
         else:
-            rows = search_for_entity_curies(ateam_db, entity_type_name, batch) or []
+            rows = search_entity_obsolete_status(ateam_db, entity_type_name, batch) or []
         for mod_entity_id, is_obsolete, name in rows:
             if is_obsolete:
                 obsolete_ids.add(mod_entity_id)
