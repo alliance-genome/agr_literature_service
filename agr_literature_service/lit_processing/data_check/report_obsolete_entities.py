@@ -136,7 +136,7 @@ def get_name_for_curie(ateam_db, entity_type_name, curie):
         FROM biologicalentity be
         JOIN affectedgenomicmodel agm ON be.id = agm.id
         WHERE be.primaryexternalid = :curie
-        AND sa.obsolete = True
+        AND be.obsolete = True
         """)
 
     elif entity_type_name == 'construct':
@@ -148,13 +148,13 @@ def get_name_for_curie(ateam_db, entity_type_name, curie):
             'ConstructFullNameSlotAnnotation',
             'ConstructSymbolSlotAnnotation'
         )
-        AND be.primaryexternalid = :curie
+        AND r.primaryexternalid = :curie
         AND sa.obsolete = True
         """)
     else:
         return None
     rows = ateam_db.execute(query, {'curie': curie}).fetchall()
-    if len(rows) > 1:
+    if len(rows) >= 1:
         return rows[0][0]
     return None
 
