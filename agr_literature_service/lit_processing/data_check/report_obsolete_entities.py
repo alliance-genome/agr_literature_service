@@ -196,28 +196,28 @@ def search_entity_obsolete_status(ateam_db, entity_type, entity_curie_list):
         SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
         FROM biologicalentity be, {entity_type} ent_tbl
         WHERE be.id = ent_tbl.id
-        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        AND be.primaryexternalid IN :entity_curie_list
         """)
     elif entity_type == 'construct':
         sql_query = text("""
         SELECT DISTINCT r.primaryexternalid, r.obsolete, r.primaryexternalid
         FROM reagent r, construct c
         WHERE r.id = c.id
-        AND UPPER(r.primaryexternalid) IN :entity_curie_list
+        AND r.primaryexternalid IN :entity_curie_list
         """)
     elif entity_type in ['agms', 'strain', 'genotype', 'fish']:
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
         FROM biologicalentity be, affectedgenomicmodel agm
         WHERE be.id = agm.id
-        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        AND be.primaryexternalid IN :entity_curie_list
         """)
     elif 'targeting reagent' in entity_type:
         sql_query = text("""
         SELECT DISTINCT be.primaryexternalid, be.obsolete, be.primaryexternalid
         FROM biologicalentity be, sequencetargetingreagent str
         WHERE be.id = str.id
-        AND UPPER(be.primaryexternalid) IN :entity_curie_list
+        AND be.primaryexternalid IN :entity_curie_list
         """)
     else:
         return []
