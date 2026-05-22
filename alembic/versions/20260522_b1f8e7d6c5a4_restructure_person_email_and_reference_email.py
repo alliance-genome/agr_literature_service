@@ -1,7 +1,7 @@
 """restructure person_email and reference_email
 
 Revision ID: b1f8e7d6c5a4
-Revises: e7a4d3b8c1f5
+Revises: a3f7c1d8b4e2
 Create Date: 2026-05-22
 
 Schema cleanup:
@@ -28,7 +28,7 @@ import sqlalchemy as sa
 
 
 revision = "b1f8e7d6c5a4"
-down_revision = "e7a4d3b8c1f5"
+down_revision = "a3f7c1d8b4e2"
 branch_labels = None
 depends_on = None
 
