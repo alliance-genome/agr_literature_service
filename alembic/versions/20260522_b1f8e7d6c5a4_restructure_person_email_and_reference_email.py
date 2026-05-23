@@ -188,6 +188,32 @@ def upgrade():  # noqa: C901
             "ALTER INDEX ix_email_lower_email_address "
             "RENAME TO ix_person_email_lower_email_address"
         )
+    # Postgres does not auto-rename indexes when a table is renamed.
+    # Rename the remaining ix_email_* indexes left over from the
+    # original `email` table so they match the new `person_email`
+    # naming (otherwise migrated DBs diverge from fresh-built ones via
+    # Base.metadata.create_all).
+    for old, new in (
+        ("ix_email_person_id", "ix_person_email_person_id"),
+        ("ix_email_date_created", "ix_person_email_date_created"),
+        ("ix_email_date_updated", "ix_person_email_date_updated"),
+    ):
+        if _index_exists(conn, old):
+            op.execute(f"ALTER INDEX {old} RENAME TO {new}")
+    # And the Continuum _version table's index siblings.
+    for old, new in (
+        ("ix_email_version_date_created", "ix_person_email_version_date_created"),
+        ("ix_email_version_date_updated", "ix_person_email_version_date_updated"),
+        ("ix_email_version_end_transaction_id",
+         "ix_person_email_version_end_transaction_id"),
+        ("ix_email_version_operation_type",
+         "ix_person_email_version_operation_type"),
+        ("ix_email_version_person_id", "ix_person_email_version_person_id"),
+        ("ix_email_version_transaction_id",
+         "ix_person_email_version_transaction_id"),
+    ):
+        if _index_exists(conn, old):
+            op.execute(f"ALTER INDEX {old} RENAME TO {new}")
     if _constraint_exists(conn, "person_email", "uq_email_person_address"):
         op.execute(
             "ALTER TABLE person_email "
@@ -211,6 +237,49 @@ def upgrade():  # noqa: C901
             "CREATE UNIQUE INDEX uq_person_email_person_address_lower "
             "ON person_email (person_id, lower(email_address))"
         )
+
+    # Rename the PK column from the legacy `email_id` (inherited from the
+    # pre-rename `email` table) to `person_email_id`. Apply on the live
+    # table and the Continuum `_version` shadow. Also rename the PK
+    # constraint for consistency.
+    if _col_exists(conn, "person_email", "email_id"):
+        op.alter_column(
+            "person_email",
+            "email_id",
+            new_column_name="person_email_id",
+        )
+    if _table_exists(conn, "person_email_version") and _col_exists(
+        conn, "person_email_version", "email_id"
+    ):
+        op.alter_column(
+            "person_email_version",
+            "email_id",
+            new_column_name="person_email_id",
+        )
+    if _constraint_exists(conn, "person_email", "email_pkey"):
+        op.execute(
+            "ALTER TABLE person_email "
+            "RENAME CONSTRAINT email_pkey TO person_email_pkey"
+        )
+    if _table_exists(conn, "person_email_version") and _constraint_exists(
+        conn, "person_email_version", "email_version_pkey"
+    ):
+        op.execute(
+            "ALTER TABLE person_email_version "
+            "RENAME CONSTRAINT email_version_pkey "
+            "TO person_email_version_pkey"
+        )
+
+    # Rename the auto-generated sequence so it matches the new
+    # table+column. Postgres binds sequences to columns by OID, so the
+    # ALTER COLUMN rename above does NOT rename the sequence. Without
+    # this, `pg_get_serial_sequence('person_email', 'person_email_id')`
+    # returns `email_email_id_seq`, which diverges from what
+    # `Base.metadata.create_all()` produces on a fresh DB.
+    op.execute(
+        "ALTER SEQUENCE IF EXISTS email_email_id_seq "
+        "RENAME TO person_email_person_email_id_seq"
+    )
 
     # ------------------------------------------------------------------
     # 6. Add person.unsubscribe with permanent DB default FALSE.
@@ -283,23 +352,33 @@ def upgrade():  # noqa: C901
     #    do the same for the Continuum version table so the audit trail
     #    isn't blanked out.
     # ------------------------------------------------------------------
-    op.execute(
-        """
-        UPDATE reference_email re
-        SET email_address = pe.email_address
-        FROM person_email pe
-        WHERE pe.email_id = re.email_id
-          AND re.email_address IS NULL
-        """
-    )
+    # Step 5 renamed person_email's PK column to `person_email_id`, but
+    # `reference_email.email_id` is still the legacy FK name at this point
+    # (it gets dropped in step 9 below). Join with the new PK name on
+    # the person_email side. Guard on the legacy column actually being
+    # present so a fresh DB built straight from current models (which
+    # already have email_id dropped) can run this migration without
+    # exploding.
+    if _col_exists(conn, "reference_email", "email_id"):
+        op.execute(
+            """
+            UPDATE reference_email re
+            SET email_address = pe.email_address
+            FROM person_email pe
+            WHERE pe.person_email_id = re.email_id
+              AND re.email_address IS NULL
+            """
+        )
 
-    if _table_exists(conn, "reference_email_version"):
+    if _table_exists(conn, "reference_email_version") and _col_exists(
+        conn, "reference_email_version", "email_id"
+    ):
         op.execute(
             """
             UPDATE reference_email_version rev
             SET email_address = pe.email_address
             FROM person_email pe
-            WHERE pe.email_id = rev.email_id
+            WHERE pe.person_email_id = rev.email_id
               AND rev.email_address IS NULL
             """
         )
@@ -342,10 +421,11 @@ def upgrade():  # noqa: C901
     ).scalar()
     if fk_name is None:
         # Fallback: it may still point at the pre-rename ``email`` name
-        # in older databases.
+        # in older databases. Use a regex with a `(` boundary so this
+        # doesn't substring-match `REFERENCES person_email`.
         fk_name = conn.execute(
             sa.text(
-                """
+                r"""
                 SELECT conname
                 FROM pg_constraint c
                 JOIN pg_class t ON t.oid = c.conrelid
@@ -353,7 +433,7 @@ def upgrade():  # noqa: C901
                 WHERE n.nspname = current_schema()
                   AND t.relname = 'reference_email'
                   AND c.contype = 'f'
-                  AND pg_get_constraintdef(c.oid) ILIKE '%REFERENCES email%'
+                  AND pg_get_constraintdef(c.oid) ~* 'REFERENCES\s+email\s*\('
                 """
             )
         ).scalar()
@@ -474,7 +554,7 @@ def upgrade():  # noqa: C901
           WHERE person_id = p_person_id
             AND date_made_old_email IS NULL
           ORDER BY COALESCE(date_updated, date_created) DESC,
-                   email_id DESC
+                   person_email_id DESC
           LIMIT 1;
         $$ LANGUAGE SQL STABLE
         """
@@ -610,6 +690,27 @@ def downgrade():  # noqa: C901
             "ALTER INDEX ix_person_email_lower_email_address "
             "RENAME TO ix_email_lower_email_address"
         )
+    # Reverse the leftover-index renames from upgrade step 5.
+    for new, old in (
+        ("ix_person_email_person_id", "ix_email_person_id"),
+        ("ix_person_email_date_created", "ix_email_date_created"),
+        ("ix_person_email_date_updated", "ix_email_date_updated"),
+    ):
+        if _index_exists(conn, new):
+            op.execute(f"ALTER INDEX {new} RENAME TO {old}")
+    for new, old in (
+        ("ix_person_email_version_date_created", "ix_email_version_date_created"),
+        ("ix_person_email_version_date_updated", "ix_email_version_date_updated"),
+        ("ix_person_email_version_end_transaction_id",
+         "ix_email_version_end_transaction_id"),
+        ("ix_person_email_version_operation_type",
+         "ix_email_version_operation_type"),
+        ("ix_person_email_version_person_id", "ix_email_version_person_id"),
+        ("ix_person_email_version_transaction_id",
+         "ix_email_version_transaction_id"),
+    ):
+        if _index_exists(conn, new):
+            op.execute(f"ALTER INDEX {new} RENAME TO {old}")
     # Reverse the case-insensitive uniqueness swap: drop the functional
     # unique index and restore the plain (person_id, email_address)
     # UniqueConstraint. Existing data is normalized lower-case from
@@ -629,6 +730,45 @@ def downgrade():  # noqa: C901
             "ALTER TABLE person_email "
             "RENAME CONSTRAINT uq_person_email_person_address "
             "TO uq_email_person_address"
+        )
+
+    # Reverse the PK column rename (person_email_id -> email_id) on both
+    # the live table and the Continuum _version shadow, plus the PK
+    # constraint name. Do this BEFORE the table rename so we operate on
+    # the still-named `person_email` table.
+    if _constraint_exists(conn, "person_email", "person_email_pkey"):
+        op.execute(
+            "ALTER TABLE person_email "
+            "RENAME CONSTRAINT person_email_pkey TO email_pkey"
+        )
+    if _table_exists(conn, "person_email_version") and _constraint_exists(
+        conn, "person_email_version", "person_email_version_pkey"
+    ):
+        op.execute(
+            "ALTER TABLE person_email_version "
+            "RENAME CONSTRAINT person_email_version_pkey "
+            "TO email_version_pkey"
+        )
+
+    # Reverse the sequence rename so pg_dump and metadata.create_all
+    # agree on the legacy name.
+    op.execute(
+        "ALTER SEQUENCE IF EXISTS person_email_person_email_id_seq "
+        "RENAME TO email_email_id_seq"
+    )
+    if _col_exists(conn, "person_email", "person_email_id"):
+        op.alter_column(
+            "person_email",
+            "person_email_id",
+            new_column_name="email_id",
+        )
+    if _table_exists(conn, "person_email_version") and _col_exists(
+        conn, "person_email_version", "person_email_id"
+    ):
+        op.alter_column(
+            "person_email_version",
+            "person_email_id",
+            new_column_name="email_id",
         )
 
     if _table_exists(conn, "person_email_version") and not _table_exists(

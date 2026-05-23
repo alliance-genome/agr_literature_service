@@ -46,7 +46,7 @@ class PersonEmailSchemaUpdate(BaseModel):
 class PersonEmailSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    email_id: int
+    person_email_id: int
     person_id: int
     email_address: str
     date_made_old_email: Optional[datetime] = None
@@ -55,6 +55,6 @@ class PersonEmailSchemaShow(AuditedObjectModelSchema):
 class PersonEmailSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    email_id: int
+    person_email_id: int
     email_address: str
     date_made_old_email: Optional[datetime] = None

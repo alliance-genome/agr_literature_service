@@ -23,8 +23,8 @@ def create_for_person(
     Create a person_email row that belongs to a Person.
 
     Semantics:
-      - email_address is normalized (lowercased, trimmed).
-      - (person_id, email_address) must be unique.
+      - email_address is normalized (trimmed, case preserved).
+      - (person_id, lower(email_address)) must be unique.
     """
     person = db.query(PersonModel).filter(
         PersonModel.person_id == person_id
@@ -50,7 +50,7 @@ def create_for_person(
     email_addr = normalize_email(data["email_address"])
 
     dup = (
-        db.query(PersonEmailModel.email_id)
+        db.query(PersonEmailModel.person_email_id)
         .filter(
             PersonEmailModel.person_id == person_id,
             func.lower(PersonEmailModel.email_address) == email_addr.lower(),
@@ -94,28 +94,28 @@ def list_for_person(db: Session, person_id: int) -> List[PersonEmailModel]:
         .order_by(
             PersonEmailModel.date_updated.desc().nulls_last(),
             PersonEmailModel.date_created.desc().nulls_last(),
-            PersonEmailModel.email_id.desc(),
+            PersonEmailModel.person_email_id.desc(),
         )
         .all()
     )
 
 
-def show(db: Session, email_id: int) -> PersonEmailModel:
+def show(db: Session, person_email_id: int) -> PersonEmailModel:
     obj = (
         db.query(PersonEmailModel)
-        .filter(PersonEmailModel.email_id == email_id)
+        .filter(PersonEmailModel.person_email_id == person_email_id)
         .first()
     )
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Email with email_id {email_id} not found",
+            detail=f"person_email with person_email_id {person_email_id} not found",
         )
     return obj
 
 
 def patch(
-    db: Session, email_id: int, patch_dict: Dict[str, Any]
+    db: Session, person_email_id: int, patch_dict: Dict[str, Any]
 ) -> Dict[str, Any]:
     """
     Patch a person_email row.
@@ -126,13 +126,13 @@ def patch(
     """
     obj: Optional[PersonEmailModel] = (
         db.query(PersonEmailModel)
-        .filter(PersonEmailModel.email_id == email_id)
+        .filter(PersonEmailModel.person_email_id == person_email_id)
         .first()
     )
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Email with email_id {email_id} not found",
+            detail=f"person_email with person_email_id {person_email_id} not found",
         )
 
     data = jsonable_encoder(patch_dict)
@@ -145,11 +145,11 @@ def patch(
     if "email_address" in data and data["email_address"] is not None:
         new_addr = normalize_email(data["email_address"])
         dup = (
-            db.query(PersonEmailModel.email_id)
+            db.query(PersonEmailModel.person_email_id)
             .filter(
                 PersonEmailModel.person_id == obj.person_id,
                 func.lower(PersonEmailModel.email_address) == new_addr.lower(),
-                PersonEmailModel.email_id != email_id,
+                PersonEmailModel.person_email_id != person_email_id,
             )
             .first()
         )
@@ -170,16 +170,16 @@ def patch(
     return {"message": "updated"}
 
 
-def destroy(db: Session, email_id: int) -> None:
+def destroy(db: Session, person_email_id: int) -> None:
     obj = (
         db.query(PersonEmailModel)
-        .filter(PersonEmailModel.email_id == email_id)
+        .filter(PersonEmailModel.person_email_id == person_email_id)
         .first()
     )
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Email with email_id {email_id} not found",
+            detail=f"person_email with person_email_id {person_email_id} not found",
         )
 
     db.delete(obj)

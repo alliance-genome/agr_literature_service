@@ -53,40 +53,40 @@ def list_for_person(
 
 
 @router.get(
-    "/{email_id}",
+    "/{person_email_id}",
     status_code=status.HTTP_200_OK,
     response_model=PersonEmailSchemaShow,
 )
 def show(
-    email_id: int,
+    person_email_id: int,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    return person_email_crud.show(db, email_id)
+    return person_email_crud.show(db, person_email_id)
 
 
 @router.patch(
-    "/{email_id}",
+    "/{person_email_id}",
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ResponseMessageSchema,
 )
 def patch(
-    email_id: int,
+    person_email_id: int,
     request: PersonEmailSchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return person_email_crud.patch(db, email_id, patch_data)
+    return person_email_crud.patch(db, person_email_id, patch_data)
 
 
-@router.delete("/{email_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{person_email_id}", status_code=status.HTTP_204_NO_CONTENT)
 def destroy(
-    email_id: int,
+    person_email_id: int,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
-    person_email_crud.destroy(db, email_id)
+    person_email_crud.destroy(db, person_email_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

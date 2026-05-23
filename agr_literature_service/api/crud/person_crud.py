@@ -140,7 +140,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
         for e in emails_data:
             email_addr = normalize_email(e["email_address"])
             dup = (
-                db.query(PersonEmailModel.email_id)
+                db.query(PersonEmailModel.person_email_id)
                 .filter(PersonEmailModel.person_id == obj.person_id)
                 .filter(
                     func.lower(PersonEmailModel.email_address)

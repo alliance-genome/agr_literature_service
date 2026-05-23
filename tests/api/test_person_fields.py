@@ -798,7 +798,7 @@ class TestPersonEmailMixedCase:
                 f"/person_email/person/{person_id}",
                 json={"email_address": "Active@example.com"},
                 headers=auth_headers,
-            ).json()["email_id"]
+            ).json()["person_email_id"]
 
             patch = client.patch(
                 f"/person_email/{email_id}",
@@ -836,12 +836,12 @@ class TestGetMostCurrentEmailFunction:
                 f"/person_email/person/{person_id}",
                 json={"email_address": "older@example.com"},
                 headers=auth_headers,
-            ).json()["email_id"]
+            ).json()["person_email_id"]
             newer_id = client.post(
                 f"/person_email/person/{person_id}",
                 json={"email_address": "newer@example.com"},
                 headers=auth_headers,
-            ).json()["email_id"]
+            ).json()["person_email_id"]
 
             # Bump older row's date_updated so it becomes the most recent.
             patch = client.patch(
@@ -886,12 +886,12 @@ class TestGetMostCurrentEmailFunction:
                 f"/person_email/person/{person_id}",
                 json={"email_address": "kept@example.com"},
                 headers=auth_headers,
-            ).json()["email_id"]
+            ).json()["person_email_id"]
             retired = client.post(
                 f"/person_email/person/{person_id}",
                 json={"email_address": "retired@example.com"},
                 headers=auth_headers,
-            ).json()["email_id"]
+            ).json()["person_email_id"]
 
             # Retire the second (which is the more-recent row).
             client.patch(
@@ -921,7 +921,7 @@ class TestGetMostCurrentEmailFunction:
                 f"/person_email/person/{person_id}",
                 json={"email_address": "soon-old@example.com"},
                 headers=auth_headers,
-            ).json()["email_id"]
+            ).json()["person_email_id"]
             client.patch(
                 f"/person_email/{only_id}",
                 json={"date_made_old_email": "2026-01-01T00:00:00"},

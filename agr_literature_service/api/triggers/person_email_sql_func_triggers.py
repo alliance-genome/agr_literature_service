@@ -9,7 +9,7 @@ RETURNS TEXT AS $$
   WHERE person_id = p_person_id
     AND date_made_old_email IS NULL
   ORDER BY COALESCE(date_updated, date_created) DESC,
-           email_id DESC
+           person_email_id DESC
   LIMIT 1;
 $$ LANGUAGE SQL STABLE;
 """

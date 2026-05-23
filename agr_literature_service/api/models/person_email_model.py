@@ -20,7 +20,7 @@ class PersonEmailModel(Base, AuditedModel):
     __tablename__ = "person_email"
     __versioned__: Dict = {}
 
-    email_id = Column(Integer, primary_key=True, autoincrement=True)
+    person_email_id = Column(Integer, primary_key=True, autoincrement=True)
 
     person_id = Column(
         Integer,
