@@ -1090,3 +1090,63 @@ class TestReference:
             response = client.get(url="/reference/external_lookup/DOI:10.1234",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+class TestReferenceEmails:
+    """
+    reference_email rows are pure string snapshots. The
+    uq_reference_email_reference_email_lower functional unique index
+    enforces case-insensitive uniqueness per reference at the DB level.
+    """
+
+    def test_put_emails_case_insensitive_dedup(self, db, auth_headers, test_reference):  # noqa
+        curie = test_reference.new_ref_curie
+        with TestClient(app) as client:
+            res = client.put(
+                f"/reference/{curie}/emails",
+                json=["Foo@Bar.com", "foo@bar.com"],
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+
+            listing = client.get(
+                f"/reference/{curie}/emails", headers=auth_headers
+            ).json()
+            assert len(listing) == 1
+            # First occurrence wins; storage preserves its casing.
+            assert listing[0]["email_address"] == "Foo@Bar.com"
+
+    def test_post_email_then_post_case_variant_is_noop(self, db, auth_headers, test_reference):  # noqa
+        curie = test_reference.new_ref_curie
+        with TestClient(app) as client:
+            first = client.post(
+                f"/reference/{curie}/emails",
+                json="Author@Example.com",
+                headers=auth_headers,
+            )
+            assert first.status_code == status.HTTP_201_CREATED
+
+            # Adding a case-variant of the same address must not create a
+            # second row; the app-level dup check matches with lower().
+            second = client.post(
+                f"/reference/{curie}/emails",
+                json="AUTHOR@example.COM",
+                headers=auth_headers,
+            )
+            assert second.status_code == status.HTTP_201_CREATED  # idempotent add
+
+            listing = client.get(
+                f"/reference/{curie}/emails", headers=auth_headers
+            ).json()
+            assert len(listing) == 1
+            assert listing[0]["email_address"] == "Author@Example.com"
+
+    def test_put_emails_rejects_malformed(self, db, auth_headers, test_reference):  # noqa
+        curie = test_reference.new_ref_curie
+        with TestClient(app) as client:
+            res = client.put(
+                f"/reference/{curie}/emails",
+                json=["justastring"],
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

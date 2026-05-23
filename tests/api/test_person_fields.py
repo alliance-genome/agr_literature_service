@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from sqlalchemy import text
 from starlette.testclient import TestClient
 from fastapi import status
 
@@ -413,13 +414,10 @@ class TestPersonFields:
             assert len(primary_names) == 1
             assert primary_names[0]["last_name"] == "Comprehensive"
 
-            # Emails: 2 present, first is auto-primary since none explicitly marked
+            # Emails: 2 present (no primary concept anymore)
             emails = body.get("emails") or []
             email_addresses = {e["email_address"] for e in emails}
             assert email_addresses == {"jane.doe@example.com", "jane.c@example.org"}
-            primary_emails = [e for e in emails if e.get("is_primary") is True]
-            assert len(primary_emails) == 1
-            assert primary_emails[0]["email_address"] == "jane.doe@example.com"
 
             # Cross-references: 2 present with derived curie_prefix
             xrefs = body.get("cross_references") or []
@@ -543,7 +541,7 @@ class TestPersonLookups:
             ).json()
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             email_post = client.post(
-                f"/email/person/{person_id}",
+                f"/person_email/person/{person_id}",
                 json={"email_address": "lookup@example.com"},
                 headers=auth_headers,
             )
@@ -706,6 +704,313 @@ class TestPersonLookups:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestPersonEmailMixedCase:
+    """
+    Stored email_address values preserve the original casing the user typed.
+    All uniqueness checks and lookups use lower() on both sides. The DB
+    enforces this with the functional unique index
+    uq_person_email_person_address_lower.
+    """
+
+    def test_email_preserves_case_in_storage(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Mixed Case Storage"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+            post = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "Foo@Bar.com"},
+                headers=auth_headers,
+            )
+            assert post.status_code == status.HTTP_201_CREATED
+            assert post.json()["email_address"] == "Foo@Bar.com"
+
+            listing = client.get(
+                f"/person_email/person/{person_id}", headers=auth_headers
+            ).json()
+            assert [e["email_address"] for e in listing] == ["Foo@Bar.com"]
+
+    def test_email_case_insensitive_duplicate_rejected(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Case Insensitive Dup"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+
+            first = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "Foo@bar.com"},
+                headers=auth_headers,
+            )
+            assert first.status_code == status.HTTP_201_CREATED
+
+            second = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "FOO@BAR.COM"},
+                headers=auth_headers,
+            )
+            assert second.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_email_lookup_is_case_insensitive(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Lookup Case Insensitive"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+            client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "MixedCase@Example.com"},
+                headers=auth_headers,
+            )
+            res = client.get(
+                "/person/by_email/mixedcase@example.com",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["person_id"] == person_id
+
+    def test_patch_date_made_old_email(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Mark Email Old"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+            email_id = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "Active@example.com"},
+                headers=auth_headers,
+            ).json()["person_email_id"]
+
+            patch = client.patch(
+                f"/person_email/{email_id}",
+                json={"date_made_old_email": "2026-05-22T12:00:00"},
+                headers=auth_headers,
+            )
+            assert patch.status_code == status.HTTP_202_ACCEPTED
+
+            shown = client.get(
+                f"/person_email/{email_id}", headers=auth_headers
+            ).json()
+            assert shown["date_made_old_email"] is not None
+            assert shown["date_made_old_email"].startswith("2026-05-22T12:00:00")
+
+
+class TestGetMostCurrentEmailFunction:
+    """
+    The get_most_current_email(person_id) SQL function returns the
+    most-recently-touched person_email row whose date_made_old_email IS NULL,
+    or NULL when no active row exists.
+    """
+
+    def test_picks_most_recently_updated_active(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Function Picks Recent"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+
+            older_id = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "older@example.com"},
+                headers=auth_headers,
+            ).json()["person_email_id"]
+            newer_id = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "newer@example.com"},
+                headers=auth_headers,
+            ).json()["person_email_id"]
+
+            # Bump older row's date_updated so it becomes the most recent.
+            patch = client.patch(
+                f"/person_email/{older_id}",
+                json={"email_address": "older@example.com"},
+                headers=auth_headers,
+            )
+            assert patch.status_code == status.HTTP_202_ACCEPTED
+
+            result = db.execute(
+                text("SELECT get_most_current_email(:pid)"),
+                {"pid": person_id},
+            ).scalar()
+            assert result == "older@example.com"
+
+            # Bump newer row to put it back on top.
+            patch = client.patch(
+                f"/person_email/{newer_id}",
+                json={"email_address": "newer@example.com"},
+                headers=auth_headers,
+            )
+            assert patch.status_code == status.HTTP_202_ACCEPTED
+
+            result = db.execute(
+                text("SELECT get_most_current_email(:pid)"),
+                {"pid": person_id},
+            ).scalar()
+            assert result == "newer@example.com"
+
+    def test_skips_emails_marked_old(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Function Skips Old"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+
+            kept = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "kept@example.com"},
+                headers=auth_headers,
+            ).json()["person_email_id"]
+            retired = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "retired@example.com"},
+                headers=auth_headers,
+            ).json()["person_email_id"]
+
+            # Retire the second (which is the more-recent row).
+            client.patch(
+                f"/person_email/{retired}",
+                json={"date_made_old_email": "2026-01-01T00:00:00"},
+                headers=auth_headers,
+            )
+
+            result = db.execute(
+                text("SELECT get_most_current_email(:pid)"),
+                {"pid": person_id},
+            ).scalar()
+            assert result == "kept@example.com"
+            assert kept != retired  # sanity
+
+    def test_returns_null_when_no_active(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "All Retired"},
+                headers=auth_headers,
+            ).json()
+            person_id = client.get(
+                f"/person/{curie}", headers=auth_headers
+            ).json()["person_id"]
+            only_id = client.post(
+                f"/person_email/person/{person_id}",
+                json={"email_address": "soon-old@example.com"},
+                headers=auth_headers,
+            ).json()["person_email_id"]
+            client.patch(
+                f"/person_email/{only_id}",
+                json={"date_made_old_email": "2026-01-01T00:00:00"},
+                headers=auth_headers,
+            )
+
+            result = db.execute(
+                text("SELECT get_most_current_email(:pid)"),
+                {"pid": person_id},
+            ).scalar()
+            assert result is None
+
+
+class TestPersonUnsubscribe:
+    """
+    `person.unsubscribe` is a boolean NOT NULL DEFAULT FALSE flag.
+    Callers that send notifications are expected to check it separately
+    (it is intentionally NOT enforced inside get_most_current_email).
+    """
+
+    def test_unsubscribe_defaults_to_false(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Unsubscribe Default"},
+                headers=auth_headers,
+            ).json()
+            body = client.get(f"/person/{curie}", headers=auth_headers).json()
+            assert body["unsubscribe"] is False
+
+    def test_unsubscribe_can_be_set_on_create(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={
+                    "display_name": "Unsubscribe On Create",
+                    "unsubscribe": True,
+                },
+                headers=auth_headers,
+            ).json()
+            body = client.get(f"/person/{curie}", headers=auth_headers).json()
+            assert body["unsubscribe"] is True
+
+    def test_unsubscribe_can_be_patched(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={"display_name": "Unsubscribe Patch"},
+                headers=auth_headers,
+            ).json()
+            patch = client.patch(
+                f"/person/{curie}",
+                json={"unsubscribe": True},
+                headers=auth_headers,
+            )
+            assert patch.status_code == status.HTTP_202_ACCEPTED
+            assert (
+                client.get(f"/person/{curie}", headers=auth_headers).json()[
+                    "unsubscribe"
+                ]
+                is True
+            )
+
+    def test_unsubscribe_null_in_patch_is_noop(self, db, auth_headers):  # noqa
+        # Explicit null on a PATCH for unsubscribe must not 500 the way it
+        # would if setattr(obj, "unsubscribe", None) reached the NOT NULL
+        # column. CRUD treats null as "no change".
+        with TestClient(app) as client:
+            curie = client.post(
+                "/person/",
+                json={
+                    "display_name": "Unsubscribe Null Patch",
+                    "unsubscribe": True,
+                },
+                headers=auth_headers,
+            ).json()
+            patch = client.patch(
+                f"/person/{curie}",
+                json={"unsubscribe": None},
+                headers=auth_headers,
+            )
+            assert patch.status_code == status.HTTP_202_ACCEPTED
+            # The previously-set True value must survive.
+            assert (
+                client.get(f"/person/{curie}", headers=auth_headers).json()[
+                    "unsubscribe"
+                ]
+                is True
+            )
 
 
 class TestPersonCreateDuplicates:

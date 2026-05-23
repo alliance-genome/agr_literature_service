@@ -2,6 +2,7 @@ from agr_literature_service.api.triggers.citation_sql_func_triggers import add_c
 from agr_literature_service.api.triggers.author_sql_func_triggers import add_author_triggers
 from agr_literature_service.api.triggers.reference_sql_func_triggers import add_reference_triggers
 from agr_literature_service.api.triggers.resource_sql_func_triggers import add_resource_triggers
+from agr_literature_service.api.triggers.person_email_sql_func_triggers import add_person_email_functions
 
 
 def add_sql_triggers_functions(db_session):
@@ -9,4 +10,5 @@ def add_sql_triggers_functions(db_session):
     add_author_triggers(db_session)
     add_reference_triggers(db_session)
     add_resource_triggers(db_session)
+    add_person_email_functions(db_session)
     db_session.commit()

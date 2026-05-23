@@ -37,7 +37,7 @@ def _ensure_user(db, uid: str): # noqa
         return
     u = db.query(UserModel).filter_by(id=uid).one_or_none()
     if u is None:
-        user_crud.create(db, uid, None)
+        user_crud.create(db, uid)
 
 
 @pytest.fixture(autouse=True)

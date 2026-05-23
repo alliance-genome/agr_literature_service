@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.models import (
     UserModel,
     PersonModel,
-    EmailModel,
+    PersonEmailModel,
     PersonCrossReferenceModel,
 )
 from agr_literature_service.api.user import set_global_user_id, get_current_user_pk
@@ -179,11 +179,12 @@ def insert_person_xref(db: Session, person_id: int, curie: str, curie_prefix: st
 
 
 def insert_email(db: Session, person_id: int, email: str) -> None:
-    # Normalize email (lowercase + strip)
-    em = email.strip().lower()
+    # Strip only — preserve casing for storage to match the
+    # mixed-case storage convention used by the API.
+    em = email.strip()
     if not em:
         return
-    x = EmailModel(
+    x = PersonEmailModel(
         person_id=person_id,
         email_address=em,
     )

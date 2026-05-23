@@ -1,3 +1,19 @@
+"""
+DEPRECATED.
+
+This is a 2022 one-time cleanup that mapped legacy email-based
+transaction users onto their Okta UIDs. It is intentionally NOT
+maintained going forward:
+
+  * It is SQLAlchemy 1.x style (raw f-string SQL without text())
+    and will not execute on SQLAlchemy 2.x.
+  * Its positional ``INSERT INTO users VALUES (...)`` predates the
+    SCRUM-6084 schema where ``users.email`` was dropped.
+  * The transaction IDs it targets (911163-1025541, 2021-2022) are
+    long since processed.
+
+Kept in the tree for historical reference. Do NOT update or run.
+"""
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_engine
 import logging
 

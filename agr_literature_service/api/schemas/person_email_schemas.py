@@ -7,14 +7,15 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 def _normalize_email(v: str) -> str:
-    v = (v or "").strip().lower()
+    """Trim and validate. Casing is preserved for storage; lookups
+    normalize via lower() at query time."""
+    v = (v or "").strip()
     if "@" not in v or v.startswith("@") or v.endswith("@"):
         raise ValueError("invalid email format")
     return v
 
 
 class _EmailAddressMixin(BaseModel):
-    """Shared normalization for email address fields."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     email_address: str
@@ -25,26 +26,16 @@ class _EmailAddressMixin(BaseModel):
         return _normalize_email(v)
 
 
-class EmailSchemaCreate(_EmailAddressMixin):
-    """
-    Payload for creating an Email row.
-    `person_id` is supplied by the route (path param) or owning context.
-    For person emails:
-      - is_primary is optional
-    """
-    date_invalidated: Optional[datetime] = None
-    is_primary: Optional[bool] = None
+class PersonEmailSchemaCreate(_EmailAddressMixin):
+    """Payload for creating a person_email row."""
+    date_made_old_email: Optional[datetime] = None
 
 
-class EmailSchemaUpdate(BaseModel):
-    """
-    Partial update payload for Email rows.
-    """
+class PersonEmailSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     email_address: Optional[str] = None
-    date_invalidated: Optional[datetime] = None
-    is_primary: Optional[bool] = None
+    date_made_old_email: Optional[datetime] = None
 
     @field_validator("email_address")
     @classmethod
@@ -52,26 +43,18 @@ class EmailSchemaUpdate(BaseModel):
         return _normalize_email(v) if v is not None else None
 
 
-class EmailSchemaShow(AuditedObjectModelSchema):
-    """
-    Full Email representation with audit fields (for detail endpoints).
-    """
+class PersonEmailSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    email_id: int
-    person_id: Optional[int] = None
+    person_email_id: int
+    person_id: int
     email_address: str
-    date_invalidated: Optional[datetime] = None
-    is_primary: Optional[bool] = None
+    date_made_old_email: Optional[datetime] = None
 
 
-class EmailSchemaRelated(AuditedObjectModelSchema):
-    """
-    Compact Email representation (embedded under PersonSchemaShow).
-    """
+class PersonEmailSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    email_id: int
+    person_email_id: int
     email_address: str
-    date_invalidated: Optional[datetime] = None
-    is_primary: Optional[bool] = None
+    date_made_old_email: Optional[datetime] = None

@@ -230,7 +230,7 @@ def get_indexing_priority_tag(db: Session, curie: str):
         ip.date_updated,
         r.curie AS reference_curie,
         m.abbreviation AS mod_abbreviation,
-        COALESCE(e.email_address, ip.updated_by) AS updated_by_email,
+        COALESCE(get_most_current_email(u.person_id), ip.updated_by) AS updated_by_email,
         COALESCE(p.display_name, ip.updated_by) AS updated_by_name,
         ip.updated_by
     FROM indexing_priority ip
@@ -238,14 +238,6 @@ def get_indexing_priority_tag(db: Session, curie: str):
     JOIN mod m ON m.mod_id = ip.mod_id
     LEFT JOIN users u  ON u.id = ip.updated_by
     LEFT JOIN person p ON p.person_id = u.person_id
-    LEFT JOIN LATERAL (
-        SELECT em.email_address
-        FROM email em
-        WHERE em.person_id = u.person_id
-        AND em.date_invalidated IS NULL
-        ORDER BY em.email_id ASC
-        LIMIT 1
-    ) e ON TRUE
     WHERE r.curie = :ref_curie
     """
     rows = db.execute(text(sql), {"ref_curie": reference_curie}).mappings().all()
