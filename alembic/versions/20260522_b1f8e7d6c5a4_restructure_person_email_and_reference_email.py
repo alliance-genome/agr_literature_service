@@ -470,6 +470,48 @@ def upgrade():  # noqa: C901
         if _col_exists(conn, "reference_email_version", "email_id_mod"):
             op.drop_column("reference_email_version", "email_id_mod")
 
+    # Deduplicate case-insensitive duplicates before installing the new
+    # unique index. The pre-migration schema only enforced
+    # UNIQUE(reference_id, email_id), so a reference could legitimately
+    # have two reference_email rows pointing at different person_email
+    # rows that happened to share an address (e.g. someone added the
+    # same email twice via different code paths). After the FK -> string
+    # conversion above, both rows now collapse to the same
+    # (reference_id, lower(email_address)) key. Keep the most recently
+    # inserted row (highest reference_email_id); drop the rest.
+    dup_count = conn.execute(
+        sa.text(
+            """
+            SELECT COUNT(*) FROM (
+                SELECT reference_email_id,
+                       ROW_NUMBER() OVER (
+                         PARTITION BY reference_id, lower(email_address)
+                         ORDER BY reference_email_id DESC
+                       ) AS rn
+                FROM reference_email
+            ) sub
+            WHERE rn > 1
+            """
+        )
+    ).scalar()
+    if dup_count:
+        op.execute(
+            """
+            DELETE FROM reference_email
+            WHERE reference_email_id IN (
+                SELECT reference_email_id FROM (
+                    SELECT reference_email_id,
+                           ROW_NUMBER() OVER (
+                             PARTITION BY reference_id, lower(email_address)
+                             ORDER BY reference_email_id DESC
+                           ) AS rn
+                    FROM reference_email
+                ) sub
+                WHERE rn > 1
+            )
+            """
+        )
+
     # New uniqueness rule: case-insensitive on (reference_id,
     # lower(email_address)).
     if not _index_exists(conn, "uq_reference_email_reference_email_lower"):
