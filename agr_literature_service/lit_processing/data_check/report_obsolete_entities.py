@@ -132,11 +132,12 @@ def get_name_for_curie(ateam_db, entity_type_name, curie):
 
     elif entity_type_name in ['agms', 'strain', 'genotype', 'fish']:
         query = text("""
-        SELECT agm.name
+        SELECT sa.displaytext
         FROM biologicalentity be
-        JOIN affectedgenomicmodel agm ON be.id = agm.id
-        WHERE be.primaryexternalid = :curie
-        AND be.obsolete = True
+        JOIN slotannotation sa ON be.id = sa.singleagm_id
+        WHERE sa.slotannotationtype = 'AgmFullNameSlotAnnotation'
+        AND be.primaryexternalid = :curie
+        AND sa.obsolete = True
         """)
 
     elif entity_type_name == 'construct':
