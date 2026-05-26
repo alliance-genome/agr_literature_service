@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from os import path
 from typing import Dict, List, Optional, Tuple
 
+from fastapi import HTTPException
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -110,6 +111,12 @@ def _insert_geo_xrefs(db: Session, ref_curie: str, missing: List[str], dry_run: 
             cross_reference_crud.create(db, payload)
             inserted += 1
             logger.info("Inserted %s for %s", curie, ref_curie)
+        except HTTPException as exc:
+            if exc.status_code == 409:
+                logger.info("Skipped %s for %s: already exists", curie, ref_curie)
+                continue
+            db.rollback()
+            logger.warning("Failed to insert %s for %s: %s", curie, ref_curie, exc)
         except Exception as exc:
             # cross_reference_crud.create only rolls back on IntegrityError; any
             # other failure (OperationalError, deadlock, connection blip) leaves
