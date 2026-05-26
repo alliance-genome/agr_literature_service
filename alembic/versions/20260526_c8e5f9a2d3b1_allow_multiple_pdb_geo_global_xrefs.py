@@ -1,14 +1,15 @@
-"""allow multiple PDB GEO CGC global xrefs and re-enforce ISSN uniqueness
+"""allow multiple PDB GEO global xrefs and re-enforce ISSN/CGC uniqueness
 
 Revision ID: c8e5f9a2d3b1
 Revises: b1f8e7d6c5a4
 Create Date: 2026-05-26
 
-Rewrites idx_curie's predicate so the same GEO / PDB / CGC accession can
-appear in multiple cross_reference rows (e.g. one GEO dataset cited by many
-papers), while ISSN is no longer excepted and is globally unique again.
-Keeps idx_curie in lockstep with idx_curie_prefix_ref_no_cgc, which
-already excludes the same PDB/GEO/CGC prefix set per-reference.
+Rewrites idx_curie's predicate so the same GEO / PDB accession can appear
+in multiple cross_reference rows (e.g. one GEO dataset cited by many
+papers). ISSN and CGC are globally unique. The companion per-reference
+index idx_curie_prefix_ref_no_cgc still excludes CGC at that level (so a
+single reference can list multiple CGC strains), but a given CGC curie
+is owned by exactly one cross_reference row globally.
 idx_curie_res is intentionally left unchanged.
 """
 from alembic import op
@@ -39,7 +40,7 @@ def upgrade():
         unique=True,
         postgresql_where=sa.text(
             "is_obsolete IS FALSE "
-            "AND curie_prefix NOT IN ('CGC', 'PDB', 'GEO')"
+            "AND curie_prefix NOT IN ('PDB', 'GEO')"
         )
     )
 
