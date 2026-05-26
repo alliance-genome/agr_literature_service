@@ -7,16 +7,12 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, contains_eager, joinedload
 
 from agr_literature_service.api.models.person_model import PersonModel
-from agr_literature_service.api.models.email_model import EmailModel
+from agr_literature_service.api.models.person_email_model import PersonEmailModel
 from agr_literature_service.api.models.person_name_model import PersonNameModel
 from agr_literature_service.api.models.person_setting_model import PersonSettingModel
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
-
-
-def normalize_email(s: str) -> str:
-    return s.strip().lower()
 
 
 def _non_empty_or_422(field: str, value: Optional[str]) -> str:
@@ -200,13 +196,13 @@ def show(db: Session, person_setting_id: int) -> PersonSettingModel:
 def get_by_email(db: Session, email: str) -> List[PersonSettingModel]:
     if not email:
         return []
-    email_norm = normalize_email(email)
+    email_norm = email.strip().lower()
     return (
         db.query(PersonSettingModel)
         .join(PersonModel, PersonModel.person_id == PersonSettingModel.person_id)
-        .join(EmailModel, and_(EmailModel.person_id == PersonModel.person_id))
+        .join(PersonEmailModel, and_(PersonEmailModel.person_id == PersonModel.person_id))
         .options(joinedload(PersonSettingModel.person))
-        .filter(func.lower(EmailModel.email_address) == email_norm)
+        .filter(func.lower(PersonEmailModel.email_address) == email_norm)
         .order_by(PersonSettingModel.component_name.asc(), PersonSettingModel.setting_name.asc())
         .all()
     )

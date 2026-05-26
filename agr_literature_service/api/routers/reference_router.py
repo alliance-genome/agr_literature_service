@@ -1,6 +1,6 @@
 from typing import Union, List, Dict, Any, Optional
 
-from fastapi import (APIRouter, Depends, HTTPException, Response,
+from fastapi import (APIRouter, Body, Depends, HTTPException, Response,
                      Security, status)
 from sqlalchemy.orm import Session
 from multiprocessing import Process, Manager, Lock
@@ -259,7 +259,7 @@ def set_reference_emails(
 )
 def add_reference_email(
     curie_or_reference_id: str,
-    email_address: str,
+    email_address: str = Body(...),
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):

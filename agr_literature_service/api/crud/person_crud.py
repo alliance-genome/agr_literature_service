@@ -10,11 +10,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import (
     PersonModel,
-    EmailModel,
+    PersonEmailModel,
     PersonCrossReferenceModel,
     PersonNameModel,
     PersonNoteModel,
-    ReferenceEmailModel,
 )
 from agr_literature_service.api.schemas import PersonSchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -26,7 +25,19 @@ ADDRESS_FIELDS = {"city", "state", "postal_code", "country", "street_address"}
 
 
 def normalize_email(s: str) -> str:
-    return s.strip().lower()
+    """Strip surrounding whitespace and validate the @ shape; preserve case
+    for storage. Callers that need a case-insensitive comparison should
+    `.lower()` at the comparison site (the DB has a `lower(email_address)`
+    functional unique index that handles dedup).
+
+    Raises ValueError when the input is not a valid-looking email so that
+    CRUD callers (e.g., `reference_crud.set_reference_emails`) can convert
+    it into a 422.
+    """
+    v = (s or "").strip()
+    if "@" not in v or v.startswith("@") or v.endswith("@"):
+        raise ValueError("invalid email format")
+    return v
 
 
 def resolve_person_id(db: Session, curie_or_person_id: str) -> int:
@@ -126,32 +137,24 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
 
     # Create child emails
     if emails_data:
-        # Check if any email in the batch explicitly marks itself primary
-        has_primary_set = any(e.get("is_primary") is True for e in emails_data)
-        for idx, e in enumerate(emails_data):
+        for e in emails_data:
             email_addr = normalize_email(e["email_address"])
-            # skip duplicates for this person
             dup = (
-                db.query(EmailModel.email_id)
-                .filter(EmailModel.person_id == obj.person_id)
-                .filter(EmailModel.email_address == email_addr)
+                db.query(PersonEmailModel.person_email_id)
+                .filter(PersonEmailModel.person_id == obj.person_id)
+                .filter(
+                    func.lower(PersonEmailModel.email_address)
+                    == email_addr.lower()
+                )
                 .first()
             )
             if dup:
                 continue
-            # Determine primary flag — EmailModel requires is_primary to be
-            # non-NULL when person_id is non-NULL (ck_email_person_primary_nulls_together).
-            requested_primary = e.get("is_primary")
-            if requested_primary is None:
-                primary_value = (idx == 0 and not has_primary_set)
-            else:
-                primary_value = bool(requested_primary)
             db.add(
-                EmailModel(
+                PersonEmailModel(
                     person_id=obj.person_id,
                     email_address=email_addr,
-                    date_invalidated=e.get("date_invalidated"),
-                    is_primary=primary_value,
+                    date_made_old_email=e.get("date_made_old_email"),
                 )
             )
 
@@ -219,13 +222,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
 
 
 def destroy(db: Session, curie_or_person_id: str) -> None:
-    """
-    Delete a person and handle their email records appropriately.
-
-    Emails that have reference relations are detached (person_id set to NULL)
-    instead of deleted, to preserve the reference-email links.
-    Emails without reference relations are deleted.
-    """
+    """Delete a person. person_email rows cascade delete via FK."""
     person_id = resolve_person_id(db, curie_or_person_id)
     obj: Optional[PersonModel] = (
         db.query(PersonModel).filter(PersonModel.person_id == person_id).first()
@@ -235,24 +232,6 @@ def destroy(db: Session, curie_or_person_id: str) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Person with curie or person_id {curie_or_person_id} not found",
         )
-
-    # Handle emails: detach those with reference relations, delete others
-    person_emails = db.query(EmailModel).filter(EmailModel.person_id == person_id).all()
-
-    for email in person_emails:
-        has_reference_relations = (
-            db.query(ReferenceEmailModel.reference_email_id)
-            .filter(ReferenceEmailModel.email_id == email.email_id)
-            .first()
-            is not None
-        )
-        if has_reference_relations:
-            # Detach from person but preserve the email for reference relations
-            email.person_id = None
-            email.is_primary = None
-        else:
-            # No reference relations, safe to delete
-            db.delete(email)
 
     db.delete(obj)
     db.commit()
@@ -287,10 +266,14 @@ def patch(db: Session, curie_or_person_id: str, patch_dict: Dict[str, Any]) -> D
         "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
+        "unsubscribe",
     }
     for field, value in data.items():
-        if field in ALLOWED:
-            setattr(obj, field, value)
+        if field not in ALLOWED:
+            continue
+        if field == "unsubscribe" and value is None:
+            continue
+        setattr(obj, field, value)
 
     # Update address_last_updated if any address field was patched
     if ADDRESS_FIELDS & data.keys():
@@ -324,17 +307,21 @@ def show(db: Session, curie_or_person_id: str) -> PersonModel:
 def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
     if not email:
         return None
-    email_norm = normalize_email(email)
+    try:
+        email_norm = normalize_email(email)
+    except ValueError:
+        # Malformed email -> treat as "not found" rather than 500.
+        return None
     return (
         db.query(PersonModel)
-        .join(EmailModel, EmailModel.person_id == PersonModel.person_id)
+        .join(PersonEmailModel, PersonEmailModel.person_id == PersonModel.person_id)
         .options(
             selectinload(PersonModel.emails),
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
         )
-        .filter(func.lower(EmailModel.email_address) == email_norm)
+        .filter(func.lower(PersonEmailModel.email_address) == email_norm.lower())
         .first()
     )
 

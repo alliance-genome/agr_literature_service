@@ -18,7 +18,7 @@ LIMIT 1
 _SQL_MATCH_EMAIL = text(r"""
 SELECT u.id
 FROM users u
-JOIN email e ON e.person_id = u.person_id
+JOIN person_email e ON e.person_id = u.person_id
 WHERE lower(e.email_address) = lower(:email)
 LIMIT 1
 """)

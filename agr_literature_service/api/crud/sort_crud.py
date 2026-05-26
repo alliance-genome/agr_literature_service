@@ -322,13 +322,12 @@ def get_mod_curators(db: Session, mod_abbreviation):
     sql_query_str = """
     SELECT DISTINCT
         u.id,
-        e.email_address AS email,
+        get_most_current_email(u.person_id) AS email,
         p.display_name AS name
     FROM mod_corpus_association mca
     JOIN mod m ON m.mod_id = mca.mod_id
     LEFT JOIN users u ON u.id = mca.updated_by
     LEFT JOIN person p ON p.person_id = u.person_id
-    LEFT JOIN email e ON e.person_id = u.person_id
     WHERE mca.corpus IS NOT NULL
     AND m.abbreviation = :mod_abbreviation
     AND mca.date_updated >= :one_month_ago

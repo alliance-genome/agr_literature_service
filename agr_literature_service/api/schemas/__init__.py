@@ -137,7 +137,12 @@ from agr_literature_service.api.schemas.curation_status_schemas import (
     CurationStatusSchemaPost,
     CurationStatusSchemaUpdate)
 
-from .email_schemas import EmailSchemaCreate, EmailSchemaUpdate, EmailSchemaShow, EmailSchemaRelated
+from .person_email_schemas import (
+    PersonEmailSchemaCreate,
+    PersonEmailSchemaUpdate,
+    PersonEmailSchemaShow,
+    PersonEmailSchemaRelated,
+)
 from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaUpdate,
     PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated

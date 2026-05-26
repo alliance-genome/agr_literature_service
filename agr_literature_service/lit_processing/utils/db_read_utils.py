@@ -538,7 +538,7 @@ def get_mod_corpus_association_data_for_ref_ids(db_session: Session, ref_ids):
             mca.date_updated,
             mca.created_by,
             mca.updated_by,
-            u.email
+            get_most_current_email(u.person_id) AS email
         FROM
             mod_corpus_association mca
         JOIN

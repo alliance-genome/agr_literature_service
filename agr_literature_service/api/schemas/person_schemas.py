@@ -5,7 +5,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, ConfigDict
 
 from .base_schemas import AuditedObjectModelSchema
-from .email_schemas import EmailSchemaCreate, EmailSchemaRelated
+from .person_email_schemas import PersonEmailSchemaCreate, PersonEmailSchemaRelated
 from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate,
     PersonCrossReferenceSchemaRelated,
@@ -14,17 +14,6 @@ from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
 from .person_note_schemas import PersonNoteSchemaCreate, PersonNoteSchemaRelated
 
 ActiveStatus = Literal["active", "retired", "deceased"]
-
-_types = {
-    "EmailSchemaCreate": EmailSchemaCreate,
-    "EmailSchemaRelated": EmailSchemaRelated,
-    "PersonCrossReferenceSchemaCreate": PersonCrossReferenceSchemaCreate,
-    "PersonCrossReferenceSchemaRelated": PersonCrossReferenceSchemaRelated,
-    "PersonNameSchemaCreate": PersonNameSchemaCreate,
-    "PersonNameSchemaRelated": PersonNameSchemaRelated,
-    "PersonNoteSchemaCreate": PersonNoteSchemaCreate,
-    "PersonNoteSchemaRelated": PersonNoteSchemaRelated,
-}
 
 
 class PersonSchemaPost(BaseModel):
@@ -41,8 +30,9 @@ class PersonSchemaPost(BaseModel):
     country: Optional[str] = None
     street_address: Optional[str] = None
     biography_research_interest: Optional[str] = None
+    unsubscribe: bool = False
     # forward-ref strings
-    emails: Optional[List["EmailSchemaCreate"]] = None
+    emails: Optional[List["PersonEmailSchemaCreate"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaCreate"]] = None
     names: Optional[List["PersonNameSchemaCreate"]] = None
     notes: Optional[List["PersonNoteSchemaCreate"]] = None
@@ -66,6 +56,7 @@ class PersonSchemaUpdate(BaseModel):
     country: Optional[str] = None
     street_address: Optional[str] = None
     biography_research_interest: Optional[str] = None
+    unsubscribe: Optional[bool] = None
 
 
 class PersonSchemaShow(AuditedObjectModelSchema):
@@ -84,7 +75,8 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     street_address: Optional[str] = None
     address_last_updated: Optional[datetime] = None
     biography_research_interest: Optional[str] = None
-    emails: Optional[List["EmailSchemaRelated"]] = None
+    unsubscribe: bool = False
+    emails: Optional[List["PersonEmailSchemaRelated"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaRelated"]] = None
     names: Optional[List["PersonNameSchemaRelated"]] = None
     notes: Optional[List["PersonNoteSchemaRelated"]] = None

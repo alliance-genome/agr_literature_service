@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -7,11 +7,9 @@ from agr_literature_service.api.schemas import AuditedObjectModelSchema
 
 
 def _normalize_email(v: str) -> str:
-    """
-    Local email normalizer, same semantics as email_schemas._normalize_email,
-    but defined here to avoid importing CRUD and causing circular imports.
-    """
-    v = (v or "").strip().lower()
+    """Trim and validate. Casing is preserved for storage; the
+    case-insensitive unique index handles dedup at the DB level."""
+    v = (v or "").strip()
     if "@" not in v or v.startswith("@") or v.endswith("@"):
         raise ValueError("invalid email format")
     return v
@@ -41,34 +39,29 @@ class ReferenceEmailSchemaCreate(BaseModel):
 class ReferenceEmailSchemaUpdate(BaseModel):
     """
     Update payload for reference-email link rows.
-
-    Currently a placeholder – you might not need this if you only support
-    create/delete of links.
     """
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    email_id: Optional[int] = None
+    email_address: str
+
+    @field_validator("email_address")
+    @classmethod
+    def _validate_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class ReferenceEmailSchemaShow(AuditedObjectModelSchema):
-    """
-    Full representation of a reference-email link (detail view),
-    including audit fields from AuditedObjectModelSchema.
-    """
+    """Full reference-email row with audit fields."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     reference_email_id: int
     reference_id: int
-    email_id: int
     email_address: str
 
 
 class ReferenceEmailSchemaRelated(BaseModel):
-    """
-    Compact nested representation when embedded in ReferenceSchemaShow.
-    """
+    """Compact reference-email row for embedding under ReferenceSchemaShow."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     reference_email_id: int
-    email_id: int
     email_address: str

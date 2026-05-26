@@ -207,7 +207,7 @@ def process_reference_id(db_session, reference_id, agrkb):      # noqa: C901 pra
         users_set.remove(None)
     s = [str(i) for i in users_set]
     userids = "','".join(s)
-    rs = db_session.execute(f"SELECT id, email FROM users WHERE id IN ('{userids}')")
+    rs = db_session.execute(f"SELECT id, get_most_current_email(person_id) AS email FROM users WHERE id IN ('{userids}')")
     rows = rs.fetchall()
     if debug_output:
         print("users info: userid, email")

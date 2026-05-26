@@ -553,7 +553,7 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
         wft.reference_workflow_tag_id,
         m.abbreviation,
         wft.workflow_tag_id,
-        COALESCE(e.email_address, wft.updated_by) AS updated_by_email,
+        COALESCE(get_most_current_email(u.person_id), wft.updated_by) AS updated_by_email,
         COALESCE(p.display_name, wft.updated_by) AS updated_by_name,
         wft.updated_by,
         wft.date_updated AS date_updated,
@@ -563,14 +563,6 @@ def _get_current_workflow_tag_db_objs(db: Session, curie_or_reference_id: str, w
     JOIN mod m ON wft.mod_id = m.mod_id
     LEFT JOIN users u ON wft.updated_by = u.id
     LEFT JOIN person p ON p.person_id = u.person_id
-    LEFT JOIN LATERAL (
-        SELECT em.email_address
-        FROM email em
-        WHERE em.person_id = u.person_id
-        AND em.date_invalidated IS NULL
-        ORDER BY em.email_id ASC
-        LIMIT 1
-    ) e ON TRUE
     WHERE wft.reference_id = :reference_id
     AND wft.workflow_tag_id IN :all_workflow_tags_for_process
     """
@@ -766,9 +758,10 @@ def show(db: Session, reference_workflow_tag_id: int):
 
 def add_email_and_name(db: Session, data: dict) -> dict:
     """
-    Populate `updated_by_name` and `updated_by_email` based on the user's user_id.
-    Skip invalidated emails and use the earliest valid one.
-    Fallback to user_id if no valid record is found.
+    Populate `updated_by_name` and `updated_by_email` based on the user's
+    user_id. The email is looked up via get_most_current_email(person_id),
+    which returns the most-recently-touched active person_email. Falls back
+    to the user_id string when no person or active email is found.
     """
     user_id = data.get("updated_by")
     if not user_id:
@@ -779,14 +772,12 @@ def add_email_and_name(db: Session, data: dict) -> dict:
     row = db.execute(
         text("""
             SELECT
-                COALESCE(p.display_name, :user_id)  AS display_name,
-                COALESCE(em.email_address, :user_id) AS email_address
+                COALESCE(p.display_name, :user_id) AS display_name,
+                COALESCE(get_most_current_email(p.person_id), :user_id)
+                    AS email_address
             FROM person p
-            LEFT JOIN email em ON em.person_id = p.person_id
             JOIN users u ON u.person_id = p.person_id
             WHERE u.id = :user_id
-              AND em.date_invalidated IS NULL
-            ORDER BY em.email_id ASC
             LIMIT 1
         """),
         {"user_id": user_id},

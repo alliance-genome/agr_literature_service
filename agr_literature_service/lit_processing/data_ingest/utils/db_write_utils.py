@@ -1396,7 +1396,7 @@ def _delete_reference_relation(db_session: Session, fw, pmid, reference_id_from,
 
 def _get_curator_email_who_added_reference_relation(db_session: Session, reference_id_from, reference_id_to, type):  # pragma: no cover
 
-    rows = db_session.execute(text(f"SELECT u.email "
+    rows = db_session.execute(text(f"SELECT get_most_current_email(u.person_id) AS email "
                                    f"FROM reference_relation_version rcc, transaction t, users u "
                                    f"WHERE rcc.reference_id_from = {reference_id_from} "
                                    f"AND rcc.reference_id_to = {reference_id_to} "
