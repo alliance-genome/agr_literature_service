@@ -86,7 +86,7 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if indexing_needed_tag:
             wft_obj = WorkflowTagModel(reference_id=reference.reference_id,
                                        mod_id=mod.mod_id,
-                                       workflow_tag_id=pre_indexing_prio_needed_tag_atp_id)
+                                       workflow_tag_id=indexing_needed_tag)
             db.add(wft_obj)
             db.commit()
 
