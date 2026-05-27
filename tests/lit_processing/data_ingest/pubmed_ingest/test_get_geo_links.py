@@ -7,6 +7,7 @@ import requests
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_geo_links import (
     get_geo_accessions_for_pmid,
     get_geo_accessions_for_pmids,
+    get_geo_accessions_for_pmids_with_split,
 )
 
 
@@ -178,6 +179,77 @@ class TestGetGeoAccessionsForPmids:
             result = get_geo_accessions_for_pmids(["111", "222"])
             assert mock_get.call_count == 1
         assert result == {"111": [], "222": []}
+
+
+class TestGetWithRetryJsonDecode:
+
+    def test_get_with_retry_logs_body_preview_on_json_decode_error(self, caplog):
+        bad_text = '{"linksets":[{"control":"\\x00\\x01"}]}'
+        bad_resp = MagicMock()
+        bad_resp.status_code = 200
+        bad_resp.text = bad_text
+        bad_resp.json.side_effect = requests.exceptions.JSONDecodeError(
+            "Invalid control character at", bad_text, 85)
+        bad_resp.raise_for_status = MagicMock()
+
+        good_elink = _mock_response({"linksets": [
+            {"dbfrom": "pubmed", "ids": ["1"], "linksetdbs": []}
+        ]})
+
+        caplog.set_level("WARNING",
+                         logger="agr_literature_service.lit_processing."
+                                "data_ingest.pubmed_ingest.get_geo_links")
+        with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.time.sleep"), \
+             patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.requests.get",
+                   side_effect=[bad_resp, good_elink]):
+            get_geo_accessions_for_pmids(["1"])
+
+        body_logs = [r.message for r in caplog.records if "body[:500]=" in r.message]
+        assert body_logs, f"expected body[:500]= log line, got: {[r.message for r in caplog.records]}"
+        assert "control" in body_logs[0]  # snippet of the bad body was captured
+
+
+class TestGetGeoAccessionsForPmidsWithSplit:
+
+    def test_returns_empty_dict_for_empty_input(self):
+        assert get_geo_accessions_for_pmids_with_split([]) == {}
+
+    def test_returns_primitive_result_on_clean_run(self):
+        with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.get_geo_accessions_for_pmids",
+                   return_value={"1": ["GSE1"], "2": []}) as inner:
+            result = get_geo_accessions_for_pmids_with_split(["1", "2"])
+        assert result == {"1": ["GSE1"], "2": []}
+        assert inner.call_count == 1
+
+    def test_splits_on_batch_failure_and_merges_halves(self, caplog):
+        caplog.set_level("WARNING",
+                         logger="agr_literature_service.lit_processing."
+                                "data_ingest.pubmed_ingest.get_geo_links")
+        with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.get_geo_accessions_for_pmids",
+                   side_effect=[
+                       RuntimeError("boom"),
+                       {"1": ["GSEA"], "2": []},
+                       {"3": [], "4": ["GSEB"]},
+                   ]) as inner:
+            result = get_geo_accessions_for_pmids_with_split(["1", "2", "3", "4"])
+        assert result == {"1": ["GSEA"], "2": [], "3": [], "4": ["GSEB"]}
+        assert inner.call_count == 3
+        assert any("splitting into 2 + 2" in r.message for r in caplog.records)
+
+    def test_logs_and_drops_single_pmid_dead_end(self, caplog):
+        caplog.set_level("ERROR",
+                         logger="agr_literature_service.lit_processing."
+                                "data_ingest.pubmed_ingest.get_geo_links")
+        with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.get_geo_accessions_for_pmids",
+                   side_effect=RuntimeError("permanently bad")):
+            result = get_geo_accessions_for_pmids_with_split(["111"])
+        assert result == {}
+        assert any("PMID 111 gave up" in r.message for r in caplog.records)
 
 
 @pytest.mark.webtest
