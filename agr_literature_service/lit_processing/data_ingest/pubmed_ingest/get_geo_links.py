@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import requests
 
@@ -40,7 +40,7 @@ def _throttle() -> None:
 
 
 def _get_with_retry(url: str, params: Dict[str, str]) -> dict:
-    last_exc = None
+    last_exc: Optional[requests.exceptions.RequestException] = None
     for attempt in range(_MAX_RETRIES):
         wait = _RETRY_BACKOFF_BASE ** attempt
         r = None
