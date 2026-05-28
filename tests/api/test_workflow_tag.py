@@ -87,7 +87,7 @@ class TestWorkflowTag:
                    "mod_abbreviation": test_workflow_tag.related_mod_abbreviation
                    }
             response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
 
             ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
                 WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
@@ -107,9 +107,7 @@ class TestWorkflowTag:
             patch_data = {"mod_abbreviation": ""}
             response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=patch_data,
                                     headers=auth_headers)
-            # assert response is response
-            # TODO uncomment this test after fixing the api
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", headers=auth_headers)
             assert response.json()["mod_abbreviation"] == ""
 

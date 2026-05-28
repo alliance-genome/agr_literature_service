@@ -27,7 +27,7 @@ def test_author(db, auth_headers, test_reference): # noqa
             "reference_curie": test_reference.new_ref_curie
         }
         response = client.post(url="/author/", json=new_author, headers=auth_headers)
-        yield AuthorTestData(response, response.json(), test_reference.new_ref_curie)
+        yield AuthorTestData(response, response.json()['author_id'], test_reference.new_ref_curie)
 
 
 class TestAuthor:

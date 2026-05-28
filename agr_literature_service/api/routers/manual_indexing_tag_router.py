@@ -62,19 +62,19 @@ def destroy(
 
 @router.patch(
     "/{manual_indexing_tag_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    status_code=status.HTTP_200_OK,
+    response_model=ManualIndexingTagSchemaShow,
 )
 async def patch(
     manual_indexing_tag_id: int,
     request: ManualIndexingTagSchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
     manual_indexing_tag_crud.patch(db, manual_indexing_tag_id, updates)
-    return manual_indexing_tag_id
+    return manual_indexing_tag_crud.show(db, manual_indexing_tag_id)
 
 
 @router.get(

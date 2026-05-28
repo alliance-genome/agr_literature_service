@@ -165,13 +165,13 @@ def show_by_md5(md5sum: str,
 
 
 @router.delete('/{referencefile_id}',
-               response_model=str)
+               status_code=status.HTTP_204_NO_CONTENT)
 def delete(referencefile_id: int,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
     referencefile_crud.destroy(db, referencefile_id, get_mod_access(user) if user else [])
-    return 'success'
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get('/{referencefile_id}',

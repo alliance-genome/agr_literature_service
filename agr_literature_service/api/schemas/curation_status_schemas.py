@@ -36,6 +36,22 @@ class CurationStatusSchemaUpdate(BaseModel):
     note: Optional[str] = None
 
 
+class CurationStatusSchemaShow(AuditedObjectModelSchema):
+    """Schema for returning a curation status (full object) on create/update."""
+    model_config = ConfigDict(
+        extra='ignore',
+        from_attributes=True,
+    )
+
+    curation_status_id: int
+    mod_id: Optional[int] = None
+    reference_id: Optional[int] = None
+    topic: Optional[str] = None
+    curation_status: Optional[str] = None
+    curation_tag: Optional[str] = None
+    note: Optional[str] = None
+
+
 class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     """Aggregated curation status and TET info, for combined views."""
     model_config = ConfigDict(
