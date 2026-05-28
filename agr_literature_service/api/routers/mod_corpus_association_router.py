@@ -9,10 +9,10 @@ from agr_literature_service.api.schemas import (ModCorpusAssociationSchemaPost,
                                                 ModCorpusAssociationSchemaShow,
                                                 ModCorpusAssociationSchemaUpdate,
                                                 ModCorpusAssociationSchemaBatchUpdate,
-                                                ModCorpusAssociationSchemaBatchResponse,
-                                                ResponseMessageSchema)
+                                                ModCorpusAssociationSchemaBatchResponse)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import mod_corpus_association_url
 import logging
 import logging.config
 router = APIRouter(
@@ -27,12 +27,15 @@ db_session: Session = Depends(get_db)
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
+             response_model=ModCorpusAssociationSchemaShow)
 def create(request: ModCorpusAssociationSchemaPost,
+           response: Response,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-           db: Session = db_session) -> int:
+           db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return mod_corpus_association_crud.create(db, request)
+    new_id = mod_corpus_association_crud.create(db, request)
+    response.headers["Location"] = mod_corpus_association_url(new_id)
+    return mod_corpus_association_crud.show(db, new_id)
 
 
 @router.patch('/batch',
@@ -79,15 +82,16 @@ def destroy(mod_corpus_association_id: int,
 
 
 @router.patch('/{mod_corpus_association_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ModCorpusAssociationSchemaShow)
 async def patch(mod_corpus_association_id: int,
                 request: ModCorpusAssociationSchemaUpdate,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-                db: Session = db_session) -> int:
+                db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
-    return mod_corpus_association_crud.patch(db, mod_corpus_association_id, patch)
+    mod_corpus_association_crud.patch(db, mod_corpus_association_id, patch)
+    return mod_corpus_association_crud.show(db, mod_corpus_association_id)
 
 
 @router.get('/{mod_corpus_association_id}',

@@ -34,7 +34,7 @@ def test_mca(monkeypatch, db, auth_headers, test_reference, test_mod): # noqa
             "mod_corpus_sort_source": 'mod_pubmed_search'
         }
         response = client.post(url="/reference/mod_corpus_association/", json=new_mca, headers=auth_headers)
-        yield MCATestData(response, response.json(), test_reference.new_ref_curie)
+        yield MCATestData(response, response.json()['mod_corpus_association_id'], test_reference.new_ref_curie)
 
 
 class TestModCorpusAssociation:
@@ -71,7 +71,7 @@ class TestModCorpusAssociation:
                             }
             patch_response = client.patch(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}",
                                           json=patched_data, headers=auth_headers)
-            assert patch_response.status_code == status.HTTP_202_ACCEPTED
+            assert patch_response.status_code == status.HTTP_200_OK
             assert client.get(url=f"/reference/mod_corpus_association/"
                                   f"{test_mca.new_mca_id}",
                                   headers=auth_headers).json()["mod_corpus_sort_source"] == "assigned_for_review"
@@ -91,7 +91,7 @@ class TestModCorpusAssociation:
             patched_data = {"reference_curie": test_reference2.new_ref_curie}
             patch_response = client.patch(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}",
                                           json=patched_data, headers=auth_headers)
-            assert patch_response.status_code == status.HTTP_202_ACCEPTED
+            assert patch_response.status_code == status.HTTP_200_OK
             test_mca_response = client.get(url=f"/reference/mod_corpus_association/{test_mca.new_mca_id}",
                                            headers=auth_headers)
             assert test_mca_response.json()["reference_curie"] == test_reference2.new_ref_curie
@@ -145,9 +145,9 @@ class TestModCorpusAssociation:
             patch_mca = {
                 "corpus": "true"
             }
-            patch_response = client.patch(url=f"/reference/mod_corpus_association/{response_mca.text}",
+            patch_response = client.patch(url=f"/reference/mod_corpus_association/{response_mca.json()['mod_corpus_association_id']}",
                                           json=patch_mca, headers=auth_headers)
-            assert patch_response.status_code == status.HTTP_202_ACCEPTED
+            assert patch_response.status_code == status.HTTP_200_OK
             xref = db.query(CrossReferenceModel).filter(and_(CrossReferenceModel.reference_id == reference_obj.reference_id, CrossReferenceModel.curie_prefix == 'WB')).one_or_none()
             assert xref.curie == 'WB:WBPaper00000001'
 

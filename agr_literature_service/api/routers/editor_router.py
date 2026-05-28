@@ -9,10 +9,10 @@ from agr_literature_service.api.schemas import (
     EditorSchemaCreate,
     EditorSchemaPost,
     EditorSchemaShow,
-    ResponseMessageSchema
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import editor_url
 
 router = APIRouter(
     prefix="/editor",
@@ -26,15 +26,18 @@ db_session: Session = Depends(get_db)
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    response_model=int
+    response_model=EditorSchemaShow,
 )
 def create(
     request: EditorSchemaCreate,
+    response: Response,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session
-) -> int:
+    db: Session = db_session,
+):
     set_global_user_from_cognito(db, user)
-    return editor_crud.create(db, request)
+    editor = editor_crud.create(db, request)
+    response.headers["Location"] = editor_url(editor.editor_id)
+    return editor
 
 
 @router.delete(
@@ -53,19 +56,18 @@ def destroy(
 
 @router.patch(
     "/{editor_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema
+    status_code=status.HTTP_200_OK,
+    response_model=EditorSchemaShow,
 )
 def patch(
     editor_id: int,
     request: EditorSchemaPost,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session
-) -> ResponseMessageSchema:
+    db: Session = db_session,
+):
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    result = editor_crud.patch(db, editor_id, patch_data)
-    return ResponseMessageSchema.model_validate(result)
+    return editor_crud.patch(db, editor_id, patch_data)
 
 
 @router.get(

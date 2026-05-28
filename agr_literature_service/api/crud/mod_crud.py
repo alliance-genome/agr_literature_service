@@ -13,7 +13,7 @@ from agr_literature_service.api.schemas import ModSchemaPost
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
-def create(db: Session, mod: ModSchemaPost):
+def create(db: Session, mod: ModSchemaPost) -> ModModel:
     """
 
     :param db:
@@ -34,7 +34,7 @@ def create(db: Session, mod: ModSchemaPost):
 
     db.refresh(mod_db_obj)
 
-    return mod_db_obj.mod_id
+    return mod_db_obj
 
 
 def destroy(db: Session, mod_id: int):
@@ -55,7 +55,7 @@ def destroy(db: Session, mod_id: int):
     return None
 
 
-def patch(db: Session, mod_id: int, mod_update):
+def patch(db: Session, mod_id: int, mod_update) -> ModModel:
     """
 
     :param db:
@@ -81,8 +81,9 @@ def patch(db: Session, mod_id: int, mod_update):
     mod_db_obj.dateUpdated = datetime.utcnow()
     db.add(mod_db_obj)
     db.commit()
+    db.refresh(mod_db_obj)
 
-    return {"message": "updated"}
+    return mod_db_obj
 
 
 def show(db: Session, abbreviation: str):

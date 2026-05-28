@@ -23,7 +23,7 @@ def test_mod(db, auth_headers): # noqa
             "full_name": "Test genome database"
         }
         response = client.post(url="/mod/", json=new_mod, headers=auth_headers)
-        yield ModTestData(response, response.json(), new_mod["abbreviation"])
+        yield ModTestData(response, response.json()['mod_id'], new_mod["abbreviation"])
 
 
 class TestMod:
@@ -46,7 +46,7 @@ class TestMod:
                             "full_name": "Test genome database2"
                             }
             response = client.patch(url=f"/mod/{test_mod.new_mod_id}", json=patched_data, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             res = client.get(url=f"/mod/{test_mod.new_mod_abbreviation}", headers=auth_headers).json()
             assert res["full_name"] == "Test genome database2"
             transactions = client.get(url=f"/mod/{test_mod.new_mod_id}/versions", headers=auth_headers).json()

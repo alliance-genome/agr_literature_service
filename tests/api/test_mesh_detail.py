@@ -24,7 +24,7 @@ def test_mesh_detail(db, auth_headers, test_reference): # noqa
                            "qualifier_term": "Qual1"
                            }
         response = client.post(url="/reference/mesh_detail/", json=new_mesh_detail, headers=auth_headers)
-        yield MeshTestData(response, response.json(), test_reference.new_ref_curie)
+        yield MeshTestData(response, response.json()['mesh_detail_id'], test_reference.new_ref_curie)
 
 
 class TestMeshDetail:
@@ -59,7 +59,7 @@ class TestMeshDetail:
                        }
             response = client.patch(url=f"/reference/mesh_detail/{test_mesh_detail.new_mesh_detail_id}",
                                     json=patched, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             mesh_detail_obj = db.query(MeshDetailModel).filter(
                 MeshDetailModel.mesh_detail_id == test_mesh_detail.new_mesh_detail_id).one()
             assert mesh_detail_obj.heading_term == "Head2"
