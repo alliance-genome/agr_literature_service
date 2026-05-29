@@ -454,8 +454,8 @@ class TestPersonCurie:
             )
             assert res1.status_code == status.HTTP_201_CREATED
             assert res2.status_code == status.HTTP_201_CREATED
-            curie1 = res1.json()
-            curie2 = res2.json()
+            curie1 = res1.json()['curie']
+            curie2 = res2.json()['curie']
             assert curie1.startswith("AGRKB:103")
             assert curie2.startswith("AGRKB:103")
             num1 = int(curie1[len("AGRKB:103"):])
@@ -538,7 +538,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "Email Lookup Person"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             email_post = client.post(
                 f"/person_email/person/{person_id}",
@@ -579,7 +579,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "Totally Unrelated"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             client.post(
                 f"/person_name/person/{person_id}",
@@ -596,7 +596,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "Totally Different Display"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             client.post(
                 f"/person_name/person/{person_id}",
@@ -612,7 +612,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "No Match Here"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             client.post(
                 f"/person_name/person/{person_id}",
@@ -628,7 +628,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "Dedupe Person"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             for last in ["Jabberwocky", "Jabberwocky-Hyphenated"]:
                 client.post(
@@ -663,7 +663,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "PCR Lookup Person"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             client.post(
                 f"/person_cross_reference/person/{person_id}",
@@ -683,7 +683,7 @@ class TestPersonLookups:
                 "/person/",
                 json={"display_name": "PCR-by-id Person"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             pcr = client.post(
                 f"/person_cross_reference/person/{person_id}",
@@ -720,7 +720,7 @@ class TestPersonEmailMixedCase:
                 "/person/",
                 json={"display_name": "Mixed Case Storage"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -743,7 +743,7 @@ class TestPersonEmailMixedCase:
                 "/person/",
                 json={"display_name": "Case Insensitive Dup"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -768,7 +768,7 @@ class TestPersonEmailMixedCase:
                 "/person/",
                 json={"display_name": "Lookup Case Insensitive"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -790,7 +790,7 @@ class TestPersonEmailMixedCase:
                 "/person/",
                 json={"display_name": "Mark Email Old"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -827,7 +827,7 @@ class TestGetMostCurrentEmailFunction:
                 "/person/",
                 json={"display_name": "Function Picks Recent"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -877,7 +877,7 @@ class TestGetMostCurrentEmailFunction:
                 "/person/",
                 json={"display_name": "Function Skips Old"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -913,7 +913,7 @@ class TestGetMostCurrentEmailFunction:
                 "/person/",
                 json={"display_name": "All Retired"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             person_id = client.get(
                 f"/person/{curie}", headers=auth_headers
             ).json()["person_id"]
@@ -948,7 +948,7 @@ class TestPersonUnsubscribe:
                 "/person/",
                 json={"display_name": "Unsubscribe Default"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             body = client.get(f"/person/{curie}", headers=auth_headers).json()
             assert body["unsubscribe"] is False
 
@@ -961,7 +961,7 @@ class TestPersonUnsubscribe:
                     "unsubscribe": True,
                 },
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             body = client.get(f"/person/{curie}", headers=auth_headers).json()
             assert body["unsubscribe"] is True
 
@@ -971,7 +971,7 @@ class TestPersonUnsubscribe:
                 "/person/",
                 json={"display_name": "Unsubscribe Patch"},
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             patch = client.patch(
                 f"/person/{curie}",
                 json={"unsubscribe": True},
@@ -997,7 +997,7 @@ class TestPersonUnsubscribe:
                     "unsubscribe": True,
                 },
                 headers=auth_headers,
-            ).json()
+            ).json()['curie']
             patch = client.patch(
                 f"/person/{curie}",
                 json={"unsubscribe": None},
