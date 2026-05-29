@@ -41,7 +41,7 @@ s3_session = Depends(s3_auth)
 
 @router.post('/file_upload/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str
+             response_model=List[ReferencefileSchemaShow]
              )
 def file_upload(reference_curie: str = None,
                 display_name: str = None,
@@ -121,8 +121,7 @@ def file_upload(reference_curie: str = None,
             metadata["file_class"] or not metadata["file_publication_status"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="The provided metadata is not valid")
-    referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
-    return 'success'
+    return referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
 
 
 @router.get('/download_file/{referencefile_id}',
