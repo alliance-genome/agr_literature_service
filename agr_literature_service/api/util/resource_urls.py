@@ -64,3 +64,11 @@ def referencefile_url(referencefile_id: int) -> str:
 
 def person_url(curie: str) -> str:
     return f"/person/{curie}"
+
+
+def topic_entity_tag_url(topic_entity_tag_id: int) -> str:
+    return f"/topic_entity_tag/{topic_entity_tag_id}"
+
+
+def topic_entity_tag_source_url(topic_entity_tag_source_id: int) -> str:
+    return f"/topic_entity_tag/source/{topic_entity_tag_source_id}"

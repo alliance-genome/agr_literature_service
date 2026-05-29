@@ -8,12 +8,13 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import topic_entity_tag_crud, \
     topic_entity_tag_utils
-from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost, ResponseMessageSchema
+from agr_literature_service.api.schemas import TopicEntityTagSchemaShow, TopicEntityTagSchemaPost
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import TopicEntityTagSchemaRelated, \
     TopicEntityTagSourceSchemaUpdate, TopicEntityTagSchemaUpdate, \
     TopicEntityTagSourceSchemaShow, TopicEntityTagSourceSchemaCreate
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user, no_read_auth_bypass
+from agr_literature_service.api.util.resource_urls import topic_entity_tag_url, topic_entity_tag_source_url
 
 router = APIRouter(
     prefix="/topic_entity_tag",
@@ -27,12 +28,21 @@ db_session: Session = Depends(get_db)
 revalidate_all_tags_already_running = Value('b', False)
 
 
-@router.post('/', status_code=status.HTTP_201_CREATED, response_model=Dict)
+@router.post('/',
+             status_code=status.HTTP_201_CREATED,
+             response_model=TopicEntityTagSchemaShow)
 def create_tag(request: TopicEntityTagSchemaPost,
+               response: Response,
                user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return topic_entity_tag_crud.create_tag(db, request)
+    new_tag_id, was_upsert = topic_entity_tag_crud.create_tag(db, request)
+    # 200 when an existing tag absorbed the request (note appended in place),
+    # 201 (the default declared above) when a new row was inserted.
+    if was_upsert:
+        response.status_code = status.HTTP_200_OK
+    response.headers["Location"] = topic_entity_tag_url(new_tag_id)
+    return topic_entity_tag_crud.show_tag(db, new_tag_id)
 
 
 @router.get('/{topic_entity_tag_id}',
@@ -45,14 +55,15 @@ def show_tag(topic_entity_tag_id: int,
 
 
 @router.patch('/{topic_entity_tag_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=TopicEntityTagSchemaShow)
 def patch_tag(topic_entity_tag_id: int,
               request: TopicEntityTagSchemaUpdate,
               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
               db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
+    topic_entity_tag_crud.patch_tag(db, topic_entity_tag_id, request)
+    return topic_entity_tag_crud.show_tag(db, topic_entity_tag_id)
 
 
 @router.delete('/{topic_entity_tag_id}',
@@ -67,12 +78,15 @@ def delete_tag(topic_entity_tag_id,
 
 @router.post('/source',
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
+             response_model=TopicEntityTagSourceSchemaShow)
 def create_source(request: TopicEntityTagSourceSchemaCreate,
+                  response: Response,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return topic_entity_tag_crud.create_source(db, request)
+    new_source_id = topic_entity_tag_crud.create_source(db, request)
+    response.headers["Location"] = topic_entity_tag_source_url(new_source_id)
+    return topic_entity_tag_crud.show_source(db, new_source_id)
 
 
 @router.delete('/source/{topic_entity_tag_source_id}',
@@ -86,14 +100,15 @@ def delete_source(topic_entity_tag_source_id,
 
 
 @router.patch('/source/{topic_entity_tag_source_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
-def patch_source(topic_entity_tag_source_id,
+              status_code=status.HTTP_200_OK,
+              response_model=TopicEntityTagSourceSchemaShow)
+def patch_source(topic_entity_tag_source_id: int,
                  request: TopicEntityTagSourceSchemaUpdate,
                  user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                  db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
+    topic_entity_tag_crud.patch_source(db, topic_entity_tag_source_id, request)
+    return topic_entity_tag_crud.show_source(db, topic_entity_tag_source_id)
 
 
 @router.get('/source/all',

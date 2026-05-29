@@ -26,7 +26,7 @@ def test_topic_entity_tag_source(db, auth_headers, test_mod): # noqa
             "created_by": "somebody"
         }
         response = client.post(url="/topic_entity_tag/source", json=new_source, headers=auth_headers)
-        yield SourceTestData(response, response.json())
+        yield SourceTestData(response, response.json()["topic_entity_tag_source_id"])
 
 
 class TestTopicEntityTagSource:
@@ -55,7 +55,7 @@ class TestTopicEntityTagSource:
             }
             response = client.patch(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                     json=patch_data, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(url=f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.json()["source_evidence_assertion"] == "ECO:0008021"
