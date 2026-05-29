@@ -84,7 +84,7 @@ class TestReference:
             }
             response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
+            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()['curie']).one()
             assert db_obj.title == "Bob"
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
@@ -98,7 +98,7 @@ class TestReference:
             }
             response = client.post(url="/reference/", json=none_title_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
+            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()['curie']).one()
             assert db_obj.volume == "string_volume"
 
             # blank title
@@ -109,7 +109,7 @@ class TestReference:
             }
             response = client.post(url="/reference/", json=blank_title_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()).one()
+            db_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == response.json()['curie']).one()
             assert db_obj.title == ""
 
             # blank category
@@ -144,7 +144,7 @@ class TestReference:
             post_resp = client.post(url="/reference/", json=new_ref,
                                     headers=auth_headers)
             assert post_resp.status_code == status.HTTP_201_CREATED
-            new_curie = post_resp.json()
+            new_curie = post_resp.json()['curie']
             get_resp = client.get(url=f"/reference/{new_curie}",
                                   headers=auth_headers)
             assert get_resp.json()["retraction_status"] == "ATP:0000348"
@@ -244,7 +244,7 @@ class TestReference:
                     }
                 ]
             }
-            new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
+            new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()['curie']
             # fetch the new record.
             response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['category'] == 'research_article'
@@ -328,7 +328,7 @@ class TestReference:
                 "volume": "433"
             }
 
-            new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()
+            new_curie = client.post(url="/reference/", json=full_xml, headers=auth_headers).json()['curie']
             # fetch the new record.
             response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['abstract'] == 'The Hippo (Hpo) pathway is a conserved tumor suppressor pathway'
@@ -972,9 +972,7 @@ class TestReference:
             new_curie_response = client.post(url="/reference/add/", json=new_pmid_add, headers=auth_headers)
             # new_curie_response = client.post(url=f"/reference/add/12345/{test_mod.new_mod_abbreviation}:test/{test_mod.new_mod_abbreviation}/", headers=auth_headers)
             # new_curie_response = client.post(url="/reference/add/12345/0015_AtDB:test/0015_AtDB/", headers=auth_headers)
-            new_curie = new_curie_response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                new_curie = new_curie[1:-1]
+            new_curie = new_curie_response.json()['curie']
             response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['mod_corpus_associations'][0]['mod_abbreviation'] == test_mod.new_mod_abbreviation
             xrefs_ok = 0
@@ -1001,9 +999,7 @@ class TestReference:
                 "mod_mca": "WB"
             }
             new_curie_response = client.post(url="/reference/add/", json=new_pmid_add, headers=auth_headers)
-            new_curie = new_curie_response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                new_curie = new_curie[1:-1]
+            new_curie = new_curie_response.json()['curie']
             response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
             assert response['mod_corpus_associations'][0]['mod_abbreviation'] == "WB"
             xrefs_ok = 0

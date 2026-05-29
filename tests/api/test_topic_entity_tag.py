@@ -215,7 +215,7 @@ class TestTopicEntityTag:
             }
             new_ref_req = client.post(url="/reference/", json=reference_data, headers=auth_headers)
             assert new_ref_req.status_code == status.HTTP_201_CREATED
-            new_curie = new_ref_req.json()
+            new_curie = new_ref_req.json()['curie']
             assert new_curie.startswith("AGRKB:")
             mock_get_curie_to_name_from_all_tets.return_value = {
                 'ATP:0000009': 'phenotype', 'ATP:0000082': 'RNAi phenotype', 'ATP:0000122': 'ATP:0000122',

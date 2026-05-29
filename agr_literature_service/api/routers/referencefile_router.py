@@ -121,7 +121,8 @@ def file_upload(reference_curie: str = None,
             metadata["file_class"] or not metadata["file_publication_status"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="The provided metadata is not valid")
-    return referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
+    created_referencefiles = referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
+    return [referencefile_crud.show(db, rf.referencefile_id) for rf in created_referencefiles]
 
 
 @router.get('/download_file/{referencefile_id}',
