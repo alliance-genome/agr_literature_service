@@ -146,7 +146,7 @@ class TestDataset:
                                          f"{test_dataset.data_type}/"
                                          f"{test_dataset.dataset_type}/{test_dataset.version}/"
                                          f"{test_topic_entity_tag.related_ref_curie}/", headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_204_NO_CONTENT
 
             # Verify the removal in the database
             dataset = db.query(DatasetModel).filter(DatasetModel.dataset_id == dataset_metadata["dataset_id"]).one()

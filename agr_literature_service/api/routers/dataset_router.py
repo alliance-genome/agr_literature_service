@@ -89,7 +89,7 @@ def add_entry_to_dataset(request: DatasetEntrySchemaPost,
 
 
 @router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/{entity}/",
-               status_code=status.HTTP_202_ACCEPTED)
+               status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                               reference_curie: str, entity: str,
                               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
@@ -100,7 +100,7 @@ def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_typ
 
 
 @router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/",
-               status_code=status.HTTP_202_ACCEPTED)
+               status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry_from_dataset_no_entity(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                                         reference_curie: str,
                                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),

@@ -284,7 +284,7 @@ def add_reference_email(
 
 @router.delete(
     "/{curie_or_reference_id}/emails/{reference_email_id}",
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_reference_email(
     curie_or_reference_id: str,
@@ -300,7 +300,7 @@ def delete_reference_email(
     """
     set_global_user_from_cognito(db, user)
     reference_crud.delete_reference_email(db, curie_or_reference_id, reference_email_id)
-    return {"message": "deleted"}
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post('/merge/{old_curie}/{new_curie}',
