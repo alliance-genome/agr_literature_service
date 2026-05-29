@@ -12,9 +12,9 @@ from agr_literature_service.api.schemas.referencefile_mod_schemas import (
     ReferencefileModSchemaShow,
     ReferencefileModSchemaUpdate,
 )
-from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import referencefile_mod_url
 from agr_literature_service.api.crud import referencefile_mod_crud, referencefile_mod_utils
 
 logger = logging.getLogger(__name__)
@@ -32,16 +32,18 @@ s3_session = Depends(s3_auth)
 @router.post(
     "/",
     status_code=status.HTTP_201_CREATED,
-    response_model=int,
+    response_model=ReferencefileModSchemaShow,
 )
 def create(
     request: ReferencefileModSchemaPost,
+    response: Response,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
     new_id = referencefile_mod_crud.create(db, request)
-    return new_id
+    response.headers["Location"] = referencefile_mod_url(new_id)
+    return referencefile_mod_crud.show(db, new_id)
 
 
 @router.get(
@@ -59,18 +61,19 @@ def show(
 
 @router.patch(
     "/{referencefile_mod_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    status_code=status.HTTP_200_OK,
+    response_model=ReferencefileModSchemaShow,
 )
 def patch(
     referencefile_mod_id: int,
     request: ReferencefileModSchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> ResponseMessageSchema:
+):
     set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
-    return referencefile_mod_crud.patch(db, referencefile_mod_id, updates)
+    referencefile_mod_crud.patch(db, referencefile_mod_id, updates)
+    return referencefile_mod_crud.show(db, referencefile_mod_id)
 
 
 @router.delete(

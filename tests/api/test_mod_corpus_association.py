@@ -215,7 +215,7 @@ class TestAllianceOnlyReference:
             response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
-            ref_curie = response.json()
+            ref_curie = response.json()['curie']
             assert ref_curie.startswith("AGRKB:")
 
             # Verify the reference was created
@@ -253,7 +253,7 @@ class TestAllianceOnlyReference:
             }
             response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            ref_curie = response.json()
+            ref_curie = response.json()['curie']
 
             # Now add Alliance MOD corpus association with corpus=true
             new_mca = {
@@ -313,7 +313,7 @@ class TestAllianceOnlyReference:
             response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
-            ref_curie = response.json()
+            ref_curie = response.json()['curie']
 
             # Verify the PMID xref was created
             reference_obj = db.query(ReferenceModel).filter(
@@ -351,7 +351,7 @@ class TestAllianceOnlyReference:
             }
             response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            ref_curie = response.json()
+            ref_curie = response.json()['curie']
 
             # Verify ONLY Alliance MOD corpus association exists
             ref_response = client.get(url=f"/reference/{ref_curie}", headers=auth_headers)

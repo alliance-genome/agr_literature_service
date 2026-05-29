@@ -10,11 +10,12 @@ from agr_literature_service.api.crud import cross_reference_crud, reference_crud
 from agr_literature_service.api.s3 import download
 from agr_literature_service.api.deps import s3_auth
 from agr_literature_service.api.schemas import (ReferenceSchemaPost, ReferenceSchemaShow,
-                                                ReferenceSchemaUpdate, ResponseMessageSchema)
+                                                ReferenceSchemaUpdate)
 from agr_literature_service.api.schemas.reference_schemas import ReferenceSchemaAddPmid, \
     ReferenceEmailSchemaRelated
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import reference_url
 
 import datetime
 import logging
@@ -43,27 +44,33 @@ lock_dumps_ondemand = None
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str)
+             response_model=ReferenceSchemaShow)
 def create(request: ReferenceSchemaPost,
+           response: Response,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
 
     set_global_user_from_cognito(db, user)
-    return reference_crud.create(db, request)
+    curie = reference_crud.create(db, request)
+    response.headers["Location"] = reference_url(curie)
+    return reference_crud.show(db, curie)
 
 
 # @router.post('/add/{pubmed_id}/{mod_curie}/{mod_mca}/',
 @router.post('/add/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str)
+             response_model=ReferenceSchemaShow)
 def add(request: ReferenceSchemaAddPmid,
+        response: Response,
         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
         db: Session = db_session):
     set_global_user_from_cognito(db, user)
     mod_curie = request.mod_curie
     if mod_curie is None:
         mod_curie = ''
-    return process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
+    curie = process_pmid(request.pubmed_id, mod_curie, request.mod_mca)
+    response.headers["Location"] = reference_url(curie)
+    return reference_crud.show(db, curie)
 
 
 @router.get('/external_lookup/{external_curie}',
@@ -95,15 +102,16 @@ def destroy(curie_or_reference_id: str,
 
 
 @router.patch('/{curie_or_reference_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ReferenceSchemaShow)
 async def patch(curie_or_reference_id: str,
                 request: ReferenceSchemaUpdate,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
-    return reference_crud.patch(db, curie_or_reference_id, patch)
+    reference_crud.patch(db, curie_or_reference_id, patch)
+    return reference_crud.show(db, curie_or_reference_id)
 
 
 @router.get('/dumps/latest/{mod}',

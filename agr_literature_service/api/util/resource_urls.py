@@ -36,3 +36,27 @@ def mesh_detail_url(mesh_detail_id: int) -> str:
 
 def mod_corpus_association_url(mod_corpus_association_id: int) -> str:
     return f"/reference/mod_corpus_association/{mod_corpus_association_id}"
+
+
+def reference_url(curie: str) -> str:
+    return f"/reference/{curie}"
+
+
+def resource_url(curie: str) -> str:
+    return f"/resource/{curie}"
+
+
+def image_permission_url(image_permission_id: int) -> str:
+    return f"/image_permission/{image_permission_id}"
+
+
+def resource_image_permission_url(resource_image_permission_id: int) -> str:
+    return f"/image_permission/resource_link/{resource_image_permission_id}"
+
+
+def referencefile_mod_url(referencefile_mod_id: int) -> str:
+    return f"/reference/referencefile_mod/{referencefile_mod_id}"
+
+
+def referencefile_url(referencefile_id: int) -> str:
+    return f"/reference/referencefile/{referencefile_id}"

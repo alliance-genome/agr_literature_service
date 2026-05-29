@@ -13,9 +13,12 @@ from agr_literature_service.api.schemas import (
     ResourceImagePermissionSchemaPost,
     ResourceImagePermissionSchemaShow,
     ResourceImagePermissionSchemaUpdate,
-    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
+from agr_literature_service.api.util.resource_urls import (
+    image_permission_url,
+    resource_image_permission_url,
+)
 
 router = APIRouter(
     prefix="/image_permission",
@@ -28,14 +31,17 @@ db_session: Session = Depends(get_db)
 
 @router.post("/",
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
+             response_model=ImagePermissionSchemaShow)
 def create_image_permission(
     request: ImagePermissionSchemaPost,
+    response: Response,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
-    return image_permission_crud.create_image_permission(db, request)
+    new_id = image_permission_crud.create_image_permission(db, request)
+    response.headers["Location"] = image_permission_url(new_id)
+    return image_permission_crud.show_image_permission(db, new_id)
 
 
 @router.get("/all",
@@ -50,14 +56,17 @@ def show_all_image_permissions(
 
 @router.post("/resource",
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
+             response_model=ResourceImagePermissionSchemaShow)
 def create_resource_image_permission(
     request: ResourceImagePermissionSchemaPost,
+    response: Response,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
-    return image_permission_crud.create_resource_image_permission(db, request)
+    new_id = image_permission_crud.create_resource_image_permission(db, request)
+    response.headers["Location"] = resource_image_permission_url(new_id)
+    return image_permission_crud.show_resource_image_permission(db, new_id)
 
 
 @router.get("/resource/all",
@@ -93,8 +102,8 @@ def show_resource_image_permission(
 
 
 @router.patch("/resource_link/{resource_image_permission_id}",
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ResourceImagePermissionSchemaShow)
 def patch_resource_image_permission(
     resource_image_permission_id: int,
     request: ResourceImagePermissionSchemaUpdate,
@@ -102,9 +111,10 @@ def patch_resource_image_permission(
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
-    return image_permission_crud.patch_resource_image_permission(
+    image_permission_crud.patch_resource_image_permission(
         db, resource_image_permission_id, request,
     )
+    return image_permission_crud.show_resource_image_permission(db, resource_image_permission_id)
 
 
 @router.delete("/resource_link/{resource_image_permission_id}",
@@ -131,8 +141,8 @@ def show_image_permission(
 
 
 @router.patch("/{image_permission_id}",
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ImagePermissionSchemaShow)
 def patch_image_permission(
     image_permission_id: int,
     request: ImagePermissionSchemaUpdate,
@@ -140,7 +150,8 @@ def patch_image_permission(
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
-    return image_permission_crud.patch_image_permission(db, image_permission_id, request)
+    image_permission_crud.patch_image_permission(db, image_permission_id, request)
+    return image_permission_crud.show_image_permission(db, image_permission_id)
 
 
 @router.delete("/{image_permission_id}",

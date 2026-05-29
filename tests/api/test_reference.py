@@ -46,7 +46,7 @@ def test_reference(db, auth_headers): # noqa
             "language": "MadeUp"
         }
         response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
-        yield ReferenceTestData(response, response.json())
+        yield ReferenceTestData(response, response.json()['curie'])
 
 
 @pytest.fixture
@@ -154,7 +154,7 @@ class TestReference:
                 url=f"/reference/{test_reference.new_ref_curie}",
                 json={"retraction_status": "ATP:0000347"},  # partially retracted
                 headers=auth_headers)
-            assert patch_resp.status_code == status.HTTP_202_ACCEPTED
+            assert patch_resp.status_code == status.HTTP_200_OK
             get_resp = client.get(url=f"/reference/{test_reference.new_ref_curie}",
                                   headers=auth_headers)
             assert get_resp.json()["retraction_status"] == "ATP:0000347"
@@ -164,7 +164,7 @@ class TestReference:
                 url=f"/reference/{test_reference.new_ref_curie}",
                 json={"retraction_status": None},
                 headers=auth_headers)
-            assert patch_resp.status_code == status.HTTP_202_ACCEPTED
+            assert patch_resp.status_code == status.HTTP_200_OK
             get_resp = client.get(url=f"/reference/{test_reference.new_ref_curie}",
                                   headers=auth_headers)
             assert get_resp.json()["retraction_status"] is None
@@ -190,7 +190,7 @@ class TestReference:
                               "date_published_start": "2022-10-01", "resource": test_resource.new_resource_curie}
             response = client.patch(url=f"/reference/{test_reference.new_ref_curie}", json=updated_fields,
                                     headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
 
             updated_ref = client.get(url=f"/reference/{test_reference.new_ref_curie}",
                                      headers=auth_headers).json()
@@ -445,36 +445,36 @@ class TestReference:
             # update ref_obj with a different category
             # This is just to test the transactions and versions
             xml = {"category": "other"}
-            response_patch1 = client.patch(url=f"/reference/{response1.json()}", json=xml, headers=auth_headers)
-            assert response_patch1.status_code == status.HTTP_202_ACCEPTED
-            response_patch3 = client.patch(url=f"/reference/{response3.json()}", json=xml, headers=auth_headers)
-            assert response_patch3.status_code == status.HTTP_202_ACCEPTED
+            response_patch1 = client.patch(url=f"/reference/{response1.json()['curie']}", json=xml, headers=auth_headers)
+            assert response_patch1.status_code == status.HTTP_200_OK
+            response_patch3 = client.patch(url=f"/reference/{response3.json()['curie']}", json=xml, headers=auth_headers)
+            assert response_patch3.status_code == status.HTTP_200_OK
 
             # fetch the new record.
-            res = client.get(url=f"/reference/{response1.json()}", headers=auth_headers).json()
+            res = client.get(url=f"/reference/{response1.json()['curie']}", headers=auth_headers).json()
             assert res['category'] == 'other'
 
             # merge 1 into 2
-            response_merge1 = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+            response_merge1 = client.post(url=f"/reference/merge/{response1.json()['curie']}/{response2.json()['curie']}",
                                           headers=auth_headers)
             assert response_merge1.status_code == status.HTTP_201_CREATED
-            response_ref2 = client.get(url=f"/reference/{response2.json()}", headers=auth_headers)
+            response_ref2 = client.get(url=f"/reference/{response2.json()['curie']}", headers=auth_headers)
             # old: False new: True merged: True
             assert response_ref2.json()['prepublication_pipeline']
             # merge 2 into 3
-            response_merge2 = client.post(url=f"/reference/merge/{response2.json()}/{response3.json()}",
+            response_merge2 = client.post(url=f"/reference/merge/{response2.json()['curie']}/{response3.json()['curie']}",
                                           headers=auth_headers)
             assert response_merge2.status_code == status.HTTP_201_CREATED
-            response_ref3 = client.get(url=f"/reference/{response3.json()}", headers=auth_headers)
+            response_ref3 = client.get(url=f"/reference/{response3.json()['curie']}", headers=auth_headers)
             # old: True new: False merge: True
             assert response_ref3.json()['prepublication_pipeline']
 
             # So now if we look up ref_obj we should get ref3_obj
             # and if we lookup ref2_obj we should get ref3_obj
-            response_ref1 = client.get(url=f"/reference/{response1.json()}", headers=auth_headers)
-            assert response_ref1.json()['curie'] == response3.json()
-            response_ref2 = client.get(url=f"/reference/{response2.json()}", headers=auth_headers)
-            assert response_ref2.json()['curie'] == response3.json()
+            response_ref1 = client.get(url=f"/reference/{response1.json()['curie']}", headers=auth_headers)
+            assert response_ref1.json()['curie'] == response3.json()['curie']
+            response_ref2 = client.get(url=f"/reference/{response2.json()['curie']}", headers=auth_headers)
+            assert response_ref2.json()['curie'] == response3.json()['curie']
 
             ##########################################################################
             # The following are really examples of continuum and not testing the code
@@ -487,7 +487,7 @@ class TestReference:
                      FROM reference_version
                        WHERE curie = '{}'
                        ORDER BY transaction_id
-                """.format(response1.json())
+                """.format(response1.json()['curie'])
 
             rs = db.execute(text(sql))
             # (33, 1, 36, 'Research_Article', True)
@@ -512,7 +512,7 @@ class TestReference:
             ######################
             # 2) version traversal
             ######################
-            ref = db.query(ReferenceModel).filter(ReferenceModel.curie == response3.json()).first()
+            ref = db.query(ReferenceModel).filter(ReferenceModel.curie == response3.json()['curie']).first()
             first_ver = ref.versions[0]
             # lower case now???
             assert first_ver.category == 'research_article'
@@ -656,7 +656,7 @@ class TestReference:
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
             assert response2.status_code == 201
 
-            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response1.json()}",
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response1.json()['curie']}",
                                       headers=auth_headers)
             # assert get_response.status_code == status.HTTP_200_OK
             print(get_response.status_code)
@@ -666,7 +666,7 @@ class TestReference:
             print(tets)
             assert len(tets) == 2
 
-            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}",
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()['curie']}",
                                       headers=auth_headers)
             # assert get_response.status_code == status.HTTP_200_OK
             print(get_response.status_code)
@@ -676,11 +676,11 @@ class TestReference:
             print(tets)
             assert len(tets) == 3
 
-            response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+            response_merge = client.post(url=f"/reference/merge/{response1.json()['curie']}/{response2.json()['curie']}",
                                          headers=auth_headers)
             assert response_merge.status_code == status.HTTP_201_CREATED
             print(response_merge.text)
-            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}",
+            get_response = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()['curie']}",
                                       headers=auth_headers)
             # assert get_response.status_code == status.HTTP_200_OK
             print(get_response.status_code)
@@ -783,11 +783,11 @@ class TestReference:
             response2 = client.post(url="/reference/", json=ref2_data, headers=auth_headers)
             logger.info(f"inserting refs with tags took {datetime.datetime.now() - start_time}")
             start_time = datetime.datetime.now()
-            response_merge = client.post(url=f"/reference/merge/{response1.json()}/{response2.json()}",
+            response_merge = client.post(url=f"/reference/merge/{response1.json()['curie']}/{response2.json()['curie']}",
                                          headers=auth_headers)
             logger.info(f"merging refs took {datetime.datetime.now() - start_time}")
             assert response_merge.status_code == status.HTTP_201_CREATED
-            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()}",
+            tets = client.get(url=f"/topic_entity_tag/by_reference/{response2.json()['curie']}",
                               headers=auth_headers).json()
             assert len(tets) == num_tags_per_ref * 2
 
