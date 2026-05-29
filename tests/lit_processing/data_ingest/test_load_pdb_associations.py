@@ -201,7 +201,7 @@ class TestLoad:
         db.query.return_value.filter_by.return_value.one.return_value = ref
         return db, ref
 
-    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create")
     @patch.object(mod, "set_global_user_id")
@@ -229,7 +229,7 @@ class TestLoad:
         assert tet_payload["topic_entity_tag_source_id"] == 42
         assert tet_payload.get("entity") is None
 
-    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create")
     @patch.object(mod, "set_global_user_id")
@@ -243,7 +243,7 @@ class TestLoad:
         mock_create.assert_not_called()
         mock_create_tag.assert_not_called()
 
-    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create")
     @patch.object(mod, "set_global_user_id")
@@ -258,7 +258,8 @@ class TestLoad:
             **EMPTY_COUNTS, "skipped_duplicate": 1, "topic_tet_created": 1,
         }
 
-    @patch.object(mod, "create_tag", return_value={"status": "exists"})
+    @patch.object(mod, "create_tag",
+                  side_effect=HTTPException(status_code=409, detail={"reason": "duplicate"}))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create", return_value=1)
     @patch.object(mod, "set_global_user_id")
@@ -272,7 +273,7 @@ class TestLoad:
             **EMPTY_COUNTS, "created": 1, "topic_tet_skipped_duplicate": 1,
         }
 
-    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create", return_value=1)
     @patch.object(mod, "set_global_user_id")
@@ -311,7 +312,7 @@ class TestStaleCleanup:
 
     @patch.object(mod, "_delete_stale_topic_tets", return_value=4)
     @patch.object(mod, "_delete_stale_xrefs", return_value=7)
-    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create", return_value=1)
     @patch.object(mod, "set_global_user_id")
@@ -338,7 +339,7 @@ class TestStaleCleanup:
 
     @patch.object(mod, "_delete_stale_topic_tets")
     @patch.object(mod, "_delete_stale_xrefs")
-    @patch.object(mod, "create_tag", return_value={"status": "success"})
+    @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)
     @patch.object(mod.cross_reference_crud, "create", return_value=1)
     @patch.object(mod, "set_global_user_id")

@@ -265,7 +265,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "topic_entity_tag_source_id": auth_source_2_resp.json()["topic_entity_tag_source_id"],
                 "negated": True,
                 "data_novelty": "ATP:0000334"
             }
@@ -427,7 +427,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "topic_entity_tag_source_id": auth_source_2_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000228"
             }
@@ -438,7 +438,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": auth_source_2_resp.json(),
+                "topic_entity_tag_source_id": auth_source_2_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000228"
             }
@@ -539,7 +539,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "topic_entity_tag_source_id": curator_source_resp.json()["topic_entity_tag_source_id"],
                 "negated": True,
                 "data_novelty": "ATP:0000321"
             }
@@ -641,7 +641,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "topic_entity_tag_source_id": curator_source_resp.json()["topic_entity_tag_source_id"],
                 "negated": True,
                 "data_novelty": "ATP:0000321"
             }
@@ -827,7 +827,7 @@ class TestTopicEntityTag:
                 "entity": "WB:WBGene00003002",
                 "entity_id_validation": "alliance",
                 "species": "NCBITaxon:6239",
-                "topic_entity_tag_source_id": source_resp.json(),
+                "topic_entity_tag_source_id": source_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000321"
             }
@@ -971,7 +971,7 @@ class TestTopicEntityTag:
             existing_data_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
-                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "topic_entity_tag_source_id": curator_source_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000334"  # existing data
             }
@@ -982,7 +982,7 @@ class TestTopicEntityTag:
             novel_data_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000079",  # more specific topic
-                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "topic_entity_tag_source_id": curator_source_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000321"  # novel data
             }
@@ -1033,7 +1033,7 @@ class TestTopicEntityTag:
             generic_novel_data_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000009",
-                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "topic_entity_tag_source_id": curator_source_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000321"  # generic novel data
             }
@@ -1044,7 +1044,7 @@ class TestTopicEntityTag:
             specific_novel_data_tag = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000079",  # more specific topic
-                "topic_entity_tag_source_id": curator_source_resp.json(),
+                "topic_entity_tag_source_id": curator_source_resp.json()["topic_entity_tag_source_id"],
                 "negated": False,
                 "data_novelty": "ATP:0000228"  # novel to database (more specific)
             }
@@ -1100,7 +1100,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             curator_source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            curator_source_id = curator_source_resp.json()
+            curator_source_id = curator_source_resp.json()["topic_entity_tag_source_id"]
 
             # Test Case 1: Positive specific topic + specific novelty validates positive generic topic + generic novelty
             generic_tag = {
@@ -1186,7 +1186,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Create tag with existing data novelty
             existing_data_tag = {
@@ -1243,7 +1243,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Scenario: Generic topic + root novelty should be validated by specific topic + specific novelty
             root_novelty_tag = {
@@ -1336,7 +1336,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Create positive tag with specific topic and specific novelty
             positive_specific = {
@@ -1401,7 +1401,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Test 1: Generic novel data validates by specific novel data
             generic_novel_tag = {
@@ -1492,7 +1492,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Test entity-only tag (topic == entity_type) with novel data
             entity_only_tag = {
@@ -1582,7 +1582,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Tag A: Generic tag that will be validated
             tag_a_generic = {
@@ -1724,7 +1724,7 @@ class TestTopicEntityTag:
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation
             }
             source_resp = client.post(url="/topic_entity_tag/source", json=curator_source, headers=auth_headers)
-            source_id = source_resp.json()
+            source_id = source_resp.json()["topic_entity_tag_source_id"]
 
             # Tag A: Generic tag
             tag_a = {
@@ -1940,11 +1940,10 @@ class TestTopicEntityTag:
 
         with db as session:
             # Create with ML model ID
-            result = create_tag(
+            tag_id, _was_upsert = create_tag(
                 db=session,
                 topic_entity_tag=tag_schema
             )
-            tag_id = result["topic_entity_tag_id"]
 
             # Test show_tag function directly
             tag_details = show_tag(session, tag_id)
@@ -1976,11 +1975,10 @@ class TestTopicEntityTag:
 
         tag_schema = TopicEntityTagSchemaPost(**tag_data)
 
-        result = create_tag(
+        tag_id, _was_upsert = create_tag(
             db,
             topic_entity_tag=tag_schema
         )
-        tag_id = result["topic_entity_tag_id"]
 
         # Test database relationships
         tag_obj = db.query(TopicEntityTagModel).filter(
