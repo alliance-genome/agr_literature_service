@@ -202,7 +202,7 @@ class TestPersonCrossReference:
                 json={"curie": "WB:WBPerson99999"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             obj = (
                 db.query(PersonCrossReferenceModel)
@@ -226,7 +226,7 @@ class TestPersonCrossReference:
                 },
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             obj = (
                 db.query(PersonCrossReferenceModel)

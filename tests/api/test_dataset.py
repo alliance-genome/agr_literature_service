@@ -198,8 +198,8 @@ class TestDataset:
             response = client.patch(url=f"/datasets/{test_dataset.mod_abbreviation}/{test_dataset.data_type}/"
                                         f"{test_dataset.dataset_type}/{test_dataset.version}",
                                     json=updated_dataset, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
-            assert response.json() == "updated"
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["title"] == "Updated title"
             dataset_metadata = client.get(url=f"/datasets/metadata/{test_dataset.mod_abbreviation}/"
                                               f"{test_dataset.data_type}/{test_dataset.dataset_type}/"
                                               f"{test_dataset.version}/",
