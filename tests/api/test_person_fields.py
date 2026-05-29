@@ -805,7 +805,7 @@ class TestPersonEmailMixedCase:
                 json={"date_made_old_email": "2026-05-22T12:00:00"},
                 headers=auth_headers,
             )
-            assert patch.status_code == status.HTTP_202_ACCEPTED
+            assert patch.status_code == status.HTTP_200_OK
 
             shown = client.get(
                 f"/person_email/{email_id}", headers=auth_headers
@@ -849,7 +849,7 @@ class TestGetMostCurrentEmailFunction:
                 json={"email_address": "older@example.com"},
                 headers=auth_headers,
             )
-            assert patch.status_code == status.HTTP_202_ACCEPTED
+            assert patch.status_code == status.HTTP_200_OK
 
             result = db.execute(
                 text("SELECT get_most_current_email(:pid)"),
@@ -863,7 +863,7 @@ class TestGetMostCurrentEmailFunction:
                 json={"email_address": "newer@example.com"},
                 headers=auth_headers,
             )
-            assert patch.status_code == status.HTTP_202_ACCEPTED
+            assert patch.status_code == status.HTTP_200_OK
 
             result = db.execute(
                 text("SELECT get_most_current_email(:pid)"),

@@ -65,7 +65,7 @@ def destroy(db: Session, author_id: int):
     return None
 
 
-def patch(db: Session, author_id: int, author_patch) -> dict:
+def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     """
     Update an author
     :param db:
@@ -99,8 +99,9 @@ def patch(db: Session, author_id: int, author_patch) -> dict:
     author_db_obj.dateUpdated = datetime.utcnow()
     db.add(author_db_obj)
     db.commit()
+    db.refresh(author_db_obj)
 
-    return {"message": "updated"}
+    return author_db_obj
 
 
 def show(db: Session, author_id: int):

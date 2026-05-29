@@ -53,7 +53,7 @@ class TestAuthor:
                    'orcid': "ORCID:4321-4321-4321-321X"}
             author = db.query(AuthorModel).filter(AuthorModel.name == "003_TCU").one()
             response = client.patch(url=f"/author/{author.author_id}", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             mod_author = client.get(url=f"/author/{author.author_id}", headers=auth_headers).json()
             assert author.author_id == mod_author["author_id"]
             assert mod_author["first_name"] == "003_TUA"

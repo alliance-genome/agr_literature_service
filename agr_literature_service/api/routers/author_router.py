@@ -5,8 +5,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import author_crud
-from agr_literature_service.api.schemas import (AuthorSchemaCreate, AuthorSchemaShow,
-                                                ResponseMessageSchema)
+from agr_literature_service.api.schemas import (AuthorSchemaCreate, AuthorSchemaShow)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
 from agr_literature_service.api.util.resource_urls import author_url
@@ -44,8 +43,8 @@ def destroy(author_id: int,
 
 
 @router.patch('/{author_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=AuthorSchemaShow)
 async def patch(author_id: int,
                 request: AuthorSchemaCreate,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
