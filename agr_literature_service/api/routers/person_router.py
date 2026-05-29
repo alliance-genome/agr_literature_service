@@ -10,10 +10,10 @@ from agr_literature_service.api.schemas import (
     PersonSchemaCreate,
     PersonSchemaUpdate,
     PersonSchemaShow,
-    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import person_url
 
 router = APIRouter(prefix="/person", tags=["Person"])
 
@@ -21,9 +21,10 @@ get_db = database.get_db
 db_session: Session = Depends(get_db)
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED, response_model=str)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=PersonSchemaShow)
 def create(
     request: PersonSchemaCreate,
+    response: Response,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
@@ -31,7 +32,9 @@ def create(
     Create a person.
     """
     set_global_user_from_cognito(db, user)
-    return person_crud.create(db, request)
+    person = person_crud.create(db, request)
+    response.headers["Location"] = person_url(person.curie)
+    return person
 
 
 @router.get('/whoami')
@@ -131,8 +134,8 @@ def destroy(
 
 @router.patch(
     "/{curie_or_person_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    status_code=status.HTTP_200_OK,
+    response_model=PersonSchemaShow,
 )
 def patch(
     curie_or_person_id: str,
@@ -142,7 +145,8 @@ def patch(
 ):
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return person_crud.patch(db, curie_or_person_id, patch_data)
+    person_crud.patch(db, curie_or_person_id, patch_data)
+    return person_crud.show(db, curie_or_person_id)
 
 
 @router.get(

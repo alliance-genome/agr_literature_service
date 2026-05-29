@@ -19,7 +19,7 @@ def test_person_id(db, auth_headers):  # noqa
         payload = {"display_name": "Field Test Person"}
         response = client.post("/person/", json=payload, headers=auth_headers)
         assert response.status_code == status.HTTP_201_CREATED
-        curie = response.json()
+        curie = response.json()['curie']
         fetched = client.get(f"/person/{curie}", headers=auth_headers)
         yield fetched.json()["person_id"]
 
@@ -40,7 +40,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.status_code == status.HTTP_200_OK
@@ -63,7 +63,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["webpage"] == urls
@@ -76,7 +76,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["active_status"] == "retired"
@@ -90,7 +90,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["street_address"] == address
@@ -103,7 +103,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["address_last_updated"] is not None
@@ -115,7 +115,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["address_last_updated"] is None
@@ -128,7 +128,7 @@ class TestPersonFields:
                 json={"webpage": urls},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
             assert fetched.json()["webpage"] == urls
@@ -140,7 +140,7 @@ class TestPersonFields:
                 json={"active_status": "active"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
             assert fetched.json()["active_status"] == "active"
@@ -157,7 +157,7 @@ class TestPersonFields:
                 json={"city": "New York"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
             assert fetched.json()["city"] == "New York"
@@ -170,7 +170,7 @@ class TestPersonFields:
                 json={"city": "London", "state": "England", "country": "UK"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
             body = fetched.json()
@@ -188,7 +188,7 @@ class TestPersonFields:
                 json={"display_name": "Timestamp Test"},
                 headers=auth_headers,
             )
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             # Patch display_name only
             client.patch(
@@ -214,7 +214,7 @@ class TestPersonFields:
                 "biography_research_interest": "Studies ion channels.",
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
@@ -233,7 +233,7 @@ class TestPersonFields:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["biography_research_interest"] == bio
@@ -247,7 +247,7 @@ class TestPersonFields:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["biography_research_interest"] == bio
@@ -259,7 +259,7 @@ class TestPersonFields:
                 json={"biography_research_interest": "Updated biography."},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
             assert fetched.json()["biography_research_interest"] == "Updated biography."
@@ -271,7 +271,7 @@ class TestPersonFields:
                 json={"display_name": "Minimal Person"},
                 headers=auth_headers,
             )
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
@@ -315,7 +315,7 @@ class TestPersonFields:
                 json={"display_name": "Clear Address Test", "city": "Boston"},
                 headers=auth_headers,
             )
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             original_timestamp = fetched.json()["address_last_updated"]
@@ -327,7 +327,7 @@ class TestPersonFields:
                 json={"city": None},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
@@ -347,7 +347,7 @@ class TestPersonFields:
                     headers=auth_headers,
                 )
                 assert res.status_code == status.HTTP_201_CREATED
-                person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+                person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
                 fetched = client.get(f"/person/{person_id}", headers=auth_headers)
                 assert fetched.json()["active_status"] == status_value
 
@@ -389,7 +389,7 @@ class TestPersonFields:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.status_code == status.HTTP_200_OK
@@ -439,7 +439,7 @@ class TestPersonCurie:
             payload = {"display_name": "Curie Assignment Person"}
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            curie = res.json()
+            curie = res.json()['curie']
             assert isinstance(curie, str)
             assert curie.startswith("AGRKB:103")
             assert len(curie) == len("AGRKB:103000000000001")
@@ -488,7 +488,7 @@ class TestPersonCurie:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
-            curie = res.json()
+            curie = res.json()['curie']
             by_curie = client.get(f"/person/{curie}", headers=auth_headers)
             assert by_curie.status_code == status.HTTP_200_OK
             person_id = by_curie.json()["person_id"]
@@ -513,7 +513,7 @@ class TestPersonCurie:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
-            curie = res.json()
+            curie = res.json()['curie']
             post_xref = client.post(
                 f"/person_cross_reference/person/{curie}",
                 json={"curie": "ORCID:0000-0009-8888-7777"},
@@ -977,7 +977,7 @@ class TestPersonUnsubscribe:
                 json={"unsubscribe": True},
                 headers=auth_headers,
             )
-            assert patch.status_code == status.HTTP_202_ACCEPTED
+            assert patch.status_code == status.HTTP_200_OK
             assert (
                 client.get(f"/person/{curie}", headers=auth_headers).json()[
                     "unsubscribe"
@@ -1003,7 +1003,7 @@ class TestPersonUnsubscribe:
                 json={"unsubscribe": None},
                 headers=auth_headers,
             )
-            assert patch.status_code == status.HTTP_202_ACCEPTED
+            assert patch.status_code == status.HTTP_200_OK
             # The previously-set True value must survive.
             assert (
                 client.get(f"/person/{curie}", headers=auth_headers).json()[

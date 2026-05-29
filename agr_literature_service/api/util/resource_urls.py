@@ -60,3 +60,7 @@ def referencefile_mod_url(referencefile_mod_id: int) -> str:
 
 def referencefile_url(referencefile_id: int) -> str:
     return f"/reference/referencefile/{referencefile_id}"
+
+
+def person_url(curie: str) -> str:
+    return f"/person/{curie}"
