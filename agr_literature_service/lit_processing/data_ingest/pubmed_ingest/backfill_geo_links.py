@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from os import path
 from typing import Dict, List, Optional, Tuple
 
+from fastapi import HTTPException
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
@@ -21,7 +22,7 @@ from agr_literature_service.api.models import CrossReferenceModel, ReferenceMode
 from agr_literature_service.api.schemas.cross_reference_schemas import CrossReferenceSchemaPost
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.get_geo_links import (
-    get_geo_accessions_for_pmids,
+    get_geo_accessions_for_pmids_with_split,
 )
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 
@@ -110,6 +111,12 @@ def _insert_geo_xrefs(db: Session, ref_curie: str, missing: List[str], dry_run: 
             cross_reference_crud.create(db, payload)
             inserted += 1
             logger.info("Inserted %s for %s", curie, ref_curie)
+        except HTTPException as exc:
+            if exc.status_code == 409:
+                logger.info("Skipped %s for %s: already exists", curie, ref_curie)
+                continue
+            db.rollback()
+            logger.warning("Failed to insert %s for %s: %s", curie, ref_curie, exc)
         except Exception as exc:
             # cross_reference_crud.create only rolls back on IntegrityError; any
             # other failure (OperationalError, deadlock, connection blip) leaves
@@ -143,9 +150,10 @@ def backfill(mod_abbreviation: str = "",
         batch = refs[start:start + batch_size]
         pmids = [pmid for _, _, pmid in batch]
         try:
-            pmid_to_gse = get_geo_accessions_for_pmids(pmids)
+            pmid_to_gse = get_geo_accessions_for_pmids_with_split(pmids)
         except Exception as exc:
-            logger.error("elink batch failed (%d PMIDs starting at %d): %s", len(pmids), start, exc)
+            logger.error("elink batch failed unexpectedly (%d PMIDs starting at %d): %s",
+                         len(pmids), start, exc)
             continue
         existing = _existing_geo_curies(db, [r[0] for r in batch])
         for ref_id, ref_curie, pmid in batch:

@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import requests
 
@@ -40,18 +40,28 @@ def _throttle() -> None:
 
 
 def _get_with_retry(url: str, params: Dict[str, str]) -> dict:
-    last_exc = None
+    last_exc: Optional[requests.exceptions.RequestException] = None
     for attempt in range(_MAX_RETRIES):
+        wait = _RETRY_BACKOFF_BASE ** attempt
+        r = None
         try:
             r = requests.get(url, params=params, timeout=30)
             r.raise_for_status()
             return r.json()
-        except requests.exceptions.RequestException as exc:
+        except requests.exceptions.JSONDecodeError as exc:
+            body_preview = r.text[:500] if r is not None and r.text else ""
+            logger.warning(
+                "NCBI %s returned non-JSON (attempt %d/%d): %s; body[:500]=%r; retrying in %ds",
+                url, attempt + 1, _MAX_RETRIES, exc, body_preview, wait,
+            )
             last_exc = exc
-            wait = _RETRY_BACKOFF_BASE ** attempt
-            logger.warning("NCBI request to %s failed (attempt %d/%d): %s; retrying in %ds",
-                           url, attempt + 1, _MAX_RETRIES, exc, wait)
-            time.sleep(wait)
+        except requests.exceptions.RequestException as exc:
+            logger.warning(
+                "NCBI request to %s failed (attempt %d/%d): %s; retrying in %ds",
+                url, attempt + 1, _MAX_RETRIES, exc, wait,
+            )
+            last_exc = exc
+        time.sleep(wait)
     assert last_exc is not None
     raise last_exc
 
@@ -115,6 +125,31 @@ def get_geo_accessions_for_pmids(pmids: List[str]) -> Dict[str, List[str]]:
         accessions = {uid_to_accession[u] for u in uids if u in uid_to_accession}
         output[pmid] = sorted(accessions)
     return output
+
+
+def get_geo_accessions_for_pmids_with_split(pmids: List[str]) -> Dict[str, List[str]]:
+    """Like get_geo_accessions_for_pmids, but if NCBI returns an unrecoverable
+    failure for the batch we split the PMID list in half and retry each half.
+    Recurses down to single-PMID granularity; a single PMID that still fails is
+    logged at ERROR and dropped from the result dict (caller treats that the
+    same as 'no GEO links found' for this run; next nightly run will retry it).
+    Never raises for NCBI-side failures."""
+    if not pmids:
+        return {}
+    try:
+        return get_geo_accessions_for_pmids(pmids)
+    except Exception as exc:
+        if len(pmids) == 1:
+            logger.error("elink lookup for PMID %s gave up after retries: %s", pmids[0], exc)
+            return {}
+        mid = len(pmids) // 2
+        logger.warning(
+            "elink batch of %d PMIDs failed after retries; splitting into %d + %d. Cause: %s",
+            len(pmids), mid, len(pmids) - mid, exc,
+        )
+        left = get_geo_accessions_for_pmids_with_split(pmids[:mid])
+        right = get_geo_accessions_for_pmids_with_split(pmids[mid:])
+        return {**left, **right}
 
 
 def _cli() -> None:  # pragma: no cover

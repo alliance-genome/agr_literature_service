@@ -42,6 +42,21 @@ class TestInsertGeoXrefs:
         assert n == 1
         assert create_mock.call_count == 2
 
+    def test_skips_409_duplicate_without_counting_or_warning(self):
+        from fastapi import HTTPException
+        dup = HTTPException(
+            status_code=409,
+            detail="Cannot add cross-reference with CURIE GEO:GSE1...",
+        )
+        with patch.object(backfill_geo_links.cross_reference_crud, "create",
+                          side_effect=[dup, None]) as create_mock:
+            n = backfill_geo_links._insert_geo_xrefs(
+                db=MagicMock(), ref_curie="AGRKB:1",
+                missing=["GSE1", "GSE2"], dry_run=False
+            )
+        assert n == 1
+        assert create_mock.call_count == 2
+
     def test_rolls_back_session_when_create_raises(self):
         """Non-IntegrityError exceptions propagate out of cross_reference_crud.create
         without rollback; the backfill must rollback itself to keep the transaction
