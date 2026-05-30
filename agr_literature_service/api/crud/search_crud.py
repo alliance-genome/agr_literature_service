@@ -251,6 +251,14 @@ def search_references(
                         }
                     }
                 }
+            },
+            "has_reference_emails": {
+                "filters": {
+                    "filters": {
+                        "with_emails": {"exists": {"field": "reference_emails"}},
+                        "without_emails": {"bool": {"must_not": {"exists": {"field": "reference_emails"}}}}
+                    }
+                }
             }
         },
         "from": from_entry,
@@ -384,7 +392,19 @@ def search_references(
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
-            if facet_field in WORKFLOW_FACETS:
+            if facet_field == "has_reference_emails":
+                # Handle email extraction filter
+                for val in facet_list_values:
+                    if val == "with_emails":
+                        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                            {"exists": {"field": "reference_emails"}}
+                        )
+                    elif val == "without_emails":
+                        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                            {"bool": {"must_not": {"exists": {"field": "reference_emails"}}}}
+                        )
+
+            elif facet_field in WORKFLOW_FACETS:
                 # workflow tags are nested
                 if len(facet_list_values) > 1:
                     for tag in facet_list_values:
@@ -526,6 +546,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "mod_reference_types": ref["_source"]["mod_reference_types"],
         "language": ref["fields"]["language.keyword"],
         "authors": ref["_source"]["authors"],
+        "reference_emails": ref["_source"].get("reference_emails", []),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
@@ -545,6 +566,18 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         inner = agg.get("terms") if "terms" in agg else agg.get("aggs", {}).get("terms")
         if isinstance(inner, dict) and "buckets" in inner:
             res['aggregations']["authors.name.keyword"] = inner
+
+    # transform has_reference_emails filter agg to array format for UI
+    email_agg = res["aggregations"].get("has_reference_emails", {})
+    if isinstance(email_agg, dict) and "buckets" in email_agg:
+        named_buckets = email_agg["buckets"]
+        if isinstance(named_buckets, dict):
+            res["aggregations"]["has_reference_emails"] = {
+                "buckets": [
+                    {"key": "with_emails", "name": "With emails", "doc_count": named_buckets.get("with_emails", {}).get("doc_count", 0)},
+                    {"key": "without_emails", "name": "Without emails", "doc_count": named_buckets.get("without_emails", {}).get("doc_count", 0)}
+                ]
+            }
 
     # add human-readable names to retraction_status aggregation
     retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
