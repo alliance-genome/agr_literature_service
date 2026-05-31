@@ -41,6 +41,7 @@ entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
 curation_classification_root_ids = ["ATP:0000311", "ATP:0000210"]
 community_curation_classification_root_ids = ["ATP:0000235"]
+email_extraction_root_ids = ["ATP:0000354"]
 
 WORKFLOW_FACETS = [
     "file_workflow",
@@ -48,7 +49,8 @@ WORKFLOW_FACETS = [
     "entity_extraction",
     "reference_classification",
     "curation_classification",
-    "community_curation"
+    "community_curation",
+    "email_extraction"
 ]
 
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
@@ -251,14 +253,6 @@ def search_references(
                         }
                     }
                 }
-            },
-            "has_reference_emails": {
-                "filters": {
-                    "filters": {
-                        "with_emails": {"exists": {"field": "reference_emails"}},
-                        "without_emails": {"bool": {"must_not": {"exists": {"field": "reference_emails"}}}}
-                    }
-                }
             }
         },
         "from": from_entry,
@@ -392,19 +386,7 @@ def search_references(
             if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must"] = []
 
-            if facet_field == "has_reference_emails":
-                # Handle email extraction filter
-                for val in facet_list_values:
-                    if val == "with_emails":
-                        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-                            {"exists": {"field": "reference_emails"}}
-                        )
-                    elif val == "without_emails":
-                        es_body["query"]["bool"]["filter"]["bool"]["must"].append(
-                            {"bool": {"must_not": {"exists": {"field": "reference_emails"}}}}
-                        )
-
-            elif facet_field in WORKFLOW_FACETS:
+            if facet_field in WORKFLOW_FACETS:
                 # workflow tags are nested
                 if len(facet_list_values) > 1:
                     for tag in facet_list_values:
@@ -567,18 +549,6 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         if isinstance(inner, dict) and "buckets" in inner:
             res['aggregations']["authors.name.keyword"] = inner
 
-    # transform has_reference_emails filter agg to array format for UI
-    email_agg = res["aggregations"].get("has_reference_emails", {})
-    if isinstance(email_agg, dict) and "buckets" in email_agg:
-        named_buckets = email_agg["buckets"]
-        if isinstance(named_buckets, dict):
-            res["aggregations"]["has_reference_emails"] = {
-                "buckets": [
-                    {"key": "with_emails", "name": "With emails", "doc_count": named_buckets.get("with_emails", {}).get("doc_count", 0)},
-                    {"key": "without_emails", "name": "Without emails", "doc_count": named_buckets.get("without_emails", {}).get("doc_count", 0)}
-                ]
-            }
-
     # add human-readable names to retraction_status aggregation
     retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
     if retraction_status_agg:
@@ -683,7 +653,8 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
         "manual_indexing": get_atp_ids(manual_indexing_root_ids),
         "curation_classification": get_atp_ids(curation_classification_root_ids),
-        "community_curation": get_atp_ids(community_curation_classification_root_ids)
+        "community_curation": get_atp_ids(community_curation_classification_root_ids),
+        "email_extraction": get_atp_ids(email_extraction_root_ids)
     }
 
     grouped_workflow_tags: Dict[str, Dict[str, Any]] = {category: {} for category in atp_ids}
