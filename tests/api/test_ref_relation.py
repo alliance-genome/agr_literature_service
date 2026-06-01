@@ -102,7 +102,7 @@ class TestReferenceRelation:
                    }
             response = client.patch(url=f"/reference_relation/{test_ref_cc.new_rcc_id}",
                                     json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
 
             rcc_obj: ReferenceRelationModel = db.query(ReferenceRelationModel). \
                 filter(

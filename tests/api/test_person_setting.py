@@ -122,8 +122,8 @@ class TestPersonSetting:
                 json=patch_payload,
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
-            assert res.json().get("message") == "updated"
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json().get("person_setting_id") == test_person_setting.new_person_setting_id
 
             fetched = client.get(f"/person_setting/{test_person_setting.new_person_setting_id}",
                                 headers=auth_headers)

@@ -278,11 +278,22 @@ def _sync_topic_tets(
     counts: Dict[str, int],
 ) -> None:
     """For each reference that has any PDB cross_reference this run, ensure a
-    topic-only protein-structure TET exists. `create_tag` is idempotent: it
-    returns status='exists' for duplicates."""
+    topic-only protein-structure TET exists. ``create_tag`` is idempotent:
+    it raises HTTPException(409) for true duplicates, and returns
+    ``(tag_id, was_upsert=True)`` when an existing tag absorbed the request."""
     for reference_id, reference_curie in reference_curies.items():
         try:
-            result = create_tag(db, _build_topic_tet_payload(reference_curie, source_id))
+            _new_id, was_upsert = create_tag(db, _build_topic_tet_payload(reference_curie, source_id))
+        except HTTPException as e:
+            if e.status_code == 409:
+                counts["topic_tet_skipped_duplicate"] += 1
+                continue
+            counts["errors"] += 1
+            logger.warning(
+                "topic-only TET create failed for reference_id=%s: %s",
+                reference_id, e,
+            )
+            continue
         except Exception as e:
             counts["errors"] += 1
             logger.warning(
@@ -290,10 +301,10 @@ def _sync_topic_tets(
                 reference_id, e,
             )
             continue
-        if result.get("status") == "success":
-            counts["topic_tet_created"] += 1
-        else:
+        if was_upsert:
             counts["topic_tet_skipped_duplicate"] += 1
+        else:
+            counts["topic_tet_created"] += 1
 
 
 def load(

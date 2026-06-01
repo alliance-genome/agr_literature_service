@@ -26,7 +26,7 @@ def test_referencefile_mod(db, auth_headers, test_referencefile): # noqa
             "mod_abbreviation": "WB"
         }
         response = client.post(url="/reference/referencefile_mod/", json=new_referencefile_mod, headers=auth_headers)
-        yield ReferencefileModTestData(response, response.json())
+        yield ReferencefileModTestData(response, response.json()['referencefile_mod_id'])
 
 
 class TestReferencefileMod:
@@ -48,7 +48,7 @@ class TestReferencefileMod:
             response = client.patch(url=f"/reference/referencefile_mod/"
                                         f"{test_referencefile_mod.new_referencefile_mod_id}",
                                     json=patch_referencefile_mod, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(url=f"/reference/referencefile_mod/{test_referencefile_mod.new_referencefile_mod_id}",
                                   headers=auth_headers)
             assert response.json()["mod_abbreviation"] == patch_referencefile_mod["mod_abbreviation"]

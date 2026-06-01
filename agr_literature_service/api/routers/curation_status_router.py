@@ -8,9 +8,10 @@ from starlette import status
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import curation_status_crud
 from agr_literature_service.api.schemas.curation_status_schemas import CurationStatusSchemaPost, \
-    CurationStatusSchemaUpdate, AggregatedCurationStatusAndTETInfoSchema
+    CurationStatusSchemaShow, CurationStatusSchemaUpdate, AggregatedCurationStatusAndTETInfoSchema
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import curation_status_url
 
 router = APIRouter(
     prefix='/curation_status',
@@ -40,12 +41,16 @@ def show(curation_status_id: int,
 
 
 @router.post("/",
-             status_code=status.HTTP_201_CREATED)
+             status_code=status.HTTP_201_CREATED,
+             response_model=CurationStatusSchemaShow)
 def create_curation_status(request: CurationStatusSchemaPost,
+                           response: Response,
                            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                            db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return curation_status_crud.create(db, curation_status=request)
+    obj = curation_status_crud.create(db, curation_status=request)
+    response.headers["Location"] = curation_status_url(obj.curation_status_id)
+    return obj
 
 
 @router.delete('/{curation_status_id}',
@@ -59,7 +64,8 @@ def destroy(curation_status_id: int,
 
 
 @router.patch('/{curation_status_id}',
-              status_code=status.HTTP_202_ACCEPTED)
+              status_code=status.HTTP_200_OK,
+              response_model=CurationStatusSchemaShow)
 def patch(curation_status_id: int,
           request: CurationStatusSchemaUpdate,
           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),

@@ -49,7 +49,7 @@ class TestReferencefile:
         with TestClient(app) as client:
             response = client.patch(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                     json=patch_referencefile, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                   headers=auth_headers)
             assert response.json()["display_name"] == patch_referencefile["display_name"]
@@ -75,7 +75,7 @@ class TestReferencefile:
         with TestClient(app) as client:
             response = client.patch(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                     json=patch_referencefile_ref1, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(url=f"/reference/referencefile/{test_referencefile.referencefile_id}",
                                   headers=auth_headers)
             assert response.json()["display_name"] == "Bob_1"

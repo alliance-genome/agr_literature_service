@@ -16,7 +16,7 @@ from agr_literature_service.api.schemas import EditorSchemaPost
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
-def create(db: Session, editor: EditorSchemaPost) -> int:
+def create(db: Session, editor: EditorSchemaPost) -> EditorModel:
     """
 
     :param db:
@@ -36,7 +36,7 @@ def create(db: Session, editor: EditorSchemaPost) -> int:
     db.commit()
     db.refresh(db_obj)
 
-    return db_obj.editor_id
+    return db_obj
 
 
 def destroy(db: Session, editor_id: int) -> None:
@@ -57,7 +57,7 @@ def destroy(db: Session, editor_id: int) -> None:
     return None
 
 
-def patch(db: Session, editor_id: int, editor_update) -> dict:
+def patch(db: Session, editor_id: int, editor_update) -> EditorModel:
     """
 
     :param db:
@@ -86,8 +86,9 @@ def patch(db: Session, editor_id: int, editor_update) -> dict:
     editor_db_obj.dateUpdated = datetime.utcnow()
     db.add(editor_db_obj)
     db.commit()
+    db.refresh(editor_db_obj)
 
-    return {"message": "updated"}
+    return editor_db_obj
 
 
 def show(db: Session, editor_id: int) -> dict:

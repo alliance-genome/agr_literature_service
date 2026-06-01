@@ -183,8 +183,8 @@ class TestPersonName:
                 json=patch_payload,
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
-            assert res.json().get("message") == "updated"
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json().get("person_name_id") == test_person_name.new_person_name_id
 
             fetched = client.get(
                 f"/person_name/{test_person_name.new_person_name_id}",
@@ -214,7 +214,7 @@ class TestPersonName:
                 json={"is_primary": True},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             # Verify new one is primary
             fetched = client.get(f"/person_name/{second_id}", headers=auth_headers)
@@ -237,7 +237,7 @@ class TestPersonName:
                 json={"is_primary": False},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(
                 f"/person_name/{test_person_name.new_person_name_id}",
@@ -329,7 +329,7 @@ class TestPersonName:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             # Fetch person to check names
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
@@ -355,7 +355,7 @@ class TestPersonName:
             }
             res = client.post("/person/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()}", headers=auth_headers).json()["person_id"]
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
 
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()

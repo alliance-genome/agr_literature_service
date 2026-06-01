@@ -54,19 +54,19 @@ def destroy(
 
 @router.patch(
     "/{indexing_priority_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    status_code=status.HTTP_200_OK,
+    response_model=IndexingPrioritySchemaShow,
 )
 async def patch(
     indexing_priority_id: int,
     request: IndexingPrioritySchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
     indexing_priority_crud.patch(db, indexing_priority_id, updates)
-    return indexing_priority_id
+    return indexing_priority_crud.show(db, indexing_priority_id)
 
 
 @router.get(

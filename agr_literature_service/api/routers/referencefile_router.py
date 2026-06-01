@@ -14,7 +14,6 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import file_conversion_crud, referencefile_crud
 from agr_literature_service.api.deps import s3_auth
 from agr_cognito_py import get_mod_access
-from agr_literature_service.api.schemas import ResponseMessageSchema
 from agr_literature_service.api.schemas.file_conversion_schemas import \
     ConversionStatusResponseSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
@@ -42,7 +41,7 @@ s3_session = Depends(s3_auth)
 
 @router.post('/file_upload/',
              status_code=status.HTTP_201_CREATED,
-             response_model=str
+             response_model=List[ReferencefileSchemaShow]
              )
 def file_upload(reference_curie: str = None,
                 display_name: str = None,
@@ -122,8 +121,8 @@ def file_upload(reference_curie: str = None,
             metadata["file_class"] or not metadata["file_publication_status"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="The provided metadata is not valid")
-    referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
-    return 'success'
+    created_referencefiles = referencefile_crud.file_upload(db, metadata, file, upload_if_already_converted)
+    return [referencefile_crud.show(db, rf.referencefile_id) for rf in created_referencefiles]
 
 
 @router.get('/download_file/{referencefile_id}',
@@ -165,13 +164,13 @@ def show_by_md5(md5sum: str,
 
 
 @router.delete('/{referencefile_id}',
-               response_model=str)
+               status_code=status.HTTP_204_NO_CONTENT)
 def delete(referencefile_id: int,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
     referencefile_crud.destroy(db, referencefile_id, get_mod_access(user) if user else [])
-    return 'success'
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get('/{referencefile_id}',
@@ -278,14 +277,15 @@ def show_main_pdf_ids_for_curies(data: ReferenceFileAllMainPDFIdsSchemaPost,
 
 
 @router.patch('/{referencefile_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ReferencefileSchemaShow)
 def patch(referencefile_id: int,
           request: ReferencefileSchemaUpdate,
           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
           db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return referencefile_crud.patch(db, referencefile_id, request.model_dump(exclude_unset=True))
+    referencefile_crud.patch(db, referencefile_id, request.model_dump(exclude_unset=True))
+    return referencefile_crud.show(db, referencefile_id)
 
 
 @router.post('/merge/{curie_or_reference_id}/{losing_referencefile_id}/{winning_referencefile_id}',

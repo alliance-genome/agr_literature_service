@@ -9,9 +9,10 @@ from agr_literature_service.api.crud import cross_reference_crud
 from agr_literature_service.api.crud.utils import patterns_check
 from agr_literature_service.api.schemas import (CrossReferenceSchemaPost,
                                                 CrossReferenceSchemaUpdate,
-                                                ResponseMessageSchema, CrossReferenceSchemaShow)
+                                                CrossReferenceSchemaShow)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user, read_auth_bypass
+from agr_literature_service.api.util.resource_urls import cross_reference_url
 
 router = APIRouter(
     prefix="/cross_reference",
@@ -24,12 +25,15 @@ db_session: Session = Depends(get_db)
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
+             response_model=CrossReferenceSchemaShow)
 def create(request: CrossReferenceSchemaPost,
+           response: Response,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return cross_reference_crud.create(db, request)
+    new_id = cross_reference_crud.create(db, request)
+    response.headers["Location"] = cross_reference_url(new_id)
+    return cross_reference_crud.show(db, str(new_id))
 
 
 @router.delete('/{cross_reference_id}',
@@ -43,15 +47,16 @@ def destroy(cross_reference_id: int,
 
 
 @router.patch('/{cross_reference_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=CrossReferenceSchemaShow)
 async def patch(cross_reference_id: int,
                 request: CrossReferenceSchemaUpdate,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                 db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
-    return cross_reference_crud.patch(db, cross_reference_id, patch)
+    cross_reference_crud.patch(db, cross_reference_id, patch)
+    return cross_reference_crud.show(db, str(cross_reference_id))
 
 
 @router.get('/{cross_reference_id}/versions',

@@ -49,9 +49,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_pp_pmid_wb = new_curie[1:-1]
+            curie_pp_pmid_wb = response.json()['curie']
             curie_pp_pmid_wb_bool = False
 
             reference_create_json = {
@@ -67,9 +65,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_pp_nopmid_wb = new_curie[1:-1]
+            curie_pp_nopmid_wb = response.json()['curie']
             curie_pp_nopmid_wb_bool = False
             reference_create_json = {
                 "cross_references": [
@@ -90,9 +86,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_pp_pmid_wb_outside = new_curie[1:-1]
+            curie_pp_pmid_wb_outside = response.json()['curie']
             curie_pp_pmid_wb_outside_bool = False
 
             reference_create_json = {
@@ -114,9 +108,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_nopp_pmid_wb = new_curie[1:-1]
+            curie_nopp_pmid_wb = response.json()['curie']
             curie_nopp_pmid_wb_bool = False
 
             reference_create_json = {
@@ -138,9 +130,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_pp_pmid_wb_source = new_curie[1:-1]
+            curie_pp_pmid_wb_source = response.json()['curie']
             curie_pp_pmid_wb_source_bool = False
 
             reference_create_json = {
@@ -162,9 +152,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_pp_pmid_wb_2 = new_curie[1:-1]
+            curie_pp_pmid_wb_2 = response.json()['curie']
             curie_pp_pmid_wb_2_bool = False
 
             reference_create_json = {
@@ -192,9 +180,7 @@ class TestSort:
             }
             response = client.post(url="/reference/", json=reference_create_json, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            new_curie = response.text
-            if new_curie.startswith('"') and new_curie.endswith('"'):
-                curie_sorted = new_curie[1:-1]
+            curie_sorted = response.json()['curie']
             curie_sorted_bool = False
 
             res = client.get(url="/sort/prepublication_pipeline", params={"mod_abbreviation": "WB", "count": 10},

@@ -21,7 +21,7 @@ from agr_literature_service.api.schemas.curation_status_schemas import Aggregate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
-def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
+def create(db: Session, curation_status: CurationStatusSchemaPost) -> CurationStatusModel:
     """
 
     :param db:
@@ -54,7 +54,7 @@ def create(db: Session, curation_status: CurationStatusSchemaPost) -> int:
     except Exception as err:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"Error creating curation_status: {err}")
-    return db_obj.curation_status_id
+    return db_obj
 
 
 def destroy(db: Session, curation_status_id: int) -> None:
@@ -75,7 +75,7 @@ def destroy(db: Session, curation_status_id: int) -> None:
     return None
 
 
-def patch(db: Session, curation_status_id: int, curation_status_update) -> dict:
+def patch(db: Session, curation_status_id: int, curation_status_update) -> CurationStatusModel:
     """
 
     :param db:
@@ -100,8 +100,9 @@ def patch(db: Session, curation_status_id: int, curation_status_update) -> dict:
     curation_status_db_obj.dateUpdated = datetime.utcnow()
     db.add(curation_status_db_obj)
     db.commit()
+    db.refresh(curation_status_db_obj)
 
-    return {"message": "updated"}
+    return curation_status_db_obj
 
 
 def show(db: Session, curation_status_id: int) -> dict:
