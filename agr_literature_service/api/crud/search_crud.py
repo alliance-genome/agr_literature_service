@@ -538,6 +538,31 @@ def search_references(
                             "query": {"term": {facet_field: facet_value}}
                         }
                     })
+            elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
+                if facet_field == "predicted_indexing_priority":
+                    path = "indexing_priorities"
+                    field = "indexing_priorities.predicted_indexing_priority"
+                elif facet_field == "indexing_priority":
+                    path = "indexing_priorities"
+                    field = "indexing_priorities.curator_indexing_priority"
+                else:  # manual_indexing_curation_tag
+                    path = "manual_indexing_tags"
+                    field = "manual_indexing_tags.curation_tag"
+
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"terms": {f"{path}.mod_abbreviation": wft_mod_abbreviations}},
+                                        {"term": {field: facet_value}}
+                                    ]
+                                }
+                            }
+                        }
+                    })
             else:
                 # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
                 es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
@@ -828,18 +853,20 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
                     curator_buckets[key] = {"key": key, "doc_count": 0}
                 curator_buckets[key]["doc_count"] += count
 
+    predicted_filtered = [b for b in predicted_buckets.values() if b["doc_count"] > 0]
     predicted_result = {
         "doc_count_error_upper_bound": 0,
         "sum_other_doc_count": 0,
-        "buckets": sorted(predicted_buckets.values(), key=lambda x: x["doc_count"], reverse=True)
+        "buckets": sorted(predicted_filtered, key=lambda x: x["doc_count"], reverse=True)
     }
     add_curie_to_name_values(predicted_result)
     result["predicted_indexing_priority"] = predicted_result
 
+    curator_filtered = [b for b in curator_buckets.values() if b["doc_count"] > 0]
     curator_result = {
         "doc_count_error_upper_bound": 0,
         "sum_other_doc_count": 0,
-        "buckets": sorted(curator_buckets.values(), key=lambda x: x["doc_count"], reverse=True)
+        "buckets": sorted(curator_filtered, key=lambda x: x["doc_count"], reverse=True)
     }
     add_curie_to_name_values(curator_result)
     result["indexing_priority"] = curator_result
@@ -863,10 +890,11 @@ def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations
                     curation_tag_buckets[key] = {"key": key, "doc_count": 0}
                 curation_tag_buckets[key]["doc_count"] += count
 
+    curation_filtered = [b for b in curation_tag_buckets.values() if b["doc_count"] > 0]
     curation_tag_result = {
         "doc_count_error_upper_bound": 0,
         "sum_other_doc_count": 0,
-        "buckets": sorted(curation_tag_buckets.values(), key=lambda x: x["doc_count"], reverse=True)
+        "buckets": sorted(curation_filtered, key=lambda x: x["doc_count"], reverse=True)
     }
     add_curie_to_name_values(curation_tag_result)
     result["manual_indexing_curation_tag"] = curation_tag_result
