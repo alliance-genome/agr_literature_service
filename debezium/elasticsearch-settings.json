@@ -543,6 +543,36 @@
             "ignore_above": 256
           }
         }
+      },
+      "indexing_priorities": {
+        "type": "nested",
+        "properties": {
+          "predicted_indexing_priority": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
+          },
+          "curator_indexing_priority": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
+          },
+          "mod_abbreviation": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
+          }
+        }
+      },
+      "manual_indexing_tags": {
+        "type": "nested",
+        "properties": {
+          "curation_tag": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
+          },
+          "mod_abbreviation": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer"
+          }
+        }
       }
     }
   }
