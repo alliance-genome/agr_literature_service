@@ -41,6 +41,7 @@ entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
 curation_classification_root_ids = ["ATP:0000311", "ATP:0000210"]
 community_curation_classification_root_ids = ["ATP:0000235"]
+email_extraction_root_ids = ["ATP:0000354"]
 
 WORKFLOW_FACETS = [
     "file_workflow",
@@ -48,7 +49,8 @@ WORKFLOW_FACETS = [
     "entity_extraction",
     "reference_classification",
     "curation_classification",
-    "community_curation"
+    "community_curation",
+    "email_extraction"
 ]
 
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
@@ -526,6 +528,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "mod_reference_types": ref["_source"]["mod_reference_types"],
         "language": ref["fields"]["language.keyword"],
         "authors": ref["_source"]["authors"],
+        "reference_emails": ref["_source"].get("reference_emails", []),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
@@ -650,7 +653,8 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "entity_extraction": get_atp_ids(entity_extraction_root_ids),
         "manual_indexing": get_atp_ids(manual_indexing_root_ids),
         "curation_classification": get_atp_ids(curation_classification_root_ids),
-        "community_curation": get_atp_ids(community_curation_classification_root_ids)
+        "community_curation": get_atp_ids(community_curation_classification_root_ids),
+        "email_extraction": get_atp_ids(email_extraction_root_ids)
     }
 
     grouped_workflow_tags: Dict[str, Dict[str, Any]] = {category: {} for category in atp_ids}

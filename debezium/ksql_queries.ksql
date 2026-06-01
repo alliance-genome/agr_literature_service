@@ -695,6 +695,15 @@ CREATE TABLE mesh_detail (
     VALUE_FORMAT='json'
   );
 
+CREATE TABLE reference_email (
+    reference_email_id string PRIMARY KEY,
+    reference_id string,
+    email_address string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference_email',
+    VALUE_FORMAT='json'
+  );
+
 CREATE TABLE resource (
     resource_id string PRIMARY KEY,
     title string,
@@ -735,6 +744,13 @@ CREATE TABLE mesh_terms AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('heading_term':=heading_term, 'qualifier_term':=qualifier_term)) \"MESH_TERMS\"
     FROM mesh_detail
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_emails AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(email_address) \"REFERENCE_EMAILS\"
+    FROM reference_email
     GROUP BY reference_id
     EMIT CHANGES;
 
@@ -814,11 +830,13 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.obsolete_curies \"obsolete_curies\",
     reference_mod_reference_types.label \"mod_reference_types\",
     topic_entity_tags.topic_entity_tags \"topic_entity_tags\",
-    reference_workflow_tags.workflow_tags \"workflow_tags\"
+    reference_workflow_tags.workflow_tags \"workflow_tags\",
+    reference_emails.reference_emails \"reference_emails\"
     FROM reference_mod_reference_types reference_mod_reference_types
     LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
     reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
     LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id
+    LEFT OUTER JOIN reference_emails reference_emails ON reference_mod_reference_types.reference_id = reference_emails.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_with_copyright AS
