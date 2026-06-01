@@ -11,7 +11,6 @@ from agr_literature_service.api.schemas import (
     PersonNameSchemaShow,
     PersonNameSchemaRelated,
     PersonNameSchemaUpdate,
-    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -71,8 +70,8 @@ def show(
 # Patch one name by ID
 @router.patch(
     "/{person_name_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    status_code=status.HTTP_200_OK,
+    response_model=PersonNameSchemaShow,
 )
 def patch(
     person_name_id: int,
@@ -82,7 +81,8 @@ def patch(
 ):
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return person_name_crud.patch(db, person_name_id, patch_data)
+    person_name_crud.patch(db, person_name_id, patch_data)
+    return person_name_crud.show(db, person_name_id)
 
 
 # Delete one name by ID

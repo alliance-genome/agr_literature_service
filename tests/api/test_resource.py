@@ -25,7 +25,7 @@ def test_resource(db, auth_headers): # noqa
             "title": "Bob"
         }
         response = client.post(url="/resource/", json=resource_data, headers=auth_headers)
-        yield ResourceTestData(response, response.json())
+        yield ResourceTestData(response, response.json()['curie'])
 
 
 class TestResource:
@@ -70,7 +70,7 @@ class TestResource:
         with TestClient(app) as client:
             response = client.patch(url=f"/resource/{test_resource.new_resource_curie}", json={"title": "new title"},
                                     headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
 
             # fetch the new record.
             new_resource = client.get(url=f"/resource/{test_resource.new_resource_curie}",
@@ -116,7 +116,7 @@ class TestResource:
             # process the resource
             response = client.post(url="/resource/", json=xml, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
-            curie = response.json()
+            curie = response.json()['curie']
 
             # fetch the new record.
             response = client.get(url=f"/resource/{curie}", headers=auth_headers)
@@ -173,7 +173,7 @@ class TestResource:
                              "last_name": "Smith", "name": "Alice Smith"}]
             }, headers=auth_headers)
             assert res1.status_code == status.HTTP_201_CREATED
-            curie1 = res1.json()
+            curie1 = res1.json()['curie']
 
             # Resource 2: shared license (CC BY), different cross_ref and editor
             res2 = client.post(url="/resource/", json={
@@ -183,7 +183,7 @@ class TestResource:
                              "last_name": "Jones", "name": "Bob Jones"}]
             }, headers=auth_headers)
             assert res2.status_code == status.HTTP_201_CREATED
-            curie2 = res2.json()
+            curie2 = res2.json()['curie']
 
             # Resource 3: different license (CC BY-NC), different cross_ref and editor
             res3 = client.post(url="/resource/", json={
@@ -193,7 +193,7 @@ class TestResource:
                              "last_name": "White", "name": "Carol White"}]
             }, headers=auth_headers)
             assert res3.status_code == status.HTTP_201_CREATED
-            curie3 = res3.json()
+            curie3 = res3.json()['curie']
 
             # Resource 4: no license, different cross_ref, no editor
             res4 = client.post(url="/resource/", json={
@@ -201,7 +201,7 @@ class TestResource:
                 "cross_references": [{"curie": "NLM:444444"}],
             }, headers=auth_headers)
             assert res4.status_code == status.HTTP_201_CREATED
-            curie4 = res4.json()
+            curie4 = res4.json()['curie']
 
             # Assign licenses directly via DB since ResourceSchemaUpdate
             # doesn't support copyright_license_id yet
@@ -297,7 +297,7 @@ class TestResource:
                 "cross_references": [{"curie": "NLM:9999999"}]
             }, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            resource_curie = res.json()
+            resource_curie = res.json()['curie']
 
             response = client.get(
                 url="/resource/external_lookup/NLM:9999999",
@@ -317,7 +317,7 @@ class TestResource:
                 "cross_references": [{"curie": "ISSN:1234-5678", "issn_type": "print"}]
             }, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            resource_curie = res.json()
+            resource_curie = res.json()['curie']
 
             response = client.get(
                 url="/resource/external_lookup/ISSN:1234-5678",
@@ -410,7 +410,7 @@ class TestResource:
                 "cross_references": [{"curie": "ISBN:978-0-12345"}]
             }, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            resource_curie = res.json()
+            resource_curie = res.json()['curie']
 
             response = client.get(
                 url="/resource/external_lookup/ISBN:978-0-12345",
@@ -555,7 +555,7 @@ class TestResource:
                 "cross_references": [{"curie": "NLM:8888888"}]
             }, headers=auth_headers)
             assert res.status_code == status.HTTP_201_CREATED
-            existing_curie = res.json()
+            existing_curie = res.json()['curie']
 
             # Try to add via the same NLM — should return existing
             response = client.post(

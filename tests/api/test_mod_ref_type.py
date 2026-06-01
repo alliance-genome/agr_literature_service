@@ -28,7 +28,7 @@ def test_mod_ref_type(db, auth_headers, test_reference, populate_test_mod_refere
             "mod_abbreviation": "ZFIN"
         }
         response = client.post(url="/reference/mod_reference_type/", json=new_mod_ref_type, headers=auth_headers)
-        yield ModRefTypeTestData(response, response.json(), test_reference.new_ref_curie)
+        yield ModRefTypeTestData(response, response.json()['mod_reference_type_id'], test_reference.new_ref_curie)
 
 
 class TestModReferenceType:
@@ -60,7 +60,7 @@ class TestModReferenceType:
             response = client.patch(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
                                     json=patch_data, headers=auth_headers)
             # check db for mrt
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(url=f"/reference/mod_reference_type/{test_mod_ref_type.new_mod_ref_type_id}",
                                   headers=auth_headers)
             mrt = response.json()

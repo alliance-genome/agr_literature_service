@@ -135,6 +135,7 @@ from agr_literature_service.api.schemas.check_schemas import (
 from agr_literature_service.api.schemas.curation_status_schemas import (
     CurationStatusSchemaBase,
     CurationStatusSchemaPost,
+    CurationStatusSchemaShow,
     CurationStatusSchemaUpdate)
 
 from .person_email_schemas import (

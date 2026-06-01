@@ -218,7 +218,7 @@ def create(db: Session, payload: PersonSchemaCreate) -> PersonModel:  # noqa: C9
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)
-    return obj.curie
+    return obj
 
 
 def destroy(db: Session, curie_or_person_id: str) -> None:

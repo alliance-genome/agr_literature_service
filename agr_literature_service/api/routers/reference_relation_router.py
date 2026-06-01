@@ -53,18 +53,19 @@ def destroy(
 
 @router.patch(
     "/{reference_relation_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    status_code=status.HTTP_200_OK,
+    response_model=ReferenceRelationSchemaShow,
 )
 def patch(
     reference_relation_id: int,
     request: ReferenceRelationSchemaPatch,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
     update_data = request.model_dump(exclude_unset=True)
-    return reference_relation_crud.patch(db, reference_relation_id, update_data)
+    reference_relation_crud.patch(db, reference_relation_id, update_data)
+    return reference_relation_crud.show(db, reference_relation_id)
 
 
 @router.get(

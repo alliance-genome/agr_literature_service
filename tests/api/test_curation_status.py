@@ -40,7 +40,7 @@ def test_curation_status(db, auth_headers, test_reference, test_mod): # noqa
             "curation_status": "ATP:curation_needed",
         }
         response = client.post(url="/curation_status/", json=new_curation_status, headers=auth_headers)
-        yield CurationStatusTestData(response, response.json(), test_reference.new_ref_curie, test_mod.new_mod_abbreviation)
+        yield CurationStatusTestData(response, response.json()['curation_status_id'], test_reference.new_ref_curie, test_mod.new_mod_abbreviation)
 
 
 class TestCurationStatus:
@@ -94,7 +94,7 @@ class TestCurationStatus:
             }
             url = f"/curation_status/{test_curation_status.new_curation_status_id}"
             response = client.patch(url=url, headers=auth_headers, json=patch_data)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             response = client.get(f"/curation_status/{test_curation_status.new_curation_status_id}",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_200_OK

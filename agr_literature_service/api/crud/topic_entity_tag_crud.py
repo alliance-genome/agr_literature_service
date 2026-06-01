@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 from collections import defaultdict
 from os import environ
-from typing import Dict, Set
+from typing import Dict, Set, Tuple
 from datetime import datetime, timedelta
 
 from dateutil import parser as date_parser
@@ -55,7 +55,19 @@ TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 
-def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate_on_insert: bool = True) -> Dict:
+def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
+               validate_on_insert: bool = True) -> Tuple[int, bool]:
+    """
+    Create a new topic entity tag.
+
+    Returns ``(topic_entity_tag_id, was_upsert)``:
+      - ``(new_id, False)``       — a new tag was created (caller should return 201).
+      - ``(existing_id, True)``   — an existing tag was updated in place (note appended);
+                                    caller should return 200.
+
+    Raises ``HTTPException(409)`` for true duplicate / conflict cases. See
+    ``check_for_duplicate_tags`` for the exact branches.
+    """
     logger.info("Starting create_tag")
     topic_entity_tag_data = jsonable_encoder(topic_entity_tag)
     if "created_by" in topic_entity_tag_data and topic_entity_tag_data["created_by"] is not None:
@@ -119,10 +131,13 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
     logger.info("Adding audited object users")
     add_audited_object_users_if_not_exist(db, topic_entity_tag_data)
     logger.info("Checking for duplicate tags")
+    # check_for_duplicate_tags raises HTTPException(409) on conflict branches, or
+    # returns the existing tag id when the request was absorbed as an in-place note
+    # append (upsert). Returns None when no duplicate exists.
     duplicate_check_result = check_for_duplicate_tags(db, topic_entity_tag_data, source, reference_id, force_insertion)
     if duplicate_check_result is not None:
-        logger.info("Duplicate tag found, returning early")
-        return duplicate_check_result
+        logger.info("Duplicate tag absorbed as upsert, returning existing id")
+        return (duplicate_check_result, True)
     new_db_obj = TopicEntityTagModel(**topic_entity_tag_data)
 
     try:
@@ -145,16 +160,11 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost, validate
             validate_tags(db=db, new_tag_obj=new_db_obj)
             logger.info("Tag validation completed")
         logger.info("create_tag completed successfully")
-        return {
-            "status": "success",
-            "message": "New tag created successfully.",
-            "topic_entity_tag_id": new_db_obj.topic_entity_tag_id
-        }
+        return (new_db_obj.topic_entity_tag_id, False)
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
-    return {"topic_entity_tag_id": new_db_obj.topic_entity_tag_id}
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
@@ -750,6 +760,15 @@ def filter_tet_data_by_column(query, column_name, values):
 
 def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,
                              reference_id: int, force_insertion: bool = False):
+    """
+    Detect duplicate tags. Per SCRUM-5716 strict-REST design:
+      - Branch 1 (exact duplicate, no new info)               -> raise 409 reason=duplicate
+      - Branch 2 (exact duplicate, new note to append)        -> upsert in place, return existing tag id
+      - Branch 3 (opposite_negation in abc_literature_system) -> raise 409 reason=opposite_negation
+      - Branches 4/5 (different creator)                      -> raise 409 reason=different_creator
+                                                                  (bypassable with force_insertion=True)
+      - No duplicate                                          -> return None
+    """
     logger.info("Starting duplicate tag check")
     new_tag_data = copy.copy(topic_entity_tag_data)
     new_tag_data.pop('validation_by_author', None)
@@ -777,18 +796,21 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
             tag_data['note'] = note
         existing_note_list = existing_tag.note.split(" | ") if existing_tag.note else []
         if (note and note in existing_note_list) or note is None:
-            return {
-                "status": "exists",
-                "message": "The tag already exists in the database.",
-                "data": tag_data,
-                "topic_entity_tag_id": existing_tag.topic_entity_tag_id
-            }
+            # Branch 1: exact duplicate, request has no new note (or note already present).
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "reason": "duplicate",
+                    "message": "The tag already exists in the database.",
+                    "existing_tag_id": existing_tag.topic_entity_tag_id,
+                    "existing_note": existing_tag.note,
+                    "existing_tag": tag_data,
+                }
+            )
         else:
-            message = "The new note was added to the previously empty note column for the tag already in the database."
-            new_note = note
-            if existing_tag.note is not None:
-                message = "The new note was appended to the existing one for the tag already in the database."
-                new_note = existing_tag.note + " | " + note
+            # Branch 2: exact duplicate but request carries a new note -> idempotent upsert
+            # (append to existing note). Status 200 returned by router.
+            new_note = note if existing_tag.note is None else existing_tag.note + " | " + note
             try:
                 existing_tag.note = new_note
                 existing_tag.updated_by = created_by_user
@@ -799,12 +821,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
                 else:
                     existing_tag.date_updated = existing_date_updated
                 db.commit()
-                return {
-                    "status": "exists",
-                    "message": message,
-                    "data": tag_data,
-                    "topic_entity_tag_id": existing_tag.topic_entity_tag_id
-                }
+                return existing_tag.topic_entity_tag_id
             except (IntegrityError, HTTPException) as e:
                 db.rollback()
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -816,43 +833,49 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
         negation_check_data['negated'] = not negation_check_data['negated']  # look for tags with opposite negated value
         similar_tags = db.query(TopicEntityTagModel).filter_by(**negation_check_data).all()
         if similar_tags:
+            # Branch 3: opposite_negation conflict (not bypassable).
             tag_data = get_tet_with_names(db, tet=topic_entity_tag_data, curie_or_reference_id=str(reference_id))
-            return {
-                "status": "exists",
-                "message": "One or more tags already exist in the database with the opposite 'negated' value.",
-                "data": tag_data,
-                "conflicting_tag_ids": [tag.topic_entity_tag_id for tag in similar_tags]
-            }
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "reason": "opposite_negation",
+                    "message": "One or more tags already exist in the database with the opposite "
+                               "'negated' value.",
+                    "tag_data": tag_data,
+                    "conflicting_tag_ids": [tag.topic_entity_tag_id for tag in similar_tags],
+                }
+            )
 
     if force_insertion:
-        return
+        return None
     new_tag_data_wo_creator = copy.copy(new_tag_data)
     new_tag_data_wo_creator.pop('created_by')
     new_tag_data_wo_creator.pop('updated_by')
     existing_tag = db.query(TopicEntityTagModel).filter_by(**new_tag_data_wo_creator).first()
     if existing_tag:
+        # Branches 4 & 5: tag exists with a different creator. Same conflict reason for
+        # both note-matches-or-empty and note-differs; differentiate via existing_note.
         tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
         if note:
             tag_data['note'] = note
         tag_data['topic_entity_tag_id'] = existing_tag.topic_entity_tag_id
         if existing_tag.note == note or note is None:
-            return {
-                "status": f"exists: {existing_tag.created_by} | {existing_tag.note}",
-                "message": "The tag, created by another curator, already exists in the database.",
-                "data": tag_data,
-                "topic_entity_tag_id": existing_tag.topic_entity_tag_id
-            }
+            message = "The tag, created by another curator, already exists in the database."
+        elif existing_tag.note:
+            message = "The tag with a different note, created by another curator, already exists in the database."
         else:
             message = "The tag without a note, created by another curator, already exists in the database."
-            if existing_tag.note:
-                message = "The tag with a different note, created by another curator, already exists in the database."
-            note_in_db = existing_tag.note if existing_tag.note else ''
-            return {
-                "status": f"exists: {existing_tag.created_by} | {note_in_db}",
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "reason": "different_creator",
                 "message": message,
-                "data": tag_data,
-                "topic_entity_tag_id": existing_tag.topic_entity_tag_id
+                "existing_tag_id": existing_tag.topic_entity_tag_id,
+                "existing_created_by": existing_tag.created_by,
+                "existing_note": existing_tag.note,
+                "existing_tag": tag_data,
             }
+        )
 
     # if no duplicates found, return None
     return None

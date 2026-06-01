@@ -55,21 +55,19 @@ def destroy(
 
 @router.patch(
     "/{reference_workflow_tag_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=int,
+    status_code=status.HTTP_200_OK,
+    response_model=WorkflowTagSchemaShow,
 )
 async def patch(
     reference_workflow_tag_id: int,
     request: WorkflowTagSchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
-) -> int:
+):
     set_global_user_from_cognito(db, user)
     updates = request.model_dump(exclude_unset=True)
-    # perform the update (this should return the same ID)
     workflow_tag_crud.patch(db, reference_workflow_tag_id, updates)
-    # return the integer id so FastAPI can validate it
-    return reference_workflow_tag_id
+    return workflow_tag_crud.show(db, reference_workflow_tag_id)
 
 
 @router.get(

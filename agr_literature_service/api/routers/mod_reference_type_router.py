@@ -8,10 +8,10 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import mod_reference_type_crud
 from agr_literature_service.api.schemas import (ModReferenceTypeSchemaPost,
                                                 ModReferenceTypeSchemaShow,
-                                                ModReferenceTypeSchemaUpdate,
-                                                ResponseMessageSchema)
+                                                ModReferenceTypeSchemaUpdate)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import mod_reference_type_url
 
 router = APIRouter(
     prefix="/reference/mod_reference_type",
@@ -25,12 +25,15 @@ db_session: Session = Depends(get_db)
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-             response_model=int)
+             response_model=ModReferenceTypeSchemaShow)
 def create(request: ModReferenceTypeSchemaPost,
+           response: Response,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-           db: Session = db_session) -> int:
+           db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return mod_reference_type_crud.create(db, request)
+    new_id = mod_reference_type_crud.create(db, request)
+    response.headers["Location"] = mod_reference_type_url(new_id)
+    return mod_reference_type_crud.show(db, new_id)
 
 
 @router.delete('/{mod_reference_type_id}',
@@ -44,15 +47,16 @@ def destroy(mod_reference_type_id: int,
 
 
 @router.patch('/{mod_reference_type_id}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ModReferenceTypeSchemaShow)
 async def patch(mod_reference_type_id: int,
                 request: ModReferenceTypeSchemaUpdate,
                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-                db: Session = db_session) -> int:
+                db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
-    return mod_reference_type_crud.patch(db, mod_reference_type_id, patch)
+    mod_reference_type_crud.patch(db, mod_reference_type_id, patch)
+    return mod_reference_type_crud.show(db, mod_reference_type_id)
 
 
 @router.get('/{mod_reference_type_id}',

@@ -481,6 +481,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail="File already converted to text, use UI if you really need to replace the file.")
 
+    created_referencefiles = []
     if metadata["file_extension"] in ["tgz", "tar.gz"]:
         temp_dir = tempfile.mkdtemp()
         file_tar = tarfile.open(fileobj=file.file)
@@ -497,7 +498,9 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
                 single_file_metadata["file_extension"] = file_name.split(".")[-1]
             try:
                 with open(file_path, "rb") as f_in:
-                    file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
+                    created_referencefiles.append(
+                        file_upload_single(db, single_file_metadata, UploadFile(filename=file_name, file=f_in))
+                    )
             except HTTPException as e:
                 error_message += single_file_metadata["display_name"] + "." + single_file_metadata[
                     "file_extension"] + " upload failed: " + e.detail
@@ -509,12 +512,13 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
             error_message += "Any other files were uploaded"
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=error_message)
     else:
-        file_upload_single(db, metadata, file)
+        created_referencefiles.append(file_upload_single(db, metadata, file))
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
     cleanup_old_pdf_file(db, metadata["reference_curie"], mod_abbreviation)
     transition_WFT_for_uploaded_file(db, metadata["reference_curie"], mod_abbreviation,
                                      metadata["file_class"], metadata["pdf_type"],
                                      metadata["file_publication_status"])
+    return created_referencefiles
 
 
 def transition_WFT_for_uploaded_file(db, reference_curie, mod_abbreviation, file_class, pdf_type, file_publication_status, change_file_status=False):
@@ -698,7 +702,10 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
             display_name=metadata["display_name"], file_extension=metadata["file_extension"],
             reference_curie=metadata["reference_curie"], db=db)
         create_request = ReferencefileSchemaPost(md5sum=md5sum, **metadata)
-        create_metadata(db, create_request)
+        new_referencefile_id = create_metadata(db, create_request)
+        referencefile_instance = db.query(ReferencefileModel).filter_by(
+            referencefile_id=new_referencefile_id
+        ).one()
         # check if md5sum is the only one in the db before uploading to s3
         ref_file_by_md5sum_count = db.query(ReferencefileModel).filter(ReferencefileModel.md5sum == md5sum).count()
         if ref_file_by_md5sum_count == 1:
@@ -713,7 +720,7 @@ def file_upload_single(db: Session, metadata: dict, file: UploadFile):  # pragma
                 upload_file_to_bucket(s3_client=client, file_obj=gzipped_file, bucket="agr-literature", folder=folder,
                                       object_name=md5sum + ".gz", ExtraArgs=extra_args)
             os.remove(temp_file_name)
-    return md5sum
+    return referencefile_instance
 
 
 def download_file(db: Session, referencefile_id: int, mod_access: ModAccess,  # pragma: no cover

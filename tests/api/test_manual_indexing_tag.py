@@ -83,7 +83,7 @@ class TestManualIndexingTag:
             }
             url = f"/manual_indexing_tag/{test_manual_indexing_tag.new_manual_indexing_tag_id}"
             r = client.patch(url, headers=auth_headers, json=updates)
-            assert r.status_code == status.HTTP_202_ACCEPTED, r.text
+            assert r.status_code == status.HTTP_200_OK, r.text
             # re-read
             r2 = client.get(url, headers=auth_headers)
             assert r2.status_code == status.HTTP_200_OK, r2.text

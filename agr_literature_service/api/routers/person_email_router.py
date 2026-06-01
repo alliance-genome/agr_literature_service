@@ -11,7 +11,6 @@ from agr_literature_service.api.schemas import (
     PersonEmailSchemaShow,
     PersonEmailSchemaRelated,
     PersonEmailSchemaUpdate,
-    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -67,8 +66,8 @@ def show(
 
 @router.patch(
     "/{person_email_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    status_code=status.HTTP_200_OK,
+    response_model=PersonEmailSchemaShow,
 )
 def patch(
     person_email_id: int,
@@ -78,7 +77,8 @@ def patch(
 ):
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return person_email_crud.patch(db, person_email_id, patch_data)
+    person_email_crud.patch(db, person_email_id, patch_data)
+    return person_email_crud.show(db, person_email_id)
 
 
 @router.delete("/{person_email_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -55,15 +55,16 @@ def delete_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, ver
 
 
 @router.patch("/{mod_abbreviation}/{data_type}/{dataset_type}/{version}",
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=str)
+              status_code=status.HTTP_200_OK,
+              response_model=DatasetSchemaShow)
 def patch_dataset(request: DatasetSchemaUpdate, mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
     set_global_user_from_cognito(db, user)
     dataset_crud.patch_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
                                dataset_type=dataset_type, version=version, dataset_update=request)
-    return "updated"
+    return dataset_crud.show_dataset(db, mod_abbreviation=mod_abbreviation, data_type=data_type,
+                                     dataset_type=dataset_type, version=version)
 
 
 @router.get("/download/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/",
@@ -88,7 +89,7 @@ def add_entry_to_dataset(request: DatasetEntrySchemaPost,
 
 
 @router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/{entity}/",
-               status_code=status.HTTP_202_ACCEPTED)
+               status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                               reference_curie: str, entity: str,
                               user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
@@ -99,7 +100,7 @@ def delete_entry_from_dataset(mod_abbreviation: str, data_type: str, dataset_typ
 
 
 @router.delete("/data_entry/{mod_abbreviation}/{data_type}/{dataset_type}/{version}/{reference_curie}/",
-               status_code=status.HTTP_202_ACCEPTED)
+               status_code=status.HTTP_204_NO_CONTENT)
 def delete_entry_from_dataset_no_entity(mod_abbreviation: str, data_type: str, dataset_type: str, version: int,
                                         reference_curie: str,
                                         user: Optional[Dict[str, Any]] = Security(get_authenticated_user),

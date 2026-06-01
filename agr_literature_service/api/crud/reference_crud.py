@@ -966,7 +966,10 @@ def merge_references(db: Session,
             "date_updated": str(old_tet.date_updated)
         }
         new_tet = TopicEntityTagSchemaPost(**new_tet_data)
-        create_tag(db, new_tet, validate_on_insert=False)
+        try:
+            create_tag(db, new_tet, validate_on_insert=False)
+        except HTTPException:
+            logger.warning("skipping topic_entity_tag during merge; already present on target reference")
     db.commit()
 
     revalidate_all_tags(curie_or_reference_id=new_ref.curie)

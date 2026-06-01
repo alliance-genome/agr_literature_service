@@ -26,7 +26,7 @@ def test_editor(db, auth_headers, test_resource): # noqa
             "resource_curie": test_resource.new_resource_curie
         }
         response = client.post(url="/editor/", json=new_editor, headers=auth_headers)
-        yield EditorTestData(response, response.json(), test_resource.new_resource_curie)
+        yield EditorTestData(response, response.json()['editor_id'], test_resource.new_resource_curie)
 
 
 class TestEditor:
@@ -65,7 +65,7 @@ class TestEditor:
                    "resource_curie": test_editor.related_resource_curie
                    }
             response = client.patch(url=f"/editor/{test_editor.new_editor_id}", json=xml, headers=auth_headers)
-            assert response.status_code == status.HTTP_202_ACCEPTED
+            assert response.status_code == status.HTTP_200_OK
             mod_editor = db.query(EditorModel).filter(EditorModel.first_name == "003_TUA").one()
             assert mod_editor.orcid == "ORCID:5432-5432-5432-432X"
 

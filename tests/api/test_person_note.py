@@ -128,8 +128,8 @@ class TestPersonNote:
                 json={"note": "Updated note text"},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
-            assert res.json().get("message") == "updated"
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json().get("person_note_id") == test_person_note.new_person_note_id
 
             fetched = client.get(
                 f"/person_note/{test_person_note.new_person_note_id}",
@@ -145,7 +145,7 @@ class TestPersonNote:
                 json={"note": multiline},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_202_ACCEPTED
+            assert res.status_code == status.HTTP_200_OK
 
             fetched = client.get(
                 f"/person_note/{test_person_note.new_person_note_id}",

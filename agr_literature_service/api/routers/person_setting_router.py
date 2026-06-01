@@ -9,7 +9,6 @@ from agr_literature_service.api.schemas import (
     PersonSettingSchemaCreate,
     PersonSettingSchemaUpdate,
     PersonSettingSchemaShow,
-    ResponseMessageSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -88,8 +87,8 @@ def destroy(
 
 @router.patch(
     "/{person_setting_id}",
-    status_code=status.HTTP_202_ACCEPTED,
-    response_model=ResponseMessageSchema,
+    status_code=status.HTTP_200_OK,
+    response_model=PersonSettingSchemaShow,
 )
 def patch(
     person_setting_id: int,
@@ -102,7 +101,8 @@ def patch(
     """
     set_global_user_from_cognito(db, user)
     patch_data = request.model_dump(exclude_unset=True)
-    return person_setting_crud.patch(db, person_setting_id, patch_data)
+    person_setting_crud.patch(db, person_setting_id, patch_data)
+    return person_setting_crud.show(db, person_setting_id)
 
 
 @router.get(

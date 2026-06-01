@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import resource_crud
 from agr_literature_service.api.schemas import (ResourceSchemaPost,
-                                                ResourceSchemaShow, ResourceSchemaUpdate,
-                                                ResponseMessageSchema)
+                                                ResourceSchemaShow, ResourceSchemaUpdate)
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
+from agr_literature_service.api.util.resource_urls import resource_url
 from agr_literature_service.lit_processing.data_ingest.pubmed_ingest.resource_lookup import (
     lookup_resource, create_resource_from_external_curie)
 from agr_literature_service.lit_processing.utils.generic_utils import split_identifier
@@ -28,13 +28,15 @@ db_session: Session = Depends(get_db)
 
 @router.post('/',
              status_code=status.HTTP_201_CREATED,
-
-             response_model=str)
+             response_model=ResourceSchemaShow)
 def create(request: ResourceSchemaPost,
+           response: Response,
            user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
            db: Session = db_session):
     set_global_user_from_cognito(db, user)
-    return resource_crud.create(db, request)
+    curie = resource_crud.create(db, request)
+    response.headers["Location"] = resource_url(curie)
+    return resource_crud.show(db, curie)
 
 
 @router.get('/external_lookup/{external_curie}',
@@ -97,16 +99,16 @@ def destroy(curie: str,
 
 
 @router.patch('/{curie}',
-              status_code=status.HTTP_202_ACCEPTED,
-              response_model=ResponseMessageSchema)
+              status_code=status.HTTP_200_OK,
+              response_model=ResourceSchemaShow)
 def patch(curie: str,
           request: ResourceSchemaUpdate,
           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
           db: Session = db_session):
     set_global_user_from_cognito(db, user)
     patch = request.model_dump(exclude_unset=True)
-
-    return resource_crud.patch(db, curie, patch)
+    resource_crud.patch(db, curie, patch)
+    return resource_crud.show(db, curie)
 
 
 @router.get('/show_all',
