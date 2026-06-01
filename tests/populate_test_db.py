@@ -36,6 +36,7 @@ from agr_literature_service.api.models.mod_reference_type_model import (  # noqa
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel  # noqa: E402
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel  # noqa: E402
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel  # noqa: E402
+from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel  # noqa: E402
 
 
 class MockDataFactory:
@@ -187,6 +188,18 @@ class MockDataFactory:
         )
         db_session.add(mesh)
         return mesh
+
+    def create_reference_email(self, db_session, reference: ReferenceModel, email_id: int) -> ReferenceEmailModel:
+        """Create a reference email for testing."""
+        email_domains = ["example.com", "university.edu", "research.org", "lab.gov", "science.net"]
+        domain = email_domains[email_id % len(email_domains)]
+
+        email = ReferenceEmailModel(
+            reference_id=reference.reference_id,
+            email_address=f"researcher{email_id}@{domain}"
+        )
+        db_session.add(email)
+        return email
 
     def create_mod(self, db_session, mod_id: int) -> ModModel:
         """Create a MOD (Model Organism Database) entry."""
@@ -483,6 +496,10 @@ def populate_database():
             # Add MeSH terms
             factory.create_mesh_detail(db, reference, i)
 
+            # Add reference emails (for some references)
+            if i % 2 == 0:  # Add emails to every other reference
+                factory.create_reference_email(db, reference, i)
+
             # Add MOD corpus associations - REQUIRED for Debezium
             mod = mods[i % len(mods)]
             factory.create_mod_corpus_association(db, reference, mod, True)
@@ -534,6 +551,7 @@ def populate_database():
         relation_count = db.query(ReferenceRelationModel).count()
         license_count = db.query(CopyrightLicenseModel).count()
         mesh_count = db.query(MeshDetailModel).count()
+        email_count = db.query(ReferenceEmailModel).count()
         mod_count = db.query(ModModel).count()
         mod_corpus_count = db.query(ModCorpusAssociationModel).count()
         ref_type_count = db.query(ReferencetypeModel).count()
@@ -546,7 +564,7 @@ def populate_database():
 
         print("Mock data population completed successfully!")
         print(f"Created: {ref_count} references, {author_count} authors, {xref_count} cross-refs")
-        print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms")
+        print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms, {email_count} emails")
         print(f"Created: {mod_count} MODs, {mod_corpus_count} MOD corpus associations")
         print(f"Created: {ref_type_count} reference types, {mod_ref_type_count} MOD-ref type assocs")
         print(f"Created: {ref_mod_ref_type_count} reference-MOD-ref type associations")
