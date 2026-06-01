@@ -533,8 +533,16 @@
         }
       },
       "reference_emails": {
-        "type": "keyword",
-        "normalizer": "sortNormalizer"
+        "type": "text",
+        "analyzer": "autocompleteAnalyzer",
+        "search_analyzer": "autocompleteSearchAnalyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "normalizer": "sortNormalizer",
+            "ignore_above": 256
+          }
+        }
       }
     }
   }
