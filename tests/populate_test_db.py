@@ -405,6 +405,57 @@ def _create_no_resource_references(db, factory, citations, mods):
     return refs
 
 
+def _create_references_with_associations(db, factory, resources, citations,
+                                         copyright_licenses, mods, tag_sources,
+                                         mod_ref_associations):
+    """Create references with all associated entities for Debezium testing."""
+    references = []
+    for i in range(10):
+        resource = resources[i % len(resources)]
+        citation = citations[i % len(citations)]
+        # Link some references to copyright licenses (about 60% of them)
+        copyright_license_id = None
+        if i % 5 < 3:  # Link references 0,1,2,5,6,7 to licenses
+            license_obj = copyright_licenses[i % len(copyright_licenses)]
+            copyright_license_id = license_obj.copyright_license_id
+        reference = factory.create_reference(db, i + 1, citation, resource, copyright_license_id)
+        references.append(reference)
+
+        # Add authors for each reference
+        factory.create_author(db, reference, i + 1)
+
+        # Add cross-references (regular and obsolete)
+        factory.create_cross_reference(db, reference, i + 1, False)
+        if i % 3 == 0:  # Add some obsolete cross-references
+            factory.create_cross_reference(db, reference, i + 1, True)
+
+        # Add MeSH terms
+        factory.create_mesh_detail(db, reference, i)
+
+        # Add reference emails (for some references)
+        if i % 2 == 0:  # Add emails to every other reference
+            factory.create_reference_email(db, reference, i)
+
+        # Add MOD corpus associations - REQUIRED for Debezium
+        mod = mods[i % len(mods)]
+        factory.create_mod_corpus_association(db, reference, mod, True)
+
+        # Add topic entity tags - REQUIRED for Debezium
+        source = tag_sources[i % len(tag_sources)]
+        factory.create_topic_entity_tag(db, reference, i, source)
+
+        # Add workflow tags - REQUIRED for Debezium
+        workflow_mod = mods[i % len(mods)]
+        factory.create_workflow_tag(db, reference, i, workflow_mod)
+
+        # Add reference-MOD-referencetype associations
+        matching_assocs = [a for a in mod_ref_associations if a.mod_id == workflow_mod.mod_id]
+        if matching_assocs:
+            factory.create_reference_mod_referencetype_association(db, reference, matching_assocs[0])
+
+    return references
+
+
 def populate_database():
     """Populate the test database with mock data for Debezium integration tests."""
     print("Starting mock data population for Debezium integration tests...")
@@ -473,51 +524,10 @@ def populate_database():
 
         # Create references
         print("Creating references...")
-        references = []
-        for i in range(10):
-            resource = resources[i % len(resources)]
-            citation = citations[i % len(citations)]
-            # Link some references to copyright licenses (about 60% of them)
-            copyright_license_id = None
-            if i % 5 < 3:  # Link references 0,1,2,5,6,7 to licenses
-                license_obj = copyright_licenses[i % len(copyright_licenses)]
-                copyright_license_id = license_obj.copyright_license_id
-            reference = factory.create_reference(db, i + 1, citation, resource, copyright_license_id)
-            references.append(reference)
-
-            # Add authors for each reference
-            factory.create_author(db, reference, i + 1)
-
-            # Add cross-references (regular and obsolete)
-            factory.create_cross_reference(db, reference, i + 1, False)
-            if i % 3 == 0:  # Add some obsolete cross-references
-                factory.create_cross_reference(db, reference, i + 1, True)
-
-            # Add MeSH terms
-            factory.create_mesh_detail(db, reference, i)
-
-            # Add reference emails (for some references)
-            if i % 2 == 0:  # Add emails to every other reference
-                factory.create_reference_email(db, reference, i)
-
-            # Add MOD corpus associations - REQUIRED for Debezium
-            mod = mods[i % len(mods)]
-            factory.create_mod_corpus_association(db, reference, mod, True)
-
-            # Add topic entity tags - REQUIRED for Debezium
-            source = tag_sources[i % len(tag_sources)]
-            factory.create_topic_entity_tag(db, reference, i, source)
-
-            # Add workflow tags - REQUIRED for Debezium
-            workflow_mod = mods[i % len(mods)]
-            factory.create_workflow_tag(db, reference, i, workflow_mod)
-
-            # Add reference-MOD-referencetype associations - REQUIRED for Debezium reference_mod_referencetype topic
-            # Link this reference to some MOD-referencetype associations
-            ref_mod_associations = [assoc for assoc in mod_ref_associations if assoc.mod_id == workflow_mod.mod_id]
-            if ref_mod_associations:
-                # Pick the first association for this MOD
-                factory.create_reference_mod_referencetype_association(db, reference, ref_mod_associations[0])
+        references = _create_references_with_associations(
+            db, factory, resources, citations, copyright_licenses,
+            mods, tag_sources, mod_ref_associations
+        )
 
         # Create references WITHOUT a resource (testing null resource_id indexing)
         no_resource_refs = _create_no_resource_references(
