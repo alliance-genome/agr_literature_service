@@ -36,6 +36,7 @@ from agr_literature_service.api.models.mod_reference_type_model import (  # noqa
 from agr_literature_service.api.models.topic_entity_tag_model import TopicEntityTagModel, TopicEntityTagSourceModel  # noqa: E402
 from agr_literature_service.api.models.workflow_tag_model import WorkflowTagModel  # noqa: E402
 from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceModel  # noqa: E402
+from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel  # noqa: E402
 
 
 class MockDataFactory:
@@ -187,6 +188,18 @@ class MockDataFactory:
         )
         db_session.add(mesh)
         return mesh
+
+    def create_reference_email(self, db_session, reference: ReferenceModel, email_id: int) -> ReferenceEmailModel:
+        """Create a reference email for testing."""
+        email_domains = ["example.com", "university.edu", "research.org", "lab.gov", "science.net"]
+        domain = email_domains[email_id % len(email_domains)]
+
+        email = ReferenceEmailModel(
+            reference_id=reference.reference_id,
+            email_address=f"researcher{email_id}@{domain}"
+        )
+        db_session.add(email)
+        return email
 
     def create_mod(self, db_session, mod_id: int) -> ModModel:
         """Create a MOD (Model Organism Database) entry."""
@@ -392,6 +405,57 @@ def _create_no_resource_references(db, factory, citations, mods):
     return refs
 
 
+def _create_references_with_associations(db, factory, resources, citations,
+                                         copyright_licenses, mods, tag_sources,
+                                         mod_ref_associations):
+    """Create references with all associated entities for Debezium testing."""
+    references = []
+    for i in range(10):
+        resource = resources[i % len(resources)]
+        citation = citations[i % len(citations)]
+        # Link some references to copyright licenses (about 60% of them)
+        copyright_license_id = None
+        if i % 5 < 3:  # Link references 0,1,2,5,6,7 to licenses
+            license_obj = copyright_licenses[i % len(copyright_licenses)]
+            copyright_license_id = license_obj.copyright_license_id
+        reference = factory.create_reference(db, i + 1, citation, resource, copyright_license_id)
+        references.append(reference)
+
+        # Add authors for each reference
+        factory.create_author(db, reference, i + 1)
+
+        # Add cross-references (regular and obsolete)
+        factory.create_cross_reference(db, reference, i + 1, False)
+        if i % 3 == 0:  # Add some obsolete cross-references
+            factory.create_cross_reference(db, reference, i + 1, True)
+
+        # Add MeSH terms
+        factory.create_mesh_detail(db, reference, i)
+
+        # Add reference emails (for some references)
+        if i % 2 == 0:  # Add emails to every other reference
+            factory.create_reference_email(db, reference, i)
+
+        # Add MOD corpus associations - REQUIRED for Debezium
+        mod = mods[i % len(mods)]
+        factory.create_mod_corpus_association(db, reference, mod, True)
+
+        # Add topic entity tags - REQUIRED for Debezium
+        source = tag_sources[i % len(tag_sources)]
+        factory.create_topic_entity_tag(db, reference, i, source)
+
+        # Add workflow tags - REQUIRED for Debezium
+        workflow_mod = mods[i % len(mods)]
+        factory.create_workflow_tag(db, reference, i, workflow_mod)
+
+        # Add reference-MOD-referencetype associations
+        matching_assocs = [a for a in mod_ref_associations if a.mod_id == workflow_mod.mod_id]
+        if matching_assocs:
+            factory.create_reference_mod_referencetype_association(db, reference, matching_assocs[0])
+
+    return references
+
+
 def populate_database():
     """Populate the test database with mock data for Debezium integration tests."""
     print("Starting mock data population for Debezium integration tests...")
@@ -460,47 +524,10 @@ def populate_database():
 
         # Create references
         print("Creating references...")
-        references = []
-        for i in range(10):
-            resource = resources[i % len(resources)]
-            citation = citations[i % len(citations)]
-            # Link some references to copyright licenses (about 60% of them)
-            copyright_license_id = None
-            if i % 5 < 3:  # Link references 0,1,2,5,6,7 to licenses
-                license_obj = copyright_licenses[i % len(copyright_licenses)]
-                copyright_license_id = license_obj.copyright_license_id
-            reference = factory.create_reference(db, i + 1, citation, resource, copyright_license_id)
-            references.append(reference)
-
-            # Add authors for each reference
-            factory.create_author(db, reference, i + 1)
-
-            # Add cross-references (regular and obsolete)
-            factory.create_cross_reference(db, reference, i + 1, False)
-            if i % 3 == 0:  # Add some obsolete cross-references
-                factory.create_cross_reference(db, reference, i + 1, True)
-
-            # Add MeSH terms
-            factory.create_mesh_detail(db, reference, i)
-
-            # Add MOD corpus associations - REQUIRED for Debezium
-            mod = mods[i % len(mods)]
-            factory.create_mod_corpus_association(db, reference, mod, True)
-
-            # Add topic entity tags - REQUIRED for Debezium
-            source = tag_sources[i % len(tag_sources)]
-            factory.create_topic_entity_tag(db, reference, i, source)
-
-            # Add workflow tags - REQUIRED for Debezium
-            workflow_mod = mods[i % len(mods)]
-            factory.create_workflow_tag(db, reference, i, workflow_mod)
-
-            # Add reference-MOD-referencetype associations - REQUIRED for Debezium reference_mod_referencetype topic
-            # Link this reference to some MOD-referencetype associations
-            ref_mod_associations = [assoc for assoc in mod_ref_associations if assoc.mod_id == workflow_mod.mod_id]
-            if ref_mod_associations:
-                # Pick the first association for this MOD
-                factory.create_reference_mod_referencetype_association(db, reference, ref_mod_associations[0])
+        references = _create_references_with_associations(
+            db, factory, resources, citations, copyright_licenses,
+            mods, tag_sources, mod_ref_associations
+        )
 
         # Create references WITHOUT a resource (testing null resource_id indexing)
         no_resource_refs = _create_no_resource_references(
@@ -534,6 +561,7 @@ def populate_database():
         relation_count = db.query(ReferenceRelationModel).count()
         license_count = db.query(CopyrightLicenseModel).count()
         mesh_count = db.query(MeshDetailModel).count()
+        email_count = db.query(ReferenceEmailModel).count()
         mod_count = db.query(ModModel).count()
         mod_corpus_count = db.query(ModCorpusAssociationModel).count()
         ref_type_count = db.query(ReferencetypeModel).count()
@@ -546,7 +574,7 @@ def populate_database():
 
         print("Mock data population completed successfully!")
         print(f"Created: {ref_count} references, {author_count} authors, {xref_count} cross-refs")
-        print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms")
+        print(f"Created: {relation_count} relations, {license_count} licenses, {mesh_count} mesh terms, {email_count} emails")
         print(f"Created: {mod_count} MODs, {mod_corpus_count} MOD corpus associations")
         print(f"Created: {ref_type_count} reference types, {mod_ref_type_count} MOD-ref type assocs")
         print(f"Created: {ref_mod_ref_type_count} reference-MOD-ref type associations")
