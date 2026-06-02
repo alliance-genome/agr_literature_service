@@ -793,12 +793,15 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     existing_tag = query.first()
     if existing_tag:
         existing_date_updated = existing_tag.date_updated
-        tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
-        if note:
-            tag_data['note'] = note
         existing_note_list = existing_tag.note.split(" | ") if existing_tag.note else []
         if (note and note in existing_note_list) or note is None:
             # Branch 1: exact duplicate, request has no new note (or note already present).
+            # get_tet_with_names is only called here (the 409-detail path), not in
+            # branch 2 — the upsert response is built by the router via show_tag, so
+            # there's no point enriching new_tag_data here.
+            tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
+            if note:
+                tag_data['note'] = note
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
