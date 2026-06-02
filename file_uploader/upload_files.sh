@@ -49,11 +49,15 @@ upload_file () {
   if [[ ${pdf_type} != "null" ]]; then
     url="${url}&pdf_type=${pdf_type}"
   fi
-  response=$(curl -s --request POST --url ${url} \
+  # Append the HTTP status code on its own trailing line so we can inspect it
+  # separately from the (single-line) JSON body returned by the API.
+  http_response=$(curl -s -w "\n%{http_code}" --request POST --url ${url} \
     -H 'accept: application/json' \
     -H "Authorization: Bearer ${COGNITO_ACCESS_TOKEN}" \
     -H 'Content-Type: multipart/form-data' \
     -F "file=@\"${filepath}\";type=text/plain")
+  http_code=$(echo "$http_response" | tail -n1)
+  response=$(echo "$http_response" | sed '$d')
 
   # Check if the response contains a "detail" field with specific phrases
   detail_message=$(echo "$response" | jq -r '.detail // empty')
@@ -63,7 +67,12 @@ upload_file () {
     return
   fi
 
-  if [[ "${response}" == "\"success\"" ]]; then
+  # The new API returns HTTP 201 with an array of the created referencefile
+  # objects on success, or an error status with an object containing a "detail"
+  # field on failure. Require a 2xx status code AND a non-empty JSON array
+  # before reporting success.
+  num_created=$(echo "$response" | jq -r 'if type == "array" then length else 0 end' 2>/dev/null)
+  if [[ "${http_code}" =~ ^2[0-9][0-9]$ && "${num_created}" =~ ^[0-9]+$ && "${num_created}" -gt 0 ]]; then
     upload_status="success"
     response="empty response"
   else
