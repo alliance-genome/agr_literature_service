@@ -704,6 +704,31 @@ CREATE TABLE reference_email (
     VALUE_FORMAT='json'
   );
 
+CREATE TABLE indexing_priority (
+    indexing_priority_id string PRIMARY KEY,
+    reference_id string,
+    mod_id string,
+    predicted_indexing_priority string,
+    curator_indexing_priority string,
+    confidence_score double
+  ) WITH (
+    KAFKA_TOPIC='abc.public.indexing_priority',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE manual_indexing_tag (
+    manual_indexing_tag_id string PRIMARY KEY,
+    reference_id string,
+    mod_id string,
+    curation_tag string,
+    confidence_score double,
+    validation_by_biocurator string,
+    note string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.manual_indexing_tag',
+    VALUE_FORMAT='json'
+  );
+
 CREATE TABLE resource (
     resource_id string PRIMARY KEY,
     title string,
@@ -751,6 +776,41 @@ CREATE TABLE reference_emails AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(email_address) \"REFERENCE_EMAILS\"
     FROM reference_email
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE indexing_priority_with_mod AS
+    SELECT
+        indexing_priority.indexing_priority_id AS INDEXING_PRIORITY_ID,
+        indexing_priority.reference_id,
+        indexing_priority.predicted_indexing_priority,
+        indexing_priority.curator_indexing_priority,
+        mod.abbreviation AS mod_abbreviation
+    FROM indexing_priority
+    JOIN mod
+        ON indexing_priority.mod_id = mod.mod_id;
+
+CREATE TABLE indexing_priorities AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('predicted_indexing_priority':=predicted_indexing_priority, 'curator_indexing_priority':=curator_indexing_priority, 'mod_abbreviation':=mod_abbreviation)) \"INDEXING_PRIORITIES\"
+    FROM indexing_priority_with_mod
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE manual_indexing_tag_with_mod AS
+    SELECT
+        manual_indexing_tag.manual_indexing_tag_id AS MANUAL_INDEXING_TAG_ID,
+        manual_indexing_tag.reference_id,
+        manual_indexing_tag.curation_tag,
+        mod.abbreviation AS mod_abbreviation
+    FROM manual_indexing_tag
+    JOIN mod
+        ON manual_indexing_tag.mod_id = mod.mod_id;
+
+CREATE TABLE manual_indexing_tags AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('curation_tag':=curation_tag, 'mod_abbreviation':=mod_abbreviation)) \"MANUAL_INDEXING_TAGS\"
+    FROM manual_indexing_tag_with_mod
     GROUP BY reference_id
     EMIT CHANGES;
 
@@ -831,12 +891,16 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.label \"mod_reference_types\",
     topic_entity_tags.topic_entity_tags \"topic_entity_tags\",
     reference_workflow_tags.workflow_tags \"workflow_tags\",
-    reference_emails.reference_emails \"reference_emails\"
+    reference_emails.reference_emails \"reference_emails\",
+    indexing_priorities.indexing_priorities \"indexing_priorities\",
+    manual_indexing_tags.manual_indexing_tags \"manual_indexing_tags\"
     FROM reference_mod_reference_types reference_mod_reference_types
     LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
     reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
     LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id
     LEFT OUTER JOIN reference_emails reference_emails ON reference_mod_reference_types.reference_id = reference_emails.reference_id
+    LEFT OUTER JOIN indexing_priorities indexing_priorities ON reference_mod_reference_types.reference_id = indexing_priorities.reference_id
+    LEFT OUTER JOIN manual_indexing_tags manual_indexing_tags ON reference_mod_reference_types.reference_id = manual_indexing_tags.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_with_copyright AS
