@@ -288,11 +288,12 @@ class TestTopicEntityTag:
         into updated_by on the stored row. check_for_duplicate_tags must
         impute the same value, otherwise a repeated identical POST misses
         branch 1 on updated_by and is mislabeled as different_creator."""
+        load_name_to_atp_and_relationships_mock()
         with TestClient(app) as client:
             payload = {
                 "reference_curie": test_reference.new_ref_curie,
-                "topic": "ATP:0000152",
-                "species": "NCBITaxon:7214",
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": "ATP:0000335",
