@@ -289,7 +289,17 @@ class TestTopicEntityTag:
         impute the same value, otherwise a repeated identical POST misses
         branch 1 on updated_by and is mislabeled as different_creator."""
         load_name_to_atp_and_relationships_mock()
-        with TestClient(app) as client:
+        # The 409-detail construction on the second POST calls get_tet_with_names ->
+        # get_curie_to_name_from_all_tets, which would otherwise instantiate the
+        # AGRCurationAPIClient and trip an empty-URL Pydantic validation error in
+        # the test environment. Patch it like other 409-branch tests in this file do.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                "ATP:0000122": "ATP:0000122",
+                "NCBITaxon:6239": "Caenorhabditis elegans",
+            }
             payload = {
                 "reference_curie": test_reference.new_ref_curie,
                 "topic": "ATP:0000122",
