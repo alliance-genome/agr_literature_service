@@ -282,6 +282,29 @@ class TestTopicEntityTag:
                                   headers=auth_headers)
             assert response.json()["validation_by_author"] == "validated_wrong"
 
+    def test_duplicate_detection_omitted_updated_by(self, test_topic_entity_tag_source, test_reference, auth_headers):  # noqa
+        """SCRUM-5716 regression: when created_by is set on the request but
+        updated_by is omitted, audited_model.before_insert copies created_by
+        into updated_by on the stored row. check_for_duplicate_tags must
+        impute the same value, otherwise a repeated identical POST misses
+        branch 1 on updated_by and is mislabeled as different_creator."""
+        with TestClient(app) as client:
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000152",
+                "species": "NCBITaxon:7214",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": "FB Author Submission",
+                # NOTE: no updated_by on the request — this is the trigger
+            }
+            first = client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+            second = client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
+            assert second.status_code == status.HTTP_409_CONFLICT
+            assert second.json()["detail"]["reason"] == "duplicate"
+
     def test_cannot_create_existing_similar_tag_with_negation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
