@@ -69,3 +69,13 @@ class TestTopicEntityTagSource:
             response = client.get(f"/topic_entity_tag/source/{test_topic_entity_tag_source.new_source_id}",
                                   headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_patch_nonexistent_source_returns_404(self, auth_headers):  # noqa
+        """PATCH /topic_entity_tag/source/{id} on a non-existent id returns 404."""
+        with TestClient(app) as client:
+            response = client.patch(
+                url=f"/topic_entity_tag/source/{99999999}",
+                json={"description": "anything"},
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_404_NOT_FOUND
