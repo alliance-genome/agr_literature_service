@@ -53,6 +53,12 @@ WORKFLOW_FACETS = [
     "email_extraction"
 ]
 
+CURATION_CLASSIFICATION_TAG_FACETS = [
+    "predicted_indexing_priority",
+    "indexing_priority",
+    "manual_indexing_curation_tag"
+]
+
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
 _ORCID_INPUT = re.compile(r'(?i)^(?:\s*orcid:\s*)?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9Xx]{4})\s*$')
 
@@ -253,6 +259,58 @@ def search_references(
                         }
                     }
                 }
+            },
+            "indexing_priorities": {
+                "nested": {"path": "indexing_priorities"},
+                "aggs": {
+                    "by_mod_abbreviation": {
+                        "terms": {
+                            "field": "indexing_priorities.mod_abbreviation",
+                            "min_doc_count": 0,
+                            "size": 100
+                        },
+                        "aggs": {
+                            "predicted": {
+                                "terms": {
+                                    "field": "indexing_priorities.predicted_indexing_priority",
+                                    "min_doc_count": 0,
+                                    "size": 100
+                                },
+                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                            },
+                            "curator": {
+                                "terms": {
+                                    "field": "indexing_priorities.curator_indexing_priority",
+                                    "min_doc_count": 0,
+                                    "size": 100
+                                },
+                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                            }
+                        }
+                    }
+                }
+            },
+            "manual_indexing_tags": {
+                "nested": {"path": "manual_indexing_tags"},
+                "aggs": {
+                    "by_mod_abbreviation": {
+                        "terms": {
+                            "field": "manual_indexing_tags.mod_abbreviation",
+                            "min_doc_count": 0,
+                            "size": 100
+                        },
+                        "aggs": {
+                            "curation_tags": {
+                                "terms": {
+                                    "field": "manual_indexing_tags.curation_tag",
+                                    "min_doc_count": 0,
+                                    "size": 100
+                                },
+                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                            }
+                        }
+                    }
+                }
             }
         },
         "from": from_entry,
@@ -420,6 +478,34 @@ def search_references(
                     }
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
+            elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
+                # curation classification tags are nested in indexing_priorities or manual_indexing_tags
+                if facet_field == "predicted_indexing_priority":
+                    path = "indexing_priorities"
+                    field = "indexing_priorities.predicted_indexing_priority"
+                elif facet_field == "indexing_priority":
+                    path = "indexing_priorities"
+                    field = "indexing_priorities.curator_indexing_priority"
+                else:  # manual_indexing_curation_tag
+                    path = "manual_indexing_tags"
+                    field = "manual_indexing_tags.curation_tag"
+
+                for tag in facet_list_values:
+                    nested_query = {
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"terms": {f"{path}.mod_abbreviation": wft_mod_abbreviations}},
+                                        {"term": {field: tag}}
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                    es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+
             else:
                 if facet_field == "authors.name.keyword":
                     for facet_value in facet_list_values:
@@ -450,6 +536,31 @@ def search_references(
                         "nested": {
                             "path": "authors",
                             "query": {"term": {facet_field: facet_value}}
+                        }
+                    })
+            elif facet_field in CURATION_CLASSIFICATION_TAG_FACETS:
+                if facet_field == "predicted_indexing_priority":
+                    path = "indexing_priorities"
+                    field = "indexing_priorities.predicted_indexing_priority"
+                elif facet_field == "indexing_priority":
+                    path = "indexing_priorities"
+                    field = "indexing_priorities.curator_indexing_priority"
+                else:  # manual_indexing_curation_tag
+                    path = "manual_indexing_tags"
+                    field = "manual_indexing_tags.curation_tag"
+
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
+                        "nested": {
+                            "path": path,
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"terms": {f"{path}.mod_abbreviation": wft_mod_abbreviations}},
+                                        {"term": {field: facet_value}}
+                                    ]
+                                }
+                            }
                         }
                     })
             else:
@@ -529,6 +640,8 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "language": ref["fields"]["language.keyword"],
         "authors": ref["_source"]["authors"],
         "reference_emails": ref["_source"].get("reference_emails", []),
+        "indexing_priorities": ref["_source"].get("indexing_priorities", []),
+        "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
@@ -538,9 +651,13 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     # extract workflow tags aggregations.
     workflow_aggs = process_workflow_tags_aggregations(res, wft_mod_abbreviations)
 
+    # extract curation classification tags aggregations.
+    curation_aggs = process_curation_classification_tags_aggregations(res, wft_mod_abbreviations)
+
     # merge processed aggs
     res["aggregations"].update(topic_aggs)
     res["aggregations"].update(workflow_aggs)
+    res["aggregations"].update(curation_aggs)
 
     # unwrap nested authors agg to the expected shape
     agg = res["aggregations"].get("authors.name.keyword")
@@ -697,6 +814,96 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
 
     res["aggregations"].pop("workflow_tags", None)
     return final_workflow_aggs
+
+
+def process_curation_classification_tags_aggregations(res, wft_mod_abbreviations):  # pragma: no cover
+    """
+    Process indexing_priorities and manual_indexing_tags aggregations
+    into curation classification tags facets.
+    """
+    result: Dict[str, Any] = {}
+
+    # Process indexing_priorities
+    ip_nested = res["aggregations"].get("indexing_priorities", {})
+    mod_buckets = ip_nested.get("by_mod_abbreviation", {}).get("buckets", [])
+
+    predicted_buckets: Dict[str, Dict[str, Any]] = {}
+    curator_buckets: Dict[str, Dict[str, Any]] = {}
+
+    for mod_bucket in mod_buckets:
+        mod_key = mod_bucket["key"]
+        if mod_key.upper() not in wft_mod_abbreviations:
+            continue
+
+        # Predicted indexing priority
+        for bucket in mod_bucket.get("predicted", {}).get("buckets", []):
+            key = bucket["key"].upper() if bucket["key"] else None
+            if key:
+                count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
+                if key not in predicted_buckets:
+                    predicted_buckets[key] = {"key": key, "doc_count": 0}
+                predicted_buckets[key]["doc_count"] += count
+
+        # Curator indexing priority
+        for bucket in mod_bucket.get("curator", {}).get("buckets", []):
+            key = bucket["key"].upper() if bucket["key"] else None
+            if key:
+                count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
+                if key not in curator_buckets:
+                    curator_buckets[key] = {"key": key, "doc_count": 0}
+                curator_buckets[key]["doc_count"] += count
+
+    predicted_filtered = [b for b in predicted_buckets.values() if b["doc_count"] > 0]
+    predicted_result = {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": sorted(predicted_filtered, key=lambda x: x["doc_count"], reverse=True)
+    }
+    add_curie_to_name_values(predicted_result)
+    result["predicted_indexing_priority"] = predicted_result
+
+    curator_filtered = [b for b in curator_buckets.values() if b["doc_count"] > 0]
+    curator_result = {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": sorted(curator_filtered, key=lambda x: x["doc_count"], reverse=True)
+    }
+    add_curie_to_name_values(curator_result)
+    result["indexing_priority"] = curator_result
+
+    # Process manual_indexing_tags
+    mit_nested = res["aggregations"].get("manual_indexing_tags", {})
+    mod_buckets = mit_nested.get("by_mod_abbreviation", {}).get("buckets", [])
+
+    curation_tag_buckets: Dict[str, Dict[str, Any]] = {}
+
+    for mod_bucket in mod_buckets:
+        mod_key = mod_bucket["key"]
+        if mod_key.upper() not in wft_mod_abbreviations:
+            continue
+
+        for bucket in mod_bucket.get("curation_tags", {}).get("buckets", []):
+            key = bucket["key"].upper() if bucket["key"] else None
+            if key:
+                count = bucket.get("reverse_docs", {}).get("doc_count", bucket["doc_count"])
+                if key not in curation_tag_buckets:
+                    curation_tag_buckets[key] = {"key": key, "doc_count": 0}
+                curation_tag_buckets[key]["doc_count"] += count
+
+    curation_filtered = [b for b in curation_tag_buckets.values() if b["doc_count"] > 0]
+    curation_tag_result = {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": sorted(curation_filtered, key=lambda x: x["doc_count"], reverse=True)
+    }
+    add_curie_to_name_values(curation_tag_result)
+    result["manual_indexing_curation_tag"] = curation_tag_result
+
+    # Clean up raw aggregations
+    res["aggregations"].pop("indexing_priorities", None)
+    res["aggregations"].pop("manual_indexing_tags", None)
+
+    return result
 
 
 def remap_highlights(highlights):  # pragma: no cover
