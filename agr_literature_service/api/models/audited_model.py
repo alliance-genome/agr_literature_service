@@ -18,6 +18,30 @@ def get_default_user_value():
     return uid
 
 
+def impute_audit_user_ids(created_by, updated_by, default_user):
+    """Fill in created_by / updated_by the same way ``before_insert`` does:
+
+    1. If only one of (created_by, updated_by) is set, copy it to the other.
+    2. If either side is still None, fall back to ``default_user``.
+
+    Returns the resolved ``(created_by, updated_by)`` tuple. Callers that need
+    to predict what an INSERT would store — most importantly the TET
+    duplicate-detection filter — must use this helper so they don't drift
+    out of sync with ``before_insert`` (see SCRUM-5716 / Gillian's bug
+    report: a Path-A vs Path-B mismatch mislabeled a duplicate POST as
+    ``reason="different_creator"``).
+    """
+    if created_by is not None and updated_by is None:
+        updated_by = created_by
+    elif updated_by is not None and created_by is None:
+        created_by = updated_by
+    if created_by is None:
+        created_by = default_user
+    if updated_by is None:
+        updated_by = default_user
+    return created_by, updated_by
+
+
 def disable_set_updated_by_onupdate(target):
     """
     Disable automatic update of updated_by field for the target object.
@@ -98,16 +122,9 @@ def _set_created_and_updated(mapper, connection, target):
     if target.date_updated is None:
         target.date_updated = now
 
-    # If either user is set but not both, set both to the same value
-    if target.created_by is not None and target.updated_by is None:
-        target.updated_by = target.created_by
-    elif target.updated_by is not None and target.created_by is None:
-        target.created_by = target.updated_by
-
-    if target.created_by is None:
-        target.created_by = get_default_user_value()
-    if target.updated_by is None:
-        target.updated_by = get_default_user_value()
+    target.created_by, target.updated_by = impute_audit_user_ids(
+        target.created_by, target.updated_by, get_default_user_value()
+    )
 
 
 @event.listens_for(AuditedModel, "before_update", propagate=True)

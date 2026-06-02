@@ -33,6 +33,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_
     get_current_workflow_status
 from agr_literature_service.api.models.audited_model import (
     get_default_user_value,
+    impute_audit_user_ids,
     disable_set_updated_by_onupdate,
     disable_set_date_updated_onupdate
 )
@@ -758,7 +759,7 @@ def filter_tet_data_by_column(query, column_name, values):
     return query
 
 
-def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,    # noqa: C901
+def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: TopicEntityTagSourceModel,
                              reference_id: int, force_insertion: bool = False):
     """
     Detect duplicate tags. Per SCRUM-5716 strict-REST design:
@@ -778,24 +779,11 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     note = new_tag_data.pop('note', None)
     created_by_user = get_default_user_value()
 
-    # Mirror audited_model.before_insert (audited_model.py:102-110):
-    #   1) if only one of created_by/updated_by is set on the request, the
-    #      INSERT event copies it to the other;
-    #   2) any still-None side falls back to the global default user.
-    # The duplicate filter below must use the SAME imputed values, otherwise
-    # a repeat of an identical request misses branch 1 on updated_by and
-    # falls through to branch 4/5 (different_creator) — see SCRUM-5716.
-    if (new_tag_data.get('created_by') is not None
-            and new_tag_data.get('updated_by') is None):
-        new_tag_data['updated_by'] = new_tag_data['created_by']
-    elif (new_tag_data.get('updated_by') is not None
-            and new_tag_data.get('created_by') is None):
-        new_tag_data['created_by'] = new_tag_data['updated_by']
-
-    if new_tag_data.get('created_by') is None:
-        new_tag_data['created_by'] = created_by_user
-    if new_tag_data.get('updated_by') is None:
-        new_tag_data['updated_by'] = created_by_user
+    # Use the same imputation the INSERT event applies, so the filter below
+    # searches for the values a fresh row would actually be stored with.
+    new_tag_data['created_by'], new_tag_data['updated_by'] = impute_audit_user_ids(
+        new_tag_data.get('created_by'), new_tag_data.get('updated_by'), created_by_user
+    )
 
     logger.info("Checking for exact duplicate with same creator")
     # Optimize: Build a single query with filters instead of filter_by for better performance
