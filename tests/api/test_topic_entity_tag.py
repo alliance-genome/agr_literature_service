@@ -282,6 +282,177 @@ class TestTopicEntityTag:
                                   headers=auth_headers)
             assert response.json()["validation_by_author"] == "validated_wrong"
 
+    def test_duplicate_detection_omitted_updated_by(self, test_topic_entity_tag_source, test_reference, auth_headers):  # noqa
+        """SCRUM-5716 regression: when created_by is set on the request but
+        updated_by is omitted, audited_model.before_insert copies created_by
+        into updated_by on the stored row. check_for_duplicate_tags must
+        impute the same value, otherwise a repeated identical POST misses
+        branch 1 on updated_by and is mislabeled as different_creator."""
+        load_name_to_atp_and_relationships_mock()
+        # The 409-detail construction on the second POST calls get_tet_with_names ->
+        # get_curie_to_name_from_all_tets, which would otherwise instantiate the
+        # AGRCurationAPIClient and trip an empty-URL Pydantic validation error in
+        # the test environment. Patch it like other 409-branch tests in this file do.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                "ATP:0000122": "ATP:0000122",
+                "NCBITaxon:6239": "Caenorhabditis elegans",
+            }
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": "FB Author Submission",
+                # NOTE: no updated_by on the request — this is the trigger
+            }
+            first = client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+            second = client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
+            assert second.status_code == status.HTTP_409_CONFLICT
+            assert second.json()["detail"]["reason"] == "duplicate"
+
+    def test_duplicate_with_new_note_upserts(self, test_topic_entity_tag_source, test_reference, auth_headers):  # noqa
+        """SCRUM-5716 Group 4 branch 2: when a duplicate payload differs only
+        by a new note value, the existing tag's note is appended (separator
+        ' | ') and the server returns 200 (idempotent upsert) — not 201
+        (new row) and not 409 (conflict). show_tag does its own enrichment,
+        so no get_curie_to_name_from_all_tets patch is needed here."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            base_payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": "WBPerson1",
+            }
+            first = client.post(url="/topic_entity_tag/",
+                                json={**base_payload, "note": "first note"},
+                                headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+            first_tag_id = first.json()["topic_entity_tag_id"]
+
+            second = client.post(url="/topic_entity_tag/",
+                                 json={**base_payload, "note": "second note"},
+                                 headers=auth_headers)
+            assert second.status_code == status.HTTP_200_OK
+            assert second.json()["topic_entity_tag_id"] == first_tag_id
+            assert second.json()["note"] == "first note | second note"
+
+    def test_duplicate_different_creator_returns_409(self, test_topic_entity_tag_source, test_reference, auth_headers):  # noqa
+        """SCRUM-5716 Group 4 branches 4/5: a tag matching every field
+        except created_by returns 409 reason=different_creator, with the
+        existing tag's id / created_by / note surfaced in the detail body
+        for the UI's Force Insertion + Update Note buttons."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                "ATP:0000122": "ATP:0000122",
+                "NCBITaxon:6239": "Caenorhabditis elegans",
+            }
+            base_payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "note": "shared note",
+            }
+            first = client.post(url="/topic_entity_tag/",
+                                json={**base_payload, "created_by": "WBPerson1"},
+                                headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+            first_tag_id = first.json()["topic_entity_tag_id"]
+
+            second = client.post(url="/topic_entity_tag/",
+                                 json={**base_payload, "created_by": "WBPerson2"},
+                                 headers=auth_headers)
+            assert second.status_code == status.HTTP_409_CONFLICT
+            detail = second.json()["detail"]
+            assert detail["reason"] == "different_creator"
+            assert detail["existing_tag_id"] == first_tag_id
+            assert detail["existing_created_by"] == "WBPerson1"
+            assert detail["existing_note"] == "shared note"
+
+    def test_force_insertion_bypasses_different_creator_only(self, test_topic_entity_tag_source, test_reference, auth_headers):  # noqa
+        """SCRUM-5716 Group 4: force_insertion=true bypasses branches 4/5
+        (different_creator) but NOT branch 1 (exact duplicate, same
+        creator). A 'simplification' that made force_insertion bypass all
+        branches would silently break the duplicate-protection guarantee."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                "ATP:0000122": "ATP:0000122",
+                "NCBITaxon:6239": "Caenorhabditis elegans",
+            }
+            base = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "note": "shared note",
+            }
+            first = client.post(url="/topic_entity_tag/",
+                                json={**base, "created_by": "WBPerson1"},
+                                headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+            first_tag_id = first.json()["topic_entity_tag_id"]
+
+            # different creator + force_insertion: bypasses branch 4/5, new row created
+            forced = client.post(url="/topic_entity_tag/",
+                                 json={**base, "created_by": "WBPerson2", "force_insertion": True},
+                                 headers=auth_headers)
+            assert forced.status_code == status.HTTP_201_CREATED
+            assert forced.json()["topic_entity_tag_id"] != first_tag_id
+
+            # same creator + force_insertion: branch 1 still fires, 409 duplicate
+            same_forced = client.post(url="/topic_entity_tag/",
+                                      json={**base, "created_by": "WBPerson1", "force_insertion": True},
+                                      headers=auth_headers)
+            assert same_forced.status_code == status.HTTP_409_CONFLICT
+            assert same_forced.json()["detail"]["reason"] == "duplicate"
+
+    def test_patch_nonexistent_tag_returns_404(self, auth_headers):  # noqa
+        """PATCH /topic_entity_tag/{id} on a non-existent id returns 404."""
+        with TestClient(app) as client:
+            response = client.patch(
+                f"/topic_entity_tag/{99999999}",
+                json={"note": "anything"},
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_tag_with_nonexistent_reference_returns_404(self, test_topic_entity_tag_source, auth_headers):  # noqa
+        """POST /topic_entity_tag/ with a reference_curie that doesn't
+        resolve to a real reference returns 404."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            payload = {
+                "reference_curie": "AGRKB:101999999999999",  # non-existent
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "created_by": "WBPerson1",
+            }
+            response = client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
     def test_cannot_create_existing_similar_tag_with_negation(self, test_topic_entity_tag, test_reference, test_mod, auth_headers, db):  # noqa
         with TestClient(app) as client, \
                 patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \

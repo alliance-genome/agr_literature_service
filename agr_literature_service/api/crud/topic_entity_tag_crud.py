@@ -33,6 +33,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_
     get_current_workflow_status
 from agr_literature_service.api.models.audited_model import (
     get_default_user_value,
+    impute_audit_user_ids,
     disable_set_updated_by_onupdate,
     disable_set_date_updated_onupdate
 )
@@ -778,10 +779,11 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     note = new_tag_data.pop('note', None)
     created_by_user = get_default_user_value()
 
-    if new_tag_data.get('created_by', None) is None:
-        new_tag_data['created_by'] = created_by_user
-    if new_tag_data.get('updated_by', None) is None:
-        new_tag_data['updated_by'] = created_by_user
+    # Use the same imputation the INSERT event applies, so the filter below
+    # searches for the values a fresh row would actually be stored with.
+    new_tag_data['created_by'], new_tag_data['updated_by'] = impute_audit_user_ids(
+        new_tag_data.get('created_by'), new_tag_data.get('updated_by'), created_by_user
+    )
 
     logger.info("Checking for exact duplicate with same creator")
     # Optimize: Build a single query with filters instead of filter_by for better performance
@@ -791,12 +793,15 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     existing_tag = query.first()
     if existing_tag:
         existing_date_updated = existing_tag.date_updated
-        tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
-        if note:
-            tag_data['note'] = note
         existing_note_list = existing_tag.note.split(" | ") if existing_tag.note else []
         if (note and note in existing_note_list) or note is None:
             # Branch 1: exact duplicate, request has no new note (or note already present).
+            # get_tet_with_names is only called here (the 409-detail path), not in
+            # branch 2 — the upsert response is built by the router via show_tag, so
+            # there's no point enriching new_tag_data here.
+            tag_data = get_tet_with_names(db, tet=new_tag_data, curie_or_reference_id=str(reference_id))
+            if note:
+                tag_data['note'] = note
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail={
