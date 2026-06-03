@@ -100,6 +100,13 @@ restart-debezium-aws:
 stop-debezium:
 	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
 
+# Non-destructive self-heal: add any tables in table.include.list that are missing from the
+# existing Debezium publication (e.g. indexing_priority, manual_indexing_tag), so a running
+# deployment starts streaming them without a full reindex. Safe to run repeatedly.
+heal-debezium-publication:
+	docker-compose --env-file ${ENV_FILE} build dbz_setup
+	docker-compose --env-file ${ENV_FILE} run --rm dbz_setup bash /heal_publication.sh
+
 restart-api:
 	docker-compose --env-file ${ENV_FILE} build --no-cache api
 	docker-compose --env-file ${ENV_FILE} rm -s -f api
