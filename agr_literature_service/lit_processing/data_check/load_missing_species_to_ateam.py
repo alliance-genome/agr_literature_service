@@ -7,7 +7,11 @@ tag in the TET.
 
 This script:
   1. Selects the unique list of NCBITaxon species curies from the topic_entity_tag
-     table (same source the report_obsolete_disappeared_species_ids.py check uses).
+     table. Two sources are unioned:
+       - the species column (same source the report_obsolete_disappeared_species_ids.py
+         check uses), and
+       - the entity column for species tags, i.e. rows where topic = 'ATP:0000123'
+         (species), whose entity value is itself an NCBITaxon curie.
   2. Determines which of those curies are NOT in the A-team NCBITaxon table
      (via map_curies_to_names("species", ...)).
   3. For each missing curie, calls the A-team API get_or_create_species(taxon_id),
@@ -28,14 +32,34 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# ATP term whose tags carry a species in the entity column.
+species_atp = 'ATP:0000123'
+
 
 def get_distinct_species_curies(db_session):
-    """Return the unique list of NCBITaxon: species curies in topic_entity_tag."""
-    distinct_values = db_session.execute(
+    """Return the unique list of NCBITaxon: species curies in topic_entity_tag.
+
+    Unions two sources:
+      - the species column, and
+      - the entity column of species tags (topic = species_atp), whose entity
+        value is itself an NCBITaxon curie.
+    """
+    curies = set()
+
+    species_rows = db_session.execute(
         text("SELECT DISTINCT species FROM topic_entity_tag")
     ).fetchall()
-    return [row[0] for row in distinct_values
-            if row[0] and row[0].startswith('NCBITaxon:')]
+    curies.update(row[0] for row in species_rows
+                  if row[0] and row[0].startswith('NCBITaxon:'))
+
+    entity_rows = db_session.execute(
+        text("SELECT DISTINCT entity FROM topic_entity_tag WHERE topic = :species_atp"),
+        {"species_atp": species_atp}
+    ).fetchall()
+    curies.update(row[0] for row in entity_rows
+                  if row[0] and row[0].startswith('NCBITaxon:'))
+
+    return sorted(curies)
 
 
 def get_missing_species_curies(all_curies):
