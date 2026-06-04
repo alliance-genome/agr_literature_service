@@ -21,6 +21,7 @@ Run with --dry-run to only report the missing species without importing them.
 """
 import argparse
 import logging
+import time
 from sqlalchemy import text
 
 from agr_curation_api import AGRCurationAPIClient, AGRAPIError  # type: ignore
@@ -72,34 +73,62 @@ def get_missing_species_curies(all_curies):
     return missing
 
 
-def load_missing_species(missing_curies, dry_run=False):
+def load_missing_species(missing_curies, dry_run=False, max_attempts=4,
+                         retry_delay=15, call_delay=0.34):
     """Call get_or_create_species for each missing curie to import it into A-team.
+
+    The A-Team endpoint imports the taxon from NCBI on demand. The first call for a
+    not-yet-imported taxon can return before the import is ready ("no entity in
+    response"), and rapid calls can be rate-limited on the NCBI side. So curies that
+    fail are retried over several passes, with a delay between passes to let the
+    triggered imports settle, and a small delay between calls to stay under NCBI's
+    request rate. get_or_create_species is idempotent, so retrying is safe.
 
     Returns (loaded, failed) lists of (curie, name_or_error) tuples.
     """
-    loaded = []
-    failed = []
-
     if dry_run:
         logger.info("[dry-run] The following species would be imported into A-team:")
         for curie in missing_curies:
             logger.info(f"[dry-run]   {curie}")
-        return loaded, failed
+        return [], []
 
     client = AGRCurationAPIClient()
-    for curie in missing_curies:
-        try:
-            term = client.get_or_create_species(curie)
-            name = term.name or ""
-            loaded.append((curie, name))
-            logger.info(f"Loaded {curie} -> {name}")
-        except AGRAPIError as e:
-            failed.append((curie, str(e)))
-            logger.error(f"Failed to load {curie}: {e}")
+    loaded = []
+    pending = list(missing_curies)
+    last_error = {}
+
+    for attempt in range(1, max_attempts + 1):
+        if not pending:
+            break
+        if attempt > 1:
+            logger.info(f"Retry pass {attempt - 1}: {len(pending)} taxon(s) remaining; "
+                        f"waiting {retry_delay}s for pending NCBI imports to settle...")
+            time.sleep(retry_delay)
+
+        still_pending = []
+        for curie in pending:
+            try:
+                term = client.get_or_create_species(curie)
+                name = term.name or ""
+                loaded.append((curie, name))
+                logger.info(f"Loaded {curie} -> {name}")
+            except AGRAPIError as e:
+                still_pending.append(curie)
+                last_error[curie] = str(e)
+                msg = f"[attempt {attempt}/{max_attempts}] Failed to load {curie}: {e}"
+                if attempt < max_attempts:
+                    logger.warning(msg)
+                else:
+                    logger.error(msg)
+            if call_delay:
+                time.sleep(call_delay)
+        pending = still_pending
+
+    failed = [(curie, last_error.get(curie, "")) for curie in pending]
     return loaded, failed
 
 
-def check_and_load_missing_species(dry_run=False):
+def check_and_load_missing_species(dry_run=False, max_attempts=4, retry_delay=15):
 
     db_session = create_postgres_session(False)
     try:
@@ -116,11 +145,17 @@ def check_and_load_missing_species(dry_run=False):
         logger.info("No missing species to load. A-team NCBITaxon is up to date.")
         return
 
-    loaded, failed = load_missing_species(missing_curies, dry_run=dry_run)
+    loaded, failed = load_missing_species(missing_curies, dry_run=dry_run,
+                                          max_attempts=max_attempts, retry_delay=retry_delay)
 
     if not dry_run:
         logger.info(f"Done: {len(loaded)} species loaded, {len(failed)} failed "
                     f"out of {len(missing_curies)} missing.")
+        if failed:
+            logger.info("Still failing after retries (re-running the script later "
+                        "often resolves these, as the NCBI imports complete):")
+            for curie, err in failed:
+                logger.info(f"  {curie}: {err}")
 
 
 if __name__ == "__main__":
@@ -131,6 +166,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--dry-run", action="store_true",
                         help="Only report the missing species; do not import them.")
+    parser.add_argument("--max-attempts", type=int, default=4,
+                        help="Total passes over failing taxa (1 initial + retries). Default: 4.")
+    parser.add_argument("--retry-delay", type=int, default=15,
+                        help="Seconds to wait between retry passes. Default: 15.")
     args = parser.parse_args()
 
-    check_and_load_missing_species(dry_run=args.dry_run)
+    check_and_load_missing_species(dry_run=args.dry_run,
+                                   max_attempts=args.max_attempts,
+                                   retry_delay=args.retry_delay)
