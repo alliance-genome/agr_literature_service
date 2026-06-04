@@ -35,9 +35,12 @@ ELINK_TWO_LINKS = {
 ESUMMARY_MIXED = {
     "result": {
         "uids": ["200073427", "200050899", "100012345"],
-        "200073427": {"uid": "200073427", "accession": "GSE73427", "entrytype": "GSE"},
-        "200050899": {"uid": "200050899", "accession": "GSE50899", "entrytype": "GSE"},
-        "100012345": {"uid": "100012345", "accession": "GPL12345", "entrytype": "GPL"},
+        "200073427": {"uid": "200073427", "accession": "GSE73427", "entrytype": "GSE",
+                      "pubmedids": ["32606685"]},
+        "200050899": {"uid": "200050899", "accession": "GSE50899", "entrytype": "GSE",
+                      "pubmedids": ["32606685"]},
+        "100012345": {"uid": "100012345", "accession": "GPL12345", "entrytype": "GPL",
+                      "pubmedids": ["32606685"]},
     }
 }
 
@@ -49,8 +52,10 @@ class TestGetGeoAccessionsForPmid:
         esummary = _mock_response({
             "result": {
                 "uids": ["200073427", "200050899"],
-                "200073427": {"uid": "200073427", "accession": "GSE73427", "entrytype": "GSE"},
-                "200050899": {"uid": "200050899", "accession": "GSE50899", "entrytype": "GSE"},
+                "200073427": {"uid": "200073427", "accession": "GSE73427", "entrytype": "GSE",
+                              "pubmedids": ["32606685"]},
+                "200050899": {"uid": "200050899", "accession": "GSE50899", "entrytype": "GSE",
+                              "pubmedids": ["32606685"]},
             }
         })
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
@@ -99,8 +104,8 @@ class TestGetGeoAccessionsForPmid:
         esummary_dup = {
             "result": {
                 "uids": ["1", "2"],
-                "1": {"uid": "1", "accession": "GSE111", "entrytype": "GSE"},
-                "2": {"uid": "2", "accession": "GSE111", "entrytype": "GSE"},
+                "1": {"uid": "1", "accession": "GSE111", "entrytype": "GSE", "pubmedids": ["1"]},
+                "2": {"uid": "2", "accession": "GSE111", "entrytype": "GSE", "pubmedids": ["1"]},
             }
         }
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
@@ -112,8 +117,10 @@ class TestGetGeoAccessionsForPmid:
         elink = _mock_response(ELINK_TWO_LINKS)
         esummary = _mock_response({
             "result": {"uids": ["200073427", "200050899"],
-                       "200073427": {"uid": "200073427", "accession": "GSE73427", "entrytype": "GSE"},
-                       "200050899": {"uid": "200050899", "accession": "GSE50899", "entrytype": "GSE"}}
+                       "200073427": {"uid": "200073427", "accession": "GSE73427", "entrytype": "GSE",
+                                     "pubmedids": ["32606685"]},
+                       "200050899": {"uid": "200050899", "accession": "GSE50899", "entrytype": "GSE",
+                                     "pubmedids": ["32606685"]}}
         })
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
                    "get_geo_links.time.sleep"), \
@@ -136,70 +143,65 @@ class TestGetGeoAccessionsForPmid:
 class TestGetGeoAccessionsForPmids:
 
     def test_groups_links_per_source_pmid(self):
-        elink_multi = {
+        # elink merges the batch into one linkset (no per-PMID attribution); we
+        # only use it to gather candidate GDS UIDs. Attribution comes from each
+        # esummary record's own `pubmedids`.
+        elink_merged = {
             "linksets": [
-                {"dbfrom": "pubmed", "ids": ["111"],
-                 "linksetdbs": [{"dbto": "gds", "linkname": "pubmed_gds", "links": ["1", "2"]}]},
-                {"dbfrom": "pubmed", "ids": ["222"],
-                 "linksetdbs": [{"dbto": "gds", "linkname": "pubmed_gds", "links": ["3"]}]},
-                {"dbfrom": "pubmed", "ids": ["333"],
-                 "linksetdbs": []},
+                {"dbfrom": "pubmed", "ids": ["111", "222", "333"],
+                 "linksetdbs": [{"dbto": "gds", "linkname": "pubmed_gds",
+                                 "links": ["1", "2", "3"]}]},
             ]
         }
         esummary_multi = {
             "result": {
                 "uids": ["1", "2", "3"],
-                "1": {"uid": "1", "accession": "GSE1", "entrytype": "GSE"},
-                "2": {"uid": "2", "accession": "GSE2", "entrytype": "GSE"},
-                "3": {"uid": "3", "accession": "GSE3", "entrytype": "GSE"},
+                "1": {"uid": "1", "accession": "GSE1", "entrytype": "GSE", "pubmedids": ["111"]},
+                "2": {"uid": "2", "accession": "GSE2", "entrytype": "GSE", "pubmedids": ["111"]},
+                "3": {"uid": "3", "accession": "GSE3", "entrytype": "GSE", "pubmedids": ["222"]},
             }
         }
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
                    "get_geo_links.requests.get",
-                   side_effect=[_mock_response(elink_multi), _mock_response(esummary_multi)]):
+                   side_effect=[_mock_response(elink_merged), _mock_response(esummary_multi)]):
             result = get_geo_accessions_for_pmids(["111", "222", "333"])
         assert result == {"111": ["GSE1", "GSE2"], "222": ["GSE3"], "333": []}
 
-    def test_elink_sends_id_as_list_for_per_pmid_attribution(self):
-        """elink MERGES comma-joined ids into a single linkset, losing per-PMID
-        attribution. Passing the PMID list (repeated `&id=` params) makes NCBI
-        return one linkset per PMID. Pin that `id` is sent as a list."""
+    def test_elink_sends_comma_joined_ids(self):
+        """elink is queried for the whole batch with comma-joined ids (the cheap,
+        reliable form). Repeated `&id=` params force per-PMID linksets but make
+        NCBI drop the response at scale, so we keep comma-joined and attribute via
+        esummary `pubmedids` instead."""
         elink_empty = {
-            "linksets": [
-                {"dbfrom": "pubmed", "ids": ["111"], "linksetdbs": []},
-                {"dbfrom": "pubmed", "ids": ["222"], "linksetdbs": []},
-                {"dbfrom": "pubmed", "ids": ["333"], "linksetdbs": []},
-            ]
+            "linksets": [{"dbfrom": "pubmed", "ids": ["111", "222", "333"], "linksetdbs": []}]
         }
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
                    "get_geo_links.requests.get",
                    side_effect=[_mock_response(elink_empty)]) as mock_get:
             get_geo_accessions_for_pmids(["111", "222", "333"])
             params = mock_get.call_args.kwargs["params"]
-            assert params["id"] == ["111", "222", "333"]
+            assert params["id"] == "111,222,333"
 
-    def test_does_not_misattribute_links_across_separate_linksets(self):
-        """Regression: with per-PMID linksets, a PMID with no GEO link must not
-        inherit another PMID's links. Previously a single merged linkset pooled
-        all links onto the first PMID, starving every other PMID in the batch."""
-        elink_per_pmid = {
-            "linksets": [
-                {"dbfrom": "pubmed", "ids": ["31000000"], "linksetdbs": []},
-                {"dbfrom": "pubmed", "ids": ["33526011"],
-                 "linksetdbs": [{"dbto": "gds", "linkname": "pubmed_gds",
-                                 "links": ["200147729"]}]},
-            ]
+    def test_attributes_via_pubmedids_not_merged_elink_linkset(self):
+        """Regression for the merged-linkset bug: elink pools all batch links into
+        one linkset with no per-PMID attribution. A GSE must be attributed only to
+        the PMID(s) named in its esummary `pubmedids`, and only to PMIDs actually
+        in the batch (33526011's record also cites an out-of-batch PMID)."""
+        elink_merged = {
+            "linksets": [{"dbfrom": "pubmed", "ids": ["31000000", "33526011"],
+                          "linksetdbs": [{"dbto": "gds", "linkname": "pubmed_gds",
+                                          "links": ["200147729"]}]}]
         }
         esummary = {
             "result": {
                 "uids": ["200147729"],
                 "200147729": {"uid": "200147729", "accession": "GSE147729",
-                              "entrytype": "GSE"},
+                              "entrytype": "GSE", "pubmedids": ["33526011", "36514338"]},
             }
         }
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
                    "get_geo_links.requests.get",
-                   side_effect=[_mock_response(elink_per_pmid), _mock_response(esummary)]):
+                   side_effect=[_mock_response(elink_merged), _mock_response(esummary)]):
             result = get_geo_accessions_for_pmids(["31000000", "33526011"])
         assert result == {"31000000": [], "33526011": ["GSE147729"]}
 

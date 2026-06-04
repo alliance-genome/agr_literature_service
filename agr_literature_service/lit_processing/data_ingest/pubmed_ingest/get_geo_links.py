@@ -8,16 +8,12 @@ import logging
 import os
 import sys
 import time
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import requests
 
 ELINK_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
 ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-
-# elink takes the PMID list as a repeated `&id=` param (value is a list); other
-# params are plain strings. See get_geo_accessions_for_pmids for why.
-ParamsType = Dict[str, Union[str, List[str]]]
 
 # Conservative throttle: 3 req/s without an API key, 10 req/s with one.
 _THROTTLE_SECONDS_NO_KEY = 0.34
@@ -43,7 +39,7 @@ def _throttle() -> None:
     time.sleep(delay)
 
 
-def _get_with_retry(url: str, params: ParamsType) -> dict:
+def _get_with_retry(url: str, params: Dict[str, str]) -> dict:
     last_exc: Optional[requests.exceptions.RequestException] = None
     for attempt in range(_MAX_RETRIES):
         wait = _RETRY_BACKOFF_BASE ** attempt
@@ -81,58 +77,58 @@ def get_geo_accessions_for_pmids(pmids: List[str]) -> Dict[str, List[str]]:
     if not pmids:
         return {}
 
-    # NCBI elink MERGES comma-joined ids into a single linkset (all source PMIDs
-    # in one `ids` array, all links pooled with no per-PMID attribution). Passing
-    # the list to requests sends repeated `&id=` params instead, which makes elink
-    # return one linkset per PMID so links stay correctly attributed.
-    elink_params: ParamsType = {
+    # elink is asked for the whole batch with comma-joined ids. NCBI merges these
+    # into a single linkset (all source PMIDs pooled, no per-PMID attribution),
+    # which is fine here: we only use elink to discover the set of candidate GDS
+    # UIDs for the batch. The expensive alternative -- repeated `&id=` params to
+    # force one linkset per PMID -- makes NCBI drop the chunked response for
+    # batches of ~100, so we recover per-PMID attribution from esummary instead
+    # (each GDS record carries its own `pubmedids`).
+    elink_params = {
         "dbfrom": "pubmed",
         "db": "gds",
         "linkname": "pubmed_gds",
         "retmode": "json",
-        "id": pmids,
+        "id": ",".join(pmids),
     }
     elink_params.update(_base_params())
     elink_data = _get_with_retry(ELINK_URL, elink_params)
     _throttle()
 
-    pmid_to_uids: Dict[str, List[str]] = {p: [] for p in pmids}
-    all_uids: List[str] = []
+    candidate_uids: set = set()
     for linkset in elink_data.get("linksets", []) or []:
-        source_ids = linkset.get("ids") or []
-        if not source_ids:
-            continue
-        source_pmid = str(source_ids[0])
         for ldb in linkset.get("linksetdbs", []) or []:
             if ldb.get("linkname") != "pubmed_gds":
                 continue
             for uid in ldb.get("links", []) or []:
-                uid_str = str(uid)
-                pmid_to_uids.setdefault(source_pmid, []).append(uid_str)
-                all_uids.append(uid_str)
+                candidate_uids.add(str(uid))
 
-    if not all_uids:
-        return {p: [] for p in pmids}
+    output: Dict[str, List[str]] = {p: [] for p in pmids}
+    if not candidate_uids:
+        return output
 
-    unique_uids = sorted(set(all_uids))
-    esummary_params: ParamsType = {"db": "gds", "id": ",".join(unique_uids), "retmode": "json"}
+    unique_uids = sorted(candidate_uids)
+    esummary_params = {"db": "gds", "id": ",".join(unique_uids), "retmode": "json"}
     esummary_params.update(_base_params())
     esummary_data = _get_with_retry(ESUMMARY_URL, esummary_params)
     _throttle()
 
-    uid_to_accession: Dict[str, str] = {}
+    # Attribute each GSE accession back to the specific PMID(s) in our batch using
+    # the record's own `pubmedids` reverse-link (GPL/GSM/GDS accessions are dropped).
+    pmid_set = set(pmids)
+    per_pmid: Dict[str, set] = {p: set() for p in pmids}
     result_block = esummary_data.get("result", {}) or {}
     for uid in unique_uids:
         record = result_block.get(uid) or {}
         accession = record.get("accession")
-        if isinstance(accession, str) and accession.startswith("GSE"):
-            uid_to_accession[uid] = accession
+        if not (isinstance(accession, str) and accession.startswith("GSE")):
+            continue
+        for pm in record.get("pubmedids", []) or []:
+            pm_str = str(pm)
+            if pm_str in pmid_set:
+                per_pmid[pm_str].add(accession)
 
-    output: Dict[str, List[str]] = {}
-    for pmid, uids in pmid_to_uids.items():
-        accessions = {uid_to_accession[u] for u in uids if u in uid_to_accession}
-        output[pmid] = sorted(accessions)
-    return output
+    return {pmid: sorted(per_pmid[pmid]) for pmid in pmids}
 
 
 def get_geo_accessions_for_pmids_with_split(pmids: List[str]) -> Dict[str, List[str]]:
