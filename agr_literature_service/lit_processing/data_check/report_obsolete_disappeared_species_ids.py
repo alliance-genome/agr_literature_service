@@ -34,7 +34,7 @@ def check_data():
                                        f"AND tet.reference_id = r.reference_id "
                                        f"AND tet.reference_id = mca.reference_id "
                                        f"AND mca.corpus is True "
-                                       f"AND mca.mod_id = m.mod_id")).fetchall()
+                                       f"AND mca.mod_id = m.mod_id")).mappings().fetchall()
         for row in rows:
             mod = row['abbreviation']
             report_rows = mod_to_report.get(mod, [])
