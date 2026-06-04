@@ -160,6 +160,49 @@ class TestGetGeoAccessionsForPmids:
             result = get_geo_accessions_for_pmids(["111", "222", "333"])
         assert result == {"111": ["GSE1", "GSE2"], "222": ["GSE3"], "333": []}
 
+    def test_elink_sends_id_as_list_for_per_pmid_attribution(self):
+        """elink MERGES comma-joined ids into a single linkset, losing per-PMID
+        attribution. Passing the PMID list (repeated `&id=` params) makes NCBI
+        return one linkset per PMID. Pin that `id` is sent as a list."""
+        elink_empty = {
+            "linksets": [
+                {"dbfrom": "pubmed", "ids": ["111"], "linksetdbs": []},
+                {"dbfrom": "pubmed", "ids": ["222"], "linksetdbs": []},
+                {"dbfrom": "pubmed", "ids": ["333"], "linksetdbs": []},
+            ]
+        }
+        with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.requests.get",
+                   side_effect=[_mock_response(elink_empty)]) as mock_get:
+            get_geo_accessions_for_pmids(["111", "222", "333"])
+            params = mock_get.call_args.kwargs["params"]
+            assert params["id"] == ["111", "222", "333"]
+
+    def test_does_not_misattribute_links_across_separate_linksets(self):
+        """Regression: with per-PMID linksets, a PMID with no GEO link must not
+        inherit another PMID's links. Previously a single merged linkset pooled
+        all links onto the first PMID, starving every other PMID in the batch."""
+        elink_per_pmid = {
+            "linksets": [
+                {"dbfrom": "pubmed", "ids": ["31000000"], "linksetdbs": []},
+                {"dbfrom": "pubmed", "ids": ["33526011"],
+                 "linksetdbs": [{"dbto": "gds", "linkname": "pubmed_gds",
+                                 "links": ["200147729"]}]},
+            ]
+        }
+        esummary = {
+            "result": {
+                "uids": ["200147729"],
+                "200147729": {"uid": "200147729", "accession": "GSE147729",
+                              "entrytype": "GSE"},
+            }
+        }
+        with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
+                   "get_geo_links.requests.get",
+                   side_effect=[_mock_response(elink_per_pmid), _mock_response(esummary)]):
+            result = get_geo_accessions_for_pmids(["31000000", "33526011"])
+        assert result == {"31000000": [], "33526011": ["GSE147729"]}
+
     def test_returns_empty_dict_for_empty_input(self):
         with patch("agr_literature_service.lit_processing.data_ingest.pubmed_ingest."
                    "get_geo_links.requests.get") as mock_get:

@@ -8,12 +8,16 @@ import logging
 import os
 import sys
 import time
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import requests
 
 ELINK_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
 ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+
+# elink takes the PMID list as a repeated `&id=` param (value is a list); other
+# params are plain strings. See get_geo_accessions_for_pmids for why.
+ParamsType = Dict[str, Union[str, List[str]]]
 
 # Conservative throttle: 3 req/s without an API key, 10 req/s with one.
 _THROTTLE_SECONDS_NO_KEY = 0.34
@@ -39,7 +43,7 @@ def _throttle() -> None:
     time.sleep(delay)
 
 
-def _get_with_retry(url: str, params: Dict[str, str]) -> dict:
+def _get_with_retry(url: str, params: ParamsType) -> dict:
     last_exc: Optional[requests.exceptions.RequestException] = None
     for attempt in range(_MAX_RETRIES):
         wait = _RETRY_BACKOFF_BASE ** attempt
@@ -77,12 +81,16 @@ def get_geo_accessions_for_pmids(pmids: List[str]) -> Dict[str, List[str]]:
     if not pmids:
         return {}
 
-    elink_params = {
+    # NCBI elink MERGES comma-joined ids into a single linkset (all source PMIDs
+    # in one `ids` array, all links pooled with no per-PMID attribution). Passing
+    # the list to requests sends repeated `&id=` params instead, which makes elink
+    # return one linkset per PMID so links stay correctly attributed.
+    elink_params: ParamsType = {
         "dbfrom": "pubmed",
         "db": "gds",
         "linkname": "pubmed_gds",
         "retmode": "json",
-        "id": ",".join(pmids),
+        "id": pmids,
     }
     elink_params.update(_base_params())
     elink_data = _get_with_retry(ELINK_URL, elink_params)
@@ -107,7 +115,7 @@ def get_geo_accessions_for_pmids(pmids: List[str]) -> Dict[str, List[str]]:
         return {p: [] for p in pmids}
 
     unique_uids = sorted(set(all_uids))
-    esummary_params = {"db": "gds", "id": ",".join(unique_uids), "retmode": "json"}
+    esummary_params: ParamsType = {"db": "gds", "id": ",".join(unique_uids), "retmode": "json"}
     esummary_params.update(_base_params())
     esummary_data = _get_with_retry(ESUMMARY_URL, esummary_params)
     _throttle()
