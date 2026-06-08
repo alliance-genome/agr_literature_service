@@ -1154,8 +1154,14 @@ class TestReferenceEmails:
         'AGRKB:103%') and must not re-insert an incoming address that
         duplicates a protected one."""
         from agr_literature_service.api.models import ReferenceEmailModel
+        from agr_literature_service.api.user import add_user_if_not_exists
         curie = test_reference.new_ref_curie
         ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one().reference_id
+
+        # The created_by/updated_by values are FK-constrained to users.id;
+        # make sure both the curator and pipeline users exist before seeding.
+        add_user_if_not_exists(db, "AGRKB:103000000000001")
+        add_user_if_not_exists(db, "default_user")
 
         # Seed a curator-added row and a pipeline-added row.
         db.add(ReferenceEmailModel(
@@ -1197,10 +1203,15 @@ class TestReferenceEmails:
         emails and may drop curator-added rows via a full replace."""
         from agr_literature_service.api.crud.reference_crud import set_reference_emails
         from agr_literature_service.api.models import ReferenceEmailModel
-        from agr_literature_service.api.user import set_global_user_id, _current_user_id
+        from agr_literature_service.api.user import (
+            set_global_user_id, _current_user_id, add_user_if_not_exists
+        )
 
         curie = test_reference.new_ref_curie
         ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one().reference_id
+
+        # created_by/updated_by are FK-constrained to users.id.
+        add_user_if_not_exists(db, "AGRKB:103000000000001")
 
         db.add(ReferenceEmailModel(
             reference_id=ref_id,
