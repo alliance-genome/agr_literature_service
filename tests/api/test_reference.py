@@ -1146,3 +1146,94 @@ class TestReferenceEmails:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_non_human_replace_preserves_curator_added_rows(self, db, auth_headers, test_reference):  # noqa
+        """When the acting user is not a real human (the email-extraction
+        pipeline / a service account, here the access-token 'default_user'),
+        a replace must never delete curator-added rows (updated_by like
+        'AGRKB:103%') and must not re-insert an incoming address that
+        duplicates a protected one."""
+        from agr_literature_service.api.models import ReferenceEmailModel
+        from agr_literature_service.api.user import add_user_if_not_exists
+        curie = test_reference.new_ref_curie
+        ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one().reference_id
+
+        # The created_by/updated_by values are FK-constrained to users.id;
+        # make sure both the curator and pipeline users exist before seeding.
+        add_user_if_not_exists(db, "AGRKB:103000000000001")
+        add_user_if_not_exists(db, "default_user")
+
+        # Seed a curator-added row and a pipeline-added row.
+        db.add(ReferenceEmailModel(
+            reference_id=ref_id,
+            email_address="curator@example.com",
+            created_by="AGRKB:103000000000001",
+            updated_by="AGRKB:103000000000001",
+        ))
+        db.add(ReferenceEmailModel(
+            reference_id=ref_id,
+            email_address="pipeline@example.com",
+            created_by="default_user",
+            updated_by="default_user",
+        ))
+        db.commit()
+
+        with TestClient(app) as client:
+            # Pipeline re-runs with a fresh set; one address collides (case
+            # variant) with the protected curator row.
+            res = client.put(
+                f"/reference/{curie}/emails",
+                json=["Curator@Example.com", "newauthor@example.com"],
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+
+            listing = client.get(
+                f"/reference/{curie}/emails", headers=auth_headers
+            ).json()
+            addrs = sorted(row["email_address"].lower() for row in listing)
+            # curator row survives (single copy, original casing), the old
+            # pipeline row is replaced, and the new pipeline address is added.
+            assert addrs == ["curator@example.com", "newauthor@example.com"]
+            curator_row = [r for r in listing if r["email_address"] == "curator@example.com"]
+            assert len(curator_row) == 1
+
+    def test_human_curator_can_replace_curator_added_rows(self, db, test_reference):  # noqa
+        """A real human (acting user id starting with 'AGRKB:103') owns the
+        emails and may drop curator-added rows via a full replace."""
+        from agr_literature_service.api.crud.reference_crud import set_reference_emails
+        from agr_literature_service.api.models import ReferenceEmailModel
+        from agr_literature_service.api.user import (
+            set_global_user_id, _current_user_id, add_user_if_not_exists
+        )
+
+        curie = test_reference.new_ref_curie
+        ref_id = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one().reference_id
+
+        # created_by/updated_by are FK-constrained to users.id.
+        add_user_if_not_exists(db, "AGRKB:103000000000001")
+
+        db.add(ReferenceEmailModel(
+            reference_id=ref_id,
+            email_address="curator@example.com",
+            created_by="AGRKB:103000000000001",
+            updated_by="AGRKB:103000000000001",
+        ))
+        db.commit()
+
+        token = _current_user_id.set(None)  # capture/reset around the test
+        try:
+            # Act as a real human curator.
+            set_global_user_id(db, "AGRKB:103000000000099")
+            set_reference_emails(db, curie, ["newonly@example.com"])
+        finally:
+            _current_user_id.reset(token)
+
+        listing = (
+            db.query(ReferenceEmailModel)
+            .filter(ReferenceEmailModel.reference_id == ref_id)
+            .all()
+        )
+        addrs = sorted(row.email_address.lower() for row in listing)
+        # Full replace: the curator row is dropped, only the new address remains.
+        assert addrs == ["newonly@example.com"]
