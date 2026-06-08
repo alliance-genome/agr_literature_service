@@ -21,10 +21,6 @@ omit =
 	agr_literature_service/lit_processing/data_ingest/dqm_ingest/utils/dqm_resource_update_utils.py
 	agr_literature_service/lit_processing/utils/resource_reference_utils.py
 
-	# pdf2tei is being replaced by pdf2md (SCRUM-5867); the module is retained
-	# in the tree for reference but its tests were removed.
-	agr_literature_service/lit_processing/pdf2tei/pdf2tei.py
-
 	# can't really test the following files (download files from PMC and search PubMed/PMC)
 	# will look into these scripts/utils at a later time
 	agr_literature_service/lit_processing/data_ingest/pubmed_ingest/pubmed_download_pmc_files.py
