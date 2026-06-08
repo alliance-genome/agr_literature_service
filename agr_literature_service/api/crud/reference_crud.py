@@ -70,6 +70,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
 from agr_literature_service.lit_processing.utils.report_utils import send_report
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.crud.person_crud import normalize_email
+from agr_literature_service.api.user import get_global_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -509,6 +510,12 @@ def get_reference_emails(db: Session, curie_or_reference_id: str):
     ]
 
 
+# Prefix of a real-human (person-backed) user id. Curator-added
+# reference_email rows carry an updated_by that starts with this; only a real
+# human acting under such an id may remove or overwrite them.
+CURATOR_USER_ID_PREFIX = "AGRKB:103"
+
+
 def set_reference_emails(
     db: Session, curie_or_reference_id: str, email_addresses: List[str]
 ):
@@ -518,9 +525,20 @@ def set_reference_emails(
     reference_email rows are independent string snapshots — they do not need
     a backing person_email row and never reference one. Uniqueness is enforced
     case-insensitively at the DB level by uq_reference_email_reference_email_lower.
+
+    Curator-added rows (``updated_by`` starting with 'AGRKB:103', i.e. a real
+    human with a person-table id) may only be removed or overwritten by another
+    real human. When the acting user is not such a human — e.g. the automated
+    email-extraction pipeline, which runs as 'default_user' / a program-name
+    automation user — those rows are preserved: they are never deleted, and an
+    incoming address that duplicates one of them is skipped so the curator's
+    snapshot stays intact.
     """
     reference = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
+
+    acting_user_id = get_global_user_id() or ""
+    acting_user_is_curator = acting_user_id.startswith(CURATOR_USER_ID_PREFIX)
 
     cleaned: List[str] = []
     seen: set = set()  # holds lower-cased addresses for case-insensitive dedup
@@ -546,11 +564,39 @@ def set_reference_emails(
         seen.add(key)
         cleaned.append(norm)
 
-    db.query(ReferenceEmailModel).filter(
-        ReferenceEmailModel.reference_id == ref_id
-    ).delete(synchronize_session=False)
+    protected_keys: set = set()
+    if acting_user_is_curator:
+        # A real human owns the emails and may drop any of them: full replace.
+        db.query(ReferenceEmailModel).filter(
+            ReferenceEmailModel.reference_id == ref_id
+        ).delete(synchronize_session=False)
+    else:
+        # Non-human (pipeline / automation): never touch curator-added rows.
+        curator_like = f"{CURATOR_USER_ID_PREFIX}%"
+        protected_rows = (
+            db.query(ReferenceEmailModel)
+            .filter(
+                ReferenceEmailModel.reference_id == ref_id,
+                ReferenceEmailModel.updated_by.like(curator_like),
+            )
+            .all()
+        )
+        protected_keys = {row.email_address.lower() for row in protected_rows}
+
+        # Delete only the non-curator rows for this reference.
+        db.query(ReferenceEmailModel).filter(
+            ReferenceEmailModel.reference_id == ref_id,
+            or_(
+                ReferenceEmailModel.updated_by.is_(None),
+                ~ReferenceEmailModel.updated_by.like(curator_like),
+            ),
+        ).delete(synchronize_session=False)
 
     for normalized_email in cleaned:
+        # Skip addresses already held by a protected curator row to avoid
+        # both a duplicate and a unique-constraint violation.
+        if normalized_email.lower() in protected_keys:
+            continue
         db.add(
             ReferenceEmailModel(
                 reference_id=ref_id, email_address=normalized_email
