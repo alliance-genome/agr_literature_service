@@ -94,7 +94,8 @@ def check_obsolete_entities():
                         "entity_curie": pieces[3],
                         "entity_name": pieces[4] if len(pieces) > 4 else None,
                         "reference_count": pieces[5],
-                        "reference_curies": display_curies
+                        "reference_curies": display_curies,
+                        "species": pieces[7] if len(pieces) > 7 else ""
                     })
 
     return {

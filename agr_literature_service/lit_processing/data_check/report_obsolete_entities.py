@@ -22,13 +22,19 @@ def check_data():
     ateam_db = create_ateam_db_session()
 
     data_to_report = []
+    all_species_curies = set()
+    species_curie_to_name = {}
     try:
         for mod_abbreviation in get_mod_abbreviations():
             entity_type_to_mod_entity_ids = get_unique_entity_list(db, mod_abbreviation)
             for entity_type, entity_id_curies_set in entity_type_to_mod_entity_ids.items():
-                mod_entity_ids = [eid for eid, _, _ in entity_id_curies_set]
-                entity_id_to_agrkbs = {eid: curies for eid, _, curies in entity_id_curies_set}
-                entity_id_to_ref_count = {eid: ref_count for eid, ref_count, _ in entity_id_curies_set}
+                mod_entity_ids = [eid for eid, _, _, _ in entity_id_curies_set]
+                entity_id_to_agrkbs = {eid: curies for eid, _, curies, _ in entity_id_curies_set}
+                entity_id_to_ref_count = {eid: ref_count for eid, ref_count, _, _ in entity_id_curies_set}
+                entity_id_to_species = {eid: species for eid, _, _, species in entity_id_curies_set}
+                for species in entity_id_to_species.values():
+                    if species:
+                        all_species_curies.update(s.strip() for s in species.split(',') if s.strip())
                 entity_type_name = atp_get_name(entity_type)
                 entity_type_name = entity_type_name.replace("transgenic ", "")
                 logger.info(f"Checking {mod_abbreviation} obsolete {entity_type_name}:")
@@ -60,9 +66,11 @@ def check_data():
                         obsolete_id_set,
                         obsolete_id_to_name,
                         entity_id_to_ref_count,
-                        entity_id_to_agrkbs
+                        entity_id_to_agrkbs,
+                        entity_id_to_species
                     )
                 )
+        species_curie_to_name = get_species_name_map(ateam_db, all_species_curies)
     except Exception as e:
         logger.info(f"An error occurred when getting the data for deleted/obsolete entities. Error={e}")
         db.close()
@@ -70,10 +78,10 @@ def check_data():
         return
     db.close()
     ateam_db.close()
-    write_report(data_to_report)
+    write_report(data_to_report, species_curie_to_name)
 
 
-def write_report(data_to_report):
+def write_report(data_to_report, species_curie_to_name):
 
     log_path = environ.get('LOG_PATH', '.')
     log_file = path.join(log_path, "QC/obsolete_entity_report.log")
@@ -81,16 +89,18 @@ def write_report(data_to_report):
     log_file_with_datestamp = path.join(log_path, f"QC/obsolete_entity_report_{datestamp}.log")
     with open(log_file, "w") as f:
         f.write(f"#!date-produced: {datestamp}\n")
-        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, entity_id_to_ref_count, entity_id_to_agrkbs in data_to_report:
+        for mod_abbreviation, entity_type_name, deleted_id_set, obsolete_id_set, obsolete_id_to_name, entity_id_to_ref_count, entity_id_to_agrkbs, entity_id_to_species in data_to_report:
             for entity_id in deleted_id_set:
                 ref_count = entity_id_to_ref_count.get(entity_id, '')
                 references = entity_id_to_agrkbs.get(entity_id, '')
-                f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{entity_id}\t\t{ref_count}\t{references}\n")
+                species = format_species(entity_id_to_species.get(entity_id, ''), species_curie_to_name)
+                f.write(f"{mod_abbreviation}\t{entity_type_name}\tDeleted\t{entity_id}\t\t{ref_count}\t{references}\t{species}\n")
             for entity_id in obsolete_id_set:
                 obsolete_name = obsolete_id_to_name.get(entity_id, '')
                 ref_count = entity_id_to_ref_count.get(entity_id, '')
                 references = entity_id_to_agrkbs.get(entity_id, '')
-                f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{entity_id}\t{obsolete_name}\t{ref_count}\t{references}\n")
+                species = format_species(entity_id_to_species.get(entity_id, ''), species_curie_to_name)
+                f.write(f"{mod_abbreviation}\t{entity_type_name}\tObsolete\t{entity_id}\t{obsolete_name}\t{ref_count}\t{references}\t{species}\n")
     copy(log_file, log_file_with_datestamp)
 
 
@@ -183,6 +193,31 @@ def search_species(ateam_db, species_list):
     return rows
 
 
+def get_species_name_map(ateam_db, species_curies, batch_size=100):
+    """Resolve NCBITaxon species curies to their display names via the A-team DB."""
+    name_map = {}
+    species_list = [curie for curie in species_curies if curie]
+    for i in range(0, len(species_list), batch_size):
+        batch = species_list[i:i + batch_size]
+        rows = search_species(ateam_db, batch) or []
+        for curie, _is_obsolete, name in rows:
+            if name:
+                name_map[curie] = name
+    return name_map
+
+
+def format_species(species_raw, species_curie_to_name):
+    """Convert a comma-separated list of species curies into their names,
+    falling back to the curie when a name is unavailable."""
+    if not species_raw:
+        return ''
+    names = [
+        species_curie_to_name.get(curie, curie)
+        for curie in (s.strip() for s in species_raw.split(',')) if curie
+    ]
+    return ', '.join(names)
+
+
 def search_entity_obsolete_status(ateam_db, entity_type, entity_curie_list):
     """
     Return rows of (primaryexternalid, obsolete, name) for the given curies in
@@ -260,7 +295,8 @@ def get_unique_entity_list(db, mod_abbreviation):
             tet.entity_type,
             tet.entity,
             COUNT(ref.curie),
-            string_agg(ref.curie, ', ') AS reference_curies
+            string_agg(ref.curie, ', ') AS reference_curies,
+            string_agg(DISTINCT tet.species, ', ') AS species
         FROM
             topic_entity_tag tet
         JOIN
@@ -279,8 +315,8 @@ def get_unique_entity_list(db, mod_abbreviation):
     rows = db.execute(query, params).fetchall()
 
     entity_type_to_mod_entity_ids = defaultdict(set)
-    for entity_type, entity_mod_id, ref_count, agrkbs in rows:
-        entity_type_to_mod_entity_ids[entity_type].add((entity_mod_id, ref_count, agrkbs))
+    for entity_type, entity_mod_id, ref_count, agrkbs, species in rows:
+        entity_type_to_mod_entity_ids[entity_type].add((entity_mod_id, ref_count, agrkbs, species))
 
     return entity_type_to_mod_entity_ids
 
