@@ -587,11 +587,11 @@ def search_references(
         tet_nested_facets_values
         and tet_nested_facets_values.get("tet_facets_negative_values")
         and any(
-            k in (
+            tet_nested_facets_values["tet_facets_negative_values"][0].get(k)
+            for k in (
                 "topic_entity_tags.source_method.keyword",
                 "topic_entity_tags.source_evidence_assertion.keyword",
             )
-            for k in tet_nested_facets_values["tet_facets_negative_values"][0]
         )
     )
     if (not facets_values and not date_range and not negated_facets_values
