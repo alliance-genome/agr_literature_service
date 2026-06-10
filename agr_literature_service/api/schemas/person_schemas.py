@@ -22,6 +22,7 @@ class PersonSchemaPost(BaseModel):
     display_name: str
     # curie is server-generated, not accepted from clients
     mod_roles: Optional[List[str]] = None
+    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
     city: Optional[str] = None
@@ -48,6 +49,7 @@ class PersonSchemaUpdate(BaseModel):
     display_name: Optional[str] = None
     # curie is server-generated, not modifiable by clients
     mod_roles: Optional[List[str]] = None
+    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
     city: Optional[str] = None
@@ -66,6 +68,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     display_name: str
     curie: str  # required
     mod_roles: Optional[List[str]] = None
+    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: str = "active"
     city: Optional[str] = None

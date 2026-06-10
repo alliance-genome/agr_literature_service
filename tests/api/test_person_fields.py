@@ -68,6 +68,32 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["webpage"] == urls
 
+    def test_create_person_with_institution_array(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            institutions = ["Caltech", "MIT", "Stanford"]
+            payload = {
+                "display_name": "Institution Person",
+                "institution": institutions,
+            }
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.json()["institution"] == institutions
+
+    def test_patch_institution(self, auth_headers, test_person_id):  # noqa
+        with TestClient(app) as client:
+            institutions = ["Caltech"]
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"institution": institutions},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
+            assert fetched.json()["institution"] == institutions
+
     def test_create_person_with_active_status(self, auth_headers):  # noqa
         with TestClient(app) as client:
             payload = {

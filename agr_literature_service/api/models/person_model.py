@@ -20,6 +20,7 @@ class PersonModel(Base, AuditedModel):
 
     curie = Column(String(), nullable=False, unique=True, index=True)    # required, server-generated
     mod_roles = Column(ARRAY(String), nullable=True)
+    institution = Column(ARRAY(String), nullable=True)
     webpage = Column(ARRAY(String), nullable=True)
     active_status = Column(
         String(),

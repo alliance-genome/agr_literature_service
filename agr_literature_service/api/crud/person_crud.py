@@ -262,7 +262,7 @@ def patch(db: Session, curie_or_person_id: str, patch_dict: Dict[str, Any]) -> D
             data.pop(field, None)
 
     ALLOWED = {
-        "display_name", "mod_roles",
+        "display_name", "mod_roles", "institution",
         "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",

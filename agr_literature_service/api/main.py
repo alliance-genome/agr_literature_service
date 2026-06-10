@@ -33,6 +33,10 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 person_cross_reference_router, person_name_router,
                                                 person_note_router, person_email_router,
                                                 person_setting_router, ontology_router,
+                                                person_lineage_router, laboratory_router,
+                                                laboratory_cross_reference_router,
+                                                laboratory_allele_designation_router,
+                                                laboratory_person_router,
                                                 xml2md_router, authentication)
 
 TITLE = "Alliance Literature Service"
@@ -116,6 +120,11 @@ app.include_router(person_name_router.router)
 app.include_router(person_note_router.router)
 app.include_router(person_setting_router.router)
 app.include_router(person_email_router.router)
+app.include_router(person_lineage_router.router)
+app.include_router(laboratory_router.router)
+app.include_router(laboratory_cross_reference_router.router)
+app.include_router(laboratory_allele_designation_router.router)
+app.include_router(laboratory_person_router.router)
 app.include_router(author_router.router)
 app.include_router(editor_router.router)
 app.include_router(cross_reference_router.router)

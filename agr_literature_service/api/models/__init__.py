@@ -44,6 +44,11 @@ from agr_literature_service.api.models.manual_indexing_tag_model import ManualIn
 from agr_literature_service.api.models.person_name_model import PersonNameModel
 from agr_literature_service.api.models.person_note_model import PersonNoteModel
 from agr_literature_service.api.models.person_setting_model import PersonSettingModel
+from agr_literature_service.api.models.person_lineage_model import PersonLineageModel
+from agr_literature_service.api.models.laboratory_model import LaboratoryModel
+from agr_literature_service.api.models.laboratory_cross_reference_model import LaboratoryCrossReferenceModel
+from agr_literature_service.api.models.laboratory_allele_designation_model import LaboratoryAlleleDesignationModel
+from agr_literature_service.api.models.laboratory_person_model import LaboratoryPersonModel
 
 import logging
 
