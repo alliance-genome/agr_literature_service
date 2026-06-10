@@ -339,7 +339,10 @@ def search_references(
 
     # search papers by TET
     tet_facets = {}
-    if tet_nested_facets_values and "tet_facets_values" in tet_nested_facets_values:
+    if tet_nested_facets_values and (
+        "tet_facets_values" in tet_nested_facets_values
+        or "tet_facets_negative_values" in tet_nested_facets_values
+    ):
         tet_facets = add_tet_facets_values(
             es_body,
             tet_nested_facets_values,
@@ -578,8 +581,21 @@ def search_references(
         date_created=date_created,
     )
 
-    # Remove empty filter if no facets/dates were added
-    if not facets_values and not date_range and not negated_facets_values and not tet_facets:
+    # Remove empty filter if no facets/dates were added. A standalone source method / SEA
+    # exclusion adds a top-level must_not nested clause, so keep the filter in that case.
+    has_tet_whole_ref_negation = bool(
+        tet_nested_facets_values
+        and tet_nested_facets_values.get("tet_facets_negative_values")
+        and any(
+            k in (
+                "topic_entity_tags.source_method.keyword",
+                "topic_entity_tags.source_evidence_assertion.keyword",
+            )
+            for k in tet_nested_facets_values["tet_facets_negative_values"][0]
+        )
+    )
+    if (not facets_values and not date_range and not negated_facets_values
+            and not tet_facets and not has_tet_whole_ref_negation):
         es_body["query"]["bool"].pop("filter", None)
 
     # Additional author_filter (outside the query_fields switch)
@@ -921,12 +937,35 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
     levels = []
 
     if tet_nested_facets_values.get("tet_facets_negative_values"):
+        negated = tet_nested_facets_values["tet_facets_negative_values"][0]
         if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
             es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        for level in tet_nested_facets_values["tet_facets_negative_values"][0].get(
-            "topic_entity_tags.confidence_level.keyword", []
-        ):
+        # Confidence level exclusion: applied as must_not within each positive nested tag query
+        for level in negated.get("topic_entity_tags.confidence_level.keyword", []):
             levels.append({"term": {"topic_entity_tags.confidence_level.keyword": level}})
+
+        # Source method / source evidence assertion exclusion: whole-reference semantics --
+        # drop a reference if ANY of its topic_entity_tags matches an excluded value.
+        whole_ref_negations = []
+        for value in negated.get("topic_entity_tags.source_method.keyword", []):
+            whole_ref_negations.append(("topic_entity_tags.source_method.keyword", value))
+        for value in negated.get("topic_entity_tags.source_evidence_assertion.keyword", []):
+            field = "topic_entity_tags.source_evidence_assertion.keyword"
+            # Remap SEA group if needed (mirror the positive remap in add_nested_query)
+            if value.upper() in ("ECO:0007669", "ECO:0006155"):
+                field = "topic_entity_tags.source_evidence_assertion_group.keyword"
+            whole_ref_negations.append((field, value))
+
+        if whole_ref_negations:
+            if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
+                es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
+            for field, value in whole_ref_negations:
+                es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
+                    "nested": {
+                        "path": "topic_entity_tags",
+                        "query": {"bool": {"must": [{"term": {field: value}}]}},
+                    }
+                })
 
     for facet_name_value_dict in tet_nested_facets_values.get("tet_facets_values", []):
         add_nested_query(es_body, facet_name_value_dict, levels)
