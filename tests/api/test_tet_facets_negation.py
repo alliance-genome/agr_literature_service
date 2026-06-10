@@ -122,6 +122,38 @@ class TestTetFacetsNegation:
         assert nested["must"] == [{"term": {"topic_entity_tags.topic.keyword": "ATP:0000005"}}]
         assert nested["must_not"] == [{"term": {"topic_entity_tags.confidence_level.keyword": "NEG"}}]
 
+    def test_multiple_source_facets_produce_independent_must_not_clauses(self):
+        """A single negated object with several source/SEA keys must yield one
+        *independent* top-level must_not nested clause per key -- whole-reference,
+        drop-if-ANY-tag-matches -- NOT a single AND-within-one-tag clause.
+
+        Note the frontend↔backend contract: the backend reads only index [0] of
+        tet_facets_negative_values, so all negated TET keys are intentionally
+        carried in one merged object; splitting them into separate array entries
+        would silently drop everything past [0]."""
+        es_body = _new_es_body()
+        add_tet_facets_values(
+            es_body,
+            {
+                "tet_facets_values": [],
+                "tet_facets_negative_values": [
+                    {
+                        "topic_entity_tags.source_method.keyword": ["ACKnowledge"],
+                        "topic_entity_tags.source_evidence_assertion.keyword": ["ECO:0000302"],
+                    }
+                ],
+            },
+            apply_to_single_tet=False,
+        )
+        must_not = _filter_bool(es_body).get("must_not", [])
+        # Two separate clauses, each constraining a single field on its own tag.
+        assert len(must_not) == 2
+        for clause in must_not:
+            assert len(clause["nested"]["query"]["bool"]["must"]) == 1
+        terms = [c["nested"]["query"]["bool"]["must"][0]["term"] for c in must_not]
+        assert {"topic_entity_tags.source_method.keyword": "ACKnowledge"} in terms
+        assert {"topic_entity_tags.source_evidence_assertion.keyword": "ECO:0000302"} in terms
+
     def test_source_method_and_confidence_level_coexist(self):
         es_body = _new_es_body()
         add_tet_facets_values(
