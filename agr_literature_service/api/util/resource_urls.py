@@ -74,6 +74,10 @@ def person_lineage_url(person_lineage_id: int) -> str:
     return f"/person_lineage/{person_lineage_id}"
 
 
+def person_lineage_submission_url(person_lineage_submission_id: int) -> str:
+    return f"/person_lineage_submission/{person_lineage_submission_id}"
+
+
 def topic_entity_tag_url(topic_entity_tag_id: int) -> str:
     return f"/topic_entity_tag/{topic_entity_tag_id}"
 

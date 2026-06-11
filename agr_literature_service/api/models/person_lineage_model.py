@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship as orm_relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -9,27 +9,27 @@ enable_versioning()
 
 
 class PersonLineageModel(Base, AuditedModel):
+    """A validated person-to-person relationship (canonical fact).
+
+    Keyed on the two resolved person ids; there is exactly one row per
+    (person_one_id, person_two_id, relationship). Display names come from
+    joining the person table, so no name columns are stored here.
+    """
     __tablename__ = "person_lineage"
     __versioned__: Dict = {}
 
     person_lineage_id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Names are the primary identifiers and are always required. The person object
-    # links are optional and late-bound: at creation time the caller typically knows
-    # only the names, and the matching Person rows may not exist yet (or ever).
-    person_one_name = Column(String(), nullable=False)
-    person_one = Column(
+    person_one_id = Column(
         Integer,
         ForeignKey("person.person_id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True,
     )
-
-    person_two_name = Column(String(), nullable=False)
-    person_two = Column(
+    person_two_id = Column(
         Integer,
         ForeignKey("person.person_id", ondelete="CASCADE"),
-        nullable=True,
+        nullable=False,
         index=True,
     )
 
@@ -38,10 +38,17 @@ class PersonLineageModel(Base, AuditedModel):
 
     start_date = Column(DateTime, nullable=True)
     end_date = Column(DateTime, nullable=True)
-    who_sent_this = Column(String(), nullable=False)
 
-    person_one_obj = orm_relationship("PersonModel", foreign_keys=[person_one])
-    person_two_obj = orm_relationship("PersonModel", foreign_keys=[person_two])
+    person_one_obj = orm_relationship("PersonModel", foreign_keys=[person_one_id])
+    person_two_obj = orm_relationship("PersonModel", foreign_keys=[person_two_id])
+    submissions = orm_relationship("PersonLineageSubmissionModel", back_populates="canonical")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "person_one_id", "person_two_id", "relationship",
+            name="uq_person_lineage_person_ids_relationship",
+        ),
+    )
 
     def __str__(self) -> str:
-        return f"{self.person_one_name} -[{self.relationship}]-> {self.person_two_name}"
+        return f"person_lineage({self.person_one_id} -[{self.relationship}]-> {self.person_two_id})"

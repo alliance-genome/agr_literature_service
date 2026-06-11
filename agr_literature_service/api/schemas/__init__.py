@@ -168,6 +168,13 @@ from .person_lineage_schemas import (
     PersonLineageSchemaUpdate,
     PersonLineageSchemaShow,
 )
+from .person_lineage_submission_schemas import (
+    SubmissionStatus,
+    PersonLineageSubmissionSchemaCreate,
+    PersonLineageSubmissionSchemaUpdate,
+    PersonLineageSubmissionSchemaShow,
+    PersonLineageSubmissionSchemaRelated,
+)
 from .laboratory_position_enum import LabPosition
 from .laboratory_cross_reference_schemas import (
     LaboratoryCrossReferenceSchemaCreate,

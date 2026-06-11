@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
@@ -11,16 +12,10 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
-_SCALAR_FIELDS = {
-    "person_one_name", "person_two_name", "relationship", "who_sent_this",
-    "person_one", "person_two", "start_date", "end_date",
-}
-_NOT_NULL = {"person_one_name", "person_two_name", "relationship", "who_sent_this"}
+_SCALAR_FIELDS = {"relationship", "start_date", "end_date"}
 
 
-def _validate_person_link(db: Session, person_id: Optional[int], label: str) -> None:
-    if person_id is None:
-        return
+def _validate_person(db: Session, person_id: int, label: str) -> None:
     exists = db.query(PersonModel.person_id).filter(PersonModel.person_id == person_id).first()
     if not exists:
         raise HTTPException(
@@ -37,16 +32,13 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    _validate_person_link(db, data.get("person_one"), "person_one")
-    _validate_person_link(db, data.get("person_two"), "person_two")
+    _validate_person(db, data["person_one_id"], "person_one_id")
+    _validate_person(db, data["person_two_id"], "person_two_id")
 
     obj = PersonLineageModel(
-        person_one_name=data["person_one_name"],
-        person_two_name=data["person_two_name"],
+        person_one_id=data["person_one_id"],
+        person_two_id=data["person_two_id"],
         relationship=data["relationship"],
-        who_sent_this=data["who_sent_this"],
-        person_one=data.get("person_one"),
-        person_two=data.get("person_two"),
         start_date=data.get("start_date"),
         end_date=data.get("end_date"),
     )
@@ -57,10 +49,48 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Database constraint violation; please verify input and retry.",
+            detail=(
+                "A person_lineage with this person_one_id, person_two_id and "
+                "relationship already exists."
+            ),
         )
     db.refresh(obj)
     return obj
+
+
+def find_or_create(
+    db: Session,
+    person_one_id: int,
+    person_two_id: int,
+    relationship: str,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+) -> Tuple[PersonLineageModel, bool]:
+    """Return (canonical, created). Looks up an existing canonical PPR for the
+    (person_one_id, person_two_id, relationship) triple; creates one if absent.
+    """
+    existing = (
+        db.query(PersonLineageModel)
+        .filter(
+            PersonLineageModel.person_one_id == person_one_id,
+            PersonLineageModel.person_two_id == person_two_id,
+            PersonLineageModel.relationship == relationship,
+        )
+        .first()
+    )
+    if existing:
+        return existing, False
+
+    obj = PersonLineageModel(
+        person_one_id=person_one_id,
+        person_two_id=person_two_id,
+        relationship=relationship,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    db.add(obj)
+    db.flush()
+    return obj, True
 
 
 def show(db: Session, person_lineage_id: int) -> PersonLineageModel:
@@ -104,15 +134,10 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    if "person_one" in data:
-        _validate_person_link(db, data["person_one"], "person_one")
-    if "person_two" in data:
-        _validate_person_link(db, data["person_two"], "person_two")
-
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:
             continue
-        if field in _NOT_NULL and value is None:
+        if field == "relationship" and value is None:
             continue
         setattr(obj, field, value)
 
