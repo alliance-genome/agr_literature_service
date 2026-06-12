@@ -296,54 +296,80 @@ class TestPersonLineageSubmission:
         )
         assert count == 1
 
-    def test_revalidate_rejected(self, auth_headers, two_people):  # noqa
-        # Once a submission is validated it can't be re-validated (would flip to duplicate).
+    def _make_resolved_submission(self, client, auth_headers, two_people):  # noqa
+        r = client.post(
+            "/person_lineage_submission/",
+            json={
+                "person_one_name": "A", "person_two_name": "B",
+                "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                "person_one_id": two_people["person_one_id"],
+                "person_two_id": two_people["person_two_id"],
+            },
+            headers=auth_headers,
+        )
+        return r.json()["person_lineage_submission_id"]
+
+    def test_revalidate_is_idempotent_noop(self, db, auth_headers, two_people):  # noqa
+        # Re-validating an already-linked submission is a harmless no-op: it stays
+        # 'validated' (not flipped to 'duplicate') and no second canonical is made.
         with TestClient(app) as client:
-            r = client.post(
-                "/person_lineage_submission/",
-                json={
-                    "person_one_name": "A", "person_two_name": "B",
-                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_two_id"],
-                },
-                headers=auth_headers,
-            )
-            sub_id = r.json()["person_lineage_submission_id"]
+            sub_id = self._make_resolved_submission(client, auth_headers, two_people)
             v1 = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
             assert v1.status_code == status.HTTP_200_OK
+            canonical_id = v1.json()["person_lineage_id"]
             v2 = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
-            assert v2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert v2.status_code == status.HTTP_200_OK
+            assert v2.json()["status"] == "validated"
+            assert v2.json()["person_lineage_id"] == canonical_id
 
-    def test_revalidate_blocked_after_status_reset(self, auth_headers, two_people):  # noqa
-        # Patching status back to pending must NOT reopen re-validation — a linked
-        # submission (person_lineage_id set) can't be re-validated.
-        with TestClient(app) as client:
-            r = client.post(
-                "/person_lineage_submission/",
-                json={
-                    "person_one_name": "A", "person_two_name": "B",
-                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_two_id"],
-                },
-                headers=auth_headers,
+        count = (
+            db.query(PersonLineageModel)
+            .filter(
+                PersonLineageModel.person_one_id == two_people["person_one_id"],
+                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.relationship == "phd_supervisor_of",
             )
-            sub_id = r.json()["person_lineage_submission_id"]
-            assert client.post(
-                f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers
-            ).status_code == status.HTTP_200_OK
-            # curator resets status
+            .count()
+        )
+        assert count == 1
+
+    def test_revalidate_after_status_reset_is_noop(self, db, auth_headers, two_people):  # noqa
+        # Even if a curator resets status, an already-linked submission re-validates
+        # as a no-op (still linked to the same canonical, no new canonical row).
+        with TestClient(app) as client:
+            sub_id = self._make_resolved_submission(client, auth_headers, two_people)
+            v1 = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            canonical_id = v1.json()["person_lineage_id"]
             client.patch(
                 f"/person_lineage_submission/{sub_id}",
                 json={"status": "pending"},
                 headers=auth_headers,
             )
-            # still blocked because it's linked to a canonical row
-            again = client.post(
-                f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers
+            again = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert again.status_code == status.HTTP_200_OK
+            assert again.json()["person_lineage_id"] == canonical_id
+
+        count = (
+            db.query(PersonLineageModel)
+            .filter(
+                PersonLineageModel.person_one_id == two_people["person_one_id"],
+                PersonLineageModel.person_two_id == two_people["person_two_id"],
             )
-            assert again.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            .count()
+        )
+        assert count == 1
+
+    def test_validate_rejected_submission_blocked(self, auth_headers, two_people):  # noqa
+        # A rejected submission can't be validated (won't silently un-reject).
+        with TestClient(app) as client:
+            sub_id = self._make_resolved_submission(client, auth_headers, two_people)
+            client.patch(
+                f"/person_lineage_submission/{sub_id}",
+                json={"status": "rejected"},
+                headers=auth_headers,
+            )
+            v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_validate_self_pair_rejected(self, auth_headers, two_people):  # noqa
         # Both names resolved to the same person -> can't validate.
