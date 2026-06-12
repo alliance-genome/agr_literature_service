@@ -35,18 +35,6 @@ def create(
     return lineage
 
 
-@router.get(
-    "/",
-    status_code=status.HTTP_200_OK,
-    response_model=List[PersonLineageSchemaShow],
-)
-def list_all(
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    return person_lineage_crud.list_all(db)
-
-
 # Canonical PPRs for a person, on either side. Declared before the /{id} catch-all.
 @router.get(
     "/person/{curie_or_person_id}",

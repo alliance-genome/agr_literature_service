@@ -80,15 +80,6 @@ def show(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmiss
     return obj
 
 
-def list_all(db: Session) -> List[PersonLineageSubmissionModel]:
-    return (
-        db.query(PersonLineageSubmissionModel)
-        .options(*_PERSON_OBJS)
-        .order_by(PersonLineageSubmissionModel.person_lineage_submission_id.asc())
-        .all()
-    )
-
-
 def list_for_person(db: Session, person_id: int) -> List[PersonLineageSubmissionModel]:
     """All submissions in which the person is resolved on either side
     (person_subject_id or person_object_id)."""

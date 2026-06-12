@@ -35,18 +35,6 @@ def create(
     return submission
 
 
-@router.get(
-    "/",
-    status_code=status.HTTP_200_OK,
-    response_model=List[PersonLineageSubmissionSchemaShow],
-)
-def list_all(
-    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-    db: Session = db_session,
-):
-    return person_lineage_submission_crud.list_all(db)
-
-
 # Promote/validate a resolved submission to a canonical person_lineage.
 # Declared before the catch-all /{id} routes.
 @router.post(

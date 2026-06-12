@@ -134,15 +134,6 @@ def show(db: Session, person_lineage_id: int) -> PersonLineageModel:
     return obj
 
 
-def list_all(db: Session) -> List[PersonLineageModel]:
-    return (
-        db.query(PersonLineageModel)
-        .options(*_PERSON_OBJS)
-        .order_by(PersonLineageModel.person_lineage_id.asc())
-        .all()
-    )
-
-
 def list_for_person(db: Session, person_id: int) -> List[PersonLineageModel]:
     """All canonical PPRs in which the person appears, on either side
     (person_subject_id or person_object_id)."""
