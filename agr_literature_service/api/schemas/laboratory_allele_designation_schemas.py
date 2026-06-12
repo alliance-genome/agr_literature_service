@@ -28,6 +28,11 @@ class LaboratoryAlleleDesignationSchemaCreate(BaseModel):
         return validate_non_empty(v, "allele_designation")
 
 
+class LaboratoryAlleleDesignationSchemaPost(LaboratoryAlleleDesignationSchemaCreate):
+    """Standalone create payload — names the owning laboratory by curie (or id) in the body."""
+    laboratory_curie: str
+
+
 class LaboratoryAlleleDesignationSchemaUpdate(BaseModel):
     """Partial update payload for a laboratory allele designation."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)

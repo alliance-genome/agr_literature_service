@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import laboratory_crud, laboratory_cross_reference_crud
 from agr_literature_service.api.schemas import (
-    LaboratoryCrossReferenceSchemaCreate,
+    LaboratoryCrossReferenceSchemaPost,
     LaboratoryCrossReferenceSchemaUpdate,
     LaboratoryCrossReferenceSchemaShow,
     LaboratoryCrossReferenceSchemaRelated,
@@ -22,18 +22,18 @@ db_session: Session = Depends(get_db)
 
 
 @router.post(
-    "/laboratory/{curie_or_laboratory_id}",
+    "/",
     status_code=status.HTTP_201_CREATED,
     response_model=LaboratoryCrossReferenceSchemaShow,
 )
-def create_for_laboratory(
-    curie_or_laboratory_id: str,
-    request: LaboratoryCrossReferenceSchemaCreate,
+def create(
+    request: LaboratoryCrossReferenceSchemaPost,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """Create a cross-reference; the owning laboratory is named by curie (or id) in the body."""
     set_global_user_from_cognito(db, user)
-    laboratory_id = laboratory_crud.resolve_laboratory_id(db, curie_or_laboratory_id)
+    laboratory_id = laboratory_crud.resolve_laboratory_id(db, request.laboratory_curie)
     return laboratory_cross_reference_crud.create_for_laboratory(db, laboratory_id, request)
 
 

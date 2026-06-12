@@ -145,7 +145,8 @@ from .person_email_schemas import (
     PersonEmailSchemaRelated,
 )
 from .person_cross_reference_schemas import (
-    PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaUpdate,
+    PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaPost,
+    PersonCrossReferenceSchemaUpdate,
     PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated
 )
 from .person_name_schemas import (
@@ -153,7 +154,7 @@ from .person_name_schemas import (
     PersonNameSchemaShow, PersonNameSchemaRelated
 )
 from .person_note_schemas import (
-    PersonNoteSchemaCreate, PersonNoteSchemaUpdate,
+    PersonNoteSchemaCreate, PersonNoteSchemaPost, PersonNoteSchemaUpdate,
     PersonNoteSchemaShow, PersonNoteSchemaRelated
 )
 from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
@@ -178,6 +179,7 @@ from .person_lineage_submission_schemas import (
 from .laboratory_position_enum import LabPosition
 from .laboratory_cross_reference_schemas import (
     LaboratoryCrossReferenceSchemaCreate,
+    LaboratoryCrossReferenceSchemaPost,
     LaboratoryCrossReferenceSchemaUpdate,
     LaboratoryCrossReferenceSchemaShow,
     LaboratoryCrossReferenceSchemaRelated,
@@ -190,12 +192,13 @@ from .laboratory_schemas import (
 )
 from .laboratory_allele_designation_schemas import (
     LaboratoryAlleleDesignationSchemaCreate,
+    LaboratoryAlleleDesignationSchemaPost,
     LaboratoryAlleleDesignationSchemaUpdate,
     LaboratoryAlleleDesignationSchemaShow,
     LaboratoryAlleleDesignationSchemaRelated,
 )
 from .laboratory_person_schemas import (
-    LaboratoryPersonSchemaCreate,
+    LaboratoryPersonSchemaPost,
     LaboratoryPersonSchemaUpdate,
     LaboratoryPersonSchemaShow,
     LaboratoryPersonSchemaRelated,

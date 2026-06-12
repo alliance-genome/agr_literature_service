@@ -7,11 +7,17 @@ from .base_schemas import AuditedObjectModelSchema
 from .laboratory_position_enum import LabPosition
 
 
-class LaboratoryPersonSchemaCreate(BaseModel):
-    """Create payload linking a person to a laboratory (laboratory from path)."""
+class LaboratoryPersonSchemaPost(BaseModel):
+    """Create payload linking a person to a laboratory.
+
+    Both the laboratory and the person are named by curie (or id) in the body —
+    a laboratory_person is an association between two independent objects, not an
+    owned child, so neither goes in the URL (cf. reference_relation).
+    """
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    person_id: int
+    laboratory_curie: str
+    person_curie: str
     is_pi: Optional[datetime] = None
     former_pi: Optional[datetime] = None
     alum: Optional[datetime] = None

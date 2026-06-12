@@ -41,9 +41,12 @@ def seeded_person(db):
 def test_person_xref(db, auth_headers, seeded_person):  # noqa
     """Create a baseline person_cross_reference row to reuse across tests."""
     with TestClient(app) as client:
-        payload = {"curie": "ORCID:0000-0001-2345-6789"}
+        payload = {
+            "person_curie": str(seeded_person["person_id"]),
+            "curie": "ORCID:0000-0001-2345-6789",
+        }
         response = client.post(
-            f"/person_cross_reference/person/{seeded_person['person_id']}",
+            "/person_cross_reference/",
             json=payload,
             headers=auth_headers,
         )
@@ -81,8 +84,8 @@ class TestPersonCrossReference:
     def test_create_person_xref_invalid_person(self, auth_headers):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                "/person_cross_reference/person/9999999",
-                json={"curie": "ORCID:0000-0000-0000-0001"},
+                "/person_cross_reference/",
+                json={"person_curie": "9999999", "curie": "ORCID:0000-0000-0000-0001"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -90,8 +93,8 @@ class TestPersonCrossReference:
     def test_create_with_orcid_curie(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "ORCID:0000-0002-1234-5678"},
+                "/person_cross_reference/",
+                json={"person_curie": str(seeded_person["person_id"]), "curie": "ORCID:0000-0002-1234-5678"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -103,8 +106,8 @@ class TestPersonCrossReference:
         """WormBase person curie."""
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "WB:WBPerson12345"},
+                "/person_cross_reference/",
+                json={"person_curie": str(seeded_person["person_id"]), "curie": "WB:WBPerson12345"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -116,8 +119,8 @@ class TestPersonCrossReference:
         """ZFIN person curie."""
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "ZFIN:ZDB-PERS-200101-1"},
+                "/person_cross_reference/",
+                json={"person_curie": str(seeded_person["person_id"]), "curie": "ZFIN:ZDB-PERS-200101-1"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -127,8 +130,8 @@ class TestPersonCrossReference:
         """XenBase person curie."""
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "XenBase:XB-PERS-3617"},
+                "/person_cross_reference/",
+                json={"person_curie": str(seeded_person["person_id"]), "curie": "XenBase:XB-PERS-3617"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -137,8 +140,8 @@ class TestPersonCrossReference:
     def test_create_invalid_curie_no_colon(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "invalidcurie"},
+                "/person_cross_reference/",
+                json={"person_curie": str(seeded_person["person_id"]), "curie": "invalidcurie"},
                 headers=auth_headers,
             )
             # Pydantic field_validator on PersonCrossReferenceSchemaCreate rejects this
@@ -147,8 +150,8 @@ class TestPersonCrossReference:
     def test_create_invalid_curie_two_colons(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{seeded_person['person_id']}",
-                json={"curie": "ORCID:0000:0001"},
+                "/person_cross_reference/",
+                json={"person_curie": str(seeded_person["person_id"]), "curie": "ORCID:0000:0001"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -157,8 +160,8 @@ class TestPersonCrossReference:
         """Posting the same curie for the same person should be rejected."""
         with TestClient(app) as client:
             res = client.post(
-                f"/person_cross_reference/person/{test_person_xref.person_id}",
-                json={"curie": "ORCID:0000-0001-2345-6789"},
+                "/person_cross_reference/",
+                json={"person_curie": str(test_person_xref.person_id), "curie": "ORCID:0000-0001-2345-6789"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

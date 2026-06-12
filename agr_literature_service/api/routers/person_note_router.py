@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import person_crud, person_note_crud
 from agr_literature_service.api.schemas import (
-    PersonNoteSchemaCreate,
+    PersonNoteSchemaPost,
     PersonNoteSchemaShow,
     PersonNoteSchemaRelated,
     PersonNoteSchemaUpdate,
@@ -22,18 +22,18 @@ db_session: Session = Depends(get_db)
 
 
 @router.post(
-    "/person/{curie_or_person_id}",
+    "/",
     status_code=status.HTTP_201_CREATED,
     response_model=PersonNoteSchemaShow,
 )
-def create_for_person(
-    curie_or_person_id: str,
-    request: PersonNoteSchemaCreate,
+def create(
+    request: PersonNoteSchemaPost,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """Create a note; the owning person is named by curie (or id) in the body."""
     set_global_user_from_cognito(db, user)
-    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
+    person_id = person_crud.resolve_person_id(db, request.person_curie)
     return person_note_crud.create_for_person(db, person_id, request)
 
 

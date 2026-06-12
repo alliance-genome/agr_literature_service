@@ -38,8 +38,12 @@ def seeded_lab_and_mod(db):  # noqa
 def test_allele(db, auth_headers, seeded_lab_and_mod):  # noqa
     with TestClient(app) as client:
         response = client.post(
-            f"/laboratory_allele_designation/laboratory/{seeded_lab_and_mod['laboratory_id']}",
-            json={"mod_abbreviation": "WB", "allele_designation": "e"},
+            "/laboratory_allele_designation/",
+            json={
+                "laboratory_curie": str(seeded_lab_and_mod["laboratory_id"]),
+                "mod_abbreviation": "WB",
+                "allele_designation": "e",
+            },
             headers=auth_headers,
         )
         body = response.json() if response.status_code == status.HTTP_201_CREATED else {}
@@ -70,8 +74,12 @@ class TestLaboratoryAlleleDesignation:
     def test_unknown_mod_abbreviation(self, auth_headers, seeded_lab_and_mod):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_allele_designation/laboratory/{seeded_lab_and_mod['laboratory_id']}",
-                json={"mod_abbreviation": "NOPE", "allele_designation": "x"},
+                "/laboratory_allele_designation/",
+                json={
+                    "laboratory_curie": str(seeded_lab_and_mod["laboratory_id"]),
+                    "mod_abbreviation": "NOPE",
+                    "allele_designation": "x",
+                },
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -79,8 +87,12 @@ class TestLaboratoryAlleleDesignation:
     def test_duplicate_lab_mod_rejected(self, auth_headers, test_allele):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_allele_designation/laboratory/{test_allele.laboratory_id}",
-                json={"mod_abbreviation": "WB", "allele_designation": "other"},
+                "/laboratory_allele_designation/",
+                json={
+                    "laboratory_curie": str(test_allele.laboratory_id),
+                    "mod_abbreviation": "WB",
+                    "allele_designation": "other",
+                },
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

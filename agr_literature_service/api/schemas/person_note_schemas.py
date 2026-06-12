@@ -18,6 +18,11 @@ class PersonNoteSchemaCreate(BaseModel):
         return v.strip()
 
 
+class PersonNoteSchemaPost(PersonNoteSchemaCreate):
+    """Standalone create payload — names the owning person by curie (or id) in the body."""
+    person_curie: str
+
+
 class PersonNoteSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

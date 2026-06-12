@@ -8,6 +8,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import person_crud, person_cross_reference_crud
 from agr_literature_service.api.schemas import (
     PersonCrossReferenceSchemaCreate,
+    PersonCrossReferenceSchemaPost,
     PersonCrossReferenceSchemaShow,
     PersonCrossReferenceSchemaRelated,
 )
@@ -20,20 +21,19 @@ get_db = database.get_db
 db_session: Session = Depends(get_db)
 
 
-# Create a cross-reference for a person (curie or person_id from path)
+# Create a cross-reference; the owning person is named by curie (or id) in the body.
 @router.post(
-    "/person/{curie_or_person_id}",
+    "/",
     status_code=status.HTTP_201_CREATED,
     response_model=PersonCrossReferenceSchemaShow,
 )
-def create_for_person(
-    curie_or_person_id: str,
-    request: PersonCrossReferenceSchemaCreate,
+def create(
+    request: PersonCrossReferenceSchemaPost,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
-    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
+    person_id = person_crud.resolve_person_id(db, request.person_curie)
     return person_cross_reference_crud.create_for_person(db, person_id, request)
 
 

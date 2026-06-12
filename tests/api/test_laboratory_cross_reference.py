@@ -30,8 +30,8 @@ def seeded_laboratory(db):  # noqa
 def test_xref(db, auth_headers, seeded_laboratory):  # noqa
     with TestClient(app) as client:
         response = client.post(
-            f"/laboratory_cross_reference/laboratory/{seeded_laboratory['laboratory_id']}",
-            json={"curie": "WB:WBlab9001"},
+            "/laboratory_cross_reference/",
+            json={"laboratory_curie": str(seeded_laboratory["laboratory_id"]), "curie": "WB:WBlab9001"},
             headers=auth_headers,
         )
         body = response.json() if response.status_code == status.HTTP_201_CREATED else {}
@@ -57,8 +57,8 @@ class TestLaboratoryCrossReference:
     def test_create_for_invalid_laboratory(self, auth_headers):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                "/laboratory_cross_reference/laboratory/9999999",
-                json={"curie": "WB:WBlab1"},
+                "/laboratory_cross_reference/",
+                json={"laboratory_curie": "9999999", "curie": "WB:WBlab1"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -66,8 +66,8 @@ class TestLaboratoryCrossReference:
     def test_duplicate_curie_rejected(self, auth_headers, test_xref):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_cross_reference/laboratory/{test_xref.laboratory_id}",
-                json={"curie": "WB:WBlab9001"},
+                "/laboratory_cross_reference/",
+                json={"laboratory_curie": str(test_xref.laboratory_id), "curie": "WB:WBlab9001"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -75,8 +75,8 @@ class TestLaboratoryCrossReference:
     def test_duplicate_prefix_rejected(self, auth_headers, test_xref):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_cross_reference/laboratory/{test_xref.laboratory_id}",
-                json={"curie": "WB:WBlab9002"},
+                "/laboratory_cross_reference/",
+                json={"laboratory_curie": str(test_xref.laboratory_id), "curie": "WB:WBlab9002"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -84,8 +84,8 @@ class TestLaboratoryCrossReference:
     def test_bad_curie_rejected(self, auth_headers, seeded_laboratory):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_cross_reference/laboratory/{seeded_laboratory['laboratory_id']}",
-                json={"curie": "no-colon"},
+                "/laboratory_cross_reference/",
+                json={"laboratory_curie": str(seeded_laboratory["laboratory_id"]), "curie": "no-colon"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

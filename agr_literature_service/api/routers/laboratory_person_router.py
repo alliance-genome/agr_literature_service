@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import laboratory_crud, laboratory_person_crud
+from agr_literature_service.api.crud import laboratory_crud, laboratory_person_crud, person_crud
 from agr_literature_service.api.schemas import (
-    LaboratoryPersonSchemaCreate,
+    LaboratoryPersonSchemaPost,
     LaboratoryPersonSchemaUpdate,
     LaboratoryPersonSchemaShow,
     LaboratoryPersonSchemaRelated,
@@ -22,19 +22,22 @@ db_session: Session = Depends(get_db)
 
 
 @router.post(
-    "/laboratory/{curie_or_laboratory_id}",
+    "/",
     status_code=status.HTTP_201_CREATED,
     response_model=LaboratoryPersonSchemaShow,
 )
-def create_for_laboratory(
-    curie_or_laboratory_id: str,
-    request: LaboratoryPersonSchemaCreate,
+def create(
+    request: LaboratoryPersonSchemaPost,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
+    """Link a person to a laboratory; both are named by curie (or id) in the body."""
     set_global_user_from_cognito(db, user)
-    laboratory_id = laboratory_crud.resolve_laboratory_id(db, curie_or_laboratory_id)
-    return laboratory_person_crud.create_for_laboratory(db, laboratory_id, request)
+    laboratory_id = laboratory_crud.resolve_laboratory_id(db, request.laboratory_curie)
+    person_id = person_crud.resolve_person_id(db, request.person_curie)
+    data = request.model_dump(exclude={"laboratory_curie", "person_curie"})
+    data["person_id"] = person_id
+    return laboratory_person_crud.create_for_laboratory(db, laboratory_id, data)
 
 
 @router.get(

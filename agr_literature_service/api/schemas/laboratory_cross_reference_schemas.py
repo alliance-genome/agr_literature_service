@@ -39,6 +39,11 @@ class LaboratoryCrossReferenceSchemaCreate(BaseModel):
         return v
 
 
+class LaboratoryCrossReferenceSchemaPost(LaboratoryCrossReferenceSchemaCreate):
+    """Standalone create payload — names the owning laboratory by curie (or id) in the body."""
+    laboratory_curie: str
+
+
 class LaboratoryCrossReferenceSchemaUpdate(BaseModel):
     """Partial update payload for a laboratory cross-reference."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)

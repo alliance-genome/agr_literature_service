@@ -37,9 +37,10 @@ def seeded_lab_and_person(db):  # noqa
 def test_lab_person(db, auth_headers, seeded_lab_and_person):  # noqa
     with TestClient(app) as client:
         response = client.post(
-            f"/laboratory_person/laboratory/{seeded_lab_and_person['laboratory_id']}",
+            "/laboratory_person/",
             json={
-                "person_id": seeded_lab_and_person["person_id"],
+                "laboratory_curie": str(seeded_lab_and_person["laboratory_id"]),
+                "person_curie": str(seeded_lab_and_person["person_id"]),
                 "lab_position": "postdoc",
                 "is_lab_contact": True,
             },
@@ -71,8 +72,11 @@ class TestLaboratoryPerson:
     def test_create_for_invalid_laboratory(self, auth_headers, seeded_lab_and_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                "/laboratory_person/laboratory/9999999",
-                json={"person_id": seeded_lab_and_person["person_id"]},
+                "/laboratory_person/",
+                json={
+                    "laboratory_curie": "9999999",
+                    "person_curie": str(seeded_lab_and_person["person_id"]),
+                },
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -80,8 +84,11 @@ class TestLaboratoryPerson:
     def test_create_with_invalid_person(self, auth_headers, seeded_lab_and_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_person/laboratory/{seeded_lab_and_person['laboratory_id']}",
-                json={"person_id": 9999999},
+                "/laboratory_person/",
+                json={
+                    "laboratory_curie": str(seeded_lab_and_person["laboratory_id"]),
+                    "person_curie": "9999999",
+                },
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -89,8 +96,12 @@ class TestLaboratoryPerson:
     def test_bad_lab_position_rejected(self, auth_headers, seeded_lab_and_person):  # noqa
         with TestClient(app) as client:
             res = client.post(
-                f"/laboratory_person/laboratory/{seeded_lab_and_person['laboratory_id']}",
-                json={"person_id": seeded_lab_and_person["person_id"], "lab_position": "wizard"},
+                "/laboratory_person/",
+                json={
+                    "laboratory_curie": str(seeded_lab_and_person["laboratory_id"]),
+                    "person_curie": str(seeded_lab_and_person["person_id"]),
+                    "lab_position": "wizard",
+                },
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

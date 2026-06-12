@@ -39,6 +39,11 @@ class PersonCrossReferenceSchemaCreate(BaseModel):
         return v
 
 
+class PersonCrossReferenceSchemaPost(PersonCrossReferenceSchemaCreate):
+    """Standalone create payload — names the owning person by curie (or id) in the body."""
+    person_curie: str
+
+
 class PersonCrossReferenceSchemaUpdate(BaseModel):
     """Partial update payload for a person cross-reference."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
