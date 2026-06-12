@@ -70,7 +70,10 @@ def _check_xref_unique(db, laboratory_id, curie, curie_prefix, exclude_id=None):
 def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, Any]) -> LaboratoryCrossReferenceModel:
     lab = db.query(LaboratoryModel).filter(LaboratoryModel.laboratory_id == laboratory_id).first()
     if not lab:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Laboratory with laboratory_id {laboratory_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Laboratory with laboratory_id {laboratory_id} not found",
+        )
 
     data = jsonable_encoder(payload)
 

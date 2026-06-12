@@ -145,12 +145,17 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     """
     obj = show(db, person_lineage_submission_id)
 
-    # Don't re-process a submission that has already reached a terminal state —
-    # re-validating would flip a 'validated' row to 'duplicate' or undo a rejection.
-    if obj.status in ("validated", "duplicate", "rejected"):
+    # Don't re-process a submission that has already reached a terminal state or
+    # is already linked to a canonical row — re-validating would flip a
+    # 'validated' row to 'duplicate' or undo a rejection. Guarding on
+    # person_lineage_id too closes the "patch status back to pending" bypass.
+    if obj.person_lineage_id is not None or obj.status in ("validated", "duplicate", "rejected"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Submission already {obj.status}; it cannot be re-validated.",
+            detail=(
+                f"Submission cannot be re-validated (status={obj.status}, "
+                f"linked={'yes' if obj.person_lineage_id is not None else 'no'})."
+            ),
         )
 
     if obj.person_one_id is None or obj.person_two_id is None:

@@ -315,6 +315,36 @@ class TestPersonLineageSubmission:
             v2 = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
             assert v2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_revalidate_blocked_after_status_reset(self, auth_headers, two_people):  # noqa
+        # Patching status back to pending must NOT reopen re-validation — a linked
+        # submission (person_lineage_id set) can't be re-validated.
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_one_name": "A", "person_two_name": "B",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_two_id"],
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+            assert client.post(
+                f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers
+            ).status_code == status.HTTP_200_OK
+            # curator resets status
+            client.patch(
+                f"/person_lineage_submission/{sub_id}",
+                json={"status": "pending"},
+                headers=auth_headers,
+            )
+            # still blocked because it's linked to a canonical row
+            again = client.post(
+                f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers
+            )
+            assert again.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_validate_self_pair_rejected(self, auth_headers, two_people):  # noqa
         # Both names resolved to the same person -> can't validate.
         with TestClient(app) as client:

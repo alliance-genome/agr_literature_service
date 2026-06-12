@@ -44,7 +44,10 @@ def _attach_mod_abbreviation(db: Session, obj: LaboratoryAlleleDesignationModel)
 def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, Any]) -> LaboratoryAlleleDesignationModel:
     lab = db.query(LaboratoryModel).filter(LaboratoryModel.laboratory_id == laboratory_id).first()
     if not lab:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Laboratory with laboratory_id {laboratory_id} not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Laboratory with laboratory_id {laboratory_id} not found",
+        )
 
     data = jsonable_encoder(payload)
 
