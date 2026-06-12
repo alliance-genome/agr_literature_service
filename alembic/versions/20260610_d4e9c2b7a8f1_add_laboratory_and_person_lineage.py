@@ -150,28 +150,28 @@ _LAB_PERSON_INDEXED = ["laboratory_id", "person_id"]
 
 # Canonical validated PPR.
 _PERSON_LINEAGE_TRACKED = [
-    ("person_one_id", sa.Integer()),
-    ("person_two_id", sa.Integer()),
+    ("person_subject_id", sa.Integer()),
+    ("person_object_id", sa.Integer()),
     ("relationship", sa.String()),
     ("start_date", sa.DateTime()),
     ("end_date", sa.DateTime()),
 ]
-_PERSON_LINEAGE_INDEXED = ["person_one_id", "person_two_id"]
+_PERSON_LINEAGE_INDEXED = ["person_subject_id", "person_object_id"]
 
 # Submission / curation working space.
 _PERSON_LINEAGE_SUBMISSION_TRACKED = [
-    ("person_one_name", sa.String()),
-    ("person_two_name", sa.String()),
+    ("person_subject_name", sa.String()),
+    ("person_object_name", sa.String()),
     ("relationship", sa.String()),
     ("who_sent_this", sa.String()),
-    ("person_one_id", sa.Integer()),
-    ("person_two_id", sa.Integer()),
+    ("person_subject_id", sa.Integer()),
+    ("person_object_id", sa.Integer()),
     ("start_date", sa.DateTime()),
     ("end_date", sa.DateTime()),
     ("status", sa.String()),
     ("person_lineage_id", sa.Integer()),
 ]
-_PERSON_LINEAGE_SUBMISSION_INDEXED = ["person_one_id", "person_two_id", "person_lineage_id"]
+_PERSON_LINEAGE_SUBMISSION_INDEXED = ["person_subject_id", "person_object_id", "person_lineage_id"]
 
 
 def upgrade():  # noqa: C901
@@ -271,9 +271,6 @@ def upgrade():  # noqa: C901
         "laboratory_cross_reference",
         ["date_updated"],
         unique=False,
-    )
-    op.create_index(
-        "ix_laboratory_xref_laboratory_id", "laboratory_cross_reference", ["laboratory_id"], unique=False
     )
     op.create_index(
         "ix_laboratory_xref_prefix_curie",
@@ -380,24 +377,24 @@ def upgrade():  # noqa: C901
     op.create_table(
         "person_lineage",
         sa.Column("person_lineage_id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("person_one_id", sa.Integer(), nullable=False),
-        sa.Column("person_two_id", sa.Integer(), nullable=False),
+        sa.Column("person_subject_id", sa.Integer(), nullable=False),
+        sa.Column("person_object_id", sa.Integer(), nullable=False),
         sa.Column("relationship", sa.String(), nullable=False),
         sa.Column("start_date", sa.DateTime(), nullable=True),
         sa.Column("end_date", sa.DateTime(), nullable=True),
         *_audit_columns(),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
-        sa.ForeignKeyConstraint(["person_one_id"], ["person.person_id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["person_two_id"], ["person.person_id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["person_subject_id"], ["person.person_id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(["person_object_id"], ["person.person_id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["updated_by"], ["users.id"]),
         sa.PrimaryKeyConstraint("person_lineage_id"),
         sa.UniqueConstraint(
-            "person_one_id", "person_two_id", "relationship",
+            "person_subject_id", "person_object_id", "relationship",
             name="uq_person_lineage_person_ids_relationship",
         ),
     )
-    op.create_index(op.f("ix_person_lineage_person_one_id"), "person_lineage", ["person_one_id"], unique=False)
-    op.create_index(op.f("ix_person_lineage_person_two_id"), "person_lineage", ["person_two_id"], unique=False)
+    op.create_index(op.f("ix_person_lineage_person_subject_id"), "person_lineage", ["person_subject_id"], unique=False)
+    op.create_index(op.f("ix_person_lineage_person_object_id"), "person_lineage", ["person_object_id"], unique=False)
     op.create_index(
         op.f("ix_person_lineage_date_created"), "person_lineage", ["date_created"], unique=False
     )
@@ -412,31 +409,31 @@ def upgrade():  # noqa: C901
     op.create_table(
         "person_lineage_submission",
         sa.Column("person_lineage_submission_id", sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column("person_one_name", sa.String(), nullable=False),
-        sa.Column("person_two_name", sa.String(), nullable=False),
+        sa.Column("person_subject_name", sa.String(), nullable=False),
+        sa.Column("person_object_name", sa.String(), nullable=False),
         sa.Column("relationship", sa.String(), nullable=False),
         sa.Column("who_sent_this", sa.String(), nullable=False),
-        sa.Column("person_one_id", sa.Integer(), nullable=True),
-        sa.Column("person_two_id", sa.Integer(), nullable=True),
+        sa.Column("person_subject_id", sa.Integer(), nullable=True),
+        sa.Column("person_object_id", sa.Integer(), nullable=True),
         sa.Column("start_date", sa.DateTime(), nullable=True),
         sa.Column("end_date", sa.DateTime(), nullable=True),
         sa.Column("status", sa.String(), server_default="pending", nullable=False),
         sa.Column("person_lineage_id", sa.Integer(), nullable=True),
         *_audit_columns(),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"]),
-        sa.ForeignKeyConstraint(["person_one_id"], ["person.person_id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["person_two_id"], ["person.person_id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["person_subject_id"], ["person.person_id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(["person_object_id"], ["person.person_id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["person_lineage_id"], ["person_lineage.person_lineage_id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(["updated_by"], ["users.id"]),
         sa.PrimaryKeyConstraint("person_lineage_submission_id"),
     )
     op.create_index(
-        op.f("ix_person_lineage_submission_person_one_id"),
-        "person_lineage_submission", ["person_one_id"], unique=False,
+        op.f("ix_person_lineage_submission_person_subject_id"),
+        "person_lineage_submission", ["person_subject_id"], unique=False,
     )
     op.create_index(
-        op.f("ix_person_lineage_submission_person_two_id"),
-        "person_lineage_submission", ["person_two_id"], unique=False,
+        op.f("ix_person_lineage_submission_person_object_id"),
+        "person_lineage_submission", ["person_object_id"], unique=False,
     )
     op.create_index(
         op.f("ix_person_lineage_submission_person_lineage_id"),
@@ -464,16 +461,16 @@ def downgrade():  # noqa: C901
     op.drop_index(op.f("ix_person_lineage_submission_date_updated"), table_name="person_lineage_submission")
     op.drop_index(op.f("ix_person_lineage_submission_date_created"), table_name="person_lineage_submission")
     op.drop_index(op.f("ix_person_lineage_submission_person_lineage_id"), table_name="person_lineage_submission")
-    op.drop_index(op.f("ix_person_lineage_submission_person_two_id"), table_name="person_lineage_submission")
-    op.drop_index(op.f("ix_person_lineage_submission_person_one_id"), table_name="person_lineage_submission")
+    op.drop_index(op.f("ix_person_lineage_submission_person_object_id"), table_name="person_lineage_submission")
+    op.drop_index(op.f("ix_person_lineage_submission_person_subject_id"), table_name="person_lineage_submission")
     op.drop_table("person_lineage_submission")
 
     # person_lineage (canonical)
     _drop_version_table("person_lineage", _PERSON_LINEAGE_INDEXED)
     op.drop_index(op.f("ix_person_lineage_date_updated"), table_name="person_lineage")
     op.drop_index(op.f("ix_person_lineage_date_created"), table_name="person_lineage")
-    op.drop_index(op.f("ix_person_lineage_person_two_id"), table_name="person_lineage")
-    op.drop_index(op.f("ix_person_lineage_person_one_id"), table_name="person_lineage")
+    op.drop_index(op.f("ix_person_lineage_person_object_id"), table_name="person_lineage")
+    op.drop_index(op.f("ix_person_lineage_person_subject_id"), table_name="person_lineage")
     op.drop_table("person_lineage")
 
     # laboratory_person
@@ -496,7 +493,6 @@ def downgrade():  # noqa: C901
     # laboratory_cross_reference
     _drop_version_table("laboratory_cross_reference", _LAB_XREF_INDEXED)
     op.drop_index("ix_laboratory_xref_prefix_curie", table_name="laboratory_cross_reference")
-    op.drop_index("ix_laboratory_xref_laboratory_id", table_name="laboratory_cross_reference")
     op.drop_index(op.f("ix_laboratory_cross_reference_date_updated"), table_name="laboratory_cross_reference")
     op.drop_index(op.f("ix_laboratory_cross_reference_date_created"), table_name="laboratory_cross_reference")
     op.drop_index(op.f("ix_laboratory_cross_reference_laboratory_id"), table_name="laboratory_cross_reference")

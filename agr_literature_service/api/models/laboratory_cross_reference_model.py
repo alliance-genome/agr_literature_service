@@ -30,7 +30,6 @@ class LaboratoryCrossReferenceModel(Base, AuditedModel):
     __table_args__ = (
         UniqueConstraint("curie", name="uq_laboratory_xref_curie"),
         UniqueConstraint("laboratory_id", "curie_prefix", name="uq_laboratory_xref_laboratory_prefix"),
-        Index("ix_laboratory_xref_laboratory_id", "laboratory_id"),
         Index("ix_laboratory_xref_prefix_curie", "curie_prefix", "curie"),
     )
 

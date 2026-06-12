@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .base_schemas import AuditedObjectModelSchema
@@ -20,24 +20,25 @@ class PersonLineageSubmissionSchemaCreate(BaseModel):
     """
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    person_one_name: str
-    person_two_name: str
+    person_subject_name: str
+    person_object_name: str
     relationship: PersonPersonRole
     who_sent_this: str
-    person_one_id: Optional[int] = None
-    person_two_id: Optional[int] = None
+    # Optional person links, given by curie OR integer id (resolved server-side).
+    person_subject_curie_or_id: Optional[Union[str, int]] = None
+    person_object_curie_or_id: Optional[Union[str, int]] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
 
-    @field_validator("person_one_name")
+    @field_validator("person_subject_name")
     @classmethod
-    def _validate_person_one_name(cls, v: str) -> str:
-        return validate_non_empty(v, "person_one_name")
+    def _validate_person_subject_name(cls, v: str) -> str:
+        return validate_non_empty(v, "person_subject_name")
 
-    @field_validator("person_two_name")
+    @field_validator("person_object_name")
     @classmethod
-    def _validate_person_two_name(cls, v: str) -> str:
-        return validate_non_empty(v, "person_two_name")
+    def _validate_person_object_name(cls, v: str) -> str:
+        return validate_non_empty(v, "person_object_name")
 
     @field_validator("who_sent_this")
     @classmethod
@@ -49,12 +50,13 @@ class PersonLineageSubmissionSchemaUpdate(BaseModel):
     """Curator edits: resolve person ids, set status, adjust the claim/dates."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    person_one_name: Optional[str] = None
-    person_two_name: Optional[str] = None
+    person_subject_name: Optional[str] = None
+    person_object_name: Optional[str] = None
     relationship: Optional[PersonPersonRole] = None
     who_sent_this: Optional[str] = None
-    person_one_id: Optional[int] = None
-    person_two_id: Optional[int] = None
+    # Resolve a person link by curie OR integer id; send null to clear it.
+    person_subject_curie_or_id: Optional[Union[str, int]] = None
+    person_object_curie_or_id: Optional[Union[str, int]] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     status: Optional[SubmissionStatus] = None
@@ -65,7 +67,7 @@ class PersonLineageSubmissionSchemaUpdate(BaseModel):
         # These columns are NOT NULL — reject explicit null. Omitting the field
         # leaves it unchanged.
         if isinstance(data, dict):
-            for field in ("person_one_name", "person_two_name", "relationship",
+            for field in ("person_subject_name", "person_object_name", "relationship",
                           "who_sent_this", "status"):
                 if field in data and data[field] is None:
                     raise ValueError(
@@ -78,14 +80,14 @@ class PersonLineageSubmissionSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     person_lineage_submission_id: int
-    person_one_name: str
-    person_two_name: str
+    person_subject_name: str
+    person_object_name: str
     relationship: str
     who_sent_this: str
-    person_one_id: Optional[int] = None
-    person_one_curie: Optional[str] = None
-    person_two_id: Optional[int] = None
-    person_two_curie: Optional[str] = None
+    person_subject_id: Optional[int] = None
+    person_subject_curie: Optional[str] = None
+    person_object_id: Optional[int] = None
+    person_object_curie: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     status: str = "pending"
@@ -96,13 +98,13 @@ class PersonLineageSubmissionSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     person_lineage_submission_id: int
-    person_one_name: str
-    person_two_name: str
+    person_subject_name: str
+    person_object_name: str
     relationship: str
     who_sent_this: str
-    person_one_id: Optional[int] = None
-    person_one_curie: Optional[str] = None
-    person_two_id: Optional[int] = None
-    person_two_curie: Optional[str] = None
+    person_subject_id: Optional[int] = None
+    person_subject_curie: Optional[str] = None
+    person_object_id: Optional[int] = None
+    person_object_curie: Optional[str] = None
     status: str = "pending"
     person_lineage_id: Optional[int] = None

@@ -22,20 +22,20 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
     person_lineage_submission_id = Column(Integer, primary_key=True, autoincrement=True)
 
     # The claim — always required.
-    person_one_name = Column(String(), nullable=False)
-    person_two_name = Column(String(), nullable=False)
+    person_subject_name = Column(String(), nullable=False)
+    person_object_name = Column(String(), nullable=False)
     # Controlled vocabulary enforced by the API (PersonPersonRole).
     relationship = Column(String(), nullable=False)
     who_sent_this = Column(String(), nullable=False)
 
     # Resolution — set independently as a curator matches each name to a person.
-    person_one_id = Column(
+    person_subject_id = Column(
         Integer,
         ForeignKey("person.person_id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    person_two_id = Column(
+    person_object_id = Column(
         Integer,
         ForeignKey("person.person_id", ondelete="SET NULL"),
         nullable=True,
@@ -61,22 +61,22 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
         index=True,
     )
 
-    person_one_obj = orm_relationship("PersonModel", foreign_keys=[person_one_id])
-    person_two_obj = orm_relationship("PersonModel", foreign_keys=[person_two_id])
+    person_subject_obj = orm_relationship("PersonModel", foreign_keys=[person_subject_id])
+    person_object_obj = orm_relationship("PersonModel", foreign_keys=[person_object_id])
     canonical = orm_relationship("PersonLineageModel", back_populates="submissions")
 
     @property
-    def person_one_curie(self):
-        """Convenience for serializers — the curie of the resolved person_one (if any)."""
-        return self.person_one_obj.curie if self.person_one_obj else None
+    def person_subject_curie(self):
+        """Convenience for serializers — the curie of the resolved person_subject (if any)."""
+        return self.person_subject_obj.curie if self.person_subject_obj else None
 
     @property
-    def person_two_curie(self):
-        """Convenience for serializers — the curie of the resolved person_two (if any)."""
-        return self.person_two_obj.curie if self.person_two_obj else None
+    def person_object_curie(self):
+        """Convenience for serializers — the curie of the resolved person_object (if any)."""
+        return self.person_object_obj.curie if self.person_object_obj else None
 
     def __str__(self) -> str:
         return (
-            f"{self.person_one_name} -[{self.relationship}]-> "
-            f"{self.person_two_name} [{self.status}]"
+            f"{self.person_subject_name} -[{self.relationship}]-> "
+            f"{self.person_object_name} [{self.status}]"
         )

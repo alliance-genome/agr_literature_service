@@ -27,7 +27,7 @@ def two_people(db):  # noqa
     db.commit()
     db.refresh(p1)
     db.refresh(p2)
-    return {"person_one_id": p1.person_id, "person_two_id": p2.person_id}
+    return {"person_subject_id": p1.person_id, "person_object_id": p2.person_id}
 
 
 @pytest.fixture
@@ -35,8 +35,8 @@ def test_submission(db, auth_headers):  # noqa
     with TestClient(app) as client:
         # Names only — no ids, no status.
         payload = {
-            "person_one_name": "Alice Advisor",
-            "person_two_name": "Bob Trainee",
+            "person_subject_name": "Alice Advisor",
+            "person_object_name": "Bob Trainee",
             "relationship": "phd_supervisor_of",
             "who_sent_this": "curator1",
         }
@@ -54,8 +54,8 @@ class TestPersonLineageSubmission:
             .filter(PersonLineageSubmissionModel.person_lineage_submission_id == test_submission.new_id)
             .one()
         )
-        assert obj.person_one_name == "Alice Advisor"
-        assert obj.person_one_id is None and obj.person_two_id is None
+        assert obj.person_subject_name == "Alice Advisor"
+        assert obj.person_subject_id is None and obj.person_object_id is None
         assert obj.status == "pending"
         assert obj.person_lineage_id is None
 
@@ -63,7 +63,7 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             res = client.post(
                 "/person_lineage_submission/",
-                json={"person_one_name": "A", "person_two_name": "B", "relationship": "phd_supervisor_of"},
+                json={"person_subject_name": "A", "person_object_name": "B", "relationship": "phd_supervisor_of"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -72,7 +72,7 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             res = client.post(
                 "/person_lineage_submission/",
-                json={"person_one_name": "A", "person_two_name": "B",
+                json={"person_subject_name": "A", "person_object_name": "B",
                       "relationship": "bogus", "who_sent_this": "x"},
                 headers=auth_headers,
             )
@@ -80,7 +80,7 @@ class TestPersonLineageSubmission:
 
     def test_duplicate_name_only_submissions_allowed(self, auth_headers):  # noqa
         # No constraint on submissions — identical name-only claims all succeed.
-        payload = {"person_one_name": "Dup A", "person_two_name": "Dup B",
+        payload = {"person_subject_name": "Dup A", "person_object_name": "Dup B",
                    "relationship": "phd_supervisor_of", "who_sent_this": "x"}
         with TestClient(app) as client:
             for _ in range(3):
@@ -91,13 +91,13 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             res = client.patch(
                 f"/person_lineage_submission/{test_submission.new_id}",
-                json={"person_one_id": two_people["person_one_id"], "status": "partially_resolved"},
+                json={"person_subject_curie_or_id": two_people["person_subject_id"], "status": "partially_resolved"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_200_OK
             body = res.json()
-            assert body["person_one_id"] == two_people["person_one_id"]
-            assert body["person_two_id"] is None
+            assert body["person_subject_id"] == two_people["person_subject_id"]
+            assert body["person_object_id"] is None
             assert body["status"] == "partially_resolved"
 
     def test_bad_status_rejected(self, auth_headers, test_submission):  # noqa
@@ -113,7 +113,7 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             res = client.patch(
                 f"/person_lineage_submission/{test_submission.new_id}",
-                json={"person_one_id": 9999999},
+                json={"person_subject_curie_or_id": 9999999},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -122,7 +122,7 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             client.patch(
                 f"/person_lineage_submission/{test_submission.new_id}",
-                json={"person_one_id": two_people["person_one_id"]},
+                json={"person_subject_curie_or_id": two_people["person_subject_id"]},
                 headers=auth_headers,
             )
             res = client.post(
@@ -135,10 +135,10 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             # First submission, fully resolved, validated -> creates canonical.
             payload = {
-                "person_one_name": "Alice", "person_two_name": "Bob",
+                "person_subject_name": "Alice", "person_object_name": "Bob",
                 "relationship": "phd_supervisor_of", "who_sent_this": "curator1",
-                "person_one_id": two_people["person_one_id"],
-                "person_two_id": two_people["person_two_id"],
+                "person_subject_curie_or_id": two_people["person_subject_id"],
+                "person_object_curie_or_id": two_people["person_object_id"],
             }
             r1 = client.post("/person_lineage_submission/", json=payload, headers=auth_headers)
             assert r1.status_code == status.HTTP_201_CREATED
@@ -163,8 +163,8 @@ class TestPersonLineageSubmission:
         count = (
             db.query(PersonLineageModel)
             .filter(
-                PersonLineageModel.person_one_id == two_people["person_one_id"],
-                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.person_subject_id == two_people["person_subject_id"],
+                PersonLineageModel.person_object_id == two_people["person_object_id"],
                 PersonLineageModel.relationship == "phd_supervisor_of",
             )
             .count()
@@ -193,10 +193,10 @@ class TestPersonLineageSubmission:
                 r = client.post(
                     "/person_lineage_submission/",
                     json={
-                        "person_one_name": "Alice", "person_two_name": "Bob",
+                        "person_subject_name": "Alice", "person_object_name": "Bob",
                         "relationship": rel, "who_sent_this": "cur",
-                        "person_one_id": two_people["person_one_id"],
-                        "person_two_id": two_people["person_two_id"],
+                        "person_subject_curie_or_id": two_people["person_subject_id"],
+                        "person_object_curie_or_id": two_people["person_object_id"],
                     },
                     headers=auth_headers,
                 )
@@ -212,8 +212,8 @@ class TestPersonLineageSubmission:
         canon = (
             db.query(PersonLineageModel)
             .filter(
-                PersonLineageModel.person_one_id == two_people["person_one_id"],
-                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.person_subject_id == two_people["person_subject_id"],
+                PersonLineageModel.person_object_id == two_people["person_object_id"],
             )
             .count()
         )
@@ -226,8 +226,8 @@ class TestPersonLineageSubmission:
             c = client.post(
                 "/person_lineage/",
                 json={
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_two_id"],
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_object_id"],
                     "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
@@ -238,10 +238,10 @@ class TestPersonLineageSubmission:
             r = client.post(
                 "/person_lineage_submission/",
                 json={
-                    "person_one_name": "Alice", "person_two_name": "Bob",
+                    "person_subject_name": "Alice", "person_object_name": "Bob",
                     "relationship": "phd_supervisor_of", "who_sent_this": "cur",
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_two_id"],
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_object_id"],
                 },
                 headers=auth_headers,
             )
@@ -254,8 +254,8 @@ class TestPersonLineageSubmission:
         count = (
             db.query(PersonLineageModel)
             .filter(
-                PersonLineageModel.person_one_id == two_people["person_one_id"],
-                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.person_subject_id == two_people["person_subject_id"],
+                PersonLineageModel.person_object_id == two_people["person_object_id"],
                 PersonLineageModel.relationship == "phd_supervisor_of",
             )
             .count()
@@ -270,9 +270,9 @@ class TestPersonLineageSubmission:
                 r = client.post(
                     "/person_lineage_submission/",
                     json={
-                        "person_one_name": "A", "person_two_name": "B",
+                        "person_subject_name": "A", "person_object_name": "B",
                         "relationship": "collaborator_of", "who_sent_this": "cur",
-                        "person_one_id": one_id, "person_two_id": two_id,
+                        "person_subject_curie_or_id": one_id, "person_object_curie_or_id": two_id,
                     },
                     headers=auth_headers,
                 )
@@ -281,11 +281,11 @@ class TestPersonLineageSubmission:
                     f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers
                 ).json()
 
-            first = submit_and_validate(two_people["person_one_id"], two_people["person_two_id"])
+            first = submit_and_validate(two_people["person_subject_id"], two_people["person_object_id"])
             assert first["status"] == "validated"
 
             # reversed order -> same canonical, duplicate
-            second = submit_and_validate(two_people["person_two_id"], two_people["person_one_id"])
+            second = submit_and_validate(two_people["person_object_id"], two_people["person_subject_id"])
             assert second["status"] == "duplicate"
             assert second["person_lineage_id"] == first["person_lineage_id"]
 
@@ -300,10 +300,10 @@ class TestPersonLineageSubmission:
         r = client.post(
             "/person_lineage_submission/",
             json={
-                "person_one_name": "A", "person_two_name": "B",
+                "person_subject_name": "A", "person_object_name": "B",
                 "relationship": "phd_supervisor_of", "who_sent_this": "cur",
-                "person_one_id": two_people["person_one_id"],
-                "person_two_id": two_people["person_two_id"],
+                "person_subject_curie_or_id": two_people["person_subject_id"],
+                "person_object_curie_or_id": two_people["person_object_id"],
             },
             headers=auth_headers,
         )
@@ -325,8 +325,8 @@ class TestPersonLineageSubmission:
         count = (
             db.query(PersonLineageModel)
             .filter(
-                PersonLineageModel.person_one_id == two_people["person_one_id"],
-                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.person_subject_id == two_people["person_subject_id"],
+                PersonLineageModel.person_object_id == two_people["person_object_id"],
                 PersonLineageModel.relationship == "phd_supervisor_of",
             )
             .count()
@@ -354,8 +354,8 @@ class TestPersonLineageSubmission:
         count = (
             db.query(PersonLineageModel)
             .filter(
-                PersonLineageModel.person_one_id == two_people["person_one_id"],
-                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.person_subject_id == two_people["person_subject_id"],
+                PersonLineageModel.person_object_id == two_people["person_object_id"],
             )
             .count()
         )
@@ -379,10 +379,10 @@ class TestPersonLineageSubmission:
             r = client.post(
                 "/person_lineage_submission/",
                 json={
-                    "person_one_name": "A", "person_two_name": "A",
+                    "person_subject_name": "A", "person_object_name": "A",
                     "relationship": "collaborator_of", "who_sent_this": "cur",
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_one_id"],
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_subject_id"],
                 },
                 headers=auth_headers,
             )

@@ -11,7 +11,7 @@ from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
 
-LineageTestData = namedtuple("LineageTestData", ["response", "new_id", "person_one_id", "person_two_id"])
+LineageTestData = namedtuple("LineageTestData", ["response", "new_id", "person_subject_id", "person_object_id"])
 
 
 @pytest.fixture
@@ -23,15 +23,15 @@ def two_people(db):  # noqa
     db.commit()
     db.refresh(p1)
     db.refresh(p2)
-    return {"person_one_id": p1.person_id, "person_two_id": p2.person_id}
+    return {"person_subject_id": p1.person_id, "person_object_id": p2.person_id}
 
 
 @pytest.fixture
 def test_lineage(db, auth_headers, two_people):  # noqa
     with TestClient(app) as client:
         payload = {
-            "person_one_id": two_people["person_one_id"],
-            "person_two_id": two_people["person_two_id"],
+            "person_subject_curie_or_id": two_people["person_subject_id"],
+            "person_object_curie_or_id": two_people["person_object_id"],
             "relationship": "phd_supervisor_of",
         }
         response = client.post("/person_lineage/", json=payload, headers=auth_headers)
@@ -39,8 +39,8 @@ def test_lineage(db, auth_headers, two_people):  # noqa
         yield LineageTestData(
             response=response,
             new_id=body.get("person_lineage_id"),
-            person_one_id=two_people["person_one_id"],
-            person_two_id=two_people["person_two_id"],
+            person_subject_id=two_people["person_subject_id"],
+            person_object_id=two_people["person_object_id"],
         )
 
 
@@ -53,8 +53,8 @@ class TestPersonLineage:
             .filter(PersonLineageModel.person_lineage_id == test_lineage.new_id)
             .one()
         )
-        assert obj.person_one_id == test_lineage.person_one_id
-        assert obj.person_two_id == test_lineage.person_two_id
+        assert obj.person_subject_id == test_lineage.person_subject_id
+        assert obj.person_object_id == test_lineage.person_object_id
         assert obj.relationship == "phd_supervisor_of"
 
     def test_duplicate_rejected(self, auth_headers, test_lineage):  # noqa
@@ -62,8 +62,8 @@ class TestPersonLineage:
             res = client.post(
                 "/person_lineage/",
                 json={
-                    "person_one_id": test_lineage.person_one_id,
-                    "person_two_id": test_lineage.person_two_id,
+                    "person_subject_curie_or_id": test_lineage.person_subject_id,
+                    "person_object_curie_or_id": test_lineage.person_object_id,
                     "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
@@ -76,8 +76,8 @@ class TestPersonLineage:
             res = client.post(
                 "/person_lineage/",
                 json={
-                    "person_one_id": test_lineage.person_two_id,
-                    "person_two_id": test_lineage.person_one_id,
+                    "person_subject_curie_or_id": test_lineage.person_object_id,
+                    "person_object_curie_or_id": test_lineage.person_subject_id,
                     "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
@@ -88,7 +88,7 @@ class TestPersonLineage:
         with TestClient(app) as client:
             res = client.post(
                 "/person_lineage/",
-                json={"person_one_id": 9999999, "person_two_id": 9999998, "relationship": "phd_supervisor_of"},
+                json={"person_subject_curie_or_id": 9999999, "person_object_curie_or_id": 9999998, "relationship": "phd_supervisor_of"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
@@ -99,8 +99,8 @@ class TestPersonLineage:
             res = client.post(
                 "/person_lineage/",
                 json={
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_one_id"],
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_subject_id"],
                     "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
@@ -114,8 +114,8 @@ class TestPersonLineage:
             c1 = client.post(
                 "/person_lineage/",
                 json={
-                    "person_one_id": two_people["person_one_id"],
-                    "person_two_id": two_people["person_two_id"],
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_object_id"],
                     "relationship": "collaborator_of",
                 },
                 headers=auth_headers,
@@ -124,8 +124,8 @@ class TestPersonLineage:
             c2 = client.post(
                 "/person_lineage/",
                 json={
-                    "person_one_id": two_people["person_two_id"],
-                    "person_two_id": two_people["person_one_id"],
+                    "person_subject_curie_or_id": two_people["person_object_id"],
+                    "person_object_curie_or_id": two_people["person_subject_id"],
                     "relationship": "collaborator_of",
                 },
                 headers=auth_headers,
@@ -154,13 +154,13 @@ class TestPersonLineage:
             assert res.json()["relationship"] == "postdoc_supervisor_of"
 
     def test_patch_to_symmetric_normalizes_ids(self, auth_headers, two_people):  # noqa
-        lo = min(two_people["person_one_id"], two_people["person_two_id"])
-        hi = max(two_people["person_one_id"], two_people["person_two_id"])
+        lo = min(two_people["person_subject_id"], two_people["person_object_id"])
+        hi = max(two_people["person_subject_id"], two_people["person_object_id"])
         with TestClient(app) as client:
             # directional row deliberately stored in reverse (hi, lo) order
             r = client.post(
                 "/person_lineage/",
-                json={"person_one_id": hi, "person_two_id": lo, "relationship": "phd_supervisor_of"},
+                json={"person_subject_curie_or_id": hi, "person_object_curie_or_id": lo, "relationship": "phd_supervisor_of"},
                 headers=auth_headers,
             )
             pid = r.json()["person_lineage_id"]
@@ -172,23 +172,23 @@ class TestPersonLineage:
             )
             assert p.status_code == status.HTTP_200_OK
             g = client.get(f"/person_lineage/{pid}", headers=auth_headers).json()
-            assert g["person_one_id"] == lo and g["person_two_id"] == hi
+            assert g["person_subject_id"] == lo and g["person_object_id"] == hi
 
     def test_patch_to_symmetric_collision_rejected(self, auth_headers, two_people):  # noqa
-        lo = min(two_people["person_one_id"], two_people["person_two_id"])
-        hi = max(two_people["person_one_id"], two_people["person_two_id"])
+        lo = min(two_people["person_subject_id"], two_people["person_object_id"])
+        hi = max(two_people["person_subject_id"], two_people["person_object_id"])
         with TestClient(app) as client:
             # existing normalized collaborator_of (lo, hi)
             client.post(
                 "/person_lineage/",
-                json={"person_one_id": lo, "person_two_id": hi, "relationship": "collaborator_of"},
+                json={"person_subject_curie_or_id": lo, "person_object_curie_or_id": hi, "relationship": "collaborator_of"},
                 headers=auth_headers,
             )
             # directional (hi, lo) phd row; patching it to collaborator_of would
             # normalize to (lo, hi) and collide with the row above -> 422
             r = client.post(
                 "/person_lineage/",
-                json={"person_one_id": hi, "person_two_id": lo, "relationship": "phd_supervisor_of"},
+                json={"person_subject_curie_or_id": hi, "person_object_curie_or_id": lo, "relationship": "phd_supervisor_of"},
                 headers=auth_headers,
             )
             pid = r.json()["person_lineage_id"]

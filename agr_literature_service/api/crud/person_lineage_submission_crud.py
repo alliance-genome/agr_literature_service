@@ -1,33 +1,30 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from agr_literature_service.api.models import PersonLineageSubmissionModel, PersonModel
-from agr_literature_service.api.crud import person_lineage_crud
+from agr_literature_service.api.models import PersonLineageSubmissionModel
+from agr_literature_service.api.crud import person_lineage_crud, person_crud
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
 _SCALAR_FIELDS = {
-    "person_one_name", "person_two_name", "relationship", "who_sent_this",
-    "person_one_id", "person_two_id", "start_date", "end_date", "status",
+    "person_subject_name", "person_object_name", "relationship", "who_sent_this",
+    "start_date", "end_date", "status",
 }
-_NOT_NULL = {"person_one_name", "person_two_name", "relationship", "who_sent_this", "status"}
+_NOT_NULL = {"person_subject_name", "person_object_name", "relationship", "who_sent_this", "status"}
 
 
-def _validate_person_link(db: Session, person_id: Optional[int], label: str) -> None:
-    if person_id is None:
-        return
-    exists = db.query(PersonModel.person_id).filter(PersonModel.person_id == person_id).first()
-    if not exists:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{label} references person_id {person_id}, which was not found",
-        )
+def _resolve_person(db: Session, curie_or_id: Optional[Union[str, int]]) -> Optional[int]:
+    """Resolve a curie-or-id person reference to its integer person_id, or None
+    when not supplied. Raises 404 (via resolve_person_id) for an unknown person."""
+    if curie_or_id is None or (isinstance(curie_or_id, str) and not curie_or_id.strip()):
+        return None
+    return person_crud.resolve_person_id(db, str(curie_or_id))
 
 
 def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel:
@@ -38,16 +35,13 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    _validate_person_link(db, data.get("person_one_id"), "person_one_id")
-    _validate_person_link(db, data.get("person_two_id"), "person_two_id")
-
     obj = PersonLineageSubmissionModel(
-        person_one_name=data["person_one_name"],
-        person_two_name=data["person_two_name"],
+        person_subject_name=data["person_subject_name"],
+        person_object_name=data["person_object_name"],
         relationship=data["relationship"],
         who_sent_this=data["who_sent_this"],
-        person_one_id=data.get("person_one_id"),
-        person_two_id=data.get("person_two_id"),
+        person_subject_id=_resolve_person(db, data.get("person_subject_curie_or_id")),
+        person_object_id=_resolve_person(db, data.get("person_object_curie_or_id")),
         start_date=data.get("start_date"),
         end_date=data.get("end_date"),
     )
@@ -65,8 +59,8 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel
 
 
 _PERSON_OBJS = (
-    selectinload(PersonLineageSubmissionModel.person_one_obj),
-    selectinload(PersonLineageSubmissionModel.person_two_obj),
+    selectinload(PersonLineageSubmissionModel.person_subject_obj),
+    selectinload(PersonLineageSubmissionModel.person_object_obj),
 )
 
 
@@ -113,10 +107,11 @@ def patch(db: Session, person_lineage_submission_id: int, patch_dict: Dict[str, 
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    if "person_one_id" in data:
-        _validate_person_link(db, data["person_one_id"], "person_one_id")
-    if "person_two_id" in data:
-        _validate_person_link(db, data["person_two_id"], "person_two_id")
+    # Resolve person links by curie-or-id (an explicit null clears the link).
+    if "person_subject_curie_or_id" in data:
+        obj.person_subject_id = _resolve_person(db, data["person_subject_curie_or_id"])
+    if "person_object_curie_or_id" in data:
+        obj.person_object_id = _resolve_person(db, data["person_object_curie_or_id"])
 
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:
@@ -148,7 +143,7 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     """Promote a fully-resolved submission to a canonical person_lineage.
 
     Requires both person ids to be resolved. Finds or creates the canonical PPR
-    for (person_one_id, person_two_id, relationship), links the submission to it,
+    for (person_subject_id, person_object_id, relationship), links the submission to it,
     and sets status to 'validated' (new canonical) or 'duplicate' (already existed).
 
     Guards:
@@ -174,25 +169,26 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     if obj.person_lineage_id is not None:
         return obj
 
-    if obj.person_one_id is None or obj.person_two_id is None:
+    if obj.person_subject_id is None or obj.person_object_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Both person_one_id and person_two_id must be resolved before validating.",
+            detail="Both person_subject_id and person_object_id must be resolved before validating.",
         )
 
-    canonical, created = person_lineage_crud.find_or_create(
-        db,
-        person_one_id=obj.person_one_id,
-        person_two_id=obj.person_two_id,
-        relationship=obj.relationship,
-        start_date=obj.start_date,
-        end_date=obj.end_date,
-    )
-
-    obj.person_lineage_id = canonical.person_lineage_id
-    obj.status = "validated" if created else "duplicate"
-
+    # Wrap find_or_create (which flushes a new canonical) through commit, so a
+    # concurrent validation creating the same (subject, object, relationship) row
+    # surfaces as a clean 422 rather than an uncaught flush-time IntegrityError.
     try:
+        canonical, created = person_lineage_crud.find_or_create(
+            db,
+            person_subject_id=obj.person_subject_id,
+            person_object_id=obj.person_object_id,
+            relationship=obj.relationship,
+            start_date=obj.start_date,
+            end_date=obj.end_date,
+        )
+        obj.person_lineage_id = canonical.person_lineage_id
+        obj.status = "validated" if created else "duplicate"
         db.commit()
     except IntegrityError:
         db.rollback()
