@@ -37,7 +37,7 @@ def test_submission(db, auth_headers):  # noqa
         payload = {
             "person_one_name": "Alice Advisor",
             "person_two_name": "Bob Trainee",
-            "relationship": "phd",
+            "relationship": "phd_supervisor_of",
             "who_sent_this": "curator1",
         }
         response = client.post("/person_lineage_submission/", json=payload, headers=auth_headers)
@@ -63,7 +63,7 @@ class TestPersonLineageSubmission:
         with TestClient(app) as client:
             res = client.post(
                 "/person_lineage_submission/",
-                json={"person_one_name": "A", "person_two_name": "B", "relationship": "phd"},
+                json={"person_one_name": "A", "person_two_name": "B", "relationship": "phd_supervisor_of"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -81,7 +81,7 @@ class TestPersonLineageSubmission:
     def test_duplicate_name_only_submissions_allowed(self, auth_headers):  # noqa
         # No constraint on submissions — identical name-only claims all succeed.
         payload = {"person_one_name": "Dup A", "person_two_name": "Dup B",
-                   "relationship": "phd", "who_sent_this": "x"}
+                   "relationship": "phd_supervisor_of", "who_sent_this": "x"}
         with TestClient(app) as client:
             for _ in range(3):
                 res = client.post("/person_lineage_submission/", json=payload, headers=auth_headers)
@@ -136,7 +136,7 @@ class TestPersonLineageSubmission:
             # First submission, fully resolved, validated -> creates canonical.
             payload = {
                 "person_one_name": "Alice", "person_two_name": "Bob",
-                "relationship": "phd", "who_sent_this": "curator1",
+                "relationship": "phd_supervisor_of", "who_sent_this": "curator1",
                 "person_one_id": two_people["person_one_id"],
                 "person_two_id": two_people["person_two_id"],
             }
@@ -165,7 +165,7 @@ class TestPersonLineageSubmission:
             .filter(
                 PersonLineageModel.person_one_id == two_people["person_one_id"],
                 PersonLineageModel.person_two_id == two_people["person_two_id"],
-                PersonLineageModel.relationship == "phd",
+                PersonLineageModel.relationship == "phd_supervisor_of",
             )
             .count()
         )
@@ -189,7 +189,7 @@ class TestPersonLineageSubmission:
         # (the unique constraint is on the full triple, not just the pair).
         with TestClient(app) as client:
             ids = {}
-            for rel in ("phd", "postdoc"):
+            for rel in ("phd_supervisor_of", "postdoc_supervisor_of"):
                 r = client.post(
                     "/person_lineage_submission/",
                     json={
@@ -207,7 +207,7 @@ class TestPersonLineageSubmission:
                 assert v.json()["status"] == "validated"
                 ids[rel] = v.json()["person_lineage_id"]
 
-            assert ids["phd"] != ids["postdoc"]
+            assert ids["phd_supervisor_of"] != ids["postdoc_supervisor_of"]
 
         canon = (
             db.query(PersonLineageModel)
@@ -228,7 +228,7 @@ class TestPersonLineageSubmission:
                 json={
                     "person_one_id": two_people["person_one_id"],
                     "person_two_id": two_people["person_two_id"],
-                    "relationship": "phd",
+                    "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
             )
@@ -239,7 +239,7 @@ class TestPersonLineageSubmission:
                 "/person_lineage_submission/",
                 json={
                     "person_one_name": "Alice", "person_two_name": "Bob",
-                    "relationship": "phd", "who_sent_this": "cur",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
                     "person_one_id": two_people["person_one_id"],
                     "person_two_id": two_people["person_two_id"],
                 },
@@ -256,8 +256,42 @@ class TestPersonLineageSubmission:
             .filter(
                 PersonLineageModel.person_one_id == two_people["person_one_id"],
                 PersonLineageModel.person_two_id == two_people["person_two_id"],
-                PersonLineageModel.relationship == "phd",
+                PersonLineageModel.relationship == "phd_supervisor_of",
             )
+            .count()
+        )
+        assert count == 1
+
+    def test_symmetric_collaborator_reversed_dedups(self, db, auth_headers, two_people):  # noqa
+        # collaborator_of is non-directional: validating (A,B) then (B,A) links both
+        # submissions to the SAME canonical row; the second is marked duplicate.
+        with TestClient(app) as client:
+            def submit_and_validate(one_id, two_id):
+                r = client.post(
+                    "/person_lineage_submission/",
+                    json={
+                        "person_one_name": "A", "person_two_name": "B",
+                        "relationship": "collaborator_of", "who_sent_this": "cur",
+                        "person_one_id": one_id, "person_two_id": two_id,
+                    },
+                    headers=auth_headers,
+                )
+                sub_id = r.json()["person_lineage_submission_id"]
+                return client.post(
+                    f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers
+                ).json()
+
+            first = submit_and_validate(two_people["person_one_id"], two_people["person_two_id"])
+            assert first["status"] == "validated"
+
+            # reversed order -> same canonical, duplicate
+            second = submit_and_validate(two_people["person_two_id"], two_people["person_one_id"])
+            assert second["status"] == "duplicate"
+            assert second["person_lineage_id"] == first["person_lineage_id"]
+
+        count = (
+            db.query(PersonLineageModel)
+            .filter(PersonLineageModel.relationship == "collaborator_of")
             .count()
         )
         assert count == 1

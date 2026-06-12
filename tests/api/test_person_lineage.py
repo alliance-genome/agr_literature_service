@@ -32,7 +32,7 @@ def test_lineage(db, auth_headers, two_people):  # noqa
         payload = {
             "person_one_id": two_people["person_one_id"],
             "person_two_id": two_people["person_two_id"],
-            "relationship": "phd",
+            "relationship": "phd_supervisor_of",
         }
         response = client.post("/person_lineage/", json=payload, headers=auth_headers)
         body = response.json() if response.status_code == status.HTTP_201_CREATED else {}
@@ -55,7 +55,7 @@ class TestPersonLineage:
         )
         assert obj.person_one_id == test_lineage.person_one_id
         assert obj.person_two_id == test_lineage.person_two_id
-        assert obj.relationship == "phd"
+        assert obj.relationship == "phd_supervisor_of"
 
     def test_duplicate_rejected(self, auth_headers, test_lineage):  # noqa
         with TestClient(app) as client:
@@ -64,7 +64,7 @@ class TestPersonLineage:
                 json={
                     "person_one_id": test_lineage.person_one_id,
                     "person_two_id": test_lineage.person_two_id,
-                    "relationship": "phd",
+                    "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
             )
@@ -78,7 +78,7 @@ class TestPersonLineage:
                 json={
                     "person_one_id": test_lineage.person_two_id,
                     "person_two_id": test_lineage.person_one_id,
-                    "relationship": "phd",
+                    "relationship": "phd_supervisor_of",
                 },
                 headers=auth_headers,
             )
@@ -88,10 +88,43 @@ class TestPersonLineage:
         with TestClient(app) as client:
             res = client.post(
                 "/person_lineage/",
-                json={"person_one_id": 9999999, "person_two_id": 9999998, "relationship": "phd"},
+                json={"person_one_id": 9999999, "person_two_id": 9999998, "relationship": "phd_supervisor_of"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_symmetric_collaborator_reversed_rejected(self, db, auth_headers, two_people):  # noqa
+        # collaborator_of is non-directional: (A,B) and (B,A) normalize to the same
+        # canonical row, so the reverse insert hits the unique constraint -> 422.
+        with TestClient(app) as client:
+            c1 = client.post(
+                "/person_lineage/",
+                json={
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_two_id"],
+                    "relationship": "collaborator_of",
+                },
+                headers=auth_headers,
+            )
+            assert c1.status_code == status.HTTP_201_CREATED
+            c2 = client.post(
+                "/person_lineage/",
+                json={
+                    "person_one_id": two_people["person_two_id"],
+                    "person_two_id": two_people["person_one_id"],
+                    "relationship": "collaborator_of",
+                },
+                headers=auth_headers,
+            )
+            assert c2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+        # exactly one canonical row regardless of submitted direction
+        count = (
+            db.query(PersonLineageModel)
+            .filter(PersonLineageModel.relationship == "collaborator_of")
+            .count()
+        )
+        assert count == 1
 
     def test_show_and_patch(self, auth_headers, test_lineage):  # noqa
         with TestClient(app) as client:
@@ -100,11 +133,57 @@ class TestPersonLineage:
 
             res = client.patch(
                 f"/person_lineage/{test_lineage.new_id}",
-                json={"relationship": "collaborated"},
+                json={"relationship": "postdoc_supervisor_of"},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_200_OK
-            assert res.json()["relationship"] == "collaborated"
+            assert res.json()["relationship"] == "postdoc_supervisor_of"
+
+    def test_patch_to_symmetric_normalizes_ids(self, auth_headers, two_people):  # noqa
+        lo = min(two_people["person_one_id"], two_people["person_two_id"])
+        hi = max(two_people["person_one_id"], two_people["person_two_id"])
+        with TestClient(app) as client:
+            # directional row deliberately stored in reverse (hi, lo) order
+            r = client.post(
+                "/person_lineage/",
+                json={"person_one_id": hi, "person_two_id": lo, "relationship": "phd_supervisor_of"},
+                headers=auth_headers,
+            )
+            pid = r.json()["person_lineage_id"]
+            # patch to the symmetric relationship -> ids must re-normalize to (lo, hi)
+            p = client.patch(
+                f"/person_lineage/{pid}",
+                json={"relationship": "collaborator_of"},
+                headers=auth_headers,
+            )
+            assert p.status_code == status.HTTP_200_OK
+            g = client.get(f"/person_lineage/{pid}", headers=auth_headers).json()
+            assert g["person_one_id"] == lo and g["person_two_id"] == hi
+
+    def test_patch_to_symmetric_collision_rejected(self, auth_headers, two_people):  # noqa
+        lo = min(two_people["person_one_id"], two_people["person_two_id"])
+        hi = max(two_people["person_one_id"], two_people["person_two_id"])
+        with TestClient(app) as client:
+            # existing normalized collaborator_of (lo, hi)
+            client.post(
+                "/person_lineage/",
+                json={"person_one_id": lo, "person_two_id": hi, "relationship": "collaborator_of"},
+                headers=auth_headers,
+            )
+            # directional (hi, lo) phd row; patching it to collaborator_of would
+            # normalize to (lo, hi) and collide with the row above -> 422
+            r = client.post(
+                "/person_lineage/",
+                json={"person_one_id": hi, "person_two_id": lo, "relationship": "phd_supervisor_of"},
+                headers=auth_headers,
+            )
+            pid = r.json()["person_lineage_id"]
+            p = client.patch(
+                f"/person_lineage/{pid}",
+                json={"relationship": "collaborator_of"},
+                headers=auth_headers,
+            )
+            assert p.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_destroy(self, auth_headers, test_lineage):  # noqa
         with TestClient(app) as client:

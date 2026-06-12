@@ -8,11 +8,22 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import PersonLineageModel, PersonModel
+from agr_literature_service.api.schemas import SYMMETRIC_RELATIONSHIPS
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
 _SCALAR_FIELDS = {"relationship", "start_date", "end_date"}
+
+
+def _normalize_pair(person_one_id: int, person_two_id: int, relationship: str) -> Tuple[int, int]:
+    """For non-directional relationships, return the pair in ascending id order so
+    (A, B) and (B, A) collapse to the same canonical row. Directional relationships
+    keep the submitted order.
+    """
+    if relationship in SYMMETRIC_RELATIONSHIPS and person_one_id > person_two_id:
+        return person_two_id, person_one_id
+    return person_one_id, person_two_id
 
 
 def _validate_person(db: Session, person_id: int, label: str) -> None:
@@ -35,9 +46,12 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
     _validate_person(db, data["person_one_id"], "person_one_id")
     _validate_person(db, data["person_two_id"], "person_two_id")
 
+    one_id, two_id = _normalize_pair(
+        data["person_one_id"], data["person_two_id"], data["relationship"]
+    )
     obj = PersonLineageModel(
-        person_one_id=data["person_one_id"],
-        person_two_id=data["person_two_id"],
+        person_one_id=one_id,
+        person_two_id=two_id,
         relationship=data["relationship"],
         start_date=data.get("start_date"),
         end_date=data.get("end_date"),
@@ -68,7 +82,10 @@ def find_or_create(
 ) -> Tuple[PersonLineageModel, bool]:
     """Return (canonical, created). Looks up an existing canonical PPR for the
     (person_one_id, person_two_id, relationship) triple; creates one if absent.
+    For non-directional relationships the pair is normalized to ascending id
+    order first, so a reversed submission matches the existing row.
     """
+    person_one_id, person_two_id = _normalize_pair(person_one_id, person_two_id, relationship)
     existing = (
         db.query(PersonLineageModel)
         .filter(
@@ -140,6 +157,13 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
         if field == "relationship" and value is None:
             continue
         setattr(obj, field, value)
+
+    # If the (possibly updated) relationship is non-directional, re-normalize the
+    # id order so a row patched into collaborator_of can't become a reversed
+    # duplicate of an existing collaborator_of for the same pair.
+    obj.person_one_id, obj.person_two_id = _normalize_pair(
+        obj.person_one_id, obj.person_two_id, obj.relationship
+    )
 
     try:
         db.commit()
