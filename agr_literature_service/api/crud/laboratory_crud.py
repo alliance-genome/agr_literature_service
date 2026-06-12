@@ -142,6 +142,7 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
 
     # Derive the curie from the laboratory_id.
     obj.curie = laboratory_curie_from_id(obj.laboratory_id)
+    new_laboratory_id = obj.laboratory_id
 
     if xrefs_data:
         for xr in xrefs_data:
@@ -174,8 +175,9 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Database constraint violation; please verify input and retry.",
         )
-    db.refresh(obj)
-    return obj
+    # Return via show() so the response eager-loads cross_references and
+    # allele_designations (consistent with patch(), avoids N+1 on serialization).
+    return show(db, str(new_laboratory_id))
 
 
 def destroy(db: Session, curie_or_laboratory_id: str) -> None:

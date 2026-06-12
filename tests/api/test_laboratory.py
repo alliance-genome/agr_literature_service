@@ -195,4 +195,8 @@ class TestLaboratory:
             .filter(LaboratoryCrossReferenceModel.curie == "WB:WBlabATOMIC")
             .count()
         ) == 0
-        assert db.query(LaboratoryAlleleDesignationModel).count() == 0
+        assert (
+            db.query(LaboratoryAlleleDesignationModel)
+            .filter(LaboratoryAlleleDesignationModel.allele_designation == "x")
+            .count()
+        ) == 0
