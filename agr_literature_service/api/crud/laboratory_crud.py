@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, selectinload
 from agr_literature_service.api.models import (
     LaboratoryModel,
     LaboratoryCrossReferenceModel,
+    LaboratoryAlleleDesignationModel,
+    ModModel,
 )
 from agr_literature_service.api.schemas import LaboratorySchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -64,6 +66,37 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     xrefs_data = data.pop("cross_references", None)
+    alleles_data = data.pop("allele_designations", None)
+
+    # Resolve + validate inline allele designations BEFORE creating anything, so an
+    # invalid mod_abbreviation (or a duplicated MOD in the request) fails the whole
+    # request atomically — no laboratory, cross-references, or alleles are created.
+    resolved_alleles = []
+    if alleles_data:
+        seen_mod_ids: set = set()
+        for al in alleles_data:
+            mod_abbreviation = al["mod_abbreviation"]
+            row = (
+                db.query(ModModel.mod_id)
+                .filter(ModModel.abbreviation == mod_abbreviation)
+                .one_or_none()
+            )
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"MOD with abbreviation '{mod_abbreviation}' not found",
+                )
+            mod_id = row[0]
+            if mod_id in seen_mod_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Multiple allele designations for MOD '{mod_abbreviation}' "
+                        "in the request; at most one per MOD is allowed."
+                    ),
+                )
+            seen_mod_ids.add(mod_id)
+            resolved_alleles.append((mod_id, al["allele_designation"]))
 
     # Validate cross-references against the two unique constraints on
     # laboratory_cross_reference: curie is globally unique, and
@@ -123,6 +156,15 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
                     is_obsolete=bool(xr.get("is_obsolete", False)),
                 )
             )
+
+    for mod_id, allele_designation in resolved_alleles:
+        db.add(
+            LaboratoryAlleleDesignationModel(
+                laboratory_id=obj.laboratory_id,
+                mod_id=mod_id,
+                allele_designation=allele_designation,
+            )
+        )
 
     try:
         db.commit()
@@ -192,7 +234,10 @@ def show(db: Session, curie_or_laboratory_id: str) -> LaboratoryModel:
     laboratory_id = resolve_laboratory_id(db, curie_or_laboratory_id)
     obj: Optional[LaboratoryModel] = (
         db.query(LaboratoryModel)
-        .options(selectinload(LaboratoryModel.cross_references))
+        .options(
+            selectinload(LaboratoryModel.cross_references),
+            selectinload(LaboratoryModel.allele_designations),
+        )
         .filter(LaboratoryModel.laboratory_id == laboratory_id)
         .first()
     )

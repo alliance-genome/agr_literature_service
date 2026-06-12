@@ -8,6 +8,10 @@ from .laboratory_cross_reference_schemas import (
     LaboratoryCrossReferenceSchemaCreate,
     LaboratoryCrossReferenceSchemaRelated,
 )
+from .laboratory_allele_designation_schemas import (
+    LaboratoryAlleleDesignationSchemaCreate,
+    LaboratoryAlleleDesignationSchemaRelated,
+)
 
 # Controlled vocabularies enforced at the API (Pydantic) layer only — no DB constraint.
 LaboratoryStatus = Literal["active", "closed", "unknown"]
@@ -40,6 +44,7 @@ class LaboratorySchemaPost(BaseModel):
     additional_information: Optional[str] = None
     private_note: Optional[str] = None
     cross_references: Optional[List["LaboratoryCrossReferenceSchemaCreate"]] = None
+    allele_designations: Optional[List["LaboratoryAlleleDesignationSchemaCreate"]] = None
 
     @model_validator(mode="after")
     def _at_least_one_field_besides_status(self):
@@ -104,3 +109,4 @@ class LaboratorySchemaShow(AuditedObjectModelSchema):
     additional_information: Optional[str] = None
     private_note: Optional[str] = None
     cross_references: Optional[List["LaboratoryCrossReferenceSchemaRelated"]] = None
+    allele_designations: Optional[List["LaboratoryAlleleDesignationSchemaRelated"]] = None

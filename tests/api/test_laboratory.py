@@ -6,7 +6,12 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import LaboratoryModel
+from agr_literature_service.api.models import (
+    LaboratoryModel,
+    LaboratoryCrossReferenceModel,
+    LaboratoryAlleleDesignationModel,
+    ModModel,
+)
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
@@ -154,3 +159,40 @@ class TestLaboratory:
             assert len(xrefs) == 1
             assert xrefs[0]["curie"] == "WB:WBlab0001"
             assert xrefs[0]["curie_prefix"] == "WB"
+
+    def test_create_with_inline_allele_designations(self, db, auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").one_or_none()
+        if mod is None:
+            db.add(ModModel(abbreviation="WB", short_name="WB", full_name="WormBase"))
+            db.commit()
+        with TestClient(app) as client:
+            payload = {
+                "name": "Lab with alleles",
+                "allele_designations": [{"mod_abbreviation": "WB", "allele_designation": "e"}],
+            }
+            res = client.post("/laboratory/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            alleles = res.json()["allele_designations"]
+            assert len(alleles) == 1
+            assert alleles[0]["allele_designation"] == "e"
+            assert alleles[0]["mod_abbreviation"] == "WB"
+
+    def test_inline_invalid_mod_abbreviation_is_atomic(self, db, auth_headers):  # noqa
+        # An invalid mod_abbreviation fails the whole request: no laboratory,
+        # cross-reference, or allele is created.
+        with TestClient(app) as client:
+            payload = {
+                "name": "Atomic Fail Lab",
+                "cross_references": [{"curie": "WB:WBlabATOMIC"}],
+                "allele_designations": [{"mod_abbreviation": "NOPE", "allele_designation": "x"}],
+            }
+            res = client.post("/laboratory/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+        assert db.query(LaboratoryModel).filter(LaboratoryModel.name == "Atomic Fail Lab").count() == 0
+        assert (
+            db.query(LaboratoryCrossReferenceModel)
+            .filter(LaboratoryCrossReferenceModel.curie == "WB:WBlabATOMIC")
+            .count()
+        ) == 0
+        assert db.query(LaboratoryAlleleDesignationModel).count() == 0

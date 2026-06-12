@@ -30,17 +30,6 @@ def _resolve_mod_id(db: Session, mod_abbreviation: str) -> int:
     return row[0]
 
 
-def _attach_mod_abbreviation(db: Session, obj: LaboratoryAlleleDesignationModel) -> LaboratoryAlleleDesignationModel:
-    """Set a transient mod_abbreviation attribute used by the Show schema."""
-    abbr = (
-        db.query(ModModel.abbreviation)
-        .filter(ModModel.mod_id == obj.mod_id)
-        .scalar()
-    )
-    obj.mod_abbreviation = abbr  # type: ignore[attr-defined]
-    return obj
-
-
 def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, Any]) -> LaboratoryAlleleDesignationModel:
     lab = db.query(LaboratoryModel).filter(LaboratoryModel.laboratory_id == laboratory_id).first()
     if not lab:
@@ -75,7 +64,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
             ),
         )
     db.refresh(obj)
-    return _attach_mod_abbreviation(db, obj)
+    return obj
 
 
 def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryAlleleDesignationModel]:
@@ -85,13 +74,12 @@ def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryAllel
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Laboratory with laboratory_id {laboratory_id} not found",
         )
-    rows = (
+    return (
         db.query(LaboratoryAlleleDesignationModel)
         .filter(LaboratoryAlleleDesignationModel.laboratory_id == laboratory_id)
         .order_by(LaboratoryAlleleDesignationModel.laboratory_allele_designation_id.asc())
         .all()
     )
-    return [_attach_mod_abbreviation(db, r) for r in rows]
 
 
 def show(db: Session, laboratory_allele_designation_id: int) -> LaboratoryAlleleDesignationModel:
@@ -108,7 +96,7 @@ def show(db: Session, laboratory_allele_designation_id: int) -> LaboratoryAllele
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"LaboratoryAlleleDesignation with id {laboratory_allele_designation_id} not found",
         )
-    return _attach_mod_abbreviation(db, obj)
+    return obj
 
 
 def patch(db: Session, laboratory_allele_designation_id: int, patch_dict: Dict[str, Any]) -> Dict[str, Any]:
