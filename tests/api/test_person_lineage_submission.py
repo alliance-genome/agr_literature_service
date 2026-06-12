@@ -348,6 +348,8 @@ class TestPersonLineageSubmission:
             again = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
             assert again.status_code == status.HTTP_200_OK
             assert again.json()["person_lineage_id"] == canonical_id
+            # no-op does not re-stamp status — the curator-set value is preserved
+            assert again.json()["status"] == "pending"
 
         count = (
             db.query(PersonLineageModel)

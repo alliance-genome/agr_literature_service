@@ -142,6 +142,11 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     Requires both person ids to be resolved. Finds or creates the canonical PPR
     for (person_one_id, person_two_id, relationship), links the submission to it,
     and sets status to 'validated' (new canonical) or 'duplicate' (already existed).
+
+    Guards:
+      - a 'rejected' submission is refused (422) until its status is reset, so a
+        rejection is never silently reversed;
+      - an already-linked submission is an idempotent no-op (returned unchanged).
     """
     obj = show(db, person_lineage_submission_id)
 
