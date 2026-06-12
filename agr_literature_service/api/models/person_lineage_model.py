@@ -43,6 +43,16 @@ class PersonLineageModel(Base, AuditedModel):
     person_two_obj = orm_relationship("PersonModel", foreign_keys=[person_two_id])
     submissions = orm_relationship("PersonLineageSubmissionModel", back_populates="canonical")
 
+    @property
+    def person_one_curie(self):
+        """Convenience for serializers — the curie of the resolved person_one."""
+        return self.person_one_obj.curie if self.person_one_obj else None
+
+    @property
+    def person_two_curie(self):
+        """Convenience for serializers — the curie of the resolved person_two."""
+        return self.person_two_obj.curie if self.person_two_obj else None
+
     __table_args__ = (
         UniqueConstraint(
             "person_one_id", "person_two_id", "relationship",

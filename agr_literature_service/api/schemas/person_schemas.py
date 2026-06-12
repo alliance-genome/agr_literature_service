@@ -12,6 +12,7 @@ from .person_cross_reference_schemas import (
 )
 from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
 from .person_note_schemas import PersonNoteSchemaCreate, PersonNoteSchemaRelated
+from .laboratory_person_schemas import LaboratoryPersonSchemaRelated
 
 ActiveStatus = Literal["active", "retired", "deceased"]
 
@@ -83,3 +84,4 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     cross_references: Optional[List["PersonCrossReferenceSchemaRelated"]] = None
     names: Optional[List["PersonNameSchemaRelated"]] = None
     notes: Optional[List["PersonNoteSchemaRelated"]] = None
+    lab_persons: Optional[List["LaboratoryPersonSchemaRelated"]] = None

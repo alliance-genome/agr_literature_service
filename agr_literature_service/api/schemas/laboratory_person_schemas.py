@@ -42,7 +42,9 @@ class LaboratoryPersonSchemaShow(AuditedObjectModelSchema):
 
     laboratory_person_id: int
     laboratory_id: int
+    laboratory_curie: Optional[str] = None
     person_id: int
+    person_curie: Optional[str] = None
     is_pi: Optional[datetime] = None
     former_pi: Optional[datetime] = None
     alum: Optional[datetime] = None
@@ -55,7 +57,10 @@ class LaboratoryPersonSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     laboratory_person_id: int
+    laboratory_id: int
+    laboratory_curie: Optional[str] = None
     person_id: int
+    person_curie: Optional[str] = None
     is_pi: Optional[datetime] = None
     former_pi: Optional[datetime] = None
     alum: Optional[datetime] = None

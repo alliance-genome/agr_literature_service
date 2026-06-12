@@ -53,6 +53,11 @@ class PersonEmailModel(Base, AuditedModel):
         ),
     )
 
+    @property
+    def person_curie(self):
+        """Convenience for serializers — the owning person's curie."""
+        return self.person.curie if self.person else None
+
     def __str__(self) -> str:
         status = "old" if self.date_made_old_email else "active"
         return f"{self.email_address} [{status}]"

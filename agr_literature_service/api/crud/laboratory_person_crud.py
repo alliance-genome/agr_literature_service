@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import (
     LaboratoryModel,
@@ -77,7 +77,30 @@ def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryPerso
         )
     return (
         db.query(LaboratoryPersonModel)
+        .options(
+            selectinload(LaboratoryPersonModel.person),
+            selectinload(LaboratoryPersonModel.laboratory),
+        )
         .filter(LaboratoryPersonModel.laboratory_id == laboratory_id)
+        .order_by(LaboratoryPersonModel.laboratory_person_id.asc())
+        .all()
+    )
+
+
+def list_for_person(db: Session, person_id: int) -> List[LaboratoryPersonModel]:
+    person_exists = db.query(PersonModel.person_id).filter(PersonModel.person_id == person_id).first()
+    if not person_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Person with person_id {person_id} not found",
+        )
+    return (
+        db.query(LaboratoryPersonModel)
+        .options(
+            selectinload(LaboratoryPersonModel.person),
+            selectinload(LaboratoryPersonModel.laboratory),
+        )
+        .filter(LaboratoryPersonModel.person_id == person_id)
         .order_by(LaboratoryPersonModel.laboratory_person_id.asc())
         .all()
     )
@@ -86,6 +109,10 @@ def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryPerso
 def show(db: Session, laboratory_person_id: int) -> LaboratoryPersonModel:
     obj = (
         db.query(LaboratoryPersonModel)
+        .options(
+            selectinload(LaboratoryPersonModel.laboratory),
+            selectinload(LaboratoryPersonModel.person),
+        )
         .filter(LaboratoryPersonModel.laboratory_person_id == laboratory_person_id)
         .first()
     )

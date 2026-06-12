@@ -11,6 +11,7 @@ from agr_literature_service.api.models import (
     LaboratoryModel,
     LaboratoryCrossReferenceModel,
     LaboratoryAlleleDesignationModel,
+    LaboratoryPersonModel,
     ModModel,
 )
 from agr_literature_service.api.schemas import LaboratorySchemaCreate
@@ -238,7 +239,10 @@ def show(db: Session, curie_or_laboratory_id: str) -> LaboratoryModel:
         db.query(LaboratoryModel)
         .options(
             selectinload(LaboratoryModel.cross_references),
-            selectinload(LaboratoryModel.allele_designations),
+            selectinload(LaboratoryModel.allele_designations).selectinload(
+                LaboratoryAlleleDesignationModel.mod
+            ),
+            selectinload(LaboratoryModel.lab_persons).selectinload(LaboratoryPersonModel.person),
         )
         .filter(LaboratoryModel.laboratory_id == laboratory_id)
         .first()

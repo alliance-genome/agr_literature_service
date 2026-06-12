@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import LaboratoryModel, LaboratoryCrossReferenceModel
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -119,6 +119,7 @@ def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryCross
         )
     return (
         db.query(LaboratoryCrossReferenceModel)
+        .options(selectinload(LaboratoryCrossReferenceModel.laboratory))
         .filter(LaboratoryCrossReferenceModel.laboratory_id == laboratory_id)
         .order_by(LaboratoryCrossReferenceModel.laboratory_cross_reference_id.asc())
         .all()
@@ -149,6 +150,7 @@ def get_by_curie_or_id(db: Session, curie_or_id: str) -> LaboratoryCrossReferenc
 def show(db: Session, laboratory_cross_reference_id: int) -> LaboratoryCrossReferenceModel:
     obj = (
         db.query(LaboratoryCrossReferenceModel)
+        .options(selectinload(LaboratoryCrossReferenceModel.laboratory))
         .filter(LaboratoryCrossReferenceModel.laboratory_cross_reference_id == laboratory_cross_reference_id)
         .first()
     )

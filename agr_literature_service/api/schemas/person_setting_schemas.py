@@ -53,6 +53,7 @@ class PersonSettingSchemaShow(AuditedObjectModelSchema):
 
     person_setting_id: int
     person_id: int
+    person_curie: Optional[str] = None
     component_name: str
     setting_name: str
     default_setting: bool

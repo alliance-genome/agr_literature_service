@@ -28,7 +28,7 @@ class LaboratoryPersonModel(Base, AuditedModel):
         nullable=False,
         index=True,
     )
-    person = relationship("PersonModel")
+    person = relationship("PersonModel", back_populates="lab_persons")
 
     # Timestamp fields (when the person became/stopped being PI, when they became alum).
     is_pi = Column(DateTime, nullable=True)
@@ -44,6 +44,16 @@ class LaboratoryPersonModel(Base, AuditedModel):
     __table_args__ = (
         Index("ix_laboratory_person_laboratory_person", "laboratory_id", "person_id"),
     )
+
+    @property
+    def laboratory_curie(self):
+        """Convenience for serializers — the laboratory curie via the laboratory FK."""
+        return self.laboratory.curie if self.laboratory else None
+
+    @property
+    def person_curie(self):
+        """Convenience for serializers — the person curie via the person FK."""
+        return self.person.curie if self.person else None
 
     def __str__(self) -> str:
         return f"laboratory_person(lab={self.laboratory_id}, person={self.person_id})"

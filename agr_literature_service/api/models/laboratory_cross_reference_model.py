@@ -34,6 +34,11 @@ class LaboratoryCrossReferenceModel(Base, AuditedModel):
         Index("ix_laboratory_xref_prefix_curie", "curie_prefix", "curie"),
     )
 
+    @property
+    def laboratory_curie(self):
+        """Convenience for serializers — the owning laboratory's curie."""
+        return self.laboratory.curie if self.laboratory else None
+
     def __str__(self) -> str:
         status = "obsolete" if self.is_obsolete else "active"
         return f"{self.curie} [{status}]"

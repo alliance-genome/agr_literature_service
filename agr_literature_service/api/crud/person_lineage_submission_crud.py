@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonLineageSubmissionModel, PersonModel
 from agr_literature_service.api.crud import person_lineage_crud
@@ -64,9 +64,16 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel
     return obj
 
 
+_PERSON_OBJS = (
+    selectinload(PersonLineageSubmissionModel.person_one_obj),
+    selectinload(PersonLineageSubmissionModel.person_two_obj),
+)
+
+
 def show(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmissionModel:
     obj = (
         db.query(PersonLineageSubmissionModel)
+        .options(*_PERSON_OBJS)
         .filter(PersonLineageSubmissionModel.person_lineage_submission_id == person_lineage_submission_id)
         .first()
     )
@@ -81,6 +88,7 @@ def show(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmiss
 def list_all(db: Session) -> List[PersonLineageSubmissionModel]:
     return (
         db.query(PersonLineageSubmissionModel)
+        .options(*_PERSON_OBJS)
         .order_by(PersonLineageSubmissionModel.person_lineage_submission_id.asc())
         .all()
     )

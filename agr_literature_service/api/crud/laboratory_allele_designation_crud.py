@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import (
     LaboratoryModel,
@@ -76,6 +76,10 @@ def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryAllel
         )
     return (
         db.query(LaboratoryAlleleDesignationModel)
+        .options(
+            selectinload(LaboratoryAlleleDesignationModel.laboratory),
+            selectinload(LaboratoryAlleleDesignationModel.mod),
+        )
         .filter(LaboratoryAlleleDesignationModel.laboratory_id == laboratory_id)
         .order_by(LaboratoryAlleleDesignationModel.laboratory_allele_designation_id.asc())
         .all()
@@ -85,6 +89,10 @@ def list_for_laboratory(db: Session, laboratory_id: int) -> List[LaboratoryAllel
 def show(db: Session, laboratory_allele_designation_id: int) -> LaboratoryAlleleDesignationModel:
     obj = (
         db.query(LaboratoryAlleleDesignationModel)
+        .options(
+            selectinload(LaboratoryAlleleDesignationModel.laboratory),
+            selectinload(LaboratoryAlleleDesignationModel.mod),
+        )
         .filter(
             LaboratoryAlleleDesignationModel.laboratory_allele_designation_id
             == laboratory_allele_designation_id

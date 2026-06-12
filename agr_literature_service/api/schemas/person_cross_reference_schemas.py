@@ -10,6 +10,7 @@ class PersonCrossReferenceSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     person_cross_reference_id: int
+    person_curie: Optional[str] = None
     curie: str
     curie_prefix: str
     pages: Optional[List[str]] = None
@@ -67,6 +68,7 @@ class PersonCrossReferenceSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     person_cross_reference_id: int
+    person_curie: Optional[str] = None
     curie: str
     curie_prefix: str
     pages: Optional[List[str]] = None

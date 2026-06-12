@@ -56,6 +56,7 @@ class PersonModel(Base, AuditedModel):
     settings = relationship("PersonSettingModel", back_populates="person", cascade="all, delete-orphan")
     names = relationship("PersonNameModel", back_populates="person", cascade="all, delete-orphan")
     notes = relationship("PersonNoteModel", back_populates="person", cascade="all, delete-orphan")
+    lab_persons = relationship("LaboratoryPersonModel", back_populates="person", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index(

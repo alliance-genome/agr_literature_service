@@ -24,6 +24,11 @@ class PersonNoteModel(Base, AuditedModel):
 
     note = Column(String(), nullable=False)
 
+    @property
+    def person_curie(self):
+        """Convenience for serializers — the owning person's curie."""
+        return self.person.curie if self.person else None
+
     def __str__(self) -> str:
         preview = (self.note or "")[:40]
         return f"PersonNote({self.person_note_id}) {preview}..."

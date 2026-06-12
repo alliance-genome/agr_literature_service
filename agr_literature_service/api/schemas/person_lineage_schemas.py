@@ -31,7 +31,9 @@ class PersonLineageSchemaShow(AuditedObjectModelSchema):
 
     person_lineage_id: int
     person_one_id: int
+    person_one_curie: Optional[str] = None
     person_two_id: int
+    person_two_curie: Optional[str] = None
     relationship: str
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None

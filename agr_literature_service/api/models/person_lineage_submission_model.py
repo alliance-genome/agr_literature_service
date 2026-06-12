@@ -65,6 +65,16 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
     person_two_obj = orm_relationship("PersonModel", foreign_keys=[person_two_id])
     canonical = orm_relationship("PersonLineageModel", back_populates="submissions")
 
+    @property
+    def person_one_curie(self):
+        """Convenience for serializers — the curie of the resolved person_one (if any)."""
+        return self.person_one_obj.curie if self.person_one_obj else None
+
+    @property
+    def person_two_curie(self):
+        """Convenience for serializers — the curie of the resolved person_two (if any)."""
+        return self.person_two_obj.curie if self.person_two_obj else None
+
     def __str__(self) -> str:
         return (
             f"{self.person_one_name} -[{self.relationship}]-> "

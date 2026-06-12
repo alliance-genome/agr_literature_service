@@ -118,6 +118,44 @@ class TestLaboratoryPerson:
             assert body["can_edit_lab"] is True
             assert body["lab_position"] == "co_pi"
 
+    def test_show_includes_curies(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(f"/laboratory_person/{test_lab_person.new_id}", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            body = res.json()
+            assert "laboratory_curie" in body and "person_curie" in body
+            assert body["person_curie"] == "AGRKB:test-lab-person"
+
+    def test_list_for_person(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                f"/laboratory_person/person/{test_lab_person.person_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            rows = res.json()
+            assert any(r["laboratory_person_id"] == test_lab_person.new_id for r in rows)
+            assert all("laboratory_curie" in r and "person_curie" in r for r in rows)
+
+    def test_list_for_nonexistent_person(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/laboratory_person/person/9999999", headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_laboratory_show_includes_lab_persons(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(f"/laboratory/{test_lab_person.laboratory_id}", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            lps = res.json().get("lab_persons") or []
+            assert any(lp["laboratory_person_id"] == test_lab_person.new_id for lp in lps)
+
+    def test_person_show_includes_lab_persons(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(f"/person/{test_lab_person.person_id}", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            lps = res.json().get("lab_persons") or []
+            assert any(lp["laboratory_person_id"] == test_lab_person.new_id for lp in lps)
+
     def test_destroy_lab_person(self, auth_headers, test_lab_person):  # noqa
         with TestClient(app) as client:
             res = client.delete(

@@ -12,6 +12,7 @@ from .laboratory_allele_designation_schemas import (
     LaboratoryAlleleDesignationSchemaCreate,
     LaboratoryAlleleDesignationSchemaRelated,
 )
+from .laboratory_person_schemas import LaboratoryPersonSchemaRelated
 
 # Controlled vocabularies enforced at the API (Pydantic) layer only — no DB constraint.
 LaboratoryStatus = Literal["active", "closed", "unknown"]
@@ -110,3 +111,4 @@ class LaboratorySchemaShow(AuditedObjectModelSchema):
     private_note: Optional[str] = None
     cross_references: Optional[List["LaboratoryCrossReferenceSchemaRelated"]] = None
     allele_designations: Optional[List["LaboratoryAlleleDesignationSchemaRelated"]] = None
+    lab_persons: Optional[List["LaboratoryPersonSchemaRelated"]] = None

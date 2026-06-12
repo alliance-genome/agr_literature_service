@@ -59,6 +59,7 @@ class LaboratoryAlleleDesignationSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     laboratory_allele_designation_id: int
+    laboratory_curie: Optional[str] = None
     laboratory_id: int
     mod_id: int
     mod_abbreviation: Optional[str] = None
@@ -69,6 +70,7 @@ class LaboratoryAlleleDesignationSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     laboratory_allele_designation_id: int
+    laboratory_curie: Optional[str] = None
     mod_id: int
     mod_abbreviation: Optional[str] = None
     allele_designation: str

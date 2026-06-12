@@ -55,6 +55,20 @@ def list_for_laboratory(
 
 
 @router.get(
+    "/person/{curie_or_person_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=List[LaboratoryPersonSchemaRelated],
+)
+def list_for_person(
+    curie_or_person_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
+    return laboratory_person_crud.list_for_person(db, person_id)
+
+
+@router.get(
     "/{laboratory_person_id}",
     status_code=status.HTTP_200_OK,
     response_model=LaboratoryPersonSchemaShow,

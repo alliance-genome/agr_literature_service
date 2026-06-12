@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonModel, PersonCrossReferenceModel
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -107,6 +107,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonCrossReferenceMod
         )
     return (
         db.query(PersonCrossReferenceModel)
+        .options(selectinload(PersonCrossReferenceModel.person))
         .filter(PersonCrossReferenceModel.person_id == person_id)
         .order_by(PersonCrossReferenceModel.person_cross_reference_id.asc())
         .all()
@@ -137,6 +138,7 @@ def get_by_curie_or_id(db: Session, curie_or_id: str) -> PersonCrossReferenceMod
 def show(db: Session, person_cross_reference_id: int) -> PersonCrossReferenceModel:
     obj = (
         db.query(PersonCrossReferenceModel)
+        .options(selectinload(PersonCrossReferenceModel.person))
         .filter(PersonCrossReferenceModel.person_cross_reference_id == person_cross_reference_id)
         .first()
     )

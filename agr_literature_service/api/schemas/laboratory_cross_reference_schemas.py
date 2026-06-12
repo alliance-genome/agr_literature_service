@@ -10,6 +10,7 @@ class LaboratoryCrossReferenceSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     laboratory_cross_reference_id: int
+    laboratory_curie: Optional[str] = None
     curie: str
     curie_prefix: str
     pages: Optional[List[str]] = None
@@ -67,6 +68,7 @@ class LaboratoryCrossReferenceSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     laboratory_cross_reference_id: int
+    laboratory_curie: Optional[str] = None
     curie: str
     curie_prefix: str
     pages: Optional[List[str]] = None

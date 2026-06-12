@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonLineageModel, PersonModel
 from agr_literature_service.api.schemas import SYMMETRIC_RELATIONSHIPS, PersonPersonRole
@@ -121,9 +121,16 @@ def find_or_create(
     return obj, True
 
 
+_PERSON_OBJS = (
+    selectinload(PersonLineageModel.person_one_obj),
+    selectinload(PersonLineageModel.person_two_obj),
+)
+
+
 def show(db: Session, person_lineage_id: int) -> PersonLineageModel:
     obj = (
         db.query(PersonLineageModel)
+        .options(*_PERSON_OBJS)
         .filter(PersonLineageModel.person_lineage_id == person_lineage_id)
         .first()
     )
@@ -138,6 +145,7 @@ def show(db: Session, person_lineage_id: int) -> PersonLineageModel:
 def list_all(db: Session) -> List[PersonLineageModel]:
     return (
         db.query(PersonLineageModel)
+        .options(*_PERSON_OBJS)
         .order_by(PersonLineageModel.person_lineage_id.asc())
         .all()
     )

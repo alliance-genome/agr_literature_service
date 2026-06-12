@@ -83,7 +83,9 @@ class PersonLineageSubmissionSchemaShow(AuditedObjectModelSchema):
     relationship: str
     who_sent_this: str
     person_one_id: Optional[int] = None
+    person_one_curie: Optional[str] = None
     person_two_id: Optional[int] = None
+    person_two_curie: Optional[str] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     status: str = "pending"
@@ -99,6 +101,8 @@ class PersonLineageSubmissionSchemaRelated(AuditedObjectModelSchema):
     relationship: str
     who_sent_this: str
     person_one_id: Optional[int] = None
+    person_one_curie: Optional[str] = None
     person_two_id: Optional[int] = None
+    person_two_curie: Optional[str] = None
     status: str = "pending"
     person_lineage_id: Optional[int] = None

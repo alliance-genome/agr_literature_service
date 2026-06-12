@@ -71,6 +71,11 @@ class PersonNameModel(Base, AuditedModel):
         ),
     )
 
+    @property
+    def person_curie(self):
+        """Convenience for serializers — the owning person's curie."""
+        return self.person.curie if self.person else None
+
     def __str__(self) -> str:
         parts = []
         if self.first_name:

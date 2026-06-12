@@ -43,5 +43,10 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
         """Convenience for serializers — the MOD abbreviation via the mod FK."""
         return self.mod.abbreviation if self.mod else None
 
+    @property
+    def laboratory_curie(self):
+        """Convenience for serializers — the owning laboratory's curie."""
+        return self.laboratory.curie if self.laboratory else None
+
     def __str__(self) -> str:
         return f"{self.allele_designation} (lab={self.laboratory_id}, mod={self.mod_id})"

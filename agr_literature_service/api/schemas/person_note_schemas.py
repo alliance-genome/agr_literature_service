@@ -52,6 +52,7 @@ class PersonNoteSchemaShow(AuditedObjectModelSchema):
 
     person_note_id: int
     person_id: int
+    person_curie: Optional[str] = None
     note: str
 
 
@@ -59,4 +60,5 @@ class PersonNoteSchemaRelated(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     person_note_id: int
+    person_curie: Optional[str] = None
     note: str
