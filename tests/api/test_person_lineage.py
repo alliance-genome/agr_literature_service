@@ -199,6 +199,45 @@ class TestPersonLineage:
             )
             assert p.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_list_for_person_matches_either_side(self, db, auth_headers, two_people):  # noqa
+        # A person appearing as subject in one PPR and object in another is returned
+        # by both; GET /person_lineage/person/{id} matches either side.
+        s_id = two_people["person_subject_id"]
+        o_id = two_people["person_object_id"]
+        with TestClient(app) as client:
+            # person s is the subject here
+            client.post(
+                "/person_lineage/",
+                json={"person_subject_curie_or_id": s_id, "person_object_curie_or_id": o_id,
+                      "relationship": "phd_supervisor_of"},
+                headers=auth_headers,
+            )
+            # person s is the object here (reverse direction is a distinct fact)
+            client.post(
+                "/person_lineage/",
+                json={"person_subject_curie_or_id": o_id, "person_object_curie_or_id": s_id,
+                      "relationship": "postdoc_supervisor_of"},
+                headers=auth_headers,
+            )
+
+            by_id = client.get(f"/person_lineage/person/{s_id}", headers=auth_headers)
+            assert by_id.status_code == status.HTTP_200_OK
+            rows = by_id.json()
+            assert len(rows) == 2
+            # s appears once on each side
+            assert {r["person_subject_id"] for r in rows} == {s_id, o_id}
+
+            # by curie resolves to the same person -> same rows
+            curie = db.query(PersonModel).filter(PersonModel.person_id == s_id).one().curie
+            by_curie = client.get(f"/person_lineage/person/{curie}", headers=auth_headers)
+            assert by_curie.status_code == status.HTTP_200_OK
+            assert len(by_curie.json()) == 2
+
+    def test_list_for_person_unknown_404(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person_lineage/person/9999999", headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
     def test_destroy(self, auth_headers, test_lineage):  # noqa
         with TestClient(app) as client:
             res = client.delete(f"/person_lineage/{test_lineage.new_id}", headers=auth_headers)

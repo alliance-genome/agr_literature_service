@@ -390,6 +390,53 @@ class TestPersonLineageSubmission:
             v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
             assert v.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_list_for_person_matches_either_side(self, db, auth_headers, two_people):  # noqa
+        # GET /person_lineage_submission/person/{id} returns submissions where the
+        # person is resolved on either side, and ignores submissions where they
+        # match only by name (id unresolved).
+        s_id = two_people["person_subject_id"]
+        o_id = two_people["person_object_id"]
+        with TestClient(app) as client:
+            # person s resolved as subject
+            client.post(
+                "/person_lineage_submission/",
+                json={"person_subject_name": "A", "person_object_name": "B",
+                      "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                      "person_subject_curie_or_id": s_id, "person_object_curie_or_id": o_id},
+                headers=auth_headers,
+            )
+            # person s resolved as object
+            client.post(
+                "/person_lineage_submission/",
+                json={"person_subject_name": "C", "person_object_name": "D",
+                      "relationship": "postdoc_supervisor_of", "who_sent_this": "cur",
+                      "person_subject_curie_or_id": o_id, "person_object_curie_or_id": s_id},
+                headers=auth_headers,
+            )
+            # name-only submission (no resolved id) must NOT be returned
+            client.post(
+                "/person_lineage_submission/",
+                json={"person_subject_name": "E", "person_object_name": "F",
+                      "relationship": "phd_supervisor_of", "who_sent_this": "cur"},
+                headers=auth_headers,
+            )
+
+            by_id = client.get(f"/person_lineage_submission/person/{s_id}", headers=auth_headers)
+            assert by_id.status_code == status.HTTP_200_OK
+            rows = by_id.json()
+            assert len(rows) == 2
+            assert {r["person_subject_id"] for r in rows} == {s_id, o_id}
+
+            curie = db.query(PersonModel).filter(PersonModel.person_id == s_id).one().curie
+            by_curie = client.get(f"/person_lineage_submission/person/{curie}", headers=auth_headers)
+            assert by_curie.status_code == status.HTTP_200_OK
+            assert len(by_curie.json()) == 2
+
+    def test_list_for_person_unknown_404(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get("/person_lineage_submission/person/9999999", headers=auth_headers)
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
     def test_destroy(self, auth_headers, test_submission):  # noqa
         with TestClient(app) as client:
             res = client.delete(

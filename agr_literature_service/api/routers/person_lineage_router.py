@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Response, Security, status
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import person_lineage_crud
+from agr_literature_service.api.crud import person_lineage_crud, person_crud
 from agr_literature_service.api.schemas import (
     PersonLineageSchemaCreate,
     PersonLineageSchemaUpdate,
@@ -45,6 +45,21 @@ def list_all(
     db: Session = db_session,
 ):
     return person_lineage_crud.list_all(db)
+
+
+# Canonical PPRs for a person, on either side. Declared before the /{id} catch-all.
+@router.get(
+    "/person/{curie_or_person_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=List[PersonLineageSchemaShow],
+)
+def list_for_person(
+    curie_or_person_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    person_id = person_crud.resolve_person_id(db, curie_or_person_id)
+    return person_lineage_crud.list_for_person(db, person_id)
 
 
 @router.delete("/{person_lineage_id}", status_code=status.HTTP_204_NO_CONTENT)
