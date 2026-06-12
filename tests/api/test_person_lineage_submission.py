@@ -171,6 +171,97 @@ class TestPersonLineageSubmission:
         )
         assert count == 1
 
+    def test_reject_submission(self, db, auth_headers, test_submission):  # noqa
+        # A curator can reject a submission; it is not linked to any canonical row.
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person_lineage_submission/{test_submission.new_id}",
+                json={"status": "rejected"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            body = res.json()
+            assert body["status"] == "rejected"
+            assert body["person_lineage_id"] is None
+
+    def test_same_people_different_relationships(self, db, auth_headers, two_people):  # noqa
+        # Same pair + different relationship => two distinct canonical rows
+        # (the unique constraint is on the full triple, not just the pair).
+        with TestClient(app) as client:
+            ids = {}
+            for rel in ("phd", "postdoc"):
+                r = client.post(
+                    "/person_lineage_submission/",
+                    json={
+                        "person_one_name": "Alice", "person_two_name": "Bob",
+                        "relationship": rel, "who_sent_this": "cur",
+                        "person_one_id": two_people["person_one_id"],
+                        "person_two_id": two_people["person_two_id"],
+                    },
+                    headers=auth_headers,
+                )
+                sub_id = r.json()["person_lineage_submission_id"]
+                v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+                assert v.status_code == status.HTTP_200_OK
+                # each is a brand-new canonical fact, not a duplicate
+                assert v.json()["status"] == "validated"
+                ids[rel] = v.json()["person_lineage_id"]
+
+            assert ids["phd"] != ids["postdoc"]
+
+        canon = (
+            db.query(PersonLineageModel)
+            .filter(
+                PersonLineageModel.person_one_id == two_people["person_one_id"],
+                PersonLineageModel.person_two_id == two_people["person_two_id"],
+            )
+            .count()
+        )
+        assert canon == 2
+
+    def test_validate_links_to_preexisting_canonical(self, db, auth_headers, two_people):  # noqa
+        # A canonical PPR created independently; a later submission that resolves to
+        # the same triple validates as a 'duplicate' linked to that existing row.
+        with TestClient(app) as client:
+            c = client.post(
+                "/person_lineage/",
+                json={
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_two_id"],
+                    "relationship": "phd",
+                },
+                headers=auth_headers,
+            )
+            assert c.status_code == status.HTTP_201_CREATED
+            canonical_id = c.json()["person_lineage_id"]
+
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_one_name": "Alice", "person_two_name": "Bob",
+                    "relationship": "phd", "who_sent_this": "cur",
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_two_id"],
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+            v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v.status_code == status.HTTP_200_OK
+            assert v.json()["status"] == "duplicate"
+            assert v.json()["person_lineage_id"] == canonical_id
+
+        count = (
+            db.query(PersonLineageModel)
+            .filter(
+                PersonLineageModel.person_one_id == two_people["person_one_id"],
+                PersonLineageModel.person_two_id == two_people["person_two_id"],
+                PersonLineageModel.relationship == "phd",
+            )
+            .count()
+        )
+        assert count == 1
+
     def test_destroy(self, auth_headers, test_submission):  # noqa
         with TestClient(app) as client:
             res = client.delete(
