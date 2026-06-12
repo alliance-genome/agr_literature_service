@@ -94,7 +94,7 @@ def patch(db: Session, person_lineage_submission_id: int, patch_dict: Dict[str, 
     )
     if not obj:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=f"PersonLineageSubmission with id {person_lineage_submission_id} not found",
         )
 
@@ -144,6 +144,14 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     and sets status to 'validated' (new canonical) or 'duplicate' (already existed).
     """
     obj = show(db, person_lineage_submission_id)
+
+    # Don't re-process a submission that has already reached a terminal state —
+    # re-validating would flip a 'validated' row to 'duplicate' or undo a rejection.
+    if obj.status in ("validated", "duplicate", "rejected"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Submission already {obj.status}; it cannot be re-validated.",
+        )
 
     if obj.person_one_id is None or obj.person_two_id is None:
         raise HTTPException(

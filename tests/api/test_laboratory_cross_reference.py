@@ -90,6 +90,31 @@ class TestLaboratoryCrossReference:
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_get_laboratory_by_cross_reference(self, auth_headers, test_xref):  # noqa
+        with TestClient(app) as client:
+            # by curie
+            res = client.get(
+                "/laboratory/by_laboratory_cross_reference/WB:WBlab9001",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["laboratory_id"] == test_xref.laboratory_id
+            # by cross-reference internal id
+            res = client.get(
+                f"/laboratory/by_laboratory_cross_reference/{test_xref.new_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["laboratory_id"] == test_xref.laboratory_id
+
+    def test_get_laboratory_by_unknown_cross_reference(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                "/laboratory/by_laboratory_cross_reference/WB:does-not-exist",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
     def test_list_for_laboratory(self, auth_headers, test_xref):  # noqa
         with TestClient(app) as client:
             res = client.get(

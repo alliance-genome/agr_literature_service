@@ -3,12 +3,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .base_schemas import AuditedObjectModelSchema
-
-
-def _validate_non_empty(v: str, field: str) -> str:
-    if not v or not v.strip():
-        raise ValueError(f"{field} cannot be empty or whitespace")
-    return v.strip()
+from .validation_utils import validate_non_empty
 
 
 class LaboratoryAlleleDesignationSchemaCreate(BaseModel):
@@ -25,12 +20,12 @@ class LaboratoryAlleleDesignationSchemaCreate(BaseModel):
     @field_validator("mod_abbreviation")
     @classmethod
     def _validate_mod_abbreviation(cls, v: str) -> str:
-        return _validate_non_empty(v, "mod_abbreviation")
+        return validate_non_empty(v, "mod_abbreviation")
 
     @field_validator("allele_designation")
     @classmethod
     def _validate_allele_designation(cls, v: str) -> str:
-        return _validate_non_empty(v, "allele_designation")
+        return validate_non_empty(v, "allele_designation")
 
 
 class LaboratoryAlleleDesignationSchemaUpdate(BaseModel):
@@ -45,14 +40,14 @@ class LaboratoryAlleleDesignationSchemaUpdate(BaseModel):
     def _validate_mod_abbreviation(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        return _validate_non_empty(v, "mod_abbreviation")
+        return validate_non_empty(v, "mod_abbreviation")
 
     @field_validator("allele_designation")
     @classmethod
     def _validate_allele_designation(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return None
-        return _validate_non_empty(v, "allele_designation")
+        return validate_non_empty(v, "allele_designation")
 
 
 class LaboratoryAlleleDesignationSchemaShow(AuditedObjectModelSchema):

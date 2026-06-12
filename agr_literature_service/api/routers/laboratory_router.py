@@ -1,11 +1,11 @@
 from typing import Optional, Dict, Any
 
-from fastapi import APIRouter, Depends, Response, Security, status
+from fastapi import APIRouter, Depends, HTTPException, Response, Security, status
 
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
-from agr_literature_service.api.crud import laboratory_crud
+from agr_literature_service.api.crud import laboratory_crud, laboratory_cross_reference_crud
 from agr_literature_service.api.schemas import (
     LaboratorySchemaCreate,
     LaboratorySchemaUpdate,
@@ -33,6 +33,32 @@ def create(
     laboratory = laboratory_crud.create(db, request)
     response.headers["Location"] = laboratory_url(laboratory.curie)
     return laboratory
+
+
+# Lookup route — declared BEFORE the catch-all /{curie_or_laboratory_id}.
+@router.get(
+    "/by_laboratory_cross_reference/{curie_or_laboratory_cross_reference_id}",
+    response_model=LaboratorySchemaShow,
+    status_code=status.HTTP_200_OK,
+)
+def get_by_laboratory_cross_reference(
+    curie_or_laboratory_cross_reference_id: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """Get a laboratory by a laboratory_cross_reference curie or its internal id."""
+    lcr = laboratory_cross_reference_crud.get_by_curie_or_id(
+        db, curie_or_laboratory_cross_reference_id
+    )
+    if lcr.laboratory_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=(
+                f"LaboratoryCrossReference {curie_or_laboratory_cross_reference_id} "
+                "is not associated to a laboratory"
+            ),
+        )
+    return laboratory_crud.show(db, str(lcr.laboratory_id))
 
 
 @router.delete("/{curie_or_laboratory_id}", status_code=status.HTTP_204_NO_CONTENT)

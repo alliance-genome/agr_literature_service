@@ -296,6 +296,42 @@ class TestPersonLineageSubmission:
         )
         assert count == 1
 
+    def test_revalidate_rejected(self, auth_headers, two_people):  # noqa
+        # Once a submission is validated it can't be re-validated (would flip to duplicate).
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_one_name": "A", "person_two_name": "B",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_two_id"],
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+            v1 = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v1.status_code == status.HTTP_200_OK
+            v2 = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_validate_self_pair_rejected(self, auth_headers, two_people):  # noqa
+        # Both names resolved to the same person -> can't validate.
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_one_name": "A", "person_two_name": "A",
+                    "relationship": "collaborator_of", "who_sent_this": "cur",
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_one_id"],
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+            v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_destroy(self, auth_headers, test_submission):  # noqa
         with TestClient(app) as client:
             res = client.delete(

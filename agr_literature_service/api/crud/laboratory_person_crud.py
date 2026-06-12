@@ -25,7 +25,7 @@ _NOT_NULL = {"is_lab_contact", "can_edit_lab"}
 def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, Any]) -> LaboratoryPersonModel:
     lab = db.query(LaboratoryModel).filter(LaboratoryModel.laboratory_id == laboratory_id).first()
     if not lab:
-        raise HTTPException(status_code=404, detail=f"Laboratory with laboratory_id {laboratory_id} not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Laboratory with laboratory_id {laboratory_id} not found")
 
     data = jsonable_encoder(payload)
 
@@ -102,7 +102,7 @@ def patch(db: Session, laboratory_person_id: int, patch_dict: Dict[str, Any]) ->
     )
     if not obj:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=f"LaboratoryPerson with id {laboratory_person_id} not found",
         )
 

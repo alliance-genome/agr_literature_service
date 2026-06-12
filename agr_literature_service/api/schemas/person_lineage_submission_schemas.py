@@ -5,15 +5,10 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .base_schemas import AuditedObjectModelSchema
 from .person_lineage_relationship_enum import PersonPersonRole
+from .validation_utils import validate_non_empty
 
 # Controlled vocabulary enforced by the API (curator-managed); no DB CheckConstraint.
 SubmissionStatus = Literal["pending", "partially_resolved", "validated", "rejected", "duplicate"]
-
-
-def _validate_non_empty(v: str, field: str) -> str:
-    if not v or not v.strip():
-        raise ValueError(f"{field} cannot be empty or whitespace")
-    return v.strip()
 
 
 class PersonLineageSubmissionSchemaCreate(BaseModel):
@@ -37,17 +32,17 @@ class PersonLineageSubmissionSchemaCreate(BaseModel):
     @field_validator("person_one_name")
     @classmethod
     def _validate_person_one_name(cls, v: str) -> str:
-        return _validate_non_empty(v, "person_one_name")
+        return validate_non_empty(v, "person_one_name")
 
     @field_validator("person_two_name")
     @classmethod
     def _validate_person_two_name(cls, v: str) -> str:
-        return _validate_non_empty(v, "person_two_name")
+        return validate_non_empty(v, "person_two_name")
 
     @field_validator("who_sent_this")
     @classmethod
     def _validate_who_sent_this(cls, v: str) -> str:
-        return _validate_non_empty(v, "who_sent_this")
+        return validate_non_empty(v, "who_sent_this")
 
 
 class PersonLineageSubmissionSchemaUpdate(BaseModel):

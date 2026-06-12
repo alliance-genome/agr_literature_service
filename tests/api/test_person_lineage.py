@@ -93,6 +93,20 @@ class TestPersonLineage:
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_self_pair_rejected(self, auth_headers, two_people):  # noqa
+        # A person cannot be in a relationship with themselves.
+        with TestClient(app) as client:
+            res = client.post(
+                "/person_lineage/",
+                json={
+                    "person_one_id": two_people["person_one_id"],
+                    "person_two_id": two_people["person_one_id"],
+                    "relationship": "phd_supervisor_of",
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_symmetric_collaborator_reversed_rejected(self, db, auth_headers, two_people):  # noqa
         # collaborator_of is non-directional: (A,B) and (B,A) normalize to the same
         # canonical row, so the reverse insert hits the unique constraint -> 422.

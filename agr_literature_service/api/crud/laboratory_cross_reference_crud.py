@@ -30,10 +30,47 @@ def _clean_pages(pages):
     return cleaned or None
 
 
+def _check_xref_unique(db, laboratory_id, curie, curie_prefix, exclude_id=None):
+    """Enforce the two uniqueness rules at the application layer (defends the DB
+    constraints): curie is globally unique (uq_laboratory_xref_curie), and
+    (laboratory_id, curie_prefix) is unique per-laboratory
+    (uq_laboratory_xref_laboratory_prefix). exclude_id skips the row being patched.
+    """
+    curie_q = db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id).filter(
+        LaboratoryCrossReferenceModel.curie == curie
+    )
+    if exclude_id is not None:
+        curie_q = curie_q.filter(LaboratoryCrossReferenceModel.laboratory_cross_reference_id != exclude_id)
+    if curie_q.first():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Cross-reference '{curie}' already exists",
+        )
+
+    # NULL laboratory_id rows are exempt — Postgres treats NULLs as distinct.
+    if laboratory_id is not None:
+        prefix_q = db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id).filter(
+            LaboratoryCrossReferenceModel.laboratory_id == laboratory_id,
+            LaboratoryCrossReferenceModel.curie_prefix == curie_prefix,
+        )
+        if exclude_id is not None:
+            prefix_q = prefix_q.filter(
+                LaboratoryCrossReferenceModel.laboratory_cross_reference_id != exclude_id
+            )
+        if prefix_q.first():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Another cross-reference with prefix '{curie_prefix}' "
+                    f"already exists for this laboratory."
+                ),
+            )
+
+
 def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, Any]) -> LaboratoryCrossReferenceModel:
     lab = db.query(LaboratoryModel).filter(LaboratoryModel.laboratory_id == laboratory_id).first()
     if not lab:
-        raise HTTPException(status_code=404, detail=f"Laboratory with laboratory_id {laboratory_id} not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Laboratory with laboratory_id {laboratory_id} not found")
 
     data = jsonable_encoder(payload)
 
@@ -44,39 +81,11 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
 
     curie = (data.get("curie") or "").strip()
     if not curie:
-        raise HTTPException(status_code=422, detail="curie is required")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="curie is required")
 
     curie_prefix = _curie_prefix(curie)
 
-    # curie is globally unique (uq_laboratory_xref_curie).
-    dup = (
-        db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
-        .filter(LaboratoryCrossReferenceModel.curie == curie)
-        .first()
-    )
-    if dup:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Cross-reference '{curie}' already exists",
-        )
-
-    # (laboratory_id, curie_prefix) is unique per-laboratory (uq_laboratory_xref_laboratory_prefix).
-    prefix_dup = (
-        db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
-        .filter(
-            LaboratoryCrossReferenceModel.laboratory_id == laboratory_id,
-            LaboratoryCrossReferenceModel.curie_prefix == curie_prefix,
-        )
-        .first()
-    )
-    if prefix_dup:
-        raise HTTPException(
-            status_code=422,
-            detail=(
-                f"Another cross-reference with prefix '{curie_prefix}' "
-                f"already exists for this laboratory."
-            ),
-        )
+    _check_xref_unique(db, laboratory_id, curie, curie_prefix)
 
     obj = LaboratoryCrossReferenceModel(
         laboratory_id=laboratory_id,
@@ -156,7 +165,7 @@ def patch(db: Session, laboratory_cross_reference_id: int, patch_dict: Dict[str,
     )
     if not obj:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=f"LaboratoryCrossReference with id {laboratory_cross_reference_id} not found",
         )
 
@@ -171,38 +180,10 @@ def patch(db: Session, laboratory_cross_reference_id: int, patch_dict: Dict[str,
         new_curie = data["curie"].strip()
         new_prefix = _curie_prefix(new_curie)
 
-        dup = (
-            db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
-            .filter(
-                LaboratoryCrossReferenceModel.curie == new_curie,
-                LaboratoryCrossReferenceModel.laboratory_cross_reference_id != laboratory_cross_reference_id,
-            )
-            .first()
+        _check_xref_unique(
+            db, obj.laboratory_id, new_curie, new_prefix,
+            exclude_id=laboratory_cross_reference_id,
         )
-        if dup:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Cross-reference '{new_curie}' already exists",
-            )
-
-        if obj.laboratory_id is not None:
-            prefix_dup = (
-                db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
-                .filter(
-                    LaboratoryCrossReferenceModel.laboratory_id == obj.laboratory_id,
-                    LaboratoryCrossReferenceModel.curie_prefix == new_prefix,
-                    LaboratoryCrossReferenceModel.laboratory_cross_reference_id != laboratory_cross_reference_id,
-                )
-                .first()
-            )
-            if prefix_dup:
-                raise HTTPException(
-                    status_code=422,
-                    detail=(
-                        f"Another cross-reference with prefix '{new_prefix}' "
-                        f"already exists for this laboratory."
-                    ),
-                )
 
         obj.curie = new_curie
         obj.curie_prefix = new_prefix

@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import PersonLineageModel, PersonModel
-from agr_literature_service.api.schemas import SYMMETRIC_RELATIONSHIPS
+from agr_literature_service.api.schemas import SYMMETRIC_RELATIONSHIPS, PersonPersonRole
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
@@ -16,14 +16,23 @@ logger = logging.getLogger(__name__)
 _SCALAR_FIELDS = {"relationship", "start_date", "end_date"}
 
 
-def _normalize_pair(person_one_id: int, person_two_id: int, relationship: str) -> Tuple[int, int]:
+def _normalize_pair(person_one_id: int, person_two_id: int, relationship: Any) -> Tuple[int, int]:
     """For non-directional relationships, return the pair in ascending id order so
     (A, B) and (B, A) collapse to the same canonical row. Directional relationships
     keep the submitted order.
     """
-    if relationship in SYMMETRIC_RELATIONSHIPS and person_one_id > person_two_id:
+    rel = relationship.value if isinstance(relationship, PersonPersonRole) else relationship
+    if rel in SYMMETRIC_RELATIONSHIPS and person_one_id > person_two_id:
         return person_two_id, person_one_id
     return person_one_id, person_two_id
+
+
+def _reject_self_pair(person_one_id: int, person_two_id: int) -> None:
+    if person_one_id == person_two_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="person_one_id and person_two_id must be different people",
+        )
 
 
 def _validate_person(db: Session, person_id: int, label: str) -> None:
@@ -43,6 +52,7 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
+    _reject_self_pair(data["person_one_id"], data["person_two_id"])
     _validate_person(db, data["person_one_id"], "person_one_id")
     _validate_person(db, data["person_two_id"], "person_two_id")
 
@@ -85,6 +95,7 @@ def find_or_create(
     For non-directional relationships the pair is normalized to ascending id
     order first, so a reversed submission matches the existing row.
     """
+    _reject_self_pair(person_one_id, person_two_id)
     person_one_id, person_two_id = _normalize_pair(person_one_id, person_two_id, relationship)
     existing = (
         db.query(PersonLineageModel)
@@ -140,7 +151,7 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
     )
     if not obj:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail=f"PersonLineage with id {person_lineage_id} not found",
         )
 
