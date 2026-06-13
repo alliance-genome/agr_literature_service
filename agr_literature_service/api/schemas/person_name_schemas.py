@@ -53,6 +53,7 @@ class PersonNameSchemaShow(AuditedObjectModelSchema):
 
     person_name_id: int
     person_id: int
+    person_curie: Optional[str] = None
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: str

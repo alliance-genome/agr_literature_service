@@ -41,5 +41,10 @@ class PersonSettingModel(Base, AuditedModel):
         ),
     )
 
+    @property
+    def person_curie(self):
+        """Convenience for serializers — the owning person's curie."""
+        return self.person.curie if self.person else None
+
     def __str__(self) -> str:
         return f"{self.person_id}:{self.component_name} [{self.setting_name}] (default={self.default_setting})"

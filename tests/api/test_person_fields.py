@@ -68,6 +68,32 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["webpage"] == urls
 
+    def test_create_person_with_institution_array(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            institutions = ["Caltech", "MIT", "Stanford"]
+            payload = {
+                "display_name": "Institution Person",
+                "institution": institutions,
+            }
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.json()["institution"] == institutions
+
+    def test_patch_institution(self, auth_headers, test_person_id):  # noqa
+        with TestClient(app) as client:
+            institutions = ["Caltech"]
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"institution": institutions},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
+            assert fetched.json()["institution"] == institutions
+
     def test_create_person_with_active_status(self, auth_headers):  # noqa
         with TestClient(app) as client:
             payload = {
@@ -515,8 +541,8 @@ class TestPersonCurie:
             assert res.status_code == status.HTTP_201_CREATED
             curie = res.json()['curie']
             post_xref = client.post(
-                f"/person_cross_reference/person/{curie}",
-                json={"curie": "ORCID:0000-0009-8888-7777"},
+                "/person_cross_reference/",
+                json={"person_curie": curie, "curie": "ORCID:0000-0009-8888-7777"},
                 headers=auth_headers,
             )
             assert post_xref.status_code == status.HTTP_201_CREATED
@@ -666,8 +692,8 @@ class TestPersonLookups:
             ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             client.post(
-                f"/person_cross_reference/person/{person_id}",
-                json={"curie": "ORCID:0000-0001-2345-6789"},
+                "/person_cross_reference/",
+                json={"person_curie": str(person_id), "curie": "ORCID:0000-0001-2345-6789"},
                 headers=auth_headers,
             )
             res = client.get(
@@ -686,8 +712,8 @@ class TestPersonLookups:
             ).json()['curie']
             person_id = client.get(f"/person/{curie}", headers=auth_headers).json()["person_id"]
             pcr = client.post(
-                f"/person_cross_reference/person/{person_id}",
-                json={"curie": "ORCID:0000-9999-9999-9999"},
+                "/person_cross_reference/",
+                json={"person_curie": str(person_id), "curie": "ORCID:0000-9999-9999-9999"},
                 headers=auth_headers,
             ).json()
             res = client.get(

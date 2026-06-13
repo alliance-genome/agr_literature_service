@@ -41,9 +41,12 @@ def seeded_person(db):
 def test_person_note(db, auth_headers, seeded_person):  # noqa
     """Create a baseline person_note row to reuse across tests."""
     with TestClient(app) as client:
-        payload = {"note": "Initial note text"}
+        payload = {
+            "person_curie": str(seeded_person["person_id"]),
+            "note": "Initial note text",
+        }
         response = client.post(
-            f"/person_note/person/{seeded_person['person_id']}",
+            "/person_note/",
             json=payload,
             headers=auth_headers,
         )
@@ -75,16 +78,16 @@ class TestPersonNote:
 
     def test_create_person_note_invalid_person(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            payload = {"note": "Some note"}
-            res = client.post("/person_note/person/9999999", json=payload, headers=auth_headers)
+            payload = {"person_curie": "9999999", "note": "Some note"}
+            res = client.post("/person_note/", json=payload, headers=auth_headers)
             assert res.status_code == status.HTTP_404_NOT_FOUND
 
     def test_create_note_with_linebreaks(self, auth_headers, seeded_person):  # noqa
         with TestClient(app) as client:
             multiline = "Line one\nLine two\nLine three"
             res = client.post(
-                f"/person_note/person/{seeded_person['person_id']}",
-                json={"note": multiline},
+                "/person_note/",
+                json={"person_curie": str(seeded_person["person_id"]), "note": multiline},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_201_CREATED
@@ -187,8 +190,8 @@ class TestPersonNote:
         with TestClient(app) as client:
             for i in range(3):
                 res = client.post(
-                    f"/person_note/person/{seeded_person['person_id']}",
-                    json={"note": f"Note number {i}"},
+                    "/person_note/",
+                    json={"person_curie": str(seeded_person["person_id"]), "note": f"Note number {i}"},
                     headers=auth_headers,
                 )
                 assert res.status_code == status.HTTP_201_CREATED

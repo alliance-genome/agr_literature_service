@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonModel, PersonNoteModel
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -63,6 +63,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonNoteModel]:
         )
     return (
         db.query(PersonNoteModel)
+        .options(selectinload(PersonNoteModel.person))
         .filter(PersonNoteModel.person_id == person_id)
         .order_by(PersonNoteModel.person_note_id.asc())
         .all()
@@ -70,7 +71,12 @@ def list_for_person(db: Session, person_id: int) -> List[PersonNoteModel]:
 
 
 def show(db: Session, person_note_id: int) -> PersonNoteModel:
-    obj = db.query(PersonNoteModel).filter(PersonNoteModel.person_note_id == person_note_id).first()
+    obj = (
+        db.query(PersonNoteModel)
+        .options(selectinload(PersonNoteModel.person))
+        .filter(PersonNoteModel.person_note_id == person_note_id)
+        .first()
+    )
     if not obj:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

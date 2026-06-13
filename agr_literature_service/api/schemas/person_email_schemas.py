@@ -48,6 +48,7 @@ class PersonEmailSchemaShow(AuditedObjectModelSchema):
 
     person_email_id: int
     person_id: int
+    person_curie: Optional[str] = None
     email_address: str
     date_made_old_email: Optional[datetime] = None
 

@@ -5,12 +5,12 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from .base_schemas import AuditedObjectModelSchema
 
 
-class PersonCrossReferenceSchemaRelated(AuditedObjectModelSchema):
-    """Related cross-reference details (embedded under Person)."""
+class LaboratoryCrossReferenceSchemaRelated(AuditedObjectModelSchema):
+    """Related cross-reference details (embedded under Laboratory)."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    person_cross_reference_id: int
-    person_curie: Optional[str] = None
+    laboratory_cross_reference_id: int
+    laboratory_curie: Optional[str] = None
     curie: str
     curie_prefix: str
     pages: Optional[List[str]] = None
@@ -24,8 +24,8 @@ class PersonCrossReferenceSchemaRelated(AuditedObjectModelSchema):
         return v
 
 
-class PersonCrossReferenceSchemaCreate(BaseModel):
-    """Create payload for a new person cross-reference."""
+class LaboratoryCrossReferenceSchemaCreate(BaseModel):
+    """Create payload for a new laboratory cross-reference."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     curie: str
@@ -40,13 +40,13 @@ class PersonCrossReferenceSchemaCreate(BaseModel):
         return v
 
 
-class PersonCrossReferenceSchemaPost(PersonCrossReferenceSchemaCreate):
-    """Standalone create payload — names the owning person by curie (or id) in the body."""
-    person_curie: str
+class LaboratoryCrossReferenceSchemaPost(LaboratoryCrossReferenceSchemaCreate):
+    """Standalone create payload — names the owning laboratory by curie (or id) in the body."""
+    laboratory_curie: str
 
 
-class PersonCrossReferenceSchemaUpdate(BaseModel):
-    """Partial update payload for a person cross-reference."""
+class LaboratoryCrossReferenceSchemaUpdate(BaseModel):
+    """Partial update payload for a laboratory cross-reference."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
     curie: Optional[str] = None
@@ -63,12 +63,12 @@ class PersonCrossReferenceSchemaUpdate(BaseModel):
         return v
 
 
-class PersonCrossReferenceSchemaShow(AuditedObjectModelSchema):
+class LaboratoryCrossReferenceSchemaShow(AuditedObjectModelSchema):
     """Full cross-reference record for detail endpoints."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    person_cross_reference_id: int
-    person_curie: Optional[str] = None
+    laboratory_cross_reference_id: int
+    laboratory_curie: Optional[str] = None
     curie: str
     curie_prefix: str
     pages: Optional[List[str]] = None

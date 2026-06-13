@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonEmailModel, PersonModel
 from agr_literature_service.api.crud.person_crud import normalize_email
@@ -90,6 +90,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonEmailModel]:
         )
     return (
         db.query(PersonEmailModel)
+        .options(selectinload(PersonEmailModel.person))
         .filter(PersonEmailModel.person_id == person_id)
         .order_by(
             PersonEmailModel.date_updated.desc().nulls_last(),
@@ -103,6 +104,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonEmailModel]:
 def show(db: Session, person_email_id: int) -> PersonEmailModel:
     obj = (
         db.query(PersonEmailModel)
+        .options(selectinload(PersonEmailModel.person))
         .filter(PersonEmailModel.person_email_id == person_email_id)
         .first()
     )

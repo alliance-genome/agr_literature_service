@@ -14,6 +14,7 @@ from agr_literature_service.api.models import (
     PersonCrossReferenceModel,
     PersonNameModel,
     PersonNoteModel,
+    LaboratoryPersonModel,
 )
 from agr_literature_service.api.schemas import PersonSchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -262,7 +263,7 @@ def patch(db: Session, curie_or_person_id: str, patch_dict: Dict[str, Any]) -> D
             data.pop(field, None)
 
     ALLOWED = {
-        "display_name", "mod_roles",
+        "display_name", "mod_roles", "institution",
         "webpage", "active_status",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
@@ -292,6 +293,7 @@ def show(db: Session, curie_or_person_id: str) -> PersonModel:
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
+            selectinload(PersonModel.lab_persons).selectinload(LaboratoryPersonModel.laboratory),
         )
         .filter(PersonModel.person_id == person_id)
         .first()
@@ -320,6 +322,7 @@ def get_by_email(db: Session, email: str) -> Optional[PersonModel]:
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
+            selectinload(PersonModel.lab_persons).selectinload(LaboratoryPersonModel.laboratory),
         )
         .filter(func.lower(PersonEmailModel.email_address) == email_norm.lower())
         .first()
@@ -343,6 +346,7 @@ def find_by_name(db: Session, name: str) -> List[PersonModel]:
             selectinload(PersonModel.cross_references),
             selectinload(PersonModel.names),
             selectinload(PersonModel.notes),
+            selectinload(PersonModel.lab_persons).selectinload(LaboratoryPersonModel.laboratory),
         )
         .filter(
             or_(

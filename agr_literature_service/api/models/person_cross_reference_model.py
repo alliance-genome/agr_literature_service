@@ -29,6 +29,11 @@ class PersonCrossReferenceModel(Base, AuditedModel):
         Index("ix_person_xref_prefix_curie", "curie_prefix", "curie"),
     )
 
+    @property
+    def person_curie(self):
+        """Convenience for serializers — the owning person's curie."""
+        return self.person.curie if self.person else None
+
     def __str__(self) -> str:
         status = "obsolete" if self.is_obsolete else "active"
         return f"{self.curie} [{status}]"

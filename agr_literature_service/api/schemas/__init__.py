@@ -145,7 +145,8 @@ from .person_email_schemas import (
     PersonEmailSchemaRelated,
 )
 from .person_cross_reference_schemas import (
-    PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaUpdate,
+    PersonCrossReferenceSchemaCreate, PersonCrossReferenceSchemaPost,
+    PersonCrossReferenceSchemaUpdate,
     PersonCrossReferenceSchemaShow, PersonCrossReferenceSchemaRelated
 )
 from .person_name_schemas import (
@@ -153,7 +154,7 @@ from .person_name_schemas import (
     PersonNameSchemaShow, PersonNameSchemaRelated
 )
 from .person_note_schemas import (
-    PersonNoteSchemaCreate, PersonNoteSchemaUpdate,
+    PersonNoteSchemaCreate, PersonNoteSchemaPost, PersonNoteSchemaUpdate,
     PersonNoteSchemaShow, PersonNoteSchemaRelated
 )
 from .person_schemas import PersonSchemaPost, PersonSchemaCreate, PersonSchemaUpdate, PersonSchemaShow
@@ -161,6 +162,46 @@ from .person_setting_schemas import (
     PersonSettingSchemaCreate,
     PersonSettingSchemaUpdate,
     PersonSettingSchemaShow
+)
+from .person_lineage_relationship_enum import PersonPersonRole, SYMMETRIC_RELATIONSHIPS
+from .person_lineage_schemas import (
+    PersonLineageSchemaCreate,
+    PersonLineageSchemaUpdate,
+    PersonLineageSchemaShow,
+)
+from .person_lineage_submission_schemas import (
+    SubmissionStatus,
+    PersonLineageSubmissionSchemaCreate,
+    PersonLineageSubmissionSchemaUpdate,
+    PersonLineageSubmissionSchemaShow,
+    PersonLineageSubmissionSchemaRelated,
+)
+from .laboratory_position_enum import LabPosition
+from .laboratory_cross_reference_schemas import (
+    LaboratoryCrossReferenceSchemaCreate,
+    LaboratoryCrossReferenceSchemaPost,
+    LaboratoryCrossReferenceSchemaUpdate,
+    LaboratoryCrossReferenceSchemaShow,
+    LaboratoryCrossReferenceSchemaRelated,
+)
+from .laboratory_schemas import (
+    LaboratorySchemaPost,
+    LaboratorySchemaCreate,
+    LaboratorySchemaUpdate,
+    LaboratorySchemaShow,
+)
+from .laboratory_allele_designation_schemas import (
+    LaboratoryAlleleDesignationSchemaCreate,
+    LaboratoryAlleleDesignationSchemaPost,
+    LaboratoryAlleleDesignationSchemaUpdate,
+    LaboratoryAlleleDesignationSchemaShow,
+    LaboratoryAlleleDesignationSchemaRelated,
+)
+from .laboratory_person_schemas import (
+    LaboratoryPersonSchemaPost,
+    LaboratoryPersonSchemaUpdate,
+    LaboratoryPersonSchemaShow,
+    LaboratoryPersonSchemaRelated,
 )
 from .reference_email_schemas import (
     ReferenceEmailSchemaCreate,

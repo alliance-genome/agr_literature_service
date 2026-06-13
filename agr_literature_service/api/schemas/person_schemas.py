@@ -12,6 +12,7 @@ from .person_cross_reference_schemas import (
 )
 from .person_name_schemas import PersonNameSchemaCreate, PersonNameSchemaRelated
 from .person_note_schemas import PersonNoteSchemaCreate, PersonNoteSchemaRelated
+from .laboratory_person_schemas import LaboratoryPersonSchemaRelated
 
 ActiveStatus = Literal["active", "retired", "deceased"]
 
@@ -22,6 +23,7 @@ class PersonSchemaPost(BaseModel):
     display_name: str
     # curie is server-generated, not accepted from clients
     mod_roles: Optional[List[str]] = None
+    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
     city: Optional[str] = None
@@ -48,6 +50,7 @@ class PersonSchemaUpdate(BaseModel):
     display_name: Optional[str] = None
     # curie is server-generated, not modifiable by clients
     mod_roles: Optional[List[str]] = None
+    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
     city: Optional[str] = None
@@ -66,6 +69,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     display_name: str
     curie: str  # required
     mod_roles: Optional[List[str]] = None
+    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: str = "active"
     city: Optional[str] = None
@@ -80,3 +84,4 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     cross_references: Optional[List["PersonCrossReferenceSchemaRelated"]] = None
     names: Optional[List["PersonNameSchemaRelated"]] = None
     notes: Optional[List["PersonNoteSchemaRelated"]] = None
+    lab_persons: Optional[List["LaboratoryPersonSchemaRelated"]] = None

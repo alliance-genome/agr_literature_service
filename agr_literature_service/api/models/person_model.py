@@ -20,6 +20,7 @@ class PersonModel(Base, AuditedModel):
 
     curie = Column(String(), nullable=False, unique=True, index=True)    # required, server-generated
     mod_roles = Column(ARRAY(String), nullable=True)
+    institution = Column(ARRAY(String), nullable=True)
     webpage = Column(ARRAY(String), nullable=True)
     active_status = Column(
         String(),
@@ -55,6 +56,7 @@ class PersonModel(Base, AuditedModel):
     settings = relationship("PersonSettingModel", back_populates="person", cascade="all, delete-orphan")
     names = relationship("PersonNameModel", back_populates="person", cascade="all, delete-orphan")
     notes = relationship("PersonNoteModel", back_populates="person", cascade="all, delete-orphan")
+    lab_persons = relationship("LaboratoryPersonModel", back_populates="person", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index(
