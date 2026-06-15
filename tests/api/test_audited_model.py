@@ -195,6 +195,36 @@ def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
     assert db.query(UserModel).filter_by(id=updater).one_or_none() is not None
 
 
+def test_insert_skips_autocreate_for_global_user(db, monkeypatch): # noqa
+    """
+    Hot-path optimization: when created_by/updated_by resolve to the already-
+    ensured global user, no redundant ON CONFLICT insert is issued (so the
+    users.user_id identity sequence is not burned on every ordinary write).
+    """
+    import agr_literature_service.api.models.audited_model as am
+    _ensure_user(db, "SPY_GLOBAL")
+    set_global_user_id(db, "SPY_GLOBAL")
+
+    calls = []
+    orig = am.ensure_user_exists_on_connection
+
+    def spy(connection, uid): # noqa
+        calls.append(uid)
+        return orig(connection, uid)
+
+    monkeypatch.setattr(am, "ensure_user_exists_on_connection", spy)
+
+    # No explicit created_by/updated_by -> both resolve to the global user.
+    obj = AuditedDummy(name="india")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.created_by == "SPY_GLOBAL"
+    assert obj.updated_by == "SPY_GLOBAL"
+    assert calls == []  # nothing auto-created; global user already ensured
+
+
 def test_update_autocreates_missing_updated_by_user(db): # noqa
     """A caller-supplied updated_by on UPDATE is auto-created before the FK check."""
     obj = AuditedDummy(name="hotel")

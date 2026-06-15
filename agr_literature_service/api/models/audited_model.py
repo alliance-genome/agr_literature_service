@@ -128,10 +128,14 @@ def _set_created_and_updated(mapper, connection, target):
 
     # Auto-create the users referenced by created_by/updated_by so an explicitly
     # supplied "created by"/"updated by" name (e.g. from an admin-token tag load)
-    # does not violate the users.id foreign key. Idempotent via ON CONFLICT.
-    ensure_user_exists_on_connection(connection, target.created_by)
-    if target.updated_by != target.created_by:
-        ensure_user_exists_on_connection(connection, target.updated_by)
+    # does not violate the users.id foreign key. Skip the resolved global/default
+    # user, which is already guaranteed to exist (it is created at request setup
+    # in set_global_user_*); this keeps the redundant ON CONFLICT insert — and the
+    # users.user_id identity-sequence burn — off the hot path for normal traffic.
+    already_ensured = get_global_user_id()
+    for uid in {target.created_by, target.updated_by}:
+        if uid and uid != already_ensured:
+            ensure_user_exists_on_connection(connection, uid)
 
 
 @event.listens_for(AuditedModel, "before_update", propagate=True)
@@ -158,6 +162,12 @@ def _set_updated(mapper, connection, target):
 
     # Auto-create the users referenced by the (possibly caller-supplied)
     # updated_by/created_by values before the UPDATE hits the FK constraint.
-    ensure_user_exists_on_connection(connection, target.updated_by)
+    # Skip the already-ensured global/default user so an ordinary update (where
+    # updated_by is just the current user) issues no redundant insert.
+    already_ensured = get_global_user_id()
+    to_ensure = {target.updated_by}
     if state.attrs.created_by.history.has_changes():
-        ensure_user_exists_on_connection(connection, target.created_by)
+        to_ensure.add(target.created_by)
+    for uid in to_ensure:
+        if uid and uid != already_ensured:
+            ensure_user_exists_on_connection(connection, uid)
