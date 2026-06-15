@@ -4,7 +4,7 @@ import pytz
 from sqlalchemy import Column, ForeignKey, DateTime, event
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.inspection import inspect as sa_inspect
-from agr_literature_service.api.user import get_global_user_id
+from agr_literature_service.api.user import get_global_user_id, ensure_user_exists_on_connection
 
 # Internal flag to track if we should skip auto-updating updated_by and date_updated
 # Used during validation operations to prevent changing these fields
@@ -126,6 +126,13 @@ def _set_created_and_updated(mapper, connection, target):
         target.created_by, target.updated_by, get_default_user_value()
     )
 
+    # Auto-create the users referenced by created_by/updated_by so an explicitly
+    # supplied "created by"/"updated by" name (e.g. from an admin-token tag load)
+    # does not violate the users.id foreign key. Idempotent via ON CONFLICT.
+    ensure_user_exists_on_connection(connection, target.created_by)
+    if target.updated_by != target.created_by:
+        ensure_user_exists_on_connection(connection, target.updated_by)
+
 
 @event.listens_for(AuditedModel, "before_update", propagate=True)
 def _set_updated(mapper, connection, target):
@@ -148,3 +155,9 @@ def _set_updated(mapper, connection, target):
     if not state.attrs.updated_by.history.has_changes():
         uid = get_global_user_id() or get_default_user_value()
         target.updated_by = uid
+
+    # Auto-create the users referenced by the (possibly caller-supplied)
+    # updated_by/created_by values before the UPDATE hits the FK constraint.
+    ensure_user_exists_on_connection(connection, target.updated_by)
+    if state.attrs.created_by.history.has_changes():
+        ensure_user_exists_on_connection(connection, target.created_by)

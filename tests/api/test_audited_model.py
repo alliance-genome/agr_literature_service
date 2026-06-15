@@ -149,3 +149,67 @@ def test_update_uses_default_user_when_global_unset(db): # noqa
 
     assert obj.updated_by == "default_user"
     assert _is_recent(obj.date_updated)
+
+
+def test_insert_autocreates_missing_created_by_user(db): # noqa
+    """
+    An explicit created_by/updated_by that does not yet exist in `users` is
+    auto-created by the before_insert listener (no FK violation, no manual
+    pre-creation). This is what lets an admin-token tag load attribute records
+    to a named curator on any write endpoint.
+    """
+    new_uid = "LOADER_NEW_CREATOR"
+    # Make sure it does not already exist.
+    assert db.query(UserModel).filter_by(id=new_uid).one_or_none() is None
+
+    obj = AuditedDummy(name="foxtrot", created_by=new_uid)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.created_by == new_uid
+    # updated_by mirrors created_by when not supplied (impute_audit_user_ids).
+    assert obj.updated_by == new_uid
+    # The users row was created as an automation user.
+    user = db.query(UserModel).filter_by(id=new_uid).one_or_none()
+    assert user is not None
+    assert user.automation_username == new_uid
+    assert user.person_id is None
+
+
+def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
+    """Both created_by and updated_by are auto-created when they differ."""
+    creator = "LOADER_CREATOR_X"
+    updater = "LOADER_UPDATER_Y"
+    for uid in (creator, updater):
+        assert db.query(UserModel).filter_by(id=uid).one_or_none() is None
+
+    obj = AuditedDummy(name="golf", created_by=creator, updated_by=updater)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.created_by == creator
+    assert obj.updated_by == updater
+    assert db.query(UserModel).filter_by(id=creator).one_or_none() is not None
+    assert db.query(UserModel).filter_by(id=updater).one_or_none() is not None
+
+
+def test_update_autocreates_missing_updated_by_user(db): # noqa
+    """A caller-supplied updated_by on UPDATE is auto-created before the FK check."""
+    obj = AuditedDummy(name="hotel")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    new_updater = "LOADER_UPDATER_ON_PATCH"
+    assert db.query(UserModel).filter_by(id=new_updater).one_or_none() is None
+
+    obj.name = "hotel-2"
+    obj.updated_by = new_updater
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.updated_by == new_updater
+    assert db.query(UserModel).filter_by(id=new_updater).one_or_none() is not None
