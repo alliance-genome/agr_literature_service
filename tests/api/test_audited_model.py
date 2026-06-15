@@ -7,7 +7,7 @@ from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.crud import user_crud
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_id, ensure_user_exists_on_connection
 
 from ..fixtures import db  # noqa: F401
 
@@ -149,6 +149,36 @@ def test_update_uses_default_user_when_global_unset(db): # noqa
 
     assert obj.updated_by == "default_user"
     assert _is_recent(obj.date_updated)
+
+
+def test_ensure_user_exists_on_connection_creates_automation_user(db): # noqa
+    """The Connection-based helper materializes an automation users row."""
+    uid = "CONN_HELPER_NEW"
+    ensure_user_exists_on_connection(db.connection(), uid)
+
+    # Visible within the same transaction.
+    user = db.query(UserModel).filter_by(id=uid).one_or_none()
+    assert user is not None
+    assert user.automation_username == uid
+    assert user.person_id is None
+
+
+def test_ensure_user_exists_on_connection_is_idempotent(db): # noqa
+    """Calling twice for the same id is a no-op (ON CONFLICT) — no IntegrityError."""
+    uid = "CONN_HELPER_IDEMPOTENT"
+    conn = db.connection()
+    ensure_user_exists_on_connection(conn, uid)
+    ensure_user_exists_on_connection(conn, uid)
+
+    assert db.query(UserModel).filter_by(id=uid).count() == 1
+
+
+@pytest.mark.parametrize("empty_value", [None, ""])
+def test_ensure_user_exists_on_connection_noop_for_empty(db, empty_value): # noqa
+    """None / empty id is guarded and inserts nothing."""
+    before = db.query(UserModel).count()
+    ensure_user_exists_on_connection(db.connection(), empty_value)
+    assert db.query(UserModel).count() == before
 
 
 def test_insert_autocreates_missing_created_by_user(db): # noqa
