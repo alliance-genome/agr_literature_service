@@ -2,10 +2,21 @@ from contextvars import ContextVar
 from typing import Optional, Dict, Any
 from fastapi import HTTPException
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud import user_crud
 from agr_literature_service.api.models.user_model import UserModel
+
+# Idempotent insert of an automation user row. ``automation_username`` is set to
+# the same value as ``id`` (with ``person_id`` NULL) to satisfy the table CHECK:
+# (person_id IS NULL) <> (automation_username IS NULL). ON CONFLICT makes it a
+# no-op when the user already exists, so it is safe to call on a hot path.
+_SQL_INSERT_AUTOMATION_USER = text("""
+    INSERT INTO users (id, automation_username, person_id)
+    VALUES (:uid, :uid, NULL)
+    ON CONFLICT (id) DO NOTHING
+""")
 
 # String primary key (users.id) of the "current user" for this request.
 # A ContextVar isolates the value per asyncio task and per FastAPI threadpool
@@ -54,6 +65,27 @@ def add_user_if_not_exists(db: Session, user_id: str) -> None:
     Back-compat helper. New IDs are treated as automation users.
     """
     _ensure_automation_user(db, user_id)
+
+
+def ensure_user_exists_on_connection(connection: Connection, user_id: Optional[str]) -> None:
+    """
+    Idempotently create an automation ``users`` row for ``user_id`` using a raw
+    Connection rather than a Session.
+
+    This is the Connection-based counterpart to ``add_user_if_not_exists`` and is
+    meant to be called from SQLAlchemy ``before_insert`` / ``before_update`` event
+    listeners (see ``AuditedModel``), where only the in-flight Connection — not a
+    Session — is available. Because it emits ``INSERT ... ON CONFLICT DO NOTHING``
+    on the same Connection (and therefore the same transaction) that is flushing
+    the audited row, the ``created_by`` / ``updated_by`` foreign keys are satisfied
+    without an extra commit.
+
+    This lets an admin-token "created by"/"updated by" name supplied to *any*
+    write endpoint auto-create its ``users`` record instead of failing the FK.
+    """
+    if not user_id:
+        return
+    connection.execute(_SQL_INSERT_AUTOMATION_USER, {"uid": user_id})
 
 
 def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, Any]]) -> None:
