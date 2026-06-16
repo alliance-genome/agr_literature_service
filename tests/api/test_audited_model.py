@@ -7,7 +7,7 @@ from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.models.audited_model import AuditedModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.crud import user_crud
-from agr_literature_service.api.user import set_global_user_id
+from agr_literature_service.api.user import set_global_user_id, ensure_user_exists_on_connection
 
 from ..fixtures import db  # noqa: F401
 
@@ -149,3 +149,127 @@ def test_update_uses_default_user_when_global_unset(db): # noqa
 
     assert obj.updated_by == "default_user"
     assert _is_recent(obj.date_updated)
+
+
+def test_ensure_user_exists_on_connection_creates_automation_user(db): # noqa
+    """The Connection-based helper materializes an automation users row."""
+    uid = "CONN_HELPER_NEW"
+    ensure_user_exists_on_connection(db.connection(), uid)
+
+    # Visible within the same transaction.
+    user = db.query(UserModel).filter_by(id=uid).one_or_none()
+    assert user is not None
+    assert user.automation_username == uid
+    assert user.person_id is None
+
+
+def test_ensure_user_exists_on_connection_is_idempotent(db): # noqa
+    """Calling twice for the same id is a no-op (ON CONFLICT) — no IntegrityError."""
+    uid = "CONN_HELPER_IDEMPOTENT"
+    conn = db.connection()
+    ensure_user_exists_on_connection(conn, uid)
+    ensure_user_exists_on_connection(conn, uid)
+
+    assert db.query(UserModel).filter_by(id=uid).count() == 1
+
+
+@pytest.mark.parametrize("empty_value", [None, ""])
+def test_ensure_user_exists_on_connection_noop_for_empty(db, empty_value): # noqa
+    """None / empty id is guarded and inserts nothing."""
+    before = db.query(UserModel).count()
+    ensure_user_exists_on_connection(db.connection(), empty_value)
+    assert db.query(UserModel).count() == before
+
+
+def test_insert_autocreates_missing_created_by_user(db): # noqa
+    """
+    An explicit created_by/updated_by that does not yet exist in `users` is
+    auto-created by the before_insert listener (no FK violation, no manual
+    pre-creation). This is what lets an admin-token tag load attribute records
+    to a named curator on any write endpoint.
+    """
+    new_uid = "LOADER_NEW_CREATOR"
+    # Make sure it does not already exist.
+    assert db.query(UserModel).filter_by(id=new_uid).one_or_none() is None
+
+    obj = AuditedDummy(name="foxtrot", created_by=new_uid)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.created_by == new_uid
+    # updated_by mirrors created_by when not supplied (impute_audit_user_ids).
+    assert obj.updated_by == new_uid
+    # The users row was created as an automation user.
+    user = db.query(UserModel).filter_by(id=new_uid).one_or_none()
+    assert user is not None
+    assert user.automation_username == new_uid
+    assert user.person_id is None
+
+
+def test_insert_autocreates_distinct_created_and_updated_users(db): # noqa
+    """Both created_by and updated_by are auto-created when they differ."""
+    creator = "LOADER_CREATOR_X"
+    updater = "LOADER_UPDATER_Y"
+    for uid in (creator, updater):
+        assert db.query(UserModel).filter_by(id=uid).one_or_none() is None
+
+    obj = AuditedDummy(name="golf", created_by=creator, updated_by=updater)
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.created_by == creator
+    assert obj.updated_by == updater
+    assert db.query(UserModel).filter_by(id=creator).one_or_none() is not None
+    assert db.query(UserModel).filter_by(id=updater).one_or_none() is not None
+
+
+def test_insert_skips_autocreate_for_global_user(db, monkeypatch): # noqa
+    """
+    Hot-path optimization: when created_by/updated_by resolve to the already-
+    ensured global user, no redundant ON CONFLICT insert is issued (so the
+    users.user_id identity sequence is not burned on every ordinary write).
+    """
+    import agr_literature_service.api.models.audited_model as am
+    _ensure_user(db, "SPY_GLOBAL")
+    set_global_user_id(db, "SPY_GLOBAL")
+
+    calls = []
+    orig = am.ensure_user_exists_on_connection
+
+    def spy(connection, uid): # noqa
+        calls.append(uid)
+        return orig(connection, uid)
+
+    monkeypatch.setattr(am, "ensure_user_exists_on_connection", spy)
+
+    # No explicit created_by/updated_by -> both resolve to the global user.
+    obj = AuditedDummy(name="india")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.created_by == "SPY_GLOBAL"
+    assert obj.updated_by == "SPY_GLOBAL"
+    assert calls == []  # nothing auto-created; global user already ensured
+
+
+def test_update_autocreates_missing_updated_by_user(db): # noqa
+    """A caller-supplied updated_by on UPDATE is auto-created before the FK check."""
+    obj = AuditedDummy(name="hotel")
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    new_updater = "LOADER_UPDATER_ON_PATCH"
+    assert db.query(UserModel).filter_by(id=new_updater).one_or_none() is None
+
+    obj.name = "hotel-2"
+    obj.updated_by = new_updater
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+
+    assert obj.updated_by == new_updater
+    assert db.query(UserModel).filter_by(id=new_updater).one_or_none() is not None
