@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import List, Literal, Optional
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .base_schemas import AuditedObjectModelSchema
 from .laboratory_cross_reference_schemas import (
@@ -78,8 +78,11 @@ class LaboratorySchemaUpdate(BaseModel):
     country: Optional[str] = None
     street_address: Optional[str] = None
     email: Optional[List[str]] = None
-    email_visibility: Optional[EmailVisibility] = None
-    lab_is_open: Optional[bool] = None
+    # All fields optional (omit = leave unchanged). Pin the Swagger example to the
+    # safe defaults so the generated body doesn't imply public / open on a partial
+    # update (Swagger otherwise fills the first Literal value and true for a bool).
+    email_visibility: Optional[EmailVisibility] = Field(default=None, examples=["not_shown"])
+    lab_is_open: Optional[bool] = Field(default=None, examples=[False])
     status: Optional[LaboratoryStatus] = None
     research_area: Optional[str] = None
     short_research_description: Optional[str] = None
