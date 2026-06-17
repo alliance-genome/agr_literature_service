@@ -2429,3 +2429,139 @@ class TestTopicEntityTag:
                 "created_by should never change"
             assert updated_tag.date_created == original_date_created, \
                 "date_created should never change"
+
+
+class TestMixedTagCompanionEntityTag:
+    """SCRUM-6183: creating a positive mixed topic+entity tag should also create a
+    companion pure entity tag (topic == entity_type) with data_novelty 'existing data'
+    (ATP:0000334). SGD is excluded; negated and pure-entity tags do not trigger it."""
+
+    EXISTING_DATA_NOVELTY = "ATP:0000334"
+
+    def _post_tag(self, client, auth_headers, payload):  # noqa
+        return client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
+
+    def _companions(self, db, reference_id, entity_type, entity):  # noqa
+        return db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.topic == entity_type,
+            TopicEntityTagModel.entity_type == entity_type,
+            TopicEntityTagModel.entity == entity,
+            TopicEntityTagModel.data_novelty == self.EXISTING_DATA_NOVELTY,
+        ).all()
+
+    def test_positive_mixed_tag_creates_companion_entity_tag(self, db, auth_headers, test_reference,  # noqa
+                                                             test_topic_entity_tag_source, test_mod):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "entity_published_as": "test",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                "note": "mixed-tag note",
+                "created_by": "WBPerson1",
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+            assert resp.status_code == status.HTTP_201_CREATED
+            mixed_id = resp.json()["topic_entity_tag_id"]
+            mixed = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == mixed_id).one()
+
+            companions = self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001")
+            assert len(companions) == 1
+            companion = companions[0]
+            assert companion.topic == companion.entity_type == "ATP:0000005"
+            assert companion.negated is False
+            assert companion.data_novelty == self.EXISTING_DATA_NOVELTY
+            assert companion.topic_entity_tag_source_id == test_topic_entity_tag_source.new_source_id
+            assert companion.entity_id_validation == "alliance"
+            assert companion.species == "NCBITaxon:6239"
+            # topic-specific fields are reset on the companion
+            assert companion.note is None
+            assert companion.created_by == "WBPerson1"
+
+    def test_negated_mixed_tag_creates_no_companion(self, db, auth_headers, test_reference,  # noqa
+                                                    test_topic_entity_tag_source, test_mod):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": True,
+                "data_novelty": "ATP:0000335",
+                "created_by": "WBPerson1",
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+            assert resp.status_code == status.HTTP_201_CREATED
+            mixed = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
+            assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
+
+    def test_pure_entity_tag_creates_no_extra_companion(self, db, auth_headers, test_reference,  # noqa
+                                                        test_topic_entity_tag_source, test_mod):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000005",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": self.EXISTING_DATA_NOVELTY,
+                "created_by": "WBPerson1",
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+            assert resp.status_code == status.HTTP_201_CREATED
+            mixed = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
+            # the tag itself is the only topic==entity_type row; no recursive companion
+            assert len(self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001")) == 1
+
+    def test_sgd_mixed_tag_creates_no_companion(self, db, auth_headers, test_reference):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            sgd_mod = client.post(url="/mod/", json={"abbreviation": "SGD", "short_name": "SGD",
+                                                     "full_name": "Saccharomyces Genome Database"},
+                                  headers=auth_headers)
+            assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
+            sgd_source = client.post(url="/topic_entity_tag/source", json={
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "SGD curator",
+                "data_provider": "SGD",
+                "secondary_data_provider_abbreviation": "SGD",
+            }, headers=auth_headers)
+            assert sgd_source.status_code == status.HTTP_201_CREATED
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": sgd_source.json()["topic_entity_tag_source_id"],
+                "negated": False,
+                "created_by": "WBPerson1",
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+            assert resp.status_code == status.HTTP_201_CREATED
+            mixed = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
+            # SGD is excluded everywhere, so no companion entity tag is created
+            assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
