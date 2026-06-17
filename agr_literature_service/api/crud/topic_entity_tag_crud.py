@@ -203,31 +203,33 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
     already-committed parent tag. The caller excludes SGD. The companion is itself
     ``topic == entity_type`` so it does not re-trigger this logic.
     """
-    entity_type = mixed_tag_data["entity_type"]
-    entity = mixed_tag_data["entity"]
-    existing = db.query(TopicEntityTagModel).filter(
-        TopicEntityTagModel.reference_id == reference_id,
-        TopicEntityTagModel.entity == entity,
-        TopicEntityTagModel.entity_type == entity_type,
-        TopicEntityTagModel.topic == entity_type,
-    ).first()
-    if existing is not None:
-        logger.info("Companion entity tag already exists; nothing to create")
-        return
-    entity_tag_data = copy.copy(mixed_tag_data)
-    entity_tag_data["topic"] = entity_type
-    entity_tag_data["data_novelty"] = EXISTING_DATA_NOVELTY_ATP
-    entity_tag_data["negated"] = False
-    # The remaining fields describe the topic-specific assertion, not the bare entity,
-    # so they are reset on the companion tag.
-    for field in ("note", "confidence_score", "confidence_level", "display_tag",
-                  "ml_model_id", "validation_by_author",
-                  "validation_by_professional_biocurator"):
-        entity_tag_data[field] = None
+    committed = False
     try:
+        entity_type = mixed_tag_data["entity_type"]
+        entity = mixed_tag_data["entity"]
+        existing = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.entity == entity,
+            TopicEntityTagModel.entity_type == entity_type,
+            TopicEntityTagModel.topic == entity_type,
+        ).first()
+        if existing is not None:
+            logger.info("Companion entity tag already exists; nothing to create")
+            return
+        entity_tag_data = copy.copy(mixed_tag_data)
+        entity_tag_data["topic"] = entity_type
+        entity_tag_data["data_novelty"] = EXISTING_DATA_NOVELTY_ATP
+        entity_tag_data["negated"] = False
+        # The remaining fields describe the topic-specific assertion, not the bare
+        # entity, so they are reset on the companion tag.
+        for field in ("note", "confidence_score", "confidence_level", "display_tag",
+                      "ml_model_id", "validation_by_author",
+                      "validation_by_professional_biocurator"):
+            entity_tag_data[field] = None
         new_db_obj = TopicEntityTagModel(**entity_tag_data)
         db.add(new_db_obj)
         db.commit()
+        committed = True
         db.refresh(new_db_obj, ['topic_entity_tag_source'])
         validate_tags(db=db, new_tag_obj=new_db_obj)
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
@@ -235,7 +237,12 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         # Non-fatal: the parent tag is already committed, so a companion failure must
         # never surface to the caller. Roll back only the companion's pending work.
         db.rollback()
-        logger.warning(f"Companion entity tag creation failed, skipping: {e}")
+        if committed:
+            # The companion row was already written; only the post-insert validation
+            # failed, so the row persists (validation can be recomputed later).
+            logger.warning(f"Companion entity tag written but validation failed: {e}")
+        else:
+            logger.warning(f"Companion entity tag not created, skipping: {e}")
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
