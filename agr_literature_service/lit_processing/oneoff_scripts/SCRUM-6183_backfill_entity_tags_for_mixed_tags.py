@@ -18,9 +18,7 @@ from os import path
 
 from sqlalchemy import text
 
-from agr_literature_service.api.models import (
-    TopicEntityTagModel, TopicEntityTagSourceModel
-)
+from agr_literature_service.api.models import TopicEntityTagModel
 from agr_literature_service.api.crud.topic_entity_tag_crud import \
     create_entity_tag_for_mixed_tag
 from agr_literature_service.api.user import set_global_user_id
@@ -77,17 +75,13 @@ def backfill():
             TopicEntityTagModel.topic_entity_tag_id == tag_id).one_or_none()
         if mixed_tag is None:
             continue
-        source = db.query(TopicEntityTagSourceModel).filter(
-            TopicEntityTagSourceModel.topic_entity_tag_source_id
-            == mixed_tag.topic_entity_tag_source_id).one()
         mixed_tag_data = {col: getattr(mixed_tag, col) for col in CARRY_COLUMNS}
         before = db.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.reference_id == mixed_tag.reference_id,
             TopicEntityTagModel.entity == mixed_tag.entity,
             TopicEntityTagModel.entity_type == mixed_tag.entity_type,
             TopicEntityTagModel.topic == mixed_tag.entity_type).count()
-        create_entity_tag_for_mixed_tag(db, mixed_tag_data, source,
-                                        mixed_tag.reference_id)
+        create_entity_tag_for_mixed_tag(db, mixed_tag_data, mixed_tag.reference_id)
         after = db.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.reference_id == mixed_tag.reference_id,
             TopicEntityTagModel.entity == mixed_tag.entity,

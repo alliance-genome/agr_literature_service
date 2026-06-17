@@ -171,12 +171,13 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
             # (it has its own data_novelty/display handling).
             is_mixed = (topic_entity_tag_data.get("entity") is not None
+                        and topic_entity_tag_data.get("entity_type") is not None
                         and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
             is_positive = topic_entity_tag_data.get("negated") is False
             is_sgd = source.secondary_data_provider.abbreviation == "SGD"
             if is_mixed and is_positive and not is_sgd:
                 logger.info("Creating companion entity tag for mixed topic+entity tag")
-                create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, source, reference_id)
+                create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
         logger.info("create_tag completed successfully")
         return (new_db_obj.topic_entity_tag_id, False)
     except (IntegrityError, HTTPException) as e:
@@ -185,21 +186,36 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
                             detail=f"invalid request: {e}")
 
 
-def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict,
-                                    source: TopicEntityTagSourceModel, reference_id: int):
+def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference_id: int):
     """SCRUM-6183: create the companion "pure entity" tag for a just-created positive
     mixed topic+entity tag.
 
     The companion has ``topic == entity_type`` and ``data_novelty`` set to the
     "existing data" term, reusing the originating tag's source and entity fields.
 
-    Idempotent and non-fatal: a duplicate/conflict (409) or insert failure is logged
-    and swallowed so it never rolls back the already-committed parent tag. The caller
-    excludes SGD. The companion is itself ``topic == entity_type`` so it does not
-    re-trigger this logic.
+    Idempotent: if a pure entity tag (``topic == entity_type``) for this
+    reference+entity already exists, nothing is created. The existence check is
+    deliberately ``data_novelty``/source/creator-agnostic so we never create a second,
+    semantically-redundant entity tag for the same entity, and it matches the
+    back-fill's existence check.
+
+    Non-fatal: any failure is logged and rolled back so it never disturbs the
+    already-committed parent tag. The caller excludes SGD. The companion is itself
+    ``topic == entity_type`` so it does not re-trigger this logic.
     """
+    entity_type = mixed_tag_data["entity_type"]
+    entity = mixed_tag_data["entity"]
+    existing = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        TopicEntityTagModel.entity == entity,
+        TopicEntityTagModel.entity_type == entity_type,
+        TopicEntityTagModel.topic == entity_type,
+    ).first()
+    if existing is not None:
+        logger.info("Companion entity tag already exists; nothing to create")
+        return
     entity_tag_data = copy.copy(mixed_tag_data)
-    entity_tag_data["topic"] = mixed_tag_data["entity_type"]
+    entity_tag_data["topic"] = entity_type
     entity_tag_data["data_novelty"] = EXISTING_DATA_NOVELTY_ATP
     entity_tag_data["negated"] = False
     # The remaining fields describe the topic-specific assertion, not the bare entity,
@@ -209,22 +225,17 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict,
                   "validation_by_professional_biocurator"):
         entity_tag_data[field] = None
     try:
-        duplicate_check_result = check_for_duplicate_tags(db, entity_tag_data, source, reference_id)
-        if duplicate_check_result is not None:
-            logger.info("Companion entity tag already exists; nothing to create")
-            return
         new_db_obj = TopicEntityTagModel(**entity_tag_data)
         db.add(new_db_obj)
         db.commit()
         db.refresh(new_db_obj, ['topic_entity_tag_source'])
         validate_tags(db=db, new_tag_obj=new_db_obj)
         logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
-    except HTTPException as e:
+    except Exception as e:
+        # Non-fatal: the parent tag is already committed, so a companion failure must
+        # never surface to the caller. Roll back only the companion's pending work.
         db.rollback()
-        logger.info(f"Skipped companion entity tag (conflict): {e.detail}")
-    except IntegrityError as e:
-        db.rollback()
-        logger.warning(f"Companion entity tag insert failed: {e}")
+        logger.warning(f"Companion entity tag creation failed, skipping: {e}")
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):

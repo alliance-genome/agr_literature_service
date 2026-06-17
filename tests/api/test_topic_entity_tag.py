@@ -849,7 +849,11 @@ class TestTopicEntityTag:
                                        headers=auth_headers)
             assert all_tags_resp.status_code == status.HTTP_200_OK
             all_tags = all_tags_resp.json()
-            assert len(all_tags) == 6
+            # SCRUM-6183: the fixture's positive mixed tag auto-creates one companion
+            # pure entity tag for WB:WBGene00003001; more_specific_positive_tag reuses
+            # that same entity so its companion is deduped. 5 explicit tags + fixture
+            # tag + 1 companion = 7.
+            assert len(all_tags) == 7
             for tag in all_tags:
                 if tag["topic"] == "ATP:0000079":
                     assert tag["validation_by_author"] == "validation_conflict"
