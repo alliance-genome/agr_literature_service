@@ -55,5 +55,20 @@ class LaboratoryPersonModel(Base, AuditedModel):
         """Convenience for serializers — the person curie via the person FK."""
         return self.person.curie if self.person else None
 
+    @property
+    def person_display_name(self):
+        """Convenience for serializers — the person display_name via the person FK."""
+        return self.person.display_name if self.person else None
+
+    @property
+    def laboratory_name(self):
+        """Convenience for serializers — the laboratory name via the laboratory FK."""
+        return self.laboratory.name if self.laboratory else None
+
+    @property
+    def laboratory_strain_designation(self):
+        """Convenience for serializers — the laboratory strain_designation via the FK."""
+        return self.laboratory.strain_designation if self.laboratory else None
+
     def __str__(self) -> str:
         return f"laboratory_person(lab={self.laboratory_id}, person={self.person_id})"
