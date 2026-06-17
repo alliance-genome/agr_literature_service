@@ -518,7 +518,7 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False, validation_values_only=False)
 
 
-def atp_hierarchy_with_self(atp_id, ancestors: bool):
+def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
     """SCRUM-6188: set containing ``atp_id`` plus its ATP ancestors (``ancestors=True``)
     or descendants (``ancestors=False``).
 
