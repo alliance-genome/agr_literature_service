@@ -648,6 +648,68 @@ class TestTopicEntityTag:
             ).one()
             assert len(specific_tag_obj_2.validated_by) == 0  # nothing should validate the more specific tag
 
+    def test_validate_hierarchy_aware_entity_type(self, db, auth_headers, test_reference,  # noqa
+                                                  test_topic_entity_tag_source, test_mod):  # noqa
+        """SCRUM-6188: a more specific pure-entity tag (entity_type ATP:0000084) should
+        validate a more generic pure-entity tag (entity_type ATP:0000009) for the same
+        entity, following the ATP parent/child hierarchy rather than exact entity_type
+        equality (mirrors the allele / classical-allele case in the ticket)."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator using the ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            curator_source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+                                            headers=auth_headers).json()["topic_entity_tag_source_id"]
+            # generic pure-entity tag from an automated source (validation_type None)
+            generic_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000009",
+                "entity_type": "ATP:0000009",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "created_by": "WBPerson1",
+            }
+            generic_id = client.post(url="/topic_entity_tag/", json=generic_tag,
+                                     headers=auth_headers).json()["topic_entity_tag_id"]
+            # more specific pure-entity tag entered manually by a curator
+            specific_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000084",
+                "entity_type": "ATP:0000084",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": curator_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "created_by": "WBPerson2",
+            }
+            specific_id = client.post(url="/topic_entity_tag/", json=specific_tag,
+                                      headers=auth_headers).json()["topic_entity_tag_id"]
+
+            generic_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == generic_id).one()
+            validating_ids = {t.topic_entity_tag_id for t in generic_obj.validated_by}
+            assert int(specific_id) in validating_ids, \
+                "specific (child entity_type) tag should validate the generic (parent) tag"
+            assert generic_obj.validation_by_professional_biocurator == "validated_right"
+
+            # reverse direction: the specific curator tag is not validated by the
+            # generic automated tag (its source has no validation_type)
+            specific_obj = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == specific_id).one()
+            assert int(generic_id) not in {t.topic_entity_tag_id for t in specific_obj.validated_by}
+
     def test_validate_positive_with_pos_and_neg(self, test_topic_entity_tag, test_reference, test_mod,  # noqa
                                                 auth_headers, db, test_topic_entity_tag_source):  # noqa
         with TestClient(app) as client, \
