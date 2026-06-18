@@ -1,9 +1,9 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,8 +20,8 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 logger = logging.getLogger(__name__)
 
 # AGRKB curie derived from the laboratory_id until MATI Laboratory support exists.
-# e.g. laboratory_id=1 -> "AGRKB:705000000000001".
-CURIE_PREFIX = "AGRKB:705"
+# e.g. laboratory_id=1 -> "AGRKB:704000000000001".
+CURIE_PREFIX = "AGRKB:704"
 
 
 def laboratory_curie_from_id(laboratory_id: int) -> str:
@@ -253,3 +253,45 @@ def show(db: Session, curie_or_laboratory_id: str) -> LaboratoryModel:
             detail=f"Laboratory with curie or laboratory_id {curie_or_laboratory_id} not found",
         )
     return obj
+
+
+def find_by_name_or_strain_designation(db: Session, query: str) -> List[LaboratoryModel]:
+    """Resolve a free-text laboratory lookup with a fixed precedence:
+
+    1. exact, case-insensitive match on strain_designation (a short code) — return
+       all such labs (normally one; more only if a code is shared);
+    2. otherwise a case-insensitive substring match on name, ordered by name;
+    3. otherwise an empty list.
+
+    Matching strain exactly (never as a substring) keeps a short code from
+    polluting name results. Each result eager-loads the same joins as show().
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
+
+    options = (
+        selectinload(LaboratoryModel.cross_references),
+        selectinload(LaboratoryModel.allele_designations).selectinload(
+            LaboratoryAlleleDesignationModel.mod
+        ),
+        selectinload(LaboratoryModel.lab_persons).selectinload(LaboratoryPersonModel.person),
+    )
+
+    strain_matches = (
+        db.query(LaboratoryModel)
+        .options(*options)
+        .filter(func.lower(LaboratoryModel.strain_designation) == query.lower())
+        .order_by(LaboratoryModel.name.asc())
+        .all()
+    )
+    if strain_matches:
+        return strain_matches
+
+    return (
+        db.query(LaboratoryModel)
+        .options(*options)
+        .filter(LaboratoryModel.name.ilike(f"%{query}%"))
+        .order_by(LaboratoryModel.name.asc())
+        .all()
+    )

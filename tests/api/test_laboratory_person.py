@@ -23,7 +23,9 @@ LabPersonTestData = namedtuple(
 
 @pytest.fixture
 def seeded_lab_and_person(db):  # noqa
-    lab = LaboratoryModel(name="People Lab", status="active", lab_is_open=False)
+    lab = LaboratoryModel(
+        name="People Lab", strain_designation="PL", status="active", lab_is_open=False
+    )
     person = PersonModel(display_name="Lab Member", curie="AGRKB:test-lab-person")
     db.add(lab)
     db.add(person)
@@ -155,6 +157,45 @@ class TestLaboratoryPerson:
             assert res.status_code == status.HTTP_200_OK
             lps = res.json().get("lab_persons") or []
             assert any(lp["laboratory_person_id"] == test_lab_person.new_id for lp in lps)
+
+    def _assert_enriched(self, row):
+        # The derived display fields surfaced for the UI.
+        assert row["person_display_name"] == "Lab Member"
+        assert row["laboratory_name"] == "People Lab"
+        assert row["laboratory_strain_designation"] == "PL"
+
+    def test_show_includes_display_fields(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(f"/laboratory_person/{test_lab_person.new_id}", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            self._assert_enriched(res.json())
+
+    def test_list_for_person_includes_display_fields(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                f"/laboratory_person/person/{test_lab_person.person_id}", headers=auth_headers
+            )
+            assert res.status_code == status.HTTP_200_OK
+            row = next(r for r in res.json() if r["laboratory_person_id"] == test_lab_person.new_id)
+            self._assert_enriched(row)
+
+    def test_list_for_laboratory_includes_display_fields(self, auth_headers, test_lab_person):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                f"/laboratory_person/laboratory/{test_lab_person.laboratory_id}", headers=auth_headers
+            )
+            assert res.status_code == status.HTTP_200_OK
+            row = next(r for r in res.json() if r["laboratory_person_id"] == test_lab_person.new_id)
+            self._assert_enriched(row)
+
+    def test_nested_lab_persons_include_display_fields(self, auth_headers, test_lab_person):  # noqa
+        # The lab_persons nested under Laboratory Show also carry the display fields.
+        with TestClient(app) as client:
+            res = client.get(f"/laboratory/{test_lab_person.laboratory_id}", headers=auth_headers)
+            assert res.status_code == status.HTTP_200_OK
+            lps = res.json().get("lab_persons") or []
+            row = next(lp for lp in lps if lp["laboratory_person_id"] == test_lab_person.new_id)
+            self._assert_enriched(row)
 
     def test_destroy_lab_person(self, auth_headers, test_lab_person):  # noqa
         with TestClient(app) as client:
