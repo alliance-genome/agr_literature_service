@@ -11,6 +11,9 @@ Skip rules:
   1. SGD is excluded (it has its own data_novelty/display handling).
   2. Mixed tags that already have a companion pure entity tag are skipped
      (idempotent re-runs); ``create_entity_tag_for_mixed_tag`` re-checks too.
+  3. Pipeline/script-created mixed tags are excluded: the companion is only for
+     human-curator tags, which carry AGRKB: ``created_by``/``updated_by`` users.id
+     values. This mirrors the live create path's human-only gate.
 """
 
 import logging
@@ -58,6 +61,8 @@ def backfill():
            AND m.topic <> m.entity_type
            AND m.negated IS FALSE
            AND s.data_provider <> :sgd
+           AND m.created_by LIKE 'AGRKB:%'
+           AND m.updated_by LIKE 'AGRKB:%'
            AND NOT EXISTS (
                  SELECT 1 FROM topic_entity_tag e
                   WHERE e.reference_id = m.reference_id

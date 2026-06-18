@@ -911,11 +911,12 @@ class TestTopicEntityTag:
                                        headers=auth_headers)
             assert all_tags_resp.status_code == status.HTTP_200_OK
             all_tags = all_tags_resp.json()
-            # SCRUM-6183: the fixture's positive mixed tag auto-creates one companion
-            # pure entity tag for WB:WBGene00003001; more_specific_positive_tag reuses
-            # that same entity so its companion is deduped. 5 explicit tags + fixture
-            # tag + 1 companion = 7.
-            assert len(all_tags) == 7
+            # SCRUM-6183: the companion pure entity tag is only auto-created for tags
+            # made by a human curator (AGRKB: created_by/updated_by). Here the fixture
+            # tag is created_by "WBPerson1" and the explicit tags by the service-account
+            # "default_user" — none AGRKB:-prefixed — so no companion is created.
+            # 5 explicit tags + fixture tag = 6.
+            assert len(all_tags) == 6
             for tag in all_tags:
                 if tag["topic"] == "ATP:0000079":
                     assert tag["validation_by_author"] == "validation_conflict"
@@ -2500,9 +2501,12 @@ class TestTopicEntityTag:
 class TestMixedTagCompanionEntityTag:
     """SCRUM-6183: creating a positive mixed topic+entity tag should also create a
     companion pure entity tag (topic == entity_type) with data_novelty 'existing data'
-    (ATP:0000334). SGD is excluded; negated and pure-entity tags do not trigger it."""
+    (ATP:0000334). Only human-curator tags (AGRKB: created_by/updated_by) trigger it;
+    SGD, negated, pure-entity, and pipeline-created tags do not."""
 
     EXISTING_DATA_NOVELTY = "ATP:0000334"
+    # A human curator's users.id is an AGRKB: person curie; pipeline/script users are not.
+    HUMAN_CURATOR = "AGRKB:101000000000001"
 
     def _post_tag(self, client, auth_headers, payload):  # noqa
         return client.post(url="/topic_entity_tag/", json=payload, headers=auth_headers)
@@ -2532,7 +2536,7 @@ class TestMixedTagCompanionEntityTag:
                 "negated": False,
                 "data_novelty": "ATP:0000335",
                 "note": "mixed-tag note",
-                "created_by": "WBPerson1",
+                "created_by": self.HUMAN_CURATOR,
             }
             resp = self._post_tag(client, auth_headers, payload)
             assert resp.status_code == status.HTTP_201_CREATED
@@ -2551,7 +2555,7 @@ class TestMixedTagCompanionEntityTag:
             assert companion.species == "NCBITaxon:6239"
             # topic-specific fields are reset on the companion
             assert companion.note is None
-            assert companion.created_by == "WBPerson1"
+            assert companion.created_by == self.HUMAN_CURATOR
 
     def test_negated_mixed_tag_creates_no_companion(self, db, auth_headers, test_reference,  # noqa
                                                     test_topic_entity_tag_source, test_mod):  # noqa
@@ -2567,7 +2571,7 @@ class TestMixedTagCompanionEntityTag:
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": True,
                 "data_novelty": "ATP:0000335",
-                "created_by": "WBPerson1",
+                "created_by": self.HUMAN_CURATOR,
             }
             resp = self._post_tag(client, auth_headers, payload)
             assert resp.status_code == status.HTTP_201_CREATED
@@ -2589,7 +2593,7 @@ class TestMixedTagCompanionEntityTag:
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
                 "data_novelty": self.EXISTING_DATA_NOVELTY,
-                "created_by": "WBPerson1",
+                "created_by": self.HUMAN_CURATOR,
             }
             resp = self._post_tag(client, auth_headers, payload)
             assert resp.status_code == status.HTTP_201_CREATED
@@ -2623,11 +2627,36 @@ class TestMixedTagCompanionEntityTag:
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": sgd_source.json()["topic_entity_tag_source_id"],
                 "negated": False,
-                "created_by": "WBPerson1",
+                "created_by": self.HUMAN_CURATOR,
             }
             resp = self._post_tag(client, auth_headers, payload)
             assert resp.status_code == status.HTTP_201_CREATED
             mixed = db.query(TopicEntityTagModel).filter(
                 TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
             # SGD is excluded everywhere, so no companion entity tag is created
+            assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
+
+    def test_pipeline_mixed_tag_creates_no_companion(self, db, auth_headers, test_reference,  # noqa
+                                                     test_topic_entity_tag_source, test_mod):  # noqa
+        """A positive mixed tag created by a pipeline/script (created_by is not an
+        AGRKB: curie) must NOT auto-create a companion entity tag."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000335",
+                # pipeline/script user id, not an AGRKB: human-curator curie
+                "created_by": "some_classification_pipeline",
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+            assert resp.status_code == status.HTTP_201_CREATED
+            mixed = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id == resp.json()["topic_entity_tag_id"]).one()
             assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
