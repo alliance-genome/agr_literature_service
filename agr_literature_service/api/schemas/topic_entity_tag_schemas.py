@@ -71,7 +71,6 @@ class TopicEntityTagSchemaCreate(ConfidenceMixin, AuditedObjectModelSchema):
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
     entity_id_validation: Optional[constr(min_length=1)] = None  # type: ignore
-    entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     topic_entity_tag_source_id: int
@@ -109,7 +108,6 @@ class TopicEntityTagSchemaRelated(ConfidenceMixin, AuditedObjectModelSchema):
     entity: Optional[str] = None
     entity_name: Optional[str] = None
     entity_id_validation: Optional[str] = None
-    entity_published_as: Optional[str] = None
     species: Optional[str] = None
     species_name: Optional[str] = None
     display_tag: Optional[str] = None
@@ -145,7 +143,6 @@ class TopicEntityTagSchemaUpdate(ConfidenceMixin, AuditedObjectModelSchema):
     entity_type: Optional[constr(min_length=1)] = None  # type: ignore
     entity: Optional[constr(min_length=1)] = None  # type: ignore
     entity_id_validation: Optional[constr(min_length=1)] = None  # type: ignore
-    entity_published_as: Optional[constr(min_length=1)] = None  # type: ignore
     species: Optional[constr(min_length=1)] = None  # type: ignore
     display_tag: Optional[constr(min_length=1)] = None  # type: ignore
     negated: Optional[bool] = False
