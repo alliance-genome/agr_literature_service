@@ -2518,7 +2518,6 @@ class TestMixedTagCompanionEntityTag:
                 "entity_type": "ATP:0000005",
                 "entity": "WB:WBGene00003001",
                 "entity_id_validation": "alliance",
-                "entity_published_as": "test",
                 "species": "NCBITaxon:6239",
                 "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
                 "negated": False,
