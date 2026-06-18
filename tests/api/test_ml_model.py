@@ -93,6 +93,14 @@ class TestMLModel:
         assert ml_model.version_num == 1
         assert ml_model.data_novelty == "ATP:0000062"
         assert ml_model.file_classes == ["main"]
+        # audit fields are auto-stamped on create (AuditedModel)
+        assert ml_model.date_created is not None
+        assert ml_model.date_updated is not None
+        assert ml_model.created_by is not None
+        assert ml_model.updated_by is not None
+        # and surfaced in the response schema
+        assert test_ml_model["date_created"] is not None
+        assert test_ml_model["created_by"] is not None
 
     def test_get_all_models_no_filter(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
