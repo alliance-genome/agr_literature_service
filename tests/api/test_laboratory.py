@@ -64,7 +64,7 @@ class TestLaboratory:
         assert lab.email_visibility == "not_shown"
 
     def test_curie_derived_from_id(self, test_laboratory):  # noqa
-        expected = f"AGRKB:705{test_laboratory.new_laboratory_id:012d}"
+        expected = f"AGRKB:704{test_laboratory.new_laboratory_id:012d}"
         assert test_laboratory.curie == expected
 
     def test_lookup_by_curie(self, auth_headers, test_laboratory):  # noqa
@@ -200,3 +200,103 @@ class TestLaboratory:
             .filter(LaboratoryAlleleDesignationModel.allele_designation == "x")
             .count()
         ) == 0
+
+    def test_find_by_strain_designation_exact(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            client.post(
+                "/laboratory/",
+                json={"name": "Strain Exact Lab ZZQ1", "strain_designation": "QX"},
+                headers=auth_headers,
+            )
+            res = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "QX"}, headers=auth_headers
+            )
+            assert res.status_code == status.HTTP_200_OK
+            rows = res.json()
+            assert len(rows) == 1
+            assert rows[0]["strain_designation"] == "QX"
+            # case-insensitive
+            res2 = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "qx"}, headers=auth_headers
+            )
+            assert len(res2.json()) == 1
+
+    def test_find_by_strain_shared_returns_list(self, auth_headers):  # noqa
+        # A strain code shared by >1 lab returns all of them (a pick-list).
+        with TestClient(app) as client:
+            for nm in ("Shared Strain A ZZQ", "Shared Strain B ZZQ"):
+                client.post(
+                    "/laboratory/",
+                    json={"name": nm, "strain_designation": "SHX"},
+                    headers=auth_headers,
+                )
+            res = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "SHX"}, headers=auth_headers
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert len(res.json()) == 2
+
+    def test_find_by_name_substring_single_and_multiple(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            client.post("/laboratory/", json={"name": "Unique Kappa Lab UNIQK"}, headers=auth_headers)
+            res = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "UNIQK"}, headers=auth_headers
+            )
+            assert len(res.json()) == 1
+
+            client.post("/laboratory/", json={"name": "Multi MMTOKEN One"}, headers=auth_headers)
+            client.post("/laboratory/", json={"name": "Multi MMTOKEN Two"}, headers=auth_headers)
+            res2 = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "MMTOKEN"}, headers=auth_headers
+            )
+            assert len(res2.json()) == 2
+
+    def test_strain_exact_short_circuits_name(self, auth_headers):  # noqa
+        # One lab has the query as its strain code; another merely contains it in
+        # its name. The exact-strain match wins and the name match is not returned.
+        with TestClient(app) as client:
+            client.post(
+                "/laboratory/",
+                json={"name": "Has strain code SCQ", "strain_designation": "SCQ"},
+                headers=auth_headers,
+            )
+            client.post("/laboratory/", json={"name": "Name contains SCQ here"}, headers=auth_headers)
+            res = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "SCQ"}, headers=auth_headers
+            )
+            rows = res.json()
+            assert len(rows) == 1
+            assert rows[0]["strain_designation"] == "SCQ"
+
+    def test_find_no_match_empty_list(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            res = client.get(
+                "/laboratory/by_name_or_strain_designation",
+                params={"query": "NOSUCHLABTOKENXYZ"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json() == []
+
+    def test_find_results_include_joins(self, db, auth_headers):  # noqa
+        mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").one_or_none()
+        if mod is None:
+            db.add(ModModel(abbreviation="WB", short_name="WB", full_name="WormBase"))
+            db.commit()
+        with TestClient(app) as client:
+            payload = {
+                "name": "Joins Lab JNQ",
+                "strain_designation": "JNQ",
+                "cross_references": [{"curie": "WB:WBlabJNQ"}],
+                "allele_designations": [{"mod_abbreviation": "WB", "allele_designation": "j"}],
+            }
+            client.post("/laboratory/", json=payload, headers=auth_headers)
+            res = client.get(
+                "/laboratory/by_name_or_strain_designation", params={"query": "JNQ"}, headers=auth_headers
+            )
+            rows = res.json()
+            assert len(rows) == 1
+            lab = rows[0]
+            assert lab["cross_references"][0]["curie"] == "WB:WBlabJNQ"
+            assert lab["allele_designations"][0]["allele_designation"] == "j"
+            assert "lab_persons" in lab
