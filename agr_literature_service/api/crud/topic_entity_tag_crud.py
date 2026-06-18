@@ -655,9 +655,19 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
     logger.info(f"Adding validation: tag {validated_tag.topic_entity_tag_id} validated by tag {validating_tag.topic_entity_tag_id}")
-    db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-                    f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-                    f"{validating_tag.topic_entity_tag_id})"))
+    # topic_entity_tag_validation is a set-membership join table (composite PK, no other
+    # columns). The overlapping validation rules can re-assert the same (validated,
+    # validating) pair within a single pass -- e.g. a pure-entity companion tag matched by
+    # the originating mixed tag under more than one rule -- so the insert must be idempotent.
+    # A bare INSERT would raise UniqueViolation and abort the whole validation pass.
+    result = db.execute(text("INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
+                             "validating_topic_entity_tag_id) VALUES (:validated_id, :validating_id) "
+                             "ON CONFLICT DO NOTHING"),
+                        {"validated_id": validated_tag.topic_entity_tag_id,
+                         "validating_id": validating_tag.topic_entity_tag_id})
+    if result.rowcount == 0:
+        # Pair already recorded; nothing changed, so there is nothing to recompute.
+        return
     if calculate_validation_values:
         logger.info("Committing validation insert and recalculating validation values")
         db.commit()
