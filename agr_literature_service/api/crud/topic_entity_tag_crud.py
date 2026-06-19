@@ -169,13 +169,24 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             # to add it by hand. Gated on validate_on_insert so it only fires for the
             # interactive create path (the router) and not for bulk reference import or
             # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
-            # (it has its own data_novelty/display handling).
+            # (it has its own data_novelty/display handling). Pipeline-generated tags are
+            # excluded too: the companion is only for tags a human curator made, and
+            # pipeline/script-created tags have created_by/updated_by users.id values that
+            # are not the AGRKB: curies humans get (so the curator-only auto-creation does
+            # not flood the DB with companion tags for machine-generated mixed tags).
             is_mixed = (topic_entity_tag_data.get("entity") is not None
                         and topic_entity_tag_data.get("entity_type") is not None
                         and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
             is_positive = topic_entity_tag_data.get("negated") is False
             is_sgd = source.secondary_data_provider.abbreviation == "SGD"
-            if is_mixed and is_positive and not is_sgd:
+            # Read the final persisted creator/updater off the committed row: when
+            # updated_by is omitted on the request, the audited-model before_insert
+            # event copies created_by into updated_by on new_db_obj (not on the dict
+            # above), so new_db_obj holds the authoritative users.id values.
+            created_by = new_db_obj.created_by or ""
+            updated_by = new_db_obj.updated_by or ""
+            is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
+            if is_mixed and is_positive and not is_sgd and is_human:
                 logger.info("Creating companion entity tag for mixed topic+entity tag")
                 create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
         logger.info("create_tag completed successfully")
