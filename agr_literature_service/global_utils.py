@@ -78,6 +78,15 @@ def get_next_local_curie(subdomain, db):
     elif subdomain == 'person':
         curie_start = "AGRKB:103"
         rs = db.execute(text("SELECT curie FROM person order by person_id desc limit 1"))
+    elif subdomain == 'laboratory':
+        # Laboratory subdomain -> AGRKB:104 (the local fallback reuses the real MATI
+        # prefix, matching reference/resource/person). Laboratory.curie is nullable,
+        # so only consider rows that already carry a laboratory curie.
+        curie_start = "AGRKB:104"
+        rs = db.execute(text(
+            "SELECT curie FROM laboratory WHERE curie LIKE 'AGRKB:104%' "
+            "order by laboratory_id desc limit 1"
+        ))
     else:
         raise ValueError(f"Unknown MATI subdomain: {subdomain}")
     rows = None
@@ -108,3 +117,8 @@ def get_next_resource_curie(db=None):  # pragma: no cover
 def get_next_person_curie(db=None):  # pragma: no cover
 
     return get_next_curie('person', db)
+
+
+def get_next_laboratory_curie(db=None):  # pragma: no cover
+
+    return get_next_curie('laboratory', db)

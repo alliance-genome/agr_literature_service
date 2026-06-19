@@ -63,9 +63,14 @@ class TestLaboratory:
         assert lab.lab_is_open is False
         assert lab.email_visibility == "not_shown"
 
-    def test_curie_derived_from_id(self, test_laboratory):  # noqa
-        expected = f"AGRKB:704{test_laboratory.new_laboratory_id:012d}"
-        assert test_laboratory.curie == expected
+    def test_curie_from_mati(self, test_laboratory):  # noqa
+        # Curie is allocated via the MATI path (like reference/resource/person). In
+        # tests the local fallback is used, prefixing AGRKB:104 with a zero-padded
+        # 12-digit counter.
+        curie = test_laboratory.curie
+        assert curie.startswith("AGRKB:104")
+        suffix = curie[len("AGRKB:104"):]
+        assert len(suffix) == 12 and suffix.isdigit()
 
     def test_lookup_by_curie(self, auth_headers, test_laboratory):  # noqa
         with TestClient(app) as client:

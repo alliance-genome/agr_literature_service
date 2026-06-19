@@ -16,16 +16,9 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas import LaboratorySchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.global_utils import get_next_laboratory_curie
 
 logger = logging.getLogger(__name__)
-
-# AGRKB curie derived from the laboratory_id until MATI Laboratory support exists.
-# e.g. laboratory_id=1 -> "AGRKB:704000000000001".
-CURIE_PREFIX = "AGRKB:704"
-
-
-def laboratory_curie_from_id(laboratory_id: int) -> str:
-    return f"{CURIE_PREFIX}{laboratory_id:012d}"
 
 
 def resolve_laboratory_id(db: Session, curie_or_laboratory_id: str) -> int:
@@ -137,12 +130,13 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
                     detail=f"Cross-reference '{curie}' already exists",
                 )
 
+    # Allocate the curie from MATI (like reference/resource/person). Done after all
+    # validation above so a rejected request doesn't waste an external MATI id.
+    data["curie"] = get_next_laboratory_curie(db)
+
     obj = LaboratoryModel(**data)
     db.add(obj)
-    db.flush()  # get laboratory_id
-
-    # Derive the curie from the laboratory_id.
-    obj.curie = laboratory_curie_from_id(obj.laboratory_id)
+    db.flush()  # get laboratory_id for the inline children
     new_laboratory_id = obj.laboratory_id
 
     if xrefs_data:
