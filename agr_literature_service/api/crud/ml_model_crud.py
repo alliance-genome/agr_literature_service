@@ -174,7 +174,11 @@ def get_model_schema_from_orm(model: MLModel):
         "data_novelty": model.data_novelty,
         "negated": model.negated,
         "file_classes": model.file_classes,
-        "description": model.description
+        "description": model.description,
+        "date_created": model.date_created,
+        "date_updated": model.date_updated,
+        "created_by": model.created_by,
+        "updated_by": model.updated_by
     }
     return MLModelSchemaShow(**model_data)
 

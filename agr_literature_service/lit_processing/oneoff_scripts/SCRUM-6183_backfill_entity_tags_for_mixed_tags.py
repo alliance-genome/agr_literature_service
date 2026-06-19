@@ -39,7 +39,7 @@ SGD = "SGD"
 # omitted so the new row gets fresh defaults.
 CARRY_COLUMNS = [
     "reference_id", "topic", "entity_type", "entity", "entity_id_validation",
-    "species", "entity_published_as", "display_tag", "confidence_level",
+    "species", "display_tag", "confidence_level",
     "confidence_score", "negated", "note", "topic_entity_tag_source_id",
     "created_by", "updated_by", "data_novelty", "ml_model_id",
 ]

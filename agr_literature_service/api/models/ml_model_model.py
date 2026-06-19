@@ -1,9 +1,10 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, UniqueConstraint, Boolean, ARRAY
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from agr_literature_service.api.database.base import Base
+from agr_literature_service.api.models.audited_model import AuditedModel
 
 
-class MLModel(Base):
+class MLModel(AuditedModel, Base):
     __tablename__ = 'ml_model'
 
     ml_model_id = Column(
