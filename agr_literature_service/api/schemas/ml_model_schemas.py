@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -37,6 +38,10 @@ class MLModelSchemaPost(MLModelSchemaBase):
 class MLModelSchemaShow(MLModelSchemaBase):
     """Schema used when returning ML model with its primary key."""
     ml_model_id: int
+    date_created: Optional[datetime] = None
+    date_updated: Optional[datetime] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
 
 
 class MLModelSchemaShowWithNames(MLModelSchemaShow):

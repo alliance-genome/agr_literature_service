@@ -55,6 +55,10 @@ ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
+# SCRUM-6183: data_novelty term "existing data" used on the companion pure entity
+# tag auto-created from a positive mixed topic+entity tag.
+EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
+
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
                validate_on_insert: bool = True) -> Tuple[int, bool]:
@@ -160,12 +164,96 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
             logger.info("Starting tag validation")
             validate_tags(db=db, new_tag_obj=new_db_obj)
             logger.info("Tag validation completed")
+            # SCRUM-6183: when a curator creates a positive mixed topic+entity tag, also
+            # create a companion pure entity tag (topic == entity_type) so they don't have
+            # to add it by hand. Gated on validate_on_insert so it only fires for the
+            # interactive create path (the router) and not for bulk reference import or
+            # reference-merge copies, which pass validate_on_insert=False. SGD is excluded
+            # (it has its own data_novelty/display handling). Pipeline-generated tags are
+            # excluded too: the companion is only for tags a human curator made, and
+            # pipeline/script-created tags have created_by/updated_by users.id values that
+            # are not the AGRKB: curies humans get (so the curator-only auto-creation does
+            # not flood the DB with companion tags for machine-generated mixed tags).
+            is_mixed = (topic_entity_tag_data.get("entity") is not None
+                        and topic_entity_tag_data.get("entity_type") is not None
+                        and topic_entity_tag_data.get("entity_type") != topic_entity_tag_data["topic"])
+            is_positive = topic_entity_tag_data.get("negated") is False
+            is_sgd = source.secondary_data_provider.abbreviation == "SGD"
+            # Read the final persisted creator/updater off the committed row: when
+            # updated_by is omitted on the request, the audited-model before_insert
+            # event copies created_by into updated_by on new_db_obj (not on the dict
+            # above), so new_db_obj holds the authoritative users.id values.
+            created_by = new_db_obj.created_by or ""
+            updated_by = new_db_obj.updated_by or ""
+            is_human = created_by.startswith("AGRKB:") and updated_by.startswith("AGRKB:")
+            if is_mixed and is_positive and not is_sgd and is_human:
+                logger.info("Creating companion entity tag for mixed topic+entity tag")
+                create_entity_tag_for_mixed_tag(db, topic_entity_tag_data, reference_id)
         logger.info("create_tag completed successfully")
         return (new_db_obj.topic_entity_tag_id, False)
     except (IntegrityError, HTTPException) as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=f"invalid request: {e}")
+
+
+def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference_id: int):
+    """SCRUM-6183: create the companion "pure entity" tag for a just-created positive
+    mixed topic+entity tag.
+
+    The companion has ``topic == entity_type`` and ``data_novelty`` set to the
+    "existing data" term, reusing the originating tag's source and entity fields.
+
+    Idempotent: if a pure entity tag (``topic == entity_type``) for this
+    reference+entity already exists, nothing is created. The existence check is
+    deliberately ``data_novelty``/source/creator-agnostic so we never create a second,
+    semantically-redundant entity tag for the same entity, and it matches the
+    back-fill's existence check.
+
+    Non-fatal: any failure is logged and rolled back so it never disturbs the
+    already-committed parent tag. The caller excludes SGD. The companion is itself
+    ``topic == entity_type`` so it does not re-trigger this logic.
+    """
+    committed = False
+    try:
+        entity_type = mixed_tag_data["entity_type"]
+        entity = mixed_tag_data["entity"]
+        existing = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.reference_id == reference_id,
+            TopicEntityTagModel.entity == entity,
+            TopicEntityTagModel.entity_type == entity_type,
+            TopicEntityTagModel.topic == entity_type,
+        ).first()
+        if existing is not None:
+            logger.info("Companion entity tag already exists; nothing to create")
+            return
+        entity_tag_data = copy.copy(mixed_tag_data)
+        entity_tag_data["topic"] = entity_type
+        entity_tag_data["data_novelty"] = EXISTING_DATA_NOVELTY_ATP
+        entity_tag_data["negated"] = False
+        # The remaining fields describe the topic-specific assertion, not the bare
+        # entity, so they are reset on the companion tag.
+        for field in ("note", "confidence_score", "confidence_level", "display_tag",
+                      "ml_model_id", "validation_by_author",
+                      "validation_by_professional_biocurator"):
+            entity_tag_data[field] = None
+        new_db_obj = TopicEntityTagModel(**entity_tag_data)
+        db.add(new_db_obj)
+        db.commit()
+        committed = True
+        db.refresh(new_db_obj, ['topic_entity_tag_source'])
+        validate_tags(db=db, new_tag_obj=new_db_obj)
+        logger.info(f"Created companion entity tag {new_db_obj.topic_entity_tag_id}")
+    except Exception as e:
+        # Non-fatal: the parent tag is already committed, so a companion failure must
+        # never surface to the caller. Roll back only the companion's pending work.
+        db.rollback()
+        if committed:
+            # The companion row was already written; only the post-insert validation
+            # failed, so the row persists (validation can be recomputed later).
+            logger.warning(f"Companion entity tag written but validation failed: {e}")
+        else:
+            logger.warning(f"Companion entity tag not created, skipping: {e}")
 
 
 def set_indexing_status_for_no_tet_data(db: Session, mod_abbreviation, reference_curie, uid):
@@ -441,6 +529,22 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False, validation_values_only=False)
 
 
+def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
+    """SCRUM-6188: set containing ``atp_id`` plus its ATP ancestors (``ancestors=True``)
+    or descendants (``ancestors=False``).
+
+    Returns an empty set when ``atp_id`` is None (``entity_type`` is nullable). Always
+    includes ``atp_id`` itself, so an exact-equality match is preserved even when the
+    node has no ancestors/descendants in the ontology graph.
+    """
+    if atp_id is None:
+        return set()
+    related = get_ancestors(onto_node=atp_id) if ancestors else get_descendants(onto_node=atp_id)
+    result = set(related)
+    result.add(atp_id)
+    return result
+
+
 def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTagModel, related_tags_in_db,
                                                   calculate_validation_values: bool = True):
     # 1. new tag positive, existing tag positive = validate existing (right) if existing is more generic
@@ -449,10 +553,13 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
     more_generic_topics.add(new_tag_obj.topic)
     more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
+    # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more specific new tag
+    # validates a more generic existing tag), consistent with topic/data_novelty above.
+    more_generic_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=True)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_generic_topics:
-            if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
+            if tag_in_db.entity_type is None or (tag_in_db.entity_type in more_generic_entity_types
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                     # Check data novelty
@@ -462,7 +569,8 @@ def validate_tags_already_in_db_with_positive_tag(db, new_tag_obj: TopicEntityTa
     # validate pure entity-only tags if the new tag is a mixed topic + entity tag for the same entity
     if new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_tags_in_db:
-            if (tag_in_db.topic == tag_in_db.entity_type == new_tag_obj.entity_type
+            if (tag_in_db.topic == tag_in_db.entity_type
+                    and tag_in_db.entity_type in more_generic_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
                 if tag_in_db.data_novelty in more_generic_novelty:
                     add_validation_to_db(db, tag_in_db, new_tag_obj,
@@ -477,10 +585,13 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
     more_specific_topics.add(new_tag_obj.topic)
     more_specific_novelty = set(get_descendants(new_tag_obj.data_novelty))
     more_specific_novelty.add(new_tag_obj.data_novelty)
+    # SCRUM-6188: entity_type matching is ATP-hierarchy-aware (a more generic negative
+    # new tag validates a more specific existing tag), consistent with topic above.
+    more_specific_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=False)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_tags_in_db:
         if tag_in_db.topic in more_specific_topics:
-            if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
+            if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                     if tag_in_db.data_novelty in more_specific_novelty:
@@ -491,7 +602,7 @@ def validate_tags_already_in_db_with_negative_tag(db, new_tag_obj: TopicEntityTa
     if new_tag_obj.topic == new_tag_obj.entity_type:
         for tag_in_db in related_tags_in_db:
             if (tag_in_db.negated is False and tag_in_db.entity_type != tag_in_db.topic
-                    and new_tag_obj.entity_type == tag_in_db.entity_type
+                    and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity):
                 if tag_in_db.data_novelty in more_specific_novelty:
                     add_validation_to_db(db, tag_in_db, new_tag_obj,
@@ -512,18 +623,22 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     more_generic_topics.add(new_tag_obj.topic)
     more_generic_novelty = set(get_ancestors(new_tag_obj.data_novelty))
     more_generic_novelty.add(new_tag_obj.data_novelty)
+    # SCRUM-6188: entity_type matching is ATP-hierarchy-aware, following the same
+    # generic/specific direction as the topic/data_novelty checks in each branch.
+    more_specific_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=False)
+    more_generic_entity_types = atp_hierarchy_with_self(new_tag_obj.entity_type, ancestors=True)
     tag_in_db: TopicEntityTagModel
     for tag_in_db in related_validating_tags_in_db:
         if (tag_in_db.negated is False and tag_in_db.topic in more_specific_topics
                 and tag_in_db.data_novelty in more_specific_novelty):
-            if new_tag_obj.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
+            if new_tag_obj.entity_type is None or (tag_in_db.entity_type in more_specific_entity_types
                                                    and tag_in_db.entity == new_tag_obj.entity):
                 if new_tag_obj.species is None or tag_in_db.species == new_tag_obj.species:
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
                                          calculate_validation_values=calculate_validation_values)
         elif (tag_in_db.negated is True and tag_in_db.topic in more_generic_topics
               and tag_in_db.data_novelty in more_generic_novelty):
-            if tag_in_db.entity_type is None or (tag_in_db.entity_type == new_tag_obj.entity_type
+            if tag_in_db.entity_type is None or (tag_in_db.entity_type in more_generic_entity_types
                                                  and tag_in_db.entity == new_tag_obj.entity):
                 if tag_in_db.species is None or tag_in_db.species == new_tag_obj.species:
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
@@ -532,7 +647,7 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # validate positive or negative new tag only if existing is positive
     if new_tag_obj.topic == new_tag_obj.entity_type:
         for tag_in_db in related_validating_tags_in_db:
-            if (tag_in_db.entity_type != tag_in_db.topic and new_tag_obj.entity_type == tag_in_db.entity_type
+            if (tag_in_db.entity_type != tag_in_db.topic and tag_in_db.entity_type in more_specific_entity_types
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.negated is False):
                 if tag_in_db.data_novelty in more_specific_novelty:
                     add_validation_to_db(db, new_tag_obj, tag_in_db,
@@ -541,7 +656,8 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
     # validate only positive new tag if existing is negative
     if new_tag_obj.negated is False and new_tag_obj.entity is not None and new_tag_obj.entity_type != new_tag_obj.topic:
         for tag_in_db in related_validating_tags_in_db:
-            if (tag_in_db.negated is True and tag_in_db.topic == tag_in_db.entity_type == new_tag_obj.entity_type
+            if (tag_in_db.negated is True and tag_in_db.topic == tag_in_db.entity_type
+                    and tag_in_db.entity_type in more_generic_entity_types
                     and new_tag_obj.entity == tag_in_db.entity and tag_in_db.data_novelty in more_generic_novelty):
                 add_validation_to_db(db, new_tag_obj, tag_in_db,
                                      calculate_validation_values=calculate_validation_values)
@@ -550,9 +666,19 @@ def validate_new_tag_with_existing_tags(db, new_tag_obj: TopicEntityTagModel, re
 def add_validation_to_db(db: Session, validated_tag: TopicEntityTagModel, validating_tag: TopicEntityTagModel,
                          calculate_validation_values: bool = True):
     logger.info(f"Adding validation: tag {validated_tag.topic_entity_tag_id} validated by tag {validating_tag.topic_entity_tag_id}")
-    db.execute(text(f"INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
-                    f"validating_topic_entity_tag_id) VALUES ({validated_tag.topic_entity_tag_id}, "
-                    f"{validating_tag.topic_entity_tag_id})"))
+    # topic_entity_tag_validation is a set-membership join table (composite PK, no other
+    # columns). The overlapping validation rules can re-assert the same (validated,
+    # validating) pair within a single pass -- e.g. a pure-entity companion tag matched by
+    # the originating mixed tag under more than one rule -- so the insert must be idempotent.
+    # A bare INSERT would raise UniqueViolation and abort the whole validation pass.
+    result = db.execute(text("INSERT INTO topic_entity_tag_validation (validated_topic_entity_tag_id, "
+                             "validating_topic_entity_tag_id) VALUES (:validated_id, :validating_id) "
+                             "ON CONFLICT DO NOTHING"),
+                        {"validated_id": validated_tag.topic_entity_tag_id,
+                         "validating_id": validating_tag.topic_entity_tag_id})
+    if result.rowcount == 0:
+        # Pair already recorded; nothing changed, so there is nothing to recompute.
+        return
     if calculate_validation_values:
         logger.info("Committing validation insert and recalculating validation values")
         db.commit()

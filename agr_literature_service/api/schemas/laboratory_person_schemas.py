@@ -43,8 +43,11 @@ class LaboratoryPersonSchemaShow(AuditedObjectModelSchema):
     laboratory_person_id: int
     laboratory_id: int
     laboratory_curie: Optional[str] = None
+    laboratory_name: Optional[str] = None
+    laboratory_strain_designation: Optional[str] = None
     person_id: int
     person_curie: Optional[str] = None
+    person_display_name: Optional[str] = None
     is_pi: Optional[datetime] = None
     former_pi: Optional[datetime] = None
     alum: Optional[datetime] = None
@@ -59,8 +62,11 @@ class LaboratoryPersonSchemaRelated(AuditedObjectModelSchema):
     laboratory_person_id: int
     laboratory_id: int
     laboratory_curie: Optional[str] = None
+    laboratory_name: Optional[str] = None
+    laboratory_strain_designation: Optional[str] = None
     person_id: int
     person_curie: Optional[str] = None
+    person_display_name: Optional[str] = None
     is_pi: Optional[datetime] = None
     former_pi: Optional[datetime] = None
     alum: Optional[datetime] = None

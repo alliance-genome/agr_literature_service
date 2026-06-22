@@ -104,12 +104,6 @@ class TopicEntityTagModel(AuditedModel, Base):
         nullable=True
     )
 
-    entity_published_as = Column(
-        String(),
-        unique=False,
-        nullable=True
-    )
-
     species = Column(
         String(),
         unique=False,

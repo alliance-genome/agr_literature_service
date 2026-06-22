@@ -1,9 +1,9 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -16,16 +16,9 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.api.schemas import LaboratorySchemaCreate
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.global_utils import get_next_laboratory_curie
 
 logger = logging.getLogger(__name__)
-
-# AGRKB curie derived from the laboratory_id until MATI Laboratory support exists.
-# e.g. laboratory_id=1 -> "AGRKB:705000000000001".
-CURIE_PREFIX = "AGRKB:705"
-
-
-def laboratory_curie_from_id(laboratory_id: int) -> str:
-    return f"{CURIE_PREFIX}{laboratory_id:012d}"
 
 
 def resolve_laboratory_id(db: Session, curie_or_laboratory_id: str) -> int:
@@ -137,12 +130,13 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
                     detail=f"Cross-reference '{curie}' already exists",
                 )
 
+    # Allocate the curie from MATI (like reference/resource/person). Done after all
+    # validation above so a rejected request doesn't waste an external MATI id.
+    data["curie"] = get_next_laboratory_curie(db)
+
     obj = LaboratoryModel(**data)
     db.add(obj)
-    db.flush()  # get laboratory_id
-
-    # Derive the curie from the laboratory_id.
-    obj.curie = laboratory_curie_from_id(obj.laboratory_id)
+    db.flush()  # get laboratory_id for the inline children
     new_laboratory_id = obj.laboratory_id
 
     if xrefs_data:
@@ -253,3 +247,45 @@ def show(db: Session, curie_or_laboratory_id: str) -> LaboratoryModel:
             detail=f"Laboratory with curie or laboratory_id {curie_or_laboratory_id} not found",
         )
     return obj
+
+
+def find_by_name_or_strain_designation(db: Session, query: str) -> List[LaboratoryModel]:
+    """Resolve a free-text laboratory lookup with a fixed precedence:
+
+    1. exact, case-insensitive match on strain_designation (a short code) — return
+       all such labs (normally one; more only if a code is shared);
+    2. otherwise a case-insensitive substring match on name, ordered by name;
+    3. otherwise an empty list.
+
+    Matching strain exactly (never as a substring) keeps a short code from
+    polluting name results. Each result eager-loads the same joins as show().
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
+
+    options = (
+        selectinload(LaboratoryModel.cross_references),
+        selectinload(LaboratoryModel.allele_designations).selectinload(
+            LaboratoryAlleleDesignationModel.mod
+        ),
+        selectinload(LaboratoryModel.lab_persons).selectinload(LaboratoryPersonModel.person),
+    )
+
+    strain_matches = (
+        db.query(LaboratoryModel)
+        .options(*options)
+        .filter(func.lower(LaboratoryModel.strain_designation) == query.lower())
+        .order_by(LaboratoryModel.name.asc())
+        .all()
+    )
+    if strain_matches:
+        return strain_matches
+
+    return (
+        db.query(LaboratoryModel)
+        .options(*options)
+        .filter(LaboratoryModel.name.ilike(f"%{query}%"))
+        .order_by(LaboratoryModel.name.asc())
+        .all()
+    )

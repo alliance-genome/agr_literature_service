@@ -16,8 +16,9 @@ class LaboratoryModel(Base, AuditedModel):
 
     laboratory_id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Derived from laboratory_id on create (AGRKB:705 + 12-digit pk); indexed for
-    # lookup but intentionally not unique (no DB constraints on Laboratory fields).
+    # Allocated from MATI on create (laboratory subdomain -> AGRKB:104), like
+    # reference/resource/person. Indexed for lookup but intentionally not unique
+    # (no DB constraints on Laboratory fields).
     curie = Column(String(), nullable=True, index=True)
 
     name = Column(String(), nullable=True)
