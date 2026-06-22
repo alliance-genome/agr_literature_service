@@ -7,6 +7,7 @@ import argparse
 import json
 import logging
 import os
+import time
 import requests
 from os import environ
 
@@ -15,6 +16,41 @@ from agr_cognito_py import get_authentication_token, generate_headers
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# Transient upstream errors that warrant a retry rather than being recorded as a
+# permanent failure (502/503/504 come from nginx when the API backend is briefly
+# unavailable, restarting, or times out).
+TRANSIENT_STATUS_CODES = {502, 503, 504}
+MAX_RETRIES = 4
+RETRY_BACKOFF_SECONDS = 2
+
+
+def post_with_retry(post_url, record, auth_headers):
+    """POST a record, retrying transient upstream failures with linear backoff.
+
+    Retries on connection-level errors and on 502/503/504 responses. Returns the
+    final response (which the caller treats as a failure if still not 201), or
+    re-raises the last connection error once retries are exhausted.
+    """
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            response = requests.post(url=post_url, json=record, headers=auth_headers)
+        except requests.exceptions.RequestException as e:
+            if attempt == MAX_RETRIES:
+                raise
+            wait = RETRY_BACKOFF_SECONDS * attempt
+            logger.warning(f"Transient error on attempt {attempt}/{MAX_RETRIES} ({e}); retrying in {wait}s")
+            time.sleep(wait)
+            continue
+        if response.status_code in TRANSIENT_STATUS_CODES and attempt < MAX_RETRIES:
+            wait = RETRY_BACKOFF_SECONDS * attempt
+            logger.warning(
+                f"Transient {response.status_code} on attempt {attempt}/{MAX_RETRIES}; retrying in {wait}s")
+            time.sleep(wait)
+            continue
+        return response
+    # Unreachable: the final attempt always returns above or re-raises.
+    raise RuntimeError("post_with_retry exhausted retries without returning")
 
 
 def write_output_files(datafile, metadata, success_records, failed_records):
@@ -49,9 +85,11 @@ def load_data(datafile):
     error_count = 0
     success_records = []
     failed_records = []
+    count = 0
     for i, record in enumerate(records, start=1):
+        count += 1
         try:
-            response = requests.post(url=post_url, json=record, headers=auth_headers)
+            response = post_with_retry(post_url, record, auth_headers)
             if response.status_code == 201:
                 success_count += 1
                 success_records.append(record)
@@ -65,7 +103,7 @@ def load_data(datafile):
             failed_records.append(record)
             logger.error(f"ERROR [{i}/{total}] {record}: {e}")
 
-        if success_count * 3 < error_count:
+        if count > 20 and success_count * 3 < error_count:
             rate = (success_count / (error_count + success_count)) * 100
             logger.error(f"STOPPING TOO MANY ERRORS: SUCCESS RATE {rate}% last and {i}th record{record['reference_curie']} ")
             write_output_files(datafile, metadata, success_records, failed_records)
