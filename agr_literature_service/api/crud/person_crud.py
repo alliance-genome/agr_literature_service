@@ -264,7 +264,7 @@ def patch(db: Session, curie_or_person_id: str, patch_dict: Dict[str, Any]) -> D
 
     ALLOWED = {
         "display_name", "mod_roles", "institution",
-        "webpage", "active_status",
+        "webpage", "active_status", "privacy",
         "city", "state", "postal_code", "country", "street_address",
         "biography_research_interest",
         "unsubscribe",

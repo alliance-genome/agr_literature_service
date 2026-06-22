@@ -15,6 +15,7 @@ from .person_note_schemas import PersonNoteSchemaCreate, PersonNoteSchemaRelated
 from .laboratory_person_schemas import LaboratoryPersonSchemaRelated
 
 ActiveStatus = Literal["active", "retired", "deceased"]
+Privacy = Literal["show_all", "logged_in_only", "fully_hidden", "hide_email"]
 
 
 class PersonSchemaPost(BaseModel):
@@ -26,6 +27,7 @@ class PersonSchemaPost(BaseModel):
     institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
+    privacy: Privacy = "hide_email"
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
@@ -53,6 +55,7 @@ class PersonSchemaUpdate(BaseModel):
     institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
+    privacy: Optional[Privacy] = None
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
@@ -72,6 +75,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: str = "active"
+    privacy: str = "hide_email"
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
