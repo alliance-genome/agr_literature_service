@@ -53,9 +53,33 @@ def post_with_retry(post_url, record, auth_headers):
     raise RuntimeError("post_with_retry exhausted retries without returning")
 
 
-def write_output_files(datafile, metadata, success_records, failed_records):
+def is_already_present(response):
+    """Return True if the response indicates the record was already in the database.
+
+    For the idempotent topic_entity_tag endpoint a re-POST of a record that was
+    actually committed (e.g. when a previous run's response was lost to a 502)
+    comes back as 200 (existing tag, note appended) or 409 with
+    reason="duplicate". These are not real failures: the data is present. Other
+    409 reasons (opposite_negation, different_creator) are genuine conflicts and
+    are treated as failures.
+    """
+    if response.status_code == 200:
+        return True
+    if response.status_code == 409:
+        try:
+            detail = response.json().get("detail")
+        except (ValueError, AttributeError):
+            return False
+        if isinstance(detail, dict) and detail.get("reason") == "duplicate":
+            return True
+    return False
+
+
+def write_output_files(datafile, metadata, success_records, already_present_records, failed_records):
     base, _ = os.path.splitext(datafile)
-    for suffix, records in [("_success.json", success_records), ("_failed.json", failed_records)]:
+    for suffix, records in [("_success.json", success_records),
+                            ("_already_present.json", already_present_records),
+                            ("_failed.json", failed_records)]:
         output_path = base + suffix
         output_data = {"metaData": metadata, "data": records}
         with open(output_path, 'w') as f:
@@ -82,8 +106,10 @@ def load_data(datafile):
     logger.info(f"Total records to load: {total}")
 
     success_count = 0
+    already_present_count = 0
     error_count = 0
     success_records = []
+    already_present_records = []
     failed_records = []
     count = 0
     for i, record in enumerate(records, start=1):
@@ -93,6 +119,9 @@ def load_data(datafile):
             if response.status_code == 201:
                 success_count += 1
                 success_records.append(record)
+            elif is_already_present(response):
+                already_present_count += 1
+                already_present_records.append(record)
             else:
                 error_count += 1
                 failed_records.append(record)
@@ -106,13 +135,15 @@ def load_data(datafile):
         if count > 20 and success_count * 3 < error_count:
             rate = (success_count / (error_count + success_count)) * 100
             logger.error(f"STOPPING TOO MANY ERRORS: SUCCESS RATE {rate}% last and {i}th record{record['reference_curie']} ")
-            write_output_files(datafile, metadata, success_records, failed_records)
+            write_output_files(datafile, metadata, success_records, already_present_records, failed_records)
             exit(-1)
         if i % 500 == 0:
-            logger.info(f"Progress: {i}/{total} (success={success_count}, errors={error_count})")
+            logger.info(f"Progress: {i}/{total} (success={success_count}, "
+                        f"already_present={already_present_count}, errors={error_count})")
 
-    write_output_files(datafile, metadata, success_records, failed_records)
-    logger.info(f"DONE! Total={total}, Success={success_count}, Errors={error_count}")
+    write_output_files(datafile, metadata, success_records, already_present_records, failed_records)
+    logger.info(f"DONE! Total={total}, Success={success_count}, "
+                f"AlreadyPresent={already_present_count}, Errors={error_count}")
 
 
 if __name__ == "__main__":
