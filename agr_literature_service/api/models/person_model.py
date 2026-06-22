@@ -28,6 +28,12 @@ class PersonModel(Base, AuditedModel):
         default="active",
         server_default="active",
     )
+    privacy = Column(
+        String(),
+        nullable=False,
+        default="hide_email",
+        server_default="hide_email",
+    )
 
     # Address fields
     city = Column(String(), nullable=True)
@@ -68,6 +74,10 @@ class PersonModel(Base, AuditedModel):
         CheckConstraint(
             "active_status IN ('active', 'retired', 'deceased')",
             name="ck_person_active_status",
+        ),
+        CheckConstraint(
+            "privacy IN ('show_all', 'logged_in_only', 'fully_hidden', 'hide_email')",
+            name="ck_person_privacy",
         ),
     )
 

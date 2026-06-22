@@ -245,7 +245,7 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             body = fetched.json()
             # All new fields should be present
-            for field in ["webpage", "active_status", "city", "state",
+            for field in ["webpage", "active_status", "privacy", "city", "state",
                           "postal_code", "country", "street_address",
                           "address_last_updated", "biography_research_interest"]:
                 assert field in body, f"Missing field: {field}"
@@ -304,6 +304,8 @@ class TestPersonFields:
             assert body["webpage"] is None
             # active_status is NOT NULL with default "active"
             assert body["active_status"] == "active"
+            # privacy is NOT NULL with default "hide_email"
+            assert body["privacy"] == "hide_email"
             assert body["city"] is None
             assert body["state"] is None
             assert body["postal_code"] is None
@@ -376,6 +378,78 @@ class TestPersonFields:
                 person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
                 fetched = client.get(f"/person/{person_id}", headers=auth_headers)
                 assert fetched.json()["active_status"] == status_value
+
+    def test_create_person_with_privacy(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "display_name": "Privacy Person",
+                "privacy": "show_all",
+            }
+            res = client.post("/person/", json=payload, headers=auth_headers)
+            assert res.status_code == status.HTTP_201_CREATED
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.json()["privacy"] == "show_all"
+
+    def test_patch_privacy(self, auth_headers, test_person_id):  # noqa
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"privacy": "fully_hidden"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+
+            fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
+            assert fetched.json()["privacy"] == "fully_hidden"
+
+    def test_privacy_default_hide_email(self, auth_headers):  # noqa
+        """privacy defaults to hide_email when omitted."""
+        with TestClient(app) as client:
+            res = client.post(
+                "/person/",
+                json={"display_name": "Default Privacy Person"},
+                headers=auth_headers,
+            )
+            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
+
+            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+            assert fetched.json()["privacy"] == "hide_email"
+
+    def test_privacy_invalid_value_rejected(self, auth_headers):  # noqa
+        """Pydantic Literal should reject privacy values outside the vocabulary."""
+        with TestClient(app) as client:
+            res = client.post(
+                "/person/",
+                json={"display_name": "Bad Privacy", "privacy": "invalid_value"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_invalid_privacy_rejected(self, auth_headers, test_person_id):  # noqa
+        """PATCH with invalid privacy should be rejected at Pydantic layer."""
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person/{test_person_id}",
+                json={"privacy": "public"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_privacy_all_values(self, auth_headers):  # noqa
+        """All four allowed privacy values should be accepted."""
+        with TestClient(app) as client:
+            for privacy_value in ["show_all", "logged_in_only", "fully_hidden", "hide_email"]:
+                res = client.post(
+                    "/person/",
+                    json={"display_name": f"Privacy {privacy_value}", "privacy": privacy_value},
+                    headers=auth_headers,
+                )
+                assert res.status_code == status.HTTP_201_CREATED
+                person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
+                fetched = client.get(f"/person/{person_id}", headers=auth_headers)
+                assert fetched.json()["privacy"] == privacy_value
 
     def test_create_person_with_fields_and_inline_collections(self, auth_headers):  # noqa
         """POST /person/ with all person fields AND inline names, emails, cross_references, notes."""
