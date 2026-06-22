@@ -1,7 +1,9 @@
 """
 Load SGD colleague data into ABC person / laboratory tables.
 
-Source : SGD ``nex`` schema (read-only, via ``NEX2_URI``)
+Source : JSON dump produced by SGDBackend-Nex2
+         ``scripts/dumping/colleague/dumpColleague.py`` (the --datafile arg).
+         This loader no longer connects to SGD directly.
 Target : ABC literature DB (via ``create_postgres_session`` / ``PSQL_*`` env)
 
 Decisions encoded (discussed 2026-06-22):
@@ -26,20 +28,26 @@ Reported but not loaded (no clean ABC target):
 
 Usage::
 
+    # 1. produce the dump (in the SGDBackend-Nex2 repo)
+    #    set -a; source .env_cc; set +a
+    #    python scripts/dumping/colleague/dumpColleague.py --outfile /tmp/colleague.json
+
+    # 2. load it (in this repo)
     set -a
     source agr_literature_service/.env_cc          # ABC: PSQL_*, ID_MATI_URL, ENV_STATE
-    source ../SGDBackend-Nex2/.env_cc              # SGD: NEX2_URI
     set +a
 
     # read-only dry-run (default) -> prints projected counts, writes TSV previews
-    python -m agr_literature_service.lit_processing.oneoff_scripts.load_sgd_colleagues
+    python -m agr_literature_service.lit_processing.oneoff_scripts.load_sgd_colleagues \
+        --datafile /tmp/colleague.json
 
     # small test against the dev DB (mints real MATI curies for the subset)
     python -m agr_literature_service.lit_processing.oneoff_scripts.load_sgd_colleagues \
-        --commit --limit 50
+        --datafile /tmp/colleague.json --commit --limit 50
 
     # full load
-    python -m agr_literature_service.lit_processing.oneoff_scripts.load_sgd_colleagues --commit
+    python -m agr_literature_service.lit_processing.oneoff_scripts.load_sgd_colleagues \
+        --datafile /tmp/colleague.json --commit
 
 NOTE: in ``--commit`` mode each person and laboratory consumes one real MATI id
 (ENV_STATE != 'test'); MATI's counter does not roll back. Re-runs are safe
@@ -48,12 +56,13 @@ because already-loaded colleagues are detected via their SGD cross-reference.
 
 import argparse
 import csv
+import json
 import logging
 from datetime import datetime
-from os import environ, path
+from os import path
 from typing import Dict, List, Optional, Set, Tuple
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 
 from agr_literature_service.api.models import (
     PersonModel,
@@ -97,17 +106,8 @@ COMMIT_BATCH = 200
 
 
 # --------------------------------------------------------------------------- #
-# SGD extraction (read-only)
+# Dump reader (input is the JSON produced by dumpColleague.py)
 # --------------------------------------------------------------------------- #
-def get_sgd_engine():
-    uri = environ.get("NEX2_URI")
-    if not uri:
-        raise SystemExit(
-            "NEX2_URI is not set. Source SGDBackend-Nex2/.env_cc first."
-        )
-    return create_engine(uri)
-
-
 def _clean(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
@@ -115,76 +115,51 @@ def _clean(value: Optional[str]) -> Optional[str]:
     return value or None
 
 
-def extract_colleagues(sgd) -> Dict[int, dict]:
-    rows = sgd.execute(text("""
-        SELECT colleague_id, display_name, obj_url, orcid,
-               first_name, middle_name, last_name, other_last_name,
-               job_title, institution,
-               address1, address2, address3, city, state, country, postal_code,
-               email, display_email, research_interest, colleague_note
-        FROM nex.colleague
-        ORDER BY colleague_id
-    """)).mappings().all()
-    return {r["colleague_id"]: dict(r) for r in rows}
+def load_dump(datafile: str):
+    """
+    Parse the dumpColleague.py JSON and return the same structures the loader
+    previously built straight from SGD:
 
+        (colleagues, research_urls, lab_urls, keywords, lab_members, skipped)
 
-def extract_webpages(sgd) -> Tuple[Dict[int, List[str]], Dict[int, List[str]]]:
-    """Return (research_summary_urls, lab_urls) keyed by colleague_id."""
-    research: Dict[int, List[str]] = {}
-    lab: Dict[int, List[str]] = {}
-    rows = sgd.execute(text("""
-        SELECT colleague_id, url_type, obj_url
-        FROM nex.colleague_url
-        WHERE coalesce(trim(obj_url), '') <> ''
-        ORDER BY colleague_id, url_id
-    """)).mappings().all()
-    for r in rows:
-        target = research if r["url_type"] == "Research summary" else lab
-        target.setdefault(r["colleague_id"], []).append(r["obj_url"].strip())
-    return research, lab
+    where colleagues is {colleague_id: {field: value, ...}}, the *_urls and
+    keywords are {colleague_id: [...]}, lab_members is
+    {pi_colleague_id: {member_colleague_id, ...}}, and skipped is the
+    not-loaded counts carried in the dump's metadata.
+    """
+    if not path.exists(datafile):
+        raise SystemExit(
+            f"datafile not found: {datafile}\n"
+            "Produce it first with SGDBackend-Nex2 "
+            "scripts/dumping/colleague/dumpColleague.py"
+        )
+    with open(datafile) as fh:
+        payload = json.load(fh)
 
-
-def extract_keywords(sgd) -> Dict[int, List[str]]:
+    colleagues: Dict[int, dict] = {}
+    research_urls: Dict[int, List[str]] = {}
+    lab_urls: Dict[int, List[str]] = {}
     keywords: Dict[int, List[str]] = {}
-    rows = sgd.execute(text("""
-        SELECT ck.colleague_id, k.display_name
-        FROM nex.colleague_keyword ck
-        JOIN nex.keyword k ON ck.keyword_id = k.keyword_id
-        ORDER BY ck.colleague_id
-    """)).mappings().all()
-    for r in rows:
-        kw = _clean(r["display_name"])
-        if kw:
-            keywords.setdefault(r["colleague_id"], []).append(kw)
-    return keywords
+    for col in payload["colleagues"]:
+        cid = int(col["colleague_id"])
+        research_urls[cid] = col.pop("research_summary_urls", []) or []
+        lab_urls[cid] = col.pop("lab_urls", []) or []
+        keywords[cid] = col.pop("keywords", []) or []
+        col["colleague_id"] = cid
+        colleagues[cid] = col
 
+    lab_members: Dict[int, Set[int]] = {}
+    for rel in payload.get("lab_relations", []):
+        pi = int(rel["pi_colleague_id"])
+        member = int(rel["member_colleague_id"])
+        lab_members.setdefault(pi, set()).add(member)
 
-def extract_lab_graph(sgd) -> Dict[int, Set[int]]:
-    """
-    From 'Head of Lab' rows: associate_id is the PI (head), colleague_id is the
-    lab member. Returns {pi_colleague_id: {member_colleague_id, ...}}.
-    """
-    members: Dict[int, Set[int]] = {}
-    rows = sgd.execute(text("""
-        SELECT colleague_id AS member_id, associate_id AS pi_id
-        FROM nex.colleague_relation
-        WHERE association_type = 'Head of Lab'
-    """)).mappings().all()
-    for r in rows:
-        members.setdefault(r["pi_id"], set()).add(r["member_id"])
-    return members
-
-
-def count_skipped(sgd) -> Dict[str, int]:
-    return {
-        "associate_relations": sgd.execute(text(
-            "SELECT count(*) FROM nex.colleague_relation "
-            "WHERE association_type = 'Associate'"
-        )).scalar(),
-        "colleague_locus": sgd.execute(text(
-            "SELECT count(*) FROM nex.colleague_locus"
-        )).scalar(),
+    meta = payload.get("metadata", {})
+    skipped = {
+        "associate_relations": meta.get("skipped_associate_relations", 0),
+        "colleague_locus": meta.get("skipped_colleague_locus", 0),
     }
+    return colleagues, research_urls, lab_urls, keywords, lab_members, skipped
 
 
 # --------------------------------------------------------------------------- #
@@ -571,6 +546,8 @@ def _lab_person_exists(abc, laboratory_id: int, person_id: int) -> bool:
 # --------------------------------------------------------------------------- #
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--datafile", required=True,
+                    help="JSON dump produced by dumpColleague.py")
     ap.add_argument("--commit", action="store_true",
                     help="write to ABC (default is a read-only dry-run)")
     ap.add_argument("--limit", type=int, default=None,
@@ -579,18 +556,11 @@ def main() -> None:
                     help="directory for dry-run TSV previews")
     args = ap.parse_args()
 
-    sgd = get_sgd_engine().connect()
-    try:
-        logger.info("extracting from SGD ...")
-        colleagues = extract_colleagues(sgd)
-        research_urls, lab_urls = extract_webpages(sgd)
-        keywords = extract_keywords(sgd)
-        lab_members = extract_lab_graph(sgd)
-        skipped = count_skipped(sgd)
-        logger.info("SGD: %d colleagues, %d labs (Head-of-Lab PIs)",
-                    len(colleagues), len(lab_members))
-    finally:
-        sgd.close()
+    logger.info("loading SGD dump: %s", args.datafile)
+    (colleagues, research_urls, lab_urls, keywords,
+     lab_members, skipped) = load_dump(args.datafile)
+    logger.info("dump: %d colleagues, %d labs (Head-of-Lab PIs)",
+                len(colleagues), len(lab_members))
 
     abc = create_postgres_session(False)
     try:
