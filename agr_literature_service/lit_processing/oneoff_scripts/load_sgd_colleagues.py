@@ -18,12 +18,15 @@ Decisions encoded (discussed 2026-06-22):
     (allowed: show_all / logged_in_only / fully_hidden / hide_email).
   * ``colleague_keyword`` is folded into ``person.biography_research_interest``.
   * ``colleague.suffix`` (Jr./Sr./III...) is appended to ``person.display_name``.
+  * ``colleague_relation`` 'Associate' -> ``person_lineage`` collaborator_of.
+    SGD stores these mirrored (A<->B); collaborator_of is symmetric, so each
+    pair is normalized to ascending person-id order and deduped.
   * Phone numbers are skipped.
   * Idempotent on cross-reference ``SGD:Colleague_<colleague_id>`` (person) and
-    ``SGD:Lab_<pi_colleague_id>`` (laboratory): rows already present are skipped.
+    ``SGD:Lab_<pi_colleague_id>`` (laboratory); person_lineage collaborator_of
+    rows are idempotent on (subject, object, relationship).
 
 Reported but not loaded (no clean ABC target):
-  * ``colleague_relation`` 'Associate' rows
   * ``colleague_locus`` (colleague <-> gene links)
   * ``colleague.profession`` / phones / ``is_beta_tester``
 
@@ -74,7 +77,9 @@ from agr_literature_service.api.models import (
     LaboratoryModel,
     LaboratoryPersonModel,
     LaboratoryCrossReferenceModel,
+    PersonLineageModel,
 )
+from agr_literature_service.api.schemas import PersonPersonRole
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.global_utils import (
     get_next_person_curie,
@@ -97,6 +102,11 @@ SGD_PERSON_PREFIX = "SGD"
 SGD_PERSON_CURIE_FMT = "SGD:Colleague_{}"
 SGD_LAB_CURIE_FMT = "SGD:Lab_{}"
 ORCID_PREFIX = "ORCID"
+
+# SGD colleague_relation 'Associate' -> person_lineage. collaborator_of is a
+# symmetric role, so the pair is stored in ascending person-id order and the
+# uq_person_lineage_person_ids_relationship constraint dedups it.
+COLLABORATOR_OF = PersonPersonRole.collaborator_of.value
 
 # does the ORM map person.privacy on this branch? (SCRUM-6157 adds it). The dev
 # DB already has the column with a NOT NULL default of 'hide_email', so when the
@@ -121,12 +131,14 @@ def load_dump(datafile: str):
     Parse the dumpColleague.py JSON and return the same structures the loader
     previously built straight from SGD:
 
-        (colleagues, research_urls, lab_urls, keywords, lab_members, skipped)
+        (colleagues, research_urls, lab_urls, keywords, lab_members,
+         associate_pairs, skipped)
 
     where colleagues is {colleague_id: {field: value, ...}}, the *_urls and
     keywords are {colleague_id: [...]}, lab_members is
-    {pi_colleague_id: {member_colleague_id, ...}}, and skipped is the
-    not-loaded counts carried in the dump's metadata.
+    {pi_colleague_id: {member_colleague_id, ...}}, associate_pairs is a list of
+    (colleague_id_1, colleague_id_2) deduped unordered collaborator pairs, and
+    skipped is the not-loaded counts carried in the dump's metadata.
     """
     if not path.exists(datafile):
         raise SystemExit(
@@ -155,12 +167,19 @@ def load_dump(datafile: str):
         member = int(rel["member_colleague_id"])
         lab_members.setdefault(pi, set()).add(member)
 
+    associate_pairs: List[Tuple[int, int]] = []
+    for rel in payload.get("associate_relations", []):
+        c1 = int(rel["colleague_id_1"])
+        c2 = int(rel["colleague_id_2"])
+        if c1 != c2:
+            associate_pairs.append((c1, c2))
+
     meta = payload.get("metadata", {})
     skipped = {
-        "associate_relations": meta.get("skipped_associate_relations", 0),
         "colleague_locus": meta.get("skipped_colleague_locus", 0),
     }
-    return colleagues, research_urls, lab_urls, keywords, lab_members, skipped
+    return (colleagues, research_urls, lab_urls, keywords, lab_members,
+            associate_pairs, skipped)
 
 
 # --------------------------------------------------------------------------- #
@@ -252,7 +271,7 @@ def existing_lab_xrefs(abc) -> Dict[int, int]:
 # --------------------------------------------------------------------------- #
 # Dry-run report
 # --------------------------------------------------------------------------- #
-def dry_run(colleagues, research_urls, keywords, lab_members,
+def dry_run(colleagues, research_urls, keywords, lab_members, associate_pairs,
             already_persons, existing_curies, skipped, limit, outdir) -> None:
     cids = sorted(colleagues)
     if limit:
@@ -296,6 +315,11 @@ def dry_run(colleagues, research_urls, keywords, lab_members,
     show_all_total = sum(1 for c in to_create
                          if colleagues[c].get("display_email"))
 
+    # collaborator_of rows: both endpoints must be in scope (commit also
+    # requires both to resolve to loaded persons; here we project on scope).
+    collaborator_rows = sum(1 for c1, c2 in associate_pairs
+                            if c1 in in_scope and c2 in in_scope and c1 != c2)
+
     logger.info("=" * 64)
     logger.info("DRY-RUN  (no writes)   scope=%s colleagues",
                 len(cids))
@@ -319,8 +343,11 @@ def dry_run(colleagues, research_urls, keywords, lab_members,
     logger.info("laboratory_person (member)        : %d", member_rows)
     logger.info("laboratory_person TOTAL           : %d", pi_rows + member_rows)
     logger.info("-" * 64)
+    logger.info("person_lineage (collaborator_of)  : %d "
+                "(from %d deduped Associate pairs)",
+                collaborator_rows, len(associate_pairs))
+    logger.info("-" * 64)
     logger.info("SKIPPED (no ABC target):")
-    logger.info("  colleague_relation 'Associate'  : %d", skipped["associate_relations"])
     logger.info("  colleague_locus (gene links)    : %d", skipped["colleague_locus"])
     logger.info("  phones / profession / is_beta_tester: dropped "
                 "(suffix -> appended to display_name)")
@@ -453,7 +480,8 @@ def _create_person(abc, cid, col, research_urls, keywords, existing_curies):
 
 
 def commit(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
-           already_persons, already_labs, existing_curies, limit) -> None:
+           associate_pairs, already_persons, already_labs, existing_curies,
+           limit) -> None:
     now = datetime.utcnow()
     cids = sorted(colleagues)
     if limit:
@@ -569,6 +597,48 @@ def commit(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
     logger.info("laboratories created: %d", labs_created)
     logger.info("laboratory_person rows created: %d", lp_created)
 
+    _load_collaborators(abc, associate_pairs, colleague_to_person, in_scope)
+
+
+def _load_collaborators(abc, associate_pairs, colleague_to_person,
+                        in_scope) -> None:
+    """Load SGD 'Associate' pairs into person_lineage as collaborator_of.
+
+    collaborator_of is symmetric, so each pair is normalized to ascending
+    person-id order (matching person_lineage_crud._normalize_pair) and deduped
+    against the uq_person_lineage_person_ids_relationship constraint. Pairs are
+    skipped when either colleague is out of scope or was not loaded as a person.
+    """
+    created = 0
+    skipped_unresolved = 0
+    for c1, c2 in associate_pairs:
+        if c1 not in in_scope or c2 not in in_scope:
+            skipped_unresolved += 1
+            continue
+        p1 = colleague_to_person.get(c1)
+        p2 = colleague_to_person.get(c2)
+        if not p1 or not p2 or p1 == p2:
+            skipped_unresolved += 1
+            continue
+        subject_id, object_id = (p1, p2) if p1 < p2 else (p2, p1)
+        if _person_lineage_exists(abc, subject_id, object_id):
+            continue
+        abc.add(PersonLineageModel(
+            person_subject_id=subject_id,
+            person_object_id=object_id,
+            relationship=COLLABORATOR_OF,
+        ))
+        created += 1
+        if created % COMMIT_BATCH == 0:
+            abc.commit()
+            logger.info("  collaborator_of committed (running): %d", created)
+
+    abc.commit()
+    logger.info("person_lineage (collaborator_of) rows created: %d", created)
+    if skipped_unresolved:
+        logger.info("Associate pairs skipped (endpoint out of scope / not "
+                    "loaded): %d", skipped_unresolved)
+
 
 def _flush_privacy(abc, pending: List[Tuple[PersonModel, str]]) -> None:
     for person, value in pending:
@@ -601,6 +671,15 @@ def _lab_person_exists(abc, laboratory_id: int, person_id: int) -> bool:
     ), {"l": laboratory_id, "p": person_id}).first() is not None
 
 
+def _person_lineage_exists(abc, subject_id: int, object_id: int) -> bool:
+    return abc.execute(text(
+        "SELECT 1 FROM person_lineage "
+        "WHERE person_subject_id = :s AND person_object_id = :o "
+        "AND relationship = :r LIMIT 1"
+    ), {"s": subject_id, "o": object_id, "r": COLLABORATOR_OF}
+    ).first() is not None
+
+
 # --------------------------------------------------------------------------- #
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
@@ -616,9 +695,10 @@ def main() -> None:
 
     logger.info("loading SGD dump: %s", args.datafile)
     (colleagues, research_urls, lab_urls, keywords,
-     lab_members, skipped) = load_dump(args.datafile)
-    logger.info("dump: %d colleagues, %d labs (Head-of-Lab PIs)",
-                len(colleagues), len(lab_members))
+     lab_members, associate_pairs, skipped) = load_dump(args.datafile)
+    logger.info("dump: %d colleagues, %d labs (Head-of-Lab PIs), "
+                "%d Associate pairs",
+                len(colleagues), len(lab_members), len(associate_pairs))
 
     abc = create_postgres_session(False)
     try:
@@ -632,11 +712,11 @@ def main() -> None:
 
         if args.commit:
             commit(abc, colleagues, research_urls, lab_urls, keywords,
-                   lab_members, already_persons, already_labs,
+                   lab_members, associate_pairs, already_persons, already_labs,
                    existing_curies, args.limit)
         else:
             dry_run(colleagues, research_urls, keywords, lab_members,
-                    already_persons, existing_curies, skipped,
+                    associate_pairs, already_persons, existing_curies, skipped,
                     args.limit, args.outdir)
     finally:
         abc.close()
