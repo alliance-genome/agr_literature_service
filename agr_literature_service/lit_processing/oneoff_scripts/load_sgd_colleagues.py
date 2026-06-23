@@ -222,6 +222,15 @@ def existing_person_xrefs(abc) -> Set[int]:
     return out
 
 
+def existing_person_curies(abc) -> Set[str]:
+    """All person_cross_reference curies (curie is globally unique)."""
+    return set(
+        r[0] for r in abc.execute(
+            text("SELECT curie FROM person_cross_reference")
+        ).fetchall()
+    )
+
+
 def existing_lab_xrefs(abc) -> Dict[int, int]:
     rows = abc.execute(text(
         "SELECT x.curie, x.laboratory_id FROM laboratory_cross_reference x "
@@ -240,15 +249,16 @@ def existing_lab_xrefs(abc) -> Dict[int, int]:
 # Dry-run report
 # --------------------------------------------------------------------------- #
 def dry_run(colleagues, research_urls, keywords, lab_members,
-            already_persons, skipped, limit, outdir) -> None:
+            already_persons, existing_curies, skipped, limit, outdir) -> None:
     cids = sorted(colleagues)
     if limit:
         cids = cids[:limit]
     in_scope = set(cids)
     to_create = [c for c in cids if c not in already_persons]
 
-    n_email = n_public = n_private = n_orcid = n_note = n_bio = 0
-    n_secondary_name = 0
+    n_email = n_public = n_private = n_orcid = n_orcid_skip = 0
+    n_note = n_bio = n_secondary_name = 0
+    seen_curies = set(existing_curies)
     for cid in to_create:
         col = colleagues[cid]
         if _clean(col.get("email")):
@@ -257,8 +267,13 @@ def dry_run(colleagues, research_urls, keywords, lab_members,
                 n_public += 1
             else:
                 n_private += 1
-        if orcid_curie(col):
-            n_orcid += 1
+        oc = orcid_curie(col)
+        if oc:
+            if oc in seen_curies:
+                n_orcid_skip += 1
+            else:
+                n_orcid += 1
+                seen_curies.add(oc)
         if _clean(col.get("colleague_note")):
             n_note += 1
         if build_biography(col, keywords.get(cid, [])):
@@ -290,7 +305,8 @@ def dry_run(colleagues, research_urls, keywords, lab_members,
                 n_email, n_public, n_private)
     logger.info("person.privacy = show_all set for : %d", show_all_total)
     logger.info("person_cross_reference (SGD)      : %d", len(to_create))
-    logger.info("person_cross_reference (ORCID)    : %d", n_orcid)
+    logger.info("person_cross_reference (ORCID)    : %d "
+                "(%d skipped: curie already exists)", n_orcid, n_orcid_skip)
     logger.info("person_note                       : %d", n_note)
     logger.info("biography_research_interest filled: %d", n_bio)
     logger.info("-" * 64)
@@ -349,8 +365,90 @@ def _write_previews(colleagues, research_urls, keywords, lab_members,
 # --------------------------------------------------------------------------- #
 # Commit
 # --------------------------------------------------------------------------- #
+def _add_person_xrefs(abc, person, cid, col, existing_curies) -> bool:
+    """
+    Add the SGD and (when present) ORCID cross-references, skipping any curie
+    already in ``existing_curies`` (globally unique). Returns True if an ORCID
+    was skipped because of a collision.
+    """
+    sgd_curie = SGD_PERSON_CURIE_FMT.format(cid)
+    if sgd_curie not in existing_curies:
+        abc.add(PersonCrossReferenceModel(
+            person_id=person.person_id,
+            curie=sgd_curie,
+            curie_prefix=SGD_PERSON_PREFIX,
+            pages=[col["obj_url"]] if _clean(col.get("obj_url")) else None,
+        ))
+        existing_curies.add(sgd_curie)
+
+    oc = orcid_curie(col)
+    if oc and oc not in existing_curies:
+        abc.add(PersonCrossReferenceModel(
+            person_id=person.person_id,
+            curie=oc,
+            curie_prefix=ORCID_PREFIX,
+        ))
+        existing_curies.add(oc)
+    elif oc:
+        logger.warning(
+            "colleague %s (person_id %s): ORCID %s already exists, "
+            "skipping ORCID cross-reference", cid, person.person_id, oc)
+        return True
+    return False
+
+
+def _create_person(abc, cid, col, research_urls, keywords, existing_curies):
+    """Create a person row and its child rows. Returns (person, orcid_skipped)."""
+    kwargs = dict(
+        display_name=display_name_for(col),
+        curie=get_next_person_curie(abc),
+        institution=[_clean(col.get("institution"))]
+        if _clean(col.get("institution")) else None,
+        webpage=research_urls.get(cid) or None,
+        city=_clean(col.get("city")),
+        state=_clean(col.get("state")),
+        postal_code=_clean(col.get("postal_code")),
+        country=_clean(col.get("country")),
+        street_address=build_street_address(col),
+        biography_research_interest=build_biography(col, keywords.get(cid, [])),
+    )
+    if PERSON_HAS_PRIVACY:
+        kwargs["privacy"] = privacy_for(col)
+    person = PersonModel(**kwargs)
+    abc.add(person)
+    abc.flush()
+
+    abc.add(PersonNameModel(
+        person_id=person.person_id,
+        first_name=_clean(col.get("first_name")),
+        middle_name=_clean(col.get("middle_name")),
+        last_name=_clean(col.get("last_name")) or display_name_for(col),
+        is_primary=True,
+    ))
+    if _clean(col.get("other_last_name")):
+        abc.add(PersonNameModel(
+            person_id=person.person_id,
+            first_name=_clean(col.get("first_name")),
+            last_name=_clean(col.get("other_last_name")),
+            is_primary=False,
+        ))
+    if _clean(col.get("email")):
+        abc.add(PersonEmailModel(
+            person_id=person.person_id,
+            email_address=_clean(col.get("email")),
+        ))
+    if _clean(col.get("colleague_note")):
+        abc.add(PersonNoteModel(
+            person_id=person.person_id,
+            note=_clean(col.get("colleague_note")),
+        ))
+
+    orcid_skipped = _add_person_xrefs(abc, person, cid, col, existing_curies)
+    return person, orcid_skipped
+
+
 def commit(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
-           already_persons, already_labs, limit) -> None:
+           already_persons, already_labs, existing_curies, limit) -> None:
     now = datetime.utcnow()
     cids = sorted(colleagues)
     if limit:
@@ -360,74 +458,26 @@ def commit(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
 
     set_global_user_id(abc, path.basename(__file__).replace(".py", ""))
 
+    # person_cross_reference.curie is globally unique (uq_person_xref_curie):
+    # an ORCID may already belong to an existing ABC person (e.g. AGR staff who
+    # are also SGD colleagues), and two SGD colleagues can share an ORCID.
+    # existing_curies tracks every curie already present plus every one added in
+    # this run, so any cross-reference whose curie collides is skipped.
+
     # ---- persons -------------------------------------------------------- #
     colleague_to_person: Dict[int, int] = {}
     pending_privacy: List[Tuple[PersonModel, str]] = []
     created = 0
+    skipped_orcid = 0
     for cid in to_create:
         col = colleagues[cid]
-        privacy = privacy_for(col)
-
-        kwargs = dict(
-            display_name=display_name_for(col),
-            curie=get_next_person_curie(abc),
-            institution=[_clean(col.get("institution"))]
-            if _clean(col.get("institution")) else None,
-            webpage=research_urls.get(cid) or None,
-            city=_clean(col.get("city")),
-            state=_clean(col.get("state")),
-            postal_code=_clean(col.get("postal_code")),
-            country=_clean(col.get("country")),
-            street_address=build_street_address(col),
-            biography_research_interest=build_biography(col, keywords.get(cid, [])),
-        )
-        if PERSON_HAS_PRIVACY:
-            kwargs["privacy"] = privacy
-        person = PersonModel(**kwargs)
-        abc.add(person)
-        abc.flush()
+        person, orcid_skipped = _create_person(
+            abc, cid, col, research_urls, keywords, existing_curies)
         colleague_to_person[cid] = person.person_id
-
-        if not PERSON_HAS_PRIVACY and privacy != PRIVACY_PRIVATE:
-            pending_privacy.append((person, privacy))
-
-        abc.add(PersonNameModel(
-            person_id=person.person_id,
-            first_name=_clean(col.get("first_name")),
-            middle_name=_clean(col.get("middle_name")),
-            last_name=_clean(col.get("last_name")) or display_name_for(col),
-            is_primary=True,
-        ))
-        if _clean(col.get("other_last_name")):
-            abc.add(PersonNameModel(
-                person_id=person.person_id,
-                first_name=_clean(col.get("first_name")),
-                last_name=_clean(col.get("other_last_name")),
-                is_primary=False,
-            ))
-        if _clean(col.get("email")):
-            abc.add(PersonEmailModel(
-                person_id=person.person_id,
-                email_address=_clean(col.get("email")),
-            ))
-        abc.add(PersonCrossReferenceModel(
-            person_id=person.person_id,
-            curie=SGD_PERSON_CURIE_FMT.format(cid),
-            curie_prefix=SGD_PERSON_PREFIX,
-            pages=[col["obj_url"]] if _clean(col.get("obj_url")) else None,
-        ))
-        oc = orcid_curie(col)
-        if oc:
-            abc.add(PersonCrossReferenceModel(
-                person_id=person.person_id,
-                curie=oc,
-                curie_prefix=ORCID_PREFIX,
-            ))
-        if _clean(col.get("colleague_note")):
-            abc.add(PersonNoteModel(
-                person_id=person.person_id,
-                note=_clean(col.get("colleague_note")),
-            ))
+        if not PERSON_HAS_PRIVACY and privacy_for(col) != PRIVACY_PRIVATE:
+            pending_privacy.append((person, privacy_for(col)))
+        if orcid_skipped:
+            skipped_orcid += 1
 
         created += 1
         if created % COMMIT_BATCH == 0:
@@ -439,6 +489,9 @@ def commit(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
     _flush_privacy(abc, pending_privacy)
     abc.commit()
     logger.info("persons created: %d", created)
+    if skipped_orcid:
+        logger.info("ORCID cross-references skipped (already exist): %d",
+                    skipped_orcid)
 
     # map every in-scope colleague (new + pre-existing) to a person_id
     for cid in existing_person_map(abc, in_scope).items():
@@ -566,15 +619,20 @@ def main() -> None:
     try:
         already_persons = existing_person_xrefs(abc)
         already_labs = existing_lab_xrefs(abc)
-        logger.info("ABC already has %d SGD persons, %d SGD labs",
-                    len(already_persons), len(already_labs))
+        existing_curies = existing_person_curies(abc)
+        logger.info("ABC already has %d SGD persons, %d SGD labs, "
+                    "%d person cross-reference curies",
+                    len(already_persons), len(already_labs),
+                    len(existing_curies))
 
         if args.commit:
             commit(abc, colleagues, research_urls, lab_urls, keywords,
-                   lab_members, already_persons, already_labs, args.limit)
+                   lab_members, already_persons, already_labs,
+                   existing_curies, args.limit)
         else:
             dry_run(colleagues, research_urls, keywords, lab_members,
-                    already_persons, skipped, args.limit, args.outdir)
+                    already_persons, existing_curies, skipped,
+                    args.limit, args.outdir)
     finally:
         abc.close()
 
