@@ -713,7 +713,8 @@ CREATE TABLE indexing_priority (
     confidence_score double
   ) WITH (
     KAFKA_TOPIC='abc.public.indexing_priority',
-    VALUE_FORMAT='json'
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
   );
 
 CREATE TABLE manual_indexing_tag (
@@ -726,7 +727,8 @@ CREATE TABLE manual_indexing_tag (
     note string
   ) WITH (
     KAFKA_TOPIC='abc.public.manual_indexing_tag',
-    VALUE_FORMAT='json'
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
   );
 
 CREATE TABLE resource (
