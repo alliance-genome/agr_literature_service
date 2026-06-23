@@ -24,7 +24,8 @@ Decisions encoded (discussed 2026-06-22):
         display_email = false -> 'hide_email'   (also the column default)
     'show_all' is the only allowed value that exposes the email
     (allowed: show_all / logged_in_only / fully_hidden / hide_email).
-  * ``colleague_keyword`` is folded into ``person.biography_research_interest``.
+  * ``colleague_keyword`` and ``colleague.profession`` are folded into
+    ``person.biography_research_interest`` (with research_interest).
   * ``colleague.suffix`` (Jr./Sr./III...) is appended to ``person.display_name``.
   * ``colleague_relation`` 'Associate' -> ``person_lineage`` collaborator_of.
     SGD stores these mirrored (A<->B); collaborator_of is symmetric, so each
@@ -33,6 +34,12 @@ Decisions encoded (discussed 2026-06-22):
   * Match keys: ``SGD:Colleague_<colleague_id>`` (person), ``SGD:Lab_<pi_id>``
     (laboratory), (subject, object, relationship) for person_lineage, and
     (laboratory_id, person_id) for laboratory_person.
+  * Email de-duplication: a colleague new to ABC whose email already belongs to
+    a pre-existing *non-SGD* person (e.g. AGR staff/author) is attached to that
+    person (its SGD:Colleague xref is added + fields synced) instead of creating
+    a duplicate. Matching is restricted to non-SGD persons because institutional
+    emails are shared by distinct colleagues. ``--merge-email-dups`` repairs
+    such duplicates that already exist (one non-SGD + one SGD person per email).
 
 Delete safety (``--prune`` only, and never under ``--limit``):
   * A person linked to a ``users`` account is never hard-deleted (reported).
@@ -42,7 +49,7 @@ Delete safety (``--prune`` only, and never under ``--limit``):
 
 Reported but not loaded (no clean ABC target):
   * ``colleague_locus`` (colleague <-> gene links)
-  * ``colleague.profession`` / phones / ``is_beta_tester``
+  * phones / ``is_beta_tester``
 
 Usage::
 
@@ -207,6 +214,9 @@ def load_dump(datafile: str):
 # --------------------------------------------------------------------------- #
 def build_biography(col: dict, keywords: List[str]) -> Optional[str]:
     parts: List[str] = []
+    profession = _clean(col.get("profession"))
+    if profession:
+        parts.append("Profession: " + profession)
     ri = _clean(col.get("research_interest"))
     if ri:
         parts.append(ri)
@@ -290,6 +300,28 @@ def existing_lab_xrefs(abc) -> Dict[int, int]:
     return out
 
 
+def nonsgd_person_email_map(abc) -> Dict[str, int]:
+    """Map lower(email) -> person_id for persons that are NOT SGD colleagues
+    (no ``SGD:Colleague_*`` xref). Used to merge an incoming colleague onto a
+    pre-existing ABC person (e.g. AGR staff/author) instead of duplicating it.
+    Email is not a unique identity key (institutional addresses are shared), so
+    matching is deliberately restricted to non-SGD persons; the lowest person_id
+    wins when several non-SGD persons share an address."""
+    rows = abc.execute(text(
+        "SELECT lower(pe.email_address) AS email, pe.person_id "
+        "FROM person_email pe "
+        "WHERE pe.person_id NOT IN ("
+        "  SELECT person_id FROM person_cross_reference "
+        "  WHERE curie LIKE 'SGD:Colleague_%' AND person_id IS NOT NULL) "
+        "ORDER BY pe.person_id"
+    )).fetchall()
+    out: Dict[str, int] = {}
+    for email, pid in rows:
+        if email and email not in out:
+            out[email] = pid
+    return out
+
+
 # --------------------------------------------------------------------------- #
 # Report
 # --------------------------------------------------------------------------- #
@@ -301,10 +333,14 @@ def _report(counts, skipped, apply, prune, limit, scope) -> None:
     logger.info("=" * 70)
     logger.info("%s   scope=%d colleagues%s", mode, scope, note)
     logger.info("=" * 70)
+    if counts["email_dups_merged"] or counts["email_dups_skipped"]:
+        logger.info("email-dup repair  =%d merged (%d skipped: ambiguous)",
+                    counts["email_dups_merged"], counts["email_dups_skipped"])
     logger.info("person             +add %-6d ~update %-6d -delete %-6d "
-                "(%d kept: user-linked)",
+                "(=%d merged onto existing, %d kept: user-linked)",
                 counts["persons_added"], counts["persons_updated"],
-                counts["persons_deleted"], counts["persons_delete_skipped"])
+                counts["persons_deleted"], counts["persons_merged"],
+                counts["persons_delete_skipped"])
     if counts["orcid_skipped"]:
         logger.info("  ORCID xrefs skipped (curie already exists): %d",
                     counts["orcid_skipped"])
@@ -326,7 +362,7 @@ def _report(counts, skipped, apply, prune, limit, scope) -> None:
         logger.info("DELETES DISABLED (--limit set; a full run is required to "
                     "reconcile deletes safely)")
     logger.info("SKIPPED (no ABC target): colleague_locus=%d; "
-                "phones / profession / is_beta_tester dropped",
+                "phones / is_beta_tester dropped",
                 skipped["colleague_locus"])
     logger.info("=" * 70)
     if not PERSON_HAS_PRIVACY:
@@ -774,40 +810,77 @@ def _sync_collaborators(abc, associate_pairs, person_by_cid, in_scope,
                     ), {"r": COLLABORATOR_OF, "s": s, "o": o})
 
 
+def _add_one_person(abc, cid, col, research_urls, keywords, existing_curies,
+                    person_by_cid, pending_privacy, counts) -> None:
+    person, orcid_skipped = _create_person(
+        abc, cid, col, research_urls, keywords, existing_curies)
+    person_by_cid[cid] = person.person_id
+    if not PERSON_HAS_PRIVACY and privacy_for(col) != PRIVACY_PRIVATE:
+        pending_privacy.append((person, privacy_for(col)))
+    if orcid_skipped:
+        counts["orcid_skipped"] += 1
+
+
+def _merge_onto_existing_person(abc, match_pid, cid, col, research_urls,
+                                keywords, existing_curies, person_by_cid,
+                                counts) -> None:
+    """Attach colleague <cid> to a pre-existing non-SGD person (matched by
+    email): add its SGD:Colleague xref and sync the rest, instead of creating a
+    duplicate person."""
+    person = abc.get(PersonModel, match_pid)
+    if person is None:
+        return
+    if _add_person_xrefs(abc, person, cid, col, existing_curies):
+        counts["orcid_skipped"] += 1
+    _update_person(abc, person, cid, col, research_urls, keywords,
+                   existing_curies, apply=True)
+    person_by_cid[cid] = match_pid
+
+
 def _add_update_persons(abc, colleagues, research_urls, keywords, in_scope,
-                        person_by_cid, existing_curies, apply, counts) -> None:
+                        person_by_cid, nonsgd_email, existing_curies, apply,
+                        counts) -> None:
     pending_privacy: List[Tuple[PersonModel, str]] = []
     for cid in sorted(in_scope):
         col = colleagues[cid]
         pid = person_by_cid.get(cid)
-        if pid is None:
-            counts["persons_added"] += 1
-            if not apply:
-                continue
-            person, orcid_skipped = _create_person(
-                abc, cid, col, research_urls, keywords, existing_curies)
-            person_by_cid[cid] = person.person_id
-            if not PERSON_HAS_PRIVACY and privacy_for(col) != PRIVACY_PRIVATE:
-                pending_privacy.append((person, privacy_for(col)))
-            if orcid_skipped:
-                counts["orcid_skipped"] += 1
+        if pid is not None:
+            person = abc.get(PersonModel, pid)
+            if person is not None and _update_person(
+                    abc, person, cid, col, research_urls, keywords,
+                    existing_curies, apply):
+                counts["persons_updated"] += 1
+                if apply and counts["persons_updated"] % COMMIT_BATCH == 0:
+                    abc.commit()
+            continue
+        # New colleague: reuse a pre-existing non-SGD person with the same
+        # email (e.g. AGR staff/author) rather than duplicating it.
+        email = _clean(col.get("email"))
+        match_pid = nonsgd_email.pop(email.lower(), None) if email else None
+        if match_pid is not None:
+            counts["persons_merged"] += 1
+            if apply:
+                _merge_onto_existing_person(
+                    abc, match_pid, cid, col, research_urls, keywords,
+                    existing_curies, person_by_cid, counts)
+                if counts["persons_merged"] % COMMIT_BATCH == 0:
+                    abc.commit()
+            continue
+        counts["persons_added"] += 1
+        if apply:
+            _add_one_person(abc, cid, col, research_urls, keywords,
+                            existing_curies, person_by_cid, pending_privacy,
+                            counts)
             if counts["persons_added"] % COMMIT_BATCH == 0:
                 _flush_privacy(abc, pending_privacy)
                 pending_privacy.clear()
                 abc.commit()
-            continue
-        person = abc.get(PersonModel, pid)
-        if person is not None and _update_person(
-                abc, person, cid, col, research_urls, keywords,
-                existing_curies, apply):
-            counts["persons_updated"] += 1
-            if apply and counts["persons_updated"] % COMMIT_BATCH == 0:
-                abc.commit()
     if apply:
         _flush_privacy(abc, pending_privacy)
         abc.commit()
-    logger.info("persons: +%d added, ~%d updated",
-                counts["persons_added"], counts["persons_updated"])
+    logger.info("persons: +%d added, ~%d updated, =%d merged onto existing",
+                counts["persons_added"], counts["persons_updated"],
+                counts["persons_merged"])
 
 
 def _delete_obsolete_persons(abc, person_by_cid, dump_all_cids, apply,
@@ -901,9 +974,98 @@ def _delete_obsolete_labs(abc, already_labs, dump_pis, apply, counts) -> None:
                 counts["labs_deleted"], counts["labs_delete_skipped"])
 
 
+def _merge_person(abc, dup, keep) -> None:
+    """Merge SGD-created person ``dup`` into pre-existing person ``keep``: move
+    cross-references, lab memberships and lineage edges, then hard-delete dup.
+    Used to repair existing email duplicates (one non-SGD + one SGD person)."""
+    keep_curies = {r[0] for r in abc.execute(text(
+        "SELECT curie FROM person_cross_reference WHERE person_id = :k"),
+        {"k": keep}).fetchall()}
+    xrefs = abc.execute(text(
+        "SELECT person_cross_reference_id, curie FROM person_cross_reference "
+        "WHERE person_id = :d"), {"d": dup}).fetchall()
+    for xid, curie in xrefs:
+        if curie in keep_curies:
+            abc.execute(text("DELETE FROM person_cross_reference "
+                             "WHERE person_cross_reference_id = :x"), {"x": xid})
+        else:
+            abc.execute(text("UPDATE person_cross_reference SET person_id = :k "
+                             "WHERE person_cross_reference_id = :x"),
+                        {"k": keep, "x": xid})
+
+    memberships = abc.execute(text(
+        "SELECT laboratory_person_id, laboratory_id FROM laboratory_person "
+        "WHERE person_id = :d"), {"d": dup}).fetchall()
+    for lp_id, lab_id in memberships:
+        if abc.execute(text("SELECT 1 FROM laboratory_person "
+                            "WHERE laboratory_id = :l AND person_id = :k "
+                            "LIMIT 1"), {"l": lab_id, "k": keep}).first():
+            abc.execute(text("DELETE FROM laboratory_person "
+                             "WHERE laboratory_person_id = :i"), {"i": lp_id})
+        else:
+            abc.execute(text("UPDATE laboratory_person SET person_id = :k "
+                             "WHERE laboratory_person_id = :i"),
+                        {"k": keep, "i": lp_id})
+
+    edges = abc.execute(text(
+        "SELECT person_lineage_id, person_subject_id, person_object_id, "
+        "relationship FROM person_lineage "
+        "WHERE person_subject_id = :d OR person_object_id = :d"),
+        {"d": dup}).fetchall()
+    for ll_id, subj, obj, rel in edges:
+        ns = keep if subj == dup else subj
+        no = keep if obj == dup else obj
+        s, o = (ns, no) if ns <= no else (no, ns)
+        if s == o or abc.execute(text(
+            "SELECT 1 FROM person_lineage WHERE person_subject_id = :s "
+            "AND person_object_id = :o AND relationship = :r LIMIT 1"),
+                {"s": s, "o": o, "r": rel}).first():
+            abc.execute(text("DELETE FROM person_lineage "
+                             "WHERE person_lineage_id = :i"), {"i": ll_id})
+        else:
+            abc.execute(text("UPDATE person_lineage SET person_subject_id = :s, "
+                             "person_object_id = :o WHERE person_lineage_id = :i"),
+                        {"s": s, "o": o, "i": ll_id})
+
+    _delete_person_cascade(abc, dup)
+
+
+def merge_email_duplicates(abc, apply, counts) -> None:
+    """Repair existing duplicates: where one email is shared by exactly one
+    non-SGD person and one SGD person, merge the SGD person into the non-SGD one
+    (category ① only). Mixed/ambiguous groups (institutional shared emails) are
+    reported and left untouched."""
+    rows = abc.execute(text(
+        "SELECT lower(email_address) AS email, "
+        "array_agg(DISTINCT person_id) AS pids "
+        "FROM person_email GROUP BY lower(email_address) "
+        "HAVING count(DISTINCT person_id) > 1")).fetchall()
+    for email, pids in rows:
+        sgd, nonsgd = [], []
+        for pid in pids:
+            is_sgd = abc.execute(text(
+                "SELECT 1 FROM person_cross_reference WHERE person_id = :p "
+                "AND curie LIKE 'SGD:Colleague_%' LIMIT 1"),
+                {"p": pid}).first() is not None
+            (sgd if is_sgd else nonsgd).append(pid)
+        if len(nonsgd) == 1 and len(sgd) == 1:
+            counts["email_dups_merged"] += 1
+            logger.info("merge email %s: SGD person %d -> existing person %d",
+                        email, sgd[0], nonsgd[0])
+            if apply:
+                _merge_person(abc, sgd[0], nonsgd[0])
+        else:
+            counts["email_dups_skipped"] += 1
+            logger.warning("email %s shared by %d non-SGD / %d SGD persons; "
+                           "skipping (ambiguous)", email, len(nonsgd), len(sgd))
+    if apply:
+        abc.commit()
+
+
 def run_sync(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
-             associate_pairs, person_by_cid, already_labs, existing_curies,
-             in_scope, dump_all_cids, apply, prune, limit):
+             associate_pairs, person_by_cid, nonsgd_email, already_labs,
+             existing_curies, in_scope, dump_all_cids, apply, prune, limit,
+             merge_dups):
     """Incremental add/update/delete of SGD colleague data into ABC, keyed on
     colleague_id. ``apply`` writes (and commits in batches); otherwise every
     change is detected but rolled back so the returned counts preview a commit.
@@ -917,8 +1079,12 @@ def run_sync(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
         set_global_user_id(abc, path.basename(__file__).replace(".py", ""))
     counts: Dict[str, int] = defaultdict(int)
 
+    if merge_dups:
+        merge_email_duplicates(abc, apply, counts)
+
     _add_update_persons(abc, colleagues, research_urls, keywords, in_scope,
-                        person_by_cid, existing_curies, apply, counts)
+                        person_by_cid, nonsgd_email, existing_curies, apply,
+                        counts)
     if do_delete:
         _delete_obsolete_persons(abc, person_by_cid, dump_all_cids, apply,
                                  counts)
@@ -963,6 +1129,10 @@ def main() -> None:
                     help="also DELETE obsolete rows (colleagues/labs/lineage "
                          "no longer in the SGD dump); requires a full run "
                          "(ignored with --limit)")
+    ap.add_argument("--merge-email-dups", action="store_true",
+                    help="repair existing duplicates: merge an SGD person into "
+                         "a pre-existing non-SGD person sharing its email "
+                         "(one-to-one matches only)")
     ap.add_argument("--limit", type=int, default=None,
                     help="process only the first N colleagues (testing)")
     ap.add_argument("--outdir", default=".",
@@ -985,18 +1155,21 @@ def main() -> None:
     abc = create_postgres_session(False)
     try:
         person_by_cid = all_sgd_person_ids_by_cid(abc)
+        nonsgd_email = nonsgd_person_email_map(abc)
         already_labs = existing_lab_xrefs(abc)
         existing_curies = existing_person_curies(abc)
         logger.info("ABC already has %d SGD persons, %d SGD labs, "
-                    "%d person cross-reference curies",
+                    "%d person cross-reference curies, "
+                    "%d non-SGD person emails",
                     len(person_by_cid), len(already_labs),
-                    len(existing_curies))
+                    len(existing_curies), len(nonsgd_email))
 
         counts = run_sync(
             abc, colleagues, research_urls, lab_urls, keywords, lab_members,
-            associate_pairs, person_by_cid, already_labs, existing_curies,
-            in_scope, dump_all_cids, apply=args.commit, prune=args.prune,
-            limit=args.limit)
+            associate_pairs, person_by_cid, nonsgd_email, already_labs,
+            existing_curies, in_scope, dump_all_cids, apply=args.commit,
+            prune=args.prune, limit=args.limit,
+            merge_dups=args.merge_email_dups)
         _report(counts, skipped, apply=args.commit, prune=args.prune,
                 limit=args.limit, scope=len(in_scope))
         if not args.commit:
