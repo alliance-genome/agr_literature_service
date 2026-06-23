@@ -17,6 +17,7 @@ Decisions encoded (discussed 2026-06-22):
     'show_all' is the only allowed value that exposes the email
     (allowed: show_all / logged_in_only / fully_hidden / hide_email).
   * ``colleague_keyword`` is folded into ``person.biography_research_interest``.
+  * ``colleague.suffix`` (Jr./Sr./III...) is appended to ``person.display_name``.
   * Phone numbers are skipped.
   * Idempotent on cross-reference ``SGD:Colleague_<colleague_id>`` (person) and
     ``SGD:Lab_<pi_colleague_id>`` (laboratory): rows already present are skipped.
@@ -24,7 +25,7 @@ Decisions encoded (discussed 2026-06-22):
 Reported but not loaded (no clean ABC target):
   * ``colleague_relation`` 'Associate' rows
   * ``colleague_locus`` (colleague <-> gene links)
-  * ``colleague.suffix`` / ``profession`` / phones / ``is_beta_tester``
+  * ``colleague.profession`` / phones / ``is_beta_tester``
 
 Usage::
 
@@ -187,11 +188,14 @@ def privacy_for(col: dict) -> str:
 
 def display_name_for(col: dict) -> str:
     dn = _clean(col.get("display_name"))
-    if dn:
-        return dn
-    first = _clean(col.get("first_name")) or ""
-    last = _clean(col.get("last_name")) or ""
-    return _clean(f"{first} {last}") or f"Colleague {col['colleague_id']}"
+    if not dn:
+        first = _clean(col.get("first_name")) or ""
+        last = _clean(col.get("last_name")) or ""
+        dn = _clean(f"{first} {last}") or f"Colleague {col['colleague_id']}"
+    suffix = _clean(col.get("suffix"))
+    if suffix:
+        dn = f"{dn} {suffix}"
+    return dn
 
 
 def orcid_curie(col: dict) -> Optional[str]:
@@ -318,7 +322,8 @@ def dry_run(colleagues, research_urls, keywords, lab_members,
     logger.info("SKIPPED (no ABC target):")
     logger.info("  colleague_relation 'Associate'  : %d", skipped["associate_relations"])
     logger.info("  colleague_locus (gene links)    : %d", skipped["colleague_locus"])
-    logger.info("  phones / suffix / profession / is_beta_tester: dropped")
+    logger.info("  phones / profession / is_beta_tester: dropped "
+                "(suffix -> appended to display_name)")
     logger.info("=" * 64)
     if not PERSON_HAS_PRIVACY:
         logger.warning("PersonModel does not map 'privacy' on this branch "
