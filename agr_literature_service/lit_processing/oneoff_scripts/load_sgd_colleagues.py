@@ -600,26 +600,30 @@ def _sync_orcid_xref(abc, person, cid, col, existing_curies, apply) -> bool:
     xrefs = abc.query(PersonCrossReferenceModel).filter_by(
         person_id=pid, curie_prefix=ORCID_PREFIX).all()
     changed = False
-    if desired:
-        if not any(x.curie == desired for x in xrefs):
-            if desired in existing_curies:
-                logger.warning("colleague %s: ORCID %s already exists "
-                               "elsewhere; not adding", cid, desired)
-            else:
-                changed = True
-                existing_curies.add(desired)
-                if apply:
-                    abc.add(PersonCrossReferenceModel(
-                        person_id=pid, curie=desired,
-                        curie_prefix=ORCID_PREFIX))
-        stale = [x for x in xrefs if x.curie != desired]
-    else:
-        stale = xrefs
+    stale = [x for x in xrefs if x.curie != desired] if desired else xrefs
+    # Delete stale ORCID rows (and flush) before adding the new one: a person
+    # may hold at most one curie per prefix (uq_person_xref_person_prefix), and
+    # the unit of work flushes INSERTs before DELETEs, so adding first would
+    # momentarily leave two ORCID rows for this person and fail on re-runs where
+    # the colleague's ORCID changed.
     for x in stale:
         changed = True
         existing_curies.discard(x.curie)
         if apply:
             abc.delete(x)
+    if apply and stale:
+        abc.flush()
+    if desired and not any(x.curie == desired for x in xrefs):
+        if desired in existing_curies:
+            logger.warning("colleague %s: ORCID %s already exists "
+                           "elsewhere; not adding", cid, desired)
+        else:
+            changed = True
+            existing_curies.add(desired)
+            if apply:
+                abc.add(PersonCrossReferenceModel(
+                    person_id=pid, curie=desired,
+                    curie_prefix=ORCID_PREFIX))
 
     sgd_curie = SGD_PERSON_CURIE_FMT.format(cid)
     sx = abc.query(PersonCrossReferenceModel).filter_by(
@@ -841,6 +845,9 @@ def _add_update_persons(abc, colleagues, research_urls, keywords, in_scope,
                         person_by_cid, nonsgd_email, existing_curies, apply,
                         counts) -> None:
     pending_privacy: List[Tuple[PersonModel, str]] = []
+    # Dry-run placeholder ids for not-yet-created persons; negative so they
+    # never collide with a real (positive) person_id.
+    placeholder_id = -1
     for cid in sorted(in_scope):
         col = colleagues[cid]
         pid = person_by_cid.get(cid)
@@ -865,6 +872,10 @@ def _add_update_persons(abc, colleagues, research_urls, keywords, in_scope,
                     existing_curies, person_by_cid, counts)
                 if counts["persons_merged"] % COMMIT_BATCH == 0:
                     abc.commit()
+            else:
+                # dry-run: record the matched id so member/lineage previews
+                # resolve this colleague to its would-be person.
+                person_by_cid[cid] = match_pid
             continue
         counts["persons_added"] += 1
         if apply:
@@ -875,6 +886,11 @@ def _add_update_persons(abc, colleagues, research_urls, keywords, in_scope,
                 _flush_privacy(abc, pending_privacy)
                 pending_privacy.clear()
                 abc.commit()
+        else:
+            # dry-run: stand-in id so member/lineage previews count this
+            # not-yet-created person (matching the committed code path).
+            person_by_cid[cid] = placeholder_id
+            placeholder_id -= 1
     if apply:
         _flush_privacy(abc, pending_privacy)
         abc.commit()
@@ -1081,6 +1097,13 @@ def run_sync(abc, colleagues, research_urls, lab_urls, keywords, lab_members,
 
     if merge_dups:
         merge_email_duplicates(abc, apply, counts)
+        if apply and counts["email_dups_merged"]:
+            # Merges moved each SGD:Colleague xref onto the surviving non-SGD
+            # person and deleted the old SGD person; refresh the cid->person_id
+            # map (built before the merge) so the merged colleagues are
+            # re-synced this run rather than only on the next one.
+            person_by_cid.clear()
+            person_by_cid.update(all_sgd_person_ids_by_cid(abc))
 
     _add_update_persons(abc, colleagues, research_urls, keywords, in_scope,
                         person_by_cid, nonsgd_email, existing_curies, apply,
