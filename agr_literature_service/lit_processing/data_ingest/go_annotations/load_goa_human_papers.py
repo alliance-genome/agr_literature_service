@@ -33,7 +33,7 @@ logger.setLevel(logging.INFO)
 load_dotenv()
 init_tmp_dir()
 
-GOA_HUMAN_URL = "https://current.geneontology.org/annotations/goa_human.gaf.gz"
+GOA_HUMAN_URL = "https://current.geneontology.org/annotations/gaf/HUMAN-uniprot.gaf.gz"
 
 base_path = environ.get("XML_PATH", "")
 file_path = base_path + "goa_data/"
@@ -45,7 +45,7 @@ log_path = environ.get("LOG_PATH", "")
 def load_goa_human_papers() -> str:  # pragma: no cover
     """
     Main function to load GOA human papers into the database.
-    Downloads the goa_human.gaf.gz file, extracts PMIDs, loads new papers,
+    Downloads the HUMAN-uniprot.gaf.gz file, extracts PMIDs, loads new papers,
     and associates them with the AGR MOD.
 
     Returns:
@@ -130,7 +130,7 @@ def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:  # pragma: no cover
     Returns:
         Tuple containing the file name and set of PMIDs
     """
-    file_name = "goa_human.gaf.gz"
+    file_name = "HUMAN-uniprot.gaf.gz"
     file_with_path = f"{file_path}{file_name}"
 
     logger.info(f"Downloading GOA human file from {GOA_HUMAN_URL}")
