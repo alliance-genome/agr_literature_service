@@ -186,9 +186,14 @@ def show(referencefile_id: int,
             status_code=status.HTTP_200_OK,
             response_model=List[ReferencefileSchemaRelated])
 def show_all(curie_or_reference_id: str,
+             include_embeddings: bool = False,
+             profile_name: Optional[str] = None,
+             version: Optional[int] = None,
              user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
              db: Session = db_session):
-    return referencefile_crud.show_all(db, curie_or_reference_id)
+    return referencefile_crud.show_all(db, curie_or_reference_id,
+                                       include_embeddings=include_embeddings,
+                                       profile_name=profile_name, version=version)
 
 
 @router.get('/conversion_request/{curie_or_reference_id}',

@@ -60,6 +60,21 @@ class ReferencefileSchemaUpdate(BaseModel):
     change_if_already_converted: Optional[bool] = None
 
 
+class ReferencefileSourceSchema(BaseModel):
+    """The referencefile a derived file was produced from (upward lineage).
+
+    md/figure -> their source PDF (display-name-suffix convention);
+    embedding -> its converted_merged_* markdown (embedding_file FK).
+    """
+    model_config = ConfigDict(extra='forbid', from_attributes=True)
+
+    referencefile_id: int
+    display_name: str
+    file_class: str
+    file_extension: str
+    md5sum: str
+
+
 class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     """Schema for related reference file entries with audit fields."""
     model_config = ConfigDict(
@@ -76,6 +91,14 @@ class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     md5sum: str
     is_annotation: bool
     referencefile_mods: Optional[List[ReferencefileModSchemaRelated]] = None
+    # Upward lineage: the referencefile this one was derived from (nullable
+    # when unresolved). Added to every derived file by show_all.
+    source: Optional[ReferencefileSourceSchema] = None
+    # Embedding-only fields (populated from embedding_file when this row is an
+    # `embedding` parquet surfaced via ?include_embeddings=true).
+    profile_name: Optional[str] = None
+    version: Optional[int] = None
+    model_name: Optional[str] = None
 
 
 class ReferenceFileAllMainPDFIdsSchemaPost(BaseModel):

@@ -539,6 +539,29 @@ def _attach_figures(reference: ReferenceModel,
         )
 
 
+def _attach_embeddings(db: Session, reference: ReferenceModel,
+                       progress: List[Dict[str, Any]]) -> None:
+    """Mutate ``progress`` in place: set each entry's ``embeddings`` list to
+    the embedding_file rows whose source_referencefile_id is that entry's
+    converted md row. Same 'derived files for this entry' pattern as figures,
+    one step further down the lineage (md -> embeddings)."""
+    from agr_literature_service.api.crud.embedding_file_crud import (
+        get_embeddings_for_source,
+    )
+    for entry in progress:
+        conv = entry.get("converted") or {}
+        conv_id = conv.get("referencefile_id")
+        if conv_id is None:
+            entry["embeddings"] = []
+            continue
+        rows = get_embeddings_for_source(db, int(conv_id))
+        entry["embeddings"] = [
+            {"parquet_referencefile_id": int(r.parquet_referencefile_id),
+             "profile_name": r.profile_name, "version": r.version}
+            for r in rows
+        ]
+
+
 def _merge_progress(job_progress: List[Dict[str, Any]],
                     db_progress: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Merge job-recorded progress with DB-synthesized entries. Dedupes by
@@ -593,6 +616,7 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
         _db_derived_progress(reference),
     )
     _attach_figures(reference, progress)
+    _attach_embeddings(db, reference, progress)
     try:
         per_mod = per_mod_pending_status(
             db, reference, overwrite_tei_md=overwrite_tei_md
