@@ -1,7 +1,7 @@
 import argparse
 import logging
 import requests
-from typing import Any, Dict, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -34,6 +34,10 @@ load_dotenv()
 init_tmp_dir()
 
 GOA_HUMAN_URL = "https://current.geneontology.org/annotations/gaf/HUMAN-uniprot.gaf.gz"
+# Legacy URL kept as a fallback to bridge GO's June 2025 GAF URL migration: the
+# new gaf/ path may not be live everywhere yet. Remove once GO has fully retired
+# the old path.
+GOA_HUMAN_URL_FALLBACK = "https://current.geneontology.org/annotations/goa_human.gaf.gz"
 
 base_path = environ.get("XML_PATH", "")
 file_path = base_path + "goa_data/"
@@ -61,7 +65,7 @@ def load_goa_human_papers() -> str:  # pragma: no cover
     obsolete_pmids: Set[str] = set()
 
     # Download and extract PMIDs from GOA human GAF file
-    file_name, all_pmids = extract_pmids_from_goa_human()
+    file_name, source_url, all_pmids = extract_pmids_from_goa_human()
 
     if len(all_pmids) == 0:
         logger.info("No PMIDs found in GOA human file")
@@ -116,44 +120,61 @@ def load_goa_human_papers() -> str:  # pragma: no cover
     # Compose the report message
     message = compose_report_message(
         db_session, file_name, all_pmids, pmids_loaded,
-        papers_associated, obsolete_pmids
+        papers_associated, obsolete_pmids, source_url
     )
 
     db_session.close()
     return message
 
 
-def extract_pmids_from_goa_human() -> Tuple[str, Set[str]]:  # pragma: no cover
+def download_goa_human_gaf(file_with_path: str) -> Optional[str]:  # pragma: no cover
+    """
+    Download the human GAF, trying the current GO URL first and falling back to
+    the legacy URL during GO's June 2025 path migration.
+
+    Returns:
+        The URL actually downloaded from, or None if every candidate failed.
+    """
+    for url in (GOA_HUMAN_URL, GOA_HUMAN_URL_FALLBACK):
+        logger.info(f"Downloading GOA human file from {url}")
+        try:
+            response = requests.get(url, timeout=300, stream=True)
+            response.raise_for_status()
+            with open(file_with_path, 'wb') as outfile:
+                for chunk in response.iter_content(chunk_size=8192):
+                    outfile.write(chunk)
+            logger.info(f"Downloaded GOA human file successfully from {url}")
+            return url
+        except requests.RequestException as e:
+            logger.warning(f"Failed to download GOA human file from {url}: {e}")
+    logger.error("Failed to download GOA human file from all known URLs")
+    return None
+
+
+def extract_pmids_from_goa_human() -> Tuple[str, str, Set[str]]:  # pragma: no cover
     """
     Download the GOA human GAF file and extract all unique PMIDs.
 
     Returns:
-        Tuple containing the file name and set of PMIDs
+        Tuple of (local file name, source URL used, set of PMIDs)
     """
     file_name = "HUMAN-uniprot.gaf.gz"
     file_with_path = f"{file_path}{file_name}"
 
-    logger.info(f"Downloading GOA human file from {GOA_HUMAN_URL}")
-    try:
-        response = requests.get(GOA_HUMAN_URL, timeout=300, stream=True)
-        response.raise_for_status()
-        with open(file_with_path, 'wb') as outfile:
-            for chunk in response.iter_content(chunk_size=8192):
-                outfile.write(chunk)
-        logger.info(f"Downloaded {file_name} successfully")
-    except requests.RequestException as e:
-        logger.error(f"Failed to download GOA human file from {GOA_HUMAN_URL}: {e}")
-        return file_name, set()
+    source_url = download_goa_human_gaf(file_with_path)
+    if source_url is None:
+        return file_name, GOA_HUMAN_URL, set()
 
     # Use shared GAF extraction function
     all_pmids = extract_pmids_from_gaf(file_with_path)
     logger.info(f"Extracted {len(all_pmids)} unique PMIDs from {file_name}")
-    return file_name, all_pmids
+    return file_name, source_url, all_pmids
 
 
 def compose_report_message(db_session, file_name: str, all_pmids: Set[str],
                            pmids_loaded: Set[str], papers_associated: int,
-                           obsolete_pmids: Set[str]) -> str:
+                           obsolete_pmids: Set[str],
+                           source_url: str = GOA_HUMAN_URL) -> str:
     """
     Compose the Slack report message with statistics.
 
@@ -164,6 +185,7 @@ def compose_report_message(db_session, file_name: str, all_pmids: Set[str],
         pmids_loaded: PMIDs that were successfully loaded
         papers_associated: Number of papers associated with AGR MOD
         obsolete_pmids: Set of obsolete PMIDs
+        source_url: URL the GAF file was actually downloaded from
 
     Returns:
         HTML formatted message for the Slack report
@@ -179,7 +201,7 @@ def compose_report_message(db_session, file_name: str, all_pmids: Set[str],
         obsolete_pmids.update(obsolete)
 
     message = "<b>GOA Human Paper Loading Report</b><p>"
-    message += f"<p>Source: {GOA_HUMAN_URL}</p>"
+    message += f"<p>Source: {source_url}</p>"
     message += "<ul>"
     message += f"<li>Total unique PMIDs in GAF file: {len(all_pmids)}"
     message += f"<li>PMIDs already in database: {len(pmids_in_db) - len(pmids_loaded)}"
