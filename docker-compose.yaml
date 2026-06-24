@@ -482,7 +482,10 @@ services:
       #     (latency stayed healthy ~2.5ms, but no IOPS headroom left).
       # 3s coalesces more to restore IOPS headroom while keeping real-time sync ~15s (< 30s test).
       # Bulk throughput/latency are unaffected: the record cache (size pressure) drives batching.
-      - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=3000
+      # Trying 5s (2026-06-24): extrapolated real-time sync ~19-22s -- still under the 30s test
+      # assertion but with less margin; disk benefit is UNMEASURED (1s==3s were disk-equivalent;
+      # only 10s reduced load but broke the test). Revert to 3000 if test_real_time_data_sync flakes.
+      - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=5000
       # Bump ksqlDB heap from the 3g default to hold the (now larger) record caches + processing.
       # 16g is a conservative step from 12g: it fits ~4.8 GB of caches with ample processing
       # headroom while leaving RAM on the shared 64 GB box for Kafka/Zookeeper/connector/ES.
