@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 from collections import defaultdict
 from os import environ
-from typing import Dict, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 from datetime import datetime, timedelta
 
 from dateutil import parser as date_parser
@@ -1137,6 +1137,28 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
             all_tet.append(tet_data)
         curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
         return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
+
+
+def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str]):
+    """Batch variant of show_all_reference_tags.
+
+    Returns a map of each input identifier -> its full TET list, reusing the
+    single-reference logic so the per-tag enrichment (display names, validated_by,
+    ml_model version, etc.) is identical. This lets the TET validation grid fetch
+    every reference's tags for a search page in ONE request instead of firing one
+    HTTP call per reference (the previous per-row fan-out was the grid's main
+    bottleneck). Unresolvable identifiers map to an empty list, mirroring the
+    per-row endpoint's behavior so a single bad id never fails the whole batch.
+    """
+    result: Dict[str, Any] = {}
+    for ident in curies_or_reference_ids:
+        if ident in result:
+            continue
+        try:
+            result[ident] = show_all_reference_tags(db, ident)
+        except HTTPException:
+            result[ident] = []
+    return result
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):

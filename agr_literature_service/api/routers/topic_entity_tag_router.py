@@ -2,7 +2,7 @@ from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional
 
 from agr_cognito_py import get_mod_access
-from fastapi import APIRouter, Depends, Query, Response, Security, status, HTTPException
+from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
@@ -163,6 +163,21 @@ def show_all_reference_tags(
         column_values
     )
     return result
+
+
+@router.post('/by_references',
+             status_code=200)
+def show_all_reference_tags_batch(
+    curies_or_reference_ids: List[str] = Body(..., embed=False),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session
+) -> Dict[str, List[TopicEntityTagSchemaRelated]]:
+    """Return all TETs for many references in one request, keyed by the input
+    identifier. Used by the TET validation grid to avoid one HTTP round-trip per
+    reference (see show_all_reference_tags_for_references)."""
+    return topic_entity_tag_crud.show_all_reference_tags_for_references(
+        db, curies_or_reference_ids
+    )
 
 
 @router.get('/by_mod/{mod_abbreviation}',
