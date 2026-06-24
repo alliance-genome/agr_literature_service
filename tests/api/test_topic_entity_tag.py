@@ -130,6 +130,15 @@ class TestTopicEntityTag:
             # an unresolvable id maps to an empty list rather than failing the batch
             assert data.get("AGRKB:000000000") == []
 
+    def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json=[f"AGRKB:{i}" for i in range(101)],
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+
     def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
