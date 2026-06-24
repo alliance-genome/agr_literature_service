@@ -435,6 +435,10 @@ services:
       PSQL_PORT: "${PSQL_PORT}"
       PSQL_DATABASE: "${PSQL_DATABASE}"
       DEBEZIUM_STATUS_PATH: "${DEBEZIUM_STATUS_PATH:-/var/lib/debezium_status}"
+      # Big production reindex waits, overridable per-deployment (e.g. prod's slower disk).
+      # Defaults preserve current prod behavior; TEST mode ignores these (setup.sh keeps fixed test values).
+      DBZ_KSQL_SETUP_SLEEP: "${DBZ_KSQL_SETUP_SLEEP:-1200}"
+      DBZ_DATA_PROCESSING_SLEEP: "${DBZ_DATA_PROCESSING_SLEEP:-20000}"
     networks:
       - agr-literature
     volumes:

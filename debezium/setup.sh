@@ -5,19 +5,23 @@ source /status_manager.sh
 
 # Configure sleep timings based on environment
 if [[ "${ENV_STATE}" == "test" ]]; then
-    # Test environment - much shorter sleeps for smaller datasets
+    # Test environment - much shorter sleeps for smaller datasets.
+    # Fixed on purpose: test ignores the DBZ_KSQL_SETUP_SLEEP / DBZ_DATA_PROCESSING_SLEEP env vars,
+    # so test runs stay fast regardless of what is configured for prod.
     CONNECTOR_SETUP_SLEEP=0
     KSQL_SETUP_SLEEP=5
     KSQL_POST_SLEEP=10
     DATA_PROCESSING_SLEEP=20
     echo "Running in TEST mode with reduced sleep timings"
 else
-    # Production environment - longer sleeps for full datasets
+    # Production environment - longer sleeps for full datasets.
+    # The two big waits are overridable via the DBZ_-prefixed env vars (wired through
+    # docker-compose), falling back to the safe production defaults when unset.
     CONNECTOR_SETUP_SLEEP=10
-    KSQL_SETUP_SLEEP=1200
+    KSQL_SETUP_SLEEP="${DBZ_KSQL_SETUP_SLEEP:-1200}"
     KSQL_POST_SLEEP=10
-    DATA_PROCESSING_SLEEP=20000
-    echo "Running in PRODUCTION mode with full sleep timings"
+    DATA_PROCESSING_SLEEP="${DBZ_DATA_PROCESSING_SLEEP:-20000}"
+    echo "Running in PRODUCTION mode (KSQL_SETUP_SLEEP=${KSQL_SETUP_SLEEP}s, DATA_PROCESSING_SLEEP=${DATA_PROCESSING_SLEEP}s)"
 fi
 
 # Track timing for metrics
