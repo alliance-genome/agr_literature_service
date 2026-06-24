@@ -469,8 +469,12 @@ services:
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
       # NOTE: this cache is PER persistent query (~32 CTAS in ksql_queries.ksql), so total
       # on-heap cache ~= 32 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
-      #   100 MB/query x ~32 ~= 3.2 GB of the 12 GB ksqlDB heap.
-      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=104857600
+      #   150 MB/query x ~32 ~= 4.8 GB of the 16 GB ksqlDB heap (bumped below).
+      # Raised 100->150 MB to coalesce/dedupe more state-store updates in memory during the
+      # ramp-up rebuild before they reach RocksDB (fewer SST writes). Steady-state latency is
+      # unaffected: the 3s commit interval still bounds flush staleness. Can push toward 200 MB
+      # (and heap to 24 GB) IF `free -g` shows headroom alongside Kafka/ES/connector on the box.
+      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=157286400
       # Commit/flush interval, balancing two MEASURED constraints from the dev reindex:
       #   - 10s added too much per-hop latency -> real-time CDC sync took >30s to reach ES and
       #     broke the debezium integration test.
@@ -479,8 +483,31 @@ services:
       # 3s coalesces more to restore IOPS headroom while keeping real-time sync ~15s (< 30s test).
       # Bulk throughput/latency are unaffected: the record cache (size pressure) drives batching.
       - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=3000
-      # Bump ksqlDB heap from the 3g default to hold the record caches + processing (64 GB box).
-      - KSQL_HEAP_OPTS=-Xmx12g -Xms12g
+      # Bump ksqlDB heap from the 3g default to hold the (now larger) record caches + processing.
+      # 16g is a conservative step from 12g: it fits ~4.8 GB of caches with ample processing
+      # headroom while leaving RAM on the shared 64 GB box for Kafka/Zookeeper/connector/ES.
+      - KSQL_HEAP_OPTS=-Xmx16g -Xms16g
+      # --- SCRUM-6231 follow-up: further trim ramp-up disk writes (compose-only, no custom JAR) ---
+      # NOTE: RocksDB-internal levers (SST compression, universal compaction, the background-I/O
+      # rate limiter) are NOT reachable via env -- they need a rocksdb.config.setter class baked
+      # into a custom image. The four below are the env-only knobs.
+      #
+      # (#6) Standby replicas duplicate every state-store write to a second RocksDB; keep at 0 so
+      # the reindex writes each store once. (0 is the ksqlDB default; pinned here to be explicit.)
+      - KSQL_KSQL_STREAMS_NUM_STANDBY_REPLICAS=0
+      # (#5) Compress the bytes ksqlDB producers write to the changelog/repartition topics (Kafka
+      # broker disk, same EBS). zstd for best ratio; CPU is spare during the I/O-bound reindex.
+      - KSQL_KSQL_STREAMS_PRODUCER_COMPRESSION_TYPE=zstd
+      # (#2) Let Kafka Streams reuse source topics as changelogs (skip duplicate changelog topics)
+      # and merge repartition topics -> fewer internal-topic writes during the rebuild AND
+      # permanently fewer changelog topics on the broker.
+      # SAFE under our workflow: restart-debezium-* wipes Kafka + the connector and re-snapshots,
+      # so ksqlDB always rebuilds its source tables from a complete, fresh source topic (no stale-
+      # retention gap) and the topology change only ever takes effect at that clean rebuild.
+      # Residual edge case: a ksqlDB-only restart that loses local RocksDB state WITHOUT a Kafka
+      # re-snapshot would restore source KTables from the (possibly aged) source topic -> in that
+      # case rebuild rather than bare-restart. Revert with =none if needed.
+      - KSQL_KSQL_STREAMS_TOPOLOGY_OPTIMIZATION=all
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
     networks:
       - agr-literature
