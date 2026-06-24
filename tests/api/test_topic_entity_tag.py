@@ -111,7 +111,13 @@ class TestTopicEntityTag:
                 assert resp_data[key] == value
 
     def test_show_all_reference_tags_batch(self, test_topic_entity_tag, auth_headers):  # noqa
-        with TestClient(app) as client:
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
             ref_curie = test_topic_entity_tag.related_ref_curie
             response = client.post(
                 url="/topic_entity_tag/by_references",
