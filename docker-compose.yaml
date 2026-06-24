@@ -471,8 +471,12 @@ services:
       # on-heap cache ~= 32 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
       #   100 MB/query x ~32 ~= 3.2 GB of the 12 GB ksqlDB heap.
       - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=104857600
-      # Commit (and flush caches) every 10s instead of the 2s default -> larger, fewer writes.
-      - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=10000
+      # Commit/flush interval kept LOW: during the bulk reindex the 100MB cache fills in <1s, so
+      # size pressure (not the commit interval) drives write batching -- a high interval buys no
+      # disk benefit and only adds per-stage latency that delays real-time CDC sync through the
+      # multi-hop DAG (a 10s value broke the debezium integration test: a new row took >30s to
+      # reach ES). 1s keeps the disk win (cache size does the batching) and fast real-time sync.
+      - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=1000
       # Bump ksqlDB heap from the 3g default to hold the record caches + processing (64 GB box).
       - KSQL_HEAP_OPTS=-Xmx12g -Xms12g
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
