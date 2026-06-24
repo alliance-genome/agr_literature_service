@@ -110,6 +110,26 @@ class TestTopicEntityTag:
             for key, value in expected_fields.items():
                 assert resp_data[key] == value
 
+    def test_show_all_reference_tags_batch(self, test_topic_entity_tag, auth_headers):  # noqa
+        with TestClient(app) as client:
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json=[ref_curie, "AGRKB:000000000"],
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            # the known reference returns its tag(s)
+            assert ref_curie in data
+            assert len(data[ref_curie]) >= 1
+            assert any(
+                t["topic_entity_tag_id"] == int(test_topic_entity_tag.new_tet_id)
+                for t in data[ref_curie]
+            )
+            # an unresolvable id maps to an empty list rather than failing the batch
+            assert data.get("AGRKB:000000000") == []
+
     def test_patch(self, test_topic_entity_tag, auth_headers): # noqa
         with TestClient(app) as client:
             patch_data = {
