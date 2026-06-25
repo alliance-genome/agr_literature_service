@@ -1,7 +1,6 @@
 package org.alliancegenome.ksql;
 
 import java.util.Map;
-import java.util.logging.Logger;
 
 import org.apache.kafka.streams.state.RocksDBConfigSetter;
 import org.rocksdb.CompactionStyle;
@@ -9,6 +8,8 @@ import org.rocksdb.CompressionType;
 import org.rocksdb.Options;
 import org.rocksdb.RateLimiter;
 import org.rocksdb.RateLimiterMode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * RocksDB tuning for ksqlDB state stores (SCRUM-6231).
@@ -27,7 +28,10 @@ import org.rocksdb.RateLimiterMode;
  */
 public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
 
-    private static final Logger LOG = Logger.getLogger(KsqlRocksDBConfigSetter.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(KsqlRocksDBConfigSetter.class);
+
+    // Log the resolved config once (setConfig runs per state store; we only want one summary line).
+    private static volatile boolean loggedConfig = false;
 
     static final String COMPRESSION_ENABLED = "rocksdb.compression.enabled";
     static final String COMPACTION_UNIVERSAL = "rocksdb.compaction.universal";
@@ -48,22 +52,36 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
 
     @Override
     public void setConfig(final String storeName, final Options options, final Map<String, Object> configs) {
-        if (getBoolean(configs, COMPRESSION_ENABLED, true)) {
+        final boolean compression = getBoolean(configs, COMPRESSION_ENABLED, true);
+        final boolean universal = getBoolean(configs, COMPACTION_UNIVERSAL, true);
+        final boolean ratelimit = getBoolean(configs, RATELIMIT_ENABLED, true);
+
+        if (!loggedConfig) {
+            loggedConfig = true;
+            // One summary line at INFO so the applied config is visible in the ksqlDB log. Also echo
+            // the raw values found for the toggles, to catch a config that silently disables a lever.
+            LOG.info("KsqlRocksDBConfigSetter resolved: compression={} (raw={}), universal_compaction={} (raw={}), "
+                    + "ratelimit={} (raw={})", compression, configs.get(COMPRESSION_ENABLED),
+                    universal, configs.get(COMPACTION_UNIVERSAL), ratelimit, configs.get(RATELIMIT_ENABLED));
+        }
+
+        if (compression) {
             // LZ4 on the hot upper levels (cheap CPU), ZSTD on the bottommost level (best ratio,
             // where most of the bytes live) -> fewer bytes read+written by every compaction.
             options.setCompressionType(CompressionType.LZ4_COMPRESSION);
             options.setBottommostCompressionType(CompressionType.ZSTD_COMPRESSION);
         }
-        if (getBoolean(configs, COMPACTION_UNIVERSAL, true)) {
+        if (universal) {
             // Universal trades transient disk SPACE (abundant: ~139 GB state on a 1500 GiB volume)
             // for far lower write-amplification than leveled -> fewer, cheaper compactions.
             // Requires a fresh store; safe here because restart-debezium-* wipes ksqlDB state.
             options.setCompactionStyle(CompactionStyle.UNIVERSAL);
         }
-        if (getBoolean(configs, RATELIMIT_ENABLED, true)) {
+        if (ratelimit) {
             options.setRateLimiter(sharedRateLimiter(configs));
         }
-        LOG.info("KsqlRocksDBConfigSetter applied to store " + storeName);
+        LOG.debug("KsqlRocksDBConfigSetter applied to store {} (compression={}, universal={}, ratelimit={})",
+                storeName, compression, universal, ratelimit);
     }
 
     private static RateLimiter sharedRateLimiter(final Map<String, Object> configs) {
@@ -108,7 +126,7 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
         try {
             return Long.parseLong(v.toString().trim());
         } catch (final NumberFormatException e) {
-            LOG.warning("Bad long for " + key + "='" + v + "', using default " + def);
+            LOG.warn("Bad long for {}='{}', using default {}", key, v, def);
             return def;
         }
     }
@@ -121,7 +139,7 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
         try {
             return Double.parseDouble(v.toString().trim());
         } catch (final NumberFormatException e) {
-            LOG.warning("Bad double for " + key + "='" + v + "', using default " + def);
+            LOG.warn("Bad double for {}='{}', using default {}", key, v, def);
             return def;
         }
     }

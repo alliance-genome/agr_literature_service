@@ -532,7 +532,9 @@ services:
       #   - rate limiter: ONE shared, auto-tuned, writes-only cap = disk.max * fraction (~475 MB/s),
       #     leaving headroom for other ops. Toggle off if it lengthens the reindex (compression is
       #     the real volume win; the limiter is a usability guardrail).
-      - KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER_CLASS=org.alliancegenome.ksql.KsqlRocksDBConfigSetter
+      # Kafka Streams key is `rocksdb.config.setter` (NOT `...class`) -> env must omit _CLASS, else
+      # Streams logs "isn't a known config" and the setter never registers (rocksdb.config.setter=null).
+      - KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER=org.alliancegenome.ksql.KsqlRocksDBConfigSetter
       # - KSQL_KSQL_STREAMS_ROCKSDB_COMPRESSION_ENABLED=true
       # - KSQL_KSQL_STREAMS_ROCKSDB_COMPACTION_UNIVERSAL=true
       # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_ENABLED=true
