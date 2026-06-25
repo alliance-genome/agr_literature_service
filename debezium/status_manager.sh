@@ -353,6 +353,122 @@ EOF
     chmod 644 "${METRICS_FILE}"
 }
 
+# Gate 1 (SCRUM-6231): wait for the Debezium snapshot to create the source topics, instead of a
+# blind ${KSQL_SETUP_SLEEP}s wait, so ksql CTAS submission starts as soon as the topics its sources
+# reference exist. Signal (HTTP-only -- the dbz_setup container has just curl/jq): the source
+# connector's produced-topic set, via Kafka Connect topic tracking (GET /connectors/<c>/topics).
+#   - If expected_count > 0: proceed once produced topics >= expected_count and the connector is
+#     RUNNING (precise; robust to a slow snapshot on a big table, where topic creation pauses).
+#   - Else (count unknown): proceed once the produced-topic set is non-empty and unchanged for
+#     DBZ_SNAPSHOT_STABLE_POLLS consecutive polls.
+# Capped at max_wait; on cap it returns 1 and the caller proceeds anyway (matching the old fixed
+# sleep -- submit_ksql_statements still retries on transient dependency errors).
+wait_for_source_topics_ready() {
+    local connect_host=$1
+    local connect_port=$2
+    local connector=$3
+    local expected_count=$4
+    local max_wait=$5
+
+    local interval="${DBZ_SNAPSHOT_POLL_INTERVAL:-10}"
+    local stable_needed="${DBZ_SNAPSHOT_STABLE_POLLS:-9}"   # ~90s of no new topics (fallback mode)
+    local deadline=$(( $(date +%s) + max_wait ))
+    local prev=-1 stable=0 count state resp
+
+    [[ "$expected_count" =~ ^[0-9]+$ ]] || expected_count=0
+    echo "Gate 1: waiting for Debezium snapshot topics (connector=$connector, expected>=${expected_count}, cap=${max_wait}s, interval=${interval}s)..."
+    while [[ $(date +%s) -lt $deadline ]]; do
+        resp=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${connector}/topics")
+        count=$(echo "$resp" | jq -r --arg c "$connector" '.[$c].topics | length' 2>/dev/null)
+        [[ "$count" =~ ^[0-9]+$ ]] || count=0
+        resp=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${connector}/status")
+        state=$(echo "$resp" | jq -r '.connector.state // "UNKNOWN"' 2>/dev/null)
+
+        if [[ "$count" -gt 0 && "$count" -eq "$prev" ]]; then
+            stable=$((stable + 1))
+        else
+            stable=0
+        fi
+        echo "  Gate 1: ${count} source topics (state=${state}, stable=${stable}/${stable_needed})"
+
+        if [[ "$state" == "RUNNING" && "$count" -gt 0 ]]; then
+            if [[ "$expected_count" -gt 0 && "$count" -ge "$expected_count" ]]; then
+                echo "Gate 1: ${count} topics present (>= ${expected_count}); proceeding to ksql setup."
+                return 0
+            fi
+            if [[ "$expected_count" -eq 0 && "$stable" -ge "$stable_needed" ]]; then
+                echo "Gate 1: source topics settled at ${count}; proceeding to ksql setup."
+                return 0
+            fi
+        fi
+        prev=$count
+        sleep "$interval"
+    done
+    echo "Gate 1: WARNING cap of ${max_wait}s reached (topics=${prev}); proceeding anyway."
+    return 1
+}
+
+# Gate 2 (SCRUM-6231): wait for the reindex pipeline to DRAIN, instead of a blind ~${DATA_PROCESSING_SLEEP}s
+# wait, before promoting temp -> final. Doc COUNT is NOT a valid signal: the ES sink upserts by doc id,
+# so re-emitted joined objects overwrite existing docs and leave the count flat while indexing
+# continues. Activity-based signals instead, combining ES + Debezium/Connect:
+#   - ES: index_total (cumulative indexing ops INCLUDING overwrites) growth drops below a threshold
+#     AND index_current == 0, for BOTH temp indexes.
+#   - Connect: both ES sink connectors RUNNING with no FAILED tasks -- guards the false "plateau
+#     because a sink died" case the ES signal alone cannot distinguish.
+# Both must hold for DBZ_DRAIN_STABLE_POLLS consecutive polls. Capped at max_wait; on cap it returns 1
+# and the caller proceeds (the existing count>0 gate still guards the promotion).
+wait_for_pipeline_drained() {
+    local es_host=$1 es_port=$2 private_index=$3 public_index=$4
+    local connect_host=$5 connect_port=$6 sink=$7 public_sink=$8 max_wait=$9
+
+    local interval="${DBZ_DRAIN_POLL_INTERVAL:-30}"
+    local stable_needed="${DBZ_DRAIN_STABLE_POLLS:-5}"      # ~2.5 min of quiescence by default
+    local threshold="${DBZ_DRAIN_GROWTH_THRESHOLD:-50}"     # index_total ops/poll below this == trickle
+    local deadline=$(( $(date +%s) + max_wait ))
+    local stable=0 prev_priv=-1 prev_pub=-1
+
+    echo "Gate 2: waiting for pipeline to drain (cap=${max_wait}s, interval=${interval}s, stable=${stable_needed}, growth<${threshold})..."
+    while [[ $(date +%s) -lt $deadline ]]; do
+        sleep "$interval"
+
+        local ps=$(curl -s --max-time 15 "http://${es_host}:${es_port}/${private_index}/_stats/indexing")
+        local us=$(curl -s --max-time 15 "http://${es_host}:${es_port}/${public_index}/_stats/indexing")
+        local priv_total=$(echo "$ps" | jq -r '._all.total.indexing.index_total // 0' 2>/dev/null); priv_total=${priv_total:-0}
+        local pub_total=$(echo "$us"  | jq -r '._all.total.indexing.index_total // 0' 2>/dev/null); pub_total=${pub_total:-0}
+        local priv_cur=$(echo "$ps" | jq -r '._all.total.indexing.index_current // 0' 2>/dev/null); priv_cur=${priv_cur:-0}
+        local pub_cur=$(echo "$us"  | jq -r '._all.total.indexing.index_current // 0' 2>/dev/null); pub_cur=${pub_cur:-0}
+
+        local ss=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${sink}/status")
+        local us2=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${public_sink}/status")
+        local sink_ok=$(echo "$ss"  | jq -r '((.connector.state // "") == "RUNNING") and ((.tasks // []) | all(.state == "RUNNING"))' 2>/dev/null)
+        local psink_ok=$(echo "$us2" | jq -r '((.connector.state // "") == "RUNNING") and ((.tasks // []) | all(.state == "RUNNING"))' 2>/dev/null)
+
+        local priv_growth=$threshold pub_growth=$threshold
+        [[ "$prev_priv" -ge 0 ]] && priv_growth=$((priv_total - prev_priv))
+        [[ "$prev_pub"  -ge 0 ]] && pub_growth=$((pub_total - prev_pub))
+        prev_priv=$priv_total; prev_pub=$pub_total
+
+        echo "  Gate 2: priv[total=$priv_total d=$priv_growth cur=$priv_cur sink=$sink_ok] pub[total=$pub_total d=$pub_growth cur=$pub_cur sink=$psink_ok] stable=$stable/$stable_needed"
+
+        if [[ "$sink_ok" == "true" && "$psink_ok" == "true" \
+              && "$priv_total" -gt 0 && "$pub_total" -gt 0 \
+              && "$priv_cur" -eq 0 && "$pub_cur" -eq 0 \
+              && "$priv_growth" -lt "$threshold" && "$pub_growth" -lt "$threshold" ]]; then
+            stable=$((stable + 1))
+        else
+            stable=0
+        fi
+
+        if [[ "$stable" -ge "$stable_needed" ]]; then
+            echo "Gate 2: pipeline drained (index_total stable, index_current 0, sinks healthy); proceeding to promotion."
+            return 0
+        fi
+    done
+    echo "Gate 2: WARNING cap of ${max_wait}s reached; proceeding to promotion check anyway."
+    return 1
+}
+
 # Export functions for use in other scripts
 export -f get_timestamp
 export -f seconds_since
@@ -361,3 +477,5 @@ export -f poll_reindex_task
 export -f start_reindex
 export -f poll_multiple_reindex_tasks
 export -f save_completion_metrics
+export -f wait_for_source_topics_ready
+export -f wait_for_pipeline_drained
