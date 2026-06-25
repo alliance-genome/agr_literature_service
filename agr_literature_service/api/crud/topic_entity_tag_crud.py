@@ -1012,7 +1012,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     return None
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None):      # noqa: C901
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -1135,7 +1135,10 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
             if tet.ml_model:
                 tet_data["ml_model_version"] = tet.ml_model.version_num
             all_tet.append(tet_data)
-        curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
+        # Callers (e.g. the batch endpoint) may supply a precomputed map built
+        # once across many references, to avoid the per-reference external lookups.
+        if curie_to_name is None:
+            curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
         return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
 
 
@@ -1149,15 +1152,32 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     HTTP call per reference (the previous per-row fan-out was the grid's main
     bottleneck). Unresolvable identifiers map to an empty list, mirroring the
     per-row endpoint's behavior so a single bad id never fails the whole batch.
+
+    The curie->name resolution (external A-team lookups) is done ONCE across the
+    union of every reference's tags, rather than once per reference -- otherwise
+    the batch would just serialize the same N x external-call fan-out into a
+    single long request and end up slower than the old concurrent per-row calls.
     """
-    result: Dict[str, Any] = {}
+    # Resolve each identifier to a reference_id once (None if unresolvable).
+    ident_to_ref_id: Dict[str, Any] = {}
     for ident in curies_or_reference_ids:
-        if ident in result:
+        if ident in ident_to_ref_id:
             continue
         try:
-            result[ident] = show_all_reference_tags(db, ident)
+            ident_to_ref_id[ident] = get_reference_id_from_curie_or_id(db, ident)
         except HTTPException:
+            ident_to_ref_id[ident] = None
+
+    # One name map for the union of all references' tags (the expensive part).
+    ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
+    curie_to_name = get_curie_to_name_from_references(db, ref_ids)
+
+    result: Dict[str, Any] = {}
+    for ident, ref_id in ident_to_ref_id.items():
+        if ref_id is None:
             result[ident] = []
+        else:
+            result[ident] = show_all_reference_tags(db, ident, curie_to_name=curie_to_name)
     return result
 
 
@@ -1222,6 +1242,24 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
 def get_curie_to_name_from_all_tets(db: Session, curie_or_reference_id: str):
     reference_id = get_reference_id_from_curie_or_id(db, curie_or_reference_id)
     ref_related_tets = db.query(TopicEntityTagModel).filter(TopicEntityTagModel.reference_id == reference_id).all()
+    return build_curie_to_name_map(db, ref_related_tets)
+
+
+def get_curie_to_name_from_references(db: Session, reference_ids: List[int]):
+    """Build ONE curie->name map for the union of all tags across many
+    references. The external A-team name lookups (atpterm / ecoterm / species /
+    entity) are the expensive part, so resolving the union once -- instead of
+    once per reference -- is what makes the batch endpoint actually faster than
+    the old per-reference fan-out."""
+    if not reference_ids:
+        return {}
+    ref_related_tets = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source)).filter(
+        TopicEntityTagModel.reference_id.in_(reference_ids)).all()
+    return build_curie_to_name_map(db, ref_related_tets)
+
+
+def build_curie_to_name_map(db: Session, ref_related_tets):
     all_atp_terms = set()
     entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
     all_entity_curies = set()
