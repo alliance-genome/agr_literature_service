@@ -2,7 +2,7 @@ from multiprocessing import Process, Value
 from typing import List, Dict, Union, Any, Optional
 
 from agr_cognito_py import get_mod_access
-from fastapi import APIRouter, Depends, Query, Response, Security, status, HTTPException
+from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
@@ -163,6 +163,36 @@ def show_all_reference_tags(
         column_values
     )
     return result
+
+
+# Each reference in the batch runs the full per-reference resolution (DB query
+# plus external curie->name lookups), so the work is N x a single fetch. Cap the
+# batch to bound worst-case latency / avoid gateway timeouts. The grid only ever
+# sends one search page (max 100 results, chunked at 50 per request), so this is
+# comfortable headroom above any legitimate request.
+MAX_BATCH_REFERENCES = 100
+
+
+@router.post('/by_references',
+             status_code=200)
+def show_all_reference_tags_batch(
+    curies_or_reference_ids: List[str] = Body(..., embed=False),
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session
+) -> Dict[str, List[TopicEntityTagSchemaRelated]]:
+    """Return all TETs for many references in one request, keyed by the input
+    identifier. Used by the TET validation grid to avoid one HTTP round-trip per
+    reference (see show_all_reference_tags_for_references)."""
+    if len(curies_or_reference_ids) > MAX_BATCH_REFERENCES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many references in one batch "
+                   f"({len(curies_or_reference_ids)} > {MAX_BATCH_REFERENCES}); "
+                   f"split into smaller requests."
+        )
+    return topic_entity_tag_crud.show_all_reference_tags_for_references(
+        db, curies_or_reference_ids
+    )
 
 
 @router.get('/by_mod/{mod_abbreviation}',
