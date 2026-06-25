@@ -1012,7 +1012,7 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     return None
 
 
-def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
+def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None, mod_id_to_mod: dict = None, id_to_display_name: dict = None):      # noqa: C901
 
     if page < 1:
         page = 1
@@ -1104,20 +1104,27 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
         # build a bulk map of users.id -> person.display_name
         page_q = query.offset((page - 1) * page_size if page_size else None).limit(page_size)
         rows = page_q.all()
-        user_ids: Set[str] = set()
-        for tet in rows:
-            if tet.created_by:
-                user_ids.add(tet.created_by)
-            if tet.updated_by:
-                user_ids.add(tet.updated_by)
-            if tet.topic_entity_tag_source:
-                if tet.topic_entity_tag_source.created_by:
-                    user_ids.add(tet.topic_entity_tag_source.created_by)
-                if tet.topic_entity_tag_source.updated_by:
-                    user_ids.add(tet.topic_entity_tag_source.updated_by)
-        id_to_display_name = get_user_display_name_map(db, user_ids)
+        # Callers (e.g. the batch endpoint) may supply maps built once across
+        # many references, so we skip the per-reference users->display_name and
+        # mod->abbreviation lookups when they do. A supplied id_to_display_name
+        # is a superset (built over the union of all references), so it covers
+        # this reference's users.
+        if id_to_display_name is None:
+            user_ids: Set[str] = set()
+            for tet in rows:
+                if tet.created_by:
+                    user_ids.add(tet.created_by)
+                if tet.updated_by:
+                    user_ids.add(tet.updated_by)
+                if tet.topic_entity_tag_source:
+                    if tet.topic_entity_tag_source.created_by:
+                        user_ids.add(tet.topic_entity_tag_source.created_by)
+                    if tet.topic_entity_tag_source.updated_by:
+                        user_ids.add(tet.topic_entity_tag_source.updated_by)
+            id_to_display_name = get_user_display_name_map(db, user_ids)
 
-        mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
+        if mod_id_to_mod is None:
+            mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
         all_tet = []
         for tet in rows:
             tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
@@ -1175,16 +1182,23 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         except HTTPException:
             ident_to_ref_id[ident] = None
 
-    # One name map for the union of all references' tags (the expensive part).
+    # Build the shared maps ONCE across the union of all references, then reuse
+    # them for every reference below. Otherwise show_all_reference_tags rebuilds
+    # each per reference: the external A-team name lookups, a users->display_name
+    # join, and a full mod table load -- all N times for an N-reference page.
     ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
     curie_to_name = get_curie_to_name_from_references(db, ref_ids)
+    id_to_display_name = get_user_display_name_map_for_references(db, ref_ids)
+    mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
 
     result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             result[ident] = []
         else:
-            result[ident] = show_all_reference_tags(db, ident, curie_to_name=curie_to_name)
+            result[ident] = show_all_reference_tags(
+                db, ident, curie_to_name=curie_to_name,
+                mod_id_to_mod=mod_id_to_mod, id_to_display_name=id_to_display_name)
     return result
 
 
@@ -1266,6 +1280,30 @@ def get_curie_to_name_from_references(db: Session, reference_ids: List[int]):
     return build_curie_to_name_map(db, ref_related_tets)
 
 
+def get_user_display_name_map_for_references(db: Session, reference_ids: List[int]) -> Dict[str, str]:
+    """Build ONE users.id -> display_name map for the union of all tags (and
+    their sources) across many references, so the batch endpoint resolves
+    display names once instead of running the users->person join per reference.
+    Selects only the four id columns (not whole rows) to keep it cheap."""
+    if not reference_ids:
+        return {}
+    rows = db.query(
+        TopicEntityTagModel.created_by,
+        TopicEntityTagModel.updated_by,
+        TopicEntityTagSourceModel.created_by,
+        TopicEntityTagSourceModel.updated_by,
+    ).join(
+        TopicEntityTagSourceModel,
+        TopicEntityTagModel.topic_entity_tag_source_id == TopicEntityTagSourceModel.topic_entity_tag_source_id
+    ).filter(TopicEntityTagModel.reference_id.in_(reference_ids)).all()
+    user_ids: Set[str] = set()
+    for row in rows:
+        for uid in row:
+            if uid:
+                user_ids.add(uid)
+    return get_user_display_name_map(db, user_ids)
+
+
 def build_curie_to_name_map(db: Session, ref_related_tets):
     all_atp_terms = set()
     entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
@@ -1309,13 +1347,22 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
 def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, curie_or_reference_id: str = None):
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
-    new_tet = copy.deepcopy(tet)
+    # Shallow copy is sufficient and far cheaper than copy.deepcopy here (this
+    # runs once per tag, thousands of times for a search page): we only add
+    # scalar "*_name" fields and mutate the one nested source dict, so copying
+    # the top level plus that single nested dict avoids aliasing the caller's
+    # data without the per-tag deepcopy cost.
+    new_tet = dict(tet)
     for tet_field_name, tet_field_value in tet.items():
         if tet_field_name == "topic_entity_tag_source":
+            if not tet_field_value:
+                continue
+            new_source = dict(tet_field_value)
+            new_tet[tet_field_name] = new_source
             for source_field_name, source_field_value in tet_field_value.items():
                 if source_field_name in TET_SOURCE_CURIE_FIELDS:
                     new_field = f"{source_field_name}_name"
-                    new_tet[tet_field_name][new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
+                    new_source[new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
         else:
             if tet_field_name in TET_CURIE_FIELDS:
                 new_field = f"{tet_field_name}_name"
