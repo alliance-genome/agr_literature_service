@@ -83,7 +83,7 @@ restart-debezium-local:
 	sleep 10
 	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
 	sleep 5
-	docker-compose --env-file ${ENV_FILE} up -d dbz_ksql_server
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_ksql_server
 	sleep 20
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_setup
 
@@ -93,7 +93,7 @@ restart-debezium-aws:
 	sleep 10
 	docker-compose --env-file ${ENV_FILE} exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092"
 	sleep 5
-	docker-compose --env-file ${ENV_FILE} up -d dbz_ksql_server
+	docker-compose --env-file ${ENV_FILE} up -d --build dbz_ksql_server
 	sleep 20
 	docker-compose --env-file ${ENV_FILE} up -d --build dbz_setup
 
@@ -169,7 +169,7 @@ run-debezium-integration-tests:
 	# Create required Kafka topics
 	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
 	# Start KSQL server
-	docker-compose --env-file .env.test up -d dbz_ksql_server
+	docker-compose --env-file .env.test up -d --build dbz_ksql_server
 	# Run Debezium setup and wait for completion
 	@echo "Running Debezium setup (this will wait for completion)..."
 	docker-compose --env-file .env.test up --build dbz_setup
@@ -199,7 +199,7 @@ run-debezium-start-test-env:
 	# Create required Kafka topics
 	docker-compose --env-file .env.test exec dbz_connector bash -c "/kafka/bin/kafka-topics.sh --create --topic 'abc.public.obsolete_reference_curie' --partitions 1 --replication-factor 1 --bootstrap-server dbz_kafka:9092" || true
 	# Start KSQL server
-	docker-compose --env-file .env.test up -d dbz_ksql_server
+	docker-compose --env-file .env.test up -d --build dbz_ksql_server
 	# Run Debezium setup and wait for completion
 	@echo "Running Debezium setup (this will wait for completion)..."
 	docker-compose --env-file .env.test up --build dbz_setup
