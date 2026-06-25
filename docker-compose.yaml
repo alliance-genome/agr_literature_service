@@ -452,7 +452,12 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: confluentinc/ksqldb-server:0.26.0
+    # Custom image: stock ksqlDB 0.26.0 + the RocksDB config-setter jar baked onto the classpath
+    # (SCRUM-6231). `make build` builds it; FROM still pins the upstream 0.26.0 as the base.
+    build:
+      context: .
+      dockerfile: docker/ksqldb.dockerfile
+    image: agr.literature.ksqldb-server:0.26.0
     depends_on:
       - dbz_kafka
       - dbz_connector
@@ -469,8 +474,12 @@ services:
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
       # NOTE: this cache is PER persistent query (~32 CTAS in ksql_queries.ksql), so total
       # on-heap cache ~= 32 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
-      #   100 MB/query x ~32 ~= 3.2 GB of the 12 GB ksqlDB heap.
-      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=104857600
+      #   150 MB/query x ~32 ~= 4.8 GB of the 16 GB ksqlDB heap (bumped below).
+      # Raised 100->150 MB to coalesce/dedupe more state-store updates in memory during the
+      # ramp-up rebuild before they reach RocksDB (fewer SST writes). Steady-state latency is
+      # unaffected: the 3s commit interval still bounds flush staleness. Can push toward 200 MB
+      # (and heap to 24 GB) IF `free -g` shows headroom alongside Kafka/ES/connector on the box.
+      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=157286400
       # Commit/flush interval, balancing two MEASURED constraints from the dev reindex:
       #   - 10s added too much per-hop latency -> real-time CDC sync took >30s to reach ES and
       #     broke the debezium integration test.
@@ -478,9 +487,59 @@ services:
       #     (latency stayed healthy ~2.5ms, but no IOPS headroom left).
       # 3s coalesces more to restore IOPS headroom while keeping real-time sync ~15s (< 30s test).
       # Bulk throughput/latency are unaffected: the record cache (size pressure) drives batching.
+      # 5s was tried (2026-06-24) but REVERTED: it pushed the deeper public_reference_joined path
+      # over the 30s assertion -- test_real_time_data_sync failed (new ref reached the private index
+      # but not the public index within 30s) and test_document_counts_match diverged (private=14,
+      # public=13). The 5s disk benefit was unmeasured anyway (1s and 3s are disk-equivalent; only
+      # 10s cut load, and that also breaks the test). 3s is the validated sweet spot.
       - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=3000
-      # Bump ksqlDB heap from the 3g default to hold the record caches + processing (64 GB box).
-      - KSQL_HEAP_OPTS=-Xmx12g -Xms12g
+      # Bump ksqlDB heap from the 3g default to hold the (now larger) record caches + processing.
+      # 16g is a conservative step from 12g: it fits ~4.8 GB of caches with ample processing
+      # headroom while leaving RAM on the shared 64 GB box for Kafka/Zookeeper/connector/ES.
+      - KSQL_HEAP_OPTS=-Xmx16g -Xms16g
+      # --- SCRUM-6231 follow-up: trim reindex disk writes ---
+      # (#6) Standby replicas duplicate every state-store write to a second RocksDB; keep at 0 so
+      # the reindex writes each store once. (0 is the ksqlDB default; pinned here to be explicit.)
+      - KSQL_KSQL_STREAMS_NUM_STANDBY_REPLICAS=0
+      # NOTE: KSQL_KSQL_STREAMS_NUM_STREAM_THREADS=2 was A/B-tested on the dev box (2026-06-25) and
+      # REVERTED -- it did NOT shave the disk peak and MORE THAN TRIPLED the run (still pinned at 8.8h,
+      # vs ~2.4h baseline). Compaction write-amplification is driven by data volume + LSM structure,
+      # NOT by thread count, so fewer threads only stretched the timeline while compaction kept the
+      # disk pinned (report: reindex-report-threads2-2026-06-25.md). Lesson: env-only throttling is
+      # EXHAUSTED -- no KSQL_* knob reduces RocksDB's on-disk write VOLUME. The volume-cutting levers
+      # (RocksDB SST compression + universal compaction + a shared background-I/O rate limiter) live in
+      # the rocksdb.config.setter JAR baked into docker/ksqldb.dockerfile and are wired via
+      # KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER + KSQL_ROCKSDB_* below.
+      # (#5) Compress the bytes ksqlDB producers write to the changelog/repartition topics (Kafka
+      # broker disk, same EBS). zstd for best ratio; CPU is spare during the I/O-bound reindex.
+      - KSQL_KSQL_STREAMS_PRODUCER_COMPRESSION_TYPE=zstd
+      # (#2) Let Kafka Streams reuse source topics as changelogs (skip duplicate changelog topics)
+      # and merge repartition topics -> fewer internal-topic writes during the rebuild AND
+      # permanently fewer changelog topics on the broker.
+      # SAFE under our workflow: restart-debezium-* wipes Kafka + the connector and re-snapshots,
+      # so ksqlDB always rebuilds its source tables from a complete, fresh source topic (no stale-
+      # retention gap) and the topology change only ever takes effect at that clean rebuild.
+      # Residual edge case: a ksqlDB-only restart that loses local RocksDB state WITHOUT a Kafka
+      # re-snapshot would restore source KTables from the (possibly aged) source topic -> in that
+      # case rebuild rather than bare-restart. Revert with =none if needed.
+      - KSQL_KSQL_STREAMS_TOPOLOGY_OPTIMIZATION=all
+      # --- RocksDB config-setter (baked into docker/ksqldb.dockerfile) -- the disk-write-VOLUME
+      # levers env knobs can't reach. The class reads its tuning from the KSQL_KSQL_STREAMS_ROCKSDB_*
+      # keys below (Kafka Streams passes them through to the setter); all have safe in-code defaults,
+      # so the commented overrides can be flipped WITHOUT rebuilding the image.
+      #   - compression: LZ4 upper levels + ZSTD bottommost -> fewer bytes per compaction.
+      #   - universal compaction: trades transient disk space (abundant) for lower write-amp.
+      #   - rate limiter: ONE shared, auto-tuned, writes-only cap = disk.max * fraction (~475 MB/s),
+      #     leaving headroom for other ops. Toggle off if it lengthens the reindex (compression is
+      #     the real volume win; the limiter is a usability guardrail).
+      # Kafka Streams key is `rocksdb.config.setter` (NOT `...class`) -> env must omit _CLASS, else
+      # Streams logs "isn't a known config" and the setter never registers (rocksdb.config.setter=null).
+      - KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER=org.alliancegenome.ksql.KsqlRocksDBConfigSetter
+      # - KSQL_KSQL_STREAMS_ROCKSDB_COMPRESSION_ENABLED=true
+      # - KSQL_KSQL_STREAMS_ROCKSDB_COMPACTION_UNIVERSAL=true
+      # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_ENABLED=true
+      # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_DISK_MAX_BYTES_PER_SEC=622854144   # 594 MiB/s (m5.4xlarge EBS ceiling)
+      # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_FRACTION=0.8
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
     networks:
       - agr-literature

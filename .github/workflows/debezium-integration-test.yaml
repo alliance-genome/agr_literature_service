@@ -70,8 +70,9 @@ jobs:
           docker compose --env-file .env.test up -d dbz_zookeeper dbz_kafka dbz_connector
           sleep 3
           
-          # Start KsqlDB
-          docker compose --env-file .env.test up -d dbz_ksql_server
+          # Start KsqlDB (--build: dbz_ksql_server is now a custom image that bakes in the
+          # RocksDB config-setter jar via docker/ksqldb.dockerfile -- SCRUM-6231)
+          docker compose --env-file .env.test up -d --build dbz_ksql_server
           
           # Check service health
           docker compose --env-file .env.test ps
