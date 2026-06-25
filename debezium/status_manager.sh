@@ -415,7 +415,7 @@ wait_for_source_topics_ready() {
 # doc id, so re-emitted joined objects overwrite docs and leave the count flat while indexing
 # continues). Track THREE metrics per temp index from one _stats call: docs.count, store.size_in_bytes,
 # and index_total (cumulative indexing ops, incl. overwrites). "Drained" = ALL of them, on BOTH
-# indexes, STRICTLY UNCHANGED for DBZ_DRAIN_STABLE_SECONDS (default 300s = 5 min), with both indexes
+# indexes, STRICTLY UNCHANGED for DBZ_DRAIN_STABLE_SECONDS (default 600s = 10 min), with both indexes
 # non-empty AND both ES sink connectors RUNNING with no FAILED tasks (so "stable" can't mean a dead
 # sink or a not-yet-started load). Strict no-change is intentional: if live CDC keeps it moving, the
 # max_wait cap (DBZ_DATA_PROCESSING_SLEEP) is the hard fallback. HTTP-only.
@@ -424,7 +424,9 @@ wait_for_pipeline_drained() {
     local connect_host=$5 connect_port=$6 sink=$7 public_sink=$8 max_wait=$9
 
     local interval="${DBZ_DRAIN_POLL_INTERVAL:-30}"
-    local stable_seconds="${DBZ_DRAIN_STABLE_SECONDS:-300}"   # require 5 min of no change by default
+    local stable_seconds="${DBZ_DRAIN_STABLE_SECONDS:-600}"   # require 10 min of no change by default
+    # (10 min, not 5: a dev run showed a ~4.5-min lull between the final reindex batches that nearly
+    #  tripped a 5-min window prematurely; 10 min clears the observed lull. Capped by max_wait.)
     local deadline=$(( $(date +%s) + max_wait ))
     local last_change=$(date +%s) prev=""
     local stats_q='"\(._all.primaries.docs.count):\(._all.primaries.store.size_in_bytes):\(._all.primaries.indexing.index_total)"'

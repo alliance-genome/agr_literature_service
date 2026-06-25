@@ -194,7 +194,7 @@ if [[ "${ENV_STATE}" == "test" ]]; then
 else
     # Gate 2 (SCRUM-6231): instead of a blind ${DATA_PROCESSING_SLEEP}s wait, poll until the pipeline
     # DRAINS -- both temp indexes' docs.count + store.size_in_bytes + index_total strictly unchanged
-    # for 5 min (activity-based, so it survives the sink's by-id upserts that keep doc COUNT flat
+    # for 10 min (activity-based, so it survives the sink's by-id upserts that keep doc COUNT flat
     # while joined objects are still re-indexed) AND both ES sink connectors RUNNING with no failed
     # tasks. DATA_PROCESSING_SLEEP is the hard max-wait cap (fallback if live CDC keeps it moving).
     echo "Production mode: waiting for the data pipeline to drain (max ${DATA_PROCESSING_SLEEP}s)..."
