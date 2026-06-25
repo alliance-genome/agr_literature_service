@@ -353,6 +353,121 @@ EOF
     chmod 644 "${METRICS_FILE}"
 }
 
+# Gate 1 (SCRUM-6231): wait for the Debezium snapshot to create the source topics, instead of a
+# blind ${KSQL_SETUP_SLEEP}s wait, so ksql CTAS submission starts as soon as the topics its sources
+# reference exist. ksql submits with auto.offset.reset=earliest, so it consumes the full snapshot as
+# it streams in -- it only needs the topics to EXIST, not the snapshot to be finalized. Signal
+# (HTTP-only -- the dbz_setup container has just curl/jq): the source connector's produced-topic set
+# via Kafka Connect topic tracking (GET /connectors/<c>/topics); a topic appears once the connector
+# has produced its first record for that table.
+#   - expected_count > 0: proceed once produced topics >= expected_count and the connector is RUNNING.
+#   - expected_count == 0 (undeterminable): proceed once the topic set is non-empty and unchanged for
+#     DBZ_SNAPSHOT_STABLE_POLLS consecutive polls.
+# Capped at max_wait; on cap it returns 1 and the caller proceeds anyway (matching the old fixed
+# sleep -- submit_ksql_statements still retries on transient dependency errors).
+wait_for_source_topics_ready() {
+    local connect_host=$1
+    local connect_port=$2
+    local connector=$3
+    local expected_count=$4
+    local max_wait=$5
+
+    local interval="${DBZ_SNAPSHOT_POLL_INTERVAL:-10}"
+    local stable_needed="${DBZ_SNAPSHOT_STABLE_POLLS:-9}"   # ~90s of no new topics (fallback mode)
+    local deadline=$(( $(date +%s) + max_wait ))
+    local prev=-1 stable=0 count state resp
+
+    [[ "$expected_count" =~ ^[0-9]+$ ]] || expected_count=0
+    echo "Gate 1: waiting for Debezium snapshot topics (connector=$connector, expected>=${expected_count}, cap=${max_wait}s, interval=${interval}s)..."
+    while [[ $(date +%s) -lt $deadline ]]; do
+        resp=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${connector}/topics")
+        count=$(echo "$resp" | jq -r --arg c "$connector" '.[$c].topics | length' 2>/dev/null)
+        [[ "$count" =~ ^[0-9]+$ ]] || count=0
+        resp=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${connector}/status")
+        state=$(echo "$resp" | jq -r '.connector.state // "UNKNOWN"' 2>/dev/null)
+
+        if [[ "$count" -gt 0 && "$count" -eq "$prev" ]]; then
+            stable=$((stable + 1))
+        else
+            stable=0
+        fi
+        echo "  Gate 1: ${count} source topics (state=${state}, stable=${stable}/${stable_needed})"
+
+        if [[ "$state" == "RUNNING" && "$count" -gt 0 ]]; then
+            if [[ "$expected_count" -gt 0 && "$count" -ge "$expected_count" ]]; then
+                echo "Gate 1: ${count} topics present (>= ${expected_count}); proceeding to ksql setup."
+                return 0
+            fi
+            if [[ "$expected_count" -eq 0 && "$stable" -ge "$stable_needed" ]]; then
+                echo "Gate 1: source topics settled at ${count}; proceeding to ksql setup."
+                return 0
+            fi
+        fi
+        prev=$count
+        sleep "$interval"
+    done
+    echo "Gate 1: WARNING cap of ${max_wait}s reached (topics=${prev}); proceeding anyway."
+    return 1
+}
+
+# Gate 2 (SCRUM-6231): wait for the reindex pipeline to DRAIN, instead of a blind ~${DATA_PROCESSING_SLEEP}s
+# wait, before promoting temp -> final. Doc COUNT alone is not a valid signal (the ES sink upserts by
+# doc id, so re-emitted joined objects overwrite docs and leave the count flat while indexing
+# continues). Track THREE metrics per temp index from one _stats call: docs.count, store.size_in_bytes,
+# and index_total (cumulative indexing ops, incl. overwrites). "Drained" = ALL of them, on BOTH
+# indexes, STRICTLY UNCHANGED for DBZ_DRAIN_STABLE_SECONDS (default 300s = 5 min), with both indexes
+# non-empty AND both ES sink connectors RUNNING with no FAILED tasks (so "stable" can't mean a dead
+# sink or a not-yet-started load). Strict no-change is intentional: if live CDC keeps it moving, the
+# max_wait cap (DBZ_DATA_PROCESSING_SLEEP) is the hard fallback. HTTP-only.
+wait_for_pipeline_drained() {
+    local es_host=$1 es_port=$2 private_index=$3 public_index=$4
+    local connect_host=$5 connect_port=$6 sink=$7 public_sink=$8 max_wait=$9
+
+    local interval="${DBZ_DRAIN_POLL_INTERVAL:-30}"
+    local stable_seconds="${DBZ_DRAIN_STABLE_SECONDS:-300}"   # require 5 min of no change by default
+    local deadline=$(( $(date +%s) + max_wait ))
+    local last_change=$(date +%s) prev=""
+    local stats_q='"\(._all.primaries.docs.count):\(._all.primaries.store.size_in_bytes):\(._all.primaries.indexing.index_total)"'
+    local health_q='((.connector.state // "") == "RUNNING") and ((.tasks // []) | all(.state == "RUNNING"))'
+
+    echo "Gate 2: waiting for both temp indexes to be STABLE (docs.count + store.size_in_bytes + index_total"
+    echo "Gate 2: strictly unchanged) for ${stable_seconds}s, sinks healthy. poll=${interval}s cap=${max_wait}s."
+    while [[ $(date +%s) -lt $deadline ]]; do
+        sleep "$interval"
+
+        local ps=$(curl -s --max-time 15 "http://${es_host}:${es_port}/${private_index}/_stats")
+        local us=$(curl -s --max-time 15 "http://${es_host}:${es_port}/${public_index}/_stats")
+        local psig=$(echo "$ps" | jq -r "$stats_q" 2>/dev/null)
+        local usig=$(echo "$us" | jq -r "$stats_q" 2>/dev/null)
+        local pdocs=$(echo "$ps" | jq -r '._all.primaries.docs.count // 0' 2>/dev/null); pdocs=${pdocs:-0}
+        local udocs=$(echo "$us" | jq -r '._all.primaries.docs.count // 0' 2>/dev/null); udocs=${udocs:-0}
+
+        local ss=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${sink}/status")
+        local us2=$(curl -s --max-time 10 "http://${connect_host}:${connect_port}/connectors/${public_sink}/status")
+        local sink_ok=$(echo "$ss" | jq -r "$health_q" 2>/dev/null)
+        local psink_ok=$(echo "$us2" | jq -r "$health_q" 2>/dev/null)
+
+        local sig="P=${psig} U=${usig}"
+        local now=$(date +%s)
+        # reset the 5-min timer if anything changed, or either index is still empty (load not done starting)
+        if [[ "$sig" != "$prev" ]] || [[ "$pdocs" -le 0 ]] || [[ "$udocs" -le 0 ]]; then
+            last_change=$now
+            prev="$sig"
+        fi
+        local stable_for=$(( now - last_change ))
+        echo "  Gate 2: ${sig} sinks=[priv:${sink_ok:-?},pub:${psink_ok:-?}] stable_for=${stable_for}s/${stable_seconds}s"
+
+        if [[ "$sink_ok" == "true" && "$psink_ok" == "true" \
+              && "$pdocs" -gt 0 && "$udocs" -gt 0 \
+              && "$stable_for" -ge "$stable_seconds" ]]; then
+            echo "Gate 2: both indexes stable for ${stable_for}s and sinks healthy; proceeding to promotion."
+            return 0
+        fi
+    done
+    echo "Gate 2: WARNING cap of ${max_wait}s reached; proceeding to promotion check anyway."
+    return 1
+}
+
 # Export functions for use in other scripts
 export -f get_timestamp
 export -f seconds_since
@@ -361,3 +476,5 @@ export -f poll_reindex_task
 export -f start_reindex
 export -f poll_multiple_reindex_tasks
 export -f save_completion_metrics
+export -f wait_for_source_topics_ready
+export -f wait_for_pipeline_drained

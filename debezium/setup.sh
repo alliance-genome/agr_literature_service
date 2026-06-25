@@ -65,7 +65,21 @@ psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c 
 # Create single unified connector
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$PSQL_HOST$PSQL_USERNAME$PSQL_PORT$PSQL_DATABASE$PSQL_PASSWORD' < /postgres-source-unified.json)
 sleep ${CONNECTOR_SETUP_SLEEP}
-sleep ${KSQL_SETUP_SLEEP}
+
+# Gate 1 (SCRUM-6231): instead of a blind ${KSQL_SETUP_SLEEP}s wait, poll until the Debezium snapshot
+# has created the source topics the ksql CTAS sources reference. Test mode keeps the fixed short sleep
+# so the integration test's timing is unchanged; in production KSQL_SETUP_SLEEP is the max-wait cap.
+# expected_count = number of tables in the connector's table.include.list (wait for all per-table
+# topics, robust to a slow snapshot on a big table); 0 if undeterminable (helper falls back to
+# topic-set stability).
+if [[ "${ENV_STATE}" == "test" ]]; then
+    sleep ${KSQL_SETUP_SLEEP}
+else
+    EXPECTED_SOURCE_TOPICS=$(jq -r '.config["table.include.list"] // "" | select(length > 0)' /postgres-source-unified.json 2>/dev/null | awk -F',' '{print NF}')
+    [[ "${EXPECTED_SOURCE_TOPICS}" =~ ^[0-9]+$ ]] || EXPECTED_SOURCE_TOPICS=0
+    wait_for_source_topics_ready "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" \
+        "postgres-source-unified" "${EXPECTED_SOURCE_TOPICS}" "${KSQL_SETUP_SLEEP}" || true
+fi
 
 # --- SCRUM-6231: submit ksql statements ONE PER REQUEST, not as one big batch ---
 # Posting all of ksql_queries.ksql in a single /ksql request hit a metastore-visibility
@@ -178,9 +192,17 @@ if [[ "${ENV_STATE}" == "test" ]]; then
         attempt=$((attempt + 1))
     done
 else
-    echo "Production mode: waiting ${DATA_PROCESSING_SLEEP} seconds for data processing..."
-    sleep ${DATA_PROCESSING_SLEEP}
-    
+    # Gate 2 (SCRUM-6231): instead of a blind ${DATA_PROCESSING_SLEEP}s wait, poll until the pipeline
+    # DRAINS -- both temp indexes' docs.count + store.size_in_bytes + index_total strictly unchanged
+    # for 5 min (activity-based, so it survives the sink's by-id upserts that keep doc COUNT flat
+    # while joined objects are still re-indexed) AND both ES sink connectors RUNNING with no failed
+    # tasks. DATA_PROCESSING_SLEEP is the hard max-wait cap (fallback if live CDC keeps it moving).
+    echo "Production mode: waiting for the data pipeline to drain (max ${DATA_PROCESSING_SLEEP}s)..."
+    wait_for_pipeline_drained "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" \
+        "${INDEX_NAME_CURRENT}" "${PUBLIC_INDEX_NAME_CURRENT}" \
+        "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" \
+        "${SINK_NAME}" "${PUBLIC_SINK_NAME}" "${DATA_PROCESSING_SLEEP}" || true
+
     # Check both indexes have data and promote them
     new_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}/_count | jq '.count')
     public_index_doc_count=$(curl -s http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_CURRENT}/_count | jq '.count')
