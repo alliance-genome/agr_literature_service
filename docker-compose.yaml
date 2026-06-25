@@ -495,11 +495,21 @@ services:
       # --- SCRUM-6231 follow-up: further trim ramp-up disk writes (compose-only, no custom JAR) ---
       # NOTE: RocksDB-internal levers (SST compression, universal compaction, the background-I/O
       # rate limiter) are NOT reachable via env -- they need a rocksdb.config.setter class baked
-      # into a custom image. The four below are the env-only knobs.
+      # into a custom image. The knobs below are the env-only levers (the last, num.stream.threads,
+      # is the primary disk throttle).
       #
       # (#6) Standby replicas duplicate every state-store write to a second RocksDB; keep at 0 so
       # the reindex writes each store once. (0 is the ksqlDB default; pinned here to be explicit.)
       - KSQL_KSQL_STREAMS_NUM_STANDBY_REPLICAS=0
+      # (PRIMARY disk throttle, env-only) Fewer stream threads -> fewer RocksDB state stores
+      # flushing/compacting at once -> lower PEAK disk write rate, so the reindex stops pinning the
+      # gp3 at the ~594 MB/s instance ceiling and leaves headroom for other ops. ksqlDB default is 4;
+      # 2 halves concurrency (reindex runs longer but smoother; steady-state CDC is low-volume so 2
+      # is plenty). Coarse knob -- tune vs the baseline (reindex-report-2026-06-25.md). The precise,
+      # volume-cutting alternative (RocksDB compression + universal compaction + rate limiter) needs a
+      # config-setter JAR (spec: docs/superpowers/specs/2026-06-25-ksqldb-rocksdb-config-setter-design.md)
+      # -- parked unless this isn't enough.
+      - KSQL_KSQL_STREAMS_NUM_STREAM_THREADS=2
       # (#5) Compress the bytes ksqlDB producers write to the changelog/repartition topics (Kafka
       # broker disk, same EBS). zstd for best ratio; CPU is spare during the I/O-bound reindex.
       - KSQL_KSQL_STREAMS_PRODUCER_COMPRESSION_TYPE=zstd
