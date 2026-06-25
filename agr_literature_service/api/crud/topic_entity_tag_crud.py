@@ -15,7 +15,7 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import case, and_, create_engine, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, joinedload, sessionmaker, noload
+from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference_id_from_curie_or_id, \
     get_source_from_db, add_source_obj_to_db_session, get_sorted_column_values, \
@@ -1034,9 +1034,16 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
         distinct_values = [x[0] for x in distinct_column_values if x[0] is not None]
         return jsonable_encoder(distinct_values)
 
+    # Eager-load validated_by: add_list_of_users_who_validated_tag /
+    # add_list_of_validating_tag_ids read it for every tag, so without this it
+    # lazy-loads once per tag (N+1) -- the dominant server-side cost when the
+    # batch endpoint runs this for many references. selectinload (one extra
+    # query for the whole result set) is limit-safe, unlike a collection
+    # joinedload.
     query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source),
-        joinedload(TopicEntityTagModel.ml_model)).filter(
+        joinedload(TopicEntityTagModel.ml_model),
+        selectinload(TopicEntityTagModel.validated_by)).filter(
         TopicEntityTagModel.reference_id == reference_id)
 
     if column_filter and column_values:
