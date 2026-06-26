@@ -165,11 +165,9 @@ def show_all_reference_tags(
     return result
 
 
-# Each reference in the batch runs the full per-reference resolution (DB query
-# plus external curie->name lookups), so the work is N x a single fetch. Cap the
-# batch to bound worst-case latency / avoid gateway timeouts. The grid only ever
-# sends one search page (max 100 results, chunked at 50 per request), so this is
-# comfortable headroom above any legitimate request.
+# Cap the batch to bound worst-case latency / avoid gateway timeouts. The grid
+# only ever sends one search page (max 100 results, chunked at 50 per request),
+# so this is comfortable headroom above any legitimate request.
 MAX_BATCH_REFERENCES = 100
 
 

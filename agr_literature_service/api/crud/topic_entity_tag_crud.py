@@ -9,11 +9,12 @@ from collections import defaultdict
 from os import environ
 from typing import Any, Dict, List, Set, Tuple
 from datetime import datetime, timedelta
+from time import perf_counter
 
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, create_engine, text
+from sqlalchemy import case, and_, create_engine, text, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
 
@@ -26,7 +27,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
-    ReferenceModel, TopicEntityTagSourceModel, ModModel
+    ReferenceModel, TopicEntityTagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
@@ -47,6 +48,14 @@ from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
+
+
+def _log_tet_batch_timing(message, *args):
+    # TET batch phase timing (resolve / query / names / serialize / total).
+    # Disabled by default to avoid per-request stdout noise in production;
+    # uncomment the print to re-enable timing diagnostics when needed.
+    # print(message % args, flush=True)
+    pass
 
 
 ATP_ID_SOURCE_AUTHOR = "author"
@@ -1012,6 +1021,115 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     return None
 
 
+_orm_column_keys_cache: Dict[Any, List[str]] = {}
+
+
+def _orm_column_keys(model) -> List[str]:
+    """Return the mapped scalar-column attribute names for an ORM model, cached.
+
+    Uses SQLAlchemy inspection so the projection in _serialize_reference_tag_rows
+    automatically tracks column changes (and never includes relationships or
+    SQLAlchemy internal state).
+    """
+    keys = _orm_column_keys_cache.get(model)
+    if keys is None:
+        keys = [attr.key for attr in sa_inspect(model).mapper.column_attrs]
+        _orm_column_keys_cache[model] = keys
+    return keys
+
+
+def _project_orm_columns(obj, column_keys: List[str]) -> Dict[str, Any]:
+    """Build a plain dict of an ORM object's scalar columns via getattr.
+
+    Replaces jsonable_encoder(vars(obj)), which recursively encoded the whole
+    object graph (eager-loaded relationships + SQLAlchemy _sa_instance_state) and
+    dominated batch serialization. Reading only the mapped columns yields native
+    Python values; the endpoint's response_model handles the final JSON encoding,
+    so the serialized output is unchanged while the per-tag cost drops sharply.
+    """
+    return {key: getattr(obj, key) for key in column_keys}
+
+
+def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], curie_to_name: dict):
+    user_ids: Set[str] = set()
+    for tet in rows:
+        if tet.created_by:
+            user_ids.add(tet.created_by)
+        if tet.updated_by:
+            user_ids.add(tet.updated_by)
+        if tet.topic_entity_tag_source:
+            if tet.topic_entity_tag_source.created_by:
+                user_ids.add(tet.topic_entity_tag_source.created_by)
+            if tet.topic_entity_tag_source.updated_by:
+                user_ids.add(tet.topic_entity_tag_source.updated_by)
+    id_to_display_name = get_user_display_name_map(db, user_ids)
+
+    mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
+    tet_column_keys = _orm_column_keys(TopicEntityTagModel)
+    source_column_keys = _orm_column_keys(TopicEntityTagSourceModel)
+    all_tet = []
+    for tet in rows:
+        tet_data = _project_orm_columns(tet, tet_column_keys)
+        source = tet.topic_entity_tag_source
+        source_data = _project_orm_columns(source, source_column_keys) if source else None
+        tet_data["topic_entity_tag_source"] = source_data
+        # Replace top-level created_by/updated_by if we have a display name
+        for k in ("created_by", "updated_by"):
+            uid = tet_data.get(k)
+            if uid and uid in id_to_display_name:
+                tet_data[k] = id_to_display_name[uid]
+        # Nested source object: replace created_by/updated_by if present
+        if source_data:
+            for k in ("created_by", "updated_by"):
+                uid = source_data.get(k)
+                if uid and uid in id_to_display_name:
+                    source_data[k] = id_to_display_name[uid]
+        add_list_of_users_who_validated_tag(tet, tet_data)
+        add_list_of_validating_tag_ids(tet, tet_data)
+        if source_data:
+            source_data["secondary_data_provider_abbreviation"] = mod_id_to_mod[
+                source.secondary_data_provider_id]
+        # Add ML model version if associated with an ML model
+        if tet.ml_model:
+            tet_data["ml_model_version"] = tet.ml_model.version_num
+        all_tet.append(tet_data)
+    return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
+
+
+def _resolve_reference_ids_for_batch(db: Session, curies_or_reference_ids: List[str]):
+    ident_to_ref_id: Dict[str, Optional[int]] = {}
+    agrkb_curies: Set[str] = set()
+    cross_reference_curies: Set[str] = set()
+
+    for ident in curies_or_reference_ids:
+        if ident in ident_to_ref_id:
+            continue
+        if ident.isdigit():
+            ident_to_ref_id[ident] = int(ident)
+        else:
+            ident_to_ref_id[ident] = None
+            if ident.startswith("AGRKB:"):
+                agrkb_curies.add(ident)
+            else:
+                cross_reference_curies.add(ident)
+
+    if agrkb_curies:
+        rows = db.query(ReferenceModel.curie, ReferenceModel.reference_id).filter(
+            ReferenceModel.curie.in_(agrkb_curies)).all()
+        for curie, reference_id in rows:
+            ident_to_ref_id[curie] = reference_id
+
+    if cross_reference_curies:
+        rows = db.query(CrossReferenceModel.curie, CrossReferenceModel.reference_id).filter(
+            CrossReferenceModel.curie.in_(cross_reference_curies),
+            CrossReferenceModel.is_obsolete.is_(False)).all()
+        for curie, reference_id in rows:
+            if ident_to_ref_id[curie] is None:
+                ident_to_ref_id[curie] = reference_id
+
+    return ident_to_ref_id
+
+
 def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
 
     if page < 1:
@@ -1101,52 +1219,13 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 
-        # build a bulk map of users.id -> person.display_name
         page_q = query.offset((page - 1) * page_size if page_size else None).limit(page_size)
         rows = page_q.all()
-        user_ids: Set[str] = set()
-        for tet in rows:
-            if tet.created_by:
-                user_ids.add(tet.created_by)
-            if tet.updated_by:
-                user_ids.add(tet.updated_by)
-            if tet.topic_entity_tag_source:
-                if tet.topic_entity_tag_source.created_by:
-                    user_ids.add(tet.topic_entity_tag_source.created_by)
-                if tet.topic_entity_tag_source.updated_by:
-                    user_ids.add(tet.topic_entity_tag_source.updated_by)
-        id_to_display_name = get_user_display_name_map(db, user_ids)
-
-        mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
-        all_tet = []
-        for tet in rows:
-            tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
-            if "validated_by" in tet_data:
-                del tet_data["validated_by"]
-            # Replace top-level created_by/updated_by if we have a display name
-            for k in ("created_by", "updated_by"):
-                uid = tet_data.get(k)
-                if uid and uid in id_to_display_name:
-                    tet_data[k] = id_to_display_name[uid]
-            # Nested source object: replace created_by/updated_by if present
-            if "topic_entity_tag_source" in tet_data and tet_data["topic_entity_tag_source"]:
-                for k in ("created_by", "updated_by"):
-                    uid = tet_data["topic_entity_tag_source"].get(k)
-                    if uid and uid in id_to_display_name:
-                        tet_data["topic_entity_tag_source"][k] = id_to_display_name[uid]
-            add_list_of_users_who_validated_tag(tet, tet_data)
-            add_list_of_validating_tag_ids(tet, tet_data)
-            tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
-                tet.topic_entity_tag_source.secondary_data_provider_id]
-            # Add ML model version if associated with an ML model
-            if tet.ml_model:
-                tet_data["ml_model_version"] = tet.ml_model.version_num
-            all_tet.append(tet_data)
         # Callers (e.g. the batch endpoint) may supply a precomputed map built
         # once across many references, to avoid the per-reference external lookups.
         if curie_to_name is None:
             curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
-        return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
+        return _serialize_reference_tag_rows(db, rows, curie_to_name)
 
 
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str]):
@@ -1165,26 +1244,76 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     the batch would just serialize the same N x external-call fan-out into a
     single long request and end up slower than the old concurrent per-row calls.
     """
-    # Resolve each identifier to a reference_id once (None if unresolvable).
-    ident_to_ref_id: Dict[str, Any] = {}
-    for ident in curies_or_reference_ids:
-        if ident in ident_to_ref_id:
-            continue
-        try:
-            ident_to_ref_id[ident] = get_reference_id_from_curie_or_id(db, ident)
-        except HTTPException:
-            ident_to_ref_id[ident] = None
+    total_start = perf_counter()
+    resolve_start = perf_counter()
+    ident_to_ref_id = _resolve_reference_ids_for_batch(db, curies_or_reference_ids)
+    resolved_count = len([rid for rid in ident_to_ref_id.values() if rid is not None])
+    _log_tet_batch_timing(
+        "TET batch refs resolved in %.1fms: inputs=%s unique=%s resolved=%s",
+        (perf_counter() - resolve_start) * 1000,
+        len(curies_or_reference_ids),
+        len(ident_to_ref_id),
+        resolved_count
+    )
 
-    # One name map for the union of all references' tags (the expensive part).
     ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
-    curie_to_name = get_curie_to_name_from_references(db, ref_ids)
+    if not ref_ids:
+        _log_tet_batch_timing(
+            "TET batch total in %.1fms: inputs=%s resolved=0 tags=0",
+            (perf_counter() - total_start) * 1000,
+            len(curies_or_reference_ids)
+        )
+        return {ident: [] for ident in ident_to_ref_id}
+
+    query_start = perf_counter()
+    rows = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.ml_model),
+        selectinload(TopicEntityTagModel.validated_by)).filter(
+        TopicEntityTagModel.reference_id.in_(ref_ids)).order_by(
+        TopicEntityTagModel.reference_id,
+        TopicEntityTagModel.topic_entity_tag_id).all()
+    _log_tet_batch_timing(
+        "TET batch rows queried in %.1fms: refs=%s rows=%s",
+        (perf_counter() - query_start) * 1000,
+        len(ref_ids),
+        len(rows)
+    )
+
+    # One name map for the union of all tags (the expensive external lookups).
+    names_start = perf_counter()
+    curie_to_name = build_curie_to_name_map(db, rows)
+    _log_tet_batch_timing(
+        "TET batch names mapped in %.1fms: names=%s",
+        (perf_counter() - names_start) * 1000,
+        len(curie_to_name)
+    )
+
+    serialize_start = perf_counter()
+    serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)
+    tags_by_ref_id = defaultdict(list)
+    for tag in serialized_tags:
+        tags_by_ref_id[tag["reference_id"]].append(tag)
+    _log_tet_batch_timing(
+        "TET batch serialized in %.1fms: tags=%s",
+        (perf_counter() - serialize_start) * 1000,
+        len(serialized_tags)
+    )
 
     result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             result[ident] = []
         else:
-            result[ident] = show_all_reference_tags(db, ident, curie_to_name=curie_to_name)
+            result[ident] = tags_by_ref_id[ref_id]
+    _log_tet_batch_timing(
+        "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
+        (perf_counter() - total_start) * 1000,
+        len(curies_or_reference_ids),
+        len(ident_to_ref_id),
+        resolved_count,
+        len(serialized_tags)
+    )
     return result
 
 
@@ -1266,6 +1395,32 @@ def get_curie_to_name_from_references(db: Session, reference_ids: List[int]):
     return build_curie_to_name_map(db, ref_related_tets)
 
 
+def _get_cached_curie_names(curies, fetch_names):
+    curie_list = list(dict.fromkeys([curie for curie in curies if curie]))
+    curie_to_name = {}
+    missing = []
+    for curie in curie_list:
+        cached_name = id_to_name_cache.get(curie)
+        if cached_name is None:
+            missing.append(curie)
+        else:
+            curie_to_name[curie] = cached_name
+
+    if missing:
+        fetched = fetch_names(missing) or {}
+        curie_to_name.update(fetched)
+        for curie, name in fetched.items():
+            # Skip caching identity fallbacks (name == curie): map_curies_to_names
+            # returns {curie: curie} when the A-team lookup fails or returns nothing.
+            # Caching those would poison id_to_name_cache for the full TTL and keep the
+            # grid showing raw curies even after A-team recovers. They are still returned
+            # for this request (raw-curie display fallback); leaving them uncached makes
+            # the next request re-fetch them.
+            if name and name != curie:
+                id_to_name_cache.set(curie, name)
+    return curie_to_name
+
+
 def build_curie_to_name_map(db: Session, ref_related_tets):
     all_atp_terms = set()
     entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
@@ -1289,18 +1444,28 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
                 source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
             elif tet.topic_entity_tag_source.source_evidence_assertion.startswith("ATP:"):
                 all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
-    entity_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=list(all_atp_terms))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(category="ecoterm",
-                                                              curies=list(source_eco_codes)))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(category="species",
-                                                              curies=list(tag_species)))
+    entity_curie_to_name = _get_cached_curie_names(
+        all_atp_terms,
+        lambda missing: get_map_ateam_curies_to_names(category="atpterm", curies=missing)
+    )
+    entity_curie_to_name.update(_get_cached_curie_names(
+        source_eco_codes,
+        lambda missing: get_map_ateam_curies_to_names(category="ecoterm", curies=missing)
+    ))
+    entity_curie_to_name.update(_get_cached_curie_names(
+        tag_species,
+        lambda missing: get_map_ateam_curies_to_names(category="species", curies=missing)
+    ))
     for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
         for entity_type, curies in entity_type_curies_dict.items():
             entity_type_name = entity_curie_to_name[entity_type]
-            entity_curie_to_name.update(get_map_entity_curies_to_names(
-                db, entity_id_validation=entity_id_validation,
-                curies_category=entity_type_name,
-                curies=list(curies)))
+            entity_curie_to_name.update(_get_cached_curie_names(
+                curies,
+                lambda missing: get_map_entity_curies_to_names(
+                    db, entity_id_validation=entity_id_validation,
+                    curies_category=entity_type_name,
+                    curies=missing)
+            ))
     for curie_without_name in (all_entity_curies | all_atp_terms) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
@@ -1309,13 +1474,25 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
 def get_tet_with_names(db: Session, tet, curie_to_name_mapping: Dict = None, curie_or_reference_id: str = None):
     if curie_to_name_mapping is None:
         curie_to_name_mapping = get_curie_to_name_from_all_tets(db, str(curie_or_reference_id))
-    new_tet = copy.deepcopy(tet)
+    # Shallow-copy only the two levels we add keys to (the top-level tag dict and
+    # its nested topic_entity_tag_source dict) instead of copy.deepcopy(tet). The
+    # previous deepcopy recursed into every nested value of every tag and
+    # dominated batch serialization (~443ms for 1614 tags); since we only ever
+    # add "<field>_name" keys at these two levels, a two-level shallow copy is
+    # equivalent and far cheaper while still leaving the input dict untouched.
+    new_tet = dict(tet)
+    new_source = None
+    source = new_tet.get("topic_entity_tag_source")
+    if source:
+        new_source = dict(source)
+        new_tet["topic_entity_tag_source"] = new_source
     for tet_field_name, tet_field_value in tet.items():
         if tet_field_name == "topic_entity_tag_source":
-            for source_field_name, source_field_value in tet_field_value.items():
-                if source_field_name in TET_SOURCE_CURIE_FIELDS:
-                    new_field = f"{source_field_name}_name"
-                    new_tet[tet_field_name][new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
+            if new_source is not None:
+                for source_field_name, source_field_value in tet_field_value.items():
+                    if source_field_name in TET_SOURCE_CURIE_FIELDS:
+                        new_field = f"{source_field_name}_name"
+                        new_source[new_field] = curie_to_name_mapping.get(source_field_value, source_field_value)
         else:
             if tet_field_name in TET_CURIE_FIELDS:
                 new_field = f"{tet_field_name}_name"
