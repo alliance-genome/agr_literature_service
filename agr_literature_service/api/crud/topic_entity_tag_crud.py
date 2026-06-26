@@ -26,7 +26,7 @@ from agr_literature_service.api.crud.topic_entity_tag_utils import get_reference
 from agr_literature_service.api.database.config import SQLALCHEMY_DATABASE_URL
 from agr_literature_service.api.models import (
     TopicEntityTagModel, WorkflowTagModel, ModCorpusAssociationModel,
-    ReferenceModel, TopicEntityTagSourceModel, ModModel
+    ReferenceModel, TopicEntityTagSourceModel, ModModel, CrossReferenceModel
 )
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
@@ -1054,6 +1054,40 @@ def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], 
     return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
 
 
+def _resolve_reference_ids_for_batch(db: Session, curies_or_reference_ids: List[str]):
+    ident_to_ref_id: Dict[str, Optional[int]] = {}
+    agrkb_curies: Set[str] = set()
+    cross_reference_curies: Set[str] = set()
+
+    for ident in curies_or_reference_ids:
+        if ident in ident_to_ref_id:
+            continue
+        if ident.isdigit():
+            ident_to_ref_id[ident] = int(ident)
+        else:
+            ident_to_ref_id[ident] = None
+            if ident.startswith("AGRKB:"):
+                agrkb_curies.add(ident)
+            else:
+                cross_reference_curies.add(ident)
+
+    if agrkb_curies:
+        rows = db.query(ReferenceModel.curie, ReferenceModel.reference_id).filter(
+            ReferenceModel.curie.in_(agrkb_curies)).all()
+        for curie, reference_id in rows:
+            ident_to_ref_id[curie] = reference_id
+
+    if cross_reference_curies:
+        rows = db.query(CrossReferenceModel.curie, CrossReferenceModel.reference_id).filter(
+            CrossReferenceModel.curie.in_(cross_reference_curies),
+            CrossReferenceModel.is_obsolete.is_(False)).all()
+        for curie, reference_id in rows:
+            if ident_to_ref_id[curie] is None:
+                ident_to_ref_id[curie] = reference_id
+
+    return ident_to_ref_id
+
+
 def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
 
     if page < 1:
@@ -1168,15 +1202,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     the batch would just serialize the same N x external-call fan-out into a
     single long request and end up slower than the old concurrent per-row calls.
     """
-    # Resolve each identifier to a reference_id once (None if unresolvable).
-    ident_to_ref_id: Dict[str, Any] = {}
-    for ident in curies_or_reference_ids:
-        if ident in ident_to_ref_id:
-            continue
-        try:
-            ident_to_ref_id[ident] = get_reference_id_from_curie_or_id(db, ident)
-        except HTTPException:
-            ident_to_ref_id[ident] = None
+    ident_to_ref_id = _resolve_reference_ids_for_batch(db, curies_or_reference_ids)
 
     ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
     if not ref_ids:
