@@ -1012,6 +1012,48 @@ def check_for_duplicate_tags(db: Session, topic_entity_tag_data: dict, source: T
     return None
 
 
+def _serialize_reference_tag_rows(db: Session, rows: List[TopicEntityTagModel], curie_to_name: dict):
+    user_ids: Set[str] = set()
+    for tet in rows:
+        if tet.created_by:
+            user_ids.add(tet.created_by)
+        if tet.updated_by:
+            user_ids.add(tet.updated_by)
+        if tet.topic_entity_tag_source:
+            if tet.topic_entity_tag_source.created_by:
+                user_ids.add(tet.topic_entity_tag_source.created_by)
+            if tet.topic_entity_tag_source.updated_by:
+                user_ids.add(tet.topic_entity_tag_source.updated_by)
+    id_to_display_name = get_user_display_name_map(db, user_ids)
+
+    mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
+    all_tet = []
+    for tet in rows:
+        tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
+        if "validated_by" in tet_data:
+            del tet_data["validated_by"]
+        # Replace top-level created_by/updated_by if we have a display name
+        for k in ("created_by", "updated_by"):
+            uid = tet_data.get(k)
+            if uid and uid in id_to_display_name:
+                tet_data[k] = id_to_display_name[uid]
+        # Nested source object: replace created_by/updated_by if present
+        if "topic_entity_tag_source" in tet_data and tet_data["topic_entity_tag_source"]:
+            for k in ("created_by", "updated_by"):
+                uid = tet_data["topic_entity_tag_source"].get(k)
+                if uid and uid in id_to_display_name:
+                    tet_data["topic_entity_tag_source"][k] = id_to_display_name[uid]
+        add_list_of_users_who_validated_tag(tet, tet_data)
+        add_list_of_validating_tag_ids(tet, tet_data)
+        tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
+            tet.topic_entity_tag_source.secondary_data_provider_id]
+        # Add ML model version if associated with an ML model
+        if tet.ml_model:
+            tet_data["ml_model_version"] = tet.ml_model.version_num
+        all_tet.append(tet_data)
+    return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
+
+
 def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, page_size: int = None, count_only: bool = False, sort_by: str = None, desc_sort: bool = False, column_only: str = None, column_filter: str = None, column_values: str = None, curie_to_name: dict = None):      # noqa: C901
 
     if page < 1:
@@ -1101,52 +1143,13 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
                 query = query.order_by(order_expression, column_property.desc() if desc_sort else column_property,
                                        TopicEntityTagModel.topic_entity_tag_id)
 
-        # build a bulk map of users.id -> person.display_name
         page_q = query.offset((page - 1) * page_size if page_size else None).limit(page_size)
         rows = page_q.all()
-        user_ids: Set[str] = set()
-        for tet in rows:
-            if tet.created_by:
-                user_ids.add(tet.created_by)
-            if tet.updated_by:
-                user_ids.add(tet.updated_by)
-            if tet.topic_entity_tag_source:
-                if tet.topic_entity_tag_source.created_by:
-                    user_ids.add(tet.topic_entity_tag_source.created_by)
-                if tet.topic_entity_tag_source.updated_by:
-                    user_ids.add(tet.topic_entity_tag_source.updated_by)
-        id_to_display_name = get_user_display_name_map(db, user_ids)
-
-        mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
-        all_tet = []
-        for tet in rows:
-            tet_data = jsonable_encoder(vars(tet), exclude={"validated_by"})
-            if "validated_by" in tet_data:
-                del tet_data["validated_by"]
-            # Replace top-level created_by/updated_by if we have a display name
-            for k in ("created_by", "updated_by"):
-                uid = tet_data.get(k)
-                if uid and uid in id_to_display_name:
-                    tet_data[k] = id_to_display_name[uid]
-            # Nested source object: replace created_by/updated_by if present
-            if "topic_entity_tag_source" in tet_data and tet_data["topic_entity_tag_source"]:
-                for k in ("created_by", "updated_by"):
-                    uid = tet_data["topic_entity_tag_source"].get(k)
-                    if uid and uid in id_to_display_name:
-                        tet_data["topic_entity_tag_source"][k] = id_to_display_name[uid]
-            add_list_of_users_who_validated_tag(tet, tet_data)
-            add_list_of_validating_tag_ids(tet, tet_data)
-            tet_data["topic_entity_tag_source"]["secondary_data_provider_abbreviation"] = mod_id_to_mod[
-                tet.topic_entity_tag_source.secondary_data_provider_id]
-            # Add ML model version if associated with an ML model
-            if tet.ml_model:
-                tet_data["ml_model_version"] = tet.ml_model.version_num
-            all_tet.append(tet_data)
         # Callers (e.g. the batch endpoint) may supply a precomputed map built
         # once across many references, to avoid the per-reference external lookups.
         if curie_to_name is None:
             curie_to_name = get_curie_to_name_from_all_tets(db, curie_or_reference_id)
-        return [get_tet_with_names(db, tag, curie_to_name) for tag in all_tet]
+        return _serialize_reference_tag_rows(db, rows, curie_to_name)
 
 
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str]):
@@ -1175,16 +1178,31 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         except HTTPException:
             ident_to_ref_id[ident] = None
 
-    # One name map for the union of all references' tags (the expensive part).
     ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
-    curie_to_name = get_curie_to_name_from_references(db, ref_ids)
+    if not ref_ids:
+        return {ident: [] for ident in ident_to_ref_id}
+
+    rows = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.ml_model),
+        selectinload(TopicEntityTagModel.validated_by)).filter(
+        TopicEntityTagModel.reference_id.in_(ref_ids)).order_by(
+        TopicEntityTagModel.reference_id,
+        TopicEntityTagModel.topic_entity_tag_id).all()
+
+    # One name map for the union of all tags (the expensive external lookups).
+    curie_to_name = build_curie_to_name_map(db, rows)
+    serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)
+    tags_by_ref_id = defaultdict(list)
+    for tag in serialized_tags:
+        tags_by_ref_id[tag["reference_id"]].append(tag)
 
     result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             result[ident] = []
         else:
-            result[ident] = show_all_reference_tags(db, ident, curie_to_name=curie_to_name)
+            result[ident] = tags_by_ref_id[ref_id]
     return result
 
 
