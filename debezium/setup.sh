@@ -245,6 +245,7 @@ if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
     else
         echo "ERROR: alias flip was NOT acknowledged; the live index was NOT switched to slot _${SLOT}. The previous slot keeps serving."
         set_reindex_status "error" "{\"message\": \"alias flip failed; live index unchanged\", \"slot\": \"${SLOT}\"}"
+        exit 1
     fi
 else
     # A 0-doc build means the pipeline produced nothing. Do NOT flip (this guard protects the live
@@ -254,6 +255,7 @@ else
     echo "WARNING: build slot _${SLOT} empty (private=${new_index_doc_count}, public=${public_index_doc_count}); NOT flipping alias."
     echo "The previous slot keeps serving but is now FROZEN (its sink moved to the empty slot) until a rebuild succeeds."
     set_reindex_status "error" "{\"message\": \"empty build slot; alias not flipped; served slot frozen\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
+    exit 1
 fi
 
 echo "Debezium setup completed successfully!"
