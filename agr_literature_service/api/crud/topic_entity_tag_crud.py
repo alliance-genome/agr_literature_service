@@ -9,6 +9,7 @@ from collections import defaultdict
 from os import environ
 from typing import Any, Dict, List, Set, Tuple
 from datetime import datetime, timedelta
+from time import perf_counter
 
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
@@ -1202,12 +1203,28 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     the batch would just serialize the same N x external-call fan-out into a
     single long request and end up slower than the old concurrent per-row calls.
     """
+    total_start = perf_counter()
+    resolve_start = perf_counter()
     ident_to_ref_id = _resolve_reference_ids_for_batch(db, curies_or_reference_ids)
+    resolved_count = len([rid for rid in ident_to_ref_id.values() if rid is not None])
+    logger.info(
+        "TET batch refs resolved in %.1fms: inputs=%s unique=%s resolved=%s",
+        (perf_counter() - resolve_start) * 1000,
+        len(curies_or_reference_ids),
+        len(ident_to_ref_id),
+        resolved_count
+    )
 
     ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
     if not ref_ids:
+        logger.info(
+            "TET batch total in %.1fms: inputs=%s resolved=0 tags=0",
+            (perf_counter() - total_start) * 1000,
+            len(curies_or_reference_ids)
+        )
         return {ident: [] for ident in ident_to_ref_id}
 
+    query_start = perf_counter()
     rows = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source),
         joinedload(TopicEntityTagModel.ml_model),
@@ -1215,13 +1232,32 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         TopicEntityTagModel.reference_id.in_(ref_ids)).order_by(
         TopicEntityTagModel.reference_id,
         TopicEntityTagModel.topic_entity_tag_id).all()
+    logger.info(
+        "TET batch rows queried in %.1fms: refs=%s rows=%s",
+        (perf_counter() - query_start) * 1000,
+        len(ref_ids),
+        len(rows)
+    )
 
     # One name map for the union of all tags (the expensive external lookups).
+    names_start = perf_counter()
     curie_to_name = build_curie_to_name_map(db, rows)
+    logger.info(
+        "TET batch names mapped in %.1fms: names=%s",
+        (perf_counter() - names_start) * 1000,
+        len(curie_to_name)
+    )
+
+    serialize_start = perf_counter()
     serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)
     tags_by_ref_id = defaultdict(list)
     for tag in serialized_tags:
         tags_by_ref_id[tag["reference_id"]].append(tag)
+    logger.info(
+        "TET batch serialized in %.1fms: tags=%s",
+        (perf_counter() - serialize_start) * 1000,
+        len(serialized_tags)
+    )
 
     result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
@@ -1229,6 +1265,14 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             result[ident] = []
         else:
             result[ident] = tags_by_ref_id[ref_id]
+    logger.info(
+        "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
+        (perf_counter() - total_start) * 1000,
+        len(curies_or_reference_ids),
+        len(ident_to_ref_id),
+        resolved_count,
+        len(serialized_tags)
+    )
     return result
 
 
