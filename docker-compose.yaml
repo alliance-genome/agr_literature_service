@@ -479,7 +479,10 @@ services:
       # ramp-up rebuild before they reach RocksDB (fewer SST writes). Steady-state latency is
       # unaffected: the 3s commit interval still bounds flush staleness. Can push toward 200 MB
       # (and heap to 24 GB) IF `free -g` shows headroom alongside Kafka/ES/connector on the box.
-      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=157286400
+      # Env-overridable (default = dev m5.4xlarge sizing). Scale DOWN with the heap on smaller boxes:
+      # the cache is PER persistent query (~32), so total on-heap cache ~= 32 x this value. Prod
+      # m5.2xlarge (8g heap) uses DBZ_KSQL_CACHE_MAX_BYTES=78643200 (75 MiB -> ~2.4 GB across queries).
+      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=${DBZ_KSQL_CACHE_MAX_BYTES:-157286400}
       # Commit/flush interval, balancing two MEASURED constraints from the dev reindex:
       #   - 10s added too much per-hop latency -> real-time CDC sync took >30s to reach ES and
       #     broke the debezium integration test.
@@ -496,7 +499,10 @@ services:
       # Bump ksqlDB heap from the 3g default to hold the (now larger) record caches + processing.
       # 16g is a conservative step from 12g: it fits ~4.8 GB of caches with ample processing
       # headroom while leaving RAM on the shared 64 GB box for Kafka/Zookeeper/connector/ES.
-      - KSQL_HEAP_OPTS=-Xmx16g -Xms16g
+      # Env-overridable. Default 16g = dev m5.4xlarge (64 GB) sizing. On the 32 GB prod m5.2xlarge
+      # (Debezium stack co-located with the API) set DBZ_KSQL_HEAP_SIZE=8g so ksqlDB heap + RocksDB
+      # off-heap + Kafka/Connect + the API all fit. Xmx and Xms are pinned equal.
+      - KSQL_HEAP_OPTS=-Xmx${DBZ_KSQL_HEAP_SIZE:-16g} -Xms${DBZ_KSQL_HEAP_SIZE:-16g}
       # --- SCRUM-6231 follow-up: trim reindex disk writes ---
       # (#6) Standby replicas duplicate every state-store write to a second RocksDB; keep at 0 so
       # the reindex writes each store once. (0 is the ksqlDB default; pinned here to be explicit.)
@@ -535,11 +541,17 @@ services:
       # Kafka Streams key is `rocksdb.config.setter` (NOT `...class`) -> env must omit _CLASS, else
       # Streams logs "isn't a known config" and the setter never registers (rocksdb.config.setter=null).
       - KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER=org.alliancegenome.ksql.KsqlRocksDBConfigSetter
-      # - KSQL_KSQL_STREAMS_ROCKSDB_COMPRESSION_ENABLED=true
-      # - KSQL_KSQL_STREAMS_ROCKSDB_COMPACTION_UNIVERSAL=true
-      # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_ENABLED=true
-      # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_DISK_MAX_BYTES_PER_SEC=622854144   # 594 MiB/s (m5.4xlarge EBS ceiling)
-      # - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_FRACTION=0.8
+      # Made EXPLICIT (these match the config-setter's in-code defaults: compression/universal/ratelimit
+      # all default true, KsqlRocksDBConfigSetter.java:55-57). Toggle off only to diagnose.
+      - KSQL_KSQL_STREAMS_ROCKSDB_COMPRESSION_ENABLED=true
+      - KSQL_KSQL_STREAMS_ROCKSDB_COMPACTION_UNIVERSAL=true
+      - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_ENABLED=true
+      # disk.max = the box's SUSTAINED EBS bandwidth, NOT the burst. Default 622854144 (594 MiB/s) =
+      # dev m5.4xlarge sustained. Effective RocksDB write cap = disk.max x fraction. Override per box:
+      # prod m5.2xlarge sustained baseline = 287.5 MB/s -> DBZ_ROCKSDB_DISK_MAX_BYTES_PER_SEC=287500000
+      # (burst 593.75 MB/s lasts only ~30 min/24h, so a multi-hour reindex must size to baseline).
+      - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_DISK_MAX_BYTES_PER_SEC=${DBZ_ROCKSDB_DISK_MAX_BYTES_PER_SEC:-622854144}
+      - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_FRACTION=0.8
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
     networks:
       - agr-literature
