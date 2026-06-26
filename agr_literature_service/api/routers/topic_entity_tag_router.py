@@ -172,13 +172,12 @@ MAX_BATCH_REFERENCES = 100
 
 
 @router.post('/by_references',
-             status_code=200,
-             response_model=None)
+             status_code=200)
 def show_all_reference_tags_batch(
     curies_or_reference_ids: List[str] = Body(..., embed=False),
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
-) -> Dict[str, List[Dict[str, Any]]]:
+) -> Dict[str, List[TopicEntityTagSchemaRelated]]:
     """Return all TETs for many references in one request, keyed by the input
     identifier. Used by the TET validation grid to avoid one HTTP round-trip per
     reference (see show_all_reference_tags_for_references)."""
