@@ -481,14 +481,25 @@ wait_for_pipeline_drained() {
 # points at neither slot.
 resolve_inactive_suffix() {
     local es_host=$1 es_port=$2 alias=$3
-    local current
-    current=$(curl -s --max-time 10 "http://${es_host}:${es_port}/_alias/${alias}" 2>/dev/null \
-              | jq -r 'if type=="object" and (has("error")|not) then (keys[0] // "") else "" end' 2>/dev/null)
-    if [[ "$current" == "${alias}_1" ]]; then
-        echo "2"
-    else
-        echo "1"
+    local body code current
+    # Capture the HTTP status so a genuine 404 (alias absent -> bootstrap) is NOT confused with a
+    # transient failure (timeout/5xx -> code "000"/"5xx"). Guessing "1" on a transient blip while
+    # the alias is serving slot _1 would make the caller DELETE/rebuild the LIVE slot in place and
+    # break search -- exactly what this feature prevents. On a hard error we return non-zero so the
+    # caller aborts before touching any index.
+    body=$(curl -s -m 10 -w $'\n%{http_code}' "http://${es_host}:${es_port}/_alias/${alias}" 2>/dev/null)
+    code=$(printf '%s' "$body" | tail -n1)
+    body=$(printf '%s' "$body" | sed '$d')
+    if [[ "$code" == "200" ]]; then
+        current=$(printf '%s' "$body" | jq -r 'keys[0] // ""' 2>/dev/null)
+        if [[ "$current" == "${alias}_1" ]]; then echo "2"; else echo "1"; fi
+        return 0
+    elif [[ "$code" == "404" ]]; then
+        echo "1"   # genuine bootstrap: the alias does not exist yet, slot _1 is free
+        return 0
     fi
+    echo "resolve_inactive_suffix: alias '${alias}' lookup returned HTTP '${code}' (expected 200/404); refusing to guess a slot" >&2
+    return 1
 }
 
 # Force-merge an index to a single segment (optimize + expunge upsert tombstones) and warm it
@@ -526,9 +537,17 @@ flip_alias() {
     done
     actions="${actions}{\"add\":{\"index\":\"${new_index}\",\"alias\":\"${alias}\"}}"
     echo "Flipping alias '${alias}' -> '${new_index}'"
-    curl -s -X POST "${base}/_aliases" -H "Content-Type: application/json" \
-        -d "{\"actions\":[${actions}]}"
-    echo
+    local resp
+    resp=$(curl -s -X POST "${base}/_aliases" -H "Content-Type: application/json" \
+        -d "{\"actions\":[${actions}]}")
+    # The flip is the one step where a silent failure means the freshly-built index is never
+    # served. ES returns {"acknowledged":true} on success; treat anything else as a hard failure.
+    if printf '%s' "$resp" | jq -e '.acknowledged == true' >/dev/null 2>&1; then
+        echo "Alias '${alias}' now points at '${new_index}'"
+        return 0
+    fi
+    echo "flip_alias: _aliases POST for '${alias}' -> '${new_index}' NOT acknowledged: ${resp}" >&2
+    return 1
 }
 
 # Export functions for use in other scripts

@@ -35,7 +35,12 @@ SETUP_START=$(date +%s)
 export INDEX_ALIAS="${DEBEZIUM_INDEX_NAME}"
 export PUBLIC_INDEX_ALIAS="public_${DEBEZIUM_INDEX_NAME}"
 
-SLOT=$(resolve_inactive_suffix "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_ALIAS}")
+if ! SLOT=$(resolve_inactive_suffix "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_ALIAS}"); then
+    echo "FATAL: could not resolve the active slot (Elasticsearch unreachable or unexpected response)."
+    echo "Aborting BEFORE touching any index, so a transient ES error can never clobber the live slot."
+    set_reindex_status "error" "{\"message\": \"alias lookup failed; aborted before any index change\"}"
+    exit 1
+fi
 export INDEX_NAME_CURRENT="${INDEX_ALIAS}_${SLOT}"
 export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_ALIAS}_${SLOT}"
 echo "Building into slot _${SLOT}: ${INDEX_NAME_CURRENT} / ${PUBLIC_INDEX_NAME_CURRENT}"
@@ -219,27 +224,36 @@ DATA_PROCESSING_DURATION=$((DATA_PROCESSING_END - SETUP_END))
 # path for test and prod. Guard: never flip to an empty slot, so a failed/empty build can never
 # replace a healthy live index.
 if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
-    PROMOTE_START=$(date +%s)
     set_reindex_status "reindexing" "{\"phase\": \"optimize_and_flip\", \"slot\": \"${SLOT}\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 
-    # Optimize + warm OFF the serving path (the alias still points at the old slot here)
+    # Optimize + warm OFF the serving path (the alias still points at the old slot here). These are
+    # best-effort: a failed optimize leaves the index unoptimized but still correct, so it does not
+    # block the flip.
     optimize_and_warm_index "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}"
     optimize_and_warm_index "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_NAME_CURRENT}"
 
-    # Atomic cutover: point both aliases at the new slot (handles first-run bootstrap)
-    flip_alias "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_ALIAS}" "${INDEX_NAME_CURRENT}"
-    flip_alias "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_ALIAS}" "${PUBLIC_INDEX_NAME_CURRENT}"
-
-    PROMOTE_END=$(date +%s)
-    PROMOTE_DURATION=$((PROMOTE_END - DATA_PROCESSING_END))
-    echo "Alias '${INDEX_ALIAS}' now serves slot _${SLOT} (${new_index_doc_count} docs); previous slot retained as backup."
-
-    set_reindex_status "completed" "{\"message\": \"Alias flipped to slot _${SLOT}\", \"total_documents\": $new_index_doc_count}"
-    save_completion_metrics "$(jq -r '.started_at' /var/lib/debezium_status/reindex_status.json)" \
-        "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" "$PROMOTE_DURATION" "$new_index_doc_count"
+    # Atomic cutover: point both aliases at the new slot (handles first-run bootstrap). The flip is
+    # THE critical step, so only report success if BOTH aliases were acknowledged by ES.
+    if flip_alias "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_ALIAS}" "${INDEX_NAME_CURRENT}" \
+       && flip_alias "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_ALIAS}" "${PUBLIC_INDEX_NAME_CURRENT}"; then
+        PROMOTE_END=$(date +%s)
+        PROMOTE_DURATION=$((PROMOTE_END - DATA_PROCESSING_END))
+        echo "Alias '${INDEX_ALIAS}' now serves slot _${SLOT} (${new_index_doc_count} docs); previous slot retained as backup."
+        set_reindex_status "completed" "{\"message\": \"Alias flipped to slot _${SLOT}\", \"total_documents\": $new_index_doc_count}"
+        save_completion_metrics "$(jq -r '.started_at' /var/lib/debezium_status/reindex_status.json)" \
+            "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" "$PROMOTE_DURATION" "$new_index_doc_count"
+    else
+        echo "ERROR: alias flip was NOT acknowledged; the live index was NOT switched to slot _${SLOT}. The previous slot keeps serving."
+        set_reindex_status "error" "{\"message\": \"alias flip failed; live index unchanged\", \"slot\": \"${SLOT}\"}"
+    fi
 else
-    echo "WARNING: build slot empty (private=${new_index_doc_count}, public=${public_index_doc_count}); NOT flipping alias. Live index left unchanged."
-    set_reindex_status "completed" "{\"message\": \"No flip - empty build slot; live index unchanged\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
+    # A 0-doc build means the pipeline produced nothing. Do NOT flip (this guard protects the live
+    # slot). NOTE: the sink was already repointed at this (empty) build slot above, so the previous
+    # slot keeps SERVING but no longer receives CDC -- it is frozen, not merely "unchanged" -- until
+    # a rebuild succeeds. Investigate the pipeline.
+    echo "WARNING: build slot _${SLOT} empty (private=${new_index_doc_count}, public=${public_index_doc_count}); NOT flipping alias."
+    echo "The previous slot keeps serving but is now FROZEN (its sink moved to the empty slot) until a rebuild succeeds."
+    set_reindex_status "error" "{\"message\": \"empty build slot; alias not flipped; served slot frozen\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 fi
 
 echo "Debezium setup completed successfully!"
