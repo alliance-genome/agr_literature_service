@@ -514,20 +514,62 @@ resolve_inactive_suffix() {
 
 # Force-merge an index to a single segment (optimize + expunge upsert tombstones) and warm it
 # (page-cache + global ordinals) BEFORE it serves traffic. Runs OFF the serving path (the alias
-# still points at the old slot). Best-effort: a failure leaves the index unoptimized but still
-# correct, so it does NOT block the flip. NOTE: _forcemerge is synchronous and on a large index can
-# run for many minutes and competes for I/O with the live slot on a shared node -- this is expected,
-# not a hang (hence no client timeout on the force_merge call). The HTTP outcome is logged so a real
-# failure (e.g. 429 too_many_requests) is visible rather than silently swallowed.
+# still points at the old slot). The force_merge is launched as a BACKGROUND task
+# (wait_for_completion=false) and polled via the Tasks API to TRUE completion, so a long merge on a
+# big index can never be cut short by an endpoint/idle timeout on a blocking HTTP call -- the alias
+# must never flip onto a still-merging index. Falls back to a blocking force_merge on older servers
+# that do not support the async param. Best-effort: a force_merge failure leaves the index correct
+# but unoptimized and does NOT block the flip (always logged, never silently swallowed).
 optimize_and_warm_index() {
-    local es_host=$1 es_port=$2 index=$3 code
-    echo "Optimizing ${index} (force_merge max_num_segments=1; may take several minutes)..."
-    code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-        "http://${es_host}:${es_port}/${index}/_forcemerge?max_num_segments=1" \
+    local es_host=$1 es_port=$2 index=$3
+    local base="http://${es_host}:${es_port}"
+    local resp code task completed n
+
+    echo "Optimizing ${index} (force_merge max_num_segments=1, async + task poll)..."
+    # No -m on this POST: with wait_for_completion=false it returns a task id instantly; if the
+    # server ignores the param it blocks until done and returns the merge result instead.
+    resp=$(curl -s -X POST \
+        "${base}/${index}/_forcemerge?max_num_segments=1&wait_for_completion=false" \
         -H "Content-Type: application/json")
-    [[ "$code" == "200" ]] || echo "WARNING: force_merge of ${index} returned HTTP ${code} (continuing; index is correct but unoptimized)" >&2
+    task=$(printf '%s' "$resp" | jq -r '.task // empty' 2>/dev/null)
+
+    if [[ -n "$task" ]]; then
+        echo "force_merge task ${task} started for ${index}; polling until complete..."
+        n=0
+        while [[ $n -lt 720 ]]; do          # ~3h cap at 15s/poll
+            sleep 15; n=$((n + 1))
+            resp=$(curl -s -m 15 -w $'\n%{http_code}' "${base}/_tasks/${task}" 2>/dev/null)
+            code=$(printf '%s' "$resp" | tail -n1)
+            resp=$(printf '%s' "$resp" | sed '$d')
+            if [[ "$code" == "404" ]]; then
+                echo "force_merge of ${index}: task ${task} no longer present; assuming complete."
+                break
+            fi
+            completed=$(printf '%s' "$resp" | jq -r '.completed // false' 2>/dev/null)
+            if [[ "$completed" == "true" ]]; then
+                if printf '%s' "$resp" | jq -e 'has("error")' >/dev/null 2>&1; then
+                    echo "WARNING: force_merge task ${task} for ${index} completed WITH ERROR: $(printf '%s' "$resp" | jq -c '.error' 2>/dev/null)" >&2
+                else
+                    echo "force_merge of ${index} completed."
+                fi
+                break
+            fi
+        done
+        [[ $n -ge 720 ]] && echo "WARNING: force_merge of ${index} still running after ~3h; proceeding (merge continues server-side)." >&2
+    elif printf '%s' "$resp" | jq -e '._shards.failed == 0' >/dev/null 2>&1; then
+        echo "force_merge of ${index} completed synchronously (server ignored wait_for_completion)."
+    else
+        # Param rejected (e.g. 400 on older ES) or some other error -> retry a plain blocking
+        # force_merge so the index still gets optimized.
+        echo "force_merge async start unavailable for ${index} (${resp}); retrying a blocking force_merge..." >&2
+        resp=$(curl -s -X POST "${base}/${index}/_forcemerge?max_num_segments=1" -H "Content-Type: application/json")
+        printf '%s' "$resp" | jq -e '._shards.failed == 0' >/dev/null 2>&1 \
+            && echo "force_merge of ${index} completed (blocking)." \
+            || echo "WARNING: force_merge of ${index} did not confirm success: ${resp} (continuing; index is correct but unoptimized)" >&2
+    fi
+
     echo "Warming ${index} (match_all to page in caches)..."
-    curl -s -m 30 -X POST "http://${es_host}:${es_port}/${index}/_search" \
+    curl -s -m 30 -X POST "${base}/${index}/_search" \
         -H "Content-Type: application/json" -d '{"size":0,"query":{"match_all":{}}}' >/dev/null
 }
 
