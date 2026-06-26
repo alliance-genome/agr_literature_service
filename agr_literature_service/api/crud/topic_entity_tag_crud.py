@@ -50,6 +50,10 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 logger = logging.getLogger(__name__)
 
 
+def _log_tet_batch_timing(message, *args):
+    print(message % args, flush=True)
+
+
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
@@ -1207,7 +1211,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     resolve_start = perf_counter()
     ident_to_ref_id = _resolve_reference_ids_for_batch(db, curies_or_reference_ids)
     resolved_count = len([rid for rid in ident_to_ref_id.values() if rid is not None])
-    logger.info(
+    _log_tet_batch_timing(
         "TET batch refs resolved in %.1fms: inputs=%s unique=%s resolved=%s",
         (perf_counter() - resolve_start) * 1000,
         len(curies_or_reference_ids),
@@ -1217,7 +1221,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
 
     ref_ids = [rid for rid in ident_to_ref_id.values() if rid is not None]
     if not ref_ids:
-        logger.info(
+        _log_tet_batch_timing(
             "TET batch total in %.1fms: inputs=%s resolved=0 tags=0",
             (perf_counter() - total_start) * 1000,
             len(curies_or_reference_ids)
@@ -1232,7 +1236,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         TopicEntityTagModel.reference_id.in_(ref_ids)).order_by(
         TopicEntityTagModel.reference_id,
         TopicEntityTagModel.topic_entity_tag_id).all()
-    logger.info(
+    _log_tet_batch_timing(
         "TET batch rows queried in %.1fms: refs=%s rows=%s",
         (perf_counter() - query_start) * 1000,
         len(ref_ids),
@@ -1242,7 +1246,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     # One name map for the union of all tags (the expensive external lookups).
     names_start = perf_counter()
     curie_to_name = build_curie_to_name_map(db, rows)
-    logger.info(
+    _log_tet_batch_timing(
         "TET batch names mapped in %.1fms: names=%s",
         (perf_counter() - names_start) * 1000,
         len(curie_to_name)
@@ -1253,7 +1257,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     tags_by_ref_id = defaultdict(list)
     for tag in serialized_tags:
         tags_by_ref_id[tag["reference_id"]].append(tag)
-    logger.info(
+    _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
         (perf_counter() - serialize_start) * 1000,
         len(serialized_tags)
@@ -1265,7 +1269,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             result[ident] = []
         else:
             result[ident] = tags_by_ref_id[ref_id]
-    logger.info(
+    _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
         (perf_counter() - total_start) * 1000,
         len(curies_or_reference_ids),
