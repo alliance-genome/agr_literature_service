@@ -51,7 +51,11 @@ logger = logging.getLogger(__name__)
 
 
 def _log_tet_batch_timing(message, *args):
-    print(message % args, flush=True)
+    # TET batch phase timing (resolve / query / names / serialize / total).
+    # Disabled by default to avoid per-request stdout noise in production;
+    # uncomment the print to re-enable timing diagnostics when needed.
+    # print(message % args, flush=True)
+    pass
 
 
 ATP_ID_SOURCE_AUTHOR = "author"
@@ -1406,7 +1410,14 @@ def _get_cached_curie_names(curies, fetch_names):
         fetched = fetch_names(missing) or {}
         curie_to_name.update(fetched)
         for curie, name in fetched.items():
-            id_to_name_cache.set(curie, name)
+            # Skip caching identity fallbacks (name == curie): map_curies_to_names
+            # returns {curie: curie} when the A-team lookup fails or returns nothing.
+            # Caching those would poison id_to_name_cache for the full TTL and keep the
+            # grid showing raw curies even after A-team recovers. They are still returned
+            # for this request (raw-curie display fallback); leaving them uncached makes
+            # the next request re-fetch them.
+            if name and name != curie:
+                id_to_name_cache.set(curie, name)
     return curie_to_name
 
 
