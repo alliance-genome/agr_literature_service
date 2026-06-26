@@ -1358,6 +1358,25 @@ def get_curie_to_name_from_references(db: Session, reference_ids: List[int]):
     return build_curie_to_name_map(db, ref_related_tets)
 
 
+def _get_cached_curie_names(curies, fetch_names):
+    curie_list = list(dict.fromkeys([curie for curie in curies if curie]))
+    curie_to_name = {}
+    missing = []
+    for curie in curie_list:
+        cached_name = id_to_name_cache.get(curie)
+        if cached_name is None:
+            missing.append(curie)
+        else:
+            curie_to_name[curie] = cached_name
+
+    if missing:
+        fetched = fetch_names(missing) or {}
+        curie_to_name.update(fetched)
+        for curie, name in fetched.items():
+            id_to_name_cache.set(curie, name)
+    return curie_to_name
+
+
 def build_curie_to_name_map(db: Session, ref_related_tets):
     all_atp_terms = set()
     entity_id_validation_entity_type_entities: Dict[str, Dict[str, Set[str]]] = defaultdict(lambda: defaultdict(set))
@@ -1381,18 +1400,28 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
                 source_eco_codes.add(tet.topic_entity_tag_source.source_evidence_assertion)
             elif tet.topic_entity_tag_source.source_evidence_assertion.startswith("ATP:"):
                 all_atp_terms.add(tet.topic_entity_tag_source.source_evidence_assertion)
-    entity_curie_to_name = get_map_ateam_curies_to_names(category="atpterm", curies=list(all_atp_terms))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(category="ecoterm",
-                                                              curies=list(source_eco_codes)))
-    entity_curie_to_name.update(get_map_ateam_curies_to_names(category="species",
-                                                              curies=list(tag_species)))
+    entity_curie_to_name = _get_cached_curie_names(
+        all_atp_terms,
+        lambda missing: get_map_ateam_curies_to_names(category="atpterm", curies=missing)
+    )
+    entity_curie_to_name.update(_get_cached_curie_names(
+        source_eco_codes,
+        lambda missing: get_map_ateam_curies_to_names(category="ecoterm", curies=missing)
+    ))
+    entity_curie_to_name.update(_get_cached_curie_names(
+        tag_species,
+        lambda missing: get_map_ateam_curies_to_names(category="species", curies=missing)
+    ))
     for entity_id_validation, entity_type_curies_dict in entity_id_validation_entity_type_entities.items():
         for entity_type, curies in entity_type_curies_dict.items():
             entity_type_name = entity_curie_to_name[entity_type]
-            entity_curie_to_name.update(get_map_entity_curies_to_names(
-                db, entity_id_validation=entity_id_validation,
-                curies_category=entity_type_name,
-                curies=list(curies)))
+            entity_curie_to_name.update(_get_cached_curie_names(
+                curies,
+                lambda missing: get_map_entity_curies_to_names(
+                    db, entity_id_validation=entity_id_validation,
+                    curies_category=entity_type_name,
+                    curies=missing)
+            ))
     for curie_without_name in (all_entity_curies | all_atp_terms) - set(entity_curie_to_name.keys()):
         entity_curie_to_name[curie_without_name] = curie_without_name
     return entity_curie_to_name
