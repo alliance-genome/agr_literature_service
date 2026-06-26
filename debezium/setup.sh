@@ -27,23 +27,24 @@ fi
 # Track timing for metrics
 SETUP_START=$(date +%s)
 
-export INDEX_NAME_FINAL="${DEBEZIUM_INDEX_NAME}"
-export PUBLIC_INDEX_NAME_FINAL="public_${INDEX_NAME_FINAL}"
+# SCRUM-6240: alias-based blue/green swap. The app queries an ALIAS (= DEBEZIUM_INDEX_NAME);
+# the physical data lives in two fixed slots <name>_1 / <name>_2. Each rebuild targets the
+# INACTIVE slot and then atomically flips the alias to it -- search always hits a fully-built
+# index, and the previous slot stays as an instant-rollback backup. No reindex; bounded at 2
+# copies. Same flow for test and prod; only the wait timings differ.
+export INDEX_ALIAS="${DEBEZIUM_INDEX_NAME}"
+export PUBLIC_INDEX_ALIAS="public_${DEBEZIUM_INDEX_NAME}"
 
-if [[ "${ENV_STATE}" == "test" ]]; then
-    # Test mode - use final index names directly
-    export INDEX_NAME_CURRENT="${INDEX_NAME_FINAL}"
-    export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_NAME_FINAL}"
-else
-    # Production mode - use temporary indexes
-    export INDEX_NAME_CURRENT="${INDEX_NAME_FINAL}_temp"
-    export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_NAME_FINAL}_temp"
-fi
+SLOT=$(resolve_inactive_suffix "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_ALIAS}")
+export INDEX_NAME_CURRENT="${INDEX_ALIAS}_${SLOT}"
+export PUBLIC_INDEX_NAME_CURRENT="${PUBLIC_INDEX_ALIAS}_${SLOT}"
+echo "Building into slot _${SLOT}: ${INDEX_NAME_CURRENT} / ${PUBLIC_INDEX_NAME_CURRENT}"
+echo "(alias '${INDEX_ALIAS}' keeps serving the other slot until the cutover)"
 
 # Set initial reindexing status
-set_reindex_status "setup" "{\"env_state\": \"${ENV_STATE}\"}"
+set_reindex_status "setup" "{\"env_state\": \"${ENV_STATE}\", \"slot\": \"${SLOT}\"}"
 
-# Delete and create both private and public indexes
+# Delete + recreate ONLY the inactive slot (the live slot is never touched here)
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT} -d @/elasticsearch-settings.json
 
@@ -148,19 +149,18 @@ submit_ksql_statements() {
 submit_ksql_statements /ksql_queries.ksql || echo "WARNING: one or more ksql statements failed; downstream topics/index may be incomplete."
 sleep ${KSQL_POST_SLEEP}
 
-# Create sink connectors - use different names for test vs production
-if [[ "${ENV_STATE}" == "test" ]]; then
-    # Test mode - use final connector names directly
-    export SINK_NAME="elastic-sink"
-    export PUBLIC_SINK_NAME="elastic-sink-public"
-else
-    # Production mode - use temporary connector names
-    export SINK_NAME="elastic-sink-temp"
-    export PUBLIC_SINK_NAME="elastic-sink-public-temp"
-fi
-
+# SCRUM-6240: one sink per index (no temp/permanent split -- there is no reindex). The sink
+# writes into the slot being built and keeps writing there after the alias flip; the cutover is
+# alias-only, decoupled from Kafka Connect. Delete any prior connector of the same name first
+# (it points at the now-old slot); DELETE is a no-op if it does not exist.
+export SINK_NAME="elastic-sink"
+export PUBLIC_SINK_NAME="elastic-sink-public"
 export SINK_INDEX_NAME="${INDEX_NAME_CURRENT}"
 export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_CURRENT}"
+
+curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${SINK_NAME}
+curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${PUBLIC_SINK_NAME}
+
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
 curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
 
@@ -214,79 +214,32 @@ echo "Final counts - Private index: ${new_index_doc_count} docs, Public index: $
 DATA_PROCESSING_END=$(date +%s)
 DATA_PROCESSING_DURATION=$((DATA_PROCESSING_END - SETUP_END))
 
-if [[ "${ENV_STATE}" == "test" ]]; then
-    # Test mode - indexes are already final, no promotion needed
-    echo "Test mode: Setup complete with final indexes"
+# SCRUM-6240: promote by optimizing the freshly-built slot and atomically flipping the alias to
+# it. The old slot stays as the instant-rollback backup (overwritten on the next rebuild). Same
+# path for test and prod. Guard: never flip to an empty slot, so a failed/empty build can never
+# replace a healthy live index.
+if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
+    PROMOTE_START=$(date +%s)
+    set_reindex_status "reindexing" "{\"phase\": \"optimize_and_flip\", \"slot\": \"${SLOT}\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 
-    # Mark as completed
-    set_reindex_status "completed" "{\"message\": \"Test mode - no reindex needed\"}"
+    # Optimize + warm OFF the serving path (the alias still points at the old slot here)
+    optimize_and_warm_index "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}"
+    optimize_and_warm_index "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_NAME_CURRENT}"
 
-    # Save metrics
+    # Atomic cutover: point both aliases at the new slot (handles first-run bootstrap)
+    flip_alias "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_ALIAS}" "${INDEX_NAME_CURRENT}"
+    flip_alias "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_ALIAS}" "${PUBLIC_INDEX_NAME_CURRENT}"
+
+    PROMOTE_END=$(date +%s)
+    PROMOTE_DURATION=$((PROMOTE_END - DATA_PROCESSING_END))
+    echo "Alias '${INDEX_ALIAS}' now serves slot _${SLOT} (${new_index_doc_count} docs); previous slot retained as backup."
+
+    set_reindex_status "completed" "{\"message\": \"Alias flipped to slot _${SLOT}\", \"total_documents\": $new_index_doc_count}"
     save_completion_metrics "$(jq -r '.started_at' /var/lib/debezium_status/reindex_status.json)" \
-        "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" 0 "$new_index_doc_count"
+        "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" "$PROMOTE_DURATION" "$new_index_doc_count"
 else
-    # Production mode - promote temporary indexes to final if they have data
-    if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]
-    then
-      # Delete old connectors
-      curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink
-      curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-public
-
-      # Update status to reindexing phase
-      REINDEX_START=$(date +%s)
-      set_reindex_status "reindexing" "{\"phase\": \"promoting_indexes\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
-
-      # Prepare private index
-      echo "Preparing private index..."
-      curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_FINAL}
-      curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_FINAL} -d @/elasticsearch-settings.json
-
-      # Prepare public index
-      echo "Preparing public index..."
-      curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_FINAL}
-      curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${PUBLIC_INDEX_NAME_FINAL} -d @/elasticsearch-settings-public.json
-
-      # Start both reindex operations in parallel
-      echo "Starting parallel reindex operations..."
-      PRIVATE_TASK_ID=$(start_reindex "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${INDEX_NAME_CURRENT}" "${INDEX_NAME_FINAL}")
-      PUBLIC_TASK_ID=$(start_reindex "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" "${PUBLIC_INDEX_NAME_CURRENT}" "${PUBLIC_INDEX_NAME_FINAL}")
-
-      # Verify both tasks started successfully
-      if [[ "$PRIVATE_TASK_ID" == "null" ]] || [[ "$PUBLIC_TASK_ID" == "null" ]]; then
-        echo "Error: Failed to start one or more reindex tasks"
-        echo "Private task ID: $PRIVATE_TASK_ID"
-        echo "Public task ID: $PUBLIC_TASK_ID"
-        exit 1
-      fi
-
-      # Poll both tasks in parallel
-      poll_multiple_reindex_tasks "${ELASTICSEARCH_HOST}" "${ELASTICSEARCH_PORT}" \
-        "$PRIVATE_TASK_ID" "${INDEX_NAME_FINAL}" \
-        "$PUBLIC_TASK_ID" "${PUBLIC_INDEX_NAME_FINAL}"
-
-      # Track reindex completion
-      REINDEX_END=$(date +%s)
-      REINDEX_DURATION=$((REINDEX_END - REINDEX_START))
-
-      # Create permanent connectors
-      export SINK_NAME="elastic-sink"
-      export PUBLIC_SINK_NAME="elastic-sink-public"
-      export SINK_INDEX_NAME="${INDEX_NAME_FINAL}"
-      export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_FINAL}"
-      curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$SINK_INDEX_NAME$SINK_NAME' < /elasticsearch-sink.json)
-      curl -i -X POST -H "Accept:application/json" -H  "Content-Type:application/json" http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/ -d @<(envsubst '$ELASTICSEARCH_HOST$ELASTICSEARCH_PORT$PUBLIC_SINK_INDEX_NAME$PUBLIC_SINK_NAME' < /elasticsearch-sink-public.json)
-
-      # Mark as completed
-      set_reindex_status "completed" "{\"message\": \"Reindex completed successfully\", \"total_documents\": $new_index_doc_count}"
-
-      # Save metrics
-      save_completion_metrics "$(jq -r '.started_at' /var/lib/debezium_status/reindex_status.json)" \
-          "$SETUP_DURATION" "$DATA_PROCESSING_DURATION" "$REINDEX_DURATION" "$new_index_doc_count"
-    fi
-
-    # Clean up temporary connectors (only in production mode)
-    curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-temp
-    curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/elastic-sink-public-temp
+    echo "WARNING: build slot empty (private=${new_index_doc_count}, public=${public_index_doc_count}); NOT flipping alias. Live index left unchanged."
+    set_reindex_status "completed" "{\"message\": \"No flip - empty build slot; live index unchanged\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 fi
 
 echo "Debezium setup completed successfully!"

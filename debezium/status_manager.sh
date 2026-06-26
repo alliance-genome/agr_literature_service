@@ -470,6 +470,67 @@ wait_for_pipeline_drained() {
     return 1
 }
 
+# ---------------------------------------------------------------------------
+# SCRUM-6240: alias-based blue/green index swap helpers.
+# The app queries an ALIAS; physical data lives in two fixed slots <name>_1 / <name>_2.
+# Each rebuild targets the inactive slot, optimizes it, then atomically flips the alias.
+# ---------------------------------------------------------------------------
+
+# Echo the INACTIVE slot suffix ("1" or "2") for an alias, so a rebuild always targets the slot
+# the alias is NOT currently serving. Defaults to "1" when the alias is absent (bootstrap) or
+# points at neither slot.
+resolve_inactive_suffix() {
+    local es_host=$1 es_port=$2 alias=$3
+    local current
+    current=$(curl -s --max-time 10 "http://${es_host}:${es_port}/_alias/${alias}" 2>/dev/null \
+              | jq -r 'if type=="object" and (has("error")|not) then (keys[0] // "") else "" end' 2>/dev/null)
+    if [[ "$current" == "${alias}_1" ]]; then
+        echo "2"
+    else
+        echo "1"
+    fi
+}
+
+# Force-merge an index to a single segment (optimize + expunge upsert tombstones) and warm it
+# (page-cache + global ordinals) BEFORE it serves traffic. Runs off the serving path (the alias
+# still points at the old slot at this point).
+optimize_and_warm_index() {
+    local es_host=$1 es_port=$2 index=$3
+    echo "Optimizing ${index} (force_merge max_num_segments=1)..."
+    curl -s -X POST "http://${es_host}:${es_port}/${index}/_forcemerge?max_num_segments=1" \
+        -H "Content-Type: application/json" >/dev/null
+    echo "Warming ${index} (match_all to page in caches)..."
+    curl -s -X POST "http://${es_host}:${es_port}/${index}/_search" \
+        -H "Content-Type: application/json" -d '{"size":0,"query":{"match_all":{}}}' >/dev/null
+}
+
+# Atomically point <alias> at <new_index>, removing it from any other index it currently
+# references (single _aliases call = zero-downtime cutover). Bootstrap: if a CONCRETE index
+# literally named <alias> exists (pre-migration), delete it first so the alias name is free
+# (Elasticsearch forbids an alias and an index sharing a name).
+flip_alias() {
+    local es_host=$1 es_port=$2 alias=$3 new_index=$4
+    local base="http://${es_host}:${es_port}"
+    local current_list concrete idx actions=""
+    current_list=$(curl -s "${base}/_alias/${alias}" 2>/dev/null \
+                   | jq -r 'if type=="object" and (has("error")|not) then keys[] else empty end' 2>/dev/null)
+    concrete=$(curl -s "${base}/_cat/indices/${alias}?h=index" 2>/dev/null | tr -d '[:space:]')
+    if [[ "$concrete" == "$alias" ]]; then
+        echo "Bootstrap: deleting legacy concrete index '${alias}' to free the alias name"
+        curl -s -X DELETE "${base}/${alias}" >/dev/null
+        current_list=""
+    fi
+    for idx in $current_list; do
+        [[ "$idx" == "$new_index" ]] && continue
+        actions="${actions}{\"remove\":{\"index\":\"${idx}\",\"alias\":\"${alias}\"}},"
+    done
+    actions="${actions}{\"add\":{\"index\":\"${new_index}\",\"alias\":\"${alias}\"}}"
+    echo "Flipping alias '${alias}' -> '${new_index}'"
+    curl -s -X POST "${base}/_aliases" -H "Content-Type: application/json" \
+        -d "{\"actions\":[${actions}]}"
+    echo
+}
+
 # Export functions for use in other scripts
 export -f get_timestamp
 export -f seconds_since
@@ -480,3 +541,6 @@ export -f poll_multiple_reindex_tasks
 export -f save_completion_metrics
 export -f wait_for_source_topics_ready
 export -f wait_for_pipeline_drained
+export -f resolve_inactive_suffix
+export -f optimize_and_warm_index
+export -f flip_alias
