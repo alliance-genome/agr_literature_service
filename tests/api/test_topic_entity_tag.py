@@ -123,26 +123,69 @@ class TestTopicEntityTag:
             ref_curie = test_topic_entity_tag.related_ref_curie
             response = client.post(
                 url="/topic_entity_tag/by_references",
-                json=[ref_curie, "AGRKB:000000000"],
+                json={"curies_or_reference_ids": [ref_curie, "AGRKB:000000000"]},
                 headers=auth_headers,
             )
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
+            tags = data["tags"]
+            counts = data["counts"]
             # the known reference returns its tag(s)
-            assert ref_curie in data
-            assert len(data[ref_curie]) >= 1
+            assert ref_curie in tags
+            assert len(tags[ref_curie]) >= 1
             assert any(
                 t["topic_entity_tag_id"] == int(test_topic_entity_tag.new_tet_id)
-                for t in data[ref_curie]
+                for t in tags[ref_curie]
             )
-            # an unresolvable id maps to an empty list rather than failing the batch
-            assert data.get("AGRKB:000000000") == []
+            # per-topic counts are computed in the API for the same reference
+            assert "ATP:0000122" in counts[ref_curie]
+            assert counts[ref_curie]["ATP:0000122"]["entity_pos"] >= 1
+            # an unresolvable id maps to an empty list / empty counts
+            assert tags.get("AGRKB:000000000") == []
+            assert counts.get("AGRKB:000000000") == {}
+
+    def test_show_all_reference_tags_batch_filtered(self, test_topic_entity_tag, auth_headers):  # noqa
+        # Filtering to a topic the reference does NOT carry returns no tags for it.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_build_curie_to_name_map.return_value = {}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {"topics": ["ATP:9999999"]},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["tags"][ref_curie] == []
+            assert data["counts"][ref_curie] == {}
+
+            # Filtering to the topic the reference DOES carry returns the tag.
+            mock_build_curie_to_name_map.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {"topics": ["ATP:0000122"]},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert len(data["tags"][ref_curie]) >= 1
 
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(
                 url="/topic_entity_tag/by_references",
-                json=[f"AGRKB:{i}" for i in range(101)],
+                json={"curies_or_reference_ids": [f"AGRKB:{i}" for i in range(101)]},
                 headers=auth_headers,
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
