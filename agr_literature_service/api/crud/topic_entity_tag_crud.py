@@ -57,13 +57,12 @@ def _tet_batch_timing_enabled():
 
 def _log_tet_batch_timing(message, *args):
     # TET batch phase timing (resolve / query / names / serialize / total).
-    # Off by default to avoid per-request stdout noise in production; set
-    # DEBUG_TET_BATCH_TIMING=true to surface the per-phase breakdown when
-    # diagnosing slow Topic-grid loads. When enabled, the same numbers are also
-    # returned in the endpoint response under "debug_timing" so they can be read
-    # straight from the browser Network tab without needing API log access.
-    if _tet_batch_timing_enabled():
-        print(message % args, flush=True)
+    # Printed unconditionally to stdout so it always shows in the API logs while
+    # we diagnose slow Topic-grid loads on this branch. The same numbers are also
+    # returned in the endpoint response under "debug_timing".
+    # TODO: gate behind _tet_batch_timing_enabled() (or remove) before merging
+    # so production logs stay quiet.
+    print(message % args, flush=True)
 
 
 ATP_ID_SOURCE_AUTHOR = "author"
