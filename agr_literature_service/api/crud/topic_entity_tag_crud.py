@@ -52,10 +52,12 @@ logger = logging.getLogger(__name__)
 
 def _log_tet_batch_timing(message, *args):
     # TET batch phase timing (resolve / query / names / serialize / total).
-    # Disabled by default to avoid per-request stdout noise in production;
-    # uncomment the print to re-enable timing diagnostics when needed.
-    # print(message % args, flush=True)
-    pass
+    # Off by default to avoid per-request stdout noise in production; set
+    # DEBUG_TET_BATCH_TIMING=true (re-read each call, so it can be toggled
+    # without a code change) to surface the per-phase breakdown when diagnosing
+    # slow Topic-grid loads.
+    if environ.get("DEBUG_TET_BATCH_TIMING", "").lower() in ("1", "true", "yes"):
+        print(message % args, flush=True)
 
 
 ATP_ID_SOURCE_AUTHOR = "author"
