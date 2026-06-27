@@ -50,13 +50,19 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 logger = logging.getLogger(__name__)
 
 
+def _tet_batch_timing_enabled():
+    # Re-read each call so it can be toggled without a code change.
+    return environ.get("DEBUG_TET_BATCH_TIMING", "").lower() in ("1", "true", "yes")
+
+
 def _log_tet_batch_timing(message, *args):
     # TET batch phase timing (resolve / query / names / serialize / total).
     # Off by default to avoid per-request stdout noise in production; set
-    # DEBUG_TET_BATCH_TIMING=true (re-read each call, so it can be toggled
-    # without a code change) to surface the per-phase breakdown when diagnosing
-    # slow Topic-grid loads.
-    if environ.get("DEBUG_TET_BATCH_TIMING", "").lower() in ("1", "true", "yes"):
+    # DEBUG_TET_BATCH_TIMING=true to surface the per-phase breakdown when
+    # diagnosing slow Topic-grid loads. When enabled, the same numbers are also
+    # returned in the endpoint response under "debug_timing" so they can be read
+    # straight from the browser Network tab without needing API log access.
+    if _tet_batch_timing_enabled():
         print(message % args, flush=True)
 
 
@@ -1393,9 +1399,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     resolve_start = perf_counter()
     ident_to_ref_id = _resolve_reference_ids_for_batch(db, curies_or_reference_ids)
     resolved_count = len([rid for rid in ident_to_ref_id.values() if rid is not None])
+    resolve_ms = (perf_counter() - resolve_start) * 1000
     _log_tet_batch_timing(
         "TET batch refs resolved in %.1fms: inputs=%s unique=%s resolved=%s",
-        (perf_counter() - resolve_start) * 1000,
+        resolve_ms,
         len(curies_or_reference_ids),
         len(ident_to_ref_id),
         resolved_count
@@ -1410,7 +1417,8 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         )
         return {
             "tags": {ident: [] for ident in ident_to_ref_id},
-            "counts": {ident: {} for ident in ident_to_ref_id}
+            "counts": {ident: {} for ident in ident_to_ref_id},
+            "debug_timing": None
         }
 
     query_start = perf_counter()
@@ -1425,9 +1433,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     rows = query.order_by(
         TopicEntityTagModel.reference_id,
         TopicEntityTagModel.topic_entity_tag_id).all()
+    query_ms = (perf_counter() - query_start) * 1000
     _log_tet_batch_timing(
         "TET batch rows queried in %.1fms: refs=%s rows=%s",
-        (perf_counter() - query_start) * 1000,
+        query_ms,
         len(ref_ids),
         len(rows)
     )
@@ -1435,9 +1444,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     # One name map for the union of all tags (the expensive external lookups).
     names_start = perf_counter()
     curie_to_name = build_curie_to_name_map(db, rows)
+    names_ms = (perf_counter() - names_start) * 1000
     _log_tet_batch_timing(
         "TET batch names mapped in %.1fms: names=%s",
-        (perf_counter() - names_start) * 1000,
+        names_ms,
         len(curie_to_name)
     )
 
@@ -1447,9 +1457,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     for tag in serialized_tags:
         tags_by_ref_id[tag["reference_id"]].append(tag)
     counts_by_ref_id = _build_tag_counts(serialized_tags)
+    serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
-        (perf_counter() - serialize_start) * 1000,
+        serialize_ms,
         len(serialized_tags)
     )
 
@@ -1462,15 +1473,29 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         else:
             tags_result[ident] = tags_by_ref_id[ref_id]
             counts_result[ident] = counts_by_ref_id.get(ref_id, {})
+    total_ms = (perf_counter() - total_start) * 1000
     _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
-        (perf_counter() - total_start) * 1000,
+        total_ms,
         len(curies_or_reference_ids),
         len(ident_to_ref_id),
         resolved_count,
         len(serialized_tags)
     )
-    return {"tags": tags_result, "counts": counts_result}
+    debug_timing = None
+    if _tet_batch_timing_enabled():
+        debug_timing = {
+            "resolve_ms": round(resolve_ms, 1),
+            "query_ms": round(query_ms, 1),
+            "names_ms": round(names_ms, 1),
+            "serialize_ms": round(serialize_ms, 1),
+            "total_ms": round(total_ms, 1),
+            "refs_resolved": resolved_count,
+            "rows": len(rows),
+            "names": len(curie_to_name),
+            "tags": len(serialized_tags),
+        }
+    return {"tags": tags_result, "counts": counts_result, "debug_timing": debug_timing}
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):

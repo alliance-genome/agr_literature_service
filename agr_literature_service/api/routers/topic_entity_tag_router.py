@@ -201,6 +201,10 @@ class ReferenceTagsBatchResponse(BaseModel):
     # entity_neg, total, by_source: {label: {...}}}} -- aggregates computed in
     # the API so the grid doesn't recount client-side.
     counts: Dict[str, Any]
+    # debug_timing: per-phase timing breakdown, present only when
+    # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
+    # straight from the browser Network tab. Null in normal operation.
+    debug_timing: Optional[Dict[str, Any]] = None
 
 
 @router.post('/by_references',
