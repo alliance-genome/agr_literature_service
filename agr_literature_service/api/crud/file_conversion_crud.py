@@ -454,6 +454,13 @@ _FIGURE_FILE_CLASS_FOR_SOURCE: Dict[str, str] = {
     "supplement": "converted_supplement_figure",
 }
 
+# Parallel mapping for the JSON metadata sidecar each figure now carries
+# (SCRUM-6246). Kept in sync with FIGURE_METADATA_FILE_CLASSES in pdf2md_utils.
+_FIGURE_METADATA_FILE_CLASS_FOR_SOURCE: Dict[str, str] = {
+    "main": "converted_main_figure_metadata",
+    "supplement": "converted_supplement_figure_metadata",
+}
+
 
 def _figures_for_source(reference: ReferenceModel,
                         source_display_name: Optional[str],
@@ -465,13 +472,40 @@ def _figures_for_source(reference: ReferenceModel,
     ``{source_display_name}_image_{idx:03d}`` convention and one of the
     ``converted_main_figure`` / ``converted_supplement_figure`` file_classes,
     so we match on display_name prefix + the corresponding figure file_class.
+
+    Each figure's JSON metadata sidecar (SCRUM-6246) shares the PNG's
+    display_name under the parallel ``converted_*_figure_metadata`` file_class
+    (``json`` extension), so we link the two by exact display_name match and
+    expose the sidecar as ``metadata_referencefile_id``.
     """
     if not source_display_name or not source_file_class:
         return []
     figure_file_class = _FIGURE_FILE_CLASS_FOR_SOURCE.get(source_file_class)
     if figure_file_class is None:
         return []
+    metadata_file_class = _FIGURE_METADATA_FILE_CLASS_FOR_SOURCE.get(
+        source_file_class
+    )
     prefix = f"{source_display_name}_image_"
+
+    # display_name -> metadata sidecar referencefile_id, so each figure PNG
+    # can point at its sidecar without re-querying the DB per figure.
+    metadata_by_display_name: Dict[str, int] = {}
+    if metadata_file_class is not None:
+        for ref_file in reference.referencefiles or []:
+            if ref_file.file_class != metadata_file_class:
+                continue
+            if ref_file.file_extension != "json":
+                continue
+            if ref_file.file_publication_status != "final":
+                continue
+            display_name = ref_file.display_name or ""
+            if not display_name.startswith(prefix):
+                continue
+            metadata_by_display_name[display_name] = int(
+                ref_file.referencefile_id
+            )
+
     figures: List[Dict[str, Any]] = []
     for ref_file in reference.referencefiles or []:
         if ref_file.file_class != figure_file_class:
@@ -484,6 +518,9 @@ def _figures_for_source(reference: ReferenceModel,
             "display_name": ref_file.display_name,
             "file_class": ref_file.file_class,
             "referencefile_id": int(ref_file.referencefile_id),
+            "metadata_referencefile_id": metadata_by_display_name.get(
+                ref_file.display_name
+            ),
         })
     figures.sort(key=lambda f: f["display_name"] or "")
     return figures
