@@ -130,6 +130,7 @@ class TestTopicEntityTag:
             data = response.json()
             tags = data["tags"]
             counts = data["counts"]
+            entries = data["entries"]
             # the known reference returns its tag(s)
             assert ref_curie in tags
             assert len(tags[ref_curie]) >= 1
@@ -140,9 +141,16 @@ class TestTopicEntityTag:
             # per-topic counts are computed in the API for the same reference
             assert "ATP:0000122" in counts[ref_curie]
             assert counts[ref_curie]["ATP:0000122"]["entity_pos"] >= 1
+            # per-topic source/entity entries are also aggregated in the API for the grid
+            assert "ATP:0000122" in entries[ref_curie]
+            assert any(
+                entry["kind"] == "entity-pos" and entry["count"] >= 1
+                for entry in entries[ref_curie]["ATP:0000122"]
+            )
             # an unresolvable id maps to an empty list / empty counts
             assert tags.get("AGRKB:000000000") == []
             assert counts.get("AGRKB:000000000") == {}
+            assert entries.get("AGRKB:000000000") == {}
 
     def test_show_all_reference_tags_batch_filtered(self, test_topic_entity_tag, auth_headers):  # noqa
         # Filtering to a topic the reference does NOT carry returns no tags for it.
@@ -163,6 +171,7 @@ class TestTopicEntityTag:
             data = response.json()
             assert data["tags"][ref_curie] == []
             assert data["counts"][ref_curie] == {}
+            assert data["entries"][ref_curie] == {}
 
             # Filtering to the topic the reference DOES carry returns the tag.
             mock_build_curie_to_name_map.return_value = {
@@ -174,6 +183,22 @@ class TestTopicEntityTag:
                 json={
                     "curies_or_reference_ids": [ref_curie],
                     "filters": {"topics": ["ATP:0000122"]},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert len(data["tags"][ref_curie]) >= 1
+            assert "ATP:0000122" in data["entries"][ref_curie]
+
+            # Entity-type filters are accepted by the batch endpoint so a
+            # search constrained to an entity type can keep the grid payload to
+            # that same tag subset.
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {"entity_types": ["ATP:0000005"]},
                 },
                 headers=auth_headers,
             )

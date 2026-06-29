@@ -1284,6 +1284,14 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
     if data_novelty:
         query = query.filter(_ci_in(TopicEntityTagModel.data_novelty, data_novelty))
 
+    entity_types = filters.get("entity_types")
+    if entity_types:
+        query = query.filter(_ci_in(TopicEntityTagModel.entity_type, entity_types))
+
+    entities = filters.get("entities")
+    if entities:
+        query = query.filter(_ci_in(TopicEntityTagModel.entity, entities))
+
     source_methods = filters.get("source_methods")
     if source_methods:
         query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
@@ -1369,11 +1377,139 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
     return counts
 
 
+def _is_curator_source_tag(tag: Dict[str, Any]) -> bool:
+    source = tag.get("topic_entity_tag_source") or {}
+    return source.get("validation_type") in ("professional_biocurator", "professional_curator")
+
+
+def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "aggregated": True,
+        "sourceLabel": label,
+        "source_label": label,
+        "source_description": source_data.get("description"),
+        "source_evidence_assertion": source_data.get("source_evidence_assertion"),
+    }
+
+
+def _entity_label(tag: Dict[str, Any]) -> str:
+    return tag.get("entity_name") or tag.get("entity") or ""
+
+
+def _score_summary(tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    vals = [
+        float(tag["confidence_score"])
+        for tag in tags
+        if tag.get("confidence_score") is not None
+    ]
+    if not vals:
+        return {"confidence_score_min": None, "confidence_score_max": None, "confidence_score_count": 0}
+    return {
+        "confidence_score_min": min(vals),
+        "confidence_score_max": max(vals),
+        "confidence_score_count": len(vals),
+    }
+
+
+def _level_summary(tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    levels = []
+    seen = set()
+    for tag in tags:
+        level = tag.get("confidence_level")
+        if level is None or level == "" or level in seen:
+            continue
+        seen.add(level)
+        levels.append(level)
+    return {"confidence_levels": levels}
+
+
+def _note_summary(tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    notes = [
+        {"entity": _entity_label(tag), "note": tag.get("note")}
+        for tag in tags
+        if tag.get("note")
+    ]
+    return {"notes": notes}
+
+
+def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    """Build grid mini-rows per reference/topic/source in the API.
+
+    The UI previously rebuilt these buckets for every cell render/filter/sort.
+    Returning them with the batch endpoint keeps entity counts and per-source
+    aggregation authoritative in the API while preserving raw tags separately
+    for validation actions.
+    """
+    grouped: Dict[int, Dict[str, Dict[str, List[Dict[str, Any]]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list))
+    )
+    source_data_by_label: Dict[Tuple[int, str, str], Dict[str, Any]] = {}
+
+    for tag in serialized_tags:
+        if _is_curator_source_tag(tag):
+            continue
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        source_data = tag.get("topic_entity_tag_source") or {}
+        label = _source_label(source_data)
+        grouped[ref_id][topic][label].append(tag)
+        source_data_by_label[(ref_id, topic, label)] = source_data
+
+    entries_by_ref_topic: Dict[int, Dict[str, Any]] = defaultdict(dict)
+    for ref_id, by_topic in grouped.items():
+        for topic, by_source in by_topic.items():
+            entries = []
+            for label, tags in by_source.items():
+                source_data = source_data_by_label.get((ref_id, topic, label), {})
+                topic_only = [tag for tag in tags if not tag.get("entity")]
+                entity_positive = [tag for tag in tags if tag.get("entity") and not tag.get("negated")]
+                entity_negative = [tag for tag in tags if tag.get("entity") and tag.get("negated")]
+
+                for tag in topic_only:
+                    entry = {
+                        **_entry_base(label, source_data),
+                        "key": f"t-{tag.get('topic_entity_tag_id')}",
+                        "kind": "topic",
+                        "topic_entity_tag_id": tag.get("topic_entity_tag_id"),
+                        "negated": bool(tag.get("negated")),
+                        "confidence_score": tag.get("confidence_score"),
+                        "confidence_level": tag.get("confidence_level"),
+                        "note": tag.get("note"),
+                    }
+                    entries.append(entry)
+
+                for kind, tags_for_kind in (
+                    ("entity-pos", entity_positive),
+                    ("entity-neg", entity_negative),
+                ):
+                    if not tags_for_kind:
+                        continue
+                    entity_labels = [_entity_label(tag) for tag in tags_for_kind]
+                    visible_entity_labels = [entity_label for entity_label in entity_labels[:20] if entity_label]
+                    entities_text = ", ".join(visible_entity_labels)
+                    if len(entity_labels) > 20:
+                        entities_text += f", ... (+{len(entity_labels) - 20} more)"
+                    entry = {
+                        **_entry_base(label, source_data),
+                        "key": f"{kind}-{label}",
+                        "kind": kind,
+                        "count": len(tags_for_kind),
+                        "entities_text": entities_text,
+                        **_score_summary(tags_for_kind),
+                        **_level_summary(tags_for_kind),
+                        **_note_summary(tags_for_kind),
+                    }
+                    entries.append(entry)
+            entries_by_ref_topic[ref_id][topic] = entries
+    return entries_by_ref_topic
+
+
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
                                            filters: Optional[Dict[str, Any]] = None):
     """Batch variant of show_all_reference_tags.
 
-    Returns ``{"tags": {ident: [...]}, "counts": {ident: {topic: {...}}}}``.
+    Returns ``{"tags": {ident: [...]}, "counts": {ident: {topic: {...}}},
+    "entries": {ident: {topic: [...]}}}``.
 
     ``tags`` maps each input identifier -> its TET list (filtered to the optional
     ``filters`` -- the criteria from the initial search), reusing the
@@ -1418,6 +1554,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         return {
             "tags": {ident: [] for ident in ident_to_ref_id},
             "counts": {ident: {} for ident in ident_to_ref_id},
+            "entries": {ident: {} for ident in ident_to_ref_id},
             "debug_timing": None
         }
 
@@ -1457,6 +1594,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     for tag in serialized_tags:
         tags_by_ref_id[tag["reference_id"]].append(tag)
     counts_by_ref_id = _build_tag_counts(serialized_tags)
+    entries_by_ref_id = _build_tag_entries(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
@@ -1466,13 +1604,16 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
 
     tags_result: Dict[str, Any] = {}
     counts_result: Dict[str, Any] = {}
+    entries_result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             tags_result[ident] = []
             counts_result[ident] = {}
+            entries_result[ident] = {}
         else:
             tags_result[ident] = tags_by_ref_id[ref_id]
             counts_result[ident] = counts_by_ref_id.get(ref_id, {})
+            entries_result[ident] = entries_by_ref_id.get(ref_id, {})
     total_ms = (perf_counter() - total_start) * 1000
     _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
@@ -1495,7 +1636,12 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             "names": len(curie_to_name),
             "tags": len(serialized_tags),
         }
-    return {"tags": tags_result, "counts": counts_result, "debug_timing": debug_timing}
+    return {
+        "tags": tags_result,
+        "counts": counts_result,
+        "entries": entries_result,
+        "debug_timing": debug_timing
+    }
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):

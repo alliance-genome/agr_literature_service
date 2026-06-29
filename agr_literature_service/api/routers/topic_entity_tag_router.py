@@ -185,6 +185,8 @@ class ReferenceTagsBatchFilters(BaseModel):
     source_evidence_assertions: Optional[List[str]] = None
     negated_source_evidence_assertions: Optional[List[str]] = None
     data_novelty: Optional[List[str]] = None
+    entity_types: Optional[List[str]] = None
+    entities: Optional[List[str]] = None
     confidence_score_min: Optional[float] = None
     confidence_score_max: Optional[float] = None
 
@@ -201,6 +203,10 @@ class ReferenceTagsBatchResponse(BaseModel):
     # entity_neg, total, by_source: {label: {...}}}} -- aggregates computed in
     # the API so the grid doesn't recount client-side.
     counts: Dict[str, Any]
+    # entries: input identifier -> {topic_curie: [aggregated mini-rows]}.
+    # These rows are grouped by source/evidence/kind in the API so the grid
+    # renders, filters and sorts from pre-aggregated tag buckets.
+    entries: Optional[Dict[str, Any]] = None
     # debug_timing: per-phase timing breakdown, present only when
     # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
     # straight from the browser Network tab. Null in normal operation.
