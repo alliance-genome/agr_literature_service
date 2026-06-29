@@ -123,26 +123,136 @@ class TestTopicEntityTag:
             ref_curie = test_topic_entity_tag.related_ref_curie
             response = client.post(
                 url="/topic_entity_tag/by_references",
-                json=[ref_curie, "AGRKB:000000000"],
+                json={"curies_or_reference_ids": [ref_curie, "AGRKB:000000000"]},
                 headers=auth_headers,
             )
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
+            tags = data["tags"]
+            counts = data["counts"]
+            entries = data["entries"]
             # the known reference returns its tag(s)
-            assert ref_curie in data
-            assert len(data[ref_curie]) >= 1
+            assert ref_curie in tags
+            assert len(tags[ref_curie]) >= 1
             assert any(
                 t["topic_entity_tag_id"] == int(test_topic_entity_tag.new_tet_id)
-                for t in data[ref_curie]
+                for t in tags[ref_curie]
             )
-            # an unresolvable id maps to an empty list rather than failing the batch
-            assert data.get("AGRKB:000000000") == []
+            # per-topic counts are computed in the API for the same reference
+            assert "ATP:0000122" in counts[ref_curie]
+            assert counts[ref_curie]["ATP:0000122"]["entity_pos"] >= 1
+            # per-topic source/entity entries are also aggregated in the API for the grid
+            assert "ATP:0000122" in entries[ref_curie]
+            assert any(
+                entry["kind"] == "entity-pos" and entry["count"] >= 1
+                for entry in entries[ref_curie]["ATP:0000122"]
+            )
+            # an unresolvable id maps to an empty list / empty counts
+            assert tags.get("AGRKB:000000000") == []
+            assert counts.get("AGRKB:000000000") == {}
+            assert entries.get("AGRKB:000000000") == {}
+
+    def test_show_all_reference_tags_batch_filtered(self, test_topic_entity_tag, auth_headers):  # noqa
+        # Filtering to a topic the reference does NOT carry returns no tags for it.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_build_curie_to_name_map.return_value = {}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {"topics": ["ATP:9999999"]},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert data["tags"][ref_curie] == []
+            assert data["counts"][ref_curie] == {}
+            assert data["entries"][ref_curie] == {}
+
+            # Filtering to the topic the reference DOES carry returns the tag.
+            mock_build_curie_to_name_map.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {"topics": ["ATP:0000122"]},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert len(data["tags"][ref_curie]) >= 1
+            assert "ATP:0000122" in data["entries"][ref_curie]
+
+            # Entity-type filters are accepted by the batch endpoint so a
+            # search constrained to an entity type can keep the grid payload to
+            # that same tag subset.
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {"entity_types": ["ATP:0000005"]},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert len(data["tags"][ref_curie]) >= 1
+
+    def test_show_all_reference_tags_batch_single_vs_multi_tag(self, test_topic_entity_tag, auth_headers):  # noqa
+        # The fixture reference carries ONE tag: topic ATP:0000122 with source
+        # method "phenotype neural network". Combining the topic it DOES carry
+        # with a source method it does NOT exercises the apply_to_single_tag mode:
+        #   - single-tag (default): one tag must satisfy BOTH -> the tag is
+        #     dropped (its source method differs), so no tags come back.
+        #   - multi-tag: the facets are ORed (the search matched them across
+        #     different tags), so the topic match alone keeps the tag.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_build_curie_to_name_map.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            combined = {
+                "topics": ["ATP:0000122"],
+                "source_methods": ["no_such_source_method"],
+            }
+
+            # single-tag (default, flag omitted): AND across one tag -> nothing.
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie], "filters": combined},
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["tags"][ref_curie] == []
+
+            # multi-tag: OR across facets -> the topic match keeps the tag.
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {**combined, "apply_to_single_tag": False},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert len(response.json()["tags"][ref_curie]) >= 1
 
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(
                 url="/topic_entity_tag/by_references",
-                json=[f"AGRKB:{i}" for i in range(101)],
+                json={"curies_or_reference_ids": [f"AGRKB:{i}" for i in range(101)]},
                 headers=auth_headers,
             )
             assert response.status_code == status.HTTP_400_BAD_REQUEST
