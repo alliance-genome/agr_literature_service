@@ -174,9 +174,15 @@ MAX_BATCH_REFERENCES = 100
 
 class ReferenceTagsBatchFilters(BaseModel):
     """The TET facet criteria from the initial search. All fields optional; an
-    omitted/empty field means "no restriction on that dimension". A tag must
-    satisfy every supplied criterion to be returned (single-tag semantics), so
-    the grid loads only the tags the search asked for."""
+    omitted/empty field means "no restriction on that dimension", so the grid
+    loads only the tags the search asked for.
+
+    ``apply_to_single_tag`` mirrors the search's mode: when true (the default for
+    an omitted value), the positive nested-TET facets (topic / confidence-level /
+    source-method / source-evidence / data-novelty) must all be satisfied by ONE
+    tag; when false the search matched them across different tags of a reference,
+    so they are ORed instead (union of matching tags) to avoid an empty grid row
+    for a genuine search hit."""
     topics: Optional[List[str]] = None
     confidence_levels: Optional[List[str]] = None
     negated_confidence_levels: Optional[List[str]] = None
@@ -189,6 +195,7 @@ class ReferenceTagsBatchFilters(BaseModel):
     entities: Optional[List[str]] = None
     confidence_score_min: Optional[float] = None
     confidence_score_max: Optional[float] = None
+    apply_to_single_tag: Optional[bool] = None
 
 
 class ReferenceTagsBatchRequest(BaseModel):

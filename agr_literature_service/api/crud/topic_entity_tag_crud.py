@@ -1248,11 +1248,30 @@ def _ci_in(column, values):
 def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
     """Restrict a TET query to the tags the initial search asked for.
 
-    Mirrors the TET facet criteria the search UI sends (search_actions.js):
-    positive topic/confidence-level/source-method/source-evidence/data-novelty
-    includes, their negated counterparts, and the confidence-score range. Each
-    tag must satisfy ALL active criteria on its own (single-tag semantics), which
-    is what "show only the tags specified by the search" means for the grid.
+    Mirrors the TET facet criteria the search UI sends (searchActions.js). The
+    nested-TET facets -- topic / confidence-level / source-method / source-
+    evidence / data-novelty -- are combined according to the search's
+    ``apply_to_single_tag`` mode so the grid shows the same tags the search
+    selected its references on:
+
+      * single-tag mode (the default, and what an absent flag means): a tag must
+        satisfy ALL of these positive criteria on its own. ES bundles them into
+        ONE nested query (processCombinedTETFacets), so they are ANDed here too.
+      * multi-tag mode: ES turns each facet into its OWN nested query
+        (processSingleFacet), so a reference can match because tag A carries the
+        topic while a different tag B carries the source-method. ANDing on one tag
+        would then return zero tags for such a reference -- an empty grid row for
+        a genuine search hit -- so the positive criteria are ORed instead (a tag
+        is kept if it matches ANY selected facet), i.e. the union of tags the
+        search asked for.
+
+    Confidence-score range, entity-type/entity and every negated criterion are
+    applied as per-tag refinements in BOTH modes: the score slider deliberately
+    keeps unscored curator/author tags and drops only out-of-range scored ones
+    (mirroring the grid's client-side filter), entity_type/entity are not
+    nested-TET facets in the search (they ride the non-nested facets), and the
+    negated source/SEA use whole-reference semantics the candidate references
+    have already passed.
 
     Pushing this into SQL is the core fix for the slow grid load: instead of
     fetching every tag on every reference (all topics, all sources) and filtering
@@ -1262,13 +1281,49 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
     if not filters:
         return query
 
+    # Absent flag => single-tag (AND), preserving the original behavior for any
+    # caller (older UI / explicit single-facet use) that does not send the mode.
+    single_tag = filters.get("apply_to_single_tag", True)
+
+    # Positive nested-TET facets, combined per the search's single/multi-tag mode.
+    positive_conditions = []
     topics = filters.get("topics")
     if topics:
-        query = query.filter(_ci_in(TopicEntityTagModel.topic, topics))
+        positive_conditions.append(_ci_in(TopicEntityTagModel.topic, topics))
 
     confidence_levels = filters.get("confidence_levels")
     if confidence_levels:
-        query = query.filter(_ci_in(TopicEntityTagModel.confidence_level, confidence_levels))
+        positive_conditions.append(_ci_in(TopicEntityTagModel.confidence_level, confidence_levels))
+
+    data_novelty = filters.get("data_novelty")
+    if data_novelty:
+        positive_conditions.append(_ci_in(TopicEntityTagModel.data_novelty, data_novelty))
+
+    source_methods = filters.get("source_methods")
+    if source_methods:
+        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
+            _ci_in(TopicEntityTagSourceModel.source_method, source_methods)))
+
+    source_evidence_assertions = filters.get("source_evidence_assertions")
+    if source_evidence_assertions:
+        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
+            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, source_evidence_assertions)))
+
+    if positive_conditions:
+        if single_tag:
+            for cond in positive_conditions:
+                query = query.filter(cond)
+        else:
+            query = query.filter(or_(*positive_conditions))
+
+    # --- per-tag refinements, applied in both modes -------------------------- #
+    entity_types = filters.get("entity_types")
+    if entity_types:
+        query = query.filter(_ci_in(TopicEntityTagModel.entity_type, entity_types))
+
+    entities = filters.get("entities")
+    if entities:
+        query = query.filter(_ci_in(TopicEntityTagModel.entity, entities))
 
     negated_confidence_levels = filters.get("negated_confidence_levels")
     if negated_confidence_levels:
@@ -1280,32 +1335,10 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
             func.upper(TopicEntityTagModel.confidence_level).notin_(upper_values)
         ))
 
-    data_novelty = filters.get("data_novelty")
-    if data_novelty:
-        query = query.filter(_ci_in(TopicEntityTagModel.data_novelty, data_novelty))
-
-    entity_types = filters.get("entity_types")
-    if entity_types:
-        query = query.filter(_ci_in(TopicEntityTagModel.entity_type, entity_types))
-
-    entities = filters.get("entities")
-    if entities:
-        query = query.filter(_ci_in(TopicEntityTagModel.entity, entities))
-
-    source_methods = filters.get("source_methods")
-    if source_methods:
-        query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_method, source_methods)))
-
     negated_source_methods = filters.get("negated_source_methods")
     if negated_source_methods:
         query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
             _ci_in(TopicEntityTagSourceModel.source_method, negated_source_methods)))
-
-    source_evidence_assertions = filters.get("source_evidence_assertions")
-    if source_evidence_assertions:
-        query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
-            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, source_evidence_assertions)))
 
     negated_source_evidence_assertions = filters.get("negated_source_evidence_assertions")
     if negated_source_evidence_assertions:
@@ -1348,9 +1381,19 @@ def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[s
     """Aggregate entity-tag counts per reference -> topic (and per source within
     a topic) so the grid gets authoritative totals from the API rather than
     recomputing them client-side. Topic keys are uppercased to match the UI's
-    normalizeCurie."""
+    normalizeCurie.
+
+    Curator-source tags are excluded -- identically to _build_tag_entries -- so
+    these totals stay consistent with the displayed mini-rows: curator-submitted
+    tags surface in the Validation column (computed client-side from the raw
+    tags), not in the per-topic Sources/Tag/Conf/Note cells these counts back.
+    Counting them here would let a topic show a count badge with no expandable
+    rows (the mismatch is otherwise invisible because no consumer renders these
+    counts yet)."""
     counts: Dict[int, Dict[str, Any]] = defaultdict(dict)
     for tag in serialized_tags:
+        if _is_curator_source_tag(tag):
+            continue
         ref_id = tag["reference_id"]
         topic = str(tag.get("topic") or "").upper()
         entity = tag.get("entity")

@@ -206,6 +206,48 @@ class TestTopicEntityTag:
             data = response.json()
             assert len(data["tags"][ref_curie]) >= 1
 
+    def test_show_all_reference_tags_batch_single_vs_multi_tag(self, test_topic_entity_tag, auth_headers):  # noqa
+        # The fixture reference carries ONE tag: topic ATP:0000122 with source
+        # method "phenotype neural network". Combining the topic it DOES carry
+        # with a source method it does NOT exercises the apply_to_single_tag mode:
+        #   - single-tag (default): one tag must satisfy BOTH -> the tag is
+        #     dropped (its source method differs), so no tags come back.
+        #   - multi-tag: the facets are ORed (the search matched them across
+        #     different tags), so the topic match alone keeps the tag.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_build_curie_to_name_map.return_value = {
+                'ATP:0000122': 'ATP:0000122', 'ATP:0000005': 'gene',
+                'WB:WBGene00003001': 'lin-12', 'NCBITaxon:6239': 'Caenorhabditis elegans'
+            }
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            combined = {
+                "topics": ["ATP:0000122"],
+                "source_methods": ["no_such_source_method"],
+            }
+
+            # single-tag (default, flag omitted): AND across one tag -> nothing.
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie], "filters": combined},
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert response.json()["tags"][ref_curie] == []
+
+            # multi-tag: OR across facets -> the topic match keeps the tag.
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={
+                    "curies_or_reference_ids": [ref_curie],
+                    "filters": {**combined, "apply_to_single_tag": False},
+                },
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            assert len(response.json()["tags"][ref_curie]) >= 1
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(
