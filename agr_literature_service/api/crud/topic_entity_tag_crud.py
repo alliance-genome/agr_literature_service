@@ -14,7 +14,7 @@ from time import perf_counter
 from dateutil import parser as date_parser
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import case, and_, create_engine, text, inspect as sa_inspect
+from sqlalchemy import case, and_, or_, func, create_engine, text, inspect as sa_inspect
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload, sessionmaker, noload
 
@@ -50,12 +50,20 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 logger = logging.getLogger(__name__)
 
 
+def _tet_batch_timing_enabled():
+    # Re-read each call so it can be toggled without a code change.
+    return environ.get("DEBUG_TET_BATCH_TIMING", "").lower() in ("1", "true", "yes")
+
+
 def _log_tet_batch_timing(message, *args):
     # TET batch phase timing (resolve / query / names / serialize / total).
-    # Disabled by default to avoid per-request stdout noise in production;
-    # uncomment the print to re-enable timing diagnostics when needed.
-    # print(message % args, flush=True)
-    pass
+    # Off by default to keep production logs quiet; set DEBUG_TET_BATCH_TIMING=true
+    # to print the per-phase breakdown to stdout when diagnosing slow Topic-grid
+    # loads. The same numbers are also returned in the endpoint response under
+    # "debug_timing" (also gated by the flag), which is readable from the browser
+    # Network tab even when the container ships stdout to a remote log driver.
+    if _tet_batch_timing_enabled():
+        print(message % args, flush=True)
 
 
 ATP_ID_SOURCE_AUTHOR = "author"
@@ -1228,16 +1236,338 @@ def show_all_reference_tags(db: Session, curie_or_reference_id, page: int = 1, p
         return _serialize_reference_tag_rows(db, rows, curie_to_name)
 
 
-def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str]):
+def _ci_in(column, values):
+    """Case-insensitive IN over a string column. Facet values arrive as exact
+    keyword-aggregation strings, but topic/confidence-level curies can differ in
+    case between the ES bucket keys, the DB rows and the UI (which uppercases),
+    so compare on UPPER() to avoid silent mismatches."""
+    upper_values = [str(v).upper() for v in values if v is not None]
+    return func.upper(column).in_(upper_values)
+
+
+def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
+    """Restrict a TET query to the tags the initial search asked for.
+
+    Mirrors the TET facet criteria the search UI sends (searchActions.js). The
+    nested-TET facets -- topic / confidence-level / source-method / source-
+    evidence / data-novelty -- are combined according to the search's
+    ``apply_to_single_tag`` mode so the grid shows the same tags the search
+    selected its references on:
+
+      * single-tag mode (the default, and what an absent flag means): a tag must
+        satisfy ALL of these positive criteria on its own. ES bundles them into
+        ONE nested query (processCombinedTETFacets), so they are ANDed here too.
+      * multi-tag mode: ES turns each facet into its OWN nested query
+        (processSingleFacet), so a reference can match because tag A carries the
+        topic while a different tag B carries the source-method. ANDing on one tag
+        would then return zero tags for such a reference -- an empty grid row for
+        a genuine search hit -- so the positive criteria are ORed instead (a tag
+        is kept if it matches ANY selected facet), i.e. the union of tags the
+        search asked for.
+
+    Confidence-score range, entity-type/entity and every negated criterion are
+    applied as per-tag refinements in BOTH modes: the score slider deliberately
+    keeps unscored curator/author tags and drops only out-of-range scored ones
+    (mirroring the grid's client-side filter), entity_type/entity are not
+    nested-TET facets in the search (they ride the non-nested facets), and the
+    negated source/SEA use whole-reference semantics the candidate references
+    have already passed.
+
+    Pushing this into SQL is the core fix for the slow grid load: instead of
+    fetching every tag on every reference (all topics, all sources) and filtering
+    client-side, we return only the matching tags -- a far smaller payload to
+    serialize, transfer and render.
+    """
+    if not filters:
+        return query
+
+    # Absent flag => single-tag (AND), preserving the original behavior for any
+    # caller (older UI / explicit single-facet use) that does not send the mode.
+    single_tag = filters.get("apply_to_single_tag", True)
+
+    # Positive nested-TET facets, combined per the search's single/multi-tag mode.
+    positive_conditions = []
+    topics = filters.get("topics")
+    if topics:
+        positive_conditions.append(_ci_in(TopicEntityTagModel.topic, topics))
+
+    confidence_levels = filters.get("confidence_levels")
+    if confidence_levels:
+        positive_conditions.append(_ci_in(TopicEntityTagModel.confidence_level, confidence_levels))
+
+    data_novelty = filters.get("data_novelty")
+    if data_novelty:
+        positive_conditions.append(_ci_in(TopicEntityTagModel.data_novelty, data_novelty))
+
+    source_methods = filters.get("source_methods")
+    if source_methods:
+        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
+            _ci_in(TopicEntityTagSourceModel.source_method, source_methods)))
+
+    source_evidence_assertions = filters.get("source_evidence_assertions")
+    if source_evidence_assertions:
+        positive_conditions.append(TopicEntityTagModel.topic_entity_tag_source.has(
+            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, source_evidence_assertions)))
+
+    if positive_conditions:
+        if single_tag:
+            for cond in positive_conditions:
+                query = query.filter(cond)
+        else:
+            query = query.filter(or_(*positive_conditions))
+
+    # --- per-tag refinements, applied in both modes -------------------------- #
+    entity_types = filters.get("entity_types")
+    if entity_types:
+        query = query.filter(_ci_in(TopicEntityTagModel.entity_type, entity_types))
+
+    entities = filters.get("entities")
+    if entities:
+        query = query.filter(_ci_in(TopicEntityTagModel.entity, entities))
+
+    negated_confidence_levels = filters.get("negated_confidence_levels")
+    if negated_confidence_levels:
+        # Drop tags whose confidence level is excluded (e.g. "Exclude NEG"), but
+        # keep tags with no level set -- matching the search/grid behavior.
+        upper_values = [str(v).upper() for v in negated_confidence_levels if v is not None]
+        query = query.filter(or_(
+            TopicEntityTagModel.confidence_level.is_(None),
+            func.upper(TopicEntityTagModel.confidence_level).notin_(upper_values)
+        ))
+
+    negated_source_methods = filters.get("negated_source_methods")
+    if negated_source_methods:
+        query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
+            _ci_in(TopicEntityTagSourceModel.source_method, negated_source_methods)))
+
+    negated_source_evidence_assertions = filters.get("negated_source_evidence_assertions")
+    if negated_source_evidence_assertions:
+        query = query.filter(~TopicEntityTagModel.topic_entity_tag_source.has(
+            _ci_in(TopicEntityTagSourceModel.source_evidence_assertion, negated_source_evidence_assertions)))
+
+    score_min = filters.get("confidence_score_min")
+    score_max = filters.get("confidence_score_max")
+    if score_min is not None or score_max is not None:
+        range_conds = []
+        if score_min is not None:
+            range_conds.append(TopicEntityTagModel.confidence_score >= score_min)
+        if score_max is not None:
+            range_conds.append(TopicEntityTagModel.confidence_score <= score_max)
+        # Tags with no score are kept (mirrors the client-side score filter).
+        query = query.filter(or_(
+            TopicEntityTagModel.confidence_score.is_(None),
+            and_(*range_conds)
+        ))
+
+    return query
+
+
+def _source_label(source_data: Optional[Dict[str, Any]]) -> str:
+    """Replicate the UI's sourceLabel (groupTets.js) so per-source counts key on
+    the same label the grid renders."""
+    if not source_data:
+        return "unknown"
+    method = source_data.get("source_method") or "unknown"
+    sec = source_data.get("secondary_data_provider_abbreviation")
+    dp = source_data.get("data_provider")
+    if sec:
+        return f"{method} / {sec}"
+    if dp:
+        return f"{method} / {dp}"
+    return method
+
+
+def _build_tag_counts(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    """Aggregate entity-tag counts per reference -> topic (and per source within
+    a topic) so the grid gets authoritative totals from the API rather than
+    recomputing them client-side. Topic keys are uppercased to match the UI's
+    normalizeCurie.
+
+    Curator-source tags are excluded -- identically to _build_tag_entries -- so
+    these totals stay consistent with the displayed mini-rows: curator-submitted
+    tags surface in the Validation column (computed client-side from the raw
+    tags), not in the per-topic Sources/Tag/Conf/Note cells these counts back.
+    Counting them here would let a topic show a count badge with no expandable
+    rows (the mismatch is otherwise invisible because no consumer renders these
+    counts yet)."""
+    counts: Dict[int, Dict[str, Any]] = defaultdict(dict)
+    for tag in serialized_tags:
+        if _is_curator_source_tag(tag):
+            continue
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        entity = tag.get("entity")
+        negated = bool(tag.get("negated"))
+        if not entity:
+            kind = "topic_only"
+        elif negated:
+            kind = "entity_neg"
+        else:
+            kind = "entity_pos"
+
+        topic_bucket = counts[ref_id].setdefault(
+            topic,
+            {"topic_only": 0, "entity_pos": 0, "entity_neg": 0, "total": 0, "by_source": {}}
+        )
+        topic_bucket[kind] += 1
+        topic_bucket["total"] += 1
+
+        label = _source_label(tag.get("topic_entity_tag_source"))
+        src_bucket = topic_bucket["by_source"].setdefault(
+            label, {"topic_only": 0, "entity_pos": 0, "entity_neg": 0}
+        )
+        src_bucket[kind] += 1
+    return counts
+
+
+def _is_curator_source_tag(tag: Dict[str, Any]) -> bool:
+    source = tag.get("topic_entity_tag_source") or {}
+    return source.get("validation_type") in ("professional_biocurator", "professional_curator")
+
+
+def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "aggregated": True,
+        "sourceLabel": label,
+        "source_label": label,
+        "source_description": source_data.get("description"),
+        "source_evidence_assertion": source_data.get("source_evidence_assertion"),
+    }
+
+
+def _entity_label(tag: Dict[str, Any]) -> str:
+    return tag.get("entity_name") or tag.get("entity") or ""
+
+
+def _score_summary(tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    vals = [
+        float(tag["confidence_score"])
+        for tag in tags
+        if tag.get("confidence_score") is not None
+    ]
+    if not vals:
+        return {"confidence_score_min": None, "confidence_score_max": None, "confidence_score_count": 0}
+    return {
+        "confidence_score_min": min(vals),
+        "confidence_score_max": max(vals),
+        "confidence_score_count": len(vals),
+    }
+
+
+def _level_summary(tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    levels = []
+    seen = set()
+    for tag in tags:
+        level = tag.get("confidence_level")
+        if level is None or level == "" or level in seen:
+            continue
+        seen.add(level)
+        levels.append(level)
+    return {"confidence_levels": levels}
+
+
+def _note_summary(tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    notes = [
+        {"entity": _entity_label(tag), "note": tag.get("note")}
+        for tag in tags
+        if tag.get("note")
+    ]
+    return {"notes": notes}
+
+
+def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    """Build grid mini-rows per reference/topic/source in the API.
+
+    The UI previously rebuilt these buckets for every cell render/filter/sort.
+    Returning them with the batch endpoint keeps entity counts and per-source
+    aggregation authoritative in the API while preserving raw tags separately
+    for validation actions.
+    """
+    grouped: Dict[int, Dict[str, Dict[str, List[Dict[str, Any]]]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(list))
+    )
+    source_data_by_label: Dict[Tuple[int, str, str], Dict[str, Any]] = {}
+
+    for tag in serialized_tags:
+        if _is_curator_source_tag(tag):
+            continue
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        source_data = tag.get("topic_entity_tag_source") or {}
+        label = _source_label(source_data)
+        grouped[ref_id][topic][label].append(tag)
+        source_data_by_label[(ref_id, topic, label)] = source_data
+
+    entries_by_ref_topic: Dict[int, Dict[str, Any]] = defaultdict(dict)
+    for ref_id, by_topic in grouped.items():
+        for topic, by_source in by_topic.items():
+            entries = []
+            for label, tags in by_source.items():
+                source_data = source_data_by_label.get((ref_id, topic, label), {})
+                topic_only = [tag for tag in tags if not tag.get("entity")]
+                entity_positive = [tag for tag in tags if tag.get("entity") and not tag.get("negated")]
+                entity_negative = [tag for tag in tags if tag.get("entity") and tag.get("negated")]
+
+                for tag in topic_only:
+                    entry = {
+                        **_entry_base(label, source_data),
+                        "key": f"t-{tag.get('topic_entity_tag_id')}",
+                        "kind": "topic",
+                        "topic_entity_tag_id": tag.get("topic_entity_tag_id"),
+                        "negated": bool(tag.get("negated")),
+                        "confidence_score": tag.get("confidence_score"),
+                        "confidence_level": tag.get("confidence_level"),
+                        "note": tag.get("note"),
+                    }
+                    entries.append(entry)
+
+                for kind, tags_for_kind in (
+                    ("entity-pos", entity_positive),
+                    ("entity-neg", entity_negative),
+                ):
+                    if not tags_for_kind:
+                        continue
+                    entity_labels = [_entity_label(tag) for tag in tags_for_kind]
+                    visible_entity_labels = [entity_label for entity_label in entity_labels[:20] if entity_label]
+                    entities_text = ", ".join(visible_entity_labels)
+                    if len(entity_labels) > 20:
+                        entities_text += f", ... (+{len(entity_labels) - 20} more)"
+                    entry = {
+                        **_entry_base(label, source_data),
+                        "key": f"{kind}-{label}",
+                        "kind": kind,
+                        "count": len(tags_for_kind),
+                        "entities_text": entities_text,
+                        **_score_summary(tags_for_kind),
+                        **_level_summary(tags_for_kind),
+                        **_note_summary(tags_for_kind),
+                    }
+                    entries.append(entry)
+            entries_by_ref_topic[ref_id][topic] = entries
+    return entries_by_ref_topic
+
+
+def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
+                                           filters: Optional[Dict[str, Any]] = None):
     """Batch variant of show_all_reference_tags.
 
-    Returns a map of each input identifier -> its full TET list, reusing the
+    Returns ``{"tags": {ident: [...]}, "counts": {ident: {topic: {...}}},
+    "entries": {ident: {topic: [...]}}}``.
+
+    ``tags`` maps each input identifier -> its TET list (filtered to the optional
+    ``filters`` -- the criteria from the initial search), reusing the
     single-reference logic so the per-tag enrichment (display names, validated_by,
     ml_model version, etc.) is identical. This lets the TET validation grid fetch
     every reference's tags for a search page in ONE request instead of firing one
     HTTP call per reference (the previous per-row fan-out was the grid's main
-    bottleneck). Unresolvable identifiers map to an empty list, mirroring the
-    per-row endpoint's behavior so a single bad id never fails the whole batch.
+    bottleneck), and -- when the search specified an entity/topic -- only the
+    matching tags rather than every tag on every reference.
+
+    ``counts`` maps each identifier -> per-topic entity-tag counts (topic-only /
+    positive-entity / negative-entity totals, plus a per-source breakdown), so the
+    grid gets authoritative aggregates from the API. Unresolvable identifiers map
+    to an empty list / empty counts, mirroring the per-row endpoint's behavior so a
+    single bad id never fails the whole batch.
 
     The curie->name resolution (external A-team lookups) is done ONCE across the
     union of every reference's tags, rather than once per reference -- otherwise
@@ -1248,9 +1578,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     resolve_start = perf_counter()
     ident_to_ref_id = _resolve_reference_ids_for_batch(db, curies_or_reference_ids)
     resolved_count = len([rid for rid in ident_to_ref_id.values() if rid is not None])
+    resolve_ms = (perf_counter() - resolve_start) * 1000
     _log_tet_batch_timing(
         "TET batch refs resolved in %.1fms: inputs=%s unique=%s resolved=%s",
-        (perf_counter() - resolve_start) * 1000,
+        resolve_ms,
         len(curies_or_reference_ids),
         len(ident_to_ref_id),
         resolved_count
@@ -1263,19 +1594,29 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             (perf_counter() - total_start) * 1000,
             len(curies_or_reference_ids)
         )
-        return {ident: [] for ident in ident_to_ref_id}
+        return {
+            "tags": {ident: [] for ident in ident_to_ref_id},
+            "counts": {ident: {} for ident in ident_to_ref_id},
+            "entries": {ident: {} for ident in ident_to_ref_id},
+            "debug_timing": None
+        }
 
     query_start = perf_counter()
-    rows = db.query(TopicEntityTagModel).options(
+    query = db.query(TopicEntityTagModel).options(
         joinedload(TopicEntityTagModel.topic_entity_tag_source),
         joinedload(TopicEntityTagModel.ml_model),
         selectinload(TopicEntityTagModel.validated_by)).filter(
-        TopicEntityTagModel.reference_id.in_(ref_ids)).order_by(
+        TopicEntityTagModel.reference_id.in_(ref_ids))
+    # Restrict to the tags the initial search asked for (topic/confidence/source/
+    # data-novelty/score). This is what keeps the grid load small and fast.
+    query = _apply_batch_tag_filters(query, filters)
+    rows = query.order_by(
         TopicEntityTagModel.reference_id,
         TopicEntityTagModel.topic_entity_tag_id).all()
+    query_ms = (perf_counter() - query_start) * 1000
     _log_tet_batch_timing(
         "TET batch rows queried in %.1fms: refs=%s rows=%s",
-        (perf_counter() - query_start) * 1000,
+        query_ms,
         len(ref_ids),
         len(rows)
     )
@@ -1283,9 +1624,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     # One name map for the union of all tags (the expensive external lookups).
     names_start = perf_counter()
     curie_to_name = build_curie_to_name_map(db, rows)
+    names_ms = (perf_counter() - names_start) * 1000
     _log_tet_batch_timing(
         "TET batch names mapped in %.1fms: names=%s",
-        (perf_counter() - names_start) * 1000,
+        names_ms,
         len(curie_to_name)
     )
 
@@ -1294,27 +1636,55 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     tags_by_ref_id = defaultdict(list)
     for tag in serialized_tags:
         tags_by_ref_id[tag["reference_id"]].append(tag)
+    counts_by_ref_id = _build_tag_counts(serialized_tags)
+    entries_by_ref_id = _build_tag_entries(serialized_tags)
+    serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
-        (perf_counter() - serialize_start) * 1000,
+        serialize_ms,
         len(serialized_tags)
     )
 
-    result: Dict[str, Any] = {}
+    tags_result: Dict[str, Any] = {}
+    counts_result: Dict[str, Any] = {}
+    entries_result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
-            result[ident] = []
+            tags_result[ident] = []
+            counts_result[ident] = {}
+            entries_result[ident] = {}
         else:
-            result[ident] = tags_by_ref_id[ref_id]
+            tags_result[ident] = tags_by_ref_id[ref_id]
+            counts_result[ident] = counts_by_ref_id.get(ref_id, {})
+            entries_result[ident] = entries_by_ref_id.get(ref_id, {})
+    total_ms = (perf_counter() - total_start) * 1000
     _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
-        (perf_counter() - total_start) * 1000,
+        total_ms,
         len(curies_or_reference_ids),
         len(ident_to_ref_id),
         resolved_count,
         len(serialized_tags)
     )
-    return result
+    debug_timing = None
+    if _tet_batch_timing_enabled():
+        debug_timing = {
+            "resolve_ms": round(resolve_ms, 1),
+            "query_ms": round(query_ms, 1),
+            "names_ms": round(names_ms, 1),
+            "serialize_ms": round(serialize_ms, 1),
+            "total_ms": round(total_ms, 1),
+            "refs_resolved": resolved_count,
+            "rows": len(rows),
+            "names": len(curie_to_name),
+            "tags": len(serialized_tags),
+        }
+    return {
+        "tags": tags_result,
+        "counts": counts_result,
+        "entries": entries_result,
+        "debug_timing": debug_timing
+    }
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):

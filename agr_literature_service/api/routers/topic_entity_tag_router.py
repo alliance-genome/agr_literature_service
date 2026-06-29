@@ -3,6 +3,7 @@ from typing import List, Dict, Union, Any, Optional
 
 from agr_cognito_py import get_mod_access
 from fastapi import APIRouter, Body, Depends, Query, Response, Security, status, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
@@ -171,25 +172,77 @@ def show_all_reference_tags(
 MAX_BATCH_REFERENCES = 100
 
 
+class ReferenceTagsBatchFilters(BaseModel):
+    """The TET facet criteria from the initial search. All fields optional; an
+    omitted/empty field means "no restriction on that dimension", so the grid
+    loads only the tags the search asked for.
+
+    ``apply_to_single_tag`` mirrors the search's mode: when true (the default for
+    an omitted value), the positive nested-TET facets (topic / confidence-level /
+    source-method / source-evidence / data-novelty) must all be satisfied by ONE
+    tag; when false the search matched them across different tags of a reference,
+    so they are ORed instead (union of matching tags) to avoid an empty grid row
+    for a genuine search hit."""
+    topics: Optional[List[str]] = None
+    confidence_levels: Optional[List[str]] = None
+    negated_confidence_levels: Optional[List[str]] = None
+    source_methods: Optional[List[str]] = None
+    negated_source_methods: Optional[List[str]] = None
+    source_evidence_assertions: Optional[List[str]] = None
+    negated_source_evidence_assertions: Optional[List[str]] = None
+    data_novelty: Optional[List[str]] = None
+    entity_types: Optional[List[str]] = None
+    entities: Optional[List[str]] = None
+    confidence_score_min: Optional[float] = None
+    confidence_score_max: Optional[float] = None
+    apply_to_single_tag: Optional[bool] = None
+
+
+class ReferenceTagsBatchRequest(BaseModel):
+    curies_or_reference_ids: List[str]
+    filters: Optional[ReferenceTagsBatchFilters] = None
+
+
+class ReferenceTagsBatchResponse(BaseModel):
+    # tags: input identifier -> its (filtered) TET list.
+    tags: Dict[str, List[TopicEntityTagSchemaRelated]]
+    # counts: input identifier -> {topic_curie: {topic_only, entity_pos,
+    # entity_neg, total, by_source: {label: {...}}}} -- aggregates computed in
+    # the API so the grid doesn't recount client-side.
+    counts: Dict[str, Any]
+    # entries: input identifier -> {topic_curie: [aggregated mini-rows]}.
+    # These rows are grouped by source/evidence/kind in the API so the grid
+    # renders, filters and sorts from pre-aggregated tag buckets.
+    entries: Optional[Dict[str, Any]] = None
+    # debug_timing: per-phase timing breakdown, present only when
+    # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
+    # straight from the browser Network tab. Null in normal operation.
+    debug_timing: Optional[Dict[str, Any]] = None
+
+
 @router.post('/by_references',
              status_code=200)
 def show_all_reference_tags_batch(
-    curies_or_reference_ids: List[str] = Body(..., embed=False),
+    request: ReferenceTagsBatchRequest = Body(...),
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session
-) -> Dict[str, List[TopicEntityTagSchemaRelated]]:
-    """Return all TETs for many references in one request, keyed by the input
-    identifier. Used by the TET validation grid to avoid one HTTP round-trip per
-    reference (see show_all_reference_tags_for_references)."""
-    if len(curies_or_reference_ids) > MAX_BATCH_REFERENCES:
+) -> ReferenceTagsBatchResponse:
+    """Return TETs for many references in one request, keyed by the input
+    identifier, restricted to the tags the initial search specified (request.
+    filters) and accompanied by per-topic entity-tag counts. Used by the TET
+    validation grid to avoid one HTTP round-trip per reference and to avoid
+    loading every tag on every reference (see
+    show_all_reference_tags_for_references)."""
+    if len(request.curies_or_reference_ids) > MAX_BATCH_REFERENCES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Too many references in one batch "
-                   f"({len(curies_or_reference_ids)} > {MAX_BATCH_REFERENCES}); "
+                   f"({len(request.curies_or_reference_ids)} > {MAX_BATCH_REFERENCES}); "
                    f"split into smaller requests."
         )
+    filters = request.filters.model_dump(exclude_none=True) if request.filters else None
     return topic_entity_tag_crud.show_all_reference_tags_for_references(
-        db, curies_or_reference_ids
+        db, request.curies_or_reference_ids, filters
     )
 
 
