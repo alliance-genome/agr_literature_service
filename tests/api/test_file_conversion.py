@@ -14,7 +14,9 @@ Conversion primitives (process_nxml_to_markdown / process_pdf_for_reference) are
 mocked — the real ones would call PDFX and S3.
 """
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
+
+import agr_literature_service.api.crud.referencefile_crud as referencefile_crud
 
 from fastapi import status
 from starlette.testclient import TestClient
@@ -51,6 +53,68 @@ def clear_global_manager():
 @pytest.fixture
 def manager():
     return ConversionJobManager()
+
+
+class TestSuppressPostUploadWorkflow:
+    """SCRUM-6246: a one-off process (the figure-metadata backfill) can flip a
+    process-level toggle so file_upload() persists auxiliary files WITHOUT
+    firing the file-upload workflow transition or pruning superseded main PDFs.
+    Default (live API / conversion path) is unchanged: the transition fires."""
+
+    @staticmethod
+    def _metadata():
+        # A figure-metadata sidecar: not main/pdf/final, mod-less so the
+        # corpus / upload-blocked guards are skipped (mod_abbreviation is None).
+        return {
+            "reference_curie": "AGRKB:101000000000001",
+            "mod_abbreviation": None,
+            "file_class": "converted_main_figure_metadata",
+            "file_publication_status": "final",
+            "file_extension": "json",
+            "pdf_type": None,
+        }
+
+    def test_default_fires_transition_and_cleanup(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "file_upload_single",
+                             return_value=MagicMock()), \
+                patch.object(referencefile_crud, "cleanup_old_pdf_file") as cleanup, \
+                patch.object(referencefile_crud,
+                             "transition_WFT_for_uploaded_file") as transition:
+            referencefile_crud.file_upload(mock_db, self._metadata(), MagicMock())
+            transition.assert_called_once()
+            cleanup.assert_called_once()
+
+    def test_suppress_skips_transition_and_cleanup_but_commits(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "file_upload_single",
+                             return_value=MagicMock()), \
+                patch.object(referencefile_crud, "cleanup_old_pdf_file") as cleanup, \
+                patch.object(referencefile_crud,
+                             "transition_WFT_for_uploaded_file") as transition:
+            referencefile_crud.set_suppress_post_upload_workflow(True)
+            try:
+                referencefile_crud.file_upload(mock_db, self._metadata(), MagicMock())
+            finally:
+                referencefile_crud.set_suppress_post_upload_workflow(False)
+            transition.assert_not_called()
+            cleanup.assert_not_called()
+            # The created referencefile must still be persisted even though the
+            # transition (which used to be the committing step) was skipped.
+            mock_db.commit.assert_called_once()
+
+    def test_setter_toggles_and_resets_module_state(self):
+        assert referencefile_crud.is_post_upload_workflow_suppressed() is False
+        referencefile_crud.set_suppress_post_upload_workflow(True)
+        try:
+            assert referencefile_crud.is_post_upload_workflow_suppressed() is True
+        finally:
+            referencefile_crud.set_suppress_post_upload_workflow(False)
+        assert referencefile_crud.is_post_upload_workflow_suppressed() is False
 
 
 class TestConversionJob:
