@@ -5,7 +5,10 @@ from pydantic import BaseModel, ConfigDict
 
 class EmbeddingFileSchemaBase(BaseModel):
     """Embedding catalog semantics (no vectors, no recipe descriptor)."""
-    model_config = ConfigDict(extra='forbid', from_attributes=True)
+    # protected_namespaces=() so the `model_name` field doesn't trip Pydantic
+    # v2's `model_` protected-namespace warning.
+    model_config = ConfigDict(extra='forbid', from_attributes=True,
+                              protected_namespaces=())
 
     reference_curie: str
     profile_name: str

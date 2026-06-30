@@ -77,9 +77,12 @@ class ReferencefileSourceSchema(BaseModel):
 
 class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     """Schema for related reference file entries with audit fields."""
+    # protected_namespaces=() so the embedding `model_name` field doesn't trip
+    # Pydantic v2's `model_` protected-namespace warning.
     model_config = ConfigDict(
         extra='forbid',
-        from_attributes=True
+        from_attributes=True,
+        protected_namespaces=()
     )
 
     referencefile_id: int
