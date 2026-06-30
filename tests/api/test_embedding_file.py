@@ -129,6 +129,56 @@ def test_show_all_excludes_embeddings_by_default(db, test_reference, auth_header
         assert emb[0]["source"]["md5sum"] == "md5md"
 
 
+def test_create_endpoint_registers_embedding(db, test_reference, auth_headers):  # noqa
+    """POST /reference/embedding_file/ uploads the parquet + upserts the catalog
+    row, returning it serialized as EmbeddingFileSchemaShow (curie-keyed)."""
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    holder = []
+    with patch.object(embedding_file_crud, "file_upload_single",
+                      side_effect=lambda d, m, f: _fake_parquet_referencefile(db, ref.reference_id, holder)):
+        with TestClient(app) as client:
+            resp = client.post(
+                "/reference/embedding_file/",
+                params={"reference_curie": curie, "profile_name": "abstract_document",
+                        "version": 1, "model_name": "openai:text-embedding-3-small"},
+                headers=auth_headers,
+                files={"file": ("e.parquet", io.BytesIO(b"PAR1data"), "application/octet-stream")},
+            )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["reference_curie"] == curie  # @property mapping from reference_id
+    assert body["profile_name"] == "abstract_document" and body["version"] == 1
+    assert body["parquet_referencefile_id"] == holder[-1]
+    assert body["embedding_file_id"] > 0
+
+
+def test_get_endpoint_returns_catalog_row(db, test_reference, auth_headers):  # noqa
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    pq = ReferencefileModel(reference_id=ref.reference_id, display_name="emb_get_v1",
+                            file_class="embedding", file_publication_status="final",
+                            file_extension="parquet", md5sum="md5get", is_annotation=False)
+    db.add(pq)
+    db.commit()
+    db.refresh(pq)
+    row = EmbeddingFileModel(
+        reference_id=ref.reference_id, profile_name="abstract_document",
+        version=1, model_name="openai:text-embedding-3-small",
+        source_referencefile_id=None,
+        parquet_referencefile_id=pq.referencefile_id)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    with TestClient(app) as client:
+        resp = client.get(f"/reference/embedding_file/{row.embedding_file_id}", headers=auth_headers)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["embedding_file_id"] == row.embedding_file_id
+    assert body["reference_curie"] == curie
+    assert body["parquet_referencefile_id"] == pq.referencefile_id
+
+
 def test_attach_embeddings_links_by_source_md(db, test_reference):  # noqa
     curie = test_reference.new_ref_curie
     ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()

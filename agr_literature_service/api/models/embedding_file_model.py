@@ -1,3 +1,5 @@
+from typing import Optional
+
 from sqlalchemy import Column, Integer, String, ForeignKey, Index
 from sqlalchemy.orm import relationship
 
@@ -54,6 +56,12 @@ class EmbeddingFileModel(Base):
         "ReferencefileModel",
         foreign_keys="EmbeddingFileModel.parquet_referencefile_id",
     )
+
+    @property
+    def reference_curie(self) -> Optional[str]:
+        """Expose the parent reference's curie so the row serializes directly
+        into EmbeddingFileSchemaShow (which is keyed by curie, not id)."""
+        return self.reference.curie if self.reference else None
 
     # PG13 has no NULLS NOT DISTINCT, so enforce the unique key with two
     # partial indexes (the referencefile_mod pattern).
