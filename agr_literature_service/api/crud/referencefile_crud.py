@@ -317,6 +317,11 @@ def show_all(db: Session, curie_or_reference_id: str,
              profile_name: Optional[str] = None,
              version: Optional[int] = None) -> List[ReferencefileSchemaRelated]:
     logger.info("Show all referencefiles")
+    # profile_name/version only narrow embedding rows, so supplying either implies
+    # include_embeddings=True -- otherwise the filter would silently return zero
+    # embeddings while listing every other file unfiltered.
+    if profile_name is not None or version is not None:
+        include_embeddings = True
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
     all_files = list(reference.referencefiles or [])
 

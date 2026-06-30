@@ -1,7 +1,8 @@
 import io
 from unittest.mock import patch
 
-from fastapi import UploadFile
+import pytest
+from fastapi import HTTPException, UploadFile
 from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
@@ -62,13 +63,20 @@ def test_embedding_file_schemas_shapes():
     assert show.embedding_file_id == 7 and show.source_referencefile_id is None
 
 
-def _fake_parquet_referencefile(db, reference_id, fixed_id_holder):  # noqa
-    """Create a real ReferencefileModel row to stand in for the parquet that
-    file_upload_single would have created + stored in S3."""
+def _fake_parquet_referencefile(db, reference_id, fixed_id_holder, md5sum="deadbeef"):  # noqa
+    """Stand-in for file_upload_single: md5-dedups like the real uploader, so a
+    re-post of identical content returns the existing parquet row instead of
+    inserting a duplicate (which would violate idx_reference_id_display_name).
+    A different md5sum stands in for changed content -> a new parquet row."""
+    existing = db.query(ReferencefileModel).filter_by(
+        reference_id=reference_id, md5sum=md5sum).one_or_none()
+    if existing is not None:
+        fixed_id_holder.append(existing.referencefile_id)
+        return existing
     rf = ReferencefileModel(
-        reference_id=reference_id, display_name="src_md_profile_v1",
+        reference_id=reference_id, display_name=f"src_md_profile_v1_{md5sum}",
         file_class="embedding", file_publication_status="final",
-        file_extension="parquet", md5sum="deadbeef", is_annotation=False,
+        file_extension="parquet", md5sum=md5sum, is_annotation=False,
     )
     db.add(rf)
     db.commit()
@@ -129,12 +137,59 @@ def test_show_all_excludes_embeddings_by_default(db, test_reference, auth_header
         assert emb[0]["source"]["md5sum"] == "md5md"
 
 
+def test_create_or_update_rejects_invalid_source_referencefile_id(db, test_reference):  # noqa
+    """A non-existent source_referencefile_id is rejected up front (422) before
+    the parquet is uploaded, so no orphaned parquet is left behind."""
+    curie = test_reference.new_ref_curie
+    req = EmbeddingFileSchemaCreate(
+        reference_curie=curie, profile_name="abstract_document",
+        version=1, source_referencefile_id=999999999)
+    upload = UploadFile(filename="e.parquet", file=io.BytesIO(b"PAR1data"))
+    uploaded = []
+    with patch.object(embedding_file_crud, "file_upload_single",
+                      side_effect=lambda *a, **k: uploaded.append(1)):
+        with pytest.raises(HTTPException) as exc:
+            embedding_file_crud.create_or_update(db, req, upload)
+    assert exc.value.status_code == 422
+    assert not uploaded  # validated before upload — no parquet, no orphan
+
+
+def test_create_or_update_deletes_superseded_parquet_on_repoint(db, test_reference):  # noqa
+    """Re-posting changed content for the same key re-points the catalog row at
+    the new parquet and deletes the previous (now unreferenced) one (review #1)."""
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    holder = []
+    req = EmbeddingFileSchemaCreate(
+        reference_curie=curie, profile_name="abstract_document", version=1,
+        model_name="m", source_referencefile_id=None)
+    upload = UploadFile(filename="e.parquet", file=io.BytesIO(b"x"))
+    deleted = []
+    with patch.object(embedding_file_crud, "remove_from_s3_and_db",
+                      side_effect=lambda d, rf: deleted.append(rf.referencefile_id)):
+        with patch.object(embedding_file_crud, "file_upload_single",
+                          side_effect=lambda d, m, f: _fake_parquet_referencefile(
+                              db, ref.reference_id, holder, md5sum="aaa")):
+            row1 = embedding_file_crud.create_or_update(db, req, upload)
+        old_id = row1.parquet_referencefile_id
+        with patch.object(embedding_file_crud, "file_upload_single",
+                          side_effect=lambda d, m, f: _fake_parquet_referencefile(
+                              db, ref.reference_id, holder, md5sum="bbb")):
+            row2 = embedding_file_crud.create_or_update(db, req, upload)
+    assert row1.embedding_file_id == row2.embedding_file_id      # same catalog row
+    assert row2.parquet_referencefile_id != old_id              # re-pointed to new parquet
+    assert deleted == [old_id]                                  # superseded parquet cleaned up
+
+
 def test_create_endpoint_registers_embedding(db, test_reference, auth_headers):  # noqa
     """POST /reference/embedding_file/ uploads the parquet + upserts the catalog
     row, returning it serialized as EmbeddingFileSchemaShow (curie-keyed)."""
     curie = test_reference.new_ref_curie
     ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
     holder = []
+    # Drop Content-Type so the client sets the multipart boundary itself.
+    upload_headers = auth_headers.copy()
+    upload_headers.pop("Content-Type", None)
     with patch.object(embedding_file_crud, "file_upload_single",
                       side_effect=lambda d, m, f: _fake_parquet_referencefile(db, ref.reference_id, holder)):
         with TestClient(app) as client:
@@ -142,7 +197,7 @@ def test_create_endpoint_registers_embedding(db, test_reference, auth_headers): 
                 "/reference/embedding_file/",
                 params={"reference_curie": curie, "profile_name": "abstract_document",
                         "version": 1, "model_name": "openai:text-embedding-3-small"},
-                headers=auth_headers,
+                headers=upload_headers,
                 files={"file": ("e.parquet", io.BytesIO(b"PAR1data"), "application/octet-stream")},
             )
     assert resp.status_code == 201, resp.text
