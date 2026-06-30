@@ -221,6 +221,12 @@ class ReferenceTagsBatchResponse(BaseModel):
     # filters AND renders without deriving it from raw tags. Topics with no
     # curator validation are omitted (client treats absent as 'unvalidated').
     validation: Optional[Dict[str, Any]] = None
+    # filter_flags: input identifier -> {topic_curie: {has_any, has_y, has_n,
+    # has_note}}. Per-cell booleans backing the grid's per-topic cell filter
+    # (computed over all tags of the cell) so it filters without scanning raw
+    # tags. ('my validation present' is omitted pending the curator-identity
+    # model.)
+    filter_flags: Optional[Dict[str, Any]] = None
     # debug_timing: per-phase timing breakdown, present only when
     # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
     # straight from the browser Network tab. Null in normal operation.

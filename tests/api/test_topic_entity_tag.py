@@ -147,10 +147,18 @@ class TestTopicEntityTag:
                 entry["kind"] == "entity-pos" and entry["count"] >= 1
                 for entry in entries[ref_curie]["ATP:0000122"]
             )
+            # per-topic cell filter flags are aggregated in the API; the fixture
+            # tag is a positive (negated False) tag carrying a note
+            flags = data["filter_flags"]
+            assert flags[ref_curie]["ATP:0000122"]["has_any"] is True
+            assert flags[ref_curie]["ATP:0000122"]["has_y"] is True
+            assert flags[ref_curie]["ATP:0000122"]["has_n"] is False
+            assert flags[ref_curie]["ATP:0000122"]["has_note"] is True
             # an unresolvable id maps to an empty list / empty counts
             assert tags.get("AGRKB:000000000") == []
             assert counts.get("AGRKB:000000000") == {}
             assert entries.get("AGRKB:000000000") == {}
+            assert data["filter_flags"].get("AGRKB:000000000") == {}
 
     def test_show_all_reference_tags_batch_filtered(self, test_topic_entity_tag, auth_headers):  # noqa
         # Filtering to a topic the reference does NOT carry returns no tags for it.

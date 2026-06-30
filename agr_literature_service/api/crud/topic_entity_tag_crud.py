@@ -1615,6 +1615,37 @@ def _build_validation_details(serialized_tags: List[Dict[str, Any]]) -> Dict[int
     return out
 
 
+def _build_filter_flags(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    """Per reference -> topic boolean flags backing the grid's per-topic cell
+    filter (TopicCellFilter / cellPredicate) so it can filter without scanning
+    raw tags. Computed over ALL tags of the (reference, topic) cell -- entity and
+    topic-level, curator and non-curator -- matching cellPredicate's asTets set::
+
+        has_any  -> the cell has >= 1 tag         ('has any tag'; 'empty' == not has_any)
+        has_y    -> >= 1 tag with negated False    ('has Y')
+        has_n    -> >= 1 tag with negated True      ('has N')
+        has_note -> >= 1 tag with a non-empty note  ('has note')
+
+    'my validation present' is intentionally omitted pending the curator-identity
+    model (created_by is a display name in the serialized tag, the UI compares it
+    to the Okta subject id). Topic keys are uppercased to match normalizeCurie."""
+    flags: Dict[int, Dict[str, Any]] = defaultdict(lambda: defaultdict(
+        lambda: {"has_any": False, "has_y": False, "has_n": False, "has_note": False}))
+    for tag in serialized_tags:
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        cell = flags[ref_id][topic]
+        cell["has_any"] = True
+        if tag.get("negated") is True:
+            cell["has_n"] = True
+        elif tag.get("negated") is False:
+            cell["has_y"] = True
+        note = tag.get("note")
+        if note is not None and note != "":
+            cell["has_note"] = True
+    return flags
+
+
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
                                            filters: Optional[Dict[str, Any]] = None):
     """Batch variant of show_all_reference_tags.
@@ -1667,6 +1698,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             "counts": {ident: {} for ident in ident_to_ref_id},
             "entries": {ident: {} for ident in ident_to_ref_id},
             "validation": {ident: {} for ident in ident_to_ref_id},
+            "filter_flags": {ident: {} for ident in ident_to_ref_id},
             "debug_timing": None
         }
 
@@ -1708,6 +1740,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     counts_by_ref_id = _build_tag_counts(serialized_tags)
     entries_by_ref_id = _build_tag_entries(serialized_tags)
     validation_by_ref_id = _build_validation_details(serialized_tags)
+    filter_flags_by_ref_id = _build_filter_flags(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
@@ -1719,17 +1752,20 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     counts_result: Dict[str, Any] = {}
     entries_result: Dict[str, Any] = {}
     validation_result: Dict[str, Any] = {}
+    filter_flags_result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             tags_result[ident] = []
             counts_result[ident] = {}
             entries_result[ident] = {}
             validation_result[ident] = {}
+            filter_flags_result[ident] = {}
         else:
             tags_result[ident] = tags_by_ref_id[ref_id]
             counts_result[ident] = counts_by_ref_id.get(ref_id, {})
             entries_result[ident] = entries_by_ref_id.get(ref_id, {})
             validation_result[ident] = validation_by_ref_id.get(ref_id, {})
+            filter_flags_result[ident] = filter_flags_by_ref_id.get(ref_id, {})
     total_ms = (perf_counter() - total_start) * 1000
     _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
@@ -1757,6 +1793,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         "counts": counts_result,
         "entries": entries_result,
         "validation": validation_result,
+        "filter_flags": filter_flags_result,
         "debug_timing": debug_timing
     }
 
