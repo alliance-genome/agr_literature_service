@@ -390,6 +390,72 @@ class TestTopicEntityTag:
             assert cell["positives"] == 1
             assert cell["negatives"] == 1
 
+    def test_validate_topic_reuses_existing_curator_source(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # The realistic production case: a curator source for the MOD already
+        # exists (created earlier by the UI's getCuratorSourceId, validation_type
+        # 'professional_curator'). get_or_create must REUSE it -- the source unique
+        # key excludes validation_type -- and an opposite-polarity re-validation by
+        # the same curator must succeed (NOT 409): the opposite-negation guard
+        # (Branch 3) only fires for 'professional_biocurator' sources, which the
+        # abc curator source never is. This pins down the behavior reviewers worry
+        # about (the empty-DB test above exercises only the create branch).
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # pre-create the curator source exactly as the UI's getCuratorSourceId
+            # does (validation_type 'professional_curator')
+            existing_source_id = client.post(
+                url="/topic_entity_tag/source",
+                json={
+                    "source_evidence_assertion": "ATP:0000036",
+                    "source_method": "abc_literature_system",
+                    "validation_type": "professional_curator",
+                    "description": "curator from ABC",
+                    "data_provider": mod,
+                    "secondary_data_provider_abbreviation": mod,
+                },
+                headers=auth_headers,
+            ).json()["topic_entity_tag_source_id"]
+
+            y = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": False},
+                headers=auth_headers,
+            )
+            assert y.status_code == status.HTTP_200_OK
+            # the validation tag reused the pre-existing source (no new one created)
+            created = client.get(
+                url=f"/topic_entity_tag/{y.json()['topic_entity_tag_id']}",
+                headers=auth_headers,
+            ).json()
+            assert created["topic_entity_tag_source_id"] == existing_source_id
+
+            # opposite polarity, same curator -> must be recorded, not 409
+            n = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": True},
+                headers=auth_headers,
+            )
+            assert n.status_code == status.HTTP_200_OK
+            cell = n.json()["validation"]
+            assert cell["state"] == "conflict"
+            assert cell["positives"] == 1
+            assert cell["negatives"] == 1
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(

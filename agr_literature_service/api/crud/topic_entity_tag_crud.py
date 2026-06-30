@@ -1861,27 +1861,56 @@ def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) 
     """Resolve the per-MOD ABC curator source used for grid validations, creating
     it if absent. Server-side equivalent of the UI's getCuratorSourceId (GET the
     source by name, POST to create on 404) so the validate write path no longer
-    needs the client to resolve a source id first."""
+    needs the client to resolve a source id first.
+
+    validation_type is set to CURATOR_VALIDATION_TYPE ('professional_curator') to
+    match exactly what getCuratorSourceId POSTs. NOTE the source unique key
+    (source_evidence_assertion, source_method, data_provider,
+    secondary_data_provider) excludes validation_type, so when a source already
+    exists for the MOD it is reused verbatim -- the same row the UI write path
+    uses. abc_literature_system curator sources are 'professional_curator' (or
+    legacy 'curator'), never 'professional_biocurator': the UI has only ever
+    created them as 'curator'/'professional_curator' and no other code path
+    creates this (assertion, method, mod) source. The opposite-negation guard in
+    check_for_duplicate_tags (Branch 3) is gated on 'professional_biocurator', so
+    it does not apply here -- a same-curator opposite-polarity re-validation is
+    recorded (read side shows 'conflict') rather than rejected with 409, matching
+    the existing UI write path."""
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
     if mod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Cannot find the MOD '{mod_abbreviation}'")
-    source = db.query(TopicEntityTagSourceModel).filter(
-        TopicEntityTagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-        TopicEntityTagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
-        TopicEntityTagSourceModel.data_provider == mod_abbreviation,
-        TopicEntityTagSourceModel.secondary_data_provider_id == mod.mod_id,
-    ).first()
+
+    def _lookup():
+        return db.query(TopicEntityTagSourceModel).filter(
+            TopicEntityTagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+            TopicEntityTagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
+            TopicEntityTagSourceModel.data_provider == mod_abbreviation,
+            TopicEntityTagSourceModel.secondary_data_provider_id == mod.mod_id,
+        ).first()
+
+    source = _lookup()
     if source is not None:
         return source
-    new_source_id = create_source(db, TopicEntityTagSourceSchemaCreate(
-        source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
-        source_method=CURATOR_VALIDATION_SOURCE_METHOD,
-        validation_type=CURATOR_VALIDATION_TYPE,
-        description=CURATOR_VALIDATION_SOURCE_DESCRIPTION,
-        data_provider=mod_abbreviation,
-        secondary_data_provider_abbreviation=mod_abbreviation,
-    ))
+    try:
+        new_source_id = create_source(db, TopicEntityTagSourceSchemaCreate(
+            source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+            source_method=CURATOR_VALIDATION_SOURCE_METHOD,
+            validation_type=CURATOR_VALIDATION_TYPE,
+            description=CURATOR_VALIDATION_SOURCE_DESCRIPTION,
+            data_provider=mod_abbreviation,
+            secondary_data_provider_abbreviation=mod_abbreviation,
+        ))
+    except HTTPException:
+        # Lost a create race with a concurrent first-time validation for the same
+        # MOD: create_source rolls back and raises 422 on the unique-key
+        # violation. The row exists now -- re-fetch and use it rather than
+        # failing the request.
+        db.rollback()
+        source = _lookup()
+        if source is None:
+            raise
+        return source
     return get_source_from_db(db, new_source_id)
 
 
@@ -1913,9 +1942,16 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     species} plus their MOD -- resolve the curator source server-side and create
     the topic-level validation tag through the normal create_tag path (so dedup,
     note-append upsert and validation all behave identically to a manual create),
-    then return the recomputed single cell. force_insertion mirrors the UI: a
-    same-curator opposite-polarity re-validation should record the new assertion
-    rather than 409."""
+    then return the recomputed single cell.
+
+    force_insertion=True mirrors the UI payload; it bypasses the different-creator
+    duplicate guard (Branches 4/5 in check_for_duplicate_tags). A same-curator
+    opposite-polarity re-validation is recorded rather than rejected because the
+    opposite-negation guard (Branch 3) only applies to 'professional_biocurator'
+    sources, and the curator source resolved here is 'professional_curator' (see
+    get_or_create_curator_validation_source). An exact same-curator, same-polarity
+    resubmit still 409s (duplicate) unless it carries a new note (note-append
+    upsert), exactly like a manual create."""
     source = get_or_create_curator_validation_source(db, mod_abbreviation)
     tag = TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
