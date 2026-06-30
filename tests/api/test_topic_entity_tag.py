@@ -264,7 +264,7 @@ class TestTopicEntityTag:
             assert len(response.json()["tags"][ref_curie]) >= 1
 
     def test_show_all_reference_tags_batch_validation_state(self, test_topic_entity_tag, test_reference, test_mod, auth_headers):  # noqa
-        # A topic-level tag (no entity) from a professional-biocurator source is a
+        # A topic-level tag (no entity) from a professional-curator source is a
         # curator validation. The batch endpoint aggregates per-cell validation
         # state so the grid's Validation column can sort/filter without deriving
         # it from raw tags. Two positive + negative curator tags on the same
@@ -283,10 +283,15 @@ class TestTopicEntityTag:
             mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
             ref_curie = test_topic_entity_tag.related_ref_curie
 
+            # validation_type matches what the UI's getCuratorSourceId actually
+            # POSTs for the abc_literature_system source ('professional_curator');
+            # the abc curator source is never 'professional_biocurator'. Keeping
+            # this consistent with the write-path test avoids implying the source
+            # key (ATP:0000036 / abc_literature_system) can be biocurator.
             curator_source = {
                 "source_evidence_assertion": "ATP:0000036",
                 "source_method": "abc_literature_system",
-                "validation_type": "professional_biocurator",
+                "validation_type": "professional_curator",
                 "description": "curator from ABC",
                 "data_provider": "WB",
                 "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
