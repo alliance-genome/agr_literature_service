@@ -76,6 +76,20 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 # tag auto-created from a positive mixed topic+entity tag.
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
+# SCRUM-6242 (increment 5): the curator validation written by the grid's
+# Validation column. These mirror exactly what the UI (CellValidationStrip /
+# getCuratorSourceId) sends today so the server-side validate path produces an
+# identical tag: a topic-level (no entity) tag from the per-MOD ABC curator
+# source. data_novelty is required (non-null column) and the UI hardcodes the
+# "no data" term for these topic-level validations.
+CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
+CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"
+CURATOR_VALIDATION_TYPE = "professional_curator"
+CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
+CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
+    "Trained professional biocurator specializing in curation of model organism "
+    "data using the ABC data entry form.")
+
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
                validate_on_insert: bool = True) -> Tuple[int, bool]:
@@ -1840,6 +1854,88 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         "filter_flags": filter_flags_result,
         "discovery": discovery_result,
         "debug_timing": debug_timing
+    }
+
+
+def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) -> TopicEntityTagSourceModel:
+    """Resolve the per-MOD ABC curator source used for grid validations, creating
+    it if absent. Server-side equivalent of the UI's getCuratorSourceId (GET the
+    source by name, POST to create on 404) so the validate write path no longer
+    needs the client to resolve a source id first."""
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Cannot find the MOD '{mod_abbreviation}'")
+    source = db.query(TopicEntityTagSourceModel).filter(
+        TopicEntityTagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+        TopicEntityTagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
+        TopicEntityTagSourceModel.data_provider == mod_abbreviation,
+        TopicEntityTagSourceModel.secondary_data_provider_id == mod.mod_id,
+    ).first()
+    if source is not None:
+        return source
+    new_source_id = create_source(db, TopicEntityTagSourceSchemaCreate(
+        source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+        source_method=CURATOR_VALIDATION_SOURCE_METHOD,
+        validation_type=CURATOR_VALIDATION_TYPE,
+        description=CURATOR_VALIDATION_SOURCE_DESCRIPTION,
+        data_provider=mod_abbreviation,
+        secondary_data_provider_abbreviation=mod_abbreviation,
+    ))
+    return get_source_from_db(db, new_source_id)
+
+
+def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Dict[str, Any]:
+    """Recompute the single (reference, topic) grid cell's validation + filter
+    flags from the current DB state, in the SAME shape the batch endpoint returns.
+    Lets the validate write path hand the UI an authoritative replacement cell so
+    it never has to re-fetch and re-aggregate the whole batch after one edit."""
+    topic_upper = str(topic or "").upper()
+    rows = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.ml_model),
+        selectinload(TopicEntityTagModel.validated_by)).filter(
+        TopicEntityTagModel.reference_id == reference_id).all()
+    curie_to_name = build_curie_to_name_map(db, rows)
+    serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)
+    validation = _build_validation_details(serialized_tags).get(reference_id, {}).get(topic_upper)
+    filter_flags = _build_filter_flags(serialized_tags).get(reference_id, {}).get(
+        topic_upper, {"has_any": False, "has_y": False, "has_n": False, "has_note": False})
+    return {"topic": topic_upper, "validation": validation, "filter_flags": filter_flags}
+
+
+def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviation: str,
+                   negated: bool = False, note: Optional[str] = None,
+                   species: Optional[str] = None) -> Dict[str, Any]:
+    """Write path for the grid's Validation column (SCRUM-6242 increment 5).
+
+    Given just the cell the curator acted on -- {reference, topic, negated, note,
+    species} plus their MOD -- resolve the curator source server-side and create
+    the topic-level validation tag through the normal create_tag path (so dedup,
+    note-append upsert and validation all behave identically to a manual create),
+    then return the recomputed single cell. force_insertion mirrors the UI: a
+    same-curator opposite-polarity re-validation should record the new assertion
+    rather than 409."""
+    source = get_or_create_curator_validation_source(db, mod_abbreviation)
+    tag = TopicEntityTagSchemaPost(
+        reference_curie=reference_curie,
+        topic=topic,
+        entity=None,
+        entity_type=None,
+        species=species,
+        data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
+        negated=negated,
+        note=note,
+        topic_entity_tag_source_id=source.topic_entity_tag_source_id,
+        force_insertion=True,
+    )
+    tag_id, was_upsert = create_tag(db, tag)
+    reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
+    cell = _recompute_validation_cell(db, reference_id, topic)
+    return {
+        "topic_entity_tag_id": tag_id,
+        "upserted": was_upsert,
+        **cell,
     }
 
 

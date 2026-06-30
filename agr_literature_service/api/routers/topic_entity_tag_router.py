@@ -46,6 +46,40 @@ def create_tag(request: TopicEntityTagSchemaPost,
     return topic_entity_tag_crud.show_tag(db, new_tag_id)
 
 
+class ValidateTopicRequest(BaseModel):
+    # Thin curator-validation request for the TET grid's Validation column: just
+    # the cell the curator acted on. The server resolves the curator source and
+    # all other tag fields (entity=null, data_novelty, etc.) so the UI no longer
+    # has to. See topic_entity_tag_crud.validate_topic.
+    reference_curie: str
+    topic: str
+    mod_abbreviation: str
+    negated: bool = False
+    note: Optional[str] = None
+    species: Optional[str] = None
+
+
+@router.post('/validate', status_code=status.HTTP_200_OK)
+def validate_topic(request: ValidateTopicRequest,
+                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                   db: Session = db_session):
+    """Create (or upsert) a curator topic-level validation and return the single
+    recomputed grid cell ({topic, validation, filter_flags}) plus the tag id, so
+    the grid updates that cell without re-fetching/re-aggregating the whole batch.
+    The curator source is resolved (get-or-create) server-side from
+    mod_abbreviation."""
+    set_global_user_from_cognito(db, user)
+    return topic_entity_tag_crud.validate_topic(
+        db,
+        reference_curie=request.reference_curie,
+        topic=request.topic,
+        mod_abbreviation=request.mod_abbreviation,
+        negated=request.negated,
+        note=request.note,
+        species=request.species,
+    )
+
+
 @router.get('/{topic_entity_tag_id}',
             response_model=TopicEntityTagSchemaShow,
             status_code=200)
