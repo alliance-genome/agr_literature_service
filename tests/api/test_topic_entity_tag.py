@@ -154,6 +154,13 @@ class TestTopicEntityTag:
             assert flags[ref_curie]["ATP:0000122"]["has_y"] is True
             assert flags[ref_curie]["ATP:0000122"]["has_n"] is False
             assert flags[ref_curie]["ATP:0000122"]["has_note"] is True
+            # discovery is batch-global: the column set and source filter come
+            # pre-aggregated so the grid never scans raw tags to build them.
+            discovery = data["discovery"]
+            assert {"curie": "ATP:0000122", "name": "ATP:0000122"} in discovery["topics"]
+            # the fixture tag is non-curator, so its source shows up for the filter
+            assert len(discovery["sources"]) >= 1
+            assert all("label" in source for source in discovery["sources"])
             # an unresolvable id maps to an empty list / empty counts
             assert tags.get("AGRKB:000000000") == []
             assert counts.get("AGRKB:000000000") == {}
@@ -320,6 +327,12 @@ class TestTopicEntityTag:
                 any(s["method"] == "abc_literature_system" for s in g["sources"])
                 for g in cell["by_curator"]
             )
+            # discovery exposes the topic column (curator tags count toward columns)
+            # but excludes the curator source from the source filter -- matching the
+            # counts/entries scope so the source filter never lists a curator source.
+            discovery = response.json()["discovery"]
+            assert any(t["curie"] == "ATP:0000122" for t in discovery["topics"])
+            assert all(s["method"] != "abc_literature_system" for s in discovery["sources"])
 
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:

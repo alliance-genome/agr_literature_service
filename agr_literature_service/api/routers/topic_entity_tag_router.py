@@ -227,6 +227,12 @@ class ReferenceTagsBatchResponse(BaseModel):
     # tags. ('my validation present' is omitted pending the curator-identity
     # model.)
     filter_flags: Optional[Dict[str, Any]] = None
+    # discovery: batch-global (NOT keyed per reference) {topics: [{curie, name}],
+    # sources: [{label, method, secondary_data_provider, data_provider}]}. The
+    # distinct topic columns (over all tags) and source labels (over non-curator
+    # tags) present in the post-filter batch, so the grid builds its column set
+    # and source filter without scanning raw tags. First-seen order.
+    discovery: Optional[Dict[str, Any]] = None
     # debug_timing: per-phase timing breakdown, present only when
     # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
     # straight from the browser Network tab. Null in normal operation.

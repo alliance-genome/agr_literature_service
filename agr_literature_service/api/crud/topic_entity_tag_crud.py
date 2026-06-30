@@ -1646,6 +1646,48 @@ def _build_filter_flags(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict
     return flags
 
 
+def _build_discovery(serialized_tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Batch-global discovery aggregate backing the grid's column set and source
+    filter so neither has to be derived from raw tags client-side. Unlike the
+    other aggregates this is NOT keyed per reference -- it summarises the whole
+    batch (post-filter) once.
+
+    ``topics`` is the distinct set of topic columns present across the WHOLE batch
+    -- over ALL tags (entity + topic-level, curator + non-curator) -- matching the
+    column the grid renders whenever any tag exists for a topic. Each entry is
+    ``{"curie": <UPPERCASED topic>, "name": <topic display name>}``.
+
+    ``sources`` is the distinct set of source labels present, computed over
+    NON-curator tags only -- identically to _build_tag_counts / _build_tag_entries
+    -- because curator submissions surface in the Validation column, not in the
+    per-source Sources cells the source filter targets. Each entry is
+    ``{"label", "method", "secondary_data_provider", "data_provider"}`` so the UI
+    can render and group without re-parsing the label.
+
+    Both lists preserve first-seen order (deterministic: the batch query orders by
+    reference_id then topic_entity_tag_id), consistent with the other aggregates;
+    the client may re-sort for presentation. Topic keys are uppercased to match
+    the UI's normalizeCurie."""
+    topics: Dict[str, Dict[str, Any]] = {}
+    sources: Dict[str, Dict[str, Any]] = {}
+    for tag in serialized_tags:
+        topic = str(tag.get("topic") or "").upper()
+        if topic and topic not in topics:
+            topics[topic] = {"curie": topic, "name": tag.get("topic_name") or topic}
+        if _is_curator_source_tag(tag):
+            continue
+        source_data = tag.get("topic_entity_tag_source") or {}
+        label = _source_label(source_data)
+        if label not in sources:
+            sources[label] = {
+                "label": label,
+                "method": source_data.get("source_method"),
+                "secondary_data_provider": source_data.get("secondary_data_provider_abbreviation"),
+                "data_provider": source_data.get("data_provider"),
+            }
+    return {"topics": list(topics.values()), "sources": list(sources.values())}
+
+
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
                                            filters: Optional[Dict[str, Any]] = None):
     """Batch variant of show_all_reference_tags.
@@ -1699,6 +1741,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             "entries": {ident: {} for ident in ident_to_ref_id},
             "validation": {ident: {} for ident in ident_to_ref_id},
             "filter_flags": {ident: {} for ident in ident_to_ref_id},
+            "discovery": {"topics": [], "sources": []},
             "debug_timing": None
         }
 
@@ -1741,6 +1784,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     entries_by_ref_id = _build_tag_entries(serialized_tags)
     validation_by_ref_id = _build_validation_details(serialized_tags)
     filter_flags_by_ref_id = _build_filter_flags(serialized_tags)
+    discovery_result = _build_discovery(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
@@ -1794,6 +1838,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         "entries": entries_result,
         "validation": validation_result,
         "filter_flags": filter_flags_result,
+        "discovery": discovery_result,
         "debug_timing": debug_timing
     }
 
