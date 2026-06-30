@@ -312,16 +312,13 @@ def get_referencefiles_by_md5(db: Session, md5sum: str) -> List[dict]:
     return results
 
 
-def show_all(db: Session, curie_or_reference_id: str,
-             include_embeddings: bool = False,
-             profile_name: Optional[str] = None,
-             version: Optional[int] = None) -> List[ReferencefileSchemaRelated]:
+def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchemaRelated]:
+    """Return metadata for EVERY referencefile associated with the reference,
+    including `embedding` parquet rows (each annotated with its embedding_file
+    catalog fields + source lineage). It is a flat metadata list, so any
+    per-file-class / profile / version narrowing is done downstream on the
+    result rather than via endpoint params."""
     logger.info("Show all referencefiles")
-    # profile_name/version only narrow embedding rows, so supplying either implies
-    # include_embeddings=True -- otherwise the filter would silently return zero
-    # embeddings while listing every other file unfiltered.
-    if profile_name is not None or version is not None:
-        include_embeddings = True
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
     all_files = list(reference.referencefiles or [])
 
@@ -343,14 +340,7 @@ def show_all(db: Session, curie_or_reference_id: str,
     reference_files = []
     for ref_file in all_files:
         is_embedding = ref_file.file_class == "embedding"
-        if is_embedding and not include_embeddings:
-            continue
         emb_row = emb_by_parquet.get(int(ref_file.referencefile_id)) if is_embedding else None
-        if is_embedding and emb_row is not None:
-            if profile_name is not None and emb_row.profile_name != profile_name:
-                continue
-            if version is not None and emb_row.version != version:
-                continue
         ref_file_dict = jsonable_encoder(ref_file)
         set_referencefile_mods(referencefile_obj=ref_file, referencefile_dict=ref_file_dict)
         ref_file_dict["source"] = _find_source_for_derived(ref_file, all_files, source_by_parquet)

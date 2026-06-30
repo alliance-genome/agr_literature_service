@@ -95,7 +95,7 @@ class ReferencefileSchemaRelated(AuditedObjectModelSchema):
     # when unresolved). Added to every derived file by show_all.
     source: Optional[ReferencefileSourceSchema] = None
     # Embedding-only fields (populated from embedding_file when this row is an
-    # `embedding` parquet surfaced via ?include_embeddings=true).
+    # `embedding` parquet; show_all always lists these rows).
     profile_name: Optional[str] = None
     version: Optional[int] = None
     model_name: Optional[str] = None

@@ -1,8 +1,9 @@
 """HTTP endpoints for the embedding_file catalog (SCRUM-6141).
 
 Embeddings are discovered/downloaded through the existing referencefile APIs
-(``show_all?include_embeddings=true`` and ``download_file/{referencefile_id}``);
-this router adds the write/lookup surface for the catalog itself. Deletion is
+(``show_all`` always lists embedding rows, and ``download_file/{referencefile_id}``
+fetches the parquet); this router adds the write/lookup surface for the catalog
+itself. Deletion is
 intentionally NOT exposed here: an embedding is removed by deleting its parquet
 referencefile (``DELETE /reference/referencefile/{id}``), which cascades the
 catalog row away and cleans up S3 — deleting only the catalog row would orphan

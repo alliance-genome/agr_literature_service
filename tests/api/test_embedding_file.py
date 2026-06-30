@@ -106,7 +106,9 @@ def test_create_or_update_is_idempotent(db, test_reference):  # noqa
     assert row2.parquet_referencefile_id == holder[-1]
 
 
-def test_show_all_excludes_embeddings_by_default(db, test_reference, auth_headers):  # noqa
+def test_show_all_always_includes_embeddings(db, test_reference, auth_headers):  # noqa
+    """show_all returns EVERY file with no opt-in: the markdown and the embedding
+    parquet (annotated with catalog fields + source lineage)."""
     curie = test_reference.new_ref_curie
     ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
     md = ReferencefileModel(reference_id=ref.reference_id, display_name="paper_main",
@@ -125,16 +127,14 @@ def test_show_all_excludes_embeddings_by_default(db, test_reference, auth_header
                               parquet_referencefile_id=pq.referencefile_id))
     db.commit()
     with TestClient(app) as client:
-        default = client.get(f"/reference/referencefile/show_all/{curie}", headers=auth_headers).json()
-        assert all(e["file_class"] != "embedding" for e in default)
-        withemb = client.get(
-            f"/reference/referencefile/show_all/{curie}?include_embeddings=true",
-            headers=auth_headers).json()
-        emb = [e for e in withemb if e["file_class"] == "embedding"]
-        assert len(emb) == 1
-        assert emb[0]["profile_name"] == "abstract_document" and emb[0]["version"] == 1
-        assert emb[0]["source"]["referencefile_id"] == md.referencefile_id
-        assert emb[0]["source"]["md5sum"] == "md5md"
+        files = client.get(f"/reference/referencefile/show_all/{curie}", headers=auth_headers).json()
+    assert any(e["file_class"] == "converted_merged_main" for e in files)
+    emb = [e for e in files if e["file_class"] == "embedding"]
+    assert len(emb) == 1
+    assert emb[0]["profile_name"] == "abstract_document" and emb[0]["version"] == 1
+    assert emb[0]["model_name"] == "openai:text-embedding-3-small"
+    assert emb[0]["source"]["referencefile_id"] == md.referencefile_id
+    assert emb[0]["source"]["md5sum"] == "md5md"
 
 
 def test_create_or_update_rejects_invalid_source_referencefile_id(db, test_reference):  # noqa
