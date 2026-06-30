@@ -262,3 +262,96 @@ def test_attach_embeddings_links_by_source_md(db, test_reference):  # noqa
         {"parquet_referencefile_id": pq.referencefile_id,
          "profile_name": "classifier_fulltext_document", "version": 2}
     ]
+
+
+def test_attach_embeddings_resolves_when_converted_id_missing(db, test_reference):  # noqa
+    """Job-recorded progress entries may omit converted.referencefile_id; the
+    embeddings must be resolved from (display_name, file_class) rather than
+    silently dropped (review #2)."""
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    md = ReferencefileModel(reference_id=ref.reference_id, display_name="p_main2",
+                            file_class="converted_merged_main", file_publication_status="final",
+                            file_extension="md", md5sum="m2", is_annotation=False)
+    pq = ReferencefileModel(reference_id=ref.reference_id, display_name="p_emb2",
+                            file_class="embedding", file_publication_status="final",
+                            file_extension="parquet", md5sum="p2", is_annotation=False)
+    db.add_all([md, pq])
+    db.commit()
+    db.refresh(md)
+    db.refresh(pq)
+    db.add(EmbeddingFileModel(reference_id=ref.reference_id, profile_name="classifier_fulltext_document",
+                              version=2, model_name="m",
+                              source_referencefile_id=md.referencefile_id,
+                              parquet_referencefile_id=pq.referencefile_id))
+    db.commit()
+    db.refresh(ref)
+    # converted entry carries NO referencefile_id (only display_name/file_class)
+    progress = [{"source": None,
+                 "converted": {"display_name": "p_main2", "file_class": "converted_merged_main"},
+                 "figures": [], "status": "success", "error": None}]
+    file_conversion_crud._attach_embeddings(db, ref, progress)
+    assert progress[0]["embeddings"] == [
+        {"parquet_referencefile_id": pq.referencefile_id,
+         "profile_name": "classifier_fulltext_document", "version": 2}
+    ]
+    assert "_conv_id" not in progress[0]  # scratch key cleaned up
+
+
+def test_delete_source_md_cleans_up_embedding_parquet(db, test_reference):  # noqa
+    """Deleting a source markdown referencefile removes its derived embeddings'
+    parquets too (no orphan), not just the cascade-deleted catalog rows (#1)."""
+    from agr_literature_service.api.crud import referencefile_crud
+    from agr_cognito_py import ModAccess
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    md = ReferencefileModel(reference_id=ref.reference_id, display_name="src_md",
+                            file_class="converted_merged_main", file_publication_status="final",
+                            file_extension="md", md5sum="srcmd5", is_annotation=False)
+    pq = ReferencefileModel(reference_id=ref.reference_id, display_name="emb_pq",
+                            file_class="embedding", file_publication_status="final",
+                            file_extension="parquet", md5sum="embpq5", is_annotation=False)
+    db.add_all([md, pq])
+    db.commit()
+    db.refresh(md)
+    db.refresh(pq)
+    md_id, pq_id = md.referencefile_id, pq.referencefile_id
+    db.add(EmbeddingFileModel(reference_id=ref.reference_id, profile_name="p", version=1,
+                              source_referencefile_id=md_id, parquet_referencefile_id=pq_id))
+    db.commit()
+    with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"):
+        referencefile_crud.destroy(db, md_id, ModAccess.ALL_ACCESS)
+    assert db.query(EmbeddingFileModel).filter_by(source_referencefile_id=md_id).count() == 0
+    assert db.query(ReferencefileModel).filter_by(referencefile_id=pq_id).count() == 0  # parquet gone, not orphaned
+    assert db.query(ReferencefileModel).filter_by(referencefile_id=md_id).count() == 0
+
+
+def test_create_or_update_falls_back_on_insert_race(db, test_reference):  # noqa
+    """A lost insert race (concurrent same-key POST) re-points the winner's row
+    instead of raising a 500, and the loser's parquet is not orphaned (#3)."""
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    holder = []
+    winner_pq = _fake_parquet_referencefile(db, ref.reference_id, holder, md5sum="win")
+    winner = EmbeddingFileModel(reference_id=ref.reference_id, profile_name="p", version=1,
+                                model_name="m0", source_referencefile_id=None,
+                                parquet_referencefile_id=winner_pq.referencefile_id)
+    db.add(winner)
+    db.commit()
+    db.refresh(winner)
+    winner_id, winner_pq_id = winner.embedding_file_id, winner_pq.referencefile_id
+
+    req = EmbeddingFileSchemaCreate(reference_curie=curie, profile_name="p", version=1,
+                                    model_name="m1", source_referencefile_id=None)
+    upload = UploadFile(filename="e.parquet", file=io.BytesIO(b"x"))
+    with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"), \
+            patch.object(embedding_file_crud, "file_upload_single",
+                         side_effect=lambda d, m, f: _fake_parquet_referencefile(
+                             db, ref.reference_id, holder, md5sum="loser")), \
+            patch.object(embedding_file_crud, "_find_existing", side_effect=[None, winner]):
+        result = embedding_file_crud.create_or_update(db, req, upload)
+    loser_pq_id = holder[-1]
+    assert result.embedding_file_id == winner_id          # winner's row re-pointed, no duplicate/500
+    assert result.parquet_referencefile_id == loser_pq_id  # re-pointed to the uploaded parquet
+    # the winner's superseded parquet is cleaned up, not orphaned
+    assert db.query(ReferencefileModel).filter_by(referencefile_id=winner_pq_id).count() == 0

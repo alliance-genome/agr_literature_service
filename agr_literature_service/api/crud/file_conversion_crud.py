@@ -546,15 +546,31 @@ def _attach_embeddings(db: Session, reference: ReferenceModel,
     converted md row. Same 'derived files for this entry' pattern as figures,
     one step further down the lineage (md -> embeddings)."""
     from agr_literature_service.api.crud.embedding_file_crud import (
-        get_embeddings_for_source,
+        get_embeddings_for_sources,
     )
+    # Job-recorded progress entries may carry only the converted md's
+    # display_name/file_class (not its referencefile_id), and those entries win
+    # the merge -- so resolve the id from (display_name, file_class) when it is
+    # missing, the same key the figures path uses, rather than dropping the
+    # embeddings.
+    id_by_name_class = {
+        (rf.display_name, rf.file_class): int(rf.referencefile_id)
+        for rf in (reference.referencefiles or [])
+    }
+    conv_ids: List[int] = []
     for entry in progress:
         conv = entry.get("converted") or {}
         conv_id = conv.get("referencefile_id")
         if conv_id is None:
-            entry["embeddings"] = []
-            continue
-        rows = get_embeddings_for_source(db, int(conv_id))
+            conv_id = id_by_name_class.get((conv.get("display_name"), conv.get("file_class")))
+        entry["_conv_id"] = int(conv_id) if conv_id is not None else None
+        if conv_id is not None:
+            conv_ids.append(int(conv_id))
+
+    rows_by_source = get_embeddings_for_sources(db, conv_ids)
+    for entry in progress:
+        conv_id = entry.pop("_conv_id", None)
+        rows = rows_by_source.get(conv_id, []) if conv_id is not None else []
         entry["embeddings"] = [
             {"parquet_referencefile_id": int(r.parquet_referencefile_id),
              "profile_name": r.profile_name, "version": r.version}

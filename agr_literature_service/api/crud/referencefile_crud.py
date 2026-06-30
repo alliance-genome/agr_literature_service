@@ -343,7 +343,15 @@ def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchem
         emb_row = emb_by_parquet.get(int(ref_file.referencefile_id)) if is_embedding else None
         ref_file_dict = jsonable_encoder(ref_file)
         set_referencefile_mods(referencefile_obj=ref_file, referencefile_dict=ref_file_dict)
-        ref_file_dict["source"] = _find_source_for_derived(ref_file, all_files, source_by_parquet)
+        # Only derived files (embeddings + converted markdown) have an upward
+        # source; skip the lookup for originals/figures (the majority of rows)
+        # so they don't pay the all_files scan. The scan that remains runs only
+        # for the handful of converted_merged_* rows per reference.
+        is_derived = is_embedding or ref_file.file_class in _SOURCE_FILE_CLASSES_FOR_CONVERTED
+        ref_file_dict["source"] = (
+            _find_source_for_derived(ref_file, all_files, source_by_parquet)
+            if is_derived else None
+        )
         if is_embedding and emb_row is not None:
             ref_file_dict["profile_name"] = emb_row.profile_name
             ref_file_dict["version"] = emb_row.version
@@ -439,6 +447,14 @@ def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
     pdf_type = referencefile.pdf_type
     all_mods = set()
     if mod_access == ModAccess.ALL_ACCESS:
+        # If this file is the source of any embeddings, drop those embeddings
+        # (row + parquet) first: the embedding_file.source_referencefile_id FK is
+        # ON DELETE CASCADE, so otherwise the cascade would remove the catalog
+        # rows here and strand their parquets (separate referencefiles). No-op
+        # for files that aren't an embedding source. (Local import avoids a
+        # circular import: embedding_file_crud imports this module.)
+        from agr_literature_service.api.crud.embedding_file_crud import delete_embeddings_for_source
+        delete_embeddings_for_source(db, referencefile.referencefile_id)
         remove_from_s3_and_db(db, referencefile)
     elif mod_access != ModAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:
