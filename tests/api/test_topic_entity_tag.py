@@ -301,8 +301,17 @@ class TestTopicEntityTag:
                 headers=auth_headers,
             )
             assert response.status_code == status.HTTP_200_OK
-            validation = response.json()["validation"]
-            assert validation[ref_curie]["ATP:0000122"] == "conflict"
+            cell = response.json()["validation"][ref_curie]["ATP:0000122"]
+            assert cell["state"] == "conflict"
+            assert cell["positives"] == 1
+            assert cell["negatives"] == 1
+            # one positive and one negative curator group, distinct polarities
+            assert len(cell["by_curator"]) == 2
+            assert {g["negated"] for g in cell["by_curator"]} == {True, False}
+            assert all(
+                any(s["method"] == "abc_literature_system" for s in g["sources"])
+                for g in cell["by_curator"]
+            )
 
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:

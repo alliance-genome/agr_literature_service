@@ -1547,40 +1547,72 @@ def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[
     return entries_by_ref_topic
 
 
-def _build_validation_states(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, str]]:
-    """Aggregate the curator validation state per reference -> topic so the grid's
-    Validation column can sort/filter (and ultimately render) without deriving it
-    from raw tags client-side.
+def _build_validation_details(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    """Aggregate the curator validation of each reference -> topic so the grid's
+    Validation column can sort, filter AND render without deriving any of it from
+    raw tags client-side.
 
-    Mirrors the UI's validationState (groupTets.js): only *topic-level* tags
-    (no entity) from a professional-biocurator/curator source count as a
-    validation. A topic is 'conflict' when it has both a positive and a negative
-    such tag, else 'positive' / 'negative'. Topics with no curator validation are
-    omitted -- the client treats an absent topic as 'unvalidated', matching
-    validationState's empty-list behavior. Topic keys are uppercased to match the
-    UI's normalizeCurie."""
-    polarity: Dict[int, Dict[str, Dict[str, bool]]] = defaultdict(
-        lambda: defaultdict(lambda: {"pos": False, "neg": False}))
+    Mirrors ValidationCell + validationState (UI): only *topic-level* tags (no
+    entity) from a professional-biocurator/curator source count as a validation.
+    Per (reference, topic) it returns::
+
+        {"state": "positive" | "negative" | "conflict",
+         "positives": <count>, "negatives": <count>,
+         "by_curator": [{"name", "negated", "sources": [{"method", "label"}],
+                         "species": [curie, ...]}, ...]}
+
+    ``by_curator`` groups validations by (curator display name, polarity) -- the
+    same grouping ValidationCell renders -- accumulating the distinct source
+    methods (label = ``method [/ secondary_data_provider]``) and species per
+    group, preserving first-seen order. ``name`` falls back to
+    '(unknown curator)' so no validation is dropped. Topics with no curator
+    validation are omitted (client treats an absent topic as 'unvalidated').
+    Topic keys are uppercased to match the UI's normalizeCurie."""
+    # ref_id -> topic -> {positives, negatives, by_curator: {(name, negated): grp}}
+    acc: Dict[int, Dict[str, Dict[str, Any]]] = defaultdict(lambda: defaultdict(
+        lambda: {"positives": 0, "negatives": 0, "by_curator": {}}))
     for tag in serialized_tags:
         if tag.get("entity") or not _is_curator_source_tag(tag):
             continue
         ref_id = tag["reference_id"]
         topic = str(tag.get("topic") or "").upper()
-        if tag.get("negated"):
-            polarity[ref_id][topic]["neg"] = True
+        bucket = acc[ref_id][topic]
+        negated = bool(tag.get("negated"))
+        if negated:
+            bucket["negatives"] += 1
         else:
-            polarity[ref_id][topic]["pos"] = True
+            bucket["positives"] += 1
+        name = tag.get("created_by") or "(unknown curator)"
+        group = bucket["by_curator"].get((name, negated))
+        if group is None:
+            group = {"name": name, "negated": negated, "sources": {}, "species": []}
+            bucket["by_curator"][(name, negated)] = group
+        source = tag.get("topic_entity_tag_source") or {}
+        method = source.get("source_method")
+        if method and method not in group["sources"]:
+            sec = source.get("secondary_data_provider_abbreviation")
+            group["sources"][method] = f"{method} / {sec}" if sec else method
+        species = tag.get("species")
+        if species and species not in group["species"]:
+            group["species"].append(species)
 
-    states: Dict[int, Dict[str, str]] = defaultdict(dict)
-    for ref_id, by_topic in polarity.items():
-        for topic, pol in by_topic.items():
-            if pol["pos"] and pol["neg"]:
-                states[ref_id][topic] = "conflict"
-            elif pol["pos"]:
-                states[ref_id][topic] = "positive"
-            else:
-                states[ref_id][topic] = "negative"
-    return states
+    out: Dict[int, Dict[str, Any]] = defaultdict(dict)
+    for ref_id, by_topic in acc.items():
+        for topic, bucket in by_topic.items():
+            pos, neg = bucket["positives"], bucket["negatives"]
+            state = "conflict" if (pos and neg) else ("positive" if pos else "negative")
+            out[ref_id][topic] = {
+                "state": state,
+                "positives": pos,
+                "negatives": neg,
+                "by_curator": [
+                    {"name": g["name"], "negated": g["negated"],
+                     "sources": [{"method": m, "label": lab} for m, lab in g["sources"].items()],
+                     "species": g["species"]}
+                    for g in bucket["by_curator"].values()
+                ],
+            }
+    return out
 
 
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
@@ -1675,7 +1707,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         tags_by_ref_id[tag["reference_id"]].append(tag)
     counts_by_ref_id = _build_tag_counts(serialized_tags)
     entries_by_ref_id = _build_tag_entries(serialized_tags)
-    validation_by_ref_id = _build_validation_states(serialized_tags)
+    validation_by_ref_id = _build_validation_details(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
