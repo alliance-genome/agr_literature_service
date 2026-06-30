@@ -248,6 +248,62 @@ class TestTopicEntityTag:
             assert response.status_code == status.HTTP_200_OK
             assert len(response.json()["tags"][ref_curie]) >= 1
 
+    def test_show_all_reference_tags_batch_validation_state(self, test_topic_entity_tag, test_reference, test_mod, auth_headers):  # noqa
+        # A topic-level tag (no entity) from a professional-biocurator source is a
+        # curator validation. The batch endpoint aggregates per-cell validation
+        # state so the grid's Validation column can sort/filter without deriving
+        # it from raw tags. Two positive + negative curator tags on the same
+        # (reference, topic) => 'conflict'.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+                                    headers=auth_headers).json()["topic_entity_tag_source_id"]
+            base = {
+                "reference_curie": ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+            }
+            # one positive and one negative curator topic-level validation
+            pos = client.post(url="/topic_entity_tag/",
+                              json={**base, "negated": False, "created_by": "WBPerson1"},
+                              headers=auth_headers)
+            assert pos.status_code == status.HTTP_201_CREATED
+            neg = client.post(url="/topic_entity_tag/",
+                              json={**base, "negated": True, "created_by": "WBPerson2",
+                                    "force_insertion": True},
+                              headers=auth_headers)
+            assert neg.status_code == status.HTTP_201_CREATED
+
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie]},
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            validation = response.json()["validation"]
+            assert validation[ref_curie]["ATP:0000122"] == "conflict"
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(

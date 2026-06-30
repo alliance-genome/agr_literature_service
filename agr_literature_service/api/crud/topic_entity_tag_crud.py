@@ -1547,6 +1547,42 @@ def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[
     return entries_by_ref_topic
 
 
+def _build_validation_states(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, str]]:
+    """Aggregate the curator validation state per reference -> topic so the grid's
+    Validation column can sort/filter (and ultimately render) without deriving it
+    from raw tags client-side.
+
+    Mirrors the UI's validationState (groupTets.js): only *topic-level* tags
+    (no entity) from a professional-biocurator/curator source count as a
+    validation. A topic is 'conflict' when it has both a positive and a negative
+    such tag, else 'positive' / 'negative'. Topics with no curator validation are
+    omitted -- the client treats an absent topic as 'unvalidated', matching
+    validationState's empty-list behavior. Topic keys are uppercased to match the
+    UI's normalizeCurie."""
+    polarity: Dict[int, Dict[str, Dict[str, bool]]] = defaultdict(
+        lambda: defaultdict(lambda: {"pos": False, "neg": False}))
+    for tag in serialized_tags:
+        if tag.get("entity") or not _is_curator_source_tag(tag):
+            continue
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        if tag.get("negated"):
+            polarity[ref_id][topic]["neg"] = True
+        else:
+            polarity[ref_id][topic]["pos"] = True
+
+    states: Dict[int, Dict[str, str]] = defaultdict(dict)
+    for ref_id, by_topic in polarity.items():
+        for topic, pol in by_topic.items():
+            if pol["pos"] and pol["neg"]:
+                states[ref_id][topic] = "conflict"
+            elif pol["pos"]:
+                states[ref_id][topic] = "positive"
+            else:
+                states[ref_id][topic] = "negative"
+    return states
+
+
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
                                            filters: Optional[Dict[str, Any]] = None):
     """Batch variant of show_all_reference_tags.
@@ -1598,6 +1634,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             "tags": {ident: [] for ident in ident_to_ref_id},
             "counts": {ident: {} for ident in ident_to_ref_id},
             "entries": {ident: {} for ident in ident_to_ref_id},
+            "validation": {ident: {} for ident in ident_to_ref_id},
             "debug_timing": None
         }
 
@@ -1638,6 +1675,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         tags_by_ref_id[tag["reference_id"]].append(tag)
     counts_by_ref_id = _build_tag_counts(serialized_tags)
     entries_by_ref_id = _build_tag_entries(serialized_tags)
+    validation_by_ref_id = _build_validation_states(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
@@ -1648,15 +1686,18 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     tags_result: Dict[str, Any] = {}
     counts_result: Dict[str, Any] = {}
     entries_result: Dict[str, Any] = {}
+    validation_result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             tags_result[ident] = []
             counts_result[ident] = {}
             entries_result[ident] = {}
+            validation_result[ident] = {}
         else:
             tags_result[ident] = tags_by_ref_id[ref_id]
             counts_result[ident] = counts_by_ref_id.get(ref_id, {})
             entries_result[ident] = entries_by_ref_id.get(ref_id, {})
+            validation_result[ident] = validation_by_ref_id.get(ref_id, {})
     total_ms = (perf_counter() - total_start) * 1000
     _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
@@ -1683,6 +1724,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         "tags": tags_result,
         "counts": counts_result,
         "entries": entries_result,
+        "validation": validation_result,
         "debug_timing": debug_timing
     }
 

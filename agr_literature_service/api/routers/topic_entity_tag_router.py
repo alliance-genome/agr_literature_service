@@ -214,6 +214,12 @@ class ReferenceTagsBatchResponse(BaseModel):
     # These rows are grouped by source/evidence/kind in the API so the grid
     # renders, filters and sorts from pre-aggregated tag buckets.
     entries: Optional[Dict[str, Any]] = None
+    # validation: input identifier -> {topic_curie: 'positive' | 'negative' |
+    # 'conflict'}. Per-cell curator validation state computed in the API so the
+    # grid's Validation column sorts/filters without deriving it from raw tags.
+    # Topics with no curator validation are omitted (client treats absent as
+    # 'unvalidated').
+    validation: Optional[Dict[str, Any]] = None
     # debug_timing: per-phase timing breakdown, present only when
     # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
     # straight from the browser Network tab. Null in normal operation.
