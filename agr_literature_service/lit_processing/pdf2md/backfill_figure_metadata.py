@@ -19,10 +19,15 @@ Idempotent and resumable: a figure whose sidecar already exists is skipped
 (detected by display_name), and ``file_upload``'s md5sum dedup makes a re-run
 of an identical sidecar a no-op. Safe to re-run after an interruption.
 
-Note: each sidecar goes through the standard ``file_upload`` path, which fires
-``transition_WFT_for_uploaded_file``. For already-converted references the
-file-upload workflow is past its only actionable state, so this is a no-op —
-the same side effect the original figure-PNG uploads already triggered.
+Note: each sidecar goes through the standard ``file_upload`` path. Because these
+references were already converted, this run activates
+``set_suppress_post_upload_workflow(True)`` so attaching the descriptor sidecars
+does NOT re-fire ``transition_WFT_for_uploaded_file`` or prune main PDFs — it
+must not move the reference's file-upload workflow status or trigger downstream
+reprocessing. (Firing the transition here also breaks on the 2nd+ sidecar of a
+reference: when the ATP descendants cache is cold the status lookup returns
+None, so every upload retries the create and collides on the unique
+file-upload WFT.) The sidecars are still persisted and md5-deduped as usual.
 
 Examples:
     # Dry run over everything that still needs metadata
@@ -48,7 +53,10 @@ from sqlalchemy.orm import Session, aliased
 
 from agr_cognito_py import ModAccess, get_admin_token
 
-from agr_literature_service.api.crud.referencefile_crud import download_file
+from agr_literature_service.api.crud.referencefile_crud import (
+    download_file,
+    set_suppress_post_upload_workflow,
+)
 from agr_literature_service.api.models import (
     ModModel,
     ReferencefileModel,
@@ -458,6 +466,14 @@ def backfill(  # pragma: no cover
     set_global_user_id(db, path.basename(__file__).replace(".py", ""))
     stats: Dict[str, int] = defaultdict(int)
 
+    # These references were already converted; their file-upload workflow status
+    # is set. Attaching metadata sidecars must NOT re-fire the file-upload
+    # transition (which would spuriously create a "file upload in progress" tag
+    # and, on the 2nd+ sidecar of a reference, fail with a duplicate-WFT 422) or
+    # prune main PDFs. Suppress those post-upload side effects for this one-off
+    # run; the descriptor files are still persisted and md5-deduped as usual.
+    set_suppress_post_upload_workflow(True)
+
     def get_token() -> str:
         # Re-fetch per source PDF so a long run never trips an expired token.
         return get_admin_token()
@@ -497,6 +513,7 @@ def backfill(  # pragma: no cover
                 logger.error("Error backfilling %s: %s", ref_obj.curie, exc)
                 db.rollback()
     finally:
+        set_suppress_post_upload_workflow(False)
         _log_summary(stats, dry_run)
         db.close()
     return dict(stats)
