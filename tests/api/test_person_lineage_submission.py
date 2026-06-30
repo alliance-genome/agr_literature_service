@@ -447,3 +447,149 @@ class TestPersonLineageSubmission:
                 f"/person_lineage_submission/{test_submission.new_id}", headers=auth_headers
             )
             assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_validate_relationship_override_steers_canonical(self, db, auth_headers, two_people):  # noqa
+        # Curator promotes with a corrected relationship: the canonical row uses the
+        # override, while the submission's claimed relationship is preserved.
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_subject_name": "A", "person_object_name": "B",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_object_id"],
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+
+            v = client.post(
+                f"/person_lineage_submission/{sub_id}/validate",
+                json={"relationship": "postdoc_supervisor_of"},
+                headers=auth_headers,
+            )
+            assert v.status_code == status.HTTP_200_OK
+            assert v.json()["status"] == "validated"
+            # The submission's claimed relationship is untouched.
+            assert v.json()["relationship"] == "phd_supervisor_of"
+            canonical_id = v.json()["person_lineage_id"]
+
+            canonical = client.get(f"/person_lineage/{canonical_id}", headers=auth_headers)
+            assert canonical.status_code == status.HTTP_200_OK
+            # The canonical row reflects the curator's corrected relationship.
+            assert canonical.json()["relationship"] == "postdoc_supervisor_of"
+
+    def test_validate_date_overrides_applied_to_canonical(self, db, auth_headers, two_people):  # noqa
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_subject_name": "A", "person_object_name": "B",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_object_id"],
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+
+            v = client.post(
+                f"/person_lineage_submission/{sub_id}/validate",
+                json={"start_date": "2019-09-01T00:00:00", "end_date": "2023-06-30T00:00:00"},
+                headers=auth_headers,
+            )
+            assert v.status_code == status.HTTP_200_OK
+            canonical_id = v.json()["person_lineage_id"]
+            canonical = client.get(f"/person_lineage/{canonical_id}", headers=auth_headers).json()
+            assert str(canonical["start_date"]).startswith("2019-09-01")
+            assert str(canonical["end_date"]).startswith("2023-06-30")
+
+    def test_validate_empty_body_uses_submitted_relationship(self, db, auth_headers, two_people):  # noqa
+        # Regression: validate with no body behaves as before — the canonical row
+        # uses the submission's own relationship.
+        with TestClient(app) as client:
+            sub_id = self._make_resolved_submission(client, auth_headers, two_people)
+            v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v.status_code == status.HTTP_200_OK
+            canonical_id = v.json()["person_lineage_id"]
+            canonical = client.get(f"/person_lineage/{canonical_id}", headers=auth_headers).json()
+            assert canonical["relationship"] == "phd_supervisor_of"
+
+    def test_validate_resolves_people_from_body_leaves_submission_untouched(self, db, auth_headers, two_people):  # noqa
+        # One-shot promote: a names-only submission (no person ids) is validated with
+        # the people supplied in the body. The canonical is built from the body, but
+        # the submission's own person-id fields stay null — only status + the
+        # person_lineage link are set.
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_subject_name": "Some Advisor", "person_object_name": "Some Student",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+            assert r.json()["person_subject_id"] is None
+            assert r.json()["person_object_id"] is None
+
+            v = client.post(
+                f"/person_lineage_submission/{sub_id}/validate",
+                json={
+                    "person_subject_curie_or_id": two_people["person_subject_id"],
+                    "person_object_curie_or_id": two_people["person_object_id"],
+                    "relationship": "postdoc_supervisor_of",
+                },
+                headers=auth_headers,
+            )
+            assert v.status_code == status.HTTP_200_OK
+            body = v.json()
+            assert body["status"] == "validated"
+            assert body["person_lineage_id"] is not None
+            # Submission's own person links remain unset (untouched).
+            assert body["person_subject_id"] is None
+            assert body["person_object_id"] is None
+            # Submission's claimed relationship is preserved.
+            assert body["relationship"] == "phd_supervisor_of"
+
+            canonical = client.get(
+                f"/person_lineage/{body['person_lineage_id']}", headers=auth_headers
+            ).json()
+            assert canonical["person_subject_id"] == two_people["person_subject_id"]
+            assert canonical["person_object_id"] == two_people["person_object_id"]
+            assert canonical["relationship"] == "postdoc_supervisor_of"
+
+    def test_validate_unresolved_people_rejected(self, db, auth_headers):  # noqa
+        # A names-only submission with no body (and no stored ids) still cannot be
+        # validated — both people must resolve from the body or the submission.
+        with TestClient(app) as client:
+            r = client.post(
+                "/person_lineage_submission/",
+                json={
+                    "person_subject_name": "X", "person_object_name": "Y",
+                    "relationship": "phd_supervisor_of", "who_sent_this": "cur",
+                },
+                headers=auth_headers,
+            )
+            sub_id = r.json()["person_lineage_submission_id"]
+            v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_delete_canonical_resets_linked_submission(self, db, auth_headers, two_people):  # noqa
+        # Deleting a canonical unlinks its submissions (FK SET NULL) and resets their
+        # status from 'validated' back to 'pending' so they return to the unvalidated
+        # pool and can be re-validated.
+        with TestClient(app) as client:
+            sub_id = self._make_resolved_submission(client, auth_headers, two_people)
+            v = client.post(f"/person_lineage_submission/{sub_id}/validate", headers=auth_headers)
+            assert v.status_code == status.HTTP_200_OK
+            assert v.json()["status"] == "validated"
+            canonical_id = v.json()["person_lineage_id"]
+
+            d = client.delete(f"/person_lineage/{canonical_id}", headers=auth_headers)
+            assert d.status_code == status.HTTP_204_NO_CONTENT
+
+            after = client.get(f"/person_lineage_submission/{sub_id}", headers=auth_headers).json()
+            assert after["person_lineage_id"] is None
+            assert after["status"] == "pending"
