@@ -226,6 +226,59 @@ class TestFiguresHelpers:
         ref = self._make_reference([])
         assert _figures_for_source(ref, "paper", "main") == []
 
+    def test_figures_for_source_links_metadata_sidecar(self):
+        """Each figure PNG is linked to its JSON metadata sidecar (same
+        display_name, parallel metadata file_class) via metadata_referencefile_id."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+            self._make_ref_file("converted_main_figure", "paper_image_002", 11),
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_001", 110, file_extension="json"),
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_002", 111, file_extension="json"),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert [r["referencefile_id"] for r in result] == [10, 11]
+        assert [r["metadata_referencefile_id"] for r in result] == [110, 111]
+
+    def test_figures_for_source_metadata_id_none_when_no_sidecar(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert result[0]["metadata_referencefile_id"] is None
+
+    def test_figures_for_source_metadata_requires_json_and_final(self):
+        """A sidecar row that is not json, or not final, is not linked."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+            # wrong extension
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_001", 110, file_extension="txt"),
+            self._make_ref_file("converted_main_figure", "paper_image_002", 11),
+            # non-final
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_002", 111, file_extension="json", file_publication_status="temp"),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert [r["metadata_referencefile_id"] for r in result] == [None, None]
+
+    def test_figures_for_source_supplement_links_supplement_metadata(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_supplement_figure", "supp1_image_001", 1),
+            self._make_ref_file("converted_supplement_figure_metadata", "supp1_image_001", 101, file_extension="json"),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "supp1", "supplement")
+        assert result[0]["metadata_referencefile_id"] == 101
+
     def test_attach_figures_mutates_each_progress_entry(self):
         from agr_literature_service.api.crud.file_conversion_crud import (
             _attach_figures,

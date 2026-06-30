@@ -18,9 +18,13 @@ import requests
 from agr_literature_service.lit_processing.pdf2md import pdf2md_utils
 from agr_literature_service.lit_processing.pdf2md.pdf2md_utils import (
     CONVERTED_FIGURE_FILE_EXTENSION,
+    CONVERTED_FIGURE_METADATA_FILE_EXTENSION,
     ELIGIBLE_SUPPLEMENT_MODS,
     EXTRACTION_METHODS,
     FIGURE_FILE_CLASSES,
+    FIGURE_METADATA_FILE_CLASSES,
+    build_figure_metadata_payload,
+    serialize_figure_metadata,
     PdfDetail,
     ProcessingResult,
     submit_pdf_to_pdfx,
@@ -665,6 +669,18 @@ class TestFigureFileClasses:
     def test_default_extension_is_png(self):
         assert CONVERTED_FIGURE_FILE_EXTENSION == "png"
 
+    def test_metadata_classes_parallel_the_figure_classes(self):
+        assert FIGURE_METADATA_FILE_CLASSES["main"] == \
+            "converted_main_figure_metadata"
+        assert FIGURE_METADATA_FILE_CLASSES["supplement"] == \
+            "converted_supplement_figure_metadata"
+        # The metadata mapping must cover exactly the same source classes as
+        # the figure mapping so every PNG can get a sidecar.
+        assert set(FIGURE_METADATA_FILE_CLASSES) == set(FIGURE_FILE_CLASSES)
+
+    def test_metadata_extension_is_json(self):
+        assert CONVERTED_FIGURE_METADATA_FILE_EXTENSION == "json"
+
 
 class TestDownloadPdfxImageManifest:
     """Test download_pdfx_image_manifest function."""
@@ -795,8 +811,10 @@ class TestProcessExtractedImages:
         assert succeeded == 2
         assert failed == 0
         assert errors == []
-        assert mock_upload.call_count == 2
-        # Verify the first image's metadata mirrors the converted-MD convention.
+        # Each figure now produces TWO uploads: the PNG and its JSON sidecar,
+        # interleaved per image (PNG1, JSON1, PNG2, JSON2).
+        assert mock_upload.call_count == 4
+        # Verify the first image's PNG metadata mirrors the converted-MD convention.
         first_metadata = mock_upload.call_args_list[0].kwargs["metadata"]
         assert first_metadata["display_name"] == "paper_image_001"
         assert first_metadata["file_class"] == "converted_main_figure"
@@ -806,6 +824,15 @@ class TestProcessExtractedImages:
         assert first_metadata["reference_curie"] == "AGRKB:1"
         assert first_metadata["pdf_type"] is None
         assert first_metadata["is_annotation"] is None
+        # The sidecar follows the PNG, sharing its display_name, json
+        # extension and the dedicated metadata file_class.
+        first_sidecar = mock_upload.call_args_list[1].kwargs["metadata"]
+        assert first_sidecar["display_name"] == "paper_image_001"
+        assert first_sidecar["file_class"] == "converted_main_figure_metadata"
+        assert first_sidecar["file_extension"] == "json"
+        assert first_sidecar["file_publication_status"] == "final"
+        assert first_sidecar["mod_abbreviation"] == "WB"
+        assert first_sidecar["reference_curie"] == "AGRKB:1"
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
@@ -828,9 +855,16 @@ class TestProcessExtractedImages:
             mod_abbreviation=None,
         )
 
-        metadata = mock_upload.call_args.kwargs["metadata"]
-        assert metadata["file_class"] == "converted_supplement_figure"
-        assert metadata["display_name"] == "supp1_image_001"
+        # call 0 = the PNG, call 1 = its JSON sidecar.
+        png_metadata = mock_upload.call_args_list[0].kwargs["metadata"]
+        assert png_metadata["file_class"] == "converted_supplement_figure"
+        assert png_metadata["display_name"] == "supp1_image_001"
+        assert png_metadata["file_extension"] == "png"
+        sidecar_metadata = mock_upload.call_args_list[1].kwargs["metadata"]
+        assert sidecar_metadata["file_class"] == \
+            "converted_supplement_figure_metadata"
+        assert sidecar_metadata["display_name"] == "supp1_image_001"
+        assert sidecar_metadata["file_extension"] == "json"
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload")
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
@@ -861,8 +895,9 @@ class TestProcessExtractedImages:
         assert failed == 1
         assert len(errors) == 1
         assert "S3 timeout" in errors[0]
-        # Two successful uploads should have been attempted.
-        assert mock_upload.call_count == 2
+        # Two PNGs succeeded, each followed by its JSON sidecar (the middle
+        # image failed to download, so no upload at all for it): 2 x 2 = 4.
+        assert mock_upload.call_count == 4
 
     @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
     def test_manifest_entry_missing_url_is_recorded_as_failure(self, mock_manifest):
@@ -889,6 +924,223 @@ class TestProcessExtractedImages:
         assert succeeded == 1
         assert failed == 1
         assert any("missing 'url'" in e for e in errors)
+
+
+class TestBuildFigureMetadataPayload:
+    """Tests for build_figure_metadata_payload (SCRUM-6246)."""
+
+    def _full_image(self):
+        return {
+            "filename": "_page_2_Figure_3.png",
+            "url": "https://s3.example/presigned?sig=abc",
+            "figure_label": "Figure 3",
+            "figure_number": 3,
+            "caption_text": "Expression of gene X in the gut.",
+            "nearby_text": "As shown in Figure 3...",
+            "page_index": 2,
+            "bbox": [10, 20, 110, 220],
+            "polygon": [[10, 20], [110, 20], [110, 220], [10, 220]],
+            "image_review_is_figure": True,
+            "image_review_score": 0.97,
+        }
+
+    def test_includes_documented_manifest_fields(self):
+        payload = build_figure_metadata_payload(
+            self._full_image(),
+            figure_index=3,
+            figure_display_name="paper_image_003",
+            source_display_name="paper",
+            source_file_class="main",
+        )
+        assert payload["figure_label"] == "Figure 3"
+        assert payload["figure_number"] == 3
+        assert payload["caption_text"] == "Expression of gene X in the gut."
+        assert payload["nearby_text"] == "As shown in Figure 3..."
+        assert payload["page_index"] == 2
+        assert payload["bbox"] == [10, 20, 110, 220]
+        assert payload["polygon"] == [[10, 20], [110, 20], [110, 220], [10, 220]]
+        assert payload["filename"] == "_page_2_Figure_3.png"
+
+    def test_collects_image_review_fields(self):
+        payload = build_figure_metadata_payload(
+            self._full_image(),
+            figure_index=3,
+            figure_display_name="paper_image_003",
+            source_display_name="paper",
+            source_file_class="main",
+        )
+        assert payload["image_review"] == {
+            "image_review_is_figure": True,
+            "image_review_score": 0.97,
+        }
+
+    def test_records_figure_and_source_linkage(self):
+        payload = build_figure_metadata_payload(
+            self._full_image(),
+            figure_index=3,
+            figure_display_name="paper_image_003",
+            source_display_name="paper",
+            source_file_class="main",
+        )
+        assert payload["display_name"] == "paper_image_003"
+        assert payload["figure_index"] == 3
+        assert payload["source_display_name"] == "paper"
+        assert payload["source_file_class"] == "main"
+
+    def test_missing_manifest_fields_default_to_none(self):
+        """A bare manifest entry still yields a predictable schema: the
+        documented fields are present as None, no image_review key."""
+        payload = build_figure_metadata_payload(
+            {"url": "https://s3/x"},
+            figure_index=1,
+            figure_display_name="paper_image_001",
+            source_display_name="paper",
+            source_file_class="main",
+        )
+        for field in ("figure_label", "figure_number", "caption_text",
+                      "nearby_text", "page_index", "bbox", "polygon"):
+            assert payload[field] is None
+        assert "image_review" not in payload
+
+    def test_excludes_transient_presigned_url(self):
+        payload = build_figure_metadata_payload(
+            self._full_image(),
+            figure_index=3,
+            figure_display_name="paper_image_003",
+            source_display_name="paper",
+            source_file_class="main",
+        )
+        assert "url" not in payload
+
+
+class TestSerializeFigureMetadata:
+    """Tests for serialize_figure_metadata determinism (idempotency)."""
+
+    def test_key_order_does_not_change_bytes(self):
+        a = serialize_figure_metadata({"b": 1, "a": 2})
+        b = serialize_figure_metadata({"a": 2, "b": 1})
+        assert a == b
+
+    def test_identical_payload_yields_identical_bytes(self):
+        payload = {"display_name": "paper_image_001", "figure_number": 1}
+        assert serialize_figure_metadata(payload) == \
+            serialize_figure_metadata(dict(payload))
+
+    def test_returns_utf8_bytes(self):
+        out = serialize_figure_metadata({"caption_text": "café α-helix"})
+        assert isinstance(out, bytes)
+        assert "café α-helix" in out.decode("utf-8")
+
+
+class TestProcessExtractedImagesMetadataSidecar:
+    """process_extracted_images persists a JSON sidecar per figure."""
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_sidecar_uses_actual_png_display_name(
+        self, mock_manifest, mock_download
+    ):
+        """When file_upload renames the PNG (returns a row whose display_name
+        differs from the idx-derived name), the sidecar reuses that exact
+        name rather than re-deriving from idx."""
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png", "url": "https://s3/a",
+                        "caption_text": "cap"}]
+        }
+        mock_download.return_value = b"\x89PNG"
+
+        with patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload"
+        ) as mock_upload:
+            # PNG upload returns a renamed row; sidecar upload return is ignored.
+            mock_upload.side_effect = [
+                [SimpleNamespace(display_name="paper_image_001_7")],
+                None,
+            ]
+            process_extracted_images(
+                db=MagicMock(),
+                process_id="abc",
+                token="t",
+                source_display_name="paper",
+                source_file_class="main",
+                reference_curie="AGRKB:1",
+                mod_abbreviation="WB",
+            )
+
+        sidecar_metadata = mock_upload.call_args_list[1].kwargs["metadata"]
+        assert sidecar_metadata["display_name"] == "paper_image_001_7"
+        assert sidecar_metadata["file_class"] == "converted_main_figure_metadata"
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_sidecar_failure_does_not_fail_the_figure(
+        self, mock_manifest, mock_download
+    ):
+        """A sidecar upload error is recorded but the PNG still counts as a
+        success — the figure PNG is the contract."""
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png", "url": "https://s3/a"}]
+        }
+        mock_download.return_value = b"\x89PNG"
+
+        with patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload"
+        ) as mock_upload:
+            mock_upload.side_effect = [
+                [SimpleNamespace(display_name="paper_image_001")],
+                RuntimeError("disk full"),
+            ]
+            succeeded, failed, errors = process_extracted_images(
+                db=MagicMock(),
+                process_id="abc",
+                token="t",
+                source_display_name="paper",
+                source_file_class="main",
+                reference_curie="AGRKB:1",
+                mod_abbreviation="WB",
+            )
+
+        assert succeeded == 1
+        assert failed == 0
+        assert any("metadata sidecar" in e and "disk full" in e for e in errors)
+
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image")
+    @patch("agr_literature_service.lit_processing.pdf2md.pdf2md_utils.download_pdfx_image_manifest")
+    def test_sidecar_content_has_metadata_but_not_presigned_url(
+        self, mock_manifest, mock_download
+    ):
+        """The persisted JSON carries the manifest metadata but never the
+        transient presigned URL."""
+        mock_manifest.return_value = {
+            "images": [{"filename": "x.png",
+                        "url": "https://s3.example/presigned?sig=SECRET",
+                        "caption_text": "a caption"}]
+        }
+        mock_download.return_value = b"\x89PNG"
+
+        with patch(
+            "agr_literature_service.lit_processing.pdf2md.pdf2md_utils.file_upload"
+        ) as mock_upload:
+            mock_upload.side_effect = [
+                [SimpleNamespace(display_name="paper_image_001")],
+                None,
+            ]
+            process_extracted_images(
+                db=MagicMock(),
+                process_id="abc",
+                token="t",
+                source_display_name="paper",
+                source_file_class="main",
+                reference_curie="AGRKB:1",
+                mod_abbreviation="WB",
+            )
+
+        sidecar_file = mock_upload.call_args_list[1].kwargs["file"]
+        content = sidecar_file.file.read()
+        assert b"a caption" in content
+        assert b"paper_image_001" in content
+        assert b"SECRET" not in content
+        assert b"presigned" not in content
 
 
 class TestEligibleSupplementMods:
