@@ -221,6 +221,78 @@ class TestTopicEntityTag:
             data = response.json()
             assert len(data["tags"][ref_curie]) >= 1
 
+    def test_show_all_reference_tags_batch_mod_filter(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, auth_headers):  # noqa
+        # The grid must show only the selected MOD's tags. A tag's owning MOD is
+        # its source's secondary_data_provider (the field create_or_update uses for
+        # created_by_mod), NOT data_provider -- the fixture source has
+        # secondary_data_provider "0015_AtDB" but data_provider "WB", so a mods=[WB]
+        # filter must NOT keep it. Put a second MOD's tag on the SAME reference and
+        # assert the mods filter discriminates by secondary_data_provider across
+        # both the raw tags AND the discovery sources.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            mod1 = test_mod.new_mod_abbreviation  # fixture tag's secondary_data_provider
+
+            # A second MOD + a source owned by it, then a topic-level tag on the
+            # SAME reference under that source.
+            mod2 = "0016_BtDB"
+            client.post(url="/mod/", json={
+                "abbreviation": mod2, "short_name": "BtDB", "full_name": "Second test db"
+            }, headers=auth_headers)
+            source2_id = client.post(url="/topic_entity_tag/source", json={
+                "source_evidence_assertion": "ECO:0008025",
+                "source_method": "second network",
+                "validation_type": None,
+                "description": "a second-MOD source",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": mod2,
+            }, headers=auth_headers).json()["topic_entity_tag_source_id"]
+            tag2 = client.post(url="/topic_entity_tag/", json={
+                "reference_curie": ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "data_novelty": "ATP:0000335",
+                "topic_entity_tag_source_id": source2_id,
+                "negated": False,
+                "created_by": "WBPerson2",
+                "force_insertion": True,
+            }, headers=auth_headers)
+            assert tag2.status_code == status.HTTP_201_CREATED
+
+            # mods=[mod1]: only the fixture (mod1-owned) tag; mod2's tag is hidden.
+            r1 = client.post(url="/topic_entity_tag/by_references", json={
+                "curies_or_reference_ids": [ref_curie], "filters": {"mods": [mod1]},
+            }, headers=auth_headers)
+            assert r1.status_code == status.HTTP_200_OK
+            d1 = r1.json()
+            secs1 = {t["topic_entity_tag_source"]["secondary_data_provider_abbreviation"]
+                     for t in d1["tags"][ref_curie]}
+            assert secs1 == {mod1}
+            assert all(s["secondary_data_provider"] == mod1 for s in d1["discovery"]["sources"])
+
+            # mods=[mod2]: only mod2's tag; the fixture (mod1) tag is hidden -- even
+            # though its source's data_provider is "WB", it is owned by mod1.
+            r2 = client.post(url="/topic_entity_tag/by_references", json={
+                "curies_or_reference_ids": [ref_curie], "filters": {"mods": [mod2]},
+            }, headers=auth_headers)
+            assert r2.status_code == status.HTTP_200_OK
+            d2 = r2.json()
+            secs2 = {t["topic_entity_tag_source"]["secondary_data_provider_abbreviation"]
+                     for t in d2["tags"][ref_curie]}
+            assert secs2 == {mod2}
+            assert all(s["secondary_data_provider"] == mod2 for s in d2["discovery"]["sources"])
+
     def test_show_all_reference_tags_batch_single_vs_multi_tag(self, test_topic_entity_tag, auth_headers):  # noqa
         # The fixture reference carries ONE tag: topic ATP:0000122 with source
         # method "phenotype neural network". Combining the topic it DOES carry

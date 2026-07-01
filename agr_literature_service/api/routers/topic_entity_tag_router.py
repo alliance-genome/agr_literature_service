@@ -230,6 +230,12 @@ class ReferenceTagsBatchFilters(BaseModel):
     confidence_score_min: Optional[float] = None
     confidence_score_max: Optional[float] = None
     apply_to_single_tag: Optional[bool] = None
+    # MOD scope from the search's corpus facet(s): restrict tags to those whose
+    # source's secondary_data_provider (the owning MOD, per created_by_mod) is one
+    # of these abbreviations, so the grid shows only the selected MOD's tags
+    # instead of every MOD's tags on a shared reference. Omitted/empty => no MOD
+    # restriction (all MODs' tags).
+    mods: Optional[List[str]] = None
 
 
 class ReferenceTagsBatchRequest(BaseModel):

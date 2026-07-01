@@ -1260,7 +1260,7 @@ def _ci_in(column, values):
     return func.upper(column).in_(upper_values)
 
 
-def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
+def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa: C901
     """Restrict a TET query to the tags the initial search asked for.
 
     Mirrors the TET facet criteria the search UI sends (searchActions.js). The
@@ -1332,6 +1332,18 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
             query = query.filter(or_(*positive_conditions))
 
     # --- per-tag refinements, applied in both modes -------------------------- #
+    # MOD scope (the search's corpus facet): keep only tags owned by one of the
+    # selected MODs, i.e. whose source's secondary_data_provider matches (the same
+    # field create_or_update uses for created_by_mod). Applied to ALL tags --
+    # curator validations included -- so a WB-scoped grid never shows another
+    # MOD's tags (e.g. an fb_svm_classifier / FB source) on a shared reference.
+    mods = filters.get("mods")
+    if mods:
+        upper_mods = [str(m).upper() for m in mods if m]
+        query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
+            TopicEntityTagSourceModel.secondary_data_provider.has(
+                func.upper(ModModel.abbreviation).in_(upper_mods))))
+
     entity_types = filters.get("entity_types")
     if entity_types:
         query = query.filter(_ci_in(TopicEntityTagModel.entity_type, entity_types))
