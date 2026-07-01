@@ -256,10 +256,12 @@ class ReferenceTagsBatchResponse(BaseModel):
     # curator validation are omitted (client treats absent as 'unvalidated').
     validation: Optional[Dict[str, Any]] = None
     # filter_flags: input identifier -> {topic_curie: {has_any, has_y, has_n,
-    # has_note}}. Per-cell booleans backing the grid's per-topic cell filter
-    # (computed over all tags of the cell) so it filters without scanning raw
-    # tags. ('my validation present' is omitted pending the curator-identity
-    # model.)
+    # has_note, my_validation_present}}. Per-cell booleans backing the grid's
+    # per-topic cell filter (computed over all tags of the cell) so it filters
+    # without scanning raw tags. my_validation_present compares each tag's
+    # created_by against the authenticated user's users.id server-side (the
+    # comparison the client couldn't do -- its uid is an Okta subject id and the
+    # serialized created_by is a display name).
     filter_flags: Optional[Dict[str, Any]] = None
     # discovery: batch-global (NOT keyed per reference) {topics: [{curie, name}],
     # sources: [{label, method, secondary_data_provider, data_provider}]}. The

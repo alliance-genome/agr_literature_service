@@ -527,6 +527,59 @@ class TestTopicEntityTag:
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
 
+    def test_my_validation_present_flag(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # my_validation_present resolves the deferral from increment 3: the server
+        # compares each tag's created_by (internal users.id) against the current
+        # request user's users.id, so the grid's 'my validation present' cell filter
+        # no longer needs raw tags + a client-side identity guess. The fixture tag
+        # was created_by "WBPerson1" (a different user), so before the current user
+        # touches the cell the flag is False; after this user validates it is True,
+        # in BOTH the batch filter_flags and the /validate recomputed cell.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # before the current user validates: the only tag on the cell is the
+            # fixture tag (created_by "WBPerson1"), so my_validation_present is False
+            # while the other cell flags still reflect that tag.
+            before = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie]},
+                headers=auth_headers,
+            ).json()
+            cell_flags = before["filter_flags"][ref_curie]["ATP:0000122"]
+            assert cell_flags["has_any"] is True
+            assert cell_flags["my_validation_present"] is False
+
+            # the current user validates the topic; the created tag is stamped with
+            # this request's users.id, so the recomputed cell reports the flag True.
+            resp = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": False},
+                headers=auth_headers,
+            )
+            assert resp.status_code == status.HTTP_200_OK
+            assert resp.json()["filter_flags"]["my_validation_present"] is True
+
+            # and the batch aggregate now reports it True for the same cell.
+            after = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie]},
+                headers=auth_headers,
+            ).json()
+            assert after["filter_flags"][ref_curie]["ATP:0000122"]["my_validation_present"] is True
+
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.post(
