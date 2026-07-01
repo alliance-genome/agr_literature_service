@@ -1868,14 +1868,13 @@ def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) 
     (source_evidence_assertion, source_method, data_provider,
     secondary_data_provider) excludes validation_type, so when a source already
     exists for the MOD it is reused verbatim -- the same row the UI write path
-    uses. abc_literature_system curator sources are 'professional_curator' (or
-    legacy 'curator'), never 'professional_biocurator': the UI has only ever
-    created them as 'curator'/'professional_curator' and no other code path
-    creates this (assertion, method, mod) source. The opposite-negation guard in
-    check_for_duplicate_tags (Branch 3) is gated on 'professional_biocurator', so
-    it does not apply here -- a same-curator opposite-polarity re-validation is
-    recorded (read side shows 'conflict') rather than rejected with 409, matching
-    the existing UI write path."""
+    uses. That means the resolved source's validation_type is NOT guaranteed to be
+    'professional_curator': a pre-existing curator source may be
+    'professional_biocurator' for some MODs, and the opposite-negation guard in
+    check_for_duplicate_tags (Branch 3) fires only for that value. validate_topic
+    does not rely on the validation_type either way -- it deletes the curator's
+    prior validation before inserting the new one, so a flipped re-validation
+    never trips Branch 3 regardless of the source's validation_type."""
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
     if mod is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
@@ -1939,20 +1938,44 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     """Write path for the grid's Validation column (SCRUM-6242 increment 5).
 
     Given just the cell the curator acted on -- {reference, topic, negated, note,
-    species} plus their MOD -- resolve the curator source server-side and create
-    the topic-level validation tag through the normal create_tag path (so dedup,
-    note-append upsert and validation all behave identically to a manual create),
-    then return the recomputed single cell.
+    species} plus their MOD -- resolve the curator source server-side, record the
+    curator's topic-level validation, and return the recomputed single cell.
 
-    force_insertion=True mirrors the UI payload; it bypasses the different-creator
-    duplicate guard (Branches 4/5 in check_for_duplicate_tags). A same-curator
-    opposite-polarity re-validation is recorded rather than rejected because the
-    opposite-negation guard (Branch 3) only applies to 'professional_biocurator'
-    sources, and the curator source resolved here is 'professional_curator' (see
-    get_or_create_curator_validation_source). An exact same-curator, same-polarity
-    resubmit still 409s (duplicate) unless it carries a new note (note-append
-    upsert), exactly like a manual create."""
+    REPLACE-PRIOR semantics: a curator holds at most one validation per
+    (reference, topic). Any existing topic-level validation by this curator on the
+    curator source is deleted before the new one is inserted, so re-validating
+    REPLACES the prior assertion (flip Yes<->No, or update note/species) rather
+    than creating a second, contradictory tag. This is robust regardless of the
+    curator source's validation_type: the abc curator source is
+    'professional_curator' for some MODs and 'professional_biocurator' for others,
+    and the opposite-negation guard (check_for_duplicate_tags Branch 3) only fires
+    for the latter -- deleting the curator's prior tag first means the new insert
+    never trips that guard either way, so a flipped vote never 409s.
+
+    The new tag is created through the normal create_tag path (force_insertion
+    bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
+    side effects still run). create_tag runs with validate_on_insert=False because
+    the single revalidate_all_tags below rebuilds the whole reference's validation
+    relationships/values once -- covering both the new tag and any tags affected
+    by the delete -- exactly as patch_tag/destroy_tag do."""
     source = get_or_create_curator_validation_source(db, mod_abbreviation)
+    reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
+    current_user = get_default_user_value()
+    topic_upper = str(topic or "").upper()
+
+    prior = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        func.upper(TopicEntityTagModel.topic) == topic_upper,
+        TopicEntityTagModel.entity.is_(None),
+        TopicEntityTagModel.topic_entity_tag_source_id == source.topic_entity_tag_source_id,
+        TopicEntityTagModel.created_by == current_user,
+    ).all()
+    replaced = bool(prior)
+    for old_tag in prior:
+        db.delete(old_tag)
+    if prior:
+        db.commit()
+
     tag = TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
         topic=topic,
@@ -1965,12 +1988,13 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         topic_entity_tag_source_id=source.topic_entity_tag_source_id,
         force_insertion=True,
     )
-    tag_id, was_upsert = create_tag(db, tag)
-    reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
+    tag_id, _ = create_tag(db, tag, validate_on_insert=False)
+    revalidate_all_tags(curie_or_reference_id=str(reference_id))
+    db.expire_all()
     cell = _recompute_validation_cell(db, reference_id, topic)
     return {
         "topic_entity_tag_id": tag_id,
-        "upserted": was_upsert,
+        "replaced": replaced,
         **cell,
     }
 
