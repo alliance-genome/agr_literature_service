@@ -470,6 +470,155 @@ wait_for_pipeline_drained() {
     return 1
 }
 
+# ---------------------------------------------------------------------------
+# SCRUM-6240: alias-based blue/green index swap helpers.
+# The app queries an ALIAS; physical data lives in two fixed slots <name>_1 / <name>_2.
+# Each rebuild targets the inactive slot, optimizes it, then atomically flips the alias.
+# ---------------------------------------------------------------------------
+
+# Echo the INACTIVE slot suffix ("1" or "2") for an alias, so a rebuild always targets the slot
+# the alias is NOT currently serving. Defaults to "1" when the alias is absent (bootstrap) or
+# points at neither slot.
+resolve_inactive_suffix() {
+    local es_host=$1 es_port=$2 alias=$3
+    local body code
+    # Capture the HTTP status so a genuine 404 (alias absent -> bootstrap) is NOT confused with a
+    # transient failure (timeout/5xx -> code "000"/"5xx"). Guessing "1" on a transient blip while
+    # the alias is serving slot _1 would make the caller DELETE/rebuild the LIVE slot in place and
+    # break search -- exactly what this feature prevents. On a hard error we return non-zero so the
+    # caller aborts before touching any index.
+    body=$(curl -s -m 10 -w $'\n%{http_code}' "http://${es_host}:${es_port}/_alias/${alias}" 2>/dev/null)
+    code=$(printf '%s' "$body" | tail -n1)
+    body=$(printf '%s' "$body" | sed '$d')
+    if [[ "$code" == "404" ]]; then
+        echo "1"   # alias absent -> bootstrap, slot _1 is free
+        return 0
+    fi
+    if [[ "$code" != "200" ]]; then
+        echo "resolve_inactive_suffix: alias '${alias}' lookup returned HTTP '${code}' (expected 200/404); refusing to guess a slot" >&2
+        return 1
+    fi
+    # 200: list ONLY indices that actually carry this alias. A bare concrete index named <alias>
+    # (pre-migration) is returned by GET /_alias/<name> as itself with EMPTY aliases (HTTP 200, not
+    # 404) -> no real backers -> treated as bootstrap (slot _1).
+    local backers n
+    backers=$(printf '%s' "$body" | jq -r --arg a "$alias" 'to_entries[] | select(.value.aliases[$a] != null) | .key' 2>/dev/null)
+    n=$(printf '%s' "$backers" | grep -c . 2>/dev/null)
+    if [[ "$n" -gt 1 ]]; then
+        echo "resolve_inactive_suffix: alias '${alias}' points at >1 index ($(echo $backers | tr '\n' ' ')); refusing to guess a slot" >&2
+        return 1
+    fi
+    if [[ "$backers" == "${alias}_1" ]]; then echo "2"; else echo "1"; fi
+    return 0
+}
+
+# Force-merge an index to a single segment (optimize + expunge upsert tombstones) and warm it
+# (page-cache + global ordinals) BEFORE it serves traffic. Runs OFF the serving path (the alias
+# still points at the old slot). The force_merge is launched as a BACKGROUND task
+# (wait_for_completion=false) and polled via the Tasks API to TRUE completion, so a long merge on a
+# big index can never be cut short by an endpoint/idle timeout on a blocking HTTP call -- the alias
+# must never flip onto a still-merging index. Falls back to a blocking force_merge on older servers
+# that do not support the async param. Best-effort: a force_merge failure leaves the index correct
+# but unoptimized and does NOT block the flip (always logged, never silently swallowed).
+optimize_and_warm_index() {
+    local es_host=$1 es_port=$2 index=$3
+    local base="http://${es_host}:${es_port}"
+    local resp code task completed n
+
+    echo "Optimizing ${index} (force_merge max_num_segments=1, async + task poll)..."
+    # No -m on this POST: with wait_for_completion=false it returns a task id instantly; if the
+    # server ignores the param it blocks until done and returns the merge result instead.
+    resp=$(curl -s -X POST \
+        "${base}/${index}/_forcemerge?max_num_segments=1&wait_for_completion=false" \
+        -H "Content-Type: application/json")
+    task=$(printf '%s' "$resp" | jq -r '.task // empty' 2>/dev/null)
+
+    if [[ -n "$task" ]]; then
+        echo "force_merge task ${task} started for ${index}; polling until complete..."
+        n=0
+        while [[ $n -lt 720 ]]; do          # ~3h cap at 15s/poll
+            sleep 15; n=$((n + 1))
+            resp=$(curl -s -m 15 -w $'\n%{http_code}' "${base}/_tasks/${task}" 2>/dev/null)
+            code=$(printf '%s' "$resp" | tail -n1)
+            resp=$(printf '%s' "$resp" | sed '$d')
+            if [[ "$code" == "404" ]]; then
+                echo "force_merge of ${index}: task ${task} no longer present; assuming complete."
+                break
+            fi
+            completed=$(printf '%s' "$resp" | jq -r '.completed // false' 2>/dev/null)
+            if [[ "$completed" == "true" ]]; then
+                if printf '%s' "$resp" | jq -e 'has("error")' >/dev/null 2>&1; then
+                    echo "WARNING: force_merge task ${task} for ${index} completed WITH ERROR: $(printf '%s' "$resp" | jq -c '.error' 2>/dev/null)" >&2
+                else
+                    echo "force_merge of ${index} completed."
+                fi
+                break
+            fi
+        done
+        [[ $n -ge 720 ]] && echo "WARNING: force_merge of ${index} still running after ~3h; proceeding (merge continues server-side)." >&2
+    elif printf '%s' "$resp" | jq -e '._shards.failed == 0' >/dev/null 2>&1; then
+        echo "force_merge of ${index} completed synchronously (server ignored wait_for_completion)."
+    else
+        # Param rejected (e.g. 400 on older ES) or some other error -> retry a plain blocking
+        # force_merge so the index still gets optimized.
+        echo "force_merge async start unavailable for ${index} (${resp}); retrying a blocking force_merge..." >&2
+        resp=$(curl -s -X POST "${base}/${index}/_forcemerge?max_num_segments=1" -H "Content-Type: application/json")
+        printf '%s' "$resp" | jq -e '._shards.failed == 0' >/dev/null 2>&1 \
+            && echo "force_merge of ${index} completed (blocking)." \
+            || echo "WARNING: force_merge of ${index} did not confirm success: ${resp} (continuing; index is correct but unoptimized)" >&2
+    fi
+
+    echo "Warming ${index} (match_all to page in caches)..."
+    curl -s -m 30 -X POST "${base}/${index}/_search" \
+        -H "Content-Type: application/json" -d '{"size":0,"query":{"match_all":{}}}' >/dev/null
+}
+
+# Atomically point <alias> at <new_index> in a SINGLE _aliases call (zero-downtime cutover):
+# remove the alias from any stale slot, and on first-run bootstrap atomically DELETE a legacy
+# CONCRETE index of the same name via `remove_index` -- in the SAME call as the add, so the name
+# is never absent (no 404 window for the live app). All of it is covered by the acknowledged check.
+flip_alias() {
+    local es_host=$1 es_port=$2 alias=$3 new_index=$4
+    local base="http://${es_host}:${es_port}"
+    local body code current_list concrete idx actions="" resp
+    # Current alias backers. 200 = alias exists (list ONLY indices that truly carry it); 404 = none.
+    # Use the status code so a transient failure is NOT read as "no backers" (which would skip the
+    # stale-remove and leave the alias on two slots). On a hard error, abort rather than guess.
+    body=$(curl -s -m 10 -w $'\n%{http_code}' "${base}/_alias/${alias}" 2>/dev/null)
+    code=$(printf '%s' "$body" | tail -n1)
+    body=$(printf '%s' "$body" | sed '$d')
+    if [[ "$code" == "200" ]]; then
+        current_list=$(printf '%s' "$body" | jq -r --arg a "$alias" 'to_entries[] | select(.value.aliases[$a] != null) | .key' 2>/dev/null)
+    elif [[ "$code" == "404" ]]; then
+        current_list=""
+    else
+        echo "flip_alias: alias '${alias}' lookup returned HTTP '${code}'; aborting flip" >&2
+        return 1
+    fi
+    # Bootstrap detection: _cat/indices/<name> lists indices only -- for an alias it resolves to the
+    # backing slot (!= alias); for a bare concrete index it returns the name itself.
+    concrete=$(curl -s -m 10 "${base}/_cat/indices/${alias}?h=index" 2>/dev/null | tr -d '[:space:]')
+    for idx in $current_list; do
+        [[ "$idx" == "$new_index" ]] && continue
+        actions="${actions}{\"remove\":{\"index\":\"${idx}\",\"alias\":\"${alias}\"}},"
+    done
+    if [[ "$concrete" == "$alias" ]]; then
+        actions="${actions}{\"remove_index\":{\"index\":\"${alias}\"}},"
+    fi
+    actions="${actions}{\"add\":{\"index\":\"${new_index}\",\"alias\":\"${alias}\"}}"
+    echo "Flipping alias '${alias}' -> '${new_index}'"
+    resp=$(curl -s -m 30 -X POST "${base}/_aliases" -H "Content-Type: application/json" \
+        -d "{\"actions\":[${actions}]}")
+    # The flip is the one step where a silent failure means the freshly-built index is never
+    # served. ES returns {"acknowledged":true} on success; treat anything else as a hard failure.
+    if printf '%s' "$resp" | jq -e '.acknowledged == true' >/dev/null 2>&1; then
+        echo "Alias '${alias}' now points at '${new_index}'"
+        return 0
+    fi
+    echo "flip_alias: _aliases POST for '${alias}' -> '${new_index}' NOT acknowledged: ${resp}" >&2
+    return 1
+}
+
 # Export functions for use in other scripts
 export -f get_timestamp
 export -f seconds_since
@@ -480,3 +629,6 @@ export -f poll_multiple_reindex_tasks
 export -f save_completion_metrics
 export -f wait_for_source_topics_ready
 export -f wait_for_pipeline_drained
+export -f resolve_inactive_suffix
+export -f optimize_and_warm_index
+export -f flip_alias

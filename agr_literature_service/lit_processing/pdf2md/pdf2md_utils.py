@@ -6,6 +6,7 @@ including PDFX API integration, reference lookup by curie, nXML conversion, and 
 retrieval for both main and supplemental files.
 """
 import gzip
+import json
 import logging
 import os
 import re
@@ -58,6 +59,32 @@ FIGURE_FILE_CLASSES: Dict[str, str] = {
 }
 # Marker emits .png; the manifest filenames also end in .png.
 CONVERTED_FIGURE_FILE_EXTENSION = "png"
+
+# file_class for the JSON metadata sidecar persisted next to each extracted
+# figure (SCRUM-6246). One per figure PNG, sharing the PNG's display_name —
+# the referencefile uniqueness key is (display_name, file_extension,
+# reference), so a .json can reuse the identical display_name as its .png.
+FIGURE_METADATA_FILE_CLASSES: Dict[str, str] = {
+    "main": "converted_main_figure_metadata",
+    "supplement": "converted_supplement_figure_metadata",
+}
+CONVERTED_FIGURE_METADATA_FILE_EXTENSION = "json"
+
+# PDFX manifest fields copied verbatim into each figure's metadata sidecar.
+# Always emitted (None when the manifest omits one) so the JSON schema is
+# predictable for AI Curation consumers. The transient presigned ``url`` is
+# deliberately NOT persisted: it expires, carries no provenance value, and
+# would make the JSON md5sum unstable across re-runs (defeating idempotency).
+_FIGURE_METADATA_MANIFEST_FIELDS = (
+    "figure_label",
+    "figure_number",
+    "caption_text",
+    "nearby_text",
+    "page_index",
+    "bbox",
+    "polygon",
+    "filename",
+)
 
 # MODs whose corpus membership makes a reference eligible for supplemental-PDF
 # conversion. Curating the supplements is expensive and only WB/ZFIN/FB
@@ -717,6 +744,116 @@ def download_pdfx_image(image_url: str) -> bytes:  # pragma: no cover
     return response.content
 
 
+def build_figure_metadata_payload(
+    image: Dict,
+    *,
+    figure_index: int,
+    figure_display_name: str,
+    source_display_name: str,
+    source_file_class: str,
+) -> Dict:
+    """
+    Build the JSON metadata payload persisted alongside an extracted figure
+    (SCRUM-6246).
+
+    Copies the documented PDFX manifest fields (see
+    :data:`_FIGURE_METADATA_MANIFEST_FIELDS`) plus every ``image_review_*``
+    field, and records the figure's own ``display_name`` / source linkage so
+    the sidecar is self-describing and — crucially — unique within the
+    reference. The referencefile ``(md5sum, reference)`` uniqueness constraint
+    means two figures of the same reference must not produce byte-identical
+    JSON; the per-figure ``display_name`` + ``figure_index`` guarantee that
+    even when every manifest metadata field is absent.
+
+    The transient presigned ``url`` is intentionally omitted so re-running the
+    same extraction yields byte-identical JSON (md5sum-stable → idempotent
+    uploads).
+    """
+    payload: Dict = {
+        "display_name": figure_display_name,
+        "figure_index": figure_index,
+        "source_display_name": source_display_name,
+        "source_file_class": source_file_class,
+    }
+    for field in _FIGURE_METADATA_MANIFEST_FIELDS:
+        payload[field] = image.get(field)
+    image_review = {
+        key: value
+        for key, value in image.items()
+        if key.startswith("image_review")
+    }
+    if image_review:
+        payload["image_review"] = image_review
+    return payload
+
+
+def serialize_figure_metadata(payload: Dict) -> bytes:
+    """
+    Serialize a figure-metadata payload deterministically (sorted keys, fixed
+    formatting) so identical metadata produces an identical md5sum on re-runs.
+    This is what makes the metadata uploads idempotent: a second run computes
+    the same md5 and ``file_upload_single`` short-circuits to a no-op.
+    """
+    return json.dumps(
+        payload, sort_keys=True, indent=2, ensure_ascii=False
+    ).encode("utf-8")
+
+
+def _upload_figure_metadata_sidecar(  # pragma: no cover
+    db: Session,
+    image: Dict,
+    *,
+    figure_index: int,
+    figure_display_name: str,
+    figure_metadata_file_class: str,
+    source_display_name: str,
+    source_file_class: str,
+    reference_curie: str,
+    mod_abbreviation: Optional[str],
+) -> None:
+    """
+    Build and upload the JSON metadata sidecar for one extracted figure.
+
+    The sidecar shares the figure PNG's ``display_name`` (the referencefile
+    uniqueness key is ``(display_name, file_extension, reference)``, so a
+    ``.json`` can reuse the identical ``display_name`` as its ``.png``) under
+    the dedicated metadata file_class. Reuses the standard ``file_upload``
+    path (md5sum dedup, MOD association, ``upload_if_already_converted``).
+    Raises on failure; the caller records the error without aborting the rest
+    of the conversion.
+    """
+    payload = build_figure_metadata_payload(
+        image,
+        figure_index=figure_index,
+        figure_display_name=figure_display_name,
+        source_display_name=source_display_name,
+        source_file_class=source_file_class,
+    )
+    metadata_bytes = serialize_figure_metadata(payload)
+    metadata = {
+        "reference_curie": reference_curie,
+        "display_name": figure_display_name,
+        "file_class": figure_metadata_file_class,
+        "file_publication_status": "final",
+        "file_extension": CONVERTED_FIGURE_METADATA_FILE_EXTENSION,
+        "pdf_type": None,
+        "is_annotation": None,
+        "mod_abbreviation": mod_abbreviation,
+    }
+    file_upload(
+        db=db,
+        metadata=metadata,
+        file=UploadFile(
+            file=BytesIO(metadata_bytes),
+            filename=(
+                f"{figure_display_name}."
+                f"{CONVERTED_FIGURE_METADATA_FILE_EXTENSION}"
+            ),
+        ),
+        upload_if_already_converted=True,
+    )
+
+
 def process_extracted_images(  # pragma: no cover
     db: Session,
     process_id: str,
@@ -739,9 +876,18 @@ def process_extracted_images(  # pragma: no cover
     manifest order) so names stay stable, sortable, and unique within a
     source PDF.
 
-    Returns ``(succeeded_count, failed_count, errors)``. Image-extraction
-    failures never raise — the caller's overall conversion still succeeds
-    based on the Markdown outputs.
+    For each figure PNG, a JSON metadata sidecar (SCRUM-6246) is also
+    persisted: same display_name as the PNG, ``json`` extension, under the
+    dedicated ``converted_*_figure_metadata`` file_class. The sidecar carries
+    the PDFX manifest's figure_label/figure_number/caption_text/page_index/
+    bbox/polygon/image_review_* fields. Sidecar failures are counted and
+    logged but never flip the figure's success — the PNG is the contract.
+
+    Returns ``(succeeded_count, failed_count, errors)`` where the counts
+    refer to figure PNGs (the primary artifact). Both image-extraction and
+    metadata-sidecar failures are appended to ``errors`` for visibility but
+    never raise — the caller's overall conversion still succeeds based on the
+    Markdown outputs.
     """
     figure_file_class = FIGURE_FILE_CLASSES.get(source_file_class)
     if figure_file_class is None:
@@ -751,6 +897,9 @@ def process_extracted_images(  # pragma: no cover
             f"{reference_curie}"
         )
         return 0, 0, []
+    figure_metadata_file_class = FIGURE_METADATA_FILE_CLASSES.get(
+        source_file_class
+    )
 
     try:
         manifest = download_pdfx_image_manifest(process_id, token)
@@ -769,6 +918,8 @@ def process_extracted_images(  # pragma: no cover
 
     succeeded = 0
     failed = 0
+    metadata_succeeded = 0
+    metadata_failed = 0
     errors: List[str] = []
 
     for idx, image in enumerate(images, start=1):
@@ -812,7 +963,7 @@ def process_extracted_images(  # pragma: no cover
         }
 
         try:
-            file_upload(
+            created = file_upload(
                 db=db,
                 metadata=metadata,
                 file=UploadFile(
@@ -832,12 +983,56 @@ def process_extracted_images(  # pragma: no cover
             logger.error(
                 f"Failed to upload extracted image {idx} for {reference_curie}: {e}"
             )
+            continue
+
+        # The PNG is the contract; its metadata sidecar is best-effort. Use the
+        # actual display_name assigned to the PNG (file_upload may have appended
+        # _N for uniqueness, or returned an existing row on a re-run) so the
+        # .json always matches its .png exactly rather than re-deriving from idx.
+        figure_display_name = output_display_name
+        if (
+            isinstance(created, list) and created
+            and isinstance(getattr(created[0], "display_name", None), str)
+        ):
+            figure_display_name = created[0].display_name
+
+        if figure_metadata_file_class is None:
+            continue
+        try:
+            _upload_figure_metadata_sidecar(
+                db=db,
+                image=image,
+                figure_index=idx,
+                figure_display_name=figure_display_name,
+                figure_metadata_file_class=figure_metadata_file_class,
+                source_display_name=source_display_name,
+                source_file_class=source_file_class,
+                reference_curie=reference_curie,
+                mod_abbreviation=mod_abbreviation,
+            )
+            metadata_succeeded += 1
+            logger.info(
+                f"Uploaded figure metadata sidecar for {reference_curie} as "
+                f"{figure_metadata_file_class} '{figure_display_name}'"
+            )
+        except Exception as e:
+            metadata_failed += 1
+            errors.append(
+                f"image {idx} ({figure_display_name}): "
+                f"metadata sidecar upload failed: {e}"
+            )
+            logger.error(
+                f"Failed to upload figure metadata sidecar {idx} for "
+                f"{reference_curie}: {e}"
+            )
 
     if succeeded or failed:
         logger.info(
             f"Image extraction for {reference_curie} "
             f"({source_file_class} '{source_display_name}'): "
-            f"{succeeded} succeeded, {failed} failed"
+            f"{succeeded} succeeded, {failed} failed; "
+            f"metadata sidecars {metadata_succeeded} succeeded, "
+            f"{metadata_failed} failed"
         )
     return succeeded, failed, errors
 

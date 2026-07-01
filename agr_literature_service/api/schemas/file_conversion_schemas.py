@@ -9,6 +9,12 @@ class ConversionFileInfo(BaseModel):
     display_name: str
     file_class: str
     referencefile_id: Optional[int] = None
+    # For extracted-figure rows: the referencefile_id of the figure's JSON
+    # metadata sidecar (SCRUM-6246), so AI Curation can fetch a figure's
+    # PDFX manifest metadata (caption, figure number, bbox, ...) without
+    # guessing display_name prefixes. None for non-figure rows or figures
+    # whose sidecar is missing (e.g. extracted before the metadata feature).
+    metadata_referencefile_id: Optional[int] = None
 
 
 class ConversionModStatusSchema(BaseModel):

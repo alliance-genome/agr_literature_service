@@ -14,9 +14,11 @@ Conversion primitives (process_nxml_to_markdown / process_pdf_for_reference) are
 mocked — the real ones would call PDFX and S3.
 """
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
-from fastapi import status
+import agr_literature_service.api.crud.referencefile_crud as referencefile_crud
+
+from fastapi import HTTPException, status
 from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
@@ -51,6 +53,105 @@ def clear_global_manager():
 @pytest.fixture
 def manager():
     return ConversionJobManager()
+
+
+class TestSuppressUploadGuardrails:
+    """SCRUM-6246: a one-off process (the figure-metadata backfill) flips a
+    process-level toggle so file_upload() persists auxiliary files WITHOUT the
+    interactive-upload guardrails -- it skips the is_file_upload_blocked
+    "job in progress" check and the post-upload workflow transition / main-PDF
+    cleanup. Default (live API / conversion path) is unchanged."""
+
+    @staticmethod
+    def _metadata(mod=None):
+        # A figure-metadata sidecar: not main/pdf/final. mod-less by default so
+        # the corpus / upload-blocked guards don't run; pass a mod to exercise
+        # the is_file_upload_blocked guard.
+        return {
+            "reference_curie": "AGRKB:101000000000001",
+            "mod_abbreviation": mod,
+            "file_class": "converted_main_figure_metadata",
+            "file_publication_status": "final",
+            "file_extension": "json",
+            "pdf_type": None,
+        }
+
+    def test_default_fires_transition_and_cleanup(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "file_upload_single",
+                             return_value=MagicMock()), \
+                patch.object(referencefile_crud, "cleanup_old_pdf_file") as cleanup, \
+                patch.object(referencefile_crud,
+                             "transition_WFT_for_uploaded_file") as transition:
+            referencefile_crud.file_upload(mock_db, self._metadata(), MagicMock())
+            transition.assert_called_once()
+            cleanup.assert_called_once()
+
+    def test_suppress_skips_transition_and_cleanup_but_commits(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "file_upload_single",
+                             return_value=MagicMock()), \
+                patch.object(referencefile_crud, "cleanup_old_pdf_file") as cleanup, \
+                patch.object(referencefile_crud,
+                             "transition_WFT_for_uploaded_file") as transition:
+            referencefile_crud.set_suppress_upload_guardrails(True)
+            try:
+                referencefile_crud.file_upload(mock_db, self._metadata(), MagicMock())
+            finally:
+                referencefile_crud.set_suppress_upload_guardrails(False)
+            transition.assert_not_called()
+            cleanup.assert_not_called()
+            # The created referencefile must still be persisted even though the
+            # transition (which used to be the committing step) was skipped.
+            mock_db.commit.assert_called_once()
+
+    def test_default_blocks_upload_when_job_in_progress(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "check_if_paper_in_corpus",
+                             return_value=True), \
+                patch.object(referencefile_crud, "is_file_upload_blocked",
+                             return_value="entity extraction"), \
+                patch.object(referencefile_crud, "file_upload_single") as single:
+            with pytest.raises(HTTPException) as exc:
+                referencefile_crud.file_upload(mock_db, self._metadata(mod="WB"), MagicMock())
+        assert exc.value.status_code == 422
+        assert "in progress" in exc.value.detail
+        single.assert_not_called()  # blocked before the upload happens
+
+    def test_suppress_bypasses_job_in_progress_block(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "check_if_paper_in_corpus",
+                             return_value=True), \
+                patch.object(referencefile_crud, "is_file_upload_blocked",
+                             return_value="entity extraction") as blocked, \
+                patch.object(referencefile_crud, "file_upload_single",
+                             return_value=MagicMock()) as single, \
+                patch.object(referencefile_crud, "cleanup_old_pdf_file"), \
+                patch.object(referencefile_crud, "transition_WFT_for_uploaded_file"):
+            referencefile_crud.set_suppress_upload_guardrails(True)
+            try:
+                referencefile_crud.file_upload(mock_db, self._metadata(mod="WB"), MagicMock())
+            finally:
+                referencefile_crud.set_suppress_upload_guardrails(False)
+            single.assert_called_once()   # upload proceeded despite the in-progress job
+            blocked.assert_not_called()   # the guard was skipped entirely
+
+    def test_setter_toggles_and_resets_module_state(self):
+        assert referencefile_crud.is_upload_guardrails_suppressed() is False
+        referencefile_crud.set_suppress_upload_guardrails(True)
+        try:
+            assert referencefile_crud.is_upload_guardrails_suppressed() is True
+        finally:
+            referencefile_crud.set_suppress_upload_guardrails(False)
+        assert referencefile_crud.is_upload_guardrails_suppressed() is False
 
 
 class TestConversionJob:
@@ -225,6 +326,59 @@ class TestFiguresHelpers:
         )
         ref = self._make_reference([])
         assert _figures_for_source(ref, "paper", "main") == []
+
+    def test_figures_for_source_links_metadata_sidecar(self):
+        """Each figure PNG is linked to its JSON metadata sidecar (same
+        display_name, parallel metadata file_class) via metadata_referencefile_id."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+            self._make_ref_file("converted_main_figure", "paper_image_002", 11),
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_001", 110, file_extension="json"),
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_002", 111, file_extension="json"),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert [r["referencefile_id"] for r in result] == [10, 11]
+        assert [r["metadata_referencefile_id"] for r in result] == [110, 111]
+
+    def test_figures_for_source_metadata_id_none_when_no_sidecar(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert result[0]["metadata_referencefile_id"] is None
+
+    def test_figures_for_source_metadata_requires_json_and_final(self):
+        """A sidecar row that is not json, or not final, is not linked."""
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_main_figure", "paper_image_001", 10),
+            # wrong extension
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_001", 110, file_extension="txt"),
+            self._make_ref_file("converted_main_figure", "paper_image_002", 11),
+            # non-final
+            self._make_ref_file("converted_main_figure_metadata", "paper_image_002", 111, file_extension="json", file_publication_status="temp"),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "paper", "main")
+        assert [r["metadata_referencefile_id"] for r in result] == [None, None]
+
+    def test_figures_for_source_supplement_links_supplement_metadata(self):
+        from agr_literature_service.api.crud.file_conversion_crud import (
+            _figures_for_source,
+        )
+        rfs = [
+            self._make_ref_file("converted_supplement_figure", "supp1_image_001", 1),
+            self._make_ref_file("converted_supplement_figure_metadata", "supp1_image_001", 101, file_extension="json"),
+        ]
+        result = _figures_for_source(self._make_reference(rfs), "supp1", "supplement")
+        assert result[0]["metadata_referencefile_id"] == 101
 
     def test_attach_figures_mutates_each_progress_entry(self):
         from agr_literature_service.api.crud.file_conversion_crud import (
