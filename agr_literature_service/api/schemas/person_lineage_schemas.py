@@ -24,6 +24,11 @@ class PersonLineageSchemaCreate(BaseModel):
 class PersonLineageSchemaUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
+    # Curators may correct a mis-resolved person on the canonical (by curie OR id).
+    # The submission's name claim is unchanged; this only fixes which person the
+    # name was resolved to, and the submission link is preserved.
+    person_subject_curie_or_id: Optional[Union[str, int]] = None
+    person_object_curie_or_id: Optional[Union[str, int]] = None
     relationship: Optional[PersonPersonRole] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
@@ -35,8 +40,10 @@ class PersonLineageSchemaShow(AuditedObjectModelSchema):
     person_lineage_id: int
     person_subject_id: int
     person_subject_curie: Optional[str] = None
+    person_subject_name: Optional[str] = None
     person_object_id: int
     person_object_curie: Optional[str] = None
+    person_object_name: Optional[str] = None
     relationship: str
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None

@@ -10,6 +10,7 @@ from agr_literature_service.api.schemas import (
     PersonLineageSubmissionSchemaCreate,
     PersonLineageSubmissionSchemaUpdate,
     PersonLineageSubmissionSchemaShow,
+    PersonLineageSubmissionValidateSchema,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -44,11 +45,15 @@ def create(
 )
 def validate(
     person_lineage_submission_id: int,
+    request: Optional[PersonLineageSubmissionValidateSchema] = None,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
     set_global_user_from_cognito(db, user)
-    return person_lineage_submission_crud.validate(db, person_lineage_submission_id)
+    # exclude_unset so an omitted field falls back to the submission's value,
+    # while an explicit null (start_date/end_date) still clears that date.
+    overrides = request.model_dump(exclude_unset=True) if request else {}
+    return person_lineage_submission_crud.validate(db, person_lineage_submission_id, overrides)
 
 
 # Submissions in which a person is resolved, on either side.
