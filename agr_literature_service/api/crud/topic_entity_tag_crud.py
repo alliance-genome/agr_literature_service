@@ -38,7 +38,6 @@ from agr_literature_service.api.models.audited_model import (
     disable_set_updated_by_onupdate,
     disable_set_date_updated_onupdate
 )
-from agr_literature_service.api.user import get_global_user_id
 from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEntityTagSchemaPost,
                                                                          TopicEntityTagSourceSchemaUpdate,
@@ -1666,15 +1665,19 @@ def _build_filter_flags(serialized_tags: List[Dict[str, Any]],
 
     my_validation_present is computed from the RAW ORM ``rows`` (whose
     ``created_by`` is the internal users.id), NOT from ``serialized_tags`` (where
-    created_by has been replaced by a display name). ``current_user_id`` is the
-    current request's users.id (get_global_user_id()); the tag's created_by is the
-    same identity space, so the comparison is exact -- resolving the deferral from
-    increment 3, where the client could only compare its Okta subject id against a
-    serialized display name. When ``rows``/``current_user_id`` are absent, or the
-    request is anonymous (current_user_id is None), the flag stays False for every
-    cell. Matches cellPredicate's ``arr.some(t => t.created_by === currentUid)``:
-    over ALL tags of the cell, not just curator validations. Topic keys are
-    uppercased to match normalizeCurie."""
+    created_by has been replaced by a display name). ``current_user_id`` must be
+    the value the audit hook stamps into a tag's created_by for this request --
+    i.e. get_default_user_value() (get_global_user_id(), falling back to
+    'default_user'). Comparing against the raw get_global_user_id() would miss a
+    tag the SAME request just wrote whenever the global id is unset (e.g. a
+    service-account/VPN-bypass request stamps created_by='default_user' while
+    get_global_user_id() is None), so a curator's own just-created validation
+    would wrongly read as not-mine. This resolves the deferral from increment 3,
+    where the client could only compare its Okta subject id against a serialized
+    display name. When ``rows``/``current_user_id`` are absent the flag stays
+    False for every cell. Matches cellPredicate's
+    ``arr.some(t => t.created_by === currentUid)``: over ALL tags of the cell, not
+    just curator validations. Topic keys are uppercased to match normalizeCurie."""
     flags: Dict[int, Dict[str, Any]] = defaultdict(lambda: defaultdict(_empty_filter_flags))
     for tag in serialized_tags:
         ref_id = tag["reference_id"]
@@ -1834,7 +1837,7 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     entries_by_ref_id = _build_tag_entries(serialized_tags)
     validation_by_ref_id = _build_validation_details(serialized_tags)
     filter_flags_by_ref_id = _build_filter_flags(
-        serialized_tags, rows=rows, current_user_id=get_global_user_id())
+        serialized_tags, rows=rows, current_user_id=get_default_user_value())
     discovery_result = _build_discovery(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
@@ -1965,7 +1968,7 @@ def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Di
     serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)
     validation = _build_validation_details(serialized_tags).get(reference_id, {}).get(topic_upper)
     filter_flags = _build_filter_flags(
-        serialized_tags, rows=rows, current_user_id=get_global_user_id()).get(
+        serialized_tags, rows=rows, current_user_id=get_default_user_value()).get(
         reference_id, {}).get(topic_upper, _empty_filter_flags())
     return {"topic": topic_upper, "validation": validation, "filter_flags": filter_flags}
 
