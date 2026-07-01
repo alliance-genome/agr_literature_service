@@ -2,6 +2,13 @@
 Populate the workflow_transition table with the FlyBase "first pass curation"
 transitions (SCRUM-5478).
 
+first pass curation (ATP:0000329)
+    first pass curation needed (ATP:0000331)
+    first pass curation in progress (ATP:0000332)
+    first pass curation blocked (ATP:0000333)
+    first pass curation TBD (ATP:0000371)
+    first pass curation finished (ATP:0000330)
+
 First pass curation is a manually applied workflow tag, so a curator can move a paper
 between any of its status states. This inserts the all-to-all manual_only transitions
 among the five first pass curation status states, for the FB mod only. It is idempotent:
@@ -19,14 +26,21 @@ import logging
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ModModel, WorkflowTransitionModel
-from agr_literature_service.lit_processing.oneoff_scripts.workflow.data.first_pass_curation import (
-    FIRST_PASS_CURATION_STATE_ATPS,
-    FIRST_PASS_CURATION_MOD,
-)
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
 log.setLevel(logging.INFO)
+
+FIRST_PASS_CURATION_MOD = 'FB'
+
+# The five applyable first pass curation status states (FlyBase only).
+FIRST_PASS_CURATION_STATE_ATPS = [
+    'ATP:0000331',  # first pass curation needed
+    'ATP:0000332',  # first pass curation in progress
+    'ATP:0000333',  # first pass curation blocked
+    'ATP:0000371',  # first pass curation TBD
+    'ATP:0000330',  # first pass curation finished
+]
 
 
 def populate_manual_transitions(db_session, mod):
