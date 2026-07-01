@@ -41,13 +41,26 @@ from agr_literature_service.api.models import (
 )
 from agr_literature_service.lit_processing.tests.mod_populate_load import populate_test_mods
 from ..fixtures import db # noqa
+from ..fixtures import load_name_to_atp_and_relationships_mock # noqa
 from .fixtures import auth_headers # noqa
 from .test_reference import test_reference # noqa
 from .test_mod import test_mod # noqa
 from agr_literature_service.api.crud import workflow_tag_crud  # noqa
+from agr_literature_service.api.crud.workflow_transition_actions.first_pass_curation import (
+    set_first_pass_curation_tbd)
+from agr_literature_service.api.crud.workflow_transition_actions.subtask_process import sub_task_complete
 from agr_literature_service.api.crud.ateam_db_helpers import set_globals
 
 test_reference2 = test_reference
+
+
+def _get_or_create_fb_mod(db_session):
+    mod = db_session.query(ModModel).filter(ModModel.abbreviation == 'FB').one_or_none()
+    if mod is None:
+        mod = ModModel(abbreviation='FB', short_name='FB', full_name='FlyBase')
+        db_session.add(mod)
+        db_session.commit()
+    return mod
 
 
 def mock_load_name_to_atp_and_relationships():
@@ -388,3 +401,162 @@ class TestWorkflowTagAutomation:
                                    headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
             assert response.json().get("detail") == 'Transition to ATP:fileuploadcomplete not allowed as not initial state.'
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_manual_transition(self, db, auth_headers, test_mod, test_reference):  # noqa
+        """First pass curation transitions are manual_only: an automated attempt is
+        rejected, but a manual transition between two states succeeds (SCRUM-5478)."""
+        load_name_to_atp_and_relationships_mock()
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        # first pass curation needed -> first pass curation in progress (manual only)
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000331', transition_to='ATP:0000332',
+                                       transition_type='manual_only'))
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000331'))
+        db.commit()
+        with TestClient(app) as client:
+            # an automated transition must be rejected for a manual_only row
+            automated_req = {
+                "curie_or_reference_id": reference.curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000332",
+                "transition_type": "automated",
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=automated_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+            # a manual transition succeeds
+            manual_req = {
+                "curie_or_reference_id": reference.curie,
+                "mod_abbreviation": mod.abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000332",
+                "transition_type": "manual",
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=manual_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(WorkflowTagModel).filter(
+                WorkflowTagModel.reference_id == reference.reference_id,
+                WorkflowTagModel.mod_id == mod.mod_id,
+                WorkflowTagModel.workflow_tag_id == 'ATP:0000332'
+            ).first()
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_tbd_set_on_entity_extraction_rollup(self, db, auth_headers, test_reference):  # noqa
+        """When the last extraction subtask completes and entity extraction rolls up to
+        complete (via sub_task_complete), and reference + curation classification are
+        already complete, first pass curation TBD (ATP:0000371) is seeded for FB."""
+        load_name_to_atp_and_relationships_mock()
+        fb = _get_or_create_fb_mod(db)
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        # main entity extraction in progress + the other two prerequisite completes
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000190'))
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000169'))
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000312'))
+        subtask = WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000214')
+        db.add(subtask)
+        db.commit()
+
+        sub_task_complete(db, subtask, ['entity extraction'])
+        db.commit()
+
+        # main entity extraction rolled up to complete
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000174'
+        ).first()
+        # and first pass curation TBD was seeded exactly once
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
+        ).count() == 1
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_tbd_not_set_when_incomplete(self, db, auth_headers, test_reference):  # noqa
+        """TBD is NOT seeded when only two of the three prerequisites are complete, even
+        after entity extraction rolls up to complete."""
+        load_name_to_atp_and_relationships_mock()
+        fb = _get_or_create_fb_mod(db)
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        # curation classification complete (ATP:0000312) is missing
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000190'))
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000169'))
+        subtask = WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000214')
+        db.add(subtask)
+        db.commit()
+
+        sub_task_complete(db, subtask, ['entity extraction'])
+        db.commit()
+
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000174'
+        ).first()  # entity extraction still rolled up to complete
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
+        ).first() is None
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_tbd_not_set_for_non_fb(self, db, auth_headers, test_mod, test_reference):  # noqa
+        """First pass curation is FlyBase-only: a non-FB MOD never gets a TBD tag even when
+        all three prerequisites are complete and entity extraction rolls up to complete."""
+        load_name_to_atp_and_relationships_mock()
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000190'))
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000169'))
+        db.add(WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000312'))
+        subtask = WorkflowTagModel(reference=reference, mod=mod, workflow_tag_id='ATP:0000214')
+        db.add(subtask)
+        db.commit()
+
+        sub_task_complete(db, subtask, ['entity extraction'])
+        db.commit()
+
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == mod.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000174'
+        ).first()  # rolls up to complete regardless of MOD
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == mod.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
+        ).first() is None
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_tbd_idempotent(self, db, auth_headers, test_reference):  # noqa
+        """The action is idempotent: repeated calls add no duplicate, because the seeded
+        TBD tag is itself a first pass curation tag and trips the idempotency guard."""
+        load_name_to_atp_and_relationships_mock()
+        fb = _get_or_create_fb_mod(db)
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        for atp in ('ATP:0000174', 'ATP:0000169', 'ATP:0000312'):
+            db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id=atp))
+        db.commit()
+        trigger = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000312'
+        ).one()
+
+        set_first_pass_curation_tbd(db, trigger, [])
+        db.commit()
+        set_first_pass_curation_tbd(db, trigger, [])
+        db.commit()
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
+        ).count() == 1
