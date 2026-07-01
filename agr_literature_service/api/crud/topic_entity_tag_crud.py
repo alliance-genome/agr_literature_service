@@ -1995,10 +1995,15 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
     The new tag is created through the normal create_tag path (force_insertion
     bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
-    side effects still run). create_tag runs with validate_on_insert=False because
-    the single revalidate_all_tags below rebuilds the whole reference's validation
-    relationships/values once -- covering both the new tag and any tags affected
-    by the delete -- exactly as patch_tag/destroy_tag do."""
+    side effects still run). The prior delete is only FLUSHED, not committed, so
+    create_tag's own commit covers the delete AND the insert atomically: if
+    create_tag raises (422 invalid topic, 404 source, a 409, ...) the delete is
+    never committed and rolls back with the request, so the curator never ends up
+    with their prior validation gone and no replacement. create_tag runs with
+    validate_on_insert=False because the single revalidate_all_tags below rebuilds
+    the whole reference's validation relationships/values once -- covering both the
+    new tag and any tags affected by the delete -- exactly as patch_tag/destroy_tag
+    do."""
     source = get_or_create_curator_validation_source(db, mod_abbreviation)
     reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
     current_user = get_default_user_value()
@@ -2015,7 +2020,13 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
     for old_tag in prior:
         db.delete(old_tag)
     if prior:
-        db.commit()
+        # Flush (NOT commit) so the delete is visible within this transaction --
+        # create_tag's check_for_duplicate_tags then won't see the prior row --
+        # while staying uncommitted until create_tag's own commit, making
+        # delete+insert atomic. If create_tag raises, the delete is rolled back
+        # with it (create_tag's except, or the request session's rollback on
+        # close), so a failed re-validation never destroys the prior one.
+        db.flush()
 
     tag = TopicEntityTagSchemaPost(
         reference_curie=reference_curie,

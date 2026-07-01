@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from starlette.testclient import TestClient
-from fastapi import status
+from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
@@ -598,6 +598,58 @@ class TestTopicEntityTag:
             assert cell["state"] == "negative"
             assert cell["positives"] == 0
             assert cell["negatives"] == 1
+
+    def test_validate_topic_replace_is_atomic_on_insert_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # Replace-prior deletes the curator's prior validation before inserting the
+        # new one. That delete is FLUSHED, not committed, so if the insert fails
+        # the delete must roll back with the request -- the curator must never be
+        # left with their prior validation gone and no replacement.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # seed a prior positive validation
+            y = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": False},
+                headers=auth_headers,
+            )
+            assert y.status_code == status.HTTP_200_OK
+            assert y.json()["validation"]["state"] == "positive"
+
+            # a flip whose INSERT fails: the prior delete must not survive it
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.create_tag",
+                       side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                 detail="boom")):
+                n = client.post(
+                    url="/topic_entity_tag/validate",
+                    json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                          "mod_abbreviation": mod, "negated": True},
+                    headers=auth_headers,
+                )
+            assert n.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+            # the prior positive validation is still there (delete rolled back)
+            after = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie]},
+                headers=auth_headers,
+            )
+            cell = after.json()["validation"][ref_curie]["ATP:0000122"]
+            assert cell["state"] == "positive"
+            assert cell["positives"] == 1
 
     def test_my_validation_present_flag(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
         # my_validation_present resolves the deferral from increment 3: the server
