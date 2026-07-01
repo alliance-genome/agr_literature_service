@@ -137,12 +137,16 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000009': ['ATP:0000079', 'ATP:0000080', 'ATP:0000081', 'ATP:0000085', 'ATP:0000086', 'ATP:0000087', 'ATP:0000033'],
         'ATP:0000079': ['ATP:0000082', 'ATP:0000083', 'ATP:0000084'],
         'ATP:0000085': ['ATP:0000034', 'ATP:0000100'],
-        'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161'],
-        'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178'],
+        'ATP:0000177': ['ATP:0000172', 'ATP:0000140', 'ATP:0000165', 'ATP:0000161', 'ATP:0000311', 'ATP:0000329'],
+        'ATP:0000172': ['ATP:0000175', 'ATP:0000174', 'ATP:0000173', 'ATP:0000178', 'ATP:0000190', 'ATP:0000187'],
         'ATP:0000140': ['ATP:0000141', 'ATP:0000135', 'ATP:0000139', 'ATP:0000134'],
         'ATP:0000165': ['ATP:0000168', 'ATP:0000167', 'ATP:0000170', 'ATP:0000171', 'ATP:0000169', 'ATP:0000166'],
         'ATP:0000161': ['ATP:0000164', 'ATP:0000163', 'ATP:0000162'],
         'ATP:0000273': ['ATP:0000274', 'ATP:0000275', 'ATP:0000276', 'ATP:0000336', 'ATP:0000343'],
+        # curation classification (SCRUM-5478 prerequisite process)
+        'ATP:0000311': ['ATP:0000312', 'ATP:0000313', 'ATP:0000314', 'ATP:0000315'],
+        # first pass curation (SCRUM-5478)
+        'ATP:0000329': ['ATP:0000331', 'ATP:0000332', 'ATP:0000333', 'ATP:0000371', 'ATP:0000330'],
 
         'ATP:0000001': ['ATP:0000002'],
         'ATP:0000002': ['ATP:0000015', 'ATP:0000142'],
@@ -162,11 +166,13 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000080': [], 'ATP:0000081': [], 'ATP:0000086': [], 'ATP:0000087': [], 'ATP:0000033': [],
         'ATP:0000082': [], 'ATP:0000083': [], 'ATP:0000084': [],
         'ATP:0000034': [], 'ATP:0000100': [],
-        'ATP:0000175': [], 'ATP:0000174': [], 'ATP:0000173': [],
+        'ATP:0000175': [], 'ATP:0000174': [], 'ATP:0000173': [], 'ATP:0000190': [], 'ATP:0000187': [],
         'ATP:0000141': [], 'ATP:0000135': [], 'ATP:0000139': [], 'ATP:0000134': [],
         'ATP:0000168': [], 'ATP:0000167': [], 'ATP:0000170': [], 'ATP:0000171': [],
         'ATP:0000164': [], 'ATP:0000163': [], 'ATP:0000162': [],
         'ATP:0000274': [], 'ATP:0000275': [], 'ATP:0000276': [], 'ATP:0000336': [], 'ATP:0000343': [],
+        'ATP:0000312': [], 'ATP:0000313': [], 'ATP:0000314': [], 'ATP:0000315': [],
+        'ATP:0000331': [], 'ATP:0000332': [], 'ATP:0000333': [], 'ATP:0000371': [], 'ATP:0000330': [],
         'ATP:0000123': [],
         'ATP:0000069': [], 'ATP:0000070': [], 'ATP:0000071': [],
         'ATP:fileuploadinprogress': [], 'ATP:fileuploadcomplete': [], 'ATP:fileuploadfailed': [],
@@ -196,7 +202,21 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000321': 'new data',
         'ATP:0000228': 'new to database',
         'ATP:0000229': 'new to field',
-        'ATP:0000036': 'assertion by professional curator'
+        'ATP:0000036': 'assertion by professional curator',
+        'ATP:0000174': 'entity extraction complete',
+        'ATP:0000190': 'entity extraction in progress',
+        'ATP:0000169': 'reference classification complete',
+        'ATP:0000311': 'curation classification',
+        'ATP:0000312': 'curation classification complete',
+        'ATP:0000313': 'curation classification needed',
+        'ATP:0000314': 'curation classification in progress',
+        'ATP:0000315': 'curation classification failed',
+        'ATP:0000329': 'first pass curation',
+        'ATP:0000331': 'first pass curation needed',
+        'ATP:0000332': 'first pass curation in progress',
+        'ATP:0000333': 'first pass curation blocked',
+        'ATP:0000371': 'first pass curation TBD',
+        'ATP:0000330': 'first pass curation finished'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -213,7 +233,21 @@ def load_name_to_atp_and_relationships_mock():
         'new data': 'ATP:0000321',
         'new to database': 'ATP:0000228',
         'new to field': 'ATP:0000229',
-        'assertion by professional curator': 'ATP:0000036'
+        'assertion by professional curator': 'ATP:0000036',
+        'entity extraction complete': 'ATP:0000174',
+        'entity extraction in progress': 'ATP:0000190',
+        'reference classification complete': 'ATP:0000169',
+        'curation classification': 'ATP:0000311',
+        'curation classification complete': 'ATP:0000312',
+        'curation classification needed': 'ATP:0000313',
+        'curation classification in progress': 'ATP:0000314',
+        'curation classification failed': 'ATP:0000315',
+        'first pass curation': 'ATP:0000329',
+        'first pass curation needed': 'ATP:0000331',
+        'first pass curation in progress': 'ATP:0000332',
+        'first pass curation blocked': 'ATP:0000333',
+        'first pass curation TBD': 'ATP:0000371',
+        'first pass curation finished': 'ATP:0000330'
     }
     workflow_parent = {}
     for atp in workflow_children.keys():

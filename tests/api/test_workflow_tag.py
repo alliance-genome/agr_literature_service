@@ -11,7 +11,8 @@ from agr_literature_service.api.main import app
 from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
 from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
-    get_workflow_tags_from_process)
+    get_workflow_tags_from_process,
+    get_indexing_and_community_workflow_tags)
 from ..fixtures import load_name_to_atp_and_relationships_mock
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers # noqa
@@ -487,3 +488,23 @@ class TestWorkflowTag:
                                headers=auth_headers)
                 assert r.status_code == status.HTTP_404_NOT_FOUND
                 assert 'Reference with the reference_id or curie AGR:NONEXISTENT is not available' in r.json()["detail"]
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_in_wf_editor_fb_only(self, test_workflow_tag, db, auth_headers):  # noqa
+        """First pass curation is exposed to the WF editor for FlyBase only (SCRUM-5478)."""
+        load_name_to_atp_and_relationships_mock()
+        ref_curie = test_workflow_tag.related_ref_curie
+
+        fb_result = get_indexing_and_community_workflow_tags(db, ref_curie, 'FB')
+        assert 'first pass curation' in fb_result
+        assert set(fb_result['first pass curation']['all_workflow_tags'].keys()) == {
+            'ATP:0000331', 'ATP:0000332', 'ATP:0000333', 'ATP:0000371', 'ATP:0000330'
+        }
+
+        # non-FB mods do not get a first pass curation row
+        wb_result = get_indexing_and_community_workflow_tags(db, ref_curie, 'WB')
+        assert 'first pass curation' not in wb_result
+
+        sgd_result = get_indexing_and_community_workflow_tags(db, ref_curie, 'SGD')
+        assert 'first pass curation' not in sgd_result

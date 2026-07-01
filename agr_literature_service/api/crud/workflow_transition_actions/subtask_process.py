@@ -183,6 +183,13 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     # the main task's status.
     if not cur:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['complete']
+        # Entity extraction is the last step of the pre-curation pipeline. When it rolls
+        # up to complete, check whether "first pass curation TBD" should be seeded
+        # (FlyBase only). See SCRUM-5478. Local import avoids a circular import.
+        if checktype == 'entity extraction':
+            from agr_literature_service.api.crud.workflow_transition_actions.first_pass_curation import (
+                set_first_pass_curation_tbd)
+            set_first_pass_curation_tbd(db, main_status_obj, [])
     # Note: commit is handled by the caller (workflow_tag_crud.py)
 
 

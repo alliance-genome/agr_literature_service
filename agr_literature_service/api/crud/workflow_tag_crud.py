@@ -1548,6 +1548,11 @@ def get_indexing_and_community_workflow_tags(db: Session, reference_curie, mod_a
             manual_indexing_atp: "manual indexing",
             community_curation_atp: "community curation"
         }
+    # First pass curation is FlyBase-only (SCRUM-5478). The WF editor renders it between
+    # community curation and manual indexing; row ordering is handled by the frontend.
+    if mod_abbreviation == 'FB':
+        first_pass_curation_atp = get_atp_id_by_name('first pass curation', fallback='ATP:0000329')
+        process_atp_ids[first_pass_curation_atp] = "first pass curation"
 
     result: dict[str, dict[str, Any]] = {}
 
