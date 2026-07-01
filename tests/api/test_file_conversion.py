@@ -18,7 +18,7 @@ from unittest.mock import patch, MagicMock
 
 import agr_literature_service.api.crud.referencefile_crud as referencefile_crud
 
-from fastapi import status
+from fastapi import HTTPException, status
 from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
@@ -55,19 +55,21 @@ def manager():
     return ConversionJobManager()
 
 
-class TestSuppressPostUploadWorkflow:
-    """SCRUM-6246: a one-off process (the figure-metadata backfill) can flip a
-    process-level toggle so file_upload() persists auxiliary files WITHOUT
-    firing the file-upload workflow transition or pruning superseded main PDFs.
-    Default (live API / conversion path) is unchanged: the transition fires."""
+class TestSuppressUploadGuardrails:
+    """SCRUM-6246: a one-off process (the figure-metadata backfill) flips a
+    process-level toggle so file_upload() persists auxiliary files WITHOUT the
+    interactive-upload guardrails -- it skips the is_file_upload_blocked
+    "job in progress" check and the post-upload workflow transition / main-PDF
+    cleanup. Default (live API / conversion path) is unchanged."""
 
     @staticmethod
-    def _metadata():
-        # A figure-metadata sidecar: not main/pdf/final, mod-less so the
-        # corpus / upload-blocked guards are skipped (mod_abbreviation is None).
+    def _metadata(mod=None):
+        # A figure-metadata sidecar: not main/pdf/final. mod-less by default so
+        # the corpus / upload-blocked guards don't run; pass a mod to exercise
+        # the is_file_upload_blocked guard.
         return {
             "reference_curie": "AGRKB:101000000000001",
-            "mod_abbreviation": None,
+            "mod_abbreviation": mod,
             "file_class": "converted_main_figure_metadata",
             "file_publication_status": "final",
             "file_extension": "json",
@@ -96,25 +98,60 @@ class TestSuppressPostUploadWorkflow:
                 patch.object(referencefile_crud, "cleanup_old_pdf_file") as cleanup, \
                 patch.object(referencefile_crud,
                              "transition_WFT_for_uploaded_file") as transition:
-            referencefile_crud.set_suppress_post_upload_workflow(True)
+            referencefile_crud.set_suppress_upload_guardrails(True)
             try:
                 referencefile_crud.file_upload(mock_db, self._metadata(), MagicMock())
             finally:
-                referencefile_crud.set_suppress_post_upload_workflow(False)
+                referencefile_crud.set_suppress_upload_guardrails(False)
             transition.assert_not_called()
             cleanup.assert_not_called()
             # The created referencefile must still be persisted even though the
             # transition (which used to be the committing step) was skipped.
             mock_db.commit.assert_called_once()
 
+    def test_default_blocks_upload_when_job_in_progress(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "check_if_paper_in_corpus",
+                             return_value=True), \
+                patch.object(referencefile_crud, "is_file_upload_blocked",
+                             return_value="entity extraction"), \
+                patch.object(referencefile_crud, "file_upload_single") as single:
+            with pytest.raises(HTTPException) as exc:
+                referencefile_crud.file_upload(mock_db, self._metadata(mod="WB"), MagicMock())
+        assert exc.value.status_code == 422
+        assert "in progress" in exc.value.detail
+        single.assert_not_called()  # blocked before the upload happens
+
+    def test_suppress_bypasses_job_in_progress_block(self):
+        mock_db = MagicMock()
+        with patch.object(referencefile_crud, "normalize_reference_curie",
+                          side_effect=lambda _db, curie: curie), \
+                patch.object(referencefile_crud, "check_if_paper_in_corpus",
+                             return_value=True), \
+                patch.object(referencefile_crud, "is_file_upload_blocked",
+                             return_value="entity extraction") as blocked, \
+                patch.object(referencefile_crud, "file_upload_single",
+                             return_value=MagicMock()) as single, \
+                patch.object(referencefile_crud, "cleanup_old_pdf_file"), \
+                patch.object(referencefile_crud, "transition_WFT_for_uploaded_file"):
+            referencefile_crud.set_suppress_upload_guardrails(True)
+            try:
+                referencefile_crud.file_upload(mock_db, self._metadata(mod="WB"), MagicMock())
+            finally:
+                referencefile_crud.set_suppress_upload_guardrails(False)
+            single.assert_called_once()   # upload proceeded despite the in-progress job
+            blocked.assert_not_called()   # the guard was skipped entirely
+
     def test_setter_toggles_and_resets_module_state(self):
-        assert referencefile_crud.is_post_upload_workflow_suppressed() is False
-        referencefile_crud.set_suppress_post_upload_workflow(True)
+        assert referencefile_crud.is_upload_guardrails_suppressed() is False
+        referencefile_crud.set_suppress_upload_guardrails(True)
         try:
-            assert referencefile_crud.is_post_upload_workflow_suppressed() is True
+            assert referencefile_crud.is_upload_guardrails_suppressed() is True
         finally:
-            referencefile_crud.set_suppress_post_upload_workflow(False)
-        assert referencefile_crud.is_post_upload_workflow_suppressed() is False
+            referencefile_crud.set_suppress_upload_guardrails(False)
+        assert referencefile_crud.is_upload_guardrails_suppressed() is False
 
 
 class TestConversionJob:
