@@ -27,6 +27,10 @@ Decisions encoded (discussed 2026-06-22):
   * ``colleague_keyword`` and ``colleague.profession`` are folded into
     ``person.biography_research_interest`` (with research_interest).
   * ``colleague.suffix`` (Jr./Sr./III...) is appended to ``person.display_name``.
+  * Emails are ADDITIVE for existing persons: an update never overwrites or
+    removes a person's existing ``person_email`` rows; the colleague's current
+    SGD email is appended only when not already present (case-insensitive). A
+    person may legitimately hold several emails.
   * ``colleague_relation`` 'Associate' -> ``person_lineage`` collaborator_of.
     SGD stores these mirrored (A<->B); collaborator_of is symmetric, so each
     pair is normalized to ascending person-id order and deduped.
@@ -566,7 +570,7 @@ def _sync_person_names(abc, person, col, apply) -> bool:
 
 
 def _sync_single_child(abc, model, pid, attr, value, apply) -> bool:
-    """Reconcile a single-valued SGD child collection (email / note) to ``value``
+    """Reconcile a single-valued SGD child collection (note) to ``value``
     (None => remove all). Updates the first row, removes extras."""
     rows = abc.query(model).filter_by(person_id=pid).all()
     changed = False
@@ -590,6 +594,23 @@ def _sync_single_child(abc, model, pid, attr, value, apply) -> bool:
             if apply:
                 abc.delete(r)
     return changed
+
+
+def _sync_person_email_additive(abc, pid, email, apply) -> bool:
+    """Add the colleague's SGD email to person_email when it is not already
+    present, and NEVER overwrite or remove an existing email. A person may hold
+    several emails (e.g. an AGR/author address plus the SGD one); SGD updates
+    only contribute the colleague's current address. Matching is
+    case-insensitive. Returns True if a new email row was added."""
+    if not email:
+        return False
+    rows = abc.query(PersonEmailModel).filter_by(person_id=pid).all()
+    existing = {(r.email_address or "").lower() for r in rows}
+    if email.lower() in existing:
+        return False
+    if apply:
+        abc.add(PersonEmailModel(person_id=pid, email_address=email))
+    return True
 
 
 def _sync_orcid_xref(abc, person, cid, col, existing_curies, apply) -> bool:
@@ -643,9 +664,9 @@ def _update_person(abc, person, cid, col, research_urls, keywords,
     changed = _sync_person_scalars(person, cid, col, research_urls, keywords,
                                    apply)
     changed = _sync_person_names(abc, person, col, apply) or changed
-    changed = _sync_single_child(abc, PersonEmailModel, person.person_id,
-                                 "email_address", _clean(col.get("email")),
-                                 apply) or changed
+    changed = _sync_person_email_additive(abc, person.person_id,
+                                          _clean(col.get("email")),
+                                          apply) or changed
     changed = _sync_single_child(abc, PersonNoteModel, person.person_id,
                                  "note", _clean(col.get("colleague_note")),
                                  apply) or changed
