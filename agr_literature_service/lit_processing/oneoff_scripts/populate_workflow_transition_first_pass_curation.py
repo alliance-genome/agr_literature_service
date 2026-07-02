@@ -26,6 +26,7 @@ import logging
 
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
 from agr_literature_service.api.models import ModModel, WorkflowTransitionModel
+from agr_literature_service.api.crud.workflow_tag_crud import get_atp_id_by_name
 
 logging.basicConfig(format='%(message)s')
 log = logging.getLogger()
@@ -33,18 +34,23 @@ log.setLevel(logging.INFO)
 
 FIRST_PASS_CURATION_MOD = 'FB'
 
-# The five applyable first pass curation status states (FlyBase only).
-FIRST_PASS_CURATION_STATE_ATPS = [
-    'ATP:0000331',  # first pass curation needed
-    'ATP:0000332',  # first pass curation in progress
-    'ATP:0000333',  # first pass curation blocked
-    'ATP:0000371',  # first pass curation TBD
-    'ATP:0000330',  # first pass curation finished
-]
+# The five applyable first pass curation status states (FlyBase only), resolved from the
+# A-Team ontology by name via get_atp_id_by_name with the ATP ids kept only as fallbacks.
+FIRST_PASS_CURATION_STATE_NAME_TO_FALLBACK = {
+    'first pass curation needed': 'ATP:0000331',
+    'first pass curation in progress': 'ATP:0000332',
+    'first pass curation blocked': 'ATP:0000333',
+    'first pass curation TBD': 'ATP:0000371',
+    'first pass curation finished': 'ATP:0000330',
+}
 
 
 def populate_manual_transitions(db_session, mod):
     """All-to-all manual_only transitions among the five first pass curation states."""
+    state_atps = [
+        get_atp_id_by_name(name, fallback=fallback)
+        for name, fallback in FIRST_PASS_CURATION_STATE_NAME_TO_FALLBACK.items()
+    ]
     existing = set(
         db_session.query(
             WorkflowTransitionModel.transition_from,
@@ -52,8 +58,8 @@ def populate_manual_transitions(db_session, mod):
         ).filter(WorkflowTransitionModel.mod_id == mod.mod_id).all()
     )
     added = 0
-    for from_term in FIRST_PASS_CURATION_STATE_ATPS:
-        for to_term in FIRST_PASS_CURATION_STATE_ATPS:
+    for from_term in state_atps:
+        for to_term in state_atps:
             if from_term == to_term:
                 continue
             if (from_term, to_term) in existing:
