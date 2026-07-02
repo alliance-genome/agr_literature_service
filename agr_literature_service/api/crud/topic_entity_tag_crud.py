@@ -76,6 +76,20 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 # tag auto-created from a positive mixed topic+entity tag.
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
+# SCRUM-6242 (increment 5): the curator validation written by the grid's
+# Validation column. These mirror exactly what the UI (CellValidationStrip /
+# getCuratorSourceId) sends today so the server-side validate path produces an
+# identical tag: a topic-level (no entity) tag from the per-MOD ABC curator
+# source. data_novelty is required (non-null column) and the UI hardcodes the
+# "no data" term for these topic-level validations.
+CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
+CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"
+CURATOR_VALIDATION_TYPE = "professional_curator"
+CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
+CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
+    "Trained professional biocurator specializing in curation of model organism "
+    "data using the ABC data entry form.")
+
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
                validate_on_insert: bool = True) -> Tuple[int, bool]:
@@ -1245,7 +1259,7 @@ def _ci_in(column, values):
     return func.upper(column).in_(upper_values)
 
 
-def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
+def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):  # noqa: C901
     """Restrict a TET query to the tags the initial search asked for.
 
     Mirrors the TET facet criteria the search UI sends (searchActions.js). The
@@ -1317,6 +1331,18 @@ def _apply_batch_tag_filters(query, filters: Optional[Dict[str, Any]]):
             query = query.filter(or_(*positive_conditions))
 
     # --- per-tag refinements, applied in both modes -------------------------- #
+    # MOD scope (the search's corpus facet): keep only tags owned by one of the
+    # selected MODs, i.e. whose source's secondary_data_provider matches (the same
+    # field create_or_update uses for created_by_mod). Applied to ALL tags --
+    # curator validations included -- so a WB-scoped grid never shows another
+    # MOD's tags (e.g. an fb_svm_classifier / FB source) on a shared reference.
+    mods = filters.get("mods")
+    if mods:
+        upper_mods = [str(m).upper() for m in mods if m]
+        query = query.filter(TopicEntityTagModel.topic_entity_tag_source.has(
+            TopicEntityTagSourceModel.secondary_data_provider.has(
+                func.upper(ModModel.abbreviation).in_(upper_mods))))
+
     entity_types = filters.get("entity_types")
     if entity_types:
         query = query.filter(_ci_in(TopicEntityTagModel.entity_type, entity_types))
@@ -1547,6 +1573,179 @@ def _build_tag_entries(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[
     return entries_by_ref_topic
 
 
+def _build_validation_details(serialized_tags: List[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    """Aggregate the curator validation of each reference -> topic so the grid's
+    Validation column can sort, filter AND render without deriving any of it from
+    raw tags client-side.
+
+    Mirrors ValidationCell + validationState (UI): only *topic-level* tags (no
+    entity) from a professional-biocurator/curator source count as a validation.
+    Per (reference, topic) it returns::
+
+        {"state": "positive" | "negative" | "conflict",
+         "positives": <count>, "negatives": <count>,
+         "by_curator": [{"name", "negated", "sources": [{"method", "label"}],
+                         "species": [curie, ...]}, ...]}
+
+    ``by_curator`` groups validations by (curator display name, polarity) -- the
+    same grouping ValidationCell renders -- accumulating the distinct source
+    methods (label = ``method [/ secondary_data_provider]``) and species per
+    group, preserving first-seen order. ``name`` falls back to
+    '(unknown curator)' so no validation is dropped. Topics with no curator
+    validation are omitted (client treats an absent topic as 'unvalidated').
+    Topic keys are uppercased to match the UI's normalizeCurie."""
+    # ref_id -> topic -> {positives, negatives, by_curator: {(name, negated): grp}}
+    acc: Dict[int, Dict[str, Dict[str, Any]]] = defaultdict(lambda: defaultdict(
+        lambda: {"positives": 0, "negatives": 0, "by_curator": {}}))
+    for tag in serialized_tags:
+        if tag.get("entity") or not _is_curator_source_tag(tag):
+            continue
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        bucket = acc[ref_id][topic]
+        negated = bool(tag.get("negated"))
+        if negated:
+            bucket["negatives"] += 1
+        else:
+            bucket["positives"] += 1
+        name = tag.get("created_by") or "(unknown curator)"
+        group = bucket["by_curator"].get((name, negated))
+        if group is None:
+            group = {"name": name, "negated": negated, "sources": {}, "species": []}
+            bucket["by_curator"][(name, negated)] = group
+        source = tag.get("topic_entity_tag_source") or {}
+        method = source.get("source_method")
+        if method and method not in group["sources"]:
+            sec = source.get("secondary_data_provider_abbreviation")
+            group["sources"][method] = f"{method} / {sec}" if sec else method
+        species = tag.get("species")
+        if species and species not in group["species"]:
+            group["species"].append(species)
+
+    out: Dict[int, Dict[str, Any]] = defaultdict(dict)
+    for ref_id, by_topic in acc.items():
+        for topic, bucket in by_topic.items():
+            pos, neg = bucket["positives"], bucket["negatives"]
+            state = "conflict" if (pos and neg) else ("positive" if pos else "negative")
+            out[ref_id][topic] = {
+                "state": state,
+                "positives": pos,
+                "negatives": neg,
+                "by_curator": [
+                    {"name": g["name"], "negated": g["negated"],
+                     "sources": [{"method": m, "label": lab} for m, lab in g["sources"].items()],
+                     "species": g["species"]}
+                    for g in bucket["by_curator"].values()
+                ],
+            }
+    return out
+
+
+def _empty_filter_flags() -> Dict[str, bool]:
+    """The all-False per-cell filter-flag dict. Single source of truth for the
+    flag set so the batch aggregate, the single-cell recompute default and any
+    'no tags' fallback stay in lock-step."""
+    return {"has_any": False, "has_y": False, "has_n": False,
+            "has_note": False, "my_validation_present": False}
+
+
+def _build_filter_flags(serialized_tags: List[Dict[str, Any]],
+                        rows: Optional[List[TopicEntityTagModel]] = None,
+                        current_user_id: Optional[str] = None) -> Dict[int, Dict[str, Any]]:
+    """Per reference -> topic boolean flags backing the grid's per-topic cell
+    filter (TopicCellFilter / cellPredicate) so it can filter without scanning
+    raw tags. Computed over ALL tags of the (reference, topic) cell -- entity and
+    topic-level, curator and non-curator -- matching cellPredicate's asTets set::
+
+        has_any              -> the cell has >= 1 tag       ('has any tag'; 'empty' == not has_any)
+        has_y                -> >= 1 tag with negated False  ('has Y')
+        has_n                -> >= 1 tag with negated True    ('has N')
+        has_note             -> >= 1 tag with a non-empty note ('has note')
+        my_validation_present -> >= 1 tag authored by the current user ('my validation present')
+
+    my_validation_present is computed from the RAW ORM ``rows`` (whose
+    ``created_by`` is the internal users.id), NOT from ``serialized_tags`` (where
+    created_by has been replaced by a display name). ``current_user_id`` must be
+    the value the audit hook stamps into a tag's created_by for this request --
+    i.e. get_default_user_value() (get_global_user_id(), falling back to
+    'default_user'). Comparing against the raw get_global_user_id() would miss a
+    tag the SAME request just wrote whenever the global id is unset (e.g. a
+    service-account/VPN-bypass request stamps created_by='default_user' while
+    get_global_user_id() is None), so a curator's own just-created validation
+    would wrongly read as not-mine. This resolves the deferral from increment 3,
+    where the client could only compare its Okta subject id against a serialized
+    display name. Because current_user_id is get_default_user_value() it is never
+    None from the real call sites (an unauthenticated/service-account request
+    resolves to 'default_user'), so such a request marks cells whose tags were
+    created by 'default_user' as mine -- consistent, since that is exactly the id
+    those tags are stamped with. The flag only stays False for every cell when
+    ``rows`` is not supplied (the default), which is why the guard below also
+    checks current_user_id is not None defensively. Matches cellPredicate's
+    ``arr.some(t => t.created_by === currentUid)``: over ALL tags of the cell, not
+    just curator validations. Topic keys are uppercased to match normalizeCurie."""
+    flags: Dict[int, Dict[str, Any]] = defaultdict(lambda: defaultdict(_empty_filter_flags))
+    for tag in serialized_tags:
+        ref_id = tag["reference_id"]
+        topic = str(tag.get("topic") or "").upper()
+        cell = flags[ref_id][topic]
+        cell["has_any"] = True
+        if tag.get("negated") is True:
+            cell["has_n"] = True
+        elif tag.get("negated") is False:
+            cell["has_y"] = True
+        note = tag.get("note")
+        if note is not None and note != "":
+            cell["has_note"] = True
+    if rows is not None and current_user_id is not None:
+        for row in rows:
+            if row.created_by == current_user_id:
+                topic = str(row.topic or "").upper()
+                flags[row.reference_id][topic]["my_validation_present"] = True
+    return flags
+
+
+def _build_discovery(serialized_tags: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Batch-global discovery aggregate backing the grid's column set and source
+    filter so neither has to be derived from raw tags client-side. Unlike the
+    other aggregates this is NOT keyed per reference -- it summarises the whole
+    batch (post-filter) once.
+
+    ``topics`` is the distinct set of topic columns present across the WHOLE batch
+    -- over ALL tags (entity + topic-level, curator + non-curator) -- matching the
+    column the grid renders whenever any tag exists for a topic. Each entry is
+    ``{"curie": <UPPERCASED topic>, "name": <topic display name>}``.
+
+    ``sources`` is the distinct set of source labels present, computed over
+    NON-curator tags only -- identically to _build_tag_counts / _build_tag_entries
+    -- because curator submissions surface in the Validation column, not in the
+    per-source Sources cells the source filter targets. Each entry is
+    ``{"label", "method", "secondary_data_provider", "data_provider"}`` so the UI
+    can render and group without re-parsing the label.
+
+    Both lists preserve first-seen order (deterministic: the batch query orders by
+    reference_id then topic_entity_tag_id), consistent with the other aggregates;
+    the client may re-sort for presentation. Topic keys are uppercased to match
+    the UI's normalizeCurie."""
+    topics: Dict[str, Dict[str, Any]] = {}
+    sources: Dict[str, Dict[str, Any]] = {}
+    for tag in serialized_tags:
+        topic = str(tag.get("topic") or "").upper()
+        if topic and topic not in topics:
+            topics[topic] = {"curie": topic, "name": tag.get("topic_name") or topic}
+        if _is_curator_source_tag(tag):
+            continue
+        source_data = tag.get("topic_entity_tag_source") or {}
+        label = _source_label(source_data)
+        if label not in sources:
+            sources[label] = {
+                "label": label,
+                "method": source_data.get("source_method"),
+                "secondary_data_provider": source_data.get("secondary_data_provider_abbreviation"),
+                "data_provider": source_data.get("data_provider"),
+            }
+    return {"topics": list(topics.values()), "sources": list(sources.values())}
+
+
 def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids: List[str],
                                            filters: Optional[Dict[str, Any]] = None):
     """Batch variant of show_all_reference_tags.
@@ -1598,6 +1797,9 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
             "tags": {ident: [] for ident in ident_to_ref_id},
             "counts": {ident: {} for ident in ident_to_ref_id},
             "entries": {ident: {} for ident in ident_to_ref_id},
+            "validation": {ident: {} for ident in ident_to_ref_id},
+            "filter_flags": {ident: {} for ident in ident_to_ref_id},
+            "discovery": {"topics": [], "sources": []},
             "debug_timing": None
         }
 
@@ -1638,6 +1840,10 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         tags_by_ref_id[tag["reference_id"]].append(tag)
     counts_by_ref_id = _build_tag_counts(serialized_tags)
     entries_by_ref_id = _build_tag_entries(serialized_tags)
+    validation_by_ref_id = _build_validation_details(serialized_tags)
+    filter_flags_by_ref_id = _build_filter_flags(
+        serialized_tags, rows=rows, current_user_id=get_default_user_value())
+    discovery_result = _build_discovery(serialized_tags)
     serialize_ms = (perf_counter() - serialize_start) * 1000
     _log_tet_batch_timing(
         "TET batch serialized in %.1fms: tags=%s",
@@ -1648,15 +1854,21 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
     tags_result: Dict[str, Any] = {}
     counts_result: Dict[str, Any] = {}
     entries_result: Dict[str, Any] = {}
+    validation_result: Dict[str, Any] = {}
+    filter_flags_result: Dict[str, Any] = {}
     for ident, ref_id in ident_to_ref_id.items():
         if ref_id is None:
             tags_result[ident] = []
             counts_result[ident] = {}
             entries_result[ident] = {}
+            validation_result[ident] = {}
+            filter_flags_result[ident] = {}
         else:
             tags_result[ident] = tags_by_ref_id[ref_id]
             counts_result[ident] = counts_by_ref_id.get(ref_id, {})
             entries_result[ident] = entries_by_ref_id.get(ref_id, {})
+            validation_result[ident] = validation_by_ref_id.get(ref_id, {})
+            filter_flags_result[ident] = filter_flags_by_ref_id.get(ref_id, {})
     total_ms = (perf_counter() - total_start) * 1000
     _log_tet_batch_timing(
         "TET batch total in %.1fms: inputs=%s unique=%s resolved=%s tags=%s",
@@ -1683,7 +1895,164 @@ def show_all_reference_tags_for_references(db: Session, curies_or_reference_ids:
         "tags": tags_result,
         "counts": counts_result,
         "entries": entries_result,
+        "validation": validation_result,
+        "filter_flags": filter_flags_result,
+        "discovery": discovery_result,
         "debug_timing": debug_timing
+    }
+
+
+def get_or_create_curator_validation_source(db: Session, mod_abbreviation: str) -> TopicEntityTagSourceModel:
+    """Resolve the per-MOD ABC curator source used for grid validations, creating
+    it if absent. Server-side equivalent of the UI's getCuratorSourceId (GET the
+    source by name, POST to create on 404) so the validate write path no longer
+    needs the client to resolve a source id first.
+
+    validation_type is set to CURATOR_VALIDATION_TYPE ('professional_curator') to
+    match exactly what getCuratorSourceId POSTs. NOTE the source unique key
+    (source_evidence_assertion, source_method, data_provider,
+    secondary_data_provider) excludes validation_type, so when a source already
+    exists for the MOD it is reused verbatim -- the same row the UI write path
+    uses. That means the resolved source's validation_type is NOT guaranteed to be
+    'professional_curator': a pre-existing curator source may be
+    'professional_biocurator' for some MODs, and the opposite-negation guard in
+    check_for_duplicate_tags (Branch 3) fires only for that value. validate_topic
+    does not rely on the validation_type either way -- it deletes the curator's
+    prior validation before inserting the new one, so a flipped re-validation
+    never trips Branch 3 regardless of the source's validation_type."""
+    mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).one_or_none()
+    if mod is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Cannot find the MOD '{mod_abbreviation}'")
+
+    def _lookup():
+        return db.query(TopicEntityTagSourceModel).filter(
+            TopicEntityTagSourceModel.source_evidence_assertion == CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+            TopicEntityTagSourceModel.source_method == CURATOR_VALIDATION_SOURCE_METHOD,
+            TopicEntityTagSourceModel.data_provider == mod_abbreviation,
+            TopicEntityTagSourceModel.secondary_data_provider_id == mod.mod_id,
+        ).first()
+
+    source = _lookup()
+    if source is not None:
+        return source
+    try:
+        new_source_id = create_source(db, TopicEntityTagSourceSchemaCreate(
+            source_evidence_assertion=CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION,
+            source_method=CURATOR_VALIDATION_SOURCE_METHOD,
+            validation_type=CURATOR_VALIDATION_TYPE,
+            description=CURATOR_VALIDATION_SOURCE_DESCRIPTION,
+            data_provider=mod_abbreviation,
+            secondary_data_provider_abbreviation=mod_abbreviation,
+        ))
+    except HTTPException:
+        # Lost a create race with a concurrent first-time validation for the same
+        # MOD: create_source rolls back and raises 422 on the unique-key
+        # violation. The row exists now -- re-fetch and use it rather than
+        # failing the request.
+        db.rollback()
+        source = _lookup()
+        if source is None:
+            raise
+        return source
+    return get_source_from_db(db, new_source_id)
+
+
+def _recompute_validation_cell(db: Session, reference_id: int, topic: str) -> Dict[str, Any]:
+    """Recompute the single (reference, topic) grid cell's validation + filter
+    flags from the current DB state, in the SAME shape the batch endpoint returns.
+    Lets the validate write path hand the UI an authoritative replacement cell so
+    it never has to re-fetch and re-aggregate the whole batch after one edit."""
+    topic_upper = str(topic or "").upper()
+    rows = db.query(TopicEntityTagModel).options(
+        joinedload(TopicEntityTagModel.topic_entity_tag_source),
+        joinedload(TopicEntityTagModel.ml_model),
+        selectinload(TopicEntityTagModel.validated_by)).filter(
+        TopicEntityTagModel.reference_id == reference_id).all()
+    curie_to_name = build_curie_to_name_map(db, rows)
+    serialized_tags = _serialize_reference_tag_rows(db, rows, curie_to_name)
+    validation = _build_validation_details(serialized_tags).get(reference_id, {}).get(topic_upper)
+    filter_flags = _build_filter_flags(
+        serialized_tags, rows=rows, current_user_id=get_default_user_value()).get(
+        reference_id, {}).get(topic_upper, _empty_filter_flags())
+    return {"topic": topic_upper, "validation": validation, "filter_flags": filter_flags}
+
+
+def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviation: str,
+                   negated: bool = False, note: Optional[str] = None,
+                   species: Optional[str] = None) -> Dict[str, Any]:
+    """Write path for the grid's Validation column (SCRUM-6242 increment 5).
+
+    Given just the cell the curator acted on -- {reference, topic, negated, note,
+    species} plus their MOD -- resolve the curator source server-side, record the
+    curator's topic-level validation, and return the recomputed single cell.
+
+    REPLACE-PRIOR semantics: a curator holds at most one validation per
+    (reference, topic). Any existing topic-level validation by this curator on the
+    curator source is deleted before the new one is inserted, so re-validating
+    REPLACES the prior assertion (flip Yes<->No, or update note/species) rather
+    than creating a second, contradictory tag. This is robust regardless of the
+    curator source's validation_type: the abc curator source is
+    'professional_curator' for some MODs and 'professional_biocurator' for others,
+    and the opposite-negation guard (check_for_duplicate_tags Branch 3) only fires
+    for the latter -- deleting the curator's prior tag first means the new insert
+    never trips that guard either way, so a flipped vote never 409s.
+
+    The new tag is created through the normal create_tag path (force_insertion
+    bypasses the different-creator guard; add-paper-to-MOD and indexing-workflow
+    side effects still run). The prior delete is only FLUSHED, not committed, so
+    create_tag's own commit covers the delete AND the insert atomically: if
+    create_tag raises (422 invalid topic, 404 source, a 409, ...) the delete is
+    never committed and rolls back with the request, so the curator never ends up
+    with their prior validation gone and no replacement. create_tag runs with
+    validate_on_insert=False because the single revalidate_all_tags below rebuilds
+    the whole reference's validation relationships/values once -- covering both the
+    new tag and any tags affected by the delete -- exactly as patch_tag/destroy_tag
+    do."""
+    source = get_or_create_curator_validation_source(db, mod_abbreviation)
+    reference_id = get_reference_id_from_curie_or_id(db, reference_curie)
+    current_user = get_default_user_value()
+    topic_upper = str(topic or "").upper()
+
+    prior = db.query(TopicEntityTagModel).filter(
+        TopicEntityTagModel.reference_id == reference_id,
+        func.upper(TopicEntityTagModel.topic) == topic_upper,
+        TopicEntityTagModel.entity.is_(None),
+        TopicEntityTagModel.topic_entity_tag_source_id == source.topic_entity_tag_source_id,
+        TopicEntityTagModel.created_by == current_user,
+    ).all()
+    replaced = bool(prior)
+    for old_tag in prior:
+        db.delete(old_tag)
+    if prior:
+        # Flush (NOT commit) so the delete is visible within this transaction --
+        # create_tag's check_for_duplicate_tags then won't see the prior row --
+        # while staying uncommitted until create_tag's own commit, making
+        # delete+insert atomic. If create_tag raises, the delete is rolled back
+        # with it (create_tag's except, or the request session's rollback on
+        # close), so a failed re-validation never destroys the prior one.
+        db.flush()
+
+    tag = TopicEntityTagSchemaPost(
+        reference_curie=reference_curie,
+        topic=topic,
+        entity=None,
+        entity_type=None,
+        species=species,
+        data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
+        negated=negated,
+        note=note,
+        topic_entity_tag_source_id=source.topic_entity_tag_source_id,
+        force_insertion=True,
+    )
+    tag_id, _ = create_tag(db, tag, validate_on_insert=False)
+    revalidate_all_tags(curie_or_reference_id=str(reference_id))
+    db.expire_all()
+    cell = _recompute_validation_cell(db, reference_id, topic)
+    return {
+        "topic_entity_tag_id": tag_id,
+        "replaced": replaced,
+        **cell,
     }
 
 

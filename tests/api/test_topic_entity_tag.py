@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from starlette.testclient import TestClient
-from fastapi import status
+from fastapi import status, HTTPException
 
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import TopicEntityTagModel
@@ -147,10 +147,25 @@ class TestTopicEntityTag:
                 entry["kind"] == "entity-pos" and entry["count"] >= 1
                 for entry in entries[ref_curie]["ATP:0000122"]
             )
+            # per-topic cell filter flags are aggregated in the API; the fixture
+            # tag is a positive (negated False) tag carrying a note
+            flags = data["filter_flags"]
+            assert flags[ref_curie]["ATP:0000122"]["has_any"] is True
+            assert flags[ref_curie]["ATP:0000122"]["has_y"] is True
+            assert flags[ref_curie]["ATP:0000122"]["has_n"] is False
+            assert flags[ref_curie]["ATP:0000122"]["has_note"] is True
+            # discovery is batch-global: the column set and source filter come
+            # pre-aggregated so the grid never scans raw tags to build them.
+            discovery = data["discovery"]
+            assert {"curie": "ATP:0000122", "name": "ATP:0000122"} in discovery["topics"]
+            # the fixture tag is non-curator, so its source shows up for the filter
+            assert len(discovery["sources"]) >= 1
+            assert all("label" in source for source in discovery["sources"])
             # an unresolvable id maps to an empty list / empty counts
             assert tags.get("AGRKB:000000000") == []
             assert counts.get("AGRKB:000000000") == {}
             assert entries.get("AGRKB:000000000") == {}
+            assert data["filter_flags"].get("AGRKB:000000000") == {}
 
     def test_show_all_reference_tags_batch_filtered(self, test_topic_entity_tag, auth_headers):  # noqa
         # Filtering to a topic the reference does NOT carry returns no tags for it.
@@ -206,6 +221,78 @@ class TestTopicEntityTag:
             data = response.json()
             assert len(data["tags"][ref_curie]) >= 1
 
+    def test_show_all_reference_tags_batch_mod_filter(self, test_topic_entity_tag, test_topic_entity_tag_source, test_mod, auth_headers):  # noqa
+        # The grid must show only the selected MOD's tags. A tag's owning MOD is
+        # its source's secondary_data_provider (the field create_or_update uses for
+        # created_by_mod), NOT data_provider -- the fixture source has
+        # secondary_data_provider "0015_AtDB" but data_provider "WB", so a mods=[WB]
+        # filter must NOT keep it. Put a second MOD's tag on the SAME reference and
+        # assert the mods filter discriminates by secondary_data_provider across
+        # both the raw tags AND the discovery sources.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+            mod1 = test_mod.new_mod_abbreviation  # fixture tag's secondary_data_provider
+
+            # A second MOD + a source owned by it, then a topic-level tag on the
+            # SAME reference under that source.
+            mod2 = "0016_BtDB"
+            client.post(url="/mod/", json={
+                "abbreviation": mod2, "short_name": "BtDB", "full_name": "Second test db"
+            }, headers=auth_headers)
+            source2_id = client.post(url="/topic_entity_tag/source", json={
+                "source_evidence_assertion": "ECO:0008025",
+                "source_method": "second network",
+                "validation_type": None,
+                "description": "a second-MOD source",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": mod2,
+            }, headers=auth_headers).json()["topic_entity_tag_source_id"]
+            tag2 = client.post(url="/topic_entity_tag/", json={
+                "reference_curie": ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "data_novelty": "ATP:0000335",
+                "topic_entity_tag_source_id": source2_id,
+                "negated": False,
+                "created_by": "WBPerson2",
+                "force_insertion": True,
+            }, headers=auth_headers)
+            assert tag2.status_code == status.HTTP_201_CREATED
+
+            # mods=[mod1]: only the fixture (mod1-owned) tag; mod2's tag is hidden.
+            r1 = client.post(url="/topic_entity_tag/by_references", json={
+                "curies_or_reference_ids": [ref_curie], "filters": {"mods": [mod1]},
+            }, headers=auth_headers)
+            assert r1.status_code == status.HTTP_200_OK
+            d1 = r1.json()
+            secs1 = {t["topic_entity_tag_source"]["secondary_data_provider_abbreviation"]
+                     for t in d1["tags"][ref_curie]}
+            assert secs1 == {mod1}
+            assert all(s["secondary_data_provider"] == mod1 for s in d1["discovery"]["sources"])
+
+            # mods=[mod2]: only mod2's tag; the fixture (mod1) tag is hidden -- even
+            # though its source's data_provider is "WB", it is owned by mod1.
+            r2 = client.post(url="/topic_entity_tag/by_references", json={
+                "curies_or_reference_ids": [ref_curie], "filters": {"mods": [mod2]},
+            }, headers=auth_headers)
+            assert r2.status_code == status.HTTP_200_OK
+            d2 = r2.json()
+            secs2 = {t["topic_entity_tag_source"]["secondary_data_provider_abbreviation"]
+                     for t in d2["tags"][ref_curie]}
+            assert secs2 == {mod2}
+            assert all(s["secondary_data_provider"] == mod2 for s in d2["discovery"]["sources"])
+
     def test_show_all_reference_tags_batch_single_vs_multi_tag(self, test_topic_entity_tag, auth_headers):  # noqa
         # The fixture reference carries ONE tag: topic ATP:0000122 with source
         # method "phenotype neural network". Combining the topic it DOES carry
@@ -247,6 +334,322 @@ class TestTopicEntityTag:
             )
             assert response.status_code == status.HTTP_200_OK
             assert len(response.json()["tags"][ref_curie]) >= 1
+
+    def test_show_all_reference_tags_batch_validation_state(self, test_topic_entity_tag, test_reference, test_mod, auth_headers):  # noqa
+        # A topic-level tag (no entity) from a professional-curator source is a
+        # curator validation. The batch endpoint aggregates per-cell validation
+        # state so the grid's Validation column can sort/filter without deriving
+        # it from raw tags. Two positive + negative curator tags on the same
+        # (reference, topic) => 'conflict'.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # validation_type matches what the UI's getCuratorSourceId actually
+            # POSTs for the abc_literature_system source ('professional_curator');
+            # the abc curator source is never 'professional_biocurator'. Keeping
+            # this consistent with the write-path test avoids implying the source
+            # key (ATP:0000036 / abc_literature_system) can be biocurator.
+            curator_source = {
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_curator",
+                "description": "curator from ABC",
+                "data_provider": "WB",
+                "secondary_data_provider_abbreviation": test_mod.new_mod_abbreviation,
+            }
+            source_id = client.post(url="/topic_entity_tag/source", json=curator_source,
+                                    headers=auth_headers).json()["topic_entity_tag_source_id"]
+            base = {
+                "reference_curie": ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                # data_novelty is a non-null column; topic-level curator
+                # validations carry the "no data" term (matches the UI).
+                "data_novelty": "ATP:0000335",
+                "topic_entity_tag_source_id": source_id,
+            }
+            # one positive and one negative curator topic-level validation
+            pos = client.post(url="/topic_entity_tag/",
+                              json={**base, "negated": False, "created_by": "WBPerson1"},
+                              headers=auth_headers)
+            assert pos.status_code == status.HTTP_201_CREATED
+            neg = client.post(url="/topic_entity_tag/",
+                              json={**base, "negated": True, "created_by": "WBPerson2",
+                                    "force_insertion": True},
+                              headers=auth_headers)
+            assert neg.status_code == status.HTTP_201_CREATED
+
+            response = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie]},
+                headers=auth_headers,
+            )
+            assert response.status_code == status.HTTP_200_OK
+            cell = response.json()["validation"][ref_curie]["ATP:0000122"]
+            assert cell["state"] == "conflict"
+            assert cell["positives"] == 1
+            assert cell["negatives"] == 1
+            # one positive and one negative curator group, distinct polarities
+            assert len(cell["by_curator"]) == 2
+            assert {g["negated"] for g in cell["by_curator"]} == {True, False}
+            assert all(
+                any(s["method"] == "abc_literature_system" for s in g["sources"])
+                for g in cell["by_curator"]
+            )
+            # discovery exposes the topic column (curator tags count toward columns)
+            # but excludes the curator source from the source filter -- matching the
+            # counts/entries scope so the source filter never lists a curator source.
+            discovery = response.json()["discovery"]
+            assert any(t["curie"] == "ATP:0000122" for t in discovery["topics"])
+            assert all(s["method"] != "abc_literature_system" for s in discovery["sources"])
+
+    def test_validate_topic(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # POST /validate is the thin write path for the grid's Validation column:
+        # the server resolves the curator source (get-or-create) and creates the
+        # topic-level validation tag, then returns the single recomputed cell so
+        # the grid never re-aggregates the whole batch after one edit.
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # first validation: positive, with a note. No source id is passed --
+            # the server get-or-creates the curator source for the MOD.
+            resp = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": test_mod.new_mod_abbreviation,
+                      "negated": False, "note": "looks right"},
+                headers=auth_headers,
+            )
+            assert resp.status_code == status.HTTP_200_OK
+            body = resp.json()
+            assert isinstance(body["topic_entity_tag_id"], int)
+            assert body["topic"] == "ATP:0000122"
+            assert body["validation"]["state"] == "positive"
+            assert body["validation"]["positives"] == 1
+            assert body["validation"]["negatives"] == 0
+            # the recomputed cell's filter flags reflect the new Y tag + its note
+            assert body["filter_flags"]["has_y"] is True
+            assert body["filter_flags"]["has_note"] is True
+
+            # a second, opposite-polarity validation by the SAME curator REPLACES
+            # the first (replace-prior semantics): the cell flips to negative, it
+            # does not become a self-conflict, and it does not 409.
+            resp2 = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": test_mod.new_mod_abbreviation, "negated": True},
+                headers=auth_headers,
+            )
+            assert resp2.status_code == status.HTTP_200_OK
+            assert resp2.json()["replaced"] is True
+            cell = resp2.json()["validation"]
+            assert cell["state"] == "negative"
+            assert cell["positives"] == 0
+            assert cell["negatives"] == 1
+
+    def test_validate_topic_reuses_existing_curator_source(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # The realistic production case: a curator source for the MOD already
+        # exists (created earlier by the UI's getCuratorSourceId, validation_type
+        # 'professional_curator'). get_or_create must REUSE it -- the source unique
+        # key excludes validation_type -- and an opposite-polarity re-validation by
+        # the same curator must succeed (NOT 409): the opposite-negation guard
+        # (Branch 3) only fires for 'professional_biocurator' sources, which the
+        # abc curator source never is. This pins down the behavior reviewers worry
+        # about (the empty-DB test above exercises only the create branch).
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # pre-create the curator source exactly as the UI's getCuratorSourceId
+            # does (validation_type 'professional_curator')
+            existing_source_id = client.post(
+                url="/topic_entity_tag/source",
+                json={
+                    "source_evidence_assertion": "ATP:0000036",
+                    "source_method": "abc_literature_system",
+                    "validation_type": "professional_curator",
+                    "description": "curator from ABC",
+                    "data_provider": mod,
+                    "secondary_data_provider_abbreviation": mod,
+                },
+                headers=auth_headers,
+            ).json()["topic_entity_tag_source_id"]
+
+            y = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": False},
+                headers=auth_headers,
+            )
+            assert y.status_code == status.HTTP_200_OK
+            # the validation tag reused the pre-existing source (no new one created)
+            created = client.get(
+                url=f"/topic_entity_tag/{y.json()['topic_entity_tag_id']}",
+                headers=auth_headers,
+            ).json()
+            assert created["topic_entity_tag_source_id"] == existing_source_id
+
+            # opposite polarity, same curator -> REPLACES the prior validation
+            # (not 409, not self-conflict): the cell flips to negative.
+            n = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": True},
+                headers=auth_headers,
+            )
+            assert n.status_code == status.HTTP_200_OK
+            assert n.json()["replaced"] is True
+            cell = n.json()["validation"]
+            assert cell["state"] == "negative"
+            assert cell["positives"] == 0
+            assert cell["negatives"] == 1
+
+    def test_validate_topic_flip_with_biocurator_source_does_not_409(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # Production reality: some MODs' abc curator source is
+        # 'professional_biocurator' (not 'professional_curator'). Against such a
+        # source, check_for_duplicate_tags Branch 3 would 409 a same-curator
+        # opposite-polarity insert. validate_topic must still let a curator flip
+        # their vote: it deletes the curator's prior validation first, so the new
+        # insert never trips Branch 3. This is the regression for the original
+        # review concern.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # pre-create the curator source as professional_biocurator -- the value
+            # that makes Branch 3 fire on opposite-polarity inserts.
+            client.post(
+                url="/topic_entity_tag/source",
+                json={
+                    "source_evidence_assertion": "ATP:0000036",
+                    "source_method": "abc_literature_system",
+                    "validation_type": "professional_biocurator",
+                    "description": "curator from ABC",
+                    "data_provider": mod,
+                    "secondary_data_provider_abbreviation": mod,
+                },
+                headers=auth_headers,
+            )
+
+            y = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": False},
+                headers=auth_headers,
+            )
+            assert y.status_code == status.HTTP_200_OK
+            assert y.json()["validation"]["state"] == "positive"
+
+            # the flip would 409 (opposite_negation) without replace-prior; assert
+            # it succeeds and replaces.
+            n = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": True},
+                headers=auth_headers,
+            )
+            assert n.status_code == status.HTTP_200_OK
+            assert n.json()["replaced"] is True
+            cell = n.json()["validation"]
+            assert cell["state"] == "negative"
+            assert cell["positives"] == 0
+            assert cell["negatives"] == 1
+
+    def test_validate_topic_replace_is_atomic_on_insert_failure(self, test_topic_entity_tag, test_mod, auth_headers):  # noqa
+        # Replace-prior deletes the curator's prior validation before inserting the
+        # new one. That delete is FLUSHED, not committed, so if the insert fails
+        # the delete must roll back with the request -- the curator must never be
+        # left with their prior validation gone and no replacement.
+        load_name_to_atp_and_relationships_mock()
+        mod = test_mod.new_mod_abbreviation
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_ancestors") as mock_get_ancestors, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_utils.get_descendants") as mock_get_descendants, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.build_curie_to_name_map") as \
+                mock_build_curie_to_name_map:
+            mock_get_ancestors.return_value = []
+            mock_get_descendants.return_value = []
+            mock_get_curie_to_name_from_all_tets.return_value = {}
+            mock_build_curie_to_name_map.return_value = {'ATP:0000122': 'ATP:0000122'}
+            ref_curie = test_topic_entity_tag.related_ref_curie
+
+            # seed a prior positive validation
+            y = client.post(
+                url="/topic_entity_tag/validate",
+                json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                      "mod_abbreviation": mod, "negated": False},
+                headers=auth_headers,
+            )
+            assert y.status_code == status.HTTP_200_OK
+            assert y.json()["validation"]["state"] == "positive"
+
+            # a flip whose INSERT fails: the prior delete must not survive it
+            with patch("agr_literature_service.api.crud.topic_entity_tag_crud.create_tag",
+                       side_effect=HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                                 detail="boom")):
+                n = client.post(
+                    url="/topic_entity_tag/validate",
+                    json={"reference_curie": ref_curie, "topic": "ATP:0000122",
+                          "mod_abbreviation": mod, "negated": True},
+                    headers=auth_headers,
+                )
+            assert n.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+            # the prior positive validation is still there (delete rolled back)
+            after = client.post(
+                url="/topic_entity_tag/by_references",
+                json={"curies_or_reference_ids": [ref_curie]},
+                headers=auth_headers,
+            )
+            cell = after.json()["validation"][ref_curie]["ATP:0000122"]
+            assert cell["state"] == "positive"
+            assert cell["positives"] == 1
 
     def test_show_all_reference_tags_batch_too_many(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:

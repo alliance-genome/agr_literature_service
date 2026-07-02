@@ -46,6 +46,40 @@ def create_tag(request: TopicEntityTagSchemaPost,
     return topic_entity_tag_crud.show_tag(db, new_tag_id)
 
 
+class ValidateTopicRequest(BaseModel):
+    # Thin curator-validation request for the TET grid's Validation column: just
+    # the cell the curator acted on. The server resolves the curator source and
+    # all other tag fields (entity=null, data_novelty, etc.) so the UI no longer
+    # has to. See topic_entity_tag_crud.validate_topic.
+    reference_curie: str
+    topic: str
+    mod_abbreviation: str
+    negated: bool = False
+    note: Optional[str] = None
+    species: Optional[str] = None
+
+
+@router.post('/validate', status_code=status.HTTP_200_OK)
+def validate_topic(request: ValidateTopicRequest,
+                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                   db: Session = db_session):
+    """Create (or upsert) a curator topic-level validation and return the single
+    recomputed grid cell ({topic, validation, filter_flags}) plus the tag id, so
+    the grid updates that cell without re-fetching/re-aggregating the whole batch.
+    The curator source is resolved (get-or-create) server-side from
+    mod_abbreviation."""
+    set_global_user_from_cognito(db, user)
+    return topic_entity_tag_crud.validate_topic(
+        db,
+        reference_curie=request.reference_curie,
+        topic=request.topic,
+        mod_abbreviation=request.mod_abbreviation,
+        negated=request.negated,
+        note=request.note,
+        species=request.species,
+    )
+
+
 @router.get('/{topic_entity_tag_id}',
             response_model=TopicEntityTagSchemaShow,
             status_code=200)
@@ -196,6 +230,12 @@ class ReferenceTagsBatchFilters(BaseModel):
     confidence_score_min: Optional[float] = None
     confidence_score_max: Optional[float] = None
     apply_to_single_tag: Optional[bool] = None
+    # MOD scope from the search's corpus facet(s): restrict tags to those whose
+    # source's secondary_data_provider (the owning MOD, per created_by_mod) is one
+    # of these abbreviations, so the grid shows only the selected MOD's tags
+    # instead of every MOD's tags on a shared reference. Omitted/empty => no MOD
+    # restriction (all MODs' tags).
+    mods: Optional[List[str]] = None
 
 
 class ReferenceTagsBatchRequest(BaseModel):
@@ -214,6 +254,27 @@ class ReferenceTagsBatchResponse(BaseModel):
     # These rows are grouped by source/evidence/kind in the API so the grid
     # renders, filters and sorts from pre-aggregated tag buckets.
     entries: Optional[Dict[str, Any]] = None
+    # validation: input identifier -> {topic_curie: {state: positive|negative|
+    # conflict, positives, negatives, by_curator: [{name, negated, sources:
+    # [{method, label}], species}]}}. Per-cell curator validation aggregated in
+    # the API (mirrors ValidationCell) so the grid's Validation column sorts,
+    # filters AND renders without deriving it from raw tags. Topics with no
+    # curator validation are omitted (client treats absent as 'unvalidated').
+    validation: Optional[Dict[str, Any]] = None
+    # filter_flags: input identifier -> {topic_curie: {has_any, has_y, has_n,
+    # has_note, my_validation_present}}. Per-cell booleans backing the grid's
+    # per-topic cell filter (computed over all tags of the cell) so it filters
+    # without scanning raw tags. my_validation_present compares each tag's
+    # created_by against the authenticated user's users.id server-side (the
+    # comparison the client couldn't do -- its uid is an Okta subject id and the
+    # serialized created_by is a display name).
+    filter_flags: Optional[Dict[str, Any]] = None
+    # discovery: batch-global (NOT keyed per reference) {topics: [{curie, name}],
+    # sources: [{label, method, secondary_data_provider, data_provider}]}. The
+    # distinct topic columns (over all tags) and source labels (over non-curator
+    # tags) present in the post-filter batch, so the grid builds its column set
+    # and source filter without scanning raw tags. First-seen order.
+    discovery: Optional[Dict[str, Any]] = None
     # debug_timing: per-phase timing breakdown, present only when
     # DEBUG_TET_BATCH_TIMING is enabled. Lets the slow-load breakdown be read
     # straight from the browser Network tab. Null in normal operation.

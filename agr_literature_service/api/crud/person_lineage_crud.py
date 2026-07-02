@@ -8,7 +8,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from agr_literature_service.api.models import PersonLineageModel
+from agr_literature_service.api.models import PersonLineageModel, PersonLineageSubmissionModel
 from agr_literature_service.api.schemas import SYMMETRIC_RELATIONSHIPS, PersonPersonRole
 from agr_literature_service.api.crud import person_crud
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -170,6 +170,16 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
+    # Person corrections: resolve curie-or-id and repoint the canonical. The
+    # submission link (person_lineage_id) is independent of which persons the
+    # canonical references, so any linked submissions stay attached — their name
+    # claim is now simply resolved to the corrected person.
+    if "person_subject_curie_or_id" in data and data["person_subject_curie_or_id"] is not None:
+        obj.person_subject_id = person_crud.resolve_person_id(db, str(data["person_subject_curie_or_id"]))
+    if "person_object_curie_or_id" in data and data["person_object_curie_or_id"] is not None:
+        obj.person_object_id = person_crud.resolve_person_id(db, str(data["person_object_curie_or_id"]))
+    _reject_self_pair(obj.person_subject_id, obj.person_object_id)
+
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:
             continue
@@ -206,5 +216,13 @@ def destroy(db: Session, person_lineage_id: int) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"PersonLineage with id {person_lineage_id} not found",
         )
+    # Submissions promoted to this canonical have person_lineage_id cleared by the
+    # FK's ON DELETE SET NULL, but their status would stay 'validated'/'duplicate'.
+    # Reset those back to 'pending' so they return to the unvalidated pool cleanly
+    # and can be re-validated.
+    db.query(PersonLineageSubmissionModel).filter(
+        PersonLineageSubmissionModel.person_lineage_id == person_lineage_id,
+        PersonLineageSubmissionModel.status.in_(["validated", "duplicate"]),
+    ).update({"status": "pending"}, synchronize_session=False)
     db.delete(obj)
     db.commit()

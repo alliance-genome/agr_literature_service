@@ -53,6 +53,16 @@ class PersonLineageModel(Base, AuditedModel):
         """Convenience for serializers — the curie of the resolved person_object."""
         return self.person_object_obj.curie if self.person_object_obj else None
 
+    @property
+    def person_subject_name(self):
+        """Convenience for serializers — display name of the resolved person_subject."""
+        return self.person_subject_obj.display_name if self.person_subject_obj else None
+
+    @property
+    def person_object_name(self):
+        """Convenience for serializers — display name of the resolved person_object."""
+        return self.person_object_obj.display_name if self.person_object_obj else None
+
     __table_args__ = (
         UniqueConstraint(
             "person_subject_id", "person_object_id", "relationship",
