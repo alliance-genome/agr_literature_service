@@ -51,27 +51,34 @@ text_conversion_process_atp_id = "ATP:0000161"
 
 # TRANSIENT (SCRUM-6246 figure-metadata backfill): a one-off process may flip
 # this so file_upload() persists *auxiliary* files (e.g. the figure-metadata
-# JSON sidecars) WITHOUT firing transition_WFT_for_uploaded_file or pruning
-# superseded main PDFs via cleanup_old_pdf_file. The reference's file-upload
-# workflow status was already set when the figures were originally converted, so
-# re-attaching descriptor files must not move it or trigger downstream
-# reprocessing. Default is False, so the live API / conversion path is
-# unaffected — only the backfill script activates it, for the duration of its
-# run (see lit_processing/pdf2md/backfill_figure_metadata.py). Process-level
-# (module global): the standalone backfill runs in its own process, so this
-# never leaks into the API or cron conversion processes.
-_suppress_post_upload_workflow = False
+# JSON sidecars) without the guardrails meant for interactive/live uploads.
+# When set, file_upload():
+#   - skips the is_file_upload_blocked "job in progress" guard, so a downstream
+#     process running on the reference (entity extraction / classification) does
+#     not block attaching descriptor files; and
+#   - skips the post-upload side effects transition_WFT_for_uploaded_file and
+#     cleanup_old_pdf_file — the reference's file-upload workflow status was
+#     already set when the figures were originally converted, so re-attaching
+#     descriptor files must not move it or trigger downstream reprocessing.
+# Default is False, so the live API / conversion path is unaffected — only the
+# backfill script activates it, for the duration of its run (see
+# lit_processing/pdf2md/backfill_figure_metadata.py). Process-level (module
+# global): the standalone backfill runs in its own process, so this never leaks
+# into the API or cron conversion processes.
+_suppress_upload_guardrails = False
 
 
-def set_suppress_post_upload_workflow(value: bool) -> None:
-    """Toggle suppression of file_upload()'s post-upload workflow side effects
-    (transition + main-PDF cleanup). See ``_suppress_post_upload_workflow``."""
-    global _suppress_post_upload_workflow
-    _suppress_post_upload_workflow = bool(value)
+def set_suppress_upload_guardrails(value: bool) -> None:
+    """Toggle suppression of file_upload()'s interactive-upload guardrails: the
+    is_file_upload_blocked "job in progress" check and the post-upload side
+    effects (workflow transition + main-PDF cleanup). See
+    ``_suppress_upload_guardrails``."""
+    global _suppress_upload_guardrails
+    _suppress_upload_guardrails = bool(value)
 
 
-def is_post_upload_workflow_suppressed() -> bool:
-    return _suppress_post_upload_workflow
+def is_upload_guardrails_suppressed() -> bool:
+    return _suppress_upload_guardrails
 
 
 def get_main_pdf_referencefile_id(db: Session, curie_or_reference_id: str,
@@ -583,10 +590,14 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
         if not inCorpus:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                 detail=f"This paper ({metadata['reference_curie']}) is not in {metadata['mod_abbreviation']}.")
-        job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
-        if job_type:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
+        # The one-off backfill (auxiliary metadata sidecars) suppresses this
+        # guard: a downstream job in progress (entity extraction / classification)
+        # must not block attaching descriptor files, which those jobs don't read.
+        if not _suppress_upload_guardrails:
+            job_type = is_file_upload_blocked(db, metadata["reference_curie"], metadata["mod_abbreviation"])
+            if job_type:
+                raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=f"The {job_type} for reference {metadata['reference_curie']} is currently in progress. Please wait until the {job_type} process is complete before uploading any files for this paper.")
 
     if (
         metadata["file_class"] == 'main'
@@ -642,7 +653,7 @@ def file_upload(db: Session, metadata: dict, file: UploadFile, upload_if_already
     else:
         created_referencefiles.append(file_upload_single(db, metadata, file))
     mod_abbreviation = metadata["mod_abbreviation"] if "mod_abbreviation" in metadata else None
-    if _suppress_post_upload_workflow:
+    if _suppress_upload_guardrails:
         # Auxiliary upload (e.g. figure-metadata sidecar): persist the file but
         # do not move the reference's workflow status or prune its main PDFs.
         # transition_WFT_for_uploaded_file is normally the committing step, so

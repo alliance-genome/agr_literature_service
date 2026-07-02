@@ -21,9 +21,11 @@ of an identical sidecar a no-op. Safe to re-run after an interruption.
 
 Note: each sidecar goes through the standard ``file_upload`` path. Because these
 references were already converted, this run activates
-``set_suppress_post_upload_workflow(True)`` so attaching the descriptor sidecars
-does NOT re-fire ``transition_WFT_for_uploaded_file`` or prune main PDFs — it
-must not move the reference's file-upload workflow status or trigger downstream
+``set_suppress_upload_guardrails(True)`` so attaching the descriptor sidecars
+(a) is NOT blocked by ``is_file_upload_blocked`` when a downstream job (entity
+extraction / classification) is running on the reference, and (b) does NOT
+re-fire ``transition_WFT_for_uploaded_file`` or prune main PDFs — it must not
+move the reference's file-upload workflow status or trigger downstream
 reprocessing. (Firing the transition here also breaks on the 2nd+ sidecar of a
 reference: when the ATP descendants cache is cold the status lookup returns
 None, so every upload retries the create and collides on the unique
@@ -55,7 +57,7 @@ from agr_cognito_py import ModAccess, get_admin_token
 
 from agr_literature_service.api.crud.referencefile_crud import (
     download_file,
-    set_suppress_post_upload_workflow,
+    set_suppress_upload_guardrails,
 )
 from agr_literature_service.api.models import (
     ModModel,
@@ -138,12 +140,14 @@ def plan_sidecars_for_source(
     """Pure planning step: decide which figure PNGs of one source PDF still
     need a metadata sidecar and which regenerated manifest entry feeds each.
 
-    The existing figures are sorted by display_name (which sorts by the
-    ``_image_NNN`` index) and paired positionally with the manifest images
-    (PDFX/Marker emits images in a stable order for a given PDF). A figure
-    whose display_name is already in ``existing_metadata_names`` is skipped
-    (idempotency/resume). ``figure_index`` is parsed from each PNG's
-    display_name so it stays consistent with the live conversion path.
+    Each figure PNG's ``_image_NNN`` suffix is its 1-based position in the
+    original manifest, so we match every PNG to ``manifest_images[NNN-1]`` by
+    that index rather than by sorted position. This tolerates
+    md5-deduplicated figures: identical repeated images collapse to a single
+    stored PNG at upload time, which leaves gaps in the ``_image_NNN``
+    numbering and makes ``len(png_rows) < len(manifest_images)`` even though
+    the extraction is unchanged. A figure whose display_name is already in
+    ``existing_metadata_names`` is skipped (idempotency/resume).
 
     Returns ``(planned, skipped_existing, skip_reason)`` where:
       - ``planned`` is a list of ``{figure_index, figure_display_name, image}``
@@ -151,13 +155,15 @@ def plan_sidecars_for_source(
       - ``skipped_existing`` counts figures that already had a sidecar;
       - ``skip_reason`` is None when planning succeeded, else a human-readable
         reason the WHOLE source was skipped. We refuse to plan (rather than
-        risk attaching a caption to the wrong figure — the exact failure the
-        provenance feature must avoid) when either:
+        risk attaching a caption to the wrong figure) when either:
           * any existing figure PNG has a non-canonical name (e.g. a prior
-            re-conversion left a ``_N`` rename suffix), so sorted order no
-            longer reliably equals manifest order; or
-          * the regenerated manifest's image count differs from the number of
-            existing figures.
+            re-conversion left a ``_N`` rename suffix); or
+          * the regenerated manifest's image count differs from the highest
+            stored ``_image_NNN`` index. Equal counts mean the extraction
+            produced the same number of images as the original run, so index
+            ``NNN`` still refers to the same figure; a difference means the
+            extraction changed (or the top images were deduped) and
+            index-based alignment can no longer be trusted.
     """
     sorted_pngs = sorted(png_rows, key=lambda r: r.display_name or "")
 
@@ -169,25 +175,35 @@ def plan_sidecars_for_source(
         return [], 0, (
             f"{len(non_canonical)} figure PNG(s) have non-canonical names "
             f"(e.g. {non_canonical[0]!r}); cannot reliably align them to the "
-            f"regenerated manifest by order"
+            f"regenerated manifest by index"
         )
-    if len(sorted_pngs) != len(manifest_images):
+
+    indexed = [
+        (_figure_index_from_display_name(p.display_name, 0), p)
+        for p in sorted_pngs
+    ]
+    if not indexed:
+        return [], 0, None
+
+    max_index = max(idx for idx, _ in indexed)
+    if len(manifest_images) != max_index:
         return [], 0, (
-            f"regenerated manifest has {len(manifest_images)} image(s) but "
-            f"{len(sorted_pngs)} existing figure(s)"
+            f"regenerated manifest has {len(manifest_images)} image(s) but the "
+            f"highest stored figure index is {max_index} (extraction differs); "
+            f"cannot align by index"
         )
 
     planned: List[Dict] = []
     skipped_existing = 0
-    for pos, (png, image) in enumerate(zip(sorted_pngs, manifest_images), start=1):
+    for idx, png in indexed:
         display_name = png.display_name
         if display_name in existing_metadata_names:
             skipped_existing += 1
             continue
         planned.append({
-            "figure_index": _figure_index_from_display_name(display_name, pos),
+            "figure_index": idx,
             "figure_display_name": display_name,
-            "image": image,
+            "image": manifest_images[idx - 1],
         })
     return planned, skipped_existing, None
 
@@ -467,12 +483,14 @@ def backfill(  # pragma: no cover
     stats: Dict[str, int] = defaultdict(int)
 
     # These references were already converted; their file-upload workflow status
-    # is set. Attaching metadata sidecars must NOT re-fire the file-upload
-    # transition (which would spuriously create a "file upload in progress" tag
-    # and, on the 2nd+ sidecar of a reference, fail with a duplicate-WFT 422) or
-    # prune main PDFs. Suppress those post-upload side effects for this one-off
-    # run; the descriptor files are still persisted and md5-deduped as usual.
-    set_suppress_post_upload_workflow(True)
+    # is set. Suppress file_upload's interactive-upload guardrails for this
+    # one-off run so attaching metadata sidecars: (a) is not blocked when a
+    # downstream job (entity extraction / classification) is in progress on the
+    # reference, and (b) does not re-fire the file-upload transition (which would
+    # spuriously create a "file upload in progress" tag and, on the 2nd+ sidecar
+    # of a reference, fail with a duplicate-WFT 422) or prune main PDFs. The
+    # descriptor files are still persisted and md5-deduped as usual.
+    set_suppress_upload_guardrails(True)
 
     def get_token() -> str:
         # Re-fetch per source PDF so a long run never trips an expired token.
@@ -513,7 +531,7 @@ def backfill(  # pragma: no cover
                 logger.error("Error backfilling %s: %s", ref_obj.curie, exc)
                 db.rollback()
     finally:
-        set_suppress_post_upload_workflow(False)
+        set_suppress_upload_guardrails(False)
         _log_summary(stats, dry_run)
         db.close()
     return dict(stats)

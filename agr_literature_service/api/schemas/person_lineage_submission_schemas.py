@@ -76,6 +76,31 @@ class PersonLineageSubmissionSchemaUpdate(BaseModel):
         return data
 
 
+class PersonLineageSubmissionValidateSchema(BaseModel):
+    """Curator-supplied values for promoting a submission to a canonical
+    person_lineage, in one shot.
+
+    Validate does not modify the submission's claim — its names, relationship,
+    dates and person-id links stay as the user submitted them — but it does set the
+    submission's status and person_lineage_id link to record the promotion. The
+    fields below only steer the canonical row that validate creates; any one left
+    unset falls back to the submission's own value, so an empty body reproduces the
+    original promote behavior:
+      - person_subject_curie_or_id / person_object_curie_or_id: resolve the people
+        for the canonical (fall back to the submission's stored ids when omitted);
+      - relationship: never taken as null (part of the canonical unique key);
+      - start_date / end_date: may be sent as null to create the canonical without
+        that date.
+    """
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    person_subject_curie_or_id: Optional[Union[str, int]] = None
+    person_object_curie_or_id: Optional[Union[str, int]] = None
+    relationship: Optional[PersonPersonRole] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+
+
 class PersonLineageSubmissionSchemaShow(AuditedObjectModelSchema):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

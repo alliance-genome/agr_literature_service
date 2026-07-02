@@ -244,3 +244,47 @@ class TestPersonLineage:
             assert res.status_code == status.HTTP_204_NO_CONTENT
             res = client.get(f"/person_lineage/{test_lineage.new_id}", headers=auth_headers)
             assert res.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_patch_corrects_object_person(self, db, auth_headers, test_lineage):  # noqa
+        # A curator can correct a mis-resolved person on the canonical (object B -> C).
+        person_c = PersonModel(display_name="Canon Three", curie="AGRKB:test-canon-3")
+        db.add(person_c)
+        db.commit()
+        db.refresh(person_c)
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/person_lineage/{test_lineage.new_id}",
+                json={"person_object_curie_or_id": person_c.curie},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            fetched = client.get(f"/person_lineage/{test_lineage.new_id}", headers=auth_headers).json()
+            assert fetched["person_subject_id"] == test_lineage.person_subject_id
+            assert fetched["person_object_id"] == person_c.person_id
+            assert fetched["person_object_curie"] == person_c.curie
+
+    def test_patch_person_collision_rejected(self, db, auth_headers, two_people):  # noqa
+        # Correcting a person into an existing (subject, object, relationship) triple
+        # must be rejected, not 500.
+        person_c = PersonModel(display_name="Canon Three", curie="AGRKB:test-canon-3b")
+        db.add(person_c)
+        db.commit()
+        db.refresh(person_c)
+        with TestClient(app) as client:
+            base = {
+                "person_subject_curie_or_id": two_people["person_subject_id"],
+                "relationship": "phd_supervisor_of",
+            }
+            # A -> B
+            r1 = client.post("/person_lineage/", json={**base, "person_object_curie_or_id": two_people["person_object_id"]}, headers=auth_headers)
+            assert r1.status_code == status.HTTP_201_CREATED
+            # A -> C
+            r2 = client.post("/person_lineage/", json={**base, "person_object_curie_or_id": person_c.person_id}, headers=auth_headers)
+            assert r2.status_code == status.HTTP_201_CREATED
+            # Patching A->B's object to C would collide with A->C.
+            p = client.patch(
+                f"/person_lineage/{r1.json()['person_lineage_id']}",
+                json={"person_object_curie_or_id": person_c.person_id},
+                headers=auth_headers,
+            )
+            assert p.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

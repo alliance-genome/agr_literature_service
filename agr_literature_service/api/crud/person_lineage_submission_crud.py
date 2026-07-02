@@ -148,18 +148,35 @@ def destroy(db: Session, person_lineage_submission_id: int) -> None:
     db.commit()
 
 
-def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmissionModel:
+def validate(
+    db: Session,
+    person_lineage_submission_id: int,
+    overrides: Optional[Dict[str, Any]] = None,
+) -> PersonLineageSubmissionModel:
     """Promote a fully-resolved submission to a canonical person_lineage.
 
     Requires both person ids to be resolved. Finds or creates the canonical PPR
     for (person_subject_id, person_object_id, relationship), links the submission to it,
     and sets status to 'validated' (new canonical) or 'duplicate' (already existed).
 
+    Curator overrides (one-shot promote): `overrides` may carry the people
+    (`person_subject_curie_or_id`, `person_object_curie_or_id`), `relationship`,
+    `start_date` and/or `end_date` used to build the canonical row instead of the
+    submission's submitted values (the user's claim could be wrong). A key absent
+    from `overrides` falls back to the submission's value; `relationship` is never
+    taken as null. The submission row is never modified by validate — its names,
+    relationship, dates and person-id links stay as submitted; only the canonical
+    row uses the curated values, and later edits go to PATCH /person_lineage. (The
+    submission's `status` and `person_lineage_id` link are the promotion outcome,
+    not part of the claim, and are set below.)
+
     Guards:
       - a 'rejected' submission is refused (422) until its status is reset, so a
         rejection is never silently reversed;
-      - an already-linked submission is an idempotent no-op (returned unchanged).
+      - an already-linked submission is an idempotent no-op (returned unchanged);
+      - both people must resolve (from the override body or the submission).
     """
+    overrides = overrides or {}
     obj = show(db, person_lineage_submission_id)
 
     # A rejected submission must be deliberately un-rejected (its status reset)
@@ -178,11 +195,29 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     if obj.person_lineage_id is not None:
         return obj
 
-    if obj.person_subject_id is None or obj.person_object_id is None:
+    # Resolve the canonical's people from the override body when supplied, else
+    # fall back to the submission's stored links. Resolution does NOT write back to
+    # the submission — only the canonical uses these ids. relationship/dates follow
+    # the same fall-back rule; relationship must remain non-null (unique key).
+    if "person_subject_curie_or_id" in overrides:
+        subject_id = _resolve_person(db, overrides["person_subject_curie_or_id"])
+    else:
+        subject_id = obj.person_subject_id
+    if "person_object_curie_or_id" in overrides:
+        object_id = _resolve_person(db, overrides["person_object_curie_or_id"])
+    else:
+        object_id = obj.person_object_id
+
+    if subject_id is None or object_id is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Both person_subject_id and person_object_id must be resolved before validating.",
+            detail="Both subject and object persons must be resolved (via the validate "
+                   "body or the submission) before validating.",
         )
+
+    relationship = overrides.get("relationship") or obj.relationship
+    start_date = overrides["start_date"] if "start_date" in overrides else obj.start_date
+    end_date = overrides["end_date"] if "end_date" in overrides else obj.end_date
 
     # Wrap find_or_create (which flushes a new canonical) through commit, so a
     # concurrent validation creating the same (subject, object, relationship) row
@@ -190,11 +225,11 @@ def validate(db: Session, person_lineage_submission_id: int) -> PersonLineageSub
     try:
         canonical, created = person_lineage_crud.find_or_create(
             db,
-            person_subject_id=obj.person_subject_id,
-            person_object_id=obj.person_object_id,
-            relationship=obj.relationship,
-            start_date=obj.start_date,
-            end_date=obj.end_date,
+            person_subject_id=subject_id,
+            person_object_id=object_id,
+            relationship=relationship,
+            start_date=start_date,
+            end_date=end_date,
         )
         obj.person_lineage_id = canonical.person_lineage_id
         obj.status = "validated" if created else "duplicate"

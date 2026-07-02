@@ -35,17 +35,23 @@ class TestPlanSidecarsForSource:
         assert planned[0]["image"] == {"caption_text": "first"}
         assert planned[1]["image"] == {"caption_text": "second"}
 
-    def test_figure_index_parsed_from_display_name_not_position(self):
-        """figure_index comes from the PNG's ``_image_NNN`` ordinal, so a
-        gap (e.g. image 002 failed to download originally) yields [1, 3], not
-        the positional [1, 2] — keeping it consistent with the live path."""
-        png_rows = [_png("paper_image_001"), _png("paper_image_003")]
-        images = [{"a": 1}, {"a": 2}]
-        planned, _skipped, skip_reason = plan_sidecars_for_source(
+    def test_dedup_gap_matches_by_index_not_position(self):
+        """md5-dedup leaves gaps in the ``_image_NNN`` numbering (fewer stored
+        PNGs than manifest images). Each PNG is matched to ``manifest[NNN-1]``
+        by its index, so the gap doesn't shift later figures onto the wrong
+        image. Allowed because the manifest count equals the highest stored
+        index (extraction unchanged)."""
+        png_rows = [_png("paper_image_001"), _png("paper_image_002"),
+                    _png("paper_image_004")]
+        images = [{"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}]  # index 003 was deduped
+        planned, skipped, skip_reason = plan_sidecars_for_source(
             png_rows, images, existing_metadata_names=set()
         )
         assert skip_reason is None
-        assert [p["figure_index"] for p in planned] == [1, 3]
+        assert skipped == 0
+        assert [p["figure_index"] for p in planned] == [1, 2, 4]
+        # image_004 maps to manifest[3] ({"a": 4}), NOT the positional manifest[2]
+        assert [p["image"] for p in planned] == [{"a": 1}, {"a": 2}, {"a": 4}]
 
     def test_skips_pngs_that_already_have_a_sidecar(self):
         png_rows = [_png("paper_image_001"), _png("paper_image_002")]
@@ -72,13 +78,15 @@ class TestPlanSidecarsForSource:
         assert skip_reason is None
 
     def test_count_mismatch_skips_source(self):
+        # manifest (3) exceeds the highest stored index (2): extraction differs
+        # from the original run, so index alignment can't be trusted -> skip.
         png_rows = [_png("paper_image_001"), _png("paper_image_002")]
         images = [{"a": 1}, {"a": 2}, {"a": 3}]  # one extra image
         planned, skipped, skip_reason = plan_sidecars_for_source(
             png_rows, images, existing_metadata_names=set()
         )
         assert skip_reason is not None
-        assert "manifest has 3 image(s) but 2 existing" in skip_reason
+        assert "manifest has 3 image(s) but the highest stored figure index is 2" in skip_reason
         assert planned == []
         assert skipped == 0
 

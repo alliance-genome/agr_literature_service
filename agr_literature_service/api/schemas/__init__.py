@@ -175,6 +175,7 @@ from .person_lineage_submission_schemas import (
     PersonLineageSubmissionSchemaUpdate,
     PersonLineageSubmissionSchemaShow,
     PersonLineageSubmissionSchemaRelated,
+    PersonLineageSubmissionValidateSchema,
 )
 from .laboratory_position_enum import LabPosition
 from .laboratory_cross_reference_schemas import (

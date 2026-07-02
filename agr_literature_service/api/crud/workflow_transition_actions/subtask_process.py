@@ -183,6 +183,15 @@ def sub_task_complete(db: Session, current_workflow_tag_db_obj: WorkflowTagModel
     # the main task's status.
     if not cur:
         main_status_obj.workflow_tag_id = jobs_types[checktype]['complete']
+        # When any first pass curation prerequisite (entity extraction / reference /
+        # curation classification) rolls up to complete, re-check whether "first pass
+        # curation TBD" should be seeded (FlyBase only, order-independent -- whichever
+        # prerequisite finishes last triggers it). See SCRUM-5478. Local import avoids a
+        # circular import.
+        from agr_literature_service.api.crud.workflow_transition_actions.first_pass_curation import (
+            set_first_pass_curation_tbd, FIRST_PASS_CURATION_PREREQUISITE_CHECKTYPES)
+        if checktype in FIRST_PASS_CURATION_PREREQUISITE_CHECKTYPES:
+            set_first_pass_curation_tbd(db, main_status_obj, [])
     # Note: commit is handled by the caller (workflow_tag_crud.py)
 
 
