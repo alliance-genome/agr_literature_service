@@ -478,6 +478,68 @@ class TestWorkflowTagAutomation:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_tbd_set_when_reference_classification_last(self, db, auth_headers, test_reference):  # noqa
+        """Order-independent: if reference classification rolls up to complete LAST (entity
+        extraction + curation classification already complete), TBD is still seeded."""
+        load_name_to_atp_and_relationships_mock()
+        fb = _get_or_create_fb_mod(db)
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        # entity extraction + curation classification already complete
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000174'))
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000312'))
+        # reference classification still in progress
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000178'))
+        subtask = WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000214')
+        db.add(subtask)
+        db.commit()
+
+        sub_task_complete(db, subtask, ['reference classification'])
+        db.commit()
+
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000169'
+        ).first()  # reference classification rolled up to complete
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
+        ).count() == 1
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_first_pass_curation_tbd_set_when_curation_classification_last(self, db, auth_headers, test_reference):  # noqa
+        """Order-independent: if curation classification rolls up to complete LAST (entity
+        extraction + reference classification already complete), TBD is still seeded."""
+        load_name_to_atp_and_relationships_mock()
+        fb = _get_or_create_fb_mod(db)
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        # entity extraction + reference classification already complete
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000174'))
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000169'))
+        # curation classification still in progress
+        db.add(WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000314'))
+        subtask = WorkflowTagModel(reference=reference, mod=fb, workflow_tag_id='ATP:0000214')
+        db.add(subtask)
+        db.commit()
+
+        sub_task_complete(db, subtask, ['curation classification'])
+        db.commit()
+
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000312'
+        ).first()  # curation classification rolled up to complete
+        assert db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference.reference_id,
+            WorkflowTagModel.mod_id == fb.mod_id,
+            WorkflowTagModel.workflow_tag_id == 'ATP:0000371'
+        ).count() == 1
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
     def test_first_pass_curation_tbd_not_set_when_incomplete(self, db, auth_headers, test_reference):  # noqa
         """TBD is NOT seeded when only two of the three prerequisites are complete, even
         after entity extraction rolls up to complete."""

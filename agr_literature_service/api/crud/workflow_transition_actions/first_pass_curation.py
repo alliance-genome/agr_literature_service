@@ -9,11 +9,12 @@ tag for a reference+MOD once all three prerequisite processes are complete:
   - reference / topic classification complete (ATP:0000169)
   - curation classification complete      (ATP:0000312)
 
-Entity extraction is the last step of the pre-curation pipeline, and its "complete" state
-is reached by the subtask roll-up in ``sub_task_complete`` (subtask_process.py), which
-sets the main tag directly rather than via a transition. So this check is invoked from
-that roll-up point (not as a transition action) when entity extraction becomes complete.
-It re-checks all three prerequisites and, when all are present, inserts the TBD tag.
+Each of those three prerequisite processes reaches its "complete" state via the subtask
+roll-up in ``sub_task_complete`` (subtask_process.py), which sets the main tag directly
+rather than via a transition. So this check is invoked from that roll-up point (not as a
+transition action) whenever ANY of the three prerequisites rolls up to complete -- it is
+order-independent, so whichever process finishes last triggers the seeding. It re-checks
+all three prerequisites and, when all are present, inserts the TBD tag.
 
 First pass curation is FlyBase-only, so this is a no-op for any other MOD. It mirrors
 ``proceed_on_value`` in that it only adds a tag and leaves the commit to the caller.
@@ -47,6 +48,16 @@ REQUIRED_COMPLETE_ATPS = (
     REFERENCE_CLASSIFICATION_COMPLETE_ATP,
     CURATION_CLASSIFICATION_COMPLETE_ATP,
 )
+
+# The sub_task_complete checktypes for the three prerequisite processes. The roll-up
+# invokes the TBD check when any of these completes, so the trigger is order-independent
+# (kept aligned with REQUIRED_COMPLETE_ATPS above). "email extraction" is intentionally
+# excluded -- it is not a first pass curation prerequisite.
+FIRST_PASS_CURATION_PREREQUISITE_CHECKTYPES = frozenset({
+    'entity extraction',
+    'reference classification',
+    'curation classification',
+})
 
 
 def set_first_pass_curation_tbd(db, current_workflow_tag_db_obj, args):
