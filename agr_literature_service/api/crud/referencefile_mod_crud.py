@@ -4,7 +4,10 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud.referencefile_mod_utils import read_referencefile_mod_obj_from_db
+from agr_literature_service.api.crud.referencefile_mod_utils import (
+    read_referencefile_mod_obj_from_db,
+    resync_derived_embeddings,
+)
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
@@ -26,6 +29,7 @@ def show(db: Session, referencefile_mod_id):
 
 def patch(db: Session, referencefile_mod_id: int, request):
     referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
+    old_referencefile_id = referencefile_mod.referencefile_id
     if "referencefile_id" in request:
         if read_referencefile_db_obj(db, request["referencefile_id"]):
             referencefile_mod.referencefile_id = request["referencefile_id"]
@@ -39,4 +43,9 @@ def patch(db: Session, referencefile_mod_id: int, request):
         else:
             referencefile_mod.mod_id = None
     db.commit()
+    # Access changed: propagate to embedding parquets derived from the
+    # affected referencefile(s) — both files when the association moved.
+    resync_derived_embeddings(db, old_referencefile_id)
+    if referencefile_mod.referencefile_id != old_referencefile_id:
+        resync_derived_embeddings(db, referencefile_mod.referencefile_id)
     return {"message": messageEnum.updated}

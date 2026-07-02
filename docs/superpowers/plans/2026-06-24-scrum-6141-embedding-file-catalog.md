@@ -2,6 +2,36 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Amendment (2026-07-02, agreed with Chris Tabone on PR #1220 — supersedes the
+> endpoint/access decisions below):**
+> 1. **No HTTP create endpoint.** `POST /reference/embedding_file/` was removed;
+>    embedding creation happens ABC-internally only, via
+>    `embedding_file_crud.create_or_update` (called by the producers, e.g. the
+>    file-conversion pipeline — SCRUM-6142). The router keeps only the
+>    `GET /{id}` lookup; discovery/download stay on the `referencefile` APIs.
+> 2. **Access is inherited from the source file, never caller-chosen.**
+>    `mod_abbreviation` was dropped from `EmbeddingFileSchemaCreate`;
+>    `create_or_update` syncs the parquet's `referencefile_mod` rows to exactly
+>    match the source referencefile's (MOD-specific source → same MODs;
+>    open-access/PMC source, i.e. a NULL mod row → open). Abstract embeddings
+>    (`source_referencefile_id` NULL) are open access. Re-registering after a
+>    source's access changed re-syncs (stale rows dropped), so a derived
+>    embedding can never be downloadable more broadly than its source text.
+> 3. **Access changes propagate immediately.** Every `referencefile_mod`
+>    mutation path — `referencefile_mod_utils.create`/`destroy`,
+>    `referencefile_mod_crud.patch`, and the merge-path
+>    `transfer_referencefile_mods` — now calls
+>    `embedding_file_crud.resync_embeddings_access_for_source` (no-op for
+>    non-source files), so derived parquets track their source's access without
+>    waiting for a re-registration. Removing a source's *last* association
+>    (which deletes the file) and the merge path also clean up derived
+>    embeddings first, closing two paths that previously stranded parquets.
+>
+> **Future work (SCRUM-6142):** a `create_if_not_exists`-style guard for
+> producers — check the catalog for `(reference, profile_name, version,
+> source_referencefile_id)` (via `get_embeddings_for_sources` or similar)
+> *before* generating, so embeddings are never recomputed when already present.
+
 **Goal:** Add a lean `embedding_file` catalog table (one row per `(reference, profile_name, version, source_referencefile_id)`, mapping 1:1 to a stored parquet) plus the CRUD and referencefile-API surface that lets consumers discover and download reference embeddings — embeddings stored as `referencefile` rows (`file_class='embedding'`) reusing existing file storage.
 
 **Architecture:** The parquet *is* a `referencefile` (md5-derived S3 location, existing storage). `embedding_file` is a non-audited sidecar catalog holding embedding semantics (`profile_name`, `version`, `model_name`) + two FKs into `referencefile`: `source_referencefile_id` (the `converted_merged_*` markdown that was embedded; `NULL` for abstracts) and `parquet_referencefile_id` (the stored parquet). Retrieval reuses the existing `referencefile` APIs: `show_all` gains an upward `source` sub-object on every derived file and **always lists `embedding` rows** (annotated with `profile_name`/`version`/`model_name`) — it returns every file, with downstream filtering on the result; `conversion_request` gains an `embeddings` list per converted file; download is the existing `download_file/{referencefile_id}` unchanged.

@@ -18,12 +18,14 @@ class EmbeddingFileSchemaBase(BaseModel):
 
 
 class EmbeddingFileSchemaCreate(EmbeddingFileSchemaBase):
-    """Posted alongside the parquet file when registering an embedding.
+    """Payload for registering an embedding parquet (ABC-internal producers
+    only — there is no public create endpoint).
 
-    ``mod_abbreviation`` is forwarded to the parquet referencefile upload
-    (referencefile_mod ownership); ``None`` = all-MOD (PMC).
+    Access is NOT part of the payload: the parquet's referencefile_mod set is
+    inherited from the source referencefile (MOD-specific source -> same MODs;
+    open/PMC source -> open), so a producer cannot register a restricted
+    paper's embedding under broader access than its source.
     """
-    mod_abbreviation: Optional[str] = None
 
 
 class EmbeddingFileSchemaShow(EmbeddingFileSchemaBase):

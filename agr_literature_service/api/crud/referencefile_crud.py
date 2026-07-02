@@ -532,6 +532,16 @@ def merge_referencefiles(db: Session,
             referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
             db.add(referencefile_mod)
     db.commit()
+    # The losing referencefile is deleted: drop its derived embeddings (row +
+    # parquet) first, or the embedding_file.source_referencefile_id cascade
+    # would strand the parquets. No-op when it isn't an embedding source.
+    # (Local import avoids a circular import: embedding_file_crud imports this
+    # module.)
+    from agr_literature_service.api.crud.embedding_file_crud import (
+        delete_embeddings_for_source,
+        resync_embeddings_access_for_source,
+    )
+    delete_embeddings_for_source(db, losing_referencefile.referencefile_id)
     # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
     db.delete(losing_referencefile)
 
@@ -540,6 +550,9 @@ def merge_referencefiles(db: Session,
             exclude_unset=True))
 
     db.commit()
+    # The winning referencefile may have gained mod associations: propagate the
+    # access change to any embedding parquets derived from it.
+    resync_embeddings_access_for_source(db, winning_referencefile_id)
 
 
 def file_paths_in_dir(directory):
