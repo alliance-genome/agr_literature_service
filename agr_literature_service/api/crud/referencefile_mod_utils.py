@@ -6,6 +6,21 @@ from agr_literature_service.api.models import ReferencefileModAssociationModel, 
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 
 
+def reject_direct_embedding_access_change(referencefile: ReferencefileModel) -> None:
+    """Embedding parquets' access is derived from their source file and kept in
+    sync by embedding_file_crud — the only writer allowed to touch it. Reject
+    changes coming through the public referencefile_mod surface: a direct edit
+    could make a derived embedding downloadable more broadly than the text it
+    was computed from. (Internal syncs write the rows directly, so they are not
+    affected by this guard.)"""
+    if referencefile.file_class == "embedding":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Access to embedding files is derived from their source file and cannot be "
+                   "changed directly. Change the source file's access instead, or delete the "
+                   "embedding by deleting its parquet referencefile.")
+
+
 def resync_derived_embeddings(db: Session, referencefile_id: int) -> None:
     """After an access (referencefile_mod) change on a referencefile, re-sync
     the access of any embedding parquets derived from it so a derived embedding
@@ -57,6 +72,7 @@ def read_referencefile_mod_obj_from_db(db: Session, referencefile_mod_id: int):
 
 def destroy(db: Session, referencefile_mod_id: int):
     referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
+    reject_direct_embedding_access_change(referencefile_mod.referencefile)
     referencefile_id = referencefile_mod.referencefile_id
     if len(referencefile_mod.referencefile.referencefile_mods) == 1:
         # Removing the last association deletes the whole referencefile. If it

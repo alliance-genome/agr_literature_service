@@ -4,18 +4,29 @@ from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
+from agr_literature_service.api.crud import referencefile_mod_utils
 from agr_literature_service.api.crud.referencefile_mod_utils import (
     read_referencefile_mod_obj_from_db,
+    reject_direct_embedding_access_change,
     resync_derived_embeddings,
 )
 from agr_literature_service.api.crud.referencefile_utils import read_referencefile_db_obj
 from agr_literature_service.api.models import ModModel
+from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 from agr_literature_service.api.schemas.response_message_schemas import messageEnum
-from agr_literature_service.api.crud.referencefile_mod_utils import create
 
 logger = logging.getLogger(__name__)
 
-create = create
+
+def create(db: Session, request: ReferencefileModSchemaPost):
+    """Public (router) create: like referencefile_mod_utils.create, but rejects
+    embedding files — their access is derived from the source file and only
+    embedding_file_crud may write it. The internal upload paths (create_metadata /
+    file_upload_single) call referencefile_mod_utils.create directly and are
+    unaffected, since they set the parquet's first, inherited association."""
+    referencefile = read_referencefile_db_obj(db, request.referencefile_id)
+    reject_direct_embedding_access_change(referencefile)
+    return referencefile_mod_utils.create(db, request)
 
 
 def show(db: Session, referencefile_mod_id):
@@ -29,9 +40,14 @@ def show(db: Session, referencefile_mod_id):
 
 def patch(db: Session, referencefile_mod_id: int, request):
     referencefile_mod = read_referencefile_mod_obj_from_db(db, referencefile_mod_id)
+    # Embedding access is derived from the source file: reject edits to an
+    # embedding's association AND moving any association onto an embedding.
+    reject_direct_embedding_access_change(referencefile_mod.referencefile)
     old_referencefile_id = referencefile_mod.referencefile_id
     if "referencefile_id" in request:
-        if read_referencefile_db_obj(db, request["referencefile_id"]):
+        target_referencefile = read_referencefile_db_obj(db, request["referencefile_id"])
+        if target_referencefile:
+            reject_direct_embedding_access_change(target_referencefile)
             referencefile_mod.referencefile_id = request["referencefile_id"]
     if "mod_abbreviation" in request:
         if request["mod_abbreviation"] is not None:

@@ -565,7 +565,7 @@ def test_transfer_mods_resyncs_and_cleans_embeddings(db, test_reference):  # noq
     losing_pq_id = losing_row.parquet_referencefile_id
     winning_pq_id = winning_row.parquet_referencefile_id
     with patch("agr_literature_service.api.crud.referencefile_utils.remove_file_from_s3"):
-        referencefile_crud.transfer_referencefile_mods(db, curie, losing_id, winning_id)
+        referencefile_crud.merge_referencefiles(db, curie, losing_id, winning_id)
     # losing side fully cleaned up: file, catalog row, parquet
     assert db.query(ReferencefileModel).filter_by(referencefile_id=losing_id).count() == 0
     assert db.query(EmbeddingFileModel).filter_by(source_referencefile_id=losing_id).count() == 0
@@ -573,3 +573,48 @@ def test_transfer_mods_resyncs_and_cleans_embeddings(db, test_reference):  # noq
     # winning gained WB from the transfer; its parquet followed
     assert _mods_of(db, winning_id) == {"WB", "FB"}
     assert _mods_of(db, winning_pq_id) == {"WB", "FB"}
+
+
+def test_direct_mod_changes_on_embedding_parquet_rejected(db, test_reference):  # noqa
+    """A parquet's access is derived from its source and only embedding_file_crud
+    may write it: the public referencefile_mod surface (create / patch / destroy)
+    rejects embedding targets with a 422 instead of letting access diverge."""
+    from agr_literature_service.api.crud import referencefile_mod_crud, referencefile_mod_utils
+    from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
+    populate_test_mods()
+    curie = test_reference.new_ref_curie
+    ref = db.query(ReferenceModel).filter(ReferenceModel.curie == curie).one()
+    md = _source_md_with_access(db, ref.reference_id, "guard_src", "WB")
+    row = _register_embedding(db, ref, md, "guardpq")
+    pq_id = row.parquet_referencefile_id
+    assert _mods_of(db, pq_id) == {"WB"}
+
+    # POST an association onto the parquet
+    with pytest.raises(HTTPException) as exc:
+        referencefile_mod_crud.create(db, ReferencefileModSchemaPost(
+            referencefile_id=pq_id, mod_abbreviation="FB"))
+    assert exc.value.status_code == 422
+
+    # PATCH the parquet's own association
+    pq_assoc = db.query(ReferencefileModAssociationModel).filter_by(
+        referencefile_id=pq_id).one()
+    with pytest.raises(HTTPException) as exc:
+        referencefile_mod_crud.patch(db, pq_assoc.referencefile_mod_id, {"mod_abbreviation": "FB"})
+    assert exc.value.status_code == 422
+
+    # PATCH moving a source association onto the parquet
+    src_assoc = db.query(ReferencefileModAssociationModel).filter_by(
+        referencefile_id=md.referencefile_id).one()
+    with pytest.raises(HTTPException) as exc:
+        referencefile_mod_crud.patch(db, src_assoc.referencefile_mod_id,
+                                     {"referencefile_id": pq_id})
+    assert exc.value.status_code == 422
+
+    # DELETE the parquet's association
+    with pytest.raises(HTTPException) as exc:
+        referencefile_mod_utils.destroy(db, pq_assoc.referencefile_mod_id)
+    assert exc.value.status_code == 422
+
+    # access unchanged by any of the rejected attempts
+    assert _mods_of(db, pq_id) == {"WB"}
+    assert _mods_of(db, md.referencefile_id) == {"WB"}

@@ -6,12 +6,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.referencefile_crud import file_upload_single
-from agr_literature_service.api.crud.referencefile_mod_utils import create as create_mod_connection
 from agr_literature_service.api.crud.referencefile_utils import remove_from_s3_and_db
 from agr_literature_service.api.crud.reference_utils import get_reference
-from agr_literature_service.api.models import EmbeddingFileModel, ReferencefileModel
+from agr_literature_service.api.models import (
+    EmbeddingFileModel,
+    ModModel,
+    ReferencefileModAssociationModel,
+    ReferencefileModel,
+)
 from agr_literature_service.api.schemas.embedding_file_schemas import EmbeddingFileSchemaCreate
-from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
 
 
 def _find_existing(db: Session, reference_id: int,
@@ -56,18 +59,27 @@ def _sync_parquet_access(db: Session, parquet_rf: ReferencefileModel,
                          desired: Set[Optional[str]]) -> None:
     """Make the parquet's referencefile_mod rows exactly match the inherited
     set: add the missing ones, then drop any extra (stale rows from a previous
-    registration whose source access has since changed). Extra rows are deleted
-    directly — referencefile_mod_utils.destroy would delete the whole
-    referencefile when removing its last association."""
+    registration whose source access has since changed). Rows are managed
+    directly rather than through the referencefile_mod helpers: the public ones
+    reject changes to embedding-file access (this module is the only writer of
+    it), and destroy() would delete the whole referencefile when removing its
+    last association."""
     current = {rfm.mod.abbreviation if rfm.mod is not None else None: rfm
                for rfm in parquet_rf.referencefile_mods}
+    changed = False
     for abbreviation in desired - current.keys():
-        create_mod_connection(db, ReferencefileModSchemaPost(
-            referencefile_id=parquet_rf.referencefile_id, mod_abbreviation=abbreviation))
-    stale = [rfm for abbreviation, rfm in current.items() if abbreviation not in desired]
-    if stale:
-        for rfm in stale:
+        mod_id = None
+        if abbreviation is not None:
+            mod_id = db.query(ModModel.mod_id).filter(
+                ModModel.abbreviation == abbreviation).one()[0]
+        db.add(ReferencefileModAssociationModel(
+            referencefile_id=parquet_rf.referencefile_id, mod_id=mod_id))
+        changed = True
+    for abbreviation, rfm in current.items():
+        if abbreviation not in desired:
             db.delete(rfm)
+            changed = True
+    if changed:
         db.commit()
 
 
@@ -199,9 +211,9 @@ def resync_embeddings_access_for_source(db: Session, referencefile_id: int) -> N
     referencefile_mod rows to the source's current set. No-op when the
     referencefile is not an embedding source, so it is safe (and cheap — one
     indexed query) to call from every referencefile_mod mutation path
-    (create / patch / destroy / merge transfer). Terminates on the parquets it
-    touches: a parquet is never itself an embedding source, so the nested
-    create hook no-ops."""
+    (create / patch / destroy / merge transfer). No recursion: the parquets'
+    rows are written directly by _sync_parquet_access, not through the hooked
+    helpers."""
     rows = db.query(EmbeddingFileModel).filter(
         EmbeddingFileModel.source_referencefile_id == referencefile_id).all()
     if not rows:

@@ -20,12 +20,23 @@
 > 3. **Access changes propagate immediately.** Every `referencefile_mod`
 >    mutation path — `referencefile_mod_utils.create`/`destroy`,
 >    `referencefile_mod_crud.patch`, and the merge-path
->    `transfer_referencefile_mods` — now calls
+>    `merge_referencefiles` — now calls
 >    `embedding_file_crud.resync_embeddings_access_for_source` (no-op for
 >    non-source files), so derived parquets track their source's access without
 >    waiting for a re-registration. Removing a source's *last* association
 >    (which deletes the file) and the merge path also clean up derived
 >    embeddings first, closing two paths that previously stranded parquets.
+> 4. **Direct access edits on embedding files are rejected (422).** The public
+>    `referencefile_mod` surface (POST via `referencefile_mod_crud.create`,
+>    PATCH — including moving an association onto a parquet — and DELETE via
+>    `referencefile_mod_utils.destroy`) refuses `file_class == "embedding"`
+>    targets: `embedding_file_crud` is the only writer of embedding access
+>    (`_sync_parquet_access` writes the rows directly). The internal upload
+>    path (`create_metadata`/`file_upload_single` → `referencefile_mod_utils.create`)
+>    stays unguarded — it sets the parquet's first, inherited association.
+>    Note: a MOD-scoped `DELETE /reference/referencefile/{parquet_id}` now 422s
+>    too (it worked by removing the MOD's association); embeddings are removed
+>    via their source or by ALL_ACCESS whole-file delete.
 >
 > **Future work (SCRUM-6142):** a `create_if_not_exists`-style guard for
 > producers — check the catalog for `(reference, profile_name, version,
