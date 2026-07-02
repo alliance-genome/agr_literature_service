@@ -7,7 +7,7 @@ import shutil
 import tarfile
 import tempfile
 from itertools import count
-from typing import List, Union
+from typing import List, Optional, Union
 
 import boto3  # type: ignore
 from fastapi import HTTPException, status, UploadFile
@@ -28,7 +28,7 @@ from agr_literature_service.api.crud.workflow_tag_crud import get_current_workfl
 from agr_literature_service.api.crud.topic_entity_tag_utils import delete_non_manual_tets, \
     has_manual_tet
 from agr_literature_service.api.models import ReferenceModel, ReferencefileModel, \
-    ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel
+    ReferencefileModAssociationModel, ModModel, CopyrightLicenseModel, EmbeddingFileModel
 from agr_cognito_py import ModAccess, MOD_ACCESS_ABBR
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
 from agr_literature_service.api.schemas.referencefile_mod_schemas import ReferencefileModSchemaPost
@@ -204,6 +204,52 @@ def _find_converted_derived_for_source(db: Session,
     return derived
 
 
+# Reverse of _CONVERTED_FILE_CLASS_FOR_SOURCE: a converted md's file_class ->
+# the set of source PDF/nXML file_classes it may have been produced from.
+# Note converted_merged_main can come from a `main` PDF OR an `nXML`, so this
+# must be a set (a naive {v: k} reverse would silently drop one source).
+_SOURCE_FILE_CLASSES_FOR_CONVERTED: dict = {}
+for _src_cls, _conv_cls in _CONVERTED_FILE_CLASS_FOR_SOURCE.items():
+    _SOURCE_FILE_CLASSES_FOR_CONVERTED.setdefault(_conv_cls, set()).add(_src_cls)
+
+
+def _source_dict(rf: ReferencefileModel) -> dict:
+    return {
+        "referencefile_id": int(rf.referencefile_id),
+        "display_name": rf.display_name,
+        "file_class": rf.file_class,
+        "file_extension": rf.file_extension,
+        "md5sum": rf.md5sum,
+    }
+
+
+def _find_source_for_derived(ref_file: ReferencefileModel, all_files: List[ReferencefileModel],
+                             embedding_source_by_id: dict) -> Optional[dict]:
+    """Resolve the referencefile a derived file was produced from (upward).
+
+    - embedding -> its converted_merged_* md, via the embedding_file FK
+      (precomputed in ``embedding_source_by_id``: parquet rf id -> source rf).
+    - converted_merged_* md -> its source PDF/nXML, via the display-name
+      suffix convention (reverse of _find_converted_derived_for_source).
+    Returns the source dict or None when it can't be resolved (e.g. figures,
+    source deleted, or convention miss) -- ``source`` is nullable by design.
+    """
+    if ref_file.file_class == "embedding":
+        src = embedding_source_by_id.get(int(ref_file.referencefile_id))
+        return _source_dict(src) if src is not None else None
+    source_classes = _SOURCE_FILE_CLASSES_FOR_CONVERTED.get(ref_file.file_class)
+    if not source_classes:
+        return None
+    display_name = ref_file.display_name or ""
+    for suffix in _CONVERTED_DISPLAY_NAME_SUFFIXES:
+        if display_name.endswith(suffix):
+            base = display_name[: len(display_name) - len(suffix)]
+            for cand in all_files:
+                if cand.file_class in source_classes and cand.display_name == base:
+                    return _source_dict(cand)
+    return None
+
+
 def get_referencefiles_by_md5(db: Session, md5sum: str) -> List[dict]:
     """Look up every referencefile with the given MD5 checksum.
 
@@ -274,14 +320,50 @@ def get_referencefiles_by_md5(db: Session, md5sum: str) -> List[dict]:
 
 
 def show_all(db: Session, curie_or_reference_id: str) -> List[ReferencefileSchemaRelated]:
+    """Return metadata for EVERY referencefile associated with the reference,
+    including `embedding` parquet rows (each annotated with its embedding_file
+    catalog fields + source lineage). It is a flat metadata list, so any
+    per-file-class / profile / version narrowing is done downstream on the
+    result rather than via endpoint params."""
     logger.info("Show all referencefiles")
     reference = get_reference(db=db, curie_or_reference_id=curie_or_reference_id, load_referencefiles=True)
+    all_files = list(reference.referencefiles or [])
+
+    # Map embedding parquet referencefile_id -> its embedding_file row, so we
+    # can both filter and enrich embedding entries without per-row queries.
+    parquet_ids = [int(rf.referencefile_id) for rf in all_files if rf.file_class == "embedding"]
+    emb_by_parquet: dict = {}
+    source_by_parquet: dict = {}
+    if parquet_ids:
+        rf_by_id = {int(rf.referencefile_id): rf for rf in all_files}
+        emb_rows = db.query(EmbeddingFileModel).filter(
+            EmbeddingFileModel.parquet_referencefile_id.in_(parquet_ids)).all()
+        for emb_row in emb_rows:
+            emb_by_parquet[int(emb_row.parquet_referencefile_id)] = emb_row
+            if emb_row.source_referencefile_id is not None:
+                source_by_parquet[int(emb_row.parquet_referencefile_id)] = rf_by_id.get(
+                    int(emb_row.source_referencefile_id))
+
     reference_files = []
-    if reference.referencefiles:
-        for ref_file in reference.referencefiles:
-            ref_file_dict = jsonable_encoder(ref_file)
-            set_referencefile_mods(referencefile_obj=ref_file, referencefile_dict=ref_file_dict)
-            reference_files.append(ref_file_dict)
+    for ref_file in all_files:
+        is_embedding = ref_file.file_class == "embedding"
+        emb_row = emb_by_parquet.get(int(ref_file.referencefile_id)) if is_embedding else None
+        ref_file_dict = jsonable_encoder(ref_file)
+        set_referencefile_mods(referencefile_obj=ref_file, referencefile_dict=ref_file_dict)
+        # Only derived files (embeddings + converted markdown) have an upward
+        # source; skip the lookup for originals/figures (the majority of rows)
+        # so they don't pay the all_files scan. The scan that remains runs only
+        # for the handful of converted_merged_* rows per reference.
+        is_derived = is_embedding or ref_file.file_class in _SOURCE_FILE_CLASSES_FOR_CONVERTED
+        ref_file_dict["source"] = (
+            _find_source_for_derived(ref_file, all_files, source_by_parquet)
+            if is_derived else None
+        )
+        if is_embedding and emb_row is not None:
+            ref_file_dict["profile_name"] = emb_row.profile_name
+            ref_file_dict["version"] = emb_row.version
+            ref_file_dict["model_name"] = emb_row.model_name
+        reference_files.append(ref_file_dict)
     return reference_files
 
 
@@ -372,6 +454,14 @@ def destroy(db: Session, referencefile_id: int, mod_access: ModAccess):
     pdf_type = referencefile.pdf_type
     all_mods = set()
     if mod_access == ModAccess.ALL_ACCESS:
+        # If this file is the source of any embeddings, drop those embeddings
+        # (row + parquet) first: the embedding_file.source_referencefile_id FK is
+        # ON DELETE CASCADE, so otherwise the cascade would remove the catalog
+        # rows here and strand their parquets (separate referencefiles). No-op
+        # for files that aren't an embedding source. (Local import avoids a
+        # circular import: embedding_file_crud imports this module.)
+        from agr_literature_service.api.crud.embedding_file_crud import delete_embeddings_for_source
+        delete_embeddings_for_source(db, referencefile.referencefile_id)
         remove_from_s3_and_db(db, referencefile)
     elif mod_access != ModAccess.NO_ACCESS:
         for referencefile_mod in referencefile.referencefile_mods:
@@ -449,6 +539,16 @@ def merge_referencefiles(db: Session,
             referencefile_mod.referencefile_id = winning_referencefile.referencefile_id
             db.add(referencefile_mod)
     db.commit()
+    # The losing referencefile is deleted: drop its derived embeddings (row +
+    # parquet) first, or the embedding_file.source_referencefile_id cascade
+    # would strand the parquets. No-op when it isn't an embedding source.
+    # (Local import avoids a circular import: embedding_file_crud imports this
+    # module.)
+    from agr_literature_service.api.crud.embedding_file_crud import (
+        delete_embeddings_for_source,
+        resync_embeddings_access_for_source,
+    )
+    delete_embeddings_for_source(db, losing_referencefile.referencefile_id)
     # call destroy on losing_referencefile or something else because it needs mod_access, and that will remove from s3 ?
     db.delete(losing_referencefile)
 
@@ -457,6 +557,9 @@ def merge_referencefiles(db: Session,
             exclude_unset=True))
 
     db.commit()
+    # The winning referencefile may have gained mod associations: propagate the
+    # access change to any embedding parquets derived from it.
+    resync_embeddings_access_for_source(db, winning_referencefile_id)
 
 
 def file_paths_in_dir(directory):

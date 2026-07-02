@@ -26,6 +26,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 resource_router, search_router, sort_router,
                                                 workflow_tag_router, topic_entity_tag_router,
                                                 referencefile_router, referencefile_mod_router,
+                                                embedding_file_router,
                                                 copyright_license_router, check_router,
                                                 dataset_router, ml_model_router,
                                                 image_permission_router,
@@ -144,6 +145,7 @@ app.include_router(workflow_tag_router.router)
 app.include_router(topic_entity_tag_router.router)
 app.include_router(referencefile_router.router)
 app.include_router(referencefile_mod_router.router)
+app.include_router(embedding_file_router.router)
 app.include_router(copyright_license_router.router)
 app.include_router(image_permission_router.router)
 app.include_router(check_router.router)
