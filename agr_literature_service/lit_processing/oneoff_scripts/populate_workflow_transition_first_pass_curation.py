@@ -17,10 +17,12 @@ transitions already present are left untouched.
     python3 populate_workflow_transition_first_pass_curation.py
 
 Note: the automated "first pass curation TBD" (ATP:0000371) tag is NOT wired via a
-transition row. Entity extraction (the last pre-curation step) reaches its "complete"
-state through the subtask roll-up in sub_task_complete, which sets the main tag directly
-rather than via a transition -- so a transition action would never fire. The roll-up
-instead calls set_first_pass_curation_tbd directly (see subtask_process.py).
+transition row. Each of the three prerequisite processes (entity extraction / reference
+classification / curation classification) reaches its "complete" state through the subtask
+roll-up in sub_task_complete, which sets the main tag directly rather than via a transition
+-- so a transition action would never fire. The roll-up instead calls
+set_first_pass_curation_tbd directly whenever any of the three completes (see
+subtask_process.py), so the trigger is order-independent.
 """
 import logging
 
