@@ -1674,8 +1674,13 @@ def _build_filter_flags(serialized_tags: List[Dict[str, Any]],
     get_global_user_id() is None), so a curator's own just-created validation
     would wrongly read as not-mine. This resolves the deferral from increment 3,
     where the client could only compare its Okta subject id against a serialized
-    display name. When ``rows``/``current_user_id`` are absent the flag stays
-    False for every cell. Matches cellPredicate's
+    display name. Because current_user_id is get_default_user_value() it is never
+    None from the real call sites (an unauthenticated/service-account request
+    resolves to 'default_user'), so such a request marks cells whose tags were
+    created by 'default_user' as mine -- consistent, since that is exactly the id
+    those tags are stamped with. The flag only stays False for every cell when
+    ``rows`` is not supplied (the default), which is why the guard below also
+    checks current_user_id is not None defensively. Matches cellPredicate's
     ``arr.some(t => t.created_by === currentUid)``: over ALL tags of the cell, not
     just curator validations. Topic keys are uppercased to match normalizeCurie."""
     flags: Dict[int, Dict[str, Any]] = defaultdict(lambda: defaultdict(_empty_filter_flags))
