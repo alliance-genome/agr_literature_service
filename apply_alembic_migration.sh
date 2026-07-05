@@ -73,12 +73,20 @@ echo "   sqlalchemy.url = postgresql://${PSQL_USERNAME}:********@${PSQL_HOST}:${
 echo " and restored to its original content when this script exits."
 echo ""
 if [ "${MODE}" = "devdb" ]; then
-    echo " Mode: devdb"
+    # Dev databases are distinguished by hostname (e.g. literature-4006);
+    # strip any domain suffix so just the name is shown
+    echo " Mode: ${PSQL_HOST%%.*}"
     echo "   1. Stop container:    api"
     echo "   2. Run:               alembic upgrade head (in dev_app)"
     echo "   3. Restart container: api"
 else
-    echo " Mode: rds"
+    # Identify the target from PSQL_HOST so stage vs prod is obvious at the prompt
+    case "${PSQL_HOST}" in
+        *literature-prod*rds*|*rds*literature-prod*) MODE_LABEL="PROD ABC database" ;;
+        *literature-dev*rds*|*rds*literature-dev*)   MODE_LABEL="STAGE ABC database" ;;
+        *) MODE_LABEL="rds (WARNING: unrecognized host '${PSQL_HOST}')" ;;
+    esac
+    echo " Mode: ${MODE_LABEL}"
     echo "   1. Stop containers:   dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup"
     echo "                         api, automated_scripts"
     echo "   2. Run:               alembic upgrade head (in dev_app)"
