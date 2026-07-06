@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt.exceptions import PyJWTError
 
 from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
 
@@ -273,7 +274,17 @@ class IPAwareCognitoAuth:
         # Priority 1: If Bearer token is provided, authenticate with it
         # This takes precedence over IP bypass so authenticated users get their real identity
         if credentials is not None:
-            return get_cognito_user_swagger(credentials, get_cognito_auth())
+            try:
+                return get_cognito_user_swagger(credentials, get_cognito_auth())
+            except HTTPException:
+                # Already a clean auth error (e.g. 401 for an expired/invalid-claims token)
+                raise
+            except PyJWTError as e:
+                # A token that can't be validated - e.g. its kid is not in the Cognito
+                # JWKS, as happens with a wrong-issuer token (a stale Okta token) - makes
+                # PyJWKClient raise a PyJWTError that is not caught downstream. Surface it
+                # as a clean 401 instead of letting it bubble up as a 500 Internal Server Error.
+                raise HTTPException(status_code=401, detail=f"Invalid authentication token: {e}")
 
         # Priority 2: Check for session cookie (for direct browser access)
         session_user = self._get_user_from_session_cookie(request)
