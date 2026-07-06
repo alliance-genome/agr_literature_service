@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Security
+from fastapi.responses import StreamingResponse
 from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
@@ -18,13 +19,15 @@ db_session: Session = Depends(get_db)
 
 @router.get('/references/external_ids/',
             status_code=200)
-async def show(db: Session = db_session,
-               user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    return reference_crud.show_all_references_external_ids(db)
+def show(db: Session = db_session,
+         user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    return StreamingResponse(reference_crud.stream_all_references_external_ids(db),
+                             media_type="application/json")
 
 
 @router.get('/resources/external_ids/',
             status_code=200)
-async def show_ex_ids(db: Session = db_session,
-                      user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
-    return resource_crud.show_all_resources_external_ids(db)
+def show_ex_ids(db: Session = db_session,
+                user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    return StreamingResponse(resource_crud.stream_all_resources_external_ids(db),
+                             media_type="application/json")
