@@ -37,7 +37,9 @@ if [ ! -f "${ENV_FILE}" ]; then
 fi
 
 get_var() {
-    grep -E "^$1=" "${ENV_FILE}" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'"
+    # "|| true" so an absent variable yields an empty string instead of
+    # tripping set -e before the MISSING check can report it
+    grep -E "^$1=" "${ENV_FILE}" | tail -1 | cut -d= -f2- | tr -d '"' | tr -d "'" || true
 }
 
 PSQL_USERNAME=$(get_var PSQL_USERNAME)
