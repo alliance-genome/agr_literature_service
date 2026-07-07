@@ -655,8 +655,27 @@ def process_single_reference(  # pragma: no cover
             )
 
     if main_success:
+        # Generate classifier embeddings for every merged Markdown of this
+        # reference (main + supplements), after the markdown is safely persisted.
+        _maybe_generate_embeddings(db, reference_id, reference_curie)
         return True, None
     return False, main_error or "Main reference conversion failed"
+
+
+def _maybe_generate_embeddings(  # pragma: no cover
+    db: Session, reference_id: int, reference_curie: str
+) -> None:
+    """Generate + register classifier embeddings for a converted reference's
+    merged Markdown. Idempotent (skips sources already embedded) and fully
+    isolated — any failure is logged and never flips the conversion result.
+    Dormant unless OPENAI_API_KEY is set and the embedding stack is installed."""
+    try:
+        from agr_literature_service.lit_processing.embedding.embedding_generation import (
+            generate_classifier_embeddings_for_reference,
+        )
+        generate_classifier_embeddings_for_reference(db, reference_id, reference_curie)
+    except Exception as e:
+        logger.error(f"Embedding generation failed for {reference_curie}: {e}")
 
 
 def process_newest_references(  # pragma: no cover
