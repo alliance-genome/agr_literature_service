@@ -68,9 +68,5 @@ cryptography>=41.0.0         # PyJWT can handle RS256 and other asymmetric algor
 
 # AGR Cognito Authentication
 agr-cognito-py==0.1.0        # AWS Cognito authentication for AGR services
-agr-abc-document-parsers==1.5.1  # Shared ABC document parsers (xml2md, md_reader, plain_text)
-# TODO(SCRUM-6142): to activate embedding generation, bump to the release that
-# ships the embeddings subpackage with its extra:
-#   agr-abc-document-parsers[embeddings]>=1.6.0  # adds tiktoken + pyarrow
-# Until then embedding_generation lazily no-ops. openai is the embedder client:
+agr-abc-document-parsers[embeddings]==1.6.0  # Shared ABC document parsers (xml2md, md_reader, plain_text, embeddings)
 openai>=1.0.0                # OpenAI embeddings client (SCRUM-6142 embedding generation)

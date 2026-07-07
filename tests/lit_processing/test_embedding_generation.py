@@ -2,9 +2,9 @@
 
 Two always-on tests prove the safe defaults (no key / stack unavailable -> the
 conversion job is unaffected) and the "merged Markdown only" source rule. The
-full end-to-end test is gated on the embeddings extra being installed (the
-shared agr_abc_document_parsers release that ships the embeddings subpackage);
-until then it skips, matching production where the feature is dormant.
+full end-to-end test needs the embeddings extra
+(agr-abc-document-parsers[embeddings], pinned in requirements.txt) and skips
+in environments installed without it.
 """
 
 from unittest.mock import patch
