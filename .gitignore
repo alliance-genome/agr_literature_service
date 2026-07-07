@@ -14,3 +14,4 @@ tmp
 .env.rdsdev
 .env.rdsprod
 .env.devserver4006
+alembic.ini.bak

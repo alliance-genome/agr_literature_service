@@ -2,6 +2,7 @@
 reference_crud.py
 =================
 """
+import json
 import logging
 import re
 from collections import defaultdict
@@ -12,10 +13,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
-from sqlalchemy import ARRAY, Boolean, String, func, and_, text, TextClause
+from sqlalchemy import func, and_, text, TextClause
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.sql.expression import cast, or_
+from sqlalchemy.sql.expression import or_
 from starlette.background import BackgroundTask
 
 from agr_literature_service.api.crud import (cross_reference_crud,
@@ -682,31 +683,50 @@ def delete_reference_email(db: Session, curie_or_reference_id: str, reference_em
     db.commit()
 
 
-def show_all_references_external_ids(db: Session):
+def stream_all_references_external_ids(db: Session):
     """
+    Stream every reference with its cross-reference external ids as a JSON array.
+
+    Rather than aggregating the whole reference x cross_reference join into memory
+    (array_agg + .all() + a list of dicts, which grows unbounded and previously timed
+    out / OOM'd the worker into a 502), this reads flat rows through a server-side
+    cursor ordered by reference curie and yields the JSON array one reference at a
+    time. Memory stays bounded and bytes start flowing immediately. The emitted
+    structure is identical to the previous implementation.
 
     :param db:
-    :return:
+    :return: a generator of JSON string chunks forming a JSON array
     """
+    rows = (
+        db.query(ReferenceModel.curie,
+                 CrossReferenceModel.curie,
+                 CrossReferenceModel.is_obsolete)
+        .outerjoin(ReferenceModel.cross_reference)
+        .order_by(ReferenceModel.curie)
+        .yield_per(1000)
+    )
 
-    references_query = db.query(ReferenceModel.curie,
-                                cast(func.array_agg(CrossReferenceModel.curie),
-                                     ARRAY(String)),
-                                cast(func.array_agg(CrossReferenceModel.is_obsolete),
-                                     ARRAY(Boolean))).outerjoin(ReferenceModel.cross_reference).group_by(
-        ReferenceModel.curie)
+    yield "["
+    first = True
+    current_curie = None
+    current_xrefs: List[Dict[str, Any]] = []
 
-    return [
-        {
-            "curie": reference[0],
-            "cross_references": [
-                {
-                    "curie": reference[1][idx],
-                    "is_obsolete": reference[2][idx]
-                } for idx in range(len(reference[1]))
-            ]
-        } for reference in references_query.all()
-    ]
+    for ref_curie, xref_curie, is_obsolete in rows:
+        if ref_curie != current_curie:
+            if current_curie is not None:
+                yield ("" if first else ",") + json.dumps(
+                    {"curie": current_curie, "cross_references": current_xrefs})
+                first = False
+            current_curie = ref_curie
+            current_xrefs = []
+        if xref_curie is not None:
+            current_xrefs.append({"curie": xref_curie, "is_obsolete": is_obsolete})
+
+    if current_curie is not None:
+        yield ("" if first else ",") + json.dumps(
+            {"curie": current_curie, "cross_references": current_xrefs})
+
+    yield "]"
 
 
 def show(db: Session, curie_or_reference_id: str):  # noqa
