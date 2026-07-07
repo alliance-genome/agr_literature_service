@@ -668,14 +668,12 @@ def _maybe_generate_embeddings(  # pragma: no cover
     """Generate + register classifier embeddings for a converted reference's
     merged Markdown. Idempotent (skips sources already embedded) and fully
     isolated — any failure is logged and never flips the conversion result.
-    Dormant unless OPENAI_API_KEY is set and the embedding stack is installed."""
-    try:
-        from agr_literature_service.lit_processing.embedding.embedding_generation import (
-            generate_classifier_embeddings_for_reference,
-        )
-        generate_classifier_embeddings_for_reference(db, reference_id, reference_curie)
-    except Exception as e:
-        logger.error(f"Embedding generation failed for {reference_curie}: {e}")
+    Dormant unless OPENAI_API_KEY is set and the embedding stack is installed,
+    and skipped for references not in a classifier MOD's corpus."""
+    from agr_literature_service.lit_processing.embedding.embedding_generation import (
+        maybe_generate_classifier_embeddings,
+    )
+    maybe_generate_classifier_embeddings(db, reference_id, reference_curie)
 
 
 def process_newest_references(  # pragma: no cover

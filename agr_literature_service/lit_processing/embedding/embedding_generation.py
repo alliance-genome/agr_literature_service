@@ -32,7 +32,11 @@ from agr_cognito_py import ModAccess
 from agr_literature_service.api.config import config
 from agr_literature_service.api.crud import embedding_file_crud
 from agr_literature_service.api.crud.referencefile_crud import download_file
-from agr_literature_service.api.models import ReferencefileModel
+from agr_literature_service.api.models import (
+    ModCorpusAssociationModel,
+    ModModel,
+    ReferencefileModel,
+)
 from agr_literature_service.api.schemas.embedding_file_schemas import EmbeddingFileSchemaCreate
 
 logger = logging.getLogger(__name__)
@@ -42,6 +46,31 @@ logger = logging.getLogger(__name__)
 MERGED_SOURCE_FILE_CLASSES = ("converted_merged_main", "converted_merged_supplement")
 
 VERSION = 1
+
+# MODs whose ML topic classifiers consume these classifier embeddings. Only
+# references in the corpus of one of these MODs are embedded, so we don't spend
+# OpenAI generating classifier embeddings that no classifier will use. This is
+# intentionally a hardcoded list for now — extend it as more MODs get
+# classifiers, or replace it with an ml_model-table lookup. NOTE: this filter is
+# specific to *classifier* embeddings; future embeddings for other tools produce
+# separate embedding files and must not reuse it.
+ML_CLASSIFIER_MODS = ("WB", "FB")
+
+
+def _reference_has_classifier_mod(db, reference_id: int) -> bool:
+    """True iff the reference is in corpus for at least one MOD that has an ML
+    classifier (see :data:`ML_CLASSIFIER_MODS`)."""
+    return (
+        db.query(ModCorpusAssociationModel)
+        .join(ModModel, ModModel.mod_id == ModCorpusAssociationModel.mod_id)
+        .filter(
+            ModCorpusAssociationModel.reference_id == reference_id,
+            ModCorpusAssociationModel.corpus.is_(True),
+            ModModel.abbreviation.in_(ML_CLASSIFIER_MODS),
+        )
+        .first()
+        is not None
+    )
 
 
 def generate_classifier_embeddings_for_reference(
@@ -75,6 +104,15 @@ def generate_classifier_embeddings_for_reference(
             "'agr-abc-document-parsers[embeddings]' and 'openai' to enable.", exc
         )
         return {"skipped": "deps_unavailable"}
+
+    # Only embed references belonging to a MOD that actually has an ML classifier
+    # — otherwise the embeddings would never be consumed.
+    if not _reference_has_classifier_mod(db, reference_id):
+        logger.debug(
+            "Reference %s is not in a classifier MOD corpus (%s); skipping "
+            "classifier embedding generation", reference_id, ML_CLASSIFIER_MODS
+        )
+        return {"skipped": "no_classifier_mod"}
 
     sources = (
         db.query(ReferencefileModel)
@@ -191,3 +229,28 @@ def _embed_and_register(db, reference_curie, source, chunker, embedder, profile_
         "Registered %s embedding for referencefile %s (%s): %d chunks",
         profile_name, source_id, reference_curie, len(chunks)
     )
+
+
+def maybe_generate_classifier_embeddings(
+    db, reference_id: int, reference_curie: Optional[str] = None
+) -> None:
+    """Fire-and-forget wrapper around
+    :func:`generate_classifier_embeddings_for_reference` for conversion callers.
+
+    Fully isolated: any failure is logged and swallowed so classifier embedding
+    generation can never flip the outcome of a conversion. The underlying
+    function already no-ops (returns a skip reason) when the feature is disabled,
+    the embedding stack is missing, or the reference is not in a classifier MOD's
+    corpus."""
+    try:
+        result = generate_classifier_embeddings_for_reference(
+            db, reference_id, reference_curie
+        )
+        logger.debug(
+            "Classifier embedding result for reference %s: %s", reference_id, result
+        )
+    except Exception as exc:
+        logger.error(
+            "Classifier embedding generation failed for reference %s (%s): %s",
+            reference_id, reference_curie, exc
+        )
