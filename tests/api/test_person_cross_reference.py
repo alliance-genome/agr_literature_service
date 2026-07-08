@@ -173,10 +173,12 @@ class TestPersonCrossReference:
         rows, mirroring the Biblio cross_reference partial unique indexes.
         """
         with TestClient(app) as client:
-            # Soft-delete the baseline ORCID xref.
+            # Soft-delete the baseline ORCID xref. The PATCH endpoint requires
+            # curie (PersonCrossReferenceSchemaCreate), so resend it alongside
+            # is_obsolete, matching test_patch_is_obsolete.
             res = client.patch(
                 f"/person_cross_reference/{test_person_xref.new_person_cross_reference_id}",
-                json={"is_obsolete": True},
+                json={"curie": "ORCID:0000-0001-2345-6789", "is_obsolete": True},
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_200_OK
