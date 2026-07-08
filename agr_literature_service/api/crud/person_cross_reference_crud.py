@@ -48,10 +48,13 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
 
     curie_prefix = _curie_prefix(curie)
 
-    # curie is globally unique on person_cross_reference (uq_person_xref_curie).
+    # curie is unique among non-obsolete person_cross_reference rows (uq_person_xref_curie).
     dup = (
         db.query(PersonCrossReferenceModel.person_cross_reference_id)
-        .filter(PersonCrossReferenceModel.curie == curie)
+        .filter(
+            PersonCrossReferenceModel.curie == curie,
+            PersonCrossReferenceModel.is_obsolete.is_(False),
+        )
         .first()
     )
     if dup:
@@ -60,12 +63,14 @@ def create_for_person(db: Session, person_id: int, payload: Dict[str, Any]) -> P
             detail=f"Cross-reference '{curie}' already exists",
         )
 
-    # (person_id, curie_prefix) is unique per-person (uq_person_xref_person_prefix).
+    # (person_id, curie_prefix) is unique per-person among non-obsolete rows
+    # (uq_person_xref_person_prefix).
     prefix_dup = (
         db.query(PersonCrossReferenceModel.person_cross_reference_id)
         .filter(
             PersonCrossReferenceModel.person_id == person_id,
             PersonCrossReferenceModel.curie_prefix == curie_prefix,
+            PersonCrossReferenceModel.is_obsolete.is_(False),
         )
         .first()
     )
@@ -170,12 +175,13 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
         new_curie = data["curie"].strip()
         new_prefix = _curie_prefix(new_curie)
 
-        # curie is globally unique on person_cross_reference (uq_person_xref_curie).
+        # curie is unique among non-obsolete person_cross_reference rows (uq_person_xref_curie).
         dup = (
             db.query(PersonCrossReferenceModel.person_cross_reference_id)
             .filter(
                 PersonCrossReferenceModel.curie == new_curie,
                 PersonCrossReferenceModel.person_cross_reference_id != person_cross_reference_id,
+                PersonCrossReferenceModel.is_obsolete.is_(False),
             )
             .first()
         )
@@ -185,9 +191,10 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
                 detail=f"Cross-reference '{new_curie}' already exists",
             )
 
-        # (person_id, curie_prefix) is unique per-person (uq_person_xref_person_prefix).
-        # NULL person_ids are exempt — Postgres treats NULLs in unique constraints
-        # as distinct, so the constraint only fires when person_id is non-null.
+        # (person_id, curie_prefix) is unique per-person among non-obsolete rows
+        # (uq_person_xref_person_prefix). NULL person_ids are exempt — Postgres treats
+        # NULLs in unique indexes as distinct, so the index only fires when person_id
+        # is non-null.
         if obj.person_id is not None:
             prefix_dup = (
                 db.query(PersonCrossReferenceModel.person_cross_reference_id)
@@ -195,6 +202,7 @@ def patch(db: Session, person_cross_reference_id: int, patch_dict: Dict[str, Any
                     PersonCrossReferenceModel.person_id == obj.person_id,
                     PersonCrossReferenceModel.curie_prefix == new_prefix,
                     PersonCrossReferenceModel.person_cross_reference_id != person_cross_reference_id,
+                    PersonCrossReferenceModel.is_obsolete.is_(False),
                 )
                 .first()
             )
