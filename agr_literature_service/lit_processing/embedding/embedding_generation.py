@@ -185,18 +185,22 @@ def _embed_and_register(db, reference_curie, source, chunker, embedder, profile_
     if not chunks:
         logger.info("No chunks produced for referencefile %s; skipping", source_id)
         return
-    embedder.embed_chunks(chunks)
 
+    # Append the optional whole-document vector as one more chunk BEFORE embedding,
+    # so the document text is embedded in the same batched request as the
+    # paragraph chunks — one OpenAI round trip per source instead of two. This
+    # matters for bulk runs where OpenAI round-trip latency dominates per-source
+    # cost. document_text() must be computed on the paragraph chunks only.
     if include_document_vector:
-        doc_text = chunker.document_text(chunks)
-        doc_input = embedder.truncate_to_limit(doc_text)
-        doc_vector = embedder.embed([doc_input])[0]
+        doc_input = embedder.truncate_to_limit(chunker.document_text(chunks))
         chunks.append(Chunk(
             reference_curie=reference_curie, chunk_index=-1, content=doc_input,
             profile_name=profile_name, chunking_strategy="document",
             section_title="__document__", is_document_level=True,
-            n_tokens=embedder.count_tokens(doc_input), embedding=doc_vector,
+            n_tokens=embedder.count_tokens(doc_input),
         ))
+
+    embedder.embed_chunks(chunks)
 
     recipe = EmbeddingRecipe(
         profile_name=profile_name, version=VERSION,
