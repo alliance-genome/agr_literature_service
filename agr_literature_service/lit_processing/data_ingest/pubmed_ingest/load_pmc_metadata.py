@@ -49,9 +49,10 @@ def build_file_root_mappings(input_file):
     return pmcid_to_xml_root, pmcid_to_pdf_roots
 
 
-def determine_file_class(file_name, file_extension, pmcid, pmcid_to_xml_root, pmcid_to_pdf_roots):
+def determine_file_class(file_name, file_extension, pmcid, pmcid_to_xml_root, pmcid_to_pdf_roots,
+                         file_size=None):
     """Determine the file_class for a PMC file based on extension and root name matching."""
-    file_class = classify_pmc_file(file_name, file_extension)
+    file_class = classify_pmc_file(file_name, file_extension, file_size)
     file_root = file_name.lower()
 
     # Check if this PDF is the main PDF (matches XML root name)
@@ -126,12 +127,17 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 if referencefile_id in ref_files_id_pmc_set:
                     continue
 
+            # Optional 5th column: raw file size in bytes (added by the PMC
+            # download step) used for size-based thumbnail classification.
+            file_size = int(pieces[4]) if len(pieces) > 4 and pieces[4].strip().isdigit() else None
+
             file_class = None
             if not referencefile_id:
                 file_extension = file_name_with_suffix.split(".")[-1].lower()
                 file_name = file_name_with_suffix.replace("." + file_extension, "")
                 file_class = determine_file_class(file_name, file_extension, pmcid,
-                                                  pmcid_to_xml_root, pmcid_to_pdf_roots)
+                                                  pmcid_to_xml_root, pmcid_to_pdf_roots,
+                                                  file_size)
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,

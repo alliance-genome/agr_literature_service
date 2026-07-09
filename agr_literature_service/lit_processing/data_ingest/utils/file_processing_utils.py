@@ -196,7 +196,34 @@ def remove_old_files(dir_path, days_old):
                 remove(file_path)
 
 
-def classify_pmc_file(file_name, file_extension):
+# Maximum file size (in bytes) below which a PMC image is treated as a
+# thumbnail rather than a full figure. Derived from the observed size
+# distribution of PMC figure images (SCRUM-6281): genuine thumbnails cluster
+# below ~25 KB for gif and ~15 KB for jpg, while full figures are much larger.
+# These thresholds are applied to two slightly different measurements: the raw
+# file size at ingest, and the gzipped S3 object size in the backfill. For jpeg
+# that difference is negligible (already-compressed, raw/gz ~= 1.0), but for gif
+# gzip shrinks the LZW stream a bit further (measured raw/gz ~= 1.09 on average,
+# up to ~1.15 near the boundary). The gif thumbnail population sits well below
+# 20 KB with very few files in 20-30 KB, so this only affects a handful of
+# boundary cases; a per-file exact split would require the raw bytes on both
+# paths, which is not worth the extra S3 downloads.
+THUMBNAIL_MAX_SIZE_BYTES = {
+    'gif': 25000,
+    'jpg': 15000,
+    'jpeg': 15000,
+}
+
+
+def is_thumbnail_by_size(file_extension, file_size):
+    """Return True if an image of this extension and size is a thumbnail."""
+    if file_size is None:
+        return False
+    max_size = THUMBNAIL_MAX_SIZE_BYTES.get(file_extension.lower())
+    return max_size is not None and file_size < max_size
+
+
+def classify_pmc_file(file_name, file_extension, file_size=None):
 
     """
     image_related_file_extensions = [
@@ -205,12 +232,18 @@ def classify_pmc_file(file_name, file_extension):
     ]
     """
     image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
-    if file_extension.lower() == "nxml":
+    ext = file_extension.lower()
+    if ext == "nxml":
         return "nXML"
-    if "thumb" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
-        return "thumbnail"
-    # if "fig" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
-    if file_extension.lower() in image_related_file_extensions:
+    if ext in image_related_file_extensions:
+        # Some publishers (e.g. JoVE, Royal Society) label thumbnails in the
+        # file name; honor that regardless of size.
+        if "thumb" in file_name.lower():
+            return "thumbnail"
+        # Otherwise rely on size: PMC packages ship most figures as a large
+        # image plus a small same-named thumbnail that is NOT named "thumb".
+        if is_thumbnail_by_size(ext, file_size):
+            return "thumbnail"
         return "figure"
     return "supplement"
 
