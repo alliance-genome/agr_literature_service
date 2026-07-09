@@ -200,9 +200,14 @@ def remove_old_files(dir_path, days_old):
 # thumbnail rather than a full figure. Derived from the observed size
 # distribution of PMC figure images (SCRUM-6281): genuine thumbnails cluster
 # below ~25 KB for gif and ~15 KB for jpg, while full figures are much larger.
-# The stored object is gzipped, but for already compressed image formats that
-# is within a few percent of the raw size, so the same thresholds apply to
-# both the raw size seen at ingest and the gzipped size seen in S3.
+# These thresholds are applied to two slightly different measurements: the raw
+# file size at ingest, and the gzipped S3 object size in the backfill. For jpeg
+# that difference is negligible (already-compressed, raw/gz ~= 1.0), but for gif
+# gzip shrinks the LZW stream a bit further (measured raw/gz ~= 1.09 on average,
+# up to ~1.15 near the boundary). The gif thumbnail population sits well below
+# 20 KB with very few files in 20-30 KB, so this only affects a handful of
+# boundary cases; a per-file exact split would require the raw bytes on both
+# paths, which is not worth the extra S3 downloads.
 THUMBNAIL_MAX_SIZE_BYTES = {
     'gif': 25000,
     'jpg': 15000,
