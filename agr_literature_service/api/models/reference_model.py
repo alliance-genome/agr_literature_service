@@ -248,6 +248,24 @@ class ReferenceModel(Base, AuditedModel):
         "CopyrightLicenseModel"
     )
 
+    # Denormalized columns maintained by database triggers
+    # (see agr_literature_service/api/triggers/reference_image_sql_func_triggers.py).
+    # can_display_image mirrors get_effective_image_permission() in reference_crud.py;
+    # image_count is the number of referencefiles with file_class like '%figure%'.
+    can_display_image = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default='false'
+    )
+
+    image_count = Column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default='0'
+    )
+
     citation_id = Column(
         Integer,
         ForeignKey("citation.citation_id"),
