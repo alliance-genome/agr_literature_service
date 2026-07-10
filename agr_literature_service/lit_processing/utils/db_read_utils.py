@@ -693,6 +693,43 @@ def get_mod_abbreviations(db_session: Session = None):
     return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation.not_in(['GO', 'AGR'])).all()]
 
 
+# Cache the distinct cross_reference curie prefixes. The query scans a large table
+# and the set of prefixes changes rarely, so refresh at most once per TTL window.
+_cross_reference_prefix_cache: Dict[str, Any] = {"prefixes": None, "fetched_at": None}
+_CROSS_REFERENCE_PREFIX_TTL = timedelta(hours=1)
+
+
+def get_cross_reference_curie_prefixes(db_session: Session = None):
+    """
+    Return the distinct curie_prefix values found in the cross_reference table
+    (e.g. PMID, DOI, PDB, GEO, ArrayExpress, ...). Used by the "all" search to
+    route xref-style queries to the dedicated cross_reference lookup so that
+    papers can be found by any of their cross-reference ids, not just the small
+    hardcoded set of publication/MOD prefixes.
+
+    Cached for _CROSS_REFERENCE_PREFIX_TTL. On a query failure the last known
+    good value (or an empty list) is returned so search stays available.
+    """
+    now = datetime.now()
+    cached = _cross_reference_prefix_cache["prefixes"]
+    fetched_at = _cross_reference_prefix_cache["fetched_at"]
+    if cached is not None and fetched_at is not None and (now - fetched_at) < _CROSS_REFERENCE_PREFIX_TTL:
+        return cached
+
+    try:
+        if db_session is None:
+            db_session = create_postgres_session(False)
+        rows = db_session.execute(
+            text("SELECT DISTINCT curie_prefix FROM cross_reference WHERE curie_prefix IS NOT NULL")
+        ).fetchall()
+        prefixes = [row[0] for row in rows]
+        _cross_reference_prefix_cache["prefixes"] = prefixes
+        _cross_reference_prefix_cache["fetched_at"] = now
+        return prefixes
+    except Exception:
+        return cached or []
+
+
 def get_pmid_list_without_pmc_package(mods, db_session: Session = None):
     if db_session is None:
         db_session = create_postgres_session(False)

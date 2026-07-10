@@ -12,7 +12,10 @@ from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants
-from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
+from agr_literature_service.lit_processing.utils.db_read_utils import (
+    get_mod_abbreviations,
+    get_cross_reference_curie_prefixes,
+)
 
 from agr_literature_service.api.crud.search_ranking import (
     TEXT_FIELDS,
@@ -119,12 +122,14 @@ def search_references(
         if q_norm.upper().startswith("AGRKB:"):
             query_fields = "Curie"
         elif ':' in q_norm:
-            curie_prefix_list = get_mod_abbreviations()  # e.g. ["SGD", "WB", "XB", ...]
-            # normalize to a set for easy lookup
-            curie_prefix_list = set(curie_prefix_list)
-
-            # also accept publication and DOI prefixes
+            # Route xref-style queries to the dedicated cross_reference lookup. The
+            # accepted prefixes are the MOD abbreviations, the common publication
+            # prefixes, and every distinct cross_reference curie_prefix in the DB
+            # (GEO, PDB, ArrayExpress, ...), so a paper can be found by any of its
+            # cross-reference ids rather than only a hardcoded handful.
+            curie_prefix_list = {p.upper() for p in get_mod_abbreviations()}
             curie_prefix_list.update({"PMID", "PMCID", "DOI"})
+            curie_prefix_list.update({p.upper() for p in get_cross_reference_curie_prefixes()})
 
             query_prefix = q_norm.split(':', 1)[0]
             if query_prefix.upper() in curie_prefix_list:

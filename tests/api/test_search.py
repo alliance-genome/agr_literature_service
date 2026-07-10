@@ -177,7 +177,7 @@ def initialize_elasticsearch():
             {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
             {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
         ],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}, {"curie": "PDB:1ABC", "is_obsolete": "false"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["review"],
         "language" : "English",
@@ -445,6 +445,18 @@ class TestSearch:
             res = client.post("/search/references/", json=payload, headers=auth_headers).json()
             assert res["return_count"] == 1
             assert res["hits"][0]["curie"] == "AGRKB:101000000000002"
+
+    def test_search_all_routes_cross_reference_prefix_to_xref(self, initialize_elasticsearch, auth_headers, monkeypatch):  # noqa
+        # A non-MOD/non-publication xref prefix (e.g. PDB) present in the DB should be
+        # routed from the default "all" search to the dedicated cross_reference lookup,
+        # so the paper is found by its PDB id instead of being dropped by the content gate.
+        from agr_literature_service.api.crud import search_crud as sc
+        monkeypatch.setattr(sc, "get_cross_reference_curie_prefixes", lambda *a, **k: ["PDB"])
+        with TestClient(app) as client:
+            payload = {"query": "PDB:1ABC", "return_facets_only": False}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000001" in curies
 
     def test_search_with_author_filter_only(self, initialize_elasticsearch, auth_headers):  # noqa
         with TestClient(app) as client:
