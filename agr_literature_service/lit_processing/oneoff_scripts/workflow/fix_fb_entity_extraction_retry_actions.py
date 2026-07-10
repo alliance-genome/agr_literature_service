@@ -69,6 +69,20 @@ def fix_fb_entity_extraction_retry_actions(db_session, debug=True):
     fb_mod_id = get_fb_mod_id(db_session)
     from_tags = get_extraction_from_tags()
 
+    if debug:
+        logger.info(f"Resolved {len(from_tags)} entity-extraction transition_from tag(s): "
+                    f"{sorted(from_tags)}")
+        all_retry = db_session.query(WorkflowTransitionModel).filter(
+            WorkflowTransitionModel.mod_id == fb_mod_id,
+            WorkflowTransitionModel.condition.contains('on_retry')).all()
+        logger.info(f"All {len(all_retry)} FB on_retry row(s) in DB:")
+        for row in all_retry:
+            in_tree = row.transition_from in from_tags
+            logger.info(
+                f"  {row.transition_from} -> {row.transition_to} "
+                f"(condition={row.condition!r}, actions={row.actions!r}, "
+                f"in_extraction_tree={in_tree})")
+
     rows = db_session.query(WorkflowTransitionModel).filter(
         WorkflowTransitionModel.mod_id == fb_mod_id,
         WorkflowTransitionModel.condition.contains('on_retry'),
