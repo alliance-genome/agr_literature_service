@@ -37,7 +37,8 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 logging.basicConfig(format='%(asctime)s %(levelname)-8s %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
-# entity extraction parents (ATP:0000172 family)
+# entity extraction ontology roots (ATP:0000172 family)
+ENTITY_EXTRACTION_PROCESS = 'ATP:0000172'      # entity extraction (process root)
 ENTITY_EXTRACTION_FAILED = 'ATP:0000187'       # entity extraction failed
 ENTITY_EXTRACTION_IN_PROGRESS = 'ATP:0000190'  # entity extraction in progress
 
@@ -72,16 +73,18 @@ def fix_fb_entity_extraction_retry_actions(db_session, debug=True):
     if debug:
         logger.info(f"Resolved {len(from_tags)} entity-extraction transition_from tag(s): "
                     f"{sorted(from_tags)}")
-        all_retry = db_session.query(WorkflowTransitionModel).filter(
+        # Full picture: every FB transition touching the entity-extraction tree
+        # (descendants of the process root), across all conditions.
+        tree = set(atp_get_all_descendants(ENTITY_EXTRACTION_PROCESS, include_self=True))
+        all_ext = db_session.query(WorkflowTransitionModel).filter(
             WorkflowTransitionModel.mod_id == fb_mod_id,
-            WorkflowTransitionModel.condition.contains('on_retry')).all()
-        logger.info(f"All {len(all_retry)} FB on_retry row(s) in DB:")
-        for row in all_retry:
-            in_tree = row.transition_from in from_tags
+            (WorkflowTransitionModel.transition_from.in_(tree)
+             | WorkflowTransitionModel.transition_to.in_(tree))).all()
+        logger.info(f"All {len(all_ext)} FB transition(s) in the entity-extraction tree:")
+        for row in sorted(all_ext, key=lambda r: (str(r.condition), r.transition_from)):
             logger.info(
                 f"  {row.transition_from} -> {row.transition_to} "
-                f"(condition={row.condition!r}, actions={row.actions!r}, "
-                f"in_extraction_tree={in_tree})")
+                f"(condition={row.condition!r}, actions={row.actions!r})")
 
     rows = db_session.query(WorkflowTransitionModel).filter(
         WorkflowTransitionModel.mod_id == fb_mod_id,
