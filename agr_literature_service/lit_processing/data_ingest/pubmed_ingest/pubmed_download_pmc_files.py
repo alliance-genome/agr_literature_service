@@ -316,9 +316,11 @@ def upload_suppl_files_to_s3():  # pragma: no cover
                     if gzip_file_with_path is None:
                         skip_count += 1
                         continue
+                    file_size = path.getsize(file_with_path)
                     status = upload_suppl_file_to_s3(gzip_file_with_path, md5sum)
                     if status is True:
-                        fw.write(pmid + "\t" + pmcid + "\t" + file_name + "\t" + md5sum + "\n")
+                        fw.write(pmid + "\t" + pmcid + "\t" + file_name + "\t"
+                                 + md5sum + "\t" + str(file_size) + "\n")
                         upload_count += 1
         except Exception as e:
             error_count += 1

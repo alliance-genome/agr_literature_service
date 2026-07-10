@@ -591,7 +591,8 @@ def add_file(db, pmid, file_name, md5sum, old_file_class, pmcid, reference_id, r
             _, file_extension = file_name.rsplit(".", 1)
         else:
             file_extension = ""
-        file_class = classify_pmc_file(file_name, file_extension.lower())
+        file_size = path.getsize(file_with_path)
+        file_class = classify_pmc_file(file_name, file_extension.lower(), file_size)
 
     logger.info(f"{pmid}: file_class for {file_name} is {file_class}")
 
