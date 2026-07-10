@@ -12,7 +12,10 @@ from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants
-from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
+from agr_literature_service.lit_processing.utils.db_read_utils import (
+    get_mod_abbreviations,
+    get_cross_reference_curie_prefixes,
+)
 
 from agr_literature_service.api.crud.search_ranking import (
     TEXT_FIELDS,
@@ -119,12 +122,14 @@ def search_references(
         if q_norm.upper().startswith("AGRKB:"):
             query_fields = "Curie"
         elif ':' in q_norm:
-            curie_prefix_list = get_mod_abbreviations()  # e.g. ["SGD", "WB", "XB", ...]
-            # normalize to a set for easy lookup
-            curie_prefix_list = set(curie_prefix_list)
-
-            # also accept publication and DOI prefixes
+            # Route xref-style queries to the dedicated cross_reference lookup. The
+            # accepted prefixes are the MOD abbreviations, the common publication
+            # prefixes, and every distinct cross_reference curie_prefix in the DB
+            # (GEO, PDB, ArrayExpress, ...), so a paper can be found by any of its
+            # cross-reference ids rather than only a hardcoded handful.
+            curie_prefix_list = {p.upper() for p in get_mod_abbreviations()}
             curie_prefix_list.update({"PMID", "PMCID", "DOI"})
+            curie_prefix_list.update({p.upper() for p in get_cross_reference_curie_prefixes()})
 
             query_prefix = q_norm.split(':', 1)[0]
             if query_prefix.upper() in curie_prefix_list:
@@ -204,6 +209,21 @@ def search_references(
                     "field": "retraction_status",
                     "min_doc_count": 0,
                     "size": facets_limits.get("retraction_status.keyword", 10)
+                }
+            },
+            "can_display_image": {
+                "terms": {
+                    "field": "can_display_image",
+                    "min_doc_count": 0,
+                    "size": 2
+                }
+            },
+            "has_image": {
+                "filters": {
+                    "filters": {
+                        "true": {"range": {"image_count": {"gt": 0}}},
+                        "false": {"range": {"image_count": {"lte": 0}}}
+                    }
                 }
             },
             "mods_in_corpus.keyword": {
@@ -509,6 +529,18 @@ def search_references(
                     }
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
+            elif facet_field == "has_image":
+                # image_count-derived boolean facet: "true" => figures uploaded (image_count > 0)
+                should: List[Dict[str, Any]] = []
+                for facet_value in facet_list_values:
+                    if str(facet_value).lower() == "true":
+                        should.append({"range": {"image_count": {"gt": 0}}})
+                    else:
+                        should.append({"range": {"image_count": {"lte": 0}}})
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                    {"bool": {"should": should, "minimum_should_match": 1}}
+                )
+
             else:
                 if facet_field == "authors.name.keyword":
                     for facet_value in facet_list_values:
@@ -566,6 +598,16 @@ def search_references(
                             }
                         }
                     })
+            elif facet_field == "has_image":
+                for facet_value in facet_list_values:
+                    if str(facet_value).lower() == "true":
+                        es_body["query"]["bool"]["filter"]["bool"]["must_not"].append(
+                            {"range": {"image_count": {"gt": 0}}}
+                        )
+                    else:
+                        es_body["query"]["bool"]["filter"]["bool"]["must_not"].append(
+                            {"range": {"image_count": {"lte": 0}}}
+                        )
             else:
                 # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
                 es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
@@ -658,6 +700,8 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "reference_emails": ref["_source"].get("reference_emails", []),
         "indexing_priorities": ref["_source"].get("indexing_priorities", []),
         "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
+        "can_display_image": ref["_source"].get("can_display_image", False),
+        "image_count": ref["_source"].get("image_count", 0),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
@@ -686,6 +730,23 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     retraction_status_agg = res["aggregations"].get("retraction_status.keyword")
     if retraction_status_agg:
         add_curie_to_name_values(retraction_status_agg)
+
+    # normalize image facets to the standard terms-bucket shape (string true/false keys)
+    can_display_agg = res["aggregations"].get("can_display_image")
+    if can_display_agg and "buckets" in can_display_agg:
+        for bucket in can_display_agg["buckets"]:
+            if "key_as_string" in bucket:
+                bucket["key"] = bucket["key_as_string"]
+
+    has_image_agg = res["aggregations"].get("has_image")
+    if has_image_agg and isinstance(has_image_agg.get("buckets"), dict):
+        image_buckets = has_image_agg["buckets"]
+        res["aggregations"]["has_image"] = {
+            "buckets": [
+                {"key": "true", "doc_count": image_buckets.get("true", {}).get("doc_count", 0)},
+                {"key": "false", "doc_count": image_buckets.get("false", {}).get("doc_count", 0)},
+            ]
+        }
 
     return {
         "hits": hits,
