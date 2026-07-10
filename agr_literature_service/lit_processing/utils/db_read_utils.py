@@ -4,6 +4,7 @@ from fastapi.encoders import jsonable_encoder
 from typing import Dict, Tuple, Union, List, Any, TypedDict, Iterable
 from datetime import datetime, timedelta
 import json
+import logging
 import re
 
 from sqlalchemy.orm import joinedload, Session
@@ -693,10 +694,17 @@ def get_mod_abbreviations(db_session: Session = None):
     return [res[0] for res in db_session.query(ModModel.abbreviation).filter(ModModel.abbreviation.not_in(['GO', 'AGR'])).all()]
 
 
+logger = logging.getLogger(__name__)
+
 # Cache the distinct cross_reference curie prefixes. The query scans a large table
 # and the set of prefixes changes rarely, so refresh at most once per TTL window.
 _cross_reference_prefix_cache: Dict[str, Any] = {"prefixes": None, "fetched_at": None}
 _CROSS_REFERENCE_PREFIX_TTL = timedelta(hours=1)
+
+# Known cross_reference prefixes always included as a safety net, so the "all" search
+# keeps routing the most common xref ids even if the dynamic lookup below is slow or
+# fails. The DB query stays the source of truth and adds any other prefixes present.
+_KNOWN_CROSS_REFERENCE_PREFIXES = ["PDB", "GEO"]
 
 
 def get_cross_reference_curie_prefixes(db_session: Session = None):
@@ -707,8 +715,9 @@ def get_cross_reference_curie_prefixes(db_session: Session = None):
     papers can be found by any of their cross-reference ids, not just the small
     hardcoded set of publication/MOD prefixes.
 
-    Cached for _CROSS_REFERENCE_PREFIX_TTL. On a query failure the last known
-    good value (or an empty list) is returned so search stays available.
+    Cached for _CROSS_REFERENCE_PREFIX_TTL. The result always includes
+    _KNOWN_CROSS_REFERENCE_PREFIXES; on a query failure the last known good value
+    (or the known prefixes) is returned so xref routing stays available.
     """
     now = datetime.now()
     cached = _cross_reference_prefix_cache["prefixes"]
@@ -722,12 +731,17 @@ def get_cross_reference_curie_prefixes(db_session: Session = None):
         rows = db_session.execute(
             text("SELECT DISTINCT curie_prefix FROM cross_reference WHERE curie_prefix IS NOT NULL")
         ).fetchall()
-        prefixes = [row[0] for row in rows]
+        prefixes = sorted({row[0] for row in rows} | set(_KNOWN_CROSS_REFERENCE_PREFIXES))
         _cross_reference_prefix_cache["prefixes"] = prefixes
         _cross_reference_prefix_cache["fetched_at"] = now
         return prefixes
     except Exception:
-        return cached or []
+        logger.warning(
+            "Failed to load distinct cross_reference curie prefixes; "
+            "falling back to known prefixes for xref search routing.",
+            exc_info=True
+        )
+        return cached if cached is not None else list(_KNOWN_CROSS_REFERENCE_PREFIXES)
 
 
 def get_pmid_list_without_pmc_package(mods, db_session: Session = None):
