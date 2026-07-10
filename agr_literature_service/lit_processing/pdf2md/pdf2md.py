@@ -655,8 +655,25 @@ def process_single_reference(  # pragma: no cover
             )
 
     if main_success:
+        # Generate classifier embeddings for every merged Markdown of this
+        # reference (main + supplements), after the markdown is safely persisted.
+        _maybe_generate_embeddings(db, reference_id, reference_curie)
         return True, None
     return False, main_error or "Main reference conversion failed"
+
+
+def _maybe_generate_embeddings(  # pragma: no cover
+    db: Session, reference_id: int, reference_curie: str
+) -> None:
+    """Generate + register classifier embeddings for a converted reference's
+    merged Markdown. Idempotent (skips sources already embedded) and fully
+    isolated — any failure is logged and never flips the conversion result.
+    Dormant unless OPENAI_API_KEY is set and the embedding stack is installed,
+    and skipped for references not in a classifier MOD's corpus."""
+    from agr_literature_service.lit_processing.embedding.embedding_generation import (
+        maybe_generate_classifier_embeddings,
+    )
+    maybe_generate_classifier_embeddings(db, reference_id, reference_curie)
 
 
 def process_newest_references(  # pragma: no cover
@@ -799,7 +816,8 @@ def _build_workflow_error_record(  # pragma: no cover
 
 def main(  # pragma: no cover
     prefer_nxml: bool = True,
-    process_supplements: bool = True
+    process_supplements: bool = True,
+    max_references: Optional[int] = None
 ):
     """
     Main entry point for workflow-based reference-to-Markdown conversion.
@@ -814,6 +832,8 @@ def main(  # pragma: no cover
     Args:
         prefer_nxml: Prefer nXML over PDFX for main-file conversion.
         process_supplements: Also convert supplemental PDFs.
+        max_references: When set, stop after this many references (jobs) have
+            been processed. Useful for smoke-testing on a few references.
     """
     start_time = time.time()
 
@@ -843,6 +863,12 @@ def main(  # pragma: no cover
                     seen_wf_tag_ids.add(job["reference_workflow_tag_id"])
             offset += limit
             logger.info(f"Loaded batch of {len(jobs)} jobs. Total jobs loaded: {len(all_jobs)}")
+            # Stop paging once we have enough jobs to satisfy max_references.
+            if max_references is not None and len(all_jobs) >= max_references:
+                break
+        if max_references is not None and len(all_jobs) > max_references:
+            all_jobs = all_jobs[:max_references]
+            logger.info(f"Limiting this run to {max_references} reference(s).")
         logger.info("Finished loading all text conversion jobs.")
 
         # Per-MOD per-job iteration: each text_convert_job processes only
@@ -983,11 +1009,17 @@ Examples:
   # Process references via workflow jobs (default)
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md
 
+  # Process only the first 2 workflow-job references, then exit (smoke test)
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --limit 2
+
   # Process N newest references (enumerated by newest main PDFs)
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50
 
   # Process all unconverted references for papers published since 2025
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --since 2025
+
+  # Process at most 10 unconverted references published since 2025
+  python -m agr_literature_service.lit_processing.pdf2md.pdf2md --since 2025 --limit 10
 
   # Process newest references, skipping those with XML files
   python -m agr_literature_service.lit_processing.pdf2md.pdf2md --newest 50 --skip-xml
@@ -1014,7 +1046,10 @@ Examples:
         "--limit",
         type=int,
         metavar="N",
-        help="Limit number of references to process (only applies to --since mode)"
+        help=(
+            "Stop after processing N references. Applies to --since mode and to "
+            "the default workflow mode. For --newest, use --newest N instead."
+        )
     )
     parser.add_argument(
         "--no-xml",
@@ -1042,8 +1077,8 @@ Examples:
         print("Error: --skip-xml requires --newest or --since mode.")
         exit(1)
 
-    if args.limit and not args.since:
-        print("Error: --limit only applies to --since mode. Use --newest N instead.")
+    if args.limit and args.newest:
+        print("Error: --limit cannot be combined with --newest. Use --newest N instead.")
         exit(1)
 
     if args.newest:
@@ -1081,7 +1116,14 @@ Examples:
         print(f"\nResults: {result}")
     else:
         # Workflow mode (default)
+        if args.limit:
+            print(f"Limiting to {args.limit} references.")
+        if not args.prefer_nxml:
+            print("Forcing PDFX for main file (--no-xml).")
+        if not args.process_supplements:
+            print("Skipping supplemental PDFs (--no-supplements).")
         main(
             prefer_nxml=args.prefer_nxml,
-            process_supplements=args.process_supplements
+            process_supplements=args.process_supplements,
+            max_references=args.limit
         )

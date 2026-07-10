@@ -125,19 +125,10 @@ alembic-create-migration:
 	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app bash -c "chmod -R o+w alembic/versions"
 
 alembic-apply-latest-migration:
-	docker-compose --env-file ${ENV_FILE} rm -svf dbz_connector dbz_kafka dbz_zookeeper dbz_ksql_server dbz_setup
-	docker-compose --env-file ${ENV_FILE} rm -s -f api
-	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts
-	docker-compose --env-file ${ENV_FILE} build dev_app
-	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
-	$(MAKE) ENV_FILE=${ENV_FILE} restart-api-and-automated-scripts
-	$(MAKE) ENV_FILE=${ENV_FILE} restart-debezium-aws
+	./apply_alembic_migration.sh ${ENV_FILE} rds
 
 alembic-apply-latest-migration-devdb:
-	docker-compose --env-file ${ENV_FILE} rm -s -f api
-	docker-compose --env-file ${ENV_FILE} build dev_app
-	docker-compose --env-file ${ENV_FILE} run --service-ports --rm dev_app alembic upgrade head
-	$(MAKE) ENV_FILE=${ENV_FILE} restart-api
+	./apply_alembic_migration.sh ${ENV_FILE} devdb
 
 restart-automated-scripts:
 	docker-compose --env-file ${ENV_FILE} rm -s -f automated_scripts

@@ -539,6 +539,45 @@ def _attach_figures(reference: ReferenceModel,
         )
 
 
+def _attach_embeddings(db: Session, reference: ReferenceModel,
+                       progress: List[Dict[str, Any]]) -> None:
+    """Mutate ``progress`` in place: set each entry's ``embeddings`` list to
+    the embedding_file rows whose source_referencefile_id is that entry's
+    converted md row. Same 'derived files for this entry' pattern as figures,
+    one step further down the lineage (md -> embeddings)."""
+    from agr_literature_service.api.crud.embedding_file_crud import (
+        get_embeddings_for_sources,
+    )
+    # Job-recorded progress entries may carry only the converted md's
+    # display_name/file_class (not its referencefile_id), and those entries win
+    # the merge -- so resolve the id from (display_name, file_class) when it is
+    # missing, the same key the figures path uses, rather than dropping the
+    # embeddings.
+    id_by_name_class = {
+        (rf.display_name, rf.file_class): int(rf.referencefile_id)
+        for rf in (reference.referencefiles or [])
+    }
+    conv_ids: List[int] = []
+    for entry in progress:
+        conv = entry.get("converted") or {}
+        conv_id = conv.get("referencefile_id")
+        if conv_id is None:
+            conv_id = id_by_name_class.get((conv.get("display_name"), conv.get("file_class")))
+        entry["_conv_id"] = int(conv_id) if conv_id is not None else None
+        if conv_id is not None:
+            conv_ids.append(int(conv_id))
+
+    rows_by_source = get_embeddings_for_sources(db, conv_ids)
+    for entry in progress:
+        conv_id = entry.pop("_conv_id", None)
+        rows = rows_by_source.get(conv_id, []) if conv_id is not None else []
+        entry["embeddings"] = [
+            {"parquet_referencefile_id": int(r.parquet_referencefile_id),
+             "profile_name": r.profile_name, "version": r.version}
+            for r in rows
+        ]
+
+
 def _merge_progress(job_progress: List[Dict[str, Any]],
                     db_progress: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Merge job-recorded progress with DB-synthesized entries. Dedupes by
@@ -593,6 +632,7 @@ def _status_payload(db: Session, reference: ReferenceModel, *, status_str: str,
         _db_derived_progress(reference),
     )
     _attach_figures(reference, progress)
+    _attach_embeddings(db, reference, progress)
     try:
         per_mod = per_mod_pending_status(
             db, reference, overwrite_tei_md=overwrite_tei_md
@@ -634,6 +674,16 @@ def _execute_sync_nxml(db: Session, reference: ReferenceModel,
         reference_curie=reference.curie,
         mod_abbreviation=assessment["mod_abbreviation"],
     )
+    if success:
+        # Generate classifier embeddings for the freshly-converted merged
+        # Markdown. Isolated + idempotent, and skipped for references not in a
+        # classifier MOD's corpus.
+        from agr_literature_service.lit_processing.embedding.embedding_generation import (
+            maybe_generate_classifier_embeddings,
+        )
+        maybe_generate_classifier_embeddings(
+            db, reference.reference_id, reference.curie
+        )
     return success, error
 
 

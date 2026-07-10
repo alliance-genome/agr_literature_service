@@ -17,6 +17,15 @@ class ConversionFileInfo(BaseModel):
     metadata_referencefile_id: Optional[int] = None
 
 
+class ConversionEmbeddingInfo(BaseModel):
+    """An embedding parquet derived from a converted Markdown file."""
+    model_config = ConfigDict(extra='forbid', from_attributes=True)
+
+    parquet_referencefile_id: int
+    profile_name: str
+    version: int
+
+
 class ConversionModStatusSchema(BaseModel):
     """Per-MOD conversion status for a reference.
 
@@ -65,6 +74,7 @@ class ConversionPerFileProgressSchema(BaseModel):
     source: Optional[ConversionFileInfo] = None
     converted: Optional[ConversionFileInfo] = None
     figures: List[ConversionFileInfo] = []
+    embeddings: List[ConversionEmbeddingInfo] = []
     status: str
     error: Optional[str] = None
 

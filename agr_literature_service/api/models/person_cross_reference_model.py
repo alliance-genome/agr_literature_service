@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, UniqueConstraint, text
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, text
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -23,8 +23,16 @@ class PersonCrossReferenceModel(Base, AuditedModel):
     is_obsolete = Column(Boolean, nullable=False, server_default=text("false"))
 
     __table_args__ = (
-        UniqueConstraint("curie", name="uq_person_xref_curie"),
-        UniqueConstraint("person_id", "curie_prefix", name="uq_person_xref_person_prefix"),
+        # Uniqueness is enforced only among non-obsolete rows (mirrors the Biblio
+        # cross_reference partial unique indexes), so a soft-deleted xref does not
+        # block re-adding the same curie/prefix.
+        Index("uq_person_xref_curie", "curie",
+              unique=True,
+              postgresql_where=(is_obsolete.is_(False))),
+        Index("uq_person_xref_person_prefix", "person_id", "curie_prefix",
+              unique=True,
+              postgresql_where=(and_(is_obsolete.is_(False),
+                                     person_id.isnot(None)))),
         Index("ix_person_xref_person_id", "person_id"),
         Index("ix_person_xref_prefix_curie", "curie_prefix", "curie"),
     )

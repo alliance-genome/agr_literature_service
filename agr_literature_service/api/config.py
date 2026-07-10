@@ -40,6 +40,10 @@ class GlobalConfig(BaseSettings):
     ELASTICSEARCH_PORT: str = Field(..., env="ELASTICSEARCH_PORT")
     ELASTICSEARCH_INDEX: str = Field(..., env="ELASTICSEARCH_INDEX")
 
+    # Embedding generation (SCRUM-6142). Optional: when unset, the pdf2md
+    # conversion job skips embedding generation (feature stays dormant).
+    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
+
 
 # instantiate once for application‑wide use
 config = GlobalConfig()
