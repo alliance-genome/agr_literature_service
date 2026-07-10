@@ -1,7 +1,7 @@
 """laboratory: require unique curie and a name or strain_designation
 
 Revision ID: c8d1f2a3b4e5
-Revises: b7c3e9f1a2d4
+Revises: 3e8b1a2c9f47
 Create Date: 2026-07-10
 
 The laboratory table was created without DB-level constraints on its identifying
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 
 revision = 'c8d1f2a3b4e5'
-down_revision = 'b7c3e9f1a2d4'
+down_revision = '3e8b1a2c9f47'
 branch_labels = None
 depends_on = None
 
