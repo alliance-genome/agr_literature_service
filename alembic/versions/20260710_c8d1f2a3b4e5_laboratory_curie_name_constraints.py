@@ -29,9 +29,13 @@ def upgrade():
         'laboratory',
         'strain_designation IS NOT NULL OR name IS NOT NULL',
     )
+    # The unique constraint's index serves all curie lookups; drop the now-redundant
+    # non-unique index created with the table.
+    op.drop_index('ix_laboratory_curie', table_name='laboratory')
 
 
 def downgrade():
+    op.create_index('ix_laboratory_curie', 'laboratory', ['curie'])
     op.drop_constraint('ck_laboratory_name_or_strain', 'laboratory', type_='check')
     op.drop_constraint('laboratory_curie_key', 'laboratory', type_='unique')
     op.alter_column('laboratory', 'curie', existing_type=sa.String(), nullable=True)

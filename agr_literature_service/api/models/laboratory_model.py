@@ -26,9 +26,9 @@ class LaboratoryModel(Base, AuditedModel):
     laboratory_id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Allocated from MATI on create (laboratory subdomain -> AGRKB:104), like
-    # reference/resource/person. Required and unique like those siblings, and
-    # indexed for lookup.
-    curie = Column(String(), nullable=False, unique=True, index=True)
+    # reference/resource/person. Required and unique like those siblings; the
+    # unique constraint's own index serves lookups, so no separate index=True.
+    curie = Column(String(), nullable=False, unique=True)
 
     name = Column(String(), nullable=True)
     strain_designation = Column(String(), nullable=True)
