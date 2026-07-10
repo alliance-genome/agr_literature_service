@@ -23,7 +23,7 @@ AlleleTestData = namedtuple(
 
 @pytest.fixture
 def seeded_lab_and_mod(db):  # noqa
-    lab = LaboratoryModel(name="Allele Lab", status="active", lab_is_open=False)
+    lab = LaboratoryModel(curie="AGRKB:104test-allele", name="Allele Lab", status="active", lab_is_open=False)
     db.add(lab)
     mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").one_or_none()
     if mod is None:

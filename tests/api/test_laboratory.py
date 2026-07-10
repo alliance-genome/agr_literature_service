@@ -87,6 +87,29 @@ class TestLaboratory:
             res = client.post("/laboratory/", json={}, headers=auth_headers)
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_name_or_strain_required(self, db, auth_headers):  # noqa
+        """A laboratory with a substantive field but no name/strain_designation is
+        rejected by the ck_laboratory_name_or_strain check constraint (surfaced as
+        422 by the CRUD layer)."""
+        with TestClient(app) as client:
+            res = client.post(
+                "/laboratory/",
+                json={"institution": ["Caltech"]},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_clearing_name_and_strain_rejected(self, auth_headers, test_laboratory):  # noqa
+        """Clearing both name and strain_designation violates
+        ck_laboratory_name_or_strain; surfaced as 422, not a 500."""
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/laboratory/{test_laboratory.new_laboratory_id}",
+                json={"name": None, "strain_designation": None},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_bad_status_rejected(self, auth_headers):  # noqa
         with TestClient(app) as client:
             res = client.post(
