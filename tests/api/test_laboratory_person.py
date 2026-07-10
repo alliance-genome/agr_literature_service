@@ -24,7 +24,8 @@ LabPersonTestData = namedtuple(
 @pytest.fixture
 def seeded_lab_and_person(db):  # noqa
     lab = LaboratoryModel(
-        name="People Lab", strain_designation="PL", status="active", lab_is_open=False
+        curie="AGRKB:104test-people", name="People Lab", strain_designation="PL",
+        status="active", lab_is_open=False
     )
     person = PersonModel(display_name="Lab Member", curie="AGRKB:test-lab-person")
     db.add(lab)
