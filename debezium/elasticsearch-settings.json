@@ -421,6 +421,12 @@
         "type": "keyword",
         "normalizer": "sortNormalizer"
       },
+      "can_display_image": {
+        "type": "boolean"
+      },
+      "image_count": {
+        "type": "integer"
+      },
       "workflow_tags": {
         "type": "nested",
         "properties": {
