@@ -7,6 +7,7 @@ Create Date: 2026-07-09
 Adds two denormalized columns to reference (and reference_version):
 
   - image_count: number of referencefile rows with file_class like '%figure%'
+    (excluding the '%figure_metadata%' JSON sidecars)
   - can_display_image: effective image display permission, mirroring
     get_effective_image_permission() in reference_crud.py
 

@@ -6,7 +6,9 @@ SQL functions and triggers that keep the denormalized reference columns
 ``can_display_image`` and ``image_count`` up to date.
 
 ``image_count`` is the number of referencefile rows with a ``file_class``
-containing 'figure' for the reference.
+containing 'figure' for the reference, excluding the JSON metadata sidecars
+(``converted_*_figure_metadata``) that the conversion pipeline stores
+alongside each figure PNG.
 
 ``can_display_image`` mirrors the priority logic of
 ``get_effective_image_permission()`` in
@@ -141,7 +143,8 @@ AS $$
     SELECT count(*)::INTEGER
     FROM referencefile
     WHERE reference_id = p_reference_id
-      AND file_class LIKE '%figure%';
+      AND file_class LIKE '%figure%'
+      AND file_class NOT LIKE '%metadata%';
 $$;
 """
 
