@@ -241,17 +241,20 @@ def process_parent(db_session, phase, slack_messages, counts, failed_refs, debug
                 counts[wft.mod_id][phase['name']]['failed'] += 1
                 failed_refs[wft.mod_id][phase['name']].append(get_curie(reference, wft))
             if not debug:
-                if phase['slack message']:
-                    if wft.mod_id not in slack_messages:
-                        slack_messages[wft.mod_id] = []
-                    try:
-                        slack_messages[wft.mod_id].append(
-                            f"Setting {reference} to needed failed for {atp_get_name(wft.workflow_tag_id)}")
-                    except Exception:
-                        slack_messages[wft.mod_id].append(
-                            f"Setting {reference} to needed failed for {wft.workflow_tag_id}")
+                # only report/transition newly-failed items; a failed=True item is
+                # already failed (no state change, no report line), matching the
+                # "continue" skip in process_no_parent.
+                if not failed:
+                    if phase['slack message']:
+                        if wft.mod_id not in slack_messages:
+                            slack_messages[wft.mod_id] = []
+                        try:
+                            slack_messages[wft.mod_id].append(
+                                f"Setting {reference} to needed failed for {atp_get_name(wft.workflow_tag_id)}")
+                        except Exception:
+                            slack_messages[wft.mod_id].append(
+                                f"Setting {reference} to needed failed for {wft.workflow_tag_id}")
 
-                if not failed:  # else it is already set to failed and we have no transition from failed to failed.
                     job_change_atp_code(db_session, wft.reference_workflow_tag_id, 'on_failed')
             else:
                 if not failed:
