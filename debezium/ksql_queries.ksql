@@ -199,6 +199,35 @@ CREATE TABLE topic_entity_tag(
     KEY_FORMAT='json'
 );
 
+CREATE_TABLE curation_status(
+    curation_status_id PRIMARY_KEY,
+    topic string,
+    reference_id string,
+    mod_id string,
+    curation_status string,
+    note string,
+    date_created string,
+    date_updated string,
+    created_by string,
+    updated_by string,
+    curation_tag string
+) WITH (
+    KAFKA_TOPIC="abc.public.curation_status",
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
+CREATE_TABLE curation_status_with_mod AS
+    SELECT
+    curation_status.topic,
+    curation_status.reference_id,
+    curation_status.curation_status,
+    mod.abbreviation,
+    FROM curation_status
+    JOIN mod ON
+    curation_status.mod_id = mod.mod_id
+    EMIT CHANGES;
+
 CREATE TABLE topic_entity_tag_with_source AS
     SELECT
     topic_entity_tag.topic_entity_tag_id \"TOPIC_ENTITY_TAG_ID\",
@@ -239,6 +268,13 @@ CREATE TABLE topic_entity_tags AS
     SELECT reference_id \"REFERENCE_ID\",
     collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) \"TOPIC_ENTITY_TAGS\"
     FROM topic_entity_tag_with_source
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE curation_tags AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('topic':=topic, 'curation_status':=curation_status, 'mod':=mod )) \"CURATION_TAGS\"
+    FROM curation_status_with_mod
     GROUP BY reference_id
     EMIT CHANGES;
 
@@ -890,13 +926,14 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.obsolete_curies \"obsolete_curies\",
     reference_mod_reference_types.label \"mod_reference_types\",
     topic_entity_tags.topic_entity_tags \"topic_entity_tags\",
+    curation_tags.curation_tags \"curation_tags\",
     reference_workflow_tags.workflow_tags \"workflow_tags\",
     reference_emails.reference_emails \"reference_emails\",
     indexing_priorities.indexing_priorities \"indexing_priorities\",
     manual_indexing_tags.manual_indexing_tags \"manual_indexing_tags\"
     FROM reference_mod_reference_types reference_mod_reference_types
-    LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
-    reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
+    LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
+    LEFT OUTER JOIN curation_tags curation_tags ON reference_mod_reference_types.reference_id = curation_tags.reference_id
     LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id
     LEFT OUTER JOIN reference_emails reference_emails ON reference_mod_reference_types.reference_id = reference_emails.reference_id
     LEFT OUTER JOIN indexing_priorities indexing_priorities ON reference_mod_reference_types.reference_id = indexing_priorities.reference_id
