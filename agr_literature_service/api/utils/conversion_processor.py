@@ -274,6 +274,16 @@ def run_conversion_job(job_id: str, reference_id: int, reference_curie: str,
                 f"for reference_id={reference_id}"
             )
 
+        # Generate classifier embeddings for the merged Markdown, mirroring the
+        # cron path's main-only success semantics: embed whenever the main
+        # conversion succeeded, even if a supplement failed. Isolated + idempotent
+        # (skips references without a classifier MOD and sources already embedded).
+        if not main_failure:
+            from agr_literature_service.lit_processing.embedding.embedding_generation import (
+                maybe_generate_classifier_embeddings,
+            )
+            maybe_generate_classifier_embeddings(db, reference_id, reference_curie)
+
         conversion_manager.complete_job(
             job_id=job_id,
             success=overall_success,

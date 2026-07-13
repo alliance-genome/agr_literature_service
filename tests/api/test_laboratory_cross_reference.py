@@ -19,7 +19,7 @@ XrefTestData = namedtuple(
 
 @pytest.fixture
 def seeded_laboratory(db):  # noqa
-    lab = LaboratoryModel(name="Xref Lab", status="active", lab_is_open=False)
+    lab = LaboratoryModel(curie="AGRKB:104test-xref", name="Xref Lab", status="active", lab_is_open=False)
     db.add(lab)
     db.commit()
     db.refresh(lab)

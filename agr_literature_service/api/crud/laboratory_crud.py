@@ -136,33 +136,36 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
 
     obj = LaboratoryModel(**data)
     db.add(obj)
-    db.flush()  # get laboratory_id for the inline children
-    new_laboratory_id = obj.laboratory_id
+    # Wrap flush and commit: DB constraints (e.g. ck_laboratory_name_or_strain,
+    # curie NOT NULL/unique) can fire at the flush that assigns laboratory_id, not
+    # just at commit. Convert any such violation into a 422 instead of a raw 500.
+    try:
+        db.flush()  # get laboratory_id for the inline children
+        new_laboratory_id = obj.laboratory_id
 
-    if xrefs_data:
-        for xr in xrefs_data:
-            curie = xr["curie"].strip()
-            curie_prefix = _curie_prefix_from(curie)
+        if xrefs_data:
+            for xr in xrefs_data:
+                curie = xr["curie"].strip()
+                curie_prefix = _curie_prefix_from(curie)
+                db.add(
+                    LaboratoryCrossReferenceModel(
+                        laboratory_id=obj.laboratory_id,
+                        curie=curie,
+                        curie_prefix=curie_prefix,
+                        pages=xr.get("pages"),
+                        is_obsolete=bool(xr.get("is_obsolete", False)),
+                    )
+                )
+
+        for mod_id, allele_designation in resolved_alleles:
             db.add(
-                LaboratoryCrossReferenceModel(
+                LaboratoryAlleleDesignationModel(
                     laboratory_id=obj.laboratory_id,
-                    curie=curie,
-                    curie_prefix=curie_prefix,
-                    pages=xr.get("pages"),
-                    is_obsolete=bool(xr.get("is_obsolete", False)),
+                    mod_id=mod_id,
+                    allele_designation=allele_designation,
                 )
             )
 
-    for mod_id, allele_designation in resolved_alleles:
-        db.add(
-            LaboratoryAlleleDesignationModel(
-                laboratory_id=obj.laboratory_id,
-                mod_id=mod_id,
-                allele_designation=allele_designation,
-            )
-        )
-
-    try:
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -223,7 +226,16 @@ def patch(db: Session, curie_or_laboratory_id: str, patch_dict: Dict[str, Any]) 
             continue
         setattr(obj, field, value)
 
-    db.commit()
+    # e.g. clearing both name and strain_designation violates
+    # ck_laboratory_name_or_strain; surface as 422, not a raw 500.
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Database constraint violation; please verify input and retry.",
+        )
     return {"message": "updated"}
 
 
