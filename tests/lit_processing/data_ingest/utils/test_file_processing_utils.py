@@ -3,7 +3,6 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     is_thumbnail_by_size,
     is_paired_thumbnail,
     is_inline_image,
-    is_online_color,
     is_print_bw,
     has_color_twin,
     THUMBNAIL_MAX_SIZE_BYTES,
@@ -129,30 +128,29 @@ class TestColorBwRenditions:
         'KRNB_A_2685379_F0002_OC', 'KRNB_A_2685379_F0002_PB',
     }
 
-    def test_oc_is_figure_regardless_of_size(self):
-        # OC/PB is evaluated BEFORE the size rule, so a small color figure is
-        # rescued rather than hidden as a thumbnail.
+    def test_full_size_oc_jpg_is_figure(self):
         assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 194701,
                                  sibling_display_names=self.NAMES) == 'figure'
-        assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 5000,
-                                 sibling_display_names=self.NAMES) == 'figure'
 
-    def test_pb_with_oc_twin_is_bw_duplicate_regardless_of_size(self):
+    def test_full_size_pb_jpg_with_oc_twin_is_bw_duplicate(self):
         assert classify_pmc_file('KRNB_A_2685379_F0001_PB', 'jpg', 108779,
                                  sibling_display_names=self.NAMES) == 'bw_duplicate'
-        # Small _PB with a twin is still a duplicate, not a thumbnail.
-        assert classify_pmc_file('KRNB_A_2685379_F0001_PB', 'jpg', 5000,
-                                 sibling_display_names=self.NAMES) == 'bw_duplicate'
 
-    def test_pb_without_oc_twin_is_figure(self):
-        # Sole rendition (no color twin present) -> figure, regardless of size.
+    def test_full_size_pb_without_oc_twin_is_figure(self):
         assert classify_pmc_file('SOME_F0001_PB', 'jpg', 108779) == 'figure'
-        assert classify_pmc_file('SOME_F0001_PB', 'jpg', 5000,
+        assert classify_pmc_file('SOME_F0001_PB', 'jpg', 108779,
                                  sibling_display_names={'SOME_F0002_PB'}) == 'figure'
 
+    def test_small_oc_pb_gif_renditions_are_thumbnails(self):
+        # T&F ship each rendition as a full jpg + a small gif thumbnail. The
+        # size rule (evaluated before OC/PB) must catch the small gifs, so an
+        # _OC/_PB gif is a thumbnail, NOT a figure/bw_duplicate.
+        assert classify_pmc_file('KFLY_A_2088032_F0001_OC', 'gif', 4790,
+                                 sibling_display_names=self.NAMES) == 'thumbnail'
+        assert classify_pmc_file('YRER_A_1787662_F0002_PB', 'gif', 11172,
+                                 sibling_display_names=self.NAMES) == 'thumbnail'
+
     def test_helpers(self):
-        assert is_online_color('x_F0001_OC') is True
-        assert is_online_color('x_F0001_PB') is False
         assert is_print_bw('x_F0001_PB') is True
         assert is_print_bw('x_F0001_OC') is False
         assert has_color_twin('x_F0001_PB', {'x_F0001_OC', 'x_F0001_PB'}) is True

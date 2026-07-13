@@ -1,22 +1,21 @@
 """
 One-off cleanup for SCRUM-6095: re-classify Taylor & Francis color/B&W renditions.
 
-Taylor & Francis ship each figure as two renditions: an online-color image
-("<figure>_OC") and a print black-and-white image ("<figure>_PB"). Both are
-full-size, so the absolute size rule (SCRUM-6281) split them arbitrarily --
-hiding ~half of the primary color figures as ``thumbnail`` and leaving
-duplicate B&W images in the figure view.
+Taylor & Francis ship each figure as an online-color rendition ("<figure>_OC")
+and a print black-and-white rendition ("<figure>_PB"), and EACH rendition comes
+as a full-size .jpg plus a small .gif thumbnail. The size rules already handle
+the .gif thumbnails correctly (they end up ``thumbnail``); the only thing wrong
+is that the full-size ``_PB.jpg`` sits in the figure view as a duplicate of the
+color ``_OC.jpg``.
 
-The classifier (file_processing_utils.classify_pmc_file) now identifies these
-renditions by name BEFORE the size rules, so classification is size-independent.
-This script brings existing data in line by name (no S3 access needed):
+This script demotes exactly that case, by name (no S3 access needed):
 
-  1. ``_OC`` rows mislabeled ``thumbnail`` -> ``figure``   (rescue color figures)
-  2. ``_PB`` rows that have an ``_OC`` twin -> ``bw_duplicate``  (demote duplicate)
-  3. ``_PB`` rows with NO ``_OC`` twin, currently ``thumbnail`` -> ``figure``
-     (it is the sole rendition of the figure)
+  * a ``_PB`` jpg/jpeg currently classed ``figure`` (i.e. full size) that has an
+    ``_OC`` twin in the same reference -> ``bw_duplicate``
 
-The ``bw_duplicate`` class does not match ``%figure%``, so those rows drop out
+It deliberately does NOT touch ``_OC`` rows (color figures/thumbnails are
+already correct) or ``.gif`` rows (already ``thumbnail`` via the size rule).
+The ``bw_duplicate`` class does not match ``%figure%``, so demoted rows drop out
 of ``compute_reference_image_count`` -- the curator's figure view then shows
 only the color rendition.
 
@@ -41,7 +40,9 @@ logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-IMAGE_EXT_FILTER = "lower(file_extension) IN ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')"
+# Only full-size renditions are jpg/jpeg; the .gif renditions are thumbnails and
+# are left to the size rule.
+IMAGE_EXT_FILTER = "lower(file_extension) IN ('jpg', 'jpeg')"
 
 # A _PB row has a color twin when the same reference contains the corresponding
 # _OC display name (case-insensitive).
@@ -54,26 +55,12 @@ HAS_OC_TWIN = (
 # (label, count SQL, update SQL) for each transition. rf is the target row.
 TRANSITIONS = [
     (
-        "_OC thumbnail -> figure (rescue color)",
-        f"SELECT count(*) FROM referencefile rf WHERE rf.file_class = 'thumbnail' "
-        f"AND rf.display_name ~* '_OC$' AND {IMAGE_EXT_FILTER}",
-        f"UPDATE referencefile rf SET file_class = 'figure' WHERE rf.file_class = 'thumbnail' "
-        f"AND rf.display_name ~* '_OC$' AND {IMAGE_EXT_FILTER}",
-    ),
-    (
-        "_PB with _OC twin -> bw_duplicate",
-        f"SELECT count(*) FROM referencefile rf WHERE rf.file_class IN ('figure', 'thumbnail') "
+        "_PB (figure) with _OC twin -> bw_duplicate",
+        f"SELECT count(*) FROM referencefile rf WHERE rf.file_class = 'figure' "
         f"AND rf.display_name ~* '_PB$' AND {IMAGE_EXT_FILTER} AND {HAS_OC_TWIN}",
         f"UPDATE referencefile rf SET file_class = 'bw_duplicate' "
-        f"WHERE rf.file_class IN ('figure', 'thumbnail') "
+        f"WHERE rf.file_class = 'figure' "
         f"AND rf.display_name ~* '_PB$' AND {IMAGE_EXT_FILTER} AND {HAS_OC_TWIN}",
-    ),
-    (
-        "_PB without _OC twin, thumbnail -> figure (sole rendition)",
-        f"SELECT count(*) FROM referencefile rf WHERE rf.file_class = 'thumbnail' "
-        f"AND rf.display_name ~* '_PB$' AND {IMAGE_EXT_FILTER} AND NOT {HAS_OC_TWIN}",
-        f"UPDATE referencefile rf SET file_class = 'figure' WHERE rf.file_class = 'thumbnail' "
-        f"AND rf.display_name ~* '_PB$' AND {IMAGE_EXT_FILTER} AND NOT {HAS_OC_TWIN}",
     ),
 ]
 

@@ -236,18 +236,12 @@ def is_inline_image(file_name):
     return bool(INLINE_IMAGE_RE.search(file_name))
 
 
-# Taylor & Francis ship each figure as two renditions: an online-color image
-# ("<figure>_OC") and a print black-and-white image ("<figure>_PB"). The _OC is
-# the primary rendition a curator wants; the _PB is a grayscale duplicate when
-# its _OC twin is present. Anchored to the suffix so it only matches this
-# convention (SCRUM-6095).
-ONLINE_COLOR_RE = re.compile(r'_OC$', re.IGNORECASE)
+# Taylor & Francis ship each figure as an online-color rendition ("<figure>_OC")
+# and a print black-and-white rendition ("<figure>_PB"), and EACH rendition
+# comes as a full-size .jpg plus a small .gif thumbnail. So the size/thumbnail
+# rules run first (catching the small _OC.gif/_PB.gif previews); only among the
+# surviving full-size images is a _PB a duplicate of its _OC twin (SCRUM-6095).
 PRINT_BW_RE = re.compile(r'_PB$', re.IGNORECASE)
-
-
-def is_online_color(file_name):
-    """Return True for a Taylor & Francis online-color rendition ('..._OC')."""
-    return bool(ONLINE_COLOR_RE.search(file_name))
 
 
 def is_print_bw(file_name):
@@ -316,31 +310,26 @@ def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=N
         # since they are small and would otherwise be classed by size.
         if is_inline_image(file_name):
             return "inline_image"
-        # Taylor & Francis color/B&W renditions are full figures identified by
-        # name, so they are classified BEFORE the size rules -- otherwise the
-        # size cutoff would hide a small color figure as a thumbnail
-        # (SCRUM-6095). The online-color (_OC) image is always the primary
-        # figure; the print-B&W (_PB) image is a duplicate when its _OC twin is
-        # present, otherwise it is the sole rendition and stays a figure.
-        if is_online_color(file_name):
-            return "figure"
-        if is_print_bw(file_name):
-            if has_color_twin(file_name, sibling_display_names):
-                return "bw_duplicate"
-            return "figure"
         # Some publishers (e.g. JoVE, Royal Society) label thumbnails in the
         # file name; honor that regardless of size.
         if "thumb" in file_name.lower():
             return "thumbnail"
         # Small images are thumbnails: PMC packages ship most figures as a
         # large image plus a small same-named thumbnail that is NOT named
-        # "thumb".
+        # "thumb". This also catches the small _OC.gif/_PB.gif rendition
+        # thumbnails before the color/B&W rule below.
         if is_thumbnail_by_size(ext, file_size):
             return "thumbnail"
         # Above the size cutoff a gif can still be a thumbnail when it is the
         # smaller half of a same-named gif/jpg pair (SCRUM-6095).
         if is_paired_thumbnail(ext, file_size, sibling_sizes):
             return "thumbnail"
+        # Among the remaining full-size images, a Taylor & Francis print-B&W
+        # rendition ("..._PB") is a duplicate when its color twin ("..._OC") is
+        # present. Everything else (including the _OC rendition and a sole _PB
+        # with no twin) is a figure (SCRUM-6095).
+        if is_print_bw(file_name) and has_color_twin(file_name, sibling_display_names):
+            return "bw_duplicate"
         return "figure"
     return "supplement"
 
