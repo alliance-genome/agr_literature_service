@@ -168,8 +168,14 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
 
             file_class = None
             if not referencefile_id:
-                file_extension = file_name_with_suffix.split(".")[-1].lower()
-                file_name = file_name_with_suffix.replace("." + file_extension, "")
+                # Classify by the ORIGINAL package name (pieces[2]): a
+                # conflict-renamed display name (e.g. "..._1") only affects DB
+                # storage, while the file root maps and sibling maps
+                # (build_file_root_mappings / build_sibling_image_sizes) are all
+                # keyed on the original names.
+                original_file_name_with_suffix = pieces[2]
+                file_extension = original_file_name_with_suffix.split(".")[-1].lower()
+                file_name = original_file_name_with_suffix.replace("." + file_extension, "")
                 sibling_sizes = sibling_image_sizes.get((pmcid, file_name.lower()), {})
                 sibling_names = pmc_image_display_names.get(pmcid, set())
                 file_class = determine_file_class(file_name, file_extension, pmcid,

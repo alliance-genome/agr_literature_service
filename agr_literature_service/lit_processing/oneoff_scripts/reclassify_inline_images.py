@@ -70,21 +70,15 @@ def reclassify_inline_images(apply_changes: bool) -> None:
         logger.info(f"{file_class} -> inline_image: referencefile_id={referencefile_id} "
                     f"display_name='{display_name}.{file_extension}'")
         if apply_changes:
+            # Commit per row so a single failure rolls back only that row and
+            # ``updated`` counts committed work exactly.
             try:
                 db_session.execute(UPDATE_CLASS, {"referencefile_id": referencefile_id})
+                db_session.commit()
                 updated += 1
             except SQLAlchemyError as e:
                 logger.error(f"Error updating referencefile_id={referencefile_id}: {e}")
                 db_session.rollback()
-                continue
-
-    if apply_changes:
-        try:
-            db_session.commit()
-        except SQLAlchemyError as e:
-            logger.error(f"Error committing: {e}")
-            db_session.rollback()
-            updated = 0
 
     logger.info(
         f"DONE! mode={mode} matched={len(rows)} "
