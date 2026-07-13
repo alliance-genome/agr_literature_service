@@ -223,7 +223,36 @@ def is_thumbnail_by_size(file_extension, file_size):
     return max_size is not None and file_size < max_size
 
 
-def classify_pmc_file(file_name, file_extension, file_size=None):
+def is_paired_thumbnail(file_extension, file_size, sibling_sizes):
+    """Return True if this gif is a reduced-size preview of a larger same-named
+    companion image (SCRUM-6095).
+
+    The absolute size cutoff (``is_thumbnail_by_size``) misses "large"
+    thumbnails: some publishers ship a gif preview that is above the cutoff
+    (e.g. ~73 KB) alongside an even larger same-named jpg master (e.g. ~340 KB).
+    In that case the gif is still the thumbnail. We detect it structurally: a
+    gif is a thumbnail when a same-named jpg/jpeg companion exists and is
+    larger than the gif.
+
+    Only gifs are reclassified this way; the jpg/jpeg is treated as the
+    full-resolution master (data analysis shows the thumbnail is the gif in
+    essentially all paired cases).
+
+    ``sibling_sizes`` maps the file_extension of other files sharing this
+    file's display name (within the same reference) to their size in bytes.
+    """
+    if file_size is None or not sibling_sizes:
+        return False
+    if file_extension.lower() != 'gif':
+        return False
+    for sib_ext, sib_size in sibling_sizes.items():
+        if sib_ext.lower() in ('jpg', 'jpeg') and sib_size is not None \
+                and sib_size > file_size:
+            return True
+    return False
+
+
+def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=None):
 
     """
     image_related_file_extensions = [
@@ -240,9 +269,14 @@ def classify_pmc_file(file_name, file_extension, file_size=None):
         # file name; honor that regardless of size.
         if "thumb" in file_name.lower():
             return "thumbnail"
-        # Otherwise rely on size: PMC packages ship most figures as a large
-        # image plus a small same-named thumbnail that is NOT named "thumb".
+        # Small images are thumbnails: PMC packages ship most figures as a
+        # large image plus a small same-named thumbnail that is NOT named
+        # "thumb".
         if is_thumbnail_by_size(ext, file_size):
+            return "thumbnail"
+        # Above the size cutoff a gif can still be a thumbnail when it is the
+        # smaller half of a same-named gif/jpg pair (SCRUM-6095).
+        if is_paired_thumbnail(ext, file_size, sibling_sizes):
             return "thumbnail"
         return "figure"
     return "supplement"

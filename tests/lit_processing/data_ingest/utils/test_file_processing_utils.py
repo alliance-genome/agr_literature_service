@@ -1,6 +1,7 @@
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import (
     classify_pmc_file,
     is_thumbnail_by_size,
+    is_paired_thumbnail,
     THUMBNAIL_MAX_SIZE_BYTES,
 )
 
@@ -70,3 +71,48 @@ class TestClassifyPmcFile:
     def test_tif_is_not_size_classified(self):
         # tif has no size threshold, so even a tiny one is a figure.
         assert classify_pmc_file('imgtif', 'tif', 5000) == 'figure'
+
+    def test_large_gif_with_larger_jpg_sibling_is_thumbnail(self):
+        # SCRUM-6095: a gif above the 25 KB cutoff that is paired with a larger
+        # same-named jpg master is still a thumbnail (real AGRKB:...211800 case:
+        # 73 KB gif vs 340 KB jpg).
+        assert classify_pmc_file('gr2', 'gif', 73784,
+                                 sibling_sizes={'jpg': 340500}) == 'thumbnail'
+
+    def test_large_gif_without_sibling_stays_figure(self):
+        # No same-named jpg companion -> genuine standalone gif figure.
+        assert classify_pmc_file('gr2', 'gif', 73784, sibling_sizes={}) == 'figure'
+        assert classify_pmc_file('gr2', 'gif', 73784) == 'figure'
+
+    def test_large_gif_bigger_than_jpg_sibling_stays_figure(self):
+        # If the gif is the larger of the pair it is not the thumbnail.
+        assert classify_pmc_file('gr2', 'gif', 400000,
+                                 sibling_sizes={'jpg': 340500}) == 'figure'
+
+    def test_large_jpg_with_gif_sibling_stays_figure(self):
+        # Only gifs are reclassified via pairing; the jpg is the master.
+        assert classify_pmc_file('gr2', 'jpg', 340500,
+                                 sibling_sizes={'gif': 73784}) == 'figure'
+
+
+class TestIsPairedThumbnail:
+
+    def test_gif_smaller_than_jpg_sibling_is_thumbnail(self):
+        assert is_paired_thumbnail('gif', 73784, {'jpg': 340500}) is True
+        assert is_paired_thumbnail('gif', 10000, {'jpeg': 20000}) is True
+
+    def test_gif_larger_than_jpg_sibling_is_not(self):
+        assert is_paired_thumbnail('gif', 340500, {'jpg': 73784}) is False
+
+    def test_no_sibling_is_not(self):
+        assert is_paired_thumbnail('gif', 73784, None) is False
+        assert is_paired_thumbnail('gif', 73784, {}) is False
+        assert is_paired_thumbnail('gif', 73784, {'png': 999999}) is False
+
+    def test_none_size_is_not(self):
+        assert is_paired_thumbnail('gif', None, {'jpg': 340500}) is False
+        assert is_paired_thumbnail('gif', 73784, {'jpg': None}) is False
+
+    def test_non_gif_is_never_paired_thumbnail(self):
+        assert is_paired_thumbnail('jpg', 73784, {'jpg': 340500}) is False
+        assert is_paired_thumbnail('png', 10, {'jpg': 340500}) is False
