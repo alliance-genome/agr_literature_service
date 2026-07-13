@@ -129,21 +129,26 @@ class TestColorBwRenditions:
         'KRNB_A_2685379_F0002_OC', 'KRNB_A_2685379_F0002_PB',
     }
 
-    def test_oc_is_always_figure_even_when_small(self):
-        # Rescue: a color figure under the size cutoff must not become thumbnail.
-        assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 5000) == 'figure'
+    def test_oc_is_figure_regardless_of_size(self):
+        # OC/PB is evaluated BEFORE the size rule, so a small color figure is
+        # rescued rather than hidden as a thumbnail.
         assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 194701,
                                  sibling_display_names=self.NAMES) == 'figure'
+        assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 5000,
+                                 sibling_display_names=self.NAMES) == 'figure'
 
-    def test_pb_with_oc_twin_is_bw_duplicate(self):
+    def test_pb_with_oc_twin_is_bw_duplicate_regardless_of_size(self):
         assert classify_pmc_file('KRNB_A_2685379_F0001_PB', 'jpg', 108779,
                                  sibling_display_names=self.NAMES) == 'bw_duplicate'
+        # Small _PB with a twin is still a duplicate, not a thumbnail.
+        assert classify_pmc_file('KRNB_A_2685379_F0001_PB', 'jpg', 5000,
+                                 sibling_display_names=self.NAMES) == 'bw_duplicate'
 
-    def test_pb_without_oc_twin_stays_figure(self):
-        # Sole rendition (no color twin present) -> figure, even if small.
+    def test_pb_without_oc_twin_is_figure(self):
+        # Sole rendition (no color twin present) -> figure, regardless of size.
+        assert classify_pmc_file('SOME_F0001_PB', 'jpg', 108779) == 'figure'
         assert classify_pmc_file('SOME_F0001_PB', 'jpg', 5000,
                                  sibling_display_names={'SOME_F0002_PB'}) == 'figure'
-        assert classify_pmc_file('SOME_F0001_PB', 'jpg', 108779) == 'figure'
 
     def test_helpers(self):
         assert is_online_color('x_F0001_OC') is True

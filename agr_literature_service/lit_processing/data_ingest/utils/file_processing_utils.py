@@ -316,11 +316,12 @@ def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=N
         # since they are small and would otherwise be classed by size.
         if is_inline_image(file_name):
             return "inline_image"
-        # Taylor & Francis color/B&W renditions, classified by name so size
-        # never hides a full-size figure (SCRUM-6095). The online-color (_OC)
-        # image is always the primary figure. The print-B&W (_PB) image is a
-        # duplicate when its _OC twin is present, otherwise it is the sole
-        # rendition and stays a figure.
+        # Taylor & Francis color/B&W renditions are full figures identified by
+        # name, so they are classified BEFORE the size rules -- otherwise the
+        # size cutoff would hide a small color figure as a thumbnail
+        # (SCRUM-6095). The online-color (_OC) image is always the primary
+        # figure; the print-B&W (_PB) image is a duplicate when its _OC twin is
+        # present, otherwise it is the sole rendition and stays a figure.
         if is_online_color(file_name):
             return "figure"
         if is_print_bw(file_name):

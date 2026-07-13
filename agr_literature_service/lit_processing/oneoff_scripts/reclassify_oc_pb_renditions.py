@@ -7,7 +7,9 @@ full-size, so the absolute size rule (SCRUM-6281) split them arbitrarily --
 hiding ~half of the primary color figures as ``thumbnail`` and leaving
 duplicate B&W images in the figure view.
 
-This script re-classifies by name (no S3 access needed):
+The classifier (file_processing_utils.classify_pmc_file) now identifies these
+renditions by name BEFORE the size rules, so classification is size-independent.
+This script brings existing data in line by name (no S3 access needed):
 
   1. ``_OC`` rows mislabeled ``thumbnail`` -> ``figure``   (rescue color figures)
   2. ``_PB`` rows that have an ``_OC`` twin -> ``bw_duplicate``  (demote duplicate)
