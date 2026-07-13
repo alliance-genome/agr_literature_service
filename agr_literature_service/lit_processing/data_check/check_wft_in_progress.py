@@ -154,6 +154,13 @@ def process_no_parent(db_session, phase, slack_messages, counts, debug):
             else:
                 print(f"Setting to try again for {wft}")
         else:  # need to set to failed
+            # already-failed items are a no-op here (same value); skip so we don't
+            # re-count or re-set them, mirroring the "only count newly-failed" guard
+            # in process_parent.
+            if wft.workflow_tag_id == phase['set to failed']:
+                if debug:
+                    print(f"Already set to failed for {wft}")
+                continue
             sql = text(f"""SELECT r.curie FROM reference r, workflow_tag wft
                             WHERE r.reference_id = {wft.reference_id} AND
                                   r.reference_id = wft.reference_id AND
