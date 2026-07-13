@@ -77,9 +77,10 @@ def build_sibling_image_sizes(input_file):
 
 
 def determine_file_class(file_name, file_extension, pmcid, pmcid_to_xml_root, pmcid_to_pdf_roots,
-                         file_size=None, sibling_sizes=None):
+                         file_size=None, sibling_sizes=None, sibling_display_names=None):
     """Determine the file_class for a PMC file based on extension and root name matching."""
-    file_class = classify_pmc_file(file_name, file_extension, file_size, sibling_sizes)
+    file_class = classify_pmc_file(file_name, file_extension, file_size, sibling_sizes,
+                                   sibling_display_names)
     file_root = file_name.lower()
 
     # Check if this PDF is the main PDF (matches XML root name)
@@ -127,8 +128,12 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
     pmcid_to_xml_root, pmcid_to_pdf_roots = build_file_root_mappings(infile)
     logger.info(f"Found {len(pmcid_to_xml_root)} PMCIDs with XML files for main PDF identification")
 
-    # Build same-named image size map so gif/jpg pairs can be classified (SCRUM-6095)
+    # Build same-named image size map so gif/jpg pairs can be classified, plus a
+    # per-PMCID set of image display names for color/B&W (_OC/_PB) twins (SCRUM-6095)
     sibling_image_sizes = build_sibling_image_sizes(infile)
+    pmc_image_display_names: Dict[str, Set[str]] = {}
+    for (pmcid_key, base_name) in sibling_image_sizes:
+        pmc_image_display_names.setdefault(pmcid_key, set()).add(base_name)
 
     # Track reference_ids that get a new main PDF for workflow transitions
     references_with_new_main_pdf: Set[int] = set()
@@ -166,9 +171,10 @@ def load_ref_file_metadata_into_db():  # pragma: no cover
                 file_extension = file_name_with_suffix.split(".")[-1].lower()
                 file_name = file_name_with_suffix.replace("." + file_extension, "")
                 sibling_sizes = sibling_image_sizes.get((pmcid, file_name.lower()), {})
+                sibling_names = pmc_image_display_names.get(pmcid, set())
                 file_class = determine_file_class(file_name, file_extension, pmcid,
                                                   pmcid_to_xml_root, pmcid_to_pdf_roots,
-                                                  file_size, sibling_sizes)
+                                                  file_size, sibling_sizes, sibling_names)
                 referencefile_id = insert_referencefile(db_session, pmid, file_class,
                                                         file_publication_status,
                                                         file_name_with_suffix,

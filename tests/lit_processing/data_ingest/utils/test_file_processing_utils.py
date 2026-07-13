@@ -2,6 +2,10 @@ from agr_literature_service.lit_processing.data_ingest.utils.file_processing_uti
     classify_pmc_file,
     is_thumbnail_by_size,
     is_paired_thumbnail,
+    is_inline_image,
+    is_online_color,
+    is_print_bw,
+    has_color_twin,
     THUMBNAIL_MAX_SIZE_BYTES,
 )
 
@@ -93,6 +97,65 @@ class TestClassifyPmcFile:
         # Only gifs are reclassified via pairing; the jpg is the master.
         assert classify_pmc_file('gr2', 'jpg', 340500,
                                  sibling_sizes={'gif': 73784}) == 'figure'
+
+
+class TestInlineImage:
+
+    def test_ilm_suffix_is_inline_image(self):
+        # Taylor & Francis inline images, classified before the size rule so
+        # they don't fall through to thumbnail.
+        assert classify_pmc_file('KRNB_A_2685379_ILM0001', 'jpg', 2577) == 'inline_image'
+        assert classify_pmc_file('KRNB_A_2685379_ILM0002', 'jpg', 427) == 'inline_image'
+
+    def test_ilm_is_case_insensitive(self):
+        assert classify_pmc_file('foo_ilm12', 'jpg', 500) == 'inline_image'
+
+    def test_author_names_containing_ilm_are_not_inline_images(self):
+        # Guard against the '%ILM%' substring trap (Yilmaz, Egilmez, Tilmann).
+        assert is_inline_image('00045679_Yilmaz14') is False
+        assert is_inline_image('00001904_Egilmez94') is False
+        assert is_inline_image('gr1_ILMitem') is False  # ILM not followed by digits/suffix
+
+    def test_ilm_helper_matches_only_anchored_suffix(self):
+        assert is_inline_image('x_ILM0001') is True
+        assert is_inline_image('ILM0001_x') is False
+
+
+class TestColorBwRenditions:
+
+    # Real AGRKB:...301107 (KRNB / RNA Biology) names and sizes.
+    NAMES = {
+        'KRNB_A_2685379_F0001_OC', 'KRNB_A_2685379_F0001_PB',
+        'KRNB_A_2685379_F0002_OC', 'KRNB_A_2685379_F0002_PB',
+    }
+
+    def test_oc_is_always_figure_even_when_small(self):
+        # Rescue: a color figure under the size cutoff must not become thumbnail.
+        assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 5000) == 'figure'
+        assert classify_pmc_file('KRNB_A_2685379_F0001_OC', 'jpg', 194701,
+                                 sibling_display_names=self.NAMES) == 'figure'
+
+    def test_pb_with_oc_twin_is_bw_duplicate(self):
+        assert classify_pmc_file('KRNB_A_2685379_F0001_PB', 'jpg', 108779,
+                                 sibling_display_names=self.NAMES) == 'bw_duplicate'
+
+    def test_pb_without_oc_twin_stays_figure(self):
+        # Sole rendition (no color twin present) -> figure, even if small.
+        assert classify_pmc_file('SOME_F0001_PB', 'jpg', 5000,
+                                 sibling_display_names={'SOME_F0002_PB'}) == 'figure'
+        assert classify_pmc_file('SOME_F0001_PB', 'jpg', 108779) == 'figure'
+
+    def test_helpers(self):
+        assert is_online_color('x_F0001_OC') is True
+        assert is_online_color('x_F0001_PB') is False
+        assert is_print_bw('x_F0001_PB') is True
+        assert is_print_bw('x_F0001_OC') is False
+        assert has_color_twin('x_F0001_PB', {'x_F0001_OC', 'x_F0001_PB'}) is True
+        assert has_color_twin('x_F0001_PB', {'x_F0002_OC'}) is False
+        assert has_color_twin('x_F0001_PB', None) is False
+
+    def test_twin_match_is_case_insensitive(self):
+        assert has_color_twin('X_F1_PB', {'x_f1_oc'}) is True
 
 
 class TestIsPairedThumbnail:

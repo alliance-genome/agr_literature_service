@@ -223,6 +223,51 @@ def is_thumbnail_by_size(file_extension, file_size):
     return max_size is not None and file_size < max_size
 
 
+# Publisher inline-image naming: Taylor & Francis ships inline equation /
+# formatted-text snippets as "<article>_ILM<n>" (e.g. KRNB_A_2685379_ILM0001).
+# These are neither figures nor thumbnails of figures, so they get their own
+# file_class (SCRUM-6095). Anchored to the suffix to avoid matching author
+# names that merely contain "ilm" (Yilmaz, Egilmez, Tilmann, ...).
+INLINE_IMAGE_RE = re.compile(r'_ILM\d+$', re.IGNORECASE)
+
+
+def is_inline_image(file_name):
+    """Return True for publisher inline-image files (e.g. '..._ILM0001')."""
+    return bool(INLINE_IMAGE_RE.search(file_name))
+
+
+# Taylor & Francis ship each figure as two renditions: an online-color image
+# ("<figure>_OC") and a print black-and-white image ("<figure>_PB"). The _OC is
+# the primary rendition a curator wants; the _PB is a grayscale duplicate when
+# its _OC twin is present. Anchored to the suffix so it only matches this
+# convention (SCRUM-6095).
+ONLINE_COLOR_RE = re.compile(r'_OC$', re.IGNORECASE)
+PRINT_BW_RE = re.compile(r'_PB$', re.IGNORECASE)
+
+
+def is_online_color(file_name):
+    """Return True for a Taylor & Francis online-color rendition ('..._OC')."""
+    return bool(ONLINE_COLOR_RE.search(file_name))
+
+
+def is_print_bw(file_name):
+    """Return True for a Taylor & Francis print black-and-white rendition ('..._PB')."""
+    return bool(PRINT_BW_RE.search(file_name))
+
+
+def has_color_twin(file_name, sibling_display_names):
+    """Return True if a print-B&W file has a same-figure online-color companion.
+
+    ``sibling_display_names`` is the set of display names (without extension) of
+    the other files in the same reference/package. A ``..._PB`` file has a twin
+    when the corresponding ``..._OC`` name is present.
+    """
+    if not sibling_display_names or not is_print_bw(file_name):
+        return False
+    oc_twin = PRINT_BW_RE.sub('_OC', file_name).lower()
+    return oc_twin in {name.lower() for name in sibling_display_names}
+
+
 def is_paired_thumbnail(file_extension, file_size, sibling_sizes):
     """Return True if this gif is a reduced-size preview of a larger same-named
     companion image (SCRUM-6095).
@@ -252,7 +297,8 @@ def is_paired_thumbnail(file_extension, file_size, sibling_sizes):
     return False
 
 
-def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=None):
+def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=None,
+                      sibling_display_names=None):
 
     """
     image_related_file_extensions = [
@@ -265,6 +311,22 @@ def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=N
     if ext == "nxml":
         return "nXML"
     if ext in image_related_file_extensions:
+        # Inline images (equation / formatted-text snippets, e.g. Taylor &
+        # Francis "..._ILM<n>") are neither figures nor thumbnails. Check first
+        # since they are small and would otherwise be classed by size.
+        if is_inline_image(file_name):
+            return "inline_image"
+        # Taylor & Francis color/B&W renditions, classified by name so size
+        # never hides a full-size figure (SCRUM-6095). The online-color (_OC)
+        # image is always the primary figure. The print-B&W (_PB) image is a
+        # duplicate when its _OC twin is present, otherwise it is the sole
+        # rendition and stays a figure.
+        if is_online_color(file_name):
+            return "figure"
+        if is_print_bw(file_name):
+            if has_color_twin(file_name, sibling_display_names):
+                return "bw_duplicate"
+            return "figure"
         # Some publishers (e.g. JoVE, Royal Society) label thumbnails in the
         # file name; honor that regardless of size.
         if "thumb" in file_name.lower():
