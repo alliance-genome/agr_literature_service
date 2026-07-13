@@ -75,6 +75,7 @@ Get list of problems:-
 
 """
 from os import environ, path
+from collections import defaultdict
 from sqlalchemy import text
 from datetime import date, timedelta
 import argparse
@@ -121,7 +122,7 @@ def get_mod_abbreviations(db_session, debug):
     return mod_abbreviations
 
 
-def process_no_parent(db_session, phase, slack_messages, debug):
+def process_no_parent(db_session, phase, slack_messages, counts, debug):
     start_date = get_date_weeks_ago(phase['time limit in weeks'])
     wfts = db_session.query(WorkflowTagModel).filter(WorkflowTagModel.workflow_tag_id.in_(phase['current wft']),
                                                      WorkflowTagModel.date_updated > start_date).all()
@@ -138,6 +139,7 @@ def process_no_parent(db_session, phase, slack_messages, debug):
         if debug:
             print(reference)
         if reference:  # need to set back to try again
+            counts[wft.mod_id][phase['name']]['reset'] += 1
             if not debug:
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
@@ -159,6 +161,7 @@ def process_no_parent(db_session, phase, slack_messages, debug):
             if debug:
                 print(sql)
             reference = db_session.execute(sql).first()
+            counts[wft.mod_id][phase['name']]['failed'] += 1
             if not debug:
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
@@ -175,7 +178,7 @@ def process_no_parent(db_session, phase, slack_messages, debug):
                 print(f"Setting to failed for {wft}")
 
 
-def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: max-complexity=25
+def process_parent(db_session, phase, slack_messages, counts, debug, failed):  # noqa: max-complexity=25
     start_date = get_date_weeks_ago(phase['time limit in weeks'])
 
     if failed:
@@ -198,6 +201,7 @@ def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: m
         if debug:
             print(reference)
         if reference:  # need to set back to try again
+            counts[wft.mod_id][phase['name']]['reset'] += 1
             if not debug:
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
@@ -221,6 +225,8 @@ def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: m
             if debug:
                 print(sql)
             reference = db_session.execute(sql).first()
+            if not failed:  # only count newly-failed; the failed=True pass is already failed
+                counts[wft.mod_id][phase['name']]['failed'] += 1
             if not debug:
                 if phase['slack message']:
                     if wft.mod_id not in slack_messages:
@@ -241,6 +247,39 @@ def process_parent(db_session, phase, slack_messages, debug, failed):  # noqa: m
                     print(f"Already set to failed for {wft}")
 
 
+def report_counts(db_session, counts, slack_messages, debug):
+    """Print per-MOD / per-phase reset & failed counts to stdout, append the
+    per-MOD summary to that MOD's slack report, and print a grand total."""
+    if not counts:
+        print("No workflow tags were reset or set to failed.")
+        return
+
+    mod_abbr = get_mod_abbreviations(db_session, debug)
+    total_reset = 0
+    total_failed = 0
+    for mod_id in sorted(counts.keys()):
+        abbr = mod_abbr.get(mod_id, str(mod_id))
+        summary_lines = []
+        mod_reset = 0
+        mod_failed = 0
+        for phase_name, tallies in counts[mod_id].items():
+            reset = tallies['reset']
+            failed = tallies['failed']
+            mod_reset += reset
+            mod_failed += failed
+            summary_lines.append(f"[{abbr}] {phase_name}: {reset} reset, {failed} failed")
+        summary_lines.append(f"[{abbr}] TOTAL: {mod_reset} reset, {mod_failed} failed")
+        total_reset += mod_reset
+        total_failed += mod_failed
+
+        for line in summary_lines:
+            print(line)
+        if mod_id in slack_messages:
+            slack_messages[mod_id].extend(summary_lines)
+
+    print(f"GRAND TOTAL: {total_reset} reset, {total_failed} failed")
+
+
 def check_wft_in_progress(db_session, debug=True):
     in_progress = [{'current wft': ['ATP:0000198', 'ATP:0000164'],  # in progress or failed
                     'start of progress': 'ATP:0000134',             # file uploaded, sets start of process
@@ -249,6 +288,7 @@ def check_wft_in_progress(db_session, debug=True):
                     'time limit in weeks': 6,                       # if older than this, ignore
                     'slack message': True,                          # if true notify slack
                     'parent': False,                                # one off, no children
+                    'name': 'text conversion',                      # phase label for counts
                     },
                    # classification phase
                    {'failed wft': 'ATP:0000189',                    # failed parent
@@ -256,7 +296,8 @@ def check_wft_in_progress(db_session, debug=True):
                     'start of progress': 'ATP:0000163',             # file converted to text considered as start time
                     'time limit in weeks': 6,                       # if older than this, ignore
                     'slack message': True,                          # if true notify slack
-                    'parent': True                                  # Use children
+                    'parent': True,                                 # Use children
+                    'name': 'classification',                       # phase label for counts
                     },
                    # extraction phase
                    {'failed wft': 'ATP:0000187',                    # failed_parent
@@ -264,23 +305,25 @@ def check_wft_in_progress(db_session, debug=True):
                     'start of progress': 'ATP:0000163',             # file converted to text considered as start time
                     'time limit in weeks': 6,                       # if older than this, ignore
                     'slack message': True,                          # if true notify slack
-                    'parent': True                                  # Use children
+                    'parent': True,                                 # Use children
+                    'name': 'entity extraction',                    # phase label for counts
                     },
                    ]
-    slack_messages = {}
+    slack_messages: dict = {}
+    counts: dict = defaultdict(lambda: defaultdict(lambda: {'reset': 0, 'failed': 0}))
     for phase in in_progress:
         if phase['parent']:
-            process_parent(db_session, phase, slack_messages, debug, failed=True)
-            process_parent(db_session, phase, slack_messages, debug, failed=False)
+            process_parent(db_session, phase, slack_messages, counts, debug, failed=True)
+            process_parent(db_session, phase, slack_messages, counts, debug, failed=False)
         else:
-            process_no_parent(db_session, phase, slack_messages, debug)
+            process_no_parent(db_session, phase, slack_messages, counts, debug)
     db_session.commit()
 
-    mod_abbr = {}
+    report_counts(db_session, counts, slack_messages, debug)
+
+    mod_abbr = get_mod_abbreviations(db_session, debug) if slack_messages else {}
     for mod_id in slack_messages.keys():
-        if mod_id not in mod_abbr:
-            mod_abbr = get_mod_abbreviations(db_session, debug)
-            send_report_to_slack(mod_abbr[mod_id], slack_messages[mod_id])
+        send_report_to_slack(mod_abbr[mod_id], slack_messages[mod_id])
 
 
 if __name__ == "__main__":
