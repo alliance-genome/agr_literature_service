@@ -200,7 +200,7 @@ CREATE TABLE topic_entity_tag(
 );
 
 CREATE_TABLE curation_status(
-    curation_status_id PRIMARY_KEY,
+    curation_status_id string PRIMARY KEY,
     topic string,
     reference_id string,
     mod_id string,
@@ -222,7 +222,7 @@ CREATE_TABLE curation_status_with_mod AS
     curation_status.topic,
     curation_status.reference_id,
     curation_status.curation_status,
-    mod.abbreviation,
+    mod.abbreviation
     FROM curation_status
     JOIN mod ON
     curation_status.mod_id = mod.mod_id
@@ -273,7 +273,7 @@ CREATE TABLE topic_entity_tags AS
 
 CREATE TABLE curation_tags AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=topic, 'curation_status':=curation_status, 'mod':=mod )) \"CURATION_TAGS\"
+    collect_list(map('topic':=topic, 'curation_status':=curation_status, 'abbreviation':=abbreviation )) \"CURATION_TAGS\"
     FROM curation_status_with_mod
     GROUP BY reference_id
     EMIT CHANGES;

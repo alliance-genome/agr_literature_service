@@ -58,7 +58,7 @@ curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" 
 
 export PGPASSWORD=${PSQL_PASSWORD}
 # Drop replication slots (both old and new)
-psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE slot text; BEGIN FOREACH slot IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource', debezium_curation_status'] LOOP IF EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = slot) THEN PERFORM pg_drop_replication_slot(slot); END IF; END LOOP; END\$\$;"
+psql -h ${PSQL_HOST} -U ${PSQL_USERNAME} -p ${PSQL_PORT} -d ${PSQL_DATABASE} -c "DO \$\$DECLARE slot text; BEGIN FOREACH slot IN ARRAY ARRAY['debezium_unified','debezium_extract_fields','debezium_joined_tables','debezium_mod','debezium_referencetype','debezium_reference','debezium_citation','debezium_mod_referencetype','debezium_topic_entity_tag_source','debezium_copyright_license','debezium_mod_corpus_association','debezium_resource', 'debezium_curation_status'] LOOP IF EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name = slot) THEN PERFORM pg_drop_replication_slot(slot); END IF; END LOOP; END\$\$;"
 
 # Drop publications so the connector recreates them from the CURRENT table.include.list.
 # The connector uses publication.autocreate.mode=filtered, which only creates a publication
