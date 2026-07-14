@@ -62,6 +62,13 @@ def is_already_present(response):
     reason="duplicate". These are not real failures: the data is present. Other
     409 reasons (opposite_negation, different_creator) are genuine conflicts and
     are treated as failures.
+
+    The workflow_tag endpoint signals an already-present record differently: it
+    proactively detects a duplicate (same reference/mod/tag) and returns 422 with
+    a plain-string detail ending "can not create duplicate record." That is also a
+    record that is already present, not a real failure. The match is on the
+    specific message so the endpoint's other genuine 422s (e.g. "Reference ...
+    does not exist", "Mod ... does not exist") stay classified as errors.
     """
     if response.status_code == 200:
         return True
@@ -72,14 +79,42 @@ def is_already_present(response):
             return False
         if isinstance(detail, dict) and detail.get("reason") == "duplicate":
             return True
+    if response.status_code == 422:
+        try:
+            detail = response.json().get("detail")
+        except (ValueError, AttributeError):
+            return False
+        if isinstance(detail, str) and "can not create duplicate record" in detail:
+            return True
     return False
 
 
-def write_output_files(datafile, metadata, success_records, already_present_records, failed_records):
+def is_missing_xref(response):
+    """Return True if the record's reference_curie has no cross_reference row.
+
+    The workflow_tag endpoint resolves reference_curie via normalize_reference_curie,
+    which returns 404 "The XREF <curie> is not in the cross_reference table" when the
+    reference is not in the database at all. This is a genuine data gap rather than a
+    transient failure or a duplicate, so these records are segregated into their own
+    output file instead of the general error bucket.
+    """
+    if response.status_code == 404:
+        try:
+            detail = response.json().get("detail")
+        except (ValueError, AttributeError):
+            return False
+        if isinstance(detail, str) and "is not in the cross_reference table" in detail:
+            return True
+    return False
+
+
+def write_output_files(datafile, metadata, success_records, already_present_records,
+                       failed_records, missing_xref_records):
     base, _ = os.path.splitext(datafile)
     for suffix, records in [("_success.json", success_records),
                             ("_already_present.json", already_present_records),
-                            ("_failed.json", failed_records)]:
+                            ("_failed.json", failed_records),
+                            ("_missing_xref.json", missing_xref_records)]:
         output_path = base + suffix
         output_data = {"metaData": metadata, "data": records}
         with open(output_path, 'w') as f:
@@ -107,9 +142,11 @@ def load_data(datafile):
 
     success_count = 0
     already_present_count = 0
+    missing_xref_count = 0
     error_count = 0
     success_records = []
     already_present_records = []
+    missing_xref_records = []
     failed_records = []
     count = 0
     for i, record in enumerate(records, start=1):
@@ -122,6 +159,9 @@ def load_data(datafile):
             elif is_already_present(response):
                 already_present_count += 1
                 already_present_records.append(record)
+            elif is_missing_xref(response):
+                missing_xref_count += 1
+                missing_xref_records.append(record)
             else:
                 error_count += 1
                 failed_records.append(record)
@@ -135,15 +175,19 @@ def load_data(datafile):
         if count > 20 and success_count * 3 < error_count:
             rate = (success_count / (error_count + success_count)) * 100
             logger.error(f"STOPPING TOO MANY ERRORS: SUCCESS RATE {rate}% last and {i}th record{record['reference_curie']} ")
-            write_output_files(datafile, metadata, success_records, already_present_records, failed_records)
+            write_output_files(datafile, metadata, success_records, already_present_records,
+                               failed_records, missing_xref_records)
             exit(-1)
         if i % 500 == 0:
             logger.info(f"Progress: {i}/{total} (success={success_count}, "
-                        f"already_present={already_present_count}, errors={error_count})")
+                        f"already_present={already_present_count}, "
+                        f"missing_xref={missing_xref_count}, errors={error_count})")
 
-    write_output_files(datafile, metadata, success_records, already_present_records, failed_records)
+    write_output_files(datafile, metadata, success_records, already_present_records,
+                       failed_records, missing_xref_records)
     logger.info(f"DONE! Total={total}, Success={success_count}, "
-                f"AlreadyPresent={already_present_count}, Errors={error_count}")
+                f"AlreadyPresent={already_present_count}, "
+                f"MissingXref={missing_xref_count}, Errors={error_count}")
 
 
 if __name__ == "__main__":
