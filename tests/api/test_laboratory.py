@@ -237,7 +237,7 @@ class TestLaboratory:
                 headers=auth_headers,
             )
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "QX"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "QX"}, headers=auth_headers
             )
             assert res.status_code == status.HTTP_200_OK
             rows = res.json()
@@ -245,7 +245,7 @@ class TestLaboratory:
             assert rows[0]["strain_designation"] == "QX"
             # case-insensitive
             res2 = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "qx"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "qx"}, headers=auth_headers
             )
             assert len(res2.json()) == 1
 
@@ -259,7 +259,7 @@ class TestLaboratory:
                     headers=auth_headers,
                 )
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "SHX"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "SHX"}, headers=auth_headers
             )
             assert res.status_code == status.HTTP_200_OK
             assert len(res.json()) == 2
@@ -268,43 +268,54 @@ class TestLaboratory:
         with TestClient(app) as client:
             client.post("/laboratory/", json={"name": "Unique Kappa Lab UNIQK"}, headers=auth_headers)
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "UNIQK"}, headers=auth_headers
+                "/laboratory/by_name", params={"query": "UNIQK"}, headers=auth_headers
             )
             assert len(res.json()) == 1
 
             client.post("/laboratory/", json={"name": "Multi MMTOKEN One"}, headers=auth_headers)
             client.post("/laboratory/", json={"name": "Multi MMTOKEN Two"}, headers=auth_headers)
             res2 = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "MMTOKEN"}, headers=auth_headers
+                "/laboratory/by_name", params={"query": "MMTOKEN"}, headers=auth_headers
             )
             assert len(res2.json()) == 2
 
-    def test_strain_exact_short_circuits_name(self, auth_headers):  # noqa
-        # One lab has the query as its strain code; another merely contains it in
-        # its name. The exact-strain match wins and the name match is not returned.
+    def test_name_and_strain_endpoints_are_separate(self, auth_headers):  # noqa
+        # One lab has the query as its strain code (name does NOT contain it);
+        # another merely contains it in its name. The two endpoints keep the
+        # lookups cleanly separated: by_strain_designation returns only the
+        # exact-strain lab, by_name returns only the name-containing lab.
         with TestClient(app) as client:
             client.post(
                 "/laboratory/",
-                json={"name": "Has strain code SCQ", "strain_designation": "SCQ"},
+                json={"name": "Has strain code only", "strain_designation": "SCQ"},
                 headers=auth_headers,
             )
             client.post("/laboratory/", json={"name": "Name contains SCQ here"}, headers=auth_headers)
-            res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "SCQ"}, headers=auth_headers
+
+            strain_res = client.get(
+                "/laboratory/by_strain_designation", params={"query": "SCQ"}, headers=auth_headers
             )
-            rows = res.json()
-            assert len(rows) == 1
-            assert rows[0]["strain_designation"] == "SCQ"
+            strain_rows = strain_res.json()
+            assert len(strain_rows) == 1
+            assert strain_rows[0]["strain_designation"] == "SCQ"
+
+            name_res = client.get(
+                "/laboratory/by_name", params={"query": "SCQ"}, headers=auth_headers
+            )
+            name_rows = name_res.json()
+            assert len(name_rows) == 1
+            assert name_rows[0]["name"] == "Name contains SCQ here"
 
     def test_find_no_match_empty_list(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            res = client.get(
-                "/laboratory/by_name_or_strain_designation",
-                params={"query": "NOSUCHLABTOKENXYZ"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_200_OK
-            assert res.json() == []
+            for endpoint in ("/laboratory/by_name", "/laboratory/by_strain_designation"):
+                res = client.get(
+                    endpoint,
+                    params={"query": "NOSUCHLABTOKENXYZ"},
+                    headers=auth_headers,
+                )
+                assert res.status_code == status.HTTP_200_OK
+                assert res.json() == []
 
     def test_find_results_include_joins(self, db, auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").one_or_none()
@@ -320,7 +331,7 @@ class TestLaboratory:
             }
             client.post("/laboratory/", json=payload, headers=auth_headers)
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "JNQ"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "JNQ"}, headers=auth_headers
             )
             rows = res.json()
             assert len(rows) == 1

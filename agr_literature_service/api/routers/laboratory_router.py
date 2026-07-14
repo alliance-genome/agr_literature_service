@@ -61,23 +61,33 @@ def get_by_laboratory_cross_reference(
     return laboratory_crud.show(db, str(lcr.laboratory_id))
 
 
-# Free-text lookup — declared BEFORE the catch-all /{curie_or_laboratory_id}.
+# Free-text lookups — declared BEFORE the catch-all /{curie_or_laboratory_id}.
 @router.get(
-    "/by_name_or_strain_designation",
+    "/by_name",
     response_model=List[LaboratorySchemaShow],
     status_code=status.HTTP_200_OK,
 )
-def get_by_name_or_strain_designation(
+def get_by_name(
     query: str,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):
-    """Find laboratories by an exact strain_designation code or a name substring.
+    """Find laboratories by a case-insensitive substring match on name."""
+    return laboratory_crud.find_by_name(db, query)
 
-    Precedence: an exact (case-insensitive) strain_designation match wins; otherwise
-    a case-insensitive substring match on name. Returns a (possibly empty) list.
-    """
-    return laboratory_crud.find_by_name_or_strain_designation(db, query)
+
+@router.get(
+    "/by_strain_designation",
+    response_model=List[LaboratorySchemaShow],
+    status_code=status.HTTP_200_OK,
+)
+def get_by_strain_designation(
+    query: str,
+    user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+    db: Session = db_session,
+):
+    """Find laboratories by an exact (case-insensitive) strain_designation code."""
+    return laboratory_crud.find_by_strain_designation(db, query)
 
 
 @router.delete("/{curie_or_laboratory_id}", status_code=status.HTTP_204_NO_CONTENT)
