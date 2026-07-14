@@ -1,17 +1,25 @@
 """
-One-off cleanup for SCRUM-6281: re-classify mislabeled PMC thumbnails.
+One-off cleanup for SCRUM-6281 / SCRUM-6095: re-classify mislabeled PMC thumbnails.
 
 Historically every PMC image was stored with ``file_class = 'figure'`` because
 the classifier only recognized a thumbnail when the file name contained
 "thumb". In reality PMC ships each figure as a large image plus a small,
 same-named thumbnail that carries no "thumb" token, so ~half of the ``figure``
-rows are actually thumbnails. The only reliable discriminator is file size.
+rows are actually thumbnails.
 
 This script scans ``figure``-class ``gif``/``jpg``/``jpeg`` rows, reads each
-object's size from S3, and re-classifies it as ``thumbnail`` when it falls
-below the size threshold for its type (gif < 25 KB, jpg/jpeg < 15 KB). The
-thresholds live in file_processing_utils.THUMBNAIL_MAX_SIZE_BYTES, the same
-values the ingest-time classifier now uses, so past and future data agree.
+object's size from S3, and re-classifies it as ``thumbnail`` when either:
+
+  * it falls below the absolute size threshold for its type
+    (gif < 25 KB, jpg/jpeg < 15 KB), or
+  * (SCRUM-6095) it is a gif above that threshold that has a same-named
+    jpg/jpeg companion in the same reference which is larger -- i.e. the gif
+    is the smaller half of a gif/jpg pair. Some publishers ship "large"
+    thumbnails (~70 KB gif alongside a ~340 KB jpg) that the absolute cutoff
+    alone misses.
+
+The thresholds live in file_processing_utils.THUMBNAIL_MAX_SIZE_BYTES, the same
+values the ingest-time classifier uses, so past and future data agree.
 
 By default the script is a dry run: it reports what it would change (with a
 size histogram) but commits nothing. Pass --apply to perform the updates.
@@ -35,6 +43,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.api.crud.referencefile_utils import get_s3_folder_from_md5sum
 from agr_literature_service.lit_processing.data_ingest.utils.file_processing_utils import (
     is_thumbnail_by_size,
+    is_paired_thumbnail,
 )
 from agr_literature_service.api.user import set_global_user_id
 
@@ -47,12 +56,18 @@ BATCH_SIZE = 500
 S3_WORKERS = 24
 
 SELECT_CANDIDATES = text(
-    "SELECT referencefile_id, display_name, file_extension, md5sum "
-    "FROM referencefile "
-    "WHERE file_class = 'figure' "
-    "AND lower(file_extension) IN ('gif', 'jpg', 'jpeg') "
-    "AND referencefile_id > :last_id "
-    "ORDER BY referencefile_id "
+    "SELECT rf.referencefile_id, rf.display_name, rf.file_extension, rf.md5sum, "
+    "  (SELECT j.md5sum FROM referencefile j "
+    "     WHERE j.reference_id = rf.reference_id "
+    "       AND j.display_name = rf.display_name "
+    "       AND lower(j.file_extension) IN ('jpg', 'jpeg') "
+    "     ORDER BY j.file_extension "
+    "     LIMIT 1) AS sibling_jpg_md5sum "
+    "FROM referencefile rf "
+    "WHERE rf.file_class = 'figure' "
+    "AND lower(rf.file_extension) IN ('gif', 'jpg', 'jpeg') "
+    "AND rf.referencefile_id > :last_id "
+    "ORDER BY rf.referencefile_id "
     "LIMIT :limit"
 )
 
@@ -71,6 +86,17 @@ def get_s3_size(s3_client, md5sum):
         return s3_client.head_object(Bucket=BUCKET, Key=key)["ContentLength"]
     except ClientError:
         return None
+
+
+def classify_reason(file_extension, size, sibling_jpg_md5sum, size_by_md5):
+    """Return a short reason string if this row should become a thumbnail, else None."""
+    if is_thumbnail_by_size(file_extension, size):
+        return "size"
+    if file_extension.lower() == 'gif' and sibling_jpg_md5sum:
+        sibling_size = size_by_md5.get(sibling_jpg_md5sum)
+        if is_paired_thumbnail('gif', size, {'jpg': sibling_size}):
+            return f"paired(jpg={sibling_size})"
+    return None
 
 
 def _bucket_label(size):
@@ -118,29 +144,39 @@ def reclassify_thumbnails(apply_changes: bool, row_limit: int) -> None:
         if not rows:
             break
 
-        # Fetch S3 sizes for the batch concurrently.
-        md5s = [row[3] for row in rows]
+        # Fetch S3 sizes for the batch concurrently. Include the same-named jpg
+        # companion of each gif so the paired-thumbnail rule (SCRUM-6095) can
+        # compare their sizes.
+        md5_set = set()
+        for row in rows:
+            md5_set.add(row[3])
+            if row[4] and row[2].lower() == 'gif':
+                md5_set.add(row[4])
+        md5_list = list(md5_set)
         with ThreadPoolExecutor(max_workers=S3_WORKERS) as pool:
-            sizes = list(pool.map(lambda m: get_s3_size(s3_client, m), md5s))
+            fetched = list(pool.map(lambda m: get_s3_size(s3_client, m), md5_list))
+        size_by_md5 = dict(zip(md5_list, fetched))
 
         to_update = []
-        for row, size in zip(rows, sizes):
-            referencefile_id, display_name, file_extension, _ = row
+        for row in rows:
+            referencefile_id, display_name, file_extension, md5sum, sibling_jpg_md5sum = row
             last_id = referencefile_id
             scanned += 1
 
+            size = size_by_md5.get(md5sum)
             if size is None:
                 missing += 1
                 logger.info(f"MISSING in S3: referencefile_id={referencefile_id} "
                             f"display_name='{display_name}'")
                 continue
 
-            if not is_thumbnail_by_size(file_extension, size):
+            reason = classify_reason(file_extension, size, sibling_jpg_md5sum, size_by_md5)
+            if reason is None:
                 continue
 
             histogram[_bucket_label(size)] = histogram.get(_bucket_label(size), 0) + 1
             to_update.append(referencefile_id)
-            logger.info(f"figure -> thumbnail: referencefile_id={referencefile_id} "
+            logger.info(f"figure -> thumbnail [{reason}]: referencefile_id={referencefile_id} "
                         f"display_name='{display_name}.{file_extension}' size={size}")
 
         if to_update:
