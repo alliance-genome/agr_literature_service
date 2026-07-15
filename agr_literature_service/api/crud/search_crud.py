@@ -62,6 +62,23 @@ CURATION_CLASSIFICATION_TAG_FACETS = [
     "manual_indexing_curation_tag"
 ]
 
+# Reference-level "Data Existence" facet, derived from topic entity tags. A reference
+# "has data" when it carries a positive (negated=false) topic tag and "no data" when it
+# carries a negated topic tag; the two overlap when both kinds of tag are present. Mirrors
+# the has_data/no_data logic in curation_status_crud.get_tet_list_summary.
+DATA_EXISTENCE_FACET = "data_existence"
+DATA_EXISTENCE_HAS_DATA = "has_data"
+DATA_EXISTENCE_NO_DATA = "no_data"
+
+
+def data_existence_value_to_negated(value: str) -> bool:
+    """Map a data_existence facet value to the topic_entity_tags.negated boolean.
+
+    "no_data" -> True (negated tag), anything else ("has_data") -> False.
+    """
+    normalized = str(value).strip().lower().replace(" ", "_")
+    return normalized == DATA_EXISTENCE_NO_DATA
+
 # Accepts: ORCID:0000-... (any case), orcid:..., or bare 0000-....
 _ORCID_INPUT = re.compile(r'(?i)^(?:\s*orcid:\s*)?([0-9]{4}-[0-9]{4}-[0-9]{4}-[0-9Xx]{4})\s*$')
 
@@ -541,6 +558,29 @@ def search_references(
                     {"bool": {"should": should, "minimum_should_match": 1}}
                 )
 
+            elif facet_field == DATA_EXISTENCE_FACET:
+                # topic-tag data existence: negated=false => has_data, negated=true => no_data.
+                # Scoped to the curator's MOD(s) via data_provider; multiple values are OR'd.
+                de_should: List[Dict[str, Any]] = []
+                for facet_value in facet_list_values:
+                    de_should.append({
+                        "nested": {
+                            "path": "topic_entity_tags",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"terms": {"topic_entity_tags.data_provider": wft_mod_abbreviations}},
+                                        {"term": {"topic_entity_tags.negated":
+                                                  data_existence_value_to_negated(facet_value)}}
+                                    ]
+                                }
+                            }
+                        }
+                    })
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                    {"bool": {"should": de_should, "minimum_should_match": 1}}
+                )
+
             else:
                 if facet_field == "authors.name.keyword":
                     for facet_value in facet_list_values:
@@ -608,6 +648,23 @@ def search_references(
                         es_body["query"]["bool"]["filter"]["bool"]["must_not"].append(
                             {"range": {"image_count": {"lte": 0}}}
                         )
+            elif facet_field == DATA_EXISTENCE_FACET:
+                # Exclude references carrying the selected kind of topic tag (MOD-scoped).
+                for facet_value in facet_list_values:
+                    es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
+                        "nested": {
+                            "path": "topic_entity_tags",
+                            "query": {
+                                "bool": {
+                                    "must": [
+                                        {"terms": {"topic_entity_tags.data_provider": wft_mod_abbreviations}},
+                                        {"term": {"topic_entity_tags.negated":
+                                                  data_existence_value_to_negated(facet_value)}}
+                                    ]
+                                }
+                            }
+                        }
+                    })
             else:
                 # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
                 es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
@@ -755,6 +812,28 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     }
 
 
+def build_data_existence_buckets(raw_agg):  # pragma: no cover
+    """
+    Collapse the boolean topic_entity_tags.negated terms aggregation into the two
+    reference-level Data Existence buckets. Counts use the reverse_nested doc_count so
+    each value reflects the number of matching references (not nested tags).
+    """
+    counts = {DATA_EXISTENCE_HAS_DATA: 0, DATA_EXISTENCE_NO_DATA: 0}
+    for bucket in raw_agg.get("buckets", []):
+        is_negated = bucket.get("key_as_string") == "true" or bucket.get("key") in (1, True)
+        ref_count = bucket.get("docs_count", {}).get("doc_count", bucket.get("doc_count", 0))
+        key = DATA_EXISTENCE_NO_DATA if is_negated else DATA_EXISTENCE_HAS_DATA
+        counts[key] += ref_count
+    return {
+        "doc_count_error_upper_bound": 0,
+        "sum_other_doc_count": 0,
+        "buckets": [
+            {"key": DATA_EXISTENCE_HAS_DATA, "doc_count": counts[DATA_EXISTENCE_HAS_DATA]},
+            {"key": DATA_EXISTENCE_NO_DATA, "doc_count": counts[DATA_EXISTENCE_NO_DATA]},
+        ],
+    }
+
+
 def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     """
     Post-process TET aggregations (topics, confidence, source methods, SEA)
@@ -772,6 +851,9 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
     data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
+    data_existence = build_data_existence_buckets(
+        extract_filtered_agg(res, "data_existence_aggregation", "data_existence")
+    )
 
     raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
     group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
@@ -796,7 +878,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         'source_method_aggregation',
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
-        'data_novelty_aggregation'
+        'data_novelty_aggregation',
+        'data_existence_aggregation'
     ]:
         res['aggregations'].pop(k, None)
 
@@ -825,6 +908,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
         "data_novelty": data_novelty,
+        "data_existence": data_existence,
     }
 
 
@@ -1179,6 +1263,16 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         term_key="source_methods",
         allowed_dp=allowed_dp,
         size=facets_limits.get("source_methods", 10)
+    )
+
+    # Data Existence (has_data / no_data) derived from the boolean topic_entity_tags.negated.
+    es_body["aggregations"]["data_existence_aggregation"] = create_filtered_aggregation_with_dp(
+        path="topic_entity_tags",
+        tet_facets=tet_facets,
+        term_field="topic_entity_tags.negated",
+        term_key="data_existence",
+        allowed_dp=allowed_dp,
+        size=2
     )
 
     # SEA facets: count over filtered hits but not restricted by SEA value itself

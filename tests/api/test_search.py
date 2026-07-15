@@ -129,6 +129,38 @@ def initialize_elasticsearch():
                         }
                     }
                 },
+                "topic_entity_tags": {
+                    "type": "nested",
+                    "properties": {
+                        "topic": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword", "normalizer": "sortNormalizer"}}
+                        },
+                        "negated": {"type": "boolean"},
+                        "data_provider": {"type": "keyword", "normalizer": "sortNormalizer"},
+                        "confidence_level": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword", "normalizer": "sortNormalizer"}}
+                        },
+                        "confidence_score": {"type": "float"},
+                        "data_novelty": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword", "normalizer": "sortNormalizer"}}
+                        },
+                        "source_method": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword", "normalizer": "sortNormalizer"}}
+                        },
+                        "source_evidence_assertion": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword", "normalizer": "sortNormalizer"}}
+                        },
+                        "source_evidence_assertion_group": {
+                            "type": "text",
+                            "fields": {"keyword": {"type": "keyword", "normalizer": "sortNormalizer"}}
+                        }
+                    }
+                },
                 "language": {
                     "type": "text",
                     "fields": {
@@ -179,6 +211,9 @@ def initialize_elasticsearch():
         ],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}, {"curie": "PDB:1ABC", "is_obsolete": "false"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
+        "topic_entity_tags": [
+            {"topic": "ATP:0000001", "negated": False, "data_provider": "FB"}
+        ],
         "mod_reference_types": ["review"],
         "language" : "English",
         "date_created": "1636139454923830",
@@ -197,6 +232,9 @@ def initialize_elasticsearch():
         "authors": [{"name": "Jane Doe", "orcid": "0000-0000-0000-0002"}],
         "cross_references": [{"curie": "PMID:0000001", "is_obsolete": "false"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
+        "topic_entity_tags": [
+            {"topic": "ATP:0000001", "negated": True, "data_provider": "FB"}
+        ],
         "mod_reference_types": ["note"],
         "language": "English",
         "date_created": "1636139454923830",
@@ -215,6 +253,10 @@ def initialize_elasticsearch():
         "authors": [{"name": "Sam", "orcid": "null"}, {"name": "Plato", "orcid": "null"}],
         "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "SGD:S000000123", "is_obsolete": "true"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
+        "topic_entity_tags": [
+            {"topic": "ATP:0000001", "negated": False, "data_provider": "FB"},
+            {"topic": "ATP:0000002", "negated": True, "data_provider": "FB"}
+        ],
         "mod_reference_types": ["Journal"],
         "language": "English",
         "date_created": "1636139454923830",
@@ -555,3 +597,52 @@ class TestSearch:
             curies = {h["curie"] for h in res["hits"]}
             # doc1 and doc2 have image permission
             assert curies == {"AGRKB:101000000000001", "AGRKB:101000000000002"}
+
+
+    def test_search_data_existence_facet_aggregations(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {"query": None, "return_facets_only": True}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            data_existence = {b["key"]: b["doc_count"] for b in res["aggregations"]["data_existence"]["buckets"]}
+            # has data: doc1 (positive) + doc3 (positive+negated); no data: doc2 (negated) + doc3
+            assert data_existence.get("has_data") == 2
+            assert data_existence.get("no_data") == 2
+
+
+    def test_search_data_existence_has_data_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"data_existence": ["has_data"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert curies == {"AGRKB:101000000000001", "AGRKB:101000000000003"}
+
+
+    def test_search_data_existence_no_data_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"data_existence": ["no_data"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert curies == {"AGRKB:101000000000002", "AGRKB:101000000000003"}
+
+
+    def test_search_data_existence_negated_exclude(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "negated_facets_values": {"data_existence": ["no_data"]},
+                # Include a positive filter so the backend accepts the request
+                "date_published": ["1900-01-01", "2030-01-01"],
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            # exclude any reference carrying a negated topic tag (doc2, doc3)
+            assert curies == {"AGRKB:101000000000001", "AGRKB:101000000000004"}
