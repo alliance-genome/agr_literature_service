@@ -32,12 +32,15 @@ def _clean_pages(pages):
 
 def _check_xref_unique(db, laboratory_id, curie, curie_prefix, exclude_id=None):
     """Enforce the two uniqueness rules at the application layer (defends the DB
-    constraints): curie is globally unique (uq_laboratory_xref_curie), and
-    (laboratory_id, curie_prefix) is unique per-laboratory
-    (uq_laboratory_xref_laboratory_prefix). exclude_id skips the row being patched.
+    constraints): among NON-OBSOLETE rows, curie is unique
+    (uq_laboratory_xref_curie), and (laboratory_id, curie_prefix) is unique
+    per-laboratory (uq_laboratory_xref_laboratory_prefix). Obsolete rows are
+    exempt, so a soft-deleted xref can be re-added. exclude_id skips the row
+    being patched.
     """
     curie_q = db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id).filter(
-        LaboratoryCrossReferenceModel.curie == curie
+        LaboratoryCrossReferenceModel.curie == curie,
+        LaboratoryCrossReferenceModel.is_obsolete.is_(False),
     )
     if exclude_id is not None:
         curie_q = curie_q.filter(LaboratoryCrossReferenceModel.laboratory_cross_reference_id != exclude_id)
@@ -52,6 +55,7 @@ def _check_xref_unique(db, laboratory_id, curie, curie_prefix, exclude_id=None):
         prefix_q = db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id).filter(
             LaboratoryCrossReferenceModel.laboratory_id == laboratory_id,
             LaboratoryCrossReferenceModel.curie_prefix == curie_prefix,
+            LaboratoryCrossReferenceModel.is_obsolete.is_(False),
         )
         if exclude_id is not None:
             prefix_q = prefix_q.filter(
