@@ -97,6 +97,75 @@ class TestLaboratoryAlleleDesignation:
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_obsolete_duplicate_lab_mod_allowed(self, auth_headers, test_allele):  # noqa
+        # An OBSOLETE allele designation for the same (lab, mod) is allowed even
+        # though an active one exists — uniqueness is non-obsolete-only.
+        with TestClient(app) as client:
+            res = client.post(
+                "/laboratory_allele_designation/",
+                json={
+                    "laboratory_curie": str(test_allele.laboratory_id),
+                    "mod_abbreviation": "WB",
+                    "allele_designation": "old",
+                    "is_obsolete": True,
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            assert res.json()["is_obsolete"] is True
+
+    def test_readd_after_obsoleting_allowed(self, auth_headers, test_allele):  # noqa
+        # Obsolete the active designation, then a new active one for the same
+        # (lab, mod) is accepted.
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/laboratory_allele_designation/{test_allele.new_id}",
+                json={"is_obsolete": True},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["is_obsolete"] is True
+
+            res = client.post(
+                "/laboratory_allele_designation/",
+                json={
+                    "laboratory_curie": str(test_allele.laboratory_id),
+                    "mod_abbreviation": "WB",
+                    "allele_designation": "fresh",
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            assert res.json()["is_obsolete"] is False
+
+    def test_is_obsolete_round_trips(self, auth_headers, seeded_lab_and_mod):  # noqa
+        with TestClient(app) as client:
+            res = client.post(
+                "/laboratory_allele_designation/",
+                json={
+                    "laboratory_curie": str(seeded_lab_and_mod["laboratory_id"]),
+                    "mod_abbreviation": "WB",
+                    "allele_designation": "obs",
+                    "is_obsolete": True,
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            new_id = res.json()["laboratory_allele_designation_id"]
+
+            res = client.get(
+                f"/laboratory_allele_designation/{new_id}", headers=auth_headers
+            )
+            assert res.json()["is_obsolete"] is True
+
+            res = client.patch(
+                f"/laboratory_allele_designation/{new_id}",
+                json={"is_obsolete": False},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["is_obsolete"] is False
+
     def test_show_and_patch(self, auth_headers, test_allele):  # noqa
         with TestClient(app) as client:
             res = client.get(

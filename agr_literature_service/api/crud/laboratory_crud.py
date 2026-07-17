@@ -51,6 +51,91 @@ def _curie_prefix_from(curie: str) -> str:
     return curie.split(":", 1)[0]
 
 
+def _resolve_inline_allele_designations(db: Session, allele_designations_data):
+    """Resolve inline allele designations to (mod_id, allele_designation,
+    is_obsolete) tuples, validating each mod_abbreviation and enforcing at most
+    one NON-OBSOLETE designation per MOD within the request (obsolete rows are
+    exempt). Raises before anything is created."""
+    resolved: List[Any] = []
+    if not allele_designations_data:
+        return resolved
+    seen_mod_ids: set = set()
+    for ad in allele_designations_data:
+        mod_abbreviation = ad["mod_abbreviation"]
+        row = (
+            db.query(ModModel.mod_id)
+            .filter(ModModel.abbreviation == mod_abbreviation)
+            .one_or_none()
+        )
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"MOD with abbreviation '{mod_abbreviation}' not found",
+            )
+        mod_id = row[0]
+        is_obsolete = bool(ad.get("is_obsolete", False))
+        if not is_obsolete:
+            if mod_id in seen_mod_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Multiple active allele designations for MOD "
+                        f"'{mod_abbreviation}' in the request; at most one "
+                        "per MOD is allowed."
+                    ),
+                )
+            seen_mod_ids.add(mod_id)
+        resolved.append((mod_id, ad["allele_designation"], is_obsolete))
+    return resolved
+
+
+def _validate_inline_xrefs(db: Session, xrefs_data):
+    """Validate inline cross-references against the non-obsolete uniqueness rules:
+    curie is unique and (laboratory_id, curie_prefix) is unique per-laboratory,
+    both among non-obsolete rows only. Obsolete xrefs are exempt and may
+    duplicate freely. Raises before anything is created."""
+    if not xrefs_data:
+        return
+    seen_curies: set = set()
+    seen_prefixes: set = set()
+    for xr in xrefs_data:
+        curie = xr["curie"].strip()
+        curie_prefix = _curie_prefix_from(curie)
+        if bool(xr.get("is_obsolete", False)):
+            continue
+
+        if curie in seen_curies:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cross-reference '{curie}' is duplicated in the request",
+            )
+        seen_curies.add(curie)
+
+        if curie_prefix in seen_prefixes:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Multiple cross-references with prefix '{curie_prefix}' "
+                    "in the request; at most one per prefix is allowed."
+                ),
+            )
+        seen_prefixes.add(curie_prefix)
+
+        existing = (
+            db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
+            .filter(
+                LaboratoryCrossReferenceModel.curie == curie,
+                LaboratoryCrossReferenceModel.is_obsolete.is_(False),
+            )
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cross-reference '{curie}' already exists",
+            )
+
+
 def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
     data: Dict[str, Any] = jsonable_encoder(payload)
 
@@ -60,75 +145,14 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     xrefs_data = data.pop("cross_references", None)
-    alleles_data = data.pop("allele_designations", None)
+    allele_designations_data = data.pop("allele_designations", None)
 
-    # Resolve + validate inline allele designations BEFORE creating anything, so an
-    # invalid mod_abbreviation (or a duplicated MOD in the request) fails the whole
-    # request atomically — no laboratory, cross-references, or alleles are created.
-    resolved_alleles = []
-    if alleles_data:
-        seen_mod_ids: set = set()
-        for al in alleles_data:
-            mod_abbreviation = al["mod_abbreviation"]
-            row = (
-                db.query(ModModel.mod_id)
-                .filter(ModModel.abbreviation == mod_abbreviation)
-                .one_or_none()
-            )
-            if not row:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"MOD with abbreviation '{mod_abbreviation}' not found",
-                )
-            mod_id = row[0]
-            if mod_id in seen_mod_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=(
-                        f"Multiple allele designations for MOD '{mod_abbreviation}' "
-                        "in the request; at most one per MOD is allowed."
-                    ),
-                )
-            seen_mod_ids.add(mod_id)
-            resolved_alleles.append((mod_id, al["allele_designation"]))
-
-    # Validate cross-references against the two unique constraints on
-    # laboratory_cross_reference: curie is globally unique, and
-    # (laboratory_id, curie_prefix) is unique per-laboratory.
-    if xrefs_data:
-        seen_curies: set = set()
-        seen_prefixes: set = set()
-        for xr in xrefs_data:
-            curie = xr["curie"].strip()
-            curie_prefix = _curie_prefix_from(curie)
-
-            if curie in seen_curies:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Cross-reference '{curie}' is duplicated in the request",
-                )
-            seen_curies.add(curie)
-
-            if curie_prefix in seen_prefixes:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=(
-                        f"Multiple cross-references with prefix '{curie_prefix}' "
-                        "in the request; at most one per prefix is allowed."
-                    ),
-                )
-            seen_prefixes.add(curie_prefix)
-
-            existing = (
-                db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
-                .filter(LaboratoryCrossReferenceModel.curie == curie)
-                .first()
-            )
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Cross-reference '{curie}' already exists",
-                )
+    # Resolve + validate inline children BEFORE creating anything, so an invalid
+    # mod_abbreviation, a duplicated MOD, or a conflicting xref fails the whole
+    # request atomically — no laboratory, cross-references, or allele
+    # designations are created.
+    resolved_allele_designations = _resolve_inline_allele_designations(db, allele_designations_data)
+    _validate_inline_xrefs(db, xrefs_data)
 
     # Allocate the curie from MATI (like reference/resource/person). Done after all
     # validation above so a rejected request doesn't waste an external MATI id.
@@ -157,12 +181,13 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
                     )
                 )
 
-        for mod_id, allele_designation in resolved_alleles:
+        for mod_id, allele_designation, is_obsolete in resolved_allele_designations:
             db.add(
                 LaboratoryAlleleDesignationModel(
                     laboratory_id=obj.laboratory_id,
                     mod_id=mod_id,
                     allele_designation=allele_designation,
+                    is_obsolete=is_obsolete,
                 )
             )
 

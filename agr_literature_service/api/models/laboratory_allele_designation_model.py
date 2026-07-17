@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Index, text
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -32,9 +32,17 @@ class LaboratoryAlleleDesignationModel(Base, AuditedModel):
 
     allele_designation = Column(String(), nullable=False)
 
+    is_obsolete = Column(Boolean, nullable=False, server_default=text("false"))
+
     __table_args__ = (
-        UniqueConstraint(
-            "laboratory_id", "mod_id", name="uq_laboratory_allele_designation_lab_mod"
+        # One active allele designation per (laboratory, mod); obsolete rows are
+        # unlimited, so an allele designation can be soft-deleted and re-added.
+        # Mirrors the laboratory_cross_reference / person_cross_reference pattern.
+        # laboratory_id is NOT NULL here, so no IS NOT NULL clause is needed.
+        Index(
+            "uq_laboratory_allele_designation_lab_mod", "laboratory_id", "mod_id",
+            unique=True,
+            postgresql_where=(is_obsolete.is_(False)),
         ),
     )
 
