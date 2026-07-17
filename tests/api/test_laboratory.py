@@ -249,21 +249,6 @@ class TestLaboratory:
             )
             assert len(res2.json()) == 1
 
-    def test_find_by_strain_shared_returns_list(self, auth_headers):  # noqa
-        # A strain code shared by >1 lab returns all of them (a pick-list).
-        with TestClient(app) as client:
-            for nm in ("Shared Strain A ZZQ", "Shared Strain B ZZQ"):
-                client.post(
-                    "/laboratory/",
-                    json={"name": nm, "strain_designation": "SHX"},
-                    headers=auth_headers,
-                )
-            res = client.get(
-                "/laboratory/by_strain_designation", params={"query": "SHX"}, headers=auth_headers
-            )
-            assert res.status_code == status.HTTP_200_OK
-            assert len(res.json()) == 2
-
     def test_find_by_name_substring_single_and_multiple(self, auth_headers):  # noqa
         with TestClient(app) as client:
             client.post("/laboratory/", json={"name": "Unique Kappa Lab UNIQK"}, headers=auth_headers)
@@ -339,3 +324,42 @@ class TestLaboratory:
             assert lab["cross_references"][0]["curie"] == "WB:WBlabJNQ"
             assert lab["allele_designations"][0]["allele_designation"] == "j"
             assert "lab_persons" in lab
+
+    def test_duplicate_name_rejected(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/laboratory/", json={"name": "Unique Name Lab UNQNM"}, headers=auth_headers
+            )
+            assert r1.status_code == status.HTTP_201_CREATED
+            r2 = client.post(
+                "/laboratory/", json={"name": "Unique Name Lab UNQNM"}, headers=auth_headers
+            )
+            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_duplicate_strain_designation_rejected(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/laboratory/", json={"strain_designation": "UNQST"}, headers=auth_headers
+            )
+            assert r1.status_code == status.HTTP_201_CREATED
+            r2 = client.post(
+                "/laboratory/", json={"strain_designation": "UNQST"}, headers=auth_headers
+            )
+            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_null_name_and_strain_allowed_multiple(self, auth_headers):  # noqa
+        # name and strain_designation are each nullable, so many labs may leave
+        # one of them NULL (identified by the other) — the unique constraints
+        # only constrain non-NULL values.
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/laboratory/", json={"strain_designation": "NULLNMA"}, headers=auth_headers
+            )
+            r2 = client.post(
+                "/laboratory/", json={"strain_designation": "NULLNMB"}, headers=auth_headers
+            )
+            assert r1.status_code == status.HTTP_201_CREATED
+            assert r2.status_code == status.HTTP_201_CREATED
+            # both have NULL name — multiple NULLs are allowed
+            assert r1.json()["name"] is None
+            assert r2.json()["name"] is None
