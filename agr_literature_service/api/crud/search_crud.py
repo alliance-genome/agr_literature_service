@@ -625,14 +625,16 @@ def search_references(
         date_created=date_created,
     )
 
-    # Remove empty filter if no facets/dates were added. A standalone source method / SEA
-    # exclusion adds a top-level must_not nested clause, so keep the filter in that case.
+    # Remove empty filter if no facets/dates were added. A standalone confidence level /
+    # source method / SEA exclusion adds a top-level must_not nested clause, so keep the
+    # filter in that case.
     has_tet_whole_ref_negation = bool(
         tet_nested_facets_values
         and tet_nested_facets_values.get("tet_facets_negative_values")
         and any(
             tet_nested_facets_values["tet_facets_negative_values"][0].get(k)
             for k in (
+                "topic_entity_tags.confidence_level.keyword",
                 "topic_entity_tags.source_method.keyword",
                 "topic_entity_tags.source_evidence_assertion.keyword",
             )
@@ -1004,32 +1006,57 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
         negated = tet_nested_facets_values["tet_facets_negative_values"][0]
         if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
             es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        # Confidence level exclusion: applied as must_not within each positive nested tag query
-        for level in negated.get("topic_entity_tags.confidence_level.keyword", []):
-            levels.append({"term": {"topic_entity_tags.confidence_level.keyword": level}})
+
+        must_not_clauses = []
+
+        # Confidence level exclusion: topic-scoped whole-reference semantics. Drop a reference
+        # if it has a tag that matches the selected topic/entity AND carries an excluded
+        # confidence level (e.g. NEG). The negated level is combined with the positive facet's
+        # identity terms in ONE nested clause, so a NEG tag on a *different* topic does not
+        # remove the reference. When no positive TET facet is selected the exclusion falls back
+        # to any tag with the excluded level. (Previously this was a must_not *inside* the
+        # positive nested query, which kept a reference as long as one matching tag was not NEG
+        # -- letting through references that had a NEG tag for the selected topic.)
+        negated_levels = negated.get("topic_entity_tags.confidence_level.keyword", [])
+        if negated_levels:
+            level_term = {"terms": {"topic_entity_tags.confidence_level.keyword": negated_levels}}
+            scopes = [
+                terms for terms in (
+                    _positive_scope_terms(f)
+                    for f in tet_nested_facets_values.get("tet_facets_values", [])
+                ) if terms
+            ] or [[]]
+            for scope in scopes:
+                must_not_clauses.append({
+                    "nested": {
+                        "path": "topic_entity_tags",
+                        "query": {"bool": {"must": scope + [level_term]}},
+                    }
+                })
 
         # Source method / source evidence assertion exclusion: whole-reference semantics --
         # drop a reference if ANY of its topic_entity_tags matches an excluded value.
-        whole_ref_negations = []
+        source_negations = []
         for value in negated.get("topic_entity_tags.source_method.keyword", []):
-            whole_ref_negations.append(("topic_entity_tags.source_method.keyword", value))
+            source_negations.append(("topic_entity_tags.source_method.keyword", value))
         for value in negated.get("topic_entity_tags.source_evidence_assertion.keyword", []):
             field = "topic_entity_tags.source_evidence_assertion.keyword"
             # Remap SEA group if needed (mirror the positive remap in add_nested_query)
             if value.upper() in ("ECO:0007669", "ECO:0006155"):
                 field = "topic_entity_tags.source_evidence_assertion_group.keyword"
-            whole_ref_negations.append((field, value))
+            source_negations.append((field, value))
+        for field, value in source_negations:
+            must_not_clauses.append({
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {"bool": {"must": [{"term": {field: value}}]}},
+                }
+            })
 
-        if whole_ref_negations:
+        if must_not_clauses:
             if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
-            for field, value in whole_ref_negations:
-                es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
-                    "nested": {
-                        "path": "topic_entity_tags",
-                        "query": {"bool": {"must": [{"term": {field: value}}]}},
-                    }
-                })
+            es_body["query"]["bool"]["filter"]["bool"]["must_not"].extend(must_not_clauses)
 
     for facet_name_value_dict in tet_nested_facets_values.get("tet_facets_values", []):
         add_nested_query(es_body, facet_name_value_dict, levels)
@@ -1039,6 +1066,25 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
                 tet_facet_values[key] = facet_value
 
     return tet_facet_values
+
+
+def _positive_scope_terms(facet_name_values_dict):  # pragma: no cover
+    """The tag-identity terms of a positive TET facet selection (topic / entity /
+    source), used to scope a confidence-level exclusion to the same tag. The
+    confidence_score range is skipped: it constrains which tags match positively,
+    but a paper's negative tag should still remove it regardless of that slider."""
+    terms = []
+    for facet_name, facet_values in facet_name_values_dict.items():
+        if facet_name == "topic_entity_tags.confidence_score":
+            continue
+        name = facet_name
+        # Remap SEA group if needed (mirror the positive remap in add_nested_query)
+        if name == "topic_entity_tags.source_evidence_assertion.keyword":
+            vals = facet_values if isinstance(facet_values, (list, tuple)) else [facet_values]
+            if any(str(v).upper() in ("ECO:0007669", "ECO:0006155") for v in vals):
+                name = "topic_entity_tags.source_evidence_assertion_group.keyword"
+        terms.append({"term": {name: facet_values}})
+    return terms
 
 
 def add_nested_query(es_body, facet_name_values_dict, levels):  # pragma: no cover

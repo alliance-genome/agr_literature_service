@@ -79,7 +79,9 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         data_novelty=request.data_novelty,
         negated=request.negated,
         file_classes=request.file_classes,
-        description=request.description
+        description=request.description,
+        embedding_profile=request.embedding_profile,
+        embedding_version=request.embedding_version
     )
     try:
         db.add(new_model)
@@ -175,6 +177,8 @@ def get_model_schema_from_orm(model: MLModel):
         "negated": model.negated,
         "file_classes": model.file_classes,
         "description": model.description,
+        "embedding_profile": model.embedding_profile,
+        "embedding_version": model.embedding_version,
         "date_created": model.date_created,
         "date_updated": model.date_updated,
         "created_by": model.created_by,
@@ -220,7 +224,15 @@ def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topi
     object_key = f"{folder}/{str(model.version_num)}.gz"
     file_name_gzipped = f"{str(model.version_num)}.gz"
     file_name = f"{str(model.version_num)}.{model.file_extension}"
-    download_file_from_s3(file_name_gzipped, bucketname="agr-literature", s3_file_location=object_key)
+    downloaded = download_file_from_s3(file_name_gzipped, bucketname="agr-literature", s3_file_location=object_key)
+    if not downloaded or not os.path.exists(file_name_gzipped):
+        # The DB record exists but the S3 object is missing (e.g. it was removed
+        # via destroy(), which keeps the row). Return a 404 instead of letting
+        # gzip.open raise an unhandled FileNotFoundError (HTTP 500).
+        raise HTTPException(
+            status_code=404,
+            detail=f"Model file not found in storage for task_type='{task_type}', "
+                   f"mod='{mod_abbreviation}', topic='{topic}', version={model.version_num}")
     with gzip.open(file_name_gzipped, 'rb') as f_in, open(file_name, 'wb') as f_out:
         shutil.copyfileobj(f_in, f_out)
     os.remove(file_name_gzipped)
