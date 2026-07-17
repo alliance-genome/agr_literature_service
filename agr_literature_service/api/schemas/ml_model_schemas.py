@@ -28,6 +28,13 @@ class MLModelSchemaBase(BaseModel):
     species: Optional[str] = None
     file_classes: Optional[List[str]] = None
     description: Optional[str] = None
+    # ABC-embedding recipe (SCRUM-5781); NULL for legacy BioWordVec models.
+    embedding_profile: Optional[str] = None
+    embedding_version: Optional[int] = None
+    embedding_model: Optional[str] = None
+    embedding_dim: Optional[int] = None
+    embedding_pooling: Optional[str] = None
+    use_bow_features: Optional[bool] = None
 
 
 class MLModelSchemaPost(MLModelSchemaBase):
