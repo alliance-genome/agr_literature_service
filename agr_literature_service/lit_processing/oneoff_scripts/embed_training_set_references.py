@@ -380,6 +380,12 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
                         help="Process only these exact reference curie(s), bypassing "
                              "enumeration (for single-reference smoke tests). Requires a "
                              "single --mod (used as the conversion context).")
+    parser.add_argument("--reference-curie-file", default=None, metavar="PATH",
+                        help="Process exactly the reference curies listed in this file (one "
+                             "curie per line; blank lines and '#' comments ignored), bypassing "
+                             "enumeration. For embedding a specific target set (e.g. the "
+                             "reclassification targets) without a huge command line. Combines "
+                             "with --reference-curie; requires a single --mod.")
     parser.add_argument("--task-type", default=TOPIC_CLASSIFIER_TASK_TYPE,
                         help="ml_model task_type for training scope "
                              f"(default: {TOPIC_CLASSIFIER_TASK_TYPE}).")
@@ -401,10 +407,28 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def load_explicit_curies(args: argparse.Namespace) -> Optional[List[str]]:
+    """Merge --reference-curie and --reference-curie-file into one de-duplicated,
+    order-preserving list of curies, or None when neither is given."""
+    curies: List[str] = list(args.reference_curie) if args.reference_curie else []
+    if args.reference_curie_file:
+        with open(args.reference_curie_file) as handle:
+            for line in handle:
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    curies.append(line)
+    if not curies:
+        return None
+    seen: Set[str] = set()
+    return [c for c in curies if not (c in seen or seen.add(c))]
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     args = parse_args(argv)
-    if args.reference_curie is not None and len(args.mod) != 1:
-        raise SystemExit("--reference-curie requires exactly one --mod (the conversion context)")
+    explicit_curies = load_explicit_curies(args)
+    if explicit_curies is not None and len(args.mod) != 1:
+        raise SystemExit("--reference-curie/--reference-curie-file requires exactly one --mod "
+                         "(the conversion context)")
     if args.filter_date_before:
         try:
             datetime.strptime(args.filter_date_before, "%Y-%m-%d")
@@ -425,8 +449,8 @@ def main(argv: Optional[List[str]] = None) -> None:
                 "env file (e.g. .env.rdsprod) and re-run.")
         set_global_user_id(db, path.basename(__file__).replace(".py", ""))
     try:
-        if args.reference_curie is not None:
-            process_mod(db, args.mod[0], args, explicit_curies=args.reference_curie)
+        if explicit_curies is not None:
+            process_mod(db, args.mod[0], args, explicit_curies=explicit_curies)
             return
         if args.scope == "corpus" and args.commit:
             logger.warning("Corpus scope on --commit can embed a very large number of "
