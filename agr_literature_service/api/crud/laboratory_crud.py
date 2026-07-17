@@ -261,22 +261,10 @@ def show(db: Session, curie_or_laboratory_id: str) -> LaboratoryModel:
     return obj
 
 
-def find_by_name_or_strain_designation(db: Session, query: str) -> List[LaboratoryModel]:
-    """Resolve a free-text laboratory lookup with a fixed precedence:
-
-    1. exact, case-insensitive match on strain_designation (a short code) — return
-       all such labs (normally one; more only if a code is shared);
-    2. otherwise a case-insensitive substring match on name, ordered by name;
-    3. otherwise an empty list.
-
-    Matching strain exactly (never as a substring) keeps a short code from
-    polluting name results. Each result eager-loads the same joins as show().
-    """
-    query = (query or "").strip()
-    if not query:
-        return []
-
-    options = (
+def _show_load_options():
+    """Eager-load options matching show(): cross_references, allele_designations
+    (+ their mod), and lab_persons (+ their person)."""
+    return (
         selectinload(LaboratoryModel.cross_references),
         selectinload(LaboratoryModel.allele_designations).selectinload(
             LaboratoryAlleleDesignationModel.mod
@@ -284,20 +272,34 @@ def find_by_name_or_strain_designation(db: Session, query: str) -> List[Laborato
         selectinload(LaboratoryModel.lab_persons).selectinload(LaboratoryPersonModel.person),
     )
 
-    strain_matches = (
+
+def find_by_name(db: Session, query: str) -> List[LaboratoryModel]:
+    """Case-insensitive substring match on laboratory name, ordered by name."""
+    query = (query or "").strip()
+    if not query:
+        return []
+    return (
         db.query(LaboratoryModel)
-        .options(*options)
-        .filter(func.lower(LaboratoryModel.strain_designation) == query.lower())
+        .options(*_show_load_options())
+        .filter(LaboratoryModel.name.ilike(f"%{query}%"))
         .order_by(LaboratoryModel.name.asc())
         .all()
     )
-    if strain_matches:
-        return strain_matches
 
+
+def find_by_strain_designation(db: Session, query: str) -> List[LaboratoryModel]:
+    """Exact, case-insensitive match on strain_designation, ordered by name.
+
+    A strain designation is a short code, so it is matched exactly (never as a
+    substring). Normally one lab; more only when a code is shared.
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
     return (
         db.query(LaboratoryModel)
-        .options(*options)
-        .filter(LaboratoryModel.name.ilike(f"%{query}%"))
+        .options(*_show_load_options())
+        .filter(func.lower(LaboratoryModel.strain_designation) == query.lower())
         .order_by(LaboratoryModel.name.asc())
         .all()
     )
