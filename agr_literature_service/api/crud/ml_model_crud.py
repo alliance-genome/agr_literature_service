@@ -79,7 +79,9 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         data_novelty=request.data_novelty,
         negated=request.negated,
         file_classes=request.file_classes,
-        description=request.description
+        description=request.description,
+        embedding_profile=request.embedding_profile,
+        embedding_version=request.embedding_version
     )
     try:
         db.add(new_model)
@@ -175,6 +177,8 @@ def get_model_schema_from_orm(model: MLModel):
         "negated": model.negated,
         "file_classes": model.file_classes,
         "description": model.description,
+        "embedding_profile": model.embedding_profile,
+        "embedding_version": model.embedding_version,
         "date_created": model.date_created,
         "date_updated": model.date_updated,
         "created_by": model.created_by,
