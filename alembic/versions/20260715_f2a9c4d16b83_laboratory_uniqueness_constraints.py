@@ -1,7 +1,7 @@
 """laboratory: unique name/strain, non-obsolete xref + allele uniqueness
 
 Revision ID: f2a9c4d16b83
-Revises: c8d1f2a3b4e5
+Revises: 32089edb2830
 Create Date: 2026-07-15
 
 Three related tightenings on the laboratory family:
@@ -20,7 +20,7 @@ import sqlalchemy as sa
 
 
 revision = 'f2a9c4d16b83'
-down_revision = 'c8d1f2a3b4e5'
+down_revision = '32089edb2830'
 branch_labels = None
 depends_on = None
 
