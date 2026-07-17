@@ -417,6 +417,14 @@ def load_explicit_curies(args: argparse.Namespace) -> Optional[List[str]]:
                 line = line.strip()
                 if line and not line.startswith("#"):
                     curies.append(line)
+        # Guard: a file was explicitly given but produced nothing. Falling back to
+        # full enumeration here would silently embed a whole training set / corpus
+        # (OpenAI spend) when the operator asked for a specific target set, so fail
+        # fast instead.
+        if not curies:
+            raise SystemExit(
+                f"--reference-curie-file {args.reference_curie_file!r} yielded no curies "
+                f"(empty, or only blank/'#' lines); refusing to fall back to full enumeration.")
     if not curies:
         return None
     seen: Set[str] = set()
