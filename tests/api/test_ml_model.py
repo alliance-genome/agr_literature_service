@@ -4,9 +4,10 @@ import os
 import tempfile
 
 import pytest
-from fastapi import status
+from fastapi import status, HTTPException
 from starlette.testclient import TestClient
 
+from agr_literature_service.api.crud import ml_model_crud
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import MLModel, ModModel
 from .fixtures import auth_headers  # noqa
@@ -239,3 +240,32 @@ class TestMLModel:
             assert response.json()["task_type"] == "document_classification"
             assert response.json()["version_num"] == prod.version_num
             assert response.json()["model_type"] == prod.model_type
+
+
+def test_download_model_missing_s3_file_returns_404(db, monkeypatch):  # noqa
+    # A DB record can exist without its S3 .gz object (e.g. after destroy(),
+    # which deletes the S3 file but keeps the row). download_file_from_s3
+    # swallows the ClientError and returns False without writing the local
+    # file. download_model_file must then raise a 404, not let gzip.open blow
+    # up with an unhandled FileNotFoundError (which surfaces as an HTTP 500).
+    mod = ModModel(abbreviation="MLT", short_name="MLT", full_name="ML test mod")
+    db.add(mod)
+    db.commit()
+    model = MLModel(mod_id=mod.mod_id,
+                    version_num=99,
+                    topic="ATP:0000110",
+                    production=False,
+                    task_type="biocuration_entity_extraction",
+                    file_extension="joblib",
+                    model_type="no_file")
+    db.add(model)
+    db.commit()
+
+    monkeypatch.setattr(
+        "agr_literature_service.api.crud.ml_model_crud.download_file_from_s3",
+        lambda *args, **kwargs: False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        ml_model_crud.download_model_file(
+            db, "biocuration_entity_extraction", "MLT", "ATP:0000110", "99")
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
