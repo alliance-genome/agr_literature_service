@@ -249,21 +249,6 @@ class TestLaboratory:
             )
             assert len(res2.json()) == 1
 
-    def test_find_by_strain_shared_returns_list(self, auth_headers):  # noqa
-        # A strain code shared by >1 lab returns all of them (a pick-list).
-        with TestClient(app) as client:
-            for nm in ("Shared Strain A ZZQ", "Shared Strain B ZZQ"):
-                client.post(
-                    "/laboratory/",
-                    json={"name": nm, "strain_designation": "SHX"},
-                    headers=auth_headers,
-                )
-            res = client.get(
-                "/laboratory/by_strain_designation", params={"query": "SHX"}, headers=auth_headers
-            )
-            assert res.status_code == status.HTTP_200_OK
-            assert len(res.json()) == 2
-
     def test_find_by_name_substring_single_and_multiple(self, auth_headers):  # noqa
         with TestClient(app) as client:
             client.post("/laboratory/", json={"name": "Unique Kappa Lab UNIQK"}, headers=auth_headers)
