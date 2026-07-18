@@ -98,11 +98,12 @@ def search_references(
     query_fields: str = None,
     partial_match: bool = True,
     tet_nested_facets_values: Optional[Dict] = None,
+    tet_advanced_query: Optional[Dict] = None,
     sort: Optional[List[Dict[str, Any]]] = None,
 ):
     has_any_input = any([
         query, facets_values, author_filter, date_pubmed_modified, date_pubmed_arrive,
-        date_published, date_created, tet_nested_facets_values, sort
+        date_published, date_created, tet_nested_facets_values, tet_advanced_query, sort
     ])
     if not has_any_input and not return_facets_only:
         raise HTTPException(
@@ -361,7 +362,14 @@ def search_references(
 
     # search papers by TET
     tet_facets = {}
-    if tet_nested_facets_values and (
+    has_tet_advanced = False
+    if tet_advanced_query:
+        # Advanced Topic query builder (SCRUM-6228): an AND/OR tree over TET
+        # sub-facets replaces the flat facet path when present. Facet count
+        # aggregations can't reflect an arbitrary boolean tree, so they run
+        # unfiltered by the tree (counts are not tree-scoped in advanced mode).
+        has_tet_advanced = add_tet_advanced_query(es_body, tet_advanced_query)
+    elif tet_nested_facets_values and (
         "tet_facets_values" in tet_nested_facets_values
         or "tet_facets_negative_values" in tet_nested_facets_values
     ):
@@ -641,7 +649,8 @@ def search_references(
         )
     )
     if (not facets_values and not date_range and not negated_facets_values
-            and not tet_facets and not has_tet_whole_ref_negation):
+            and not tet_facets and not has_tet_whole_ref_negation
+            and not has_tet_advanced):
         es_body["query"]["bool"].pop("filter", None)
 
     # Additional author_filter (outside the query_fields switch)
@@ -1110,6 +1119,92 @@ def add_nested_query(es_body, facet_name_values_dict, levels):  # pragma: no cov
         }
     }
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+
+
+# --------------------------- TET advanced query builder (SCRUM-6228) ---------------------------
+
+# Source-evidence-assertion values that live under the grouped SEA field rather
+# than the raw field (mirrors the remap in add_nested_query / _positive_scope_terms).
+TET_SEA_GROUP_VALUES = ("ECO:0007669", "ECO:0006155")
+
+
+def _tet_leaf_field(short_name, values):
+    """Map a short TET sub-facet name (e.g. "topic", "source_method") to its
+    Elasticsearch field, applying the source-evidence-assertion group remap used
+    elsewhere in this module. ``confidence_score`` maps to the numeric field."""
+    if short_name == "confidence_score":
+        return "topic_entity_tags.confidence_score"
+    field = f"topic_entity_tags.{short_name}.keyword"
+    if short_name == "source_evidence_assertion":
+        vals = values if isinstance(values, (list, tuple)) else [values]
+        if any(str(v).upper() in TET_SEA_GROUP_VALUES for v in vals):
+            field = "topic_entity_tags.source_evidence_assertion_group.keyword"
+    return field
+
+
+def _tet_leaf_nested_query(match, negate=False):
+    """Build the nested query for one leaf condition: all listed sub-facets must
+    co-occur on the SAME topic_entity_tags tag (bool.must); values within a
+    sub-facet are OR-ed (terms). A ``confidence_score`` value of ``[lo, hi]``
+    becomes a range. When ``negate`` is true the nested query is wrapped in a
+    bool.must_not so the reference is dropped if any tag matches (whole-reference
+    exclusion)."""
+    must_conditions = []
+    for short_name, values in match.items():
+        field = _tet_leaf_field(short_name, values)
+        if short_name == "confidence_score":
+            must_conditions.append({"range": {field: {"gte": values[0], "lte": values[1]}}})
+        else:
+            must_conditions.append({"terms": {field: values}})
+    nested_query = {
+        "nested": {
+            "path": "topic_entity_tags",
+            "query": {"bool": {"must": must_conditions}},
+        }
+    }
+    if negate:
+        return {"bool": {"must_not": [nested_query]}}
+    return nested_query
+
+
+def build_tet_advanced_query(node):
+    """Recursively compile an advanced TET query tree into an Elasticsearch clause.
+
+    Leaf nodes -- ``{"type": "tet", "match": {short_name: [values], ...},
+    "negate": bool}`` -- become nested tag queries. Internal nodes --
+    ``{"operator": "AND"|"OR", "children": [...]}`` -- combine their compiled
+    children with bool.must (AND) or bool.should+minimum_should_match:1 (OR).
+    Empty nodes/children collapse away; a node with a single effective child
+    returns that child directly. Returns ``None`` when nothing to add."""
+    if not node:
+        return None
+    if node.get("type") == "tet":
+        match = node.get("match") or {}
+        if not match:
+            return None
+        return _tet_leaf_nested_query(match, node.get("negate", False))
+    children = [build_tet_advanced_query(child) for child in node.get("children", [])]
+    children = [child for child in children if child]
+    if not children:
+        return None
+    if len(children) == 1:
+        return children[0]
+    if str(node.get("operator", "AND")).upper() == "OR":
+        return {"bool": {"should": children, "minimum_should_match": 1}}
+    return {"bool": {"must": children}}
+
+
+def add_tet_advanced_query(es_body, tet_advanced_query):
+    """Attach a compiled advanced TET query tree to ``es_body``'s filter, ANDing
+    it with any other filters. Returns True when a clause was added, False when
+    the tree was empty (so callers can decide whether to keep the filter block)."""
+    compiled = build_tet_advanced_query(tet_advanced_query)
+    if compiled is None:
+        return False
+    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+    es_body["query"]["bool"]["filter"]["bool"]["must"].append(compiled)
+    return True
 
 
 def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_dp, size=10):  # pragma: no cover
