@@ -523,11 +523,13 @@ class TestPreCurationWorkflowOverview:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    def test_overview_unknown_curie_returns_422(self, db, auth_headers):  # noqa
+    def test_overview_unknown_curie_returns_404(self, db, auth_headers):  # noqa
+        # The get_db dependency resolves the curie and raises 404 for an
+        # unknown reference before the overview crud runs.
         with TestClient(app) as client:
             response = client.get(url="/workflow_tag/pre_curation_overview/AGRKB:doesnotexist",
                                   headers=auth_headers)
-            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+            assert response.status_code == status.HTTP_404_NOT_FOUND
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
