@@ -560,3 +560,57 @@ class TestPreCurationWorkflowOverview:
             assert set(["mods", "workflows", "details"]).issubset(data.keys())
             assert mod in data["workflows"]
             assert "file_upload" in data["workflows"][mod]
+
+
+class TestWorkflowTagReportsAndPriority:
+    """Cover diagram 404 and set_priority paths in workflow_tag_crud (SCRUM-6298)."""
+
+    def test_diagram_unknown_mod_returns_404(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/workflow_tag/workflow_diagram/NO_SUCH_MOD",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_set_priority_without_needed_tag_returns_404(self, db, test_workflow_tag, auth_headers):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        # The reference has no "pre-indexing prioritization needed" tag, so
+        # set_priority raises 404 after building its ATP mappings + query.
+        with TestClient(app) as client:
+            curie = test_workflow_tag.related_ref_curie
+            mod = test_workflow_tag.related_mod_abbreviation
+            response = client.post(
+                url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_set_priority_success_transitions_needed_tag(self, db, test_workflow_tag, auth_headers):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map:
+            mock_get_map.return_value = {
+                "ATP:0000306": "pre-indexing prioritization needed",
+                "ATP:0000211": "priority 1",
+                "ATP:0000303": "pre-indexing prioritization complete",
+            }
+            curie = test_workflow_tag.related_ref_curie
+            mod = test_workflow_tag.related_mod_abbreviation
+
+            # Seed the "pre-indexing prioritization needed" tag that set_priority
+            # looks for before assigning a priority.
+            new_wt = {
+                "reference_curie": curie,
+                "mod_abbreviation": mod,
+                "workflow_tag_id": "ATP:0000306",
+            }
+            response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            response = client.post(
+                url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
