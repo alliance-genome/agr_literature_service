@@ -120,6 +120,57 @@ class TestBulkUploadManager:
         assert stats["failed_jobs"] == 0
 
 
+class TestBulkUploadJobEdgeCases:
+    def _job(self):
+        return BulkUploadJob(job_id="j", user_id="u", mod_abbreviation="WB",
+                             filename="f.pdf", status="running")
+
+    def test_progress_log_capped_at_100(self):
+        job = self._job()
+        for i in range(150):
+            job.update_progress(processed=i, current_file=f"f{i}.pdf", success=True)
+        assert len(job.progress_log) == 100
+
+    def test_progress_percentage_zero_when_no_files(self):
+        job = self._job()  # total_files defaults to 0
+        assert job.progress_percentage == 0.0
+
+
+class TestBulkUploadManagerEdgeCases:
+    def test_update_job_missing_returns_false(self, manager):
+        assert manager.update_job("nope", total_files=3) is False
+
+    def test_update_job_ignores_unknown_attr(self, manager):
+        jid = manager.create_job("u", "WB", "f.pdf")
+        assert manager.update_job(jid, not_a_field="x", total_files=2) is True
+        job = manager.get_job(jid)
+        assert job.total_files == 2
+        assert not hasattr(job, "not_a_field")
+
+    def test_update_progress_missing_returns_false(self, manager):
+        assert manager.update_progress("nope", processed=1) is False
+
+    def test_complete_missing_job_is_noop(self, manager):
+        manager.complete_job("nope", success=True)  # should not raise
+
+    def test_update_progress_via_manager(self, manager):
+        jid = manager.create_job("u", "WB", "f.pdf")
+        assert manager.update_progress(jid, processed=1, current_file="f1.pdf") is True
+        assert manager.get_job(jid).processed_files == 1
+
+    def test_get_active_jobs_filtered(self, manager):
+        manager.create_job("alice", "WB", "a.pdf")
+        manager.create_job("bob", "FB", "b.pdf")
+        assert len(manager.get_active_jobs(user_id="alice")) == 1
+        assert len(manager.get_active_jobs(mod_abbreviation="FB")) == 1
+
+    def test_get_recent_jobs_filtered_by_user(self, manager):
+        manager.create_job("alice", "WB", "a.pdf")
+        manager.create_job("bob", "FB", "b.pdf")
+        recent = manager.get_recent_jobs(user_id="alice")
+        assert len(recent) == 1 and recent[0].user_id == "alice"
+
+
 class TestGlobalManager:
     def test_global_instance(self):
         jid = upload_manager.create_job("uX", "FB", "z.pdf")
