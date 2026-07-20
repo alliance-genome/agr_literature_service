@@ -59,4 +59,4 @@ jobs:
         if: always()
         run: |
           echo "===== FILES WITH THE MOST MISSED STATEMENTS ====="
-          coverage report --sort=miss 2>/dev/null | tail -n 60 || true
+          python -m coverage report --sort=miss | tail -n 70
