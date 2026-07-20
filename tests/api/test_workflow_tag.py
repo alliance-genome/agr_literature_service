@@ -531,13 +531,18 @@ class TestPreCurationWorkflowOverview:
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
-    def test_overview_returns_status_per_mod(self, db, test_reference, test_mod, auth_headers):  # noqa
+    def test_overview_returns_status_per_mod(self, db, test_workflow_tag, auth_headers):  # noqa
         load_name_to_atp_and_relationships_mock()
-        with TestClient(app) as client:
-            curie = test_reference.new_ref_curie
-            mod = test_mod.new_mod_abbreviation
+        # Mirror the proven counters-test setup: patch the ateam curie->name map
+        # so MOD-corpus automation does not reach the real A-team API.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map:
+            mock_get_map.return_value = {"ATP:0000141": "file needed", "ATP:0001111": "test"}
+            curie = test_workflow_tag.related_ref_curie
+            mod = test_workflow_tag.related_mod_abbreviation
 
-            # Put the reference in the MOD corpus so it shows workflow data.
+            # Put the reference in the MOD corpus so it surfaces in the overview.
             add_to_corpus = {
                 "mod_abbreviation": mod,
                 "reference_curie": curie,
@@ -546,15 +551,6 @@ class TestPreCurationWorkflowOverview:
             }
             response = client.post(url="/reference/mod_corpus_association/",
                                    json=add_to_corpus, headers=auth_headers)
-            assert response.status_code == status.HTTP_201_CREATED
-
-            # A file-upload process tag ("file needed") so a process status resolves.
-            new_wt = {
-                "reference_curie": curie,
-                "mod_abbreviation": mod,
-                "workflow_tag_id": "ATP:0000141",
-            }
-            response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
             assert response.status_code == status.HTTP_201_CREATED
 
             response = client.get(url=f"/workflow_tag/pre_curation_overview/{curie}",
