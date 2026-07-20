@@ -53,10 +53,15 @@ jobs:
           sleep 5
           docker compose --env-file .env.test up -d elasticsearch
           sleep 10
+          set +e
           pytest -m "not webtest" --ignore=tests/test_debezium_integration.py
-          docker compose --env-file .env.test down -v
-      - name: coverage gaps (files with the most missed statements)
-        if: always()
-        run: |
-          echo "===== FILES WITH THE MOST MISSED STATEMENTS ====="
+          PYTEST_RC=$?
+          set -e
+          echo ""
+          echo "===================================================================="
+          echo "===== FILES WITH THE MOST MISSED STATEMENTS (targeting list) ======="
+          echo "===================================================================="
           python -m coverage report --sort=miss | tail -n 70
+          echo "===================================================================="
+          docker compose --env-file .env.test down -v
+          exit $PYTEST_RC
