@@ -159,6 +159,43 @@ class TestBuildTetAdvancedQuery:
             {"range": {"topic_entity_tags.confidence_score": {"gte": 0.5, "lte": 1.0}}}
         ]
 
+    def test_has_data_yes_maps_to_negated_false(self):
+        tree = _leaf({"has_data": ["yes"]})
+        must = build_tet_advanced_query(tree)["nested"]["query"]["bool"]["must"]
+        assert must == [
+            {"terms": {"topic_entity_tags.negated": [False]}}
+        ]
+
+    def test_has_data_no_maps_to_negated_true(self):
+        tree = _leaf({"has_data": ["no"]})
+        must = build_tet_advanced_query(tree)["nested"]["query"]["bool"]["must"]
+        assert must == [
+            {"terms": {"topic_entity_tags.negated": [True]}}
+        ]
+
+    def test_has_data_combines_on_one_tag(self):
+        """Ticket example: disease model from the ACKnowledge form, with data."""
+        tree = _leaf({
+            "topic": ["ATP:0000018"],
+            "source_method": ["ACKnowledge form"],
+            "has_data": ["yes"],
+        })
+        must = build_tet_advanced_query(tree)["nested"]["query"]["bool"]["must"]
+        assert {"terms": {"topic_entity_tags.negated": [False]}} in must
+        assert {"terms": {"topic_entity_tags.topic.keyword": ["ATP:0000018"]}} in must
+
+    def test_has_data_both_values_match_either_polarity(self):
+        tree = _leaf({"has_data": ["yes", "no"]})
+        must = build_tet_advanced_query(tree)["nested"]["query"]["bool"]["must"]
+        assert must == [
+            {"terms": {"topic_entity_tags.negated": [False, True]}}
+        ]
+
+    def test_has_data_unknown_token_adds_no_condition(self):
+        # An unrecognised token contributes no negated filter; with nothing else on
+        # the leaf the match is empty and the whole leaf collapses to None.
+        assert build_tet_advanced_query(_leaf({"has_data": ["maybe"]})) is None
+
     def test_sea_group_value_remaps_to_group_field(self):
         tree = _leaf({"source_evidence_assertion": ["ECO:0007669"]})
         must = build_tet_advanced_query(tree)["nested"]["query"]["bool"]["must"]

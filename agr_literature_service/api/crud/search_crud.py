@@ -1131,9 +1131,14 @@ TET_SEA_GROUP_VALUES = ("ECO:0007669", "ECO:0006155")
 def _tet_leaf_field(short_name, values):
     """Map a short TET sub-facet name (e.g. "topic", "source_method") to its
     Elasticsearch field, applying the source-evidence-assertion group remap used
-    elsewhere in this module. ``confidence_score`` maps to the numeric field."""
+    elsewhere in this module. ``confidence_score`` maps to the numeric field;
+    ``has_data`` maps to the boolean ``negated`` field (no ``.keyword``)."""
     if short_name == "confidence_score":
         return "topic_entity_tags.confidence_score"
+    if short_name == "has_data":
+        # "Has data" is the human-facing view of a tag's boolean ``negated``
+        # attribute (yes => negated False, no => negated True).
+        return "topic_entity_tags.negated"
     field = f"topic_entity_tags.{short_name}.keyword"
     if short_name == "source_evidence_assertion":
         vals = values if isinstance(values, (list, tuple)) else [values]
@@ -1154,8 +1159,25 @@ def _tet_leaf_nested_query(match, negate=False):
         field = _tet_leaf_field(short_name, values)
         if short_name == "confidence_score":
             must_conditions.append({"range": {field: {"gte": values[0], "lte": values[1]}}})
+        elif short_name == "has_data":
+            # Map the yes/no tokens to the boolean ``negated`` field, inverted:
+            # yes => has data (negated False); no => no data (negated True).
+            # Unknown tokens are ignored (no condition added).
+            bool_values = []
+            for value in values:
+                token = str(value).strip().lower()
+                if token in ("yes", "true", "has_data", "has data") and False not in bool_values:
+                    bool_values.append(False)
+                elif token in ("no", "false", "no_data", "no data") and True not in bool_values:
+                    bool_values.append(True)
+            if bool_values:
+                must_conditions.append({"terms": {field: bool_values}})
         else:
             must_conditions.append({"terms": {field: values}})
+    # No effective conditions (e.g. a has_data leaf with only unknown tokens) would
+    # otherwise produce a match-all nested query; collapse it away instead.
+    if not must_conditions:
+        return None
     nested_query = {
         "nested": {
             "path": "topic_entity_tags",
