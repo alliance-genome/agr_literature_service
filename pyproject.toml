@@ -12,7 +12,7 @@ include = ["agr_literature_service*"]
 exclude = ["tests*", "examples*", "non_pr_tests*", "docker*", "alembic*", "debezium*", "reverse_proxy*", "file_uploader*", "curation_status*"]
 
 [tool.pytest.ini_options]
-addopts = "--cov --cov-fail-under=80 -vv --cov-report html --ignore non_pr_tests/"
+addopts = "--cov --cov-fail-under=80 -vv --cov-report html --cov-report=term-missing:skip-covered --ignore non_pr_tests/"
 markers = [
     "webtest",
     "debezium: marks tests as requiring Debezium infrastructure"
