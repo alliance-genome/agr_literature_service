@@ -55,3 +55,8 @@ jobs:
           sleep 10
           pytest -m "not webtest" --ignore=tests/test_debezium_integration.py
           docker compose --env-file .env.test down -v
+      - name: coverage gaps (files with the most missed statements)
+        if: always()
+        run: |
+          echo "===== FILES WITH THE MOST MISSED STATEMENTS ====="
+          coverage report --sort=miss 2>/dev/null | tail -n 60 || true
