@@ -63,5 +63,8 @@ jobs:
           echo "===================================================================="
           python -m coverage report --sort=miss | tail -n 70
           echo "===================================================================="
+          echo "===== MISSING LINE RANGES FOR THE TOP GAP FILES ===================="
+          python -m coverage report -m --include="*/api/crud/workflow_tag_crud.py,*/api/crud/reference_crud.py,*/api/crud/resource_crud.py,*/api/crud/sort_crud.py,*/api/crud/mod_corpus_association_crud.py"
+          echo "===================================================================="
           docker compose --env-file .env.test down -v
           exit $PYTEST_RC
