@@ -785,6 +785,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
     data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
+    validation_by_professional_biocurator = extract_filtered_agg(
+        res, "validation_by_professional_biocurator_aggregation", "validation_by_professional_biocurator")
 
     raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
     group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
@@ -809,7 +811,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         'source_method_aggregation',
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
-        'data_novelty_aggregation'
+        'data_novelty_aggregation',
+        'validation_by_professional_biocurator_aggregation'
     ]:
         res['aggregations'].pop(k, None)
 
@@ -838,6 +841,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
         "data_novelty": data_novelty,
+        "validation_by_professional_biocurator": validation_by_professional_biocurator,
     }
 
 
@@ -1346,6 +1350,16 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         allowed_dp=allowed_dp,
         size=facets_limits.get("source_methods", 10)
     )
+
+    es_body["aggregations"]["validation_by_professional_biocurator_aggregation"] = \
+        create_filtered_aggregation_with_dp(
+            path="topic_entity_tags",
+            tet_facets=tet_facets,
+            term_field="topic_entity_tags.validation_by_professional_biocurator.keyword",
+            term_key="validation_by_professional_biocurator",
+            allowed_dp=allowed_dp,
+            size=facets_limits.get("validation_by_professional_biocurator", 10)
+        )
 
     # SEA facets: count over filtered hits but not restricted by SEA value itself
     sea_tet_facets = {k: v for k, v in tet_facets.items() if k != "source_evidence_assertion"}
