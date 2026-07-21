@@ -521,6 +521,18 @@
               }
             }
           },
+          "validation_by_professional_biocurator": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
           "source_evidence_assertion": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
