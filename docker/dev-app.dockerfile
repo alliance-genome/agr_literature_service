@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y python3-pip git postgresql-client wget 
     wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc |  apt-key add -  && \
     apt update  && \
     apt install bash -y   && \
-    apt install postgresql-client-13 -y
+    apt install postgresql-client-17 -y
     # TODO: cleanup apt-cache
 
 CMD ["bash"]
