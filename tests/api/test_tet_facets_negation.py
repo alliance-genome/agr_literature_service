@@ -3,8 +3,12 @@
 These exercise ``add_tet_facets_values`` directly against an in-memory ``es_body``
 dict, so they need neither Elasticsearch nor a database. They cover the
 source-method / source-evidence-assertion *whole-reference* exclusion (top-level
-``must_not`` nested clauses) added for SCRUM-5899, alongside the unchanged
-confidence-level exclusion (``must_not`` within the positive nested query).
+``must_not`` nested clauses) added for SCRUM-5899, alongside the confidence-level
+exclusion which is *topic-scoped*: the excluded level is combined with the selected
+topic/entity terms in one nested ``must_not`` clause, so a reference is dropped only
+when it has a tag that is both the selected topic AND the excluded level (e.g. NEG).
+A NEG tag on a different topic does not remove the reference. With no positive TET
+facet selected the exclusion falls back to any tag carrying the excluded level.
 """
 from agr_literature_service.api.crud.search_crud import (
     add_tet_facets_values,
@@ -98,9 +102,11 @@ class TestTetFacetsNegation:
         )
         assert _filter_bool(es_body).get("must_not", []) == []
 
-    def test_confidence_level_negation_stays_within_positive_nested_query(self):
-        """Confidence-level exclusion is per-matching-tag: a ``must_not`` *inside* the
-        positive nested query, never a top-level whole-reference clause."""
+    def test_confidence_level_negation_is_topic_scoped(self):
+        """With a topic selected, confidence-level exclusion is topic-scoped: a
+        single top-level ``must_not`` nested clause that requires BOTH the selected
+        topic and the excluded level on one tag. It does not constrain the positive
+        nested query per-tag, and a NEG tag on another topic won't drop the paper."""
         es_body = _new_es_body()
         add_tet_facets_values(
             es_body,
@@ -115,12 +121,58 @@ class TestTetFacetsNegation:
             apply_to_single_tet=True,
         )
         filter_bool = _filter_bool(es_body)
-        # No top-level must_not for confidence level
-        assert filter_bool.get("must_not", []) == []
-        # The positive nested query carries the confidence-level must_not
+        # Topic-scoped confidence-level exclusion at the top level
+        assert filter_bool.get("must_not", []) == [
+            {
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"term": {"topic_entity_tags.topic.keyword": "ATP:0000005"}},
+                                {"terms": {"topic_entity_tags.confidence_level.keyword": ["NEG"]}},
+                            ]
+                        }
+                    },
+                }
+            }
+        ]
+        # The positive nested query no longer carries a confidence-level must_not
         nested = filter_bool["must"][-1]["nested"]["query"]["bool"]
         assert nested["must"] == [{"term": {"topic_entity_tags.topic.keyword": "ATP:0000005"}}]
-        assert nested["must_not"] == [{"term": {"topic_entity_tags.confidence_level.keyword": "NEG"}}]
+        assert nested["must_not"] == []
+
+    def test_confidence_level_negation_without_positive_facet(self):
+        """A standalone confidence-level exclusion (no positive TET facet selected)
+        falls back to dropping any reference with a tag at the excluded level -- this
+        was the reported bug where excluding NEG left every negative-tagged paper in
+        the results and emitted no filter at all."""
+        es_body = _new_es_body()
+        add_tet_facets_values(
+            es_body,
+            {
+                "tet_facets_values": [],
+                "tet_facets_negative_values": [
+                    {"topic_entity_tags.confidence_level.keyword": ["NEG"]}
+                ],
+            },
+            apply_to_single_tet=False,
+        )
+        must_not = _filter_bool(es_body).get("must_not", [])
+        assert must_not == [
+            {
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {
+                        "bool": {
+                            "must": [
+                                {"terms": {"topic_entity_tags.confidence_level.keyword": ["NEG"]}}
+                            ]
+                        }
+                    },
+                }
+            }
+        ]
 
     def test_multiple_source_facets_produce_independent_must_not_clauses(self):
         """A single negated object with several source/SEA keys must yield one
@@ -172,12 +224,31 @@ class TestTetFacetsNegation:
             apply_to_single_tet=True,
         )
         filter_bool = _filter_bool(es_body)
-        # Whole-reference source-method exclusion at the top level
-        sm_terms = [
-            clause["nested"]["query"]["bool"]["must"][0]["term"]
-            for clause in filter_bool.get("must_not", [])
-        ]
-        assert {"topic_entity_tags.source_method.keyword": "ACKnowledge"} in sm_terms
-        # Confidence level still nested within the positive query
+        must_not = filter_bool.get("must_not", [])
+        # Confidence-level exclusion is topic-scoped: one clause requiring BOTH the
+        # selected topic and the excluded level on a single tag.
+        conf_clause = {
+            "nested": {
+                "path": "topic_entity_tags",
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"topic_entity_tags.topic.keyword": "ATP:0000005"}},
+                            {"terms": {"topic_entity_tags.confidence_level.keyword": ["NEG"]}},
+                        ]
+                    }
+                },
+            }
+        }
+        assert conf_clause in must_not
+        # Source-method exclusion stays whole-reference (single-field clause).
+        sm_clause = {
+            "nested": {
+                "path": "topic_entity_tags",
+                "query": {"bool": {"must": [{"term": {"topic_entity_tags.source_method.keyword": "ACKnowledge"}}]}},
+            }
+        }
+        assert sm_clause in must_not
+        # The positive nested query no longer carries a confidence-level must_not
         nested = filter_bool["must"][-1]["nested"]["query"]["bool"]
-        assert nested["must_not"] == [{"term": {"topic_entity_tags.confidence_level.keyword": "NEG"}}]
+        assert nested["must_not"] == []

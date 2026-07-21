@@ -29,7 +29,9 @@ CREATE TABLE reference (
     resource_id string,
     title string,
     volume string,
-    retraction_status string
+    retraction_status string,
+    can_display_image boolean,
+    image_count integer
   ) WITH (
     KAFKA_TOPIC='abc.public.reference',
     VALUE_FORMAT='json'
@@ -68,7 +70,9 @@ CREATE TABLE normalized_copyright_reference AS
     END AS resource_id,
     title,
     volume,
-    retraction_status
+    retraction_status,
+    can_display_image,
+    image_count
   FROM reference
   EMIT CHANGES;
 
@@ -192,6 +196,7 @@ CREATE TABLE topic_entity_tag(
     note string,
     topic_entity_tag_source_id string,
     data_novelty string,
+    validation_by_professional_biocurator string,
     entity_id_validation string
   ) WITH (
     KAFKA_TOPIC='abc.public.topic_entity_tag',
@@ -219,6 +224,7 @@ CREATE TABLE topic_entity_tag_with_source AS
     topic_entity_tag.note,
     topic_entity_tag.topic_entity_tag_source_id,
     topic_entity_tag.data_novelty,
+    topic_entity_tag.validation_by_professional_biocurator,
     topic_entity_tag.entity_id_validation,
     topic_entity_tag_source.source_method,
     topic_entity_tag_source.data_provider,
@@ -237,7 +243,7 @@ CREATE TABLE topic_entity_tag_with_source AS
 
 CREATE TABLE topic_entity_tags AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) \"TOPIC_ENTITY_TAGS\"
+    collect_list(map('topic':=\"TOPIC\", 'entity_type':=entity_type, 'entity':=entity, 'entity_published_as':=entity_published_as, 'species':=species, 'display_tag':=display_tag, 'confidence_level':=confidence_level, 'confidence_score':=cast(confidence_score as string), 'negated':=cast(negated as string), 'data_novelty':=data_novelty, 'validation_by_professional_biocurator':=validation_by_professional_biocurator, 'source_method':=source_method, 'data_provider':= data_provider, 'source_evidence_assertion':=source_evidence_assertion, 'source_evidence_assertion_group':=source_evidence_assertion_group)) \"TOPIC_ENTITY_TAGS\"
     FROM topic_entity_tag_with_source
     GROUP BY reference_id
     EMIT CHANGES;
@@ -337,6 +343,8 @@ CREATE TABLE reference_with_citation AS
     normalized_copyright_reference.title,
     normalized_copyright_reference.volume,
     normalized_copyright_reference.retraction_status,
+    normalized_copyright_reference.can_display_image,
+    normalized_copyright_reference.image_count,
     CASE
       WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
       WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
@@ -377,6 +385,8 @@ CREATE TABLE reference_xref AS
     reference.title,
     reference.volume,
     reference.retraction_status,
+    reference.can_display_image,
+    reference.image_count,
     reference.retraction_status_name,
     reference.citation,
     reference.short_citation,
@@ -413,6 +423,8 @@ CREATE TABLE reference_xref_author AS
     reference_xref.title,
     reference_xref.volume,
     reference_xref.retraction_status,
+    reference_xref.can_display_image,
+    reference_xref.image_count,
     reference_xref.retraction_status_name,
     reference_xref.citation,
     reference_xref.short_citation,
@@ -450,6 +462,8 @@ CREATE TABLE reference_xref_author_mods_in_corpus AS
     reference_xref_author.title,
     reference_xref_author.volume,
     reference_xref_author.retraction_status,
+    reference_xref_author.can_display_image,
+    reference_xref_author.image_count,
     reference_xref_author.retraction_status_name,
     reference_xref_author.citation,
     reference_xref_author.short_citation,
@@ -488,6 +502,8 @@ CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
     reference_xref_author_mods_in_corpus.title,
     reference_xref_author_mods_in_corpus.volume,
     reference_xref_author_mods_in_corpus.retraction_status,
+    reference_xref_author_mods_in_corpus.can_display_image,
+    reference_xref_author_mods_in_corpus.image_count,
     reference_xref_author_mods_in_corpus.retraction_status_name,
     reference_xref_author_mods_in_corpus.citation,
     reference_xref_author_mods_in_corpus.short_citation,
@@ -527,6 +543,8 @@ CREATE TABLE reference_xref_all_mods_corpus AS
     reference_xref_author_mods_in_corpus_mods_needs_review.title,
     reference_xref_author_mods_in_corpus_mods_needs_review.volume,
     reference_xref_author_mods_in_corpus_mods_needs_review.retraction_status,
+    reference_xref_author_mods_in_corpus_mods_needs_review.can_display_image,
+    reference_xref_author_mods_in_corpus_mods_needs_review.image_count,
     reference_xref_author_mods_in_corpus_mods_needs_review.retraction_status_name,
     reference_xref_author_mods_in_corpus_mods_needs_review.citation,
     reference_xref_author_mods_in_corpus_mods_needs_review.short_citation,
@@ -566,6 +584,8 @@ CREATE TABLE reference_obsolete_curies AS SELECT
     reference_xref_all_mods_corpus.title,
     reference_xref_all_mods_corpus.volume,
     reference_xref_all_mods_corpus.retraction_status,
+    reference_xref_all_mods_corpus.can_display_image,
+    reference_xref_all_mods_corpus.image_count,
     reference_xref_all_mods_corpus.retraction_status_name,
     reference_xref_all_mods_corpus.citation,
     reference_xref_all_mods_corpus.short_citation,
@@ -605,6 +625,8 @@ CREATE TABLE reference_mod_reference_types AS SELECT
     reference_obsolete_curies.title,
     reference_obsolete_curies.volume,
     reference_obsolete_curies.retraction_status,
+    reference_obsolete_curies.can_display_image,
+    reference_obsolete_curies.image_count,
     reference_obsolete_curies.retraction_status_name,
     reference_obsolete_curies.citation,
     reference_obsolete_curies.short_citation,
@@ -879,6 +901,8 @@ CREATE TABLE reference_joined WITH (
     reference_mod_reference_types.title \"title\",
     reference_mod_reference_types.volume \"volume\",
     reference_mod_reference_types.retraction_status \"retraction_status\",
+    reference_mod_reference_types.can_display_image \"can_display_image\",
+    reference_mod_reference_types.image_count \"image_count\",
     reference_mod_reference_types.retraction_status_name \"retraction_status_name\",
     reference_mod_reference_types.citation \"citation\",
     reference_mod_reference_types.short_citation \"short_citation\",

@@ -157,7 +157,9 @@ def initialize_elasticsearch():
                 "date_last_modified_in_pubmed": {
                     "type": "date",
                     "format": "strict_date_optional_time||yyyy-MM-dd"
-                }
+                },
+                "can_display_image": {"type": "boolean"},
+                "image_count": {"type": "integer"}
             }
         }
     }
@@ -175,11 +177,13 @@ def initialize_elasticsearch():
             {"name": "John Q Public", "orcid": "0000-0000-0000-0000"},
             {"name": "Socrates", "orcid": "0000-0000-0000-0001"}
         ],
-        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}],
+        "cross_references": [{"curie": "FB:FBrf0000001", "is_obsolete": "false"}, {"curie": "FB:FBrf0000002", "is_obsolete": "true"}, {"curie": "PDB:1ABC", "is_obsolete": "false"}],
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["review"],
         "language" : "English",
-        "date_created": "1636139454923830"
+        "date_created": "1636139454923830",
+        "can_display_image": True,
+        "image_count": 3
     }
     doc2 = {
         "curie": "AGRKB:101000000000002",
@@ -195,7 +199,9 @@ def initialize_elasticsearch():
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["note"],
         "language": "English",
-        "date_created": "1636139454923830"
+        "date_created": "1636139454923830",
+        "can_display_image": True,
+        "image_count": 0
     }
     doc3 = {
         "curie": "AGRKB:101000000000003",
@@ -211,7 +217,9 @@ def initialize_elasticsearch():
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["Journal"],
         "language": "English",
-        "date_created": "1636139454923830"
+        "date_created": "1636139454923830",
+        "can_display_image": False,
+        "image_count": 0
     }
     doc4 = {
         "curie": "AGRKB:101000000000004",
@@ -227,7 +235,9 @@ def initialize_elasticsearch():
         "workflow_tags": [{"workflow_tag_id": "ATP:0000196", "mod_abbreviation": "FB"}],
         "mod_reference_types": ["paper"],
         "language": "English",
-        "date_created": "1636139454923830"
+        "date_created": "1636139454923830",
+        "can_display_image": False,
+        "image_count": 0
     }
     es.index(index=config.ELASTICSEARCH_INDEX, id=1, body=doc1)
     es.index(index=config.ELASTICSEARCH_INDEX, id=2, body=doc2)
@@ -436,6 +446,18 @@ class TestSearch:
             assert res["return_count"] == 1
             assert res["hits"][0]["curie"] == "AGRKB:101000000000002"
 
+    def test_search_all_routes_cross_reference_prefix_to_xref(self, initialize_elasticsearch, auth_headers, monkeypatch):  # noqa
+        # A non-MOD/non-publication xref prefix (e.g. PDB) present in the DB should be
+        # routed from the default "all" search to the dedicated cross_reference lookup,
+        # so the paper is found by its PDB id instead of being dropped by the content gate.
+        from agr_literature_service.api.crud import search_crud as sc
+        monkeypatch.setattr(sc, "get_cross_reference_curie_prefixes", lambda *a, **k: ["PDB"])
+        with TestClient(app) as client:
+            payload = {"query": "PDB:1ABC", "return_facets_only": False}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            assert "AGRKB:101000000000001" in curies
+
     def test_search_with_author_filter_only(self, initialize_elasticsearch, auth_headers):  # noqa
         with TestClient(app) as client:
             payload = {
@@ -487,3 +509,49 @@ class TestSearch:
             res = client.post("/search/references/", json=payload, headers=auth_headers).json()
             # all 4 seeded docs carry ATP:0000196 for mod FB
             assert res["return_count"] == 4
+
+
+    def test_search_image_facet_aggregations(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {"query": None, "return_facets_only": True}
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            aggs = res["aggregations"]
+
+            # image permission facet: doc1 + doc2 have can_display_image=True
+            can_display = {b["key"]: b["doc_count"] for b in aggs["can_display_image"]["buckets"]}
+            assert can_display.get("true") == 2
+            assert can_display.get("false") == 2
+
+            # has images facet: only doc1 has image_count > 0
+            has_image = {b["key"]: b["doc_count"] for b in aggs["has_image"]["buckets"]}
+            assert has_image.get("true") == 1
+            assert has_image.get("false") == 3
+
+
+    def test_search_has_image_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"has_image": ["true"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            # only doc1 has figures uploaded (image_count > 0)
+            assert curies == {"AGRKB:101000000000001"}
+            hit = res["hits"][0]
+            assert hit["can_display_image"] is True
+            assert hit["image_count"] == 3
+
+
+    def test_search_can_display_image_facet_filter(self, initialize_elasticsearch, auth_headers):  # noqa
+        with TestClient(app) as client:
+            payload = {
+                "query": None,
+                "return_facets_only": False,
+                "facets_values": {"can_display_image": ["true"]},
+            }
+            res = client.post("/search/references/", json=payload, headers=auth_headers).json()
+            curies = {h["curie"] for h in res["hits"]}
+            # doc1 and doc2 have image permission
+            assert curies == {"AGRKB:101000000000001", "AGRKB:101000000000002"}

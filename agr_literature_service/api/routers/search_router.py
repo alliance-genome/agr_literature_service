@@ -39,6 +39,7 @@ def search(body: FacetsOptionsSchema,
                                                query_fields=body.query_fields,
                                                partial_match=body.partial_match,
                                                tet_nested_facets_values=body.tet_nested_facets_values,
+                                               tet_advanced_query=body.tet_advanced_query,
                                                sort=body.sort)
         return result
     except Exception as e:

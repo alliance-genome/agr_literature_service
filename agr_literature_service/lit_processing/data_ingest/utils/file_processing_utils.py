@@ -196,7 +196,103 @@ def remove_old_files(dir_path, days_old):
                 remove(file_path)
 
 
-def classify_pmc_file(file_name, file_extension):
+# Maximum file size (in bytes) below which a PMC image is treated as a
+# thumbnail rather than a full figure. Derived from the observed size
+# distribution of PMC figure images (SCRUM-6281): genuine thumbnails cluster
+# below ~25 KB for gif and ~15 KB for jpg, while full figures are much larger.
+# These thresholds are applied to two slightly different measurements: the raw
+# file size at ingest, and the gzipped S3 object size in the backfill. For jpeg
+# that difference is negligible (already-compressed, raw/gz ~= 1.0), but for gif
+# gzip shrinks the LZW stream a bit further (measured raw/gz ~= 1.09 on average,
+# up to ~1.15 near the boundary). The gif thumbnail population sits well below
+# 20 KB with very few files in 20-30 KB, so this only affects a handful of
+# boundary cases; a per-file exact split would require the raw bytes on both
+# paths, which is not worth the extra S3 downloads.
+THUMBNAIL_MAX_SIZE_BYTES = {
+    'gif': 25000,
+    'jpg': 15000,
+    'jpeg': 15000,
+}
+
+
+def is_thumbnail_by_size(file_extension, file_size):
+    """Return True if an image of this extension and size is a thumbnail."""
+    if file_size is None:
+        return False
+    max_size = THUMBNAIL_MAX_SIZE_BYTES.get(file_extension.lower())
+    return max_size is not None and file_size < max_size
+
+
+# Publisher inline-image naming: Taylor & Francis ships inline equation /
+# formatted-text snippets as "<article>_ILM<n>" (e.g. KRNB_A_2685379_ILM0001).
+# These are neither figures nor thumbnails of figures, so they get their own
+# file_class (SCRUM-6095). Anchored to the suffix to avoid matching author
+# names that merely contain "ilm" (Yilmaz, Egilmez, Tilmann, ...).
+INLINE_IMAGE_RE = re.compile(r'_ILM\d+$', re.IGNORECASE)
+
+
+def is_inline_image(file_name):
+    """Return True for publisher inline-image files (e.g. '..._ILM0001')."""
+    return bool(INLINE_IMAGE_RE.search(file_name))
+
+
+# Taylor & Francis ship each figure as an online-color rendition ("<figure>_OC")
+# and a print black-and-white rendition ("<figure>_PB"), and EACH rendition
+# comes as a full-size .jpg plus a small .gif thumbnail. So the size/thumbnail
+# rules run first (catching the small _OC.gif/_PB.gif previews); only among the
+# surviving full-size images is a _PB a duplicate of its _OC twin (SCRUM-6095).
+PRINT_BW_RE = re.compile(r'_PB$', re.IGNORECASE)
+
+
+def is_print_bw(file_name):
+    """Return True for a Taylor & Francis print black-and-white rendition ('..._PB')."""
+    return bool(PRINT_BW_RE.search(file_name))
+
+
+def has_color_twin(file_name, sibling_display_names):
+    """Return True if a print-B&W file has a same-figure online-color companion.
+
+    ``sibling_display_names`` is the set of display names (without extension) of
+    the other files in the same reference/package. A ``..._PB`` file has a twin
+    when the corresponding ``..._OC`` name is present.
+    """
+    if not sibling_display_names or not is_print_bw(file_name):
+        return False
+    oc_twin = PRINT_BW_RE.sub('_OC', file_name).lower()
+    return oc_twin in {name.lower() for name in sibling_display_names}
+
+
+def is_paired_thumbnail(file_extension, file_size, sibling_sizes):
+    """Return True if this gif is a reduced-size preview of a larger same-named
+    companion image (SCRUM-6095).
+
+    The absolute size cutoff (``is_thumbnail_by_size``) misses "large"
+    thumbnails: some publishers ship a gif preview that is above the cutoff
+    (e.g. ~73 KB) alongside an even larger same-named jpg master (e.g. ~340 KB).
+    In that case the gif is still the thumbnail. We detect it structurally: a
+    gif is a thumbnail when a same-named jpg/jpeg companion exists and is
+    larger than the gif.
+
+    Only gifs are reclassified this way; the jpg/jpeg is treated as the
+    full-resolution master (data analysis shows the thumbnail is the gif in
+    essentially all paired cases).
+
+    ``sibling_sizes`` maps the file_extension of other files sharing this
+    file's display name (within the same reference) to their size in bytes.
+    """
+    if file_size is None or not sibling_sizes:
+        return False
+    if file_extension.lower() != 'gif':
+        return False
+    for sib_ext, sib_size in sibling_sizes.items():
+        if sib_ext.lower() in ('jpg', 'jpeg') and sib_size is not None \
+                and sib_size > file_size:
+            return True
+    return False
+
+
+def classify_pmc_file(file_name, file_extension, file_size=None, sibling_sizes=None,
+                      sibling_display_names=None):
 
     """
     image_related_file_extensions = [
@@ -205,12 +301,35 @@ def classify_pmc_file(file_name, file_extension):
     ]
     """
     image_related_file_extensions = ['jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png']
-    if file_extension.lower() == "nxml":
+    ext = file_extension.lower()
+    if ext == "nxml":
         return "nXML"
-    if "thumb" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
-        return "thumbnail"
-    # if "fig" in file_name.lower() and file_extension.lower() in image_related_file_extensions:
-    if file_extension.lower() in image_related_file_extensions:
+    if ext in image_related_file_extensions:
+        # Inline images (equation / formatted-text snippets, e.g. Taylor &
+        # Francis "..._ILM<n>") are neither figures nor thumbnails. Check first
+        # since they are small and would otherwise be classed by size.
+        if is_inline_image(file_name):
+            return "inline_image"
+        # Some publishers (e.g. JoVE, Royal Society) label thumbnails in the
+        # file name; honor that regardless of size.
+        if "thumb" in file_name.lower():
+            return "thumbnail"
+        # Small images are thumbnails: PMC packages ship most figures as a
+        # large image plus a small same-named thumbnail that is NOT named
+        # "thumb". This also catches the small _OC.gif/_PB.gif rendition
+        # thumbnails before the color/B&W rule below.
+        if is_thumbnail_by_size(ext, file_size):
+            return "thumbnail"
+        # Above the size cutoff a gif can still be a thumbnail when it is the
+        # smaller half of a same-named gif/jpg pair (SCRUM-6095).
+        if is_paired_thumbnail(ext, file_size, sibling_sizes):
+            return "thumbnail"
+        # Among the remaining full-size images, a Taylor & Francis print-B&W
+        # rendition ("..._PB") is a duplicate when its color twin ("..._OC") is
+        # present. Everything else (including the _OC rendition and a sole _PB
+        # with no twin) is a figure (SCRUM-6095).
+        if is_print_bw(file_name) and has_color_twin(file_name, sibling_display_names):
+            return "bw_duplicate"
         return "figure"
     return "supplement"
 

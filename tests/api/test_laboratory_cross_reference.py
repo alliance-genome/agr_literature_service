@@ -19,7 +19,7 @@ XrefTestData = namedtuple(
 
 @pytest.fixture
 def seeded_laboratory(db):  # noqa
-    lab = LaboratoryModel(name="Xref Lab", status="active", lab_is_open=False)
+    lab = LaboratoryModel(curie="AGRKB:104test-xref", name="Xref Lab", status="active", lab_is_open=False)
     db.add(lab)
     db.commit()
     db.refresh(lab)
@@ -80,6 +80,41 @@ class TestLaboratoryCrossReference:
                 headers=auth_headers,
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_obsolete_then_readd_curie_allowed(self, auth_headers, test_xref):  # noqa
+        # Obsoleting the active xref frees its curie/prefix so the same curie can
+        # be re-added — uniqueness is enforced only among non-obsolete rows.
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/laboratory_cross_reference/{test_xref.new_id}",
+                json={"is_obsolete": True},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+
+            res = client.post(
+                "/laboratory_cross_reference/",
+                json={"laboratory_curie": str(test_xref.laboratory_id), "curie": "WB:WBlab9001"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+            assert res.json()["is_obsolete"] is False
+
+    def test_obsolete_then_readd_prefix_allowed(self, auth_headers, test_xref):  # noqa
+        # After obsoleting, a different curie sharing the same prefix is accepted
+        # for the laboratory.
+        with TestClient(app) as client:
+            client.patch(
+                f"/laboratory_cross_reference/{test_xref.new_id}",
+                json={"is_obsolete": True},
+                headers=auth_headers,
+            )
+            res = client.post(
+                "/laboratory_cross_reference/",
+                json={"laboratory_curie": str(test_xref.laboratory_id), "curie": "WB:WBlab9002"},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
 
     def test_bad_curie_rejected(self, auth_headers, seeded_laboratory):  # noqa
         with TestClient(app) as client:

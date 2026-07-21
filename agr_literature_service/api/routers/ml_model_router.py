@@ -51,7 +51,9 @@ def upload_model(
         data_novelty: str = None,
         species: str = None,
         file_classes: str = None,
-        description: str = None):
+        description: str = None,
+        embedding_profile: str = None,
+        embedding_version: int = None):
     model_data = None
     if task_type and mod_abbreviation:
         file_classes_list = [c.strip() for c in file_classes.split(",") if c.strip()] if file_classes else None
@@ -72,7 +74,9 @@ def upload_model(
             "data_novelty": data_novelty,
             "species": species,
             "file_classes": file_classes_list,
-            "description": description
+            "description": description,
+            "embedding_profile": embedding_profile,
+            "embedding_version": embedding_version
         }
     elif model_data_file:
         try:
@@ -100,7 +104,9 @@ def upload_model(
         data_novelty=model_data["data_novelty"],
         species=model_data["species"],
         file_classes=model_data.get("file_classes"),
-        description=model_data.get("description")
+        description=model_data.get("description"),
+        embedding_profile=model_data.get("embedding_profile"),
+        embedding_version=model_data.get("embedding_version")
     )
     set_global_user_from_cognito(db, user)
     return ml_model_crud.upload(db, request, file)

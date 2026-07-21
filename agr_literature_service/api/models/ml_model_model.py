@@ -101,6 +101,15 @@ class MLModel(AuditedModel, Base):
         nullable=True
     )
 
+    # ABC-embedding recipe (SCRUM-5781). NULL for legacy BioWordVec models. When
+    # embedding_profile is set, the model was trained on the ABC's precomputed
+    # embeddings: (profile, version) is what the classifier needs to select which
+    # stored embedding to fetch for a reference. Everything else (model, dim,
+    # pooling, BoW) is a fixed convention read from the parquet or hard-coded.
+    embedding_profile = Column(String, index=True, nullable=True)
+
+    embedding_version = Column(Integer, nullable=True)
+
     __table_args__ = (
         UniqueConstraint('task_type', 'mod_id', 'topic', 'version_num', name='uq_ml_model_task_mod_topic_version'),
     )
