@@ -142,3 +142,32 @@ def test_force_refresh_replaces_immediately(monkeypatch):
     rdc.get_all()
     result = rdc.force_refresh()
     assert result[0].default_url == "u2"
+
+
+def test_refresh_empty_result_keeps_last_good(monkeypatch):
+    now, advance = _fake_clock(datetime(2026, 1, 1))
+    state = {"empty": False}
+
+    def fetch():
+        if state["empty"]:
+            return []
+        return [_rd("MGI", "good")]
+
+    monkeypatch.setattr(rdc, "_now", now)
+    monkeypatch.setattr(rdc, "_fetch", fetch)
+    rdc.get_all()          # good load
+    state["empty"] = True
+    advance(1000)          # > TTL -> refresh attempted, returns empty
+    assert rdc.get_map()["MGI"].default_url == "good"   # last-good retained
+
+
+def test_fetch_from_ateam_uses_short_timeout(monkeypatch):
+    monkeypatch.setattr(rdc, "_fetch", rdc._fetch_from_ateam)
+    with mock.patch("agr_curation_api.AGRCurationAPIClient") as MockClient:
+        MockClient.return_value.get_resource_descriptors.return_value = [
+            {"prefix": "X", "defaultUrlTemplate": "u"}
+        ]
+        rdc._fetch_from_ateam()
+    config = MockClient.call_args.kwargs["config"]
+    assert config["timeout"] == timedelta(seconds=5)
+    assert config["max_retries"] == 1

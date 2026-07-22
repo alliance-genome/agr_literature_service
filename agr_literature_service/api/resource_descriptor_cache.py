@@ -58,7 +58,8 @@ def _normalize_ateam_descriptor(rd: Dict[str, Any]) -> Optional[ResourceDescript
 
 def _fetch_from_ateam() -> List[ResourceDescriptor]:
     from agr_curation_api import AGRCurationAPIClient  # type: ignore
-    client = AGRCurationAPIClient()
+    timeout_seconds = int(os.getenv("ATEAM_FETCH_TIMEOUT_SECONDS", "5"))
+    client = AGRCurationAPIClient(config={"timeout": timedelta(seconds=timeout_seconds), "max_retries": 1})
     raw_descriptors = client.get_resource_descriptors() or []
     out: List[ResourceDescriptor] = []
     for rd in raw_descriptors:
@@ -92,7 +93,10 @@ _fetch: Callable[[], List[ResourceDescriptor]] = _fetch_from_ateam
 
 
 def _do_fetch_locked(now: datetime) -> None:
-    _state.snapshot = _fetch()
+    fetched = _fetch()
+    if not fetched:
+        raise ValueError("A-team returned no resource descriptors")
+    _state.snapshot = fetched
     _state.fetched_at = now
 
 
