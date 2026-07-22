@@ -2,8 +2,10 @@ from datetime import datetime, timedelta
 from unittest import mock
 
 import pytest
+from fastapi import HTTPException
 
 import agr_literature_service.api.resource_descriptor_cache as rdc
+from agr_literature_service.api.crud import resource_descriptor_crud
 
 
 ATEAM_SAMPLE = [
@@ -171,3 +173,19 @@ def test_fetch_from_ateam_uses_short_timeout(monkeypatch):
     config = MockClient.call_args.kwargs["config"]
     assert config["timeout"] == timedelta(seconds=5)
     assert config["max_retries"] == 1
+
+
+def test_crud_update_returns_data_on_success(monkeypatch):
+    monkeypatch.setattr(rdc, "_fetch", lambda: [_rd("MGI", "u1")])
+    result = resource_descriptor_crud.update()
+    assert [r.db_prefix for r in result] == ["MGI"]
+
+
+def test_crud_update_raises_502_when_ateam_fails(monkeypatch):
+    def boom():
+        raise RuntimeError("ateam down")
+
+    monkeypatch.setattr(rdc, "_fetch", boom)
+    with pytest.raises(HTTPException) as exc_info:
+        resource_descriptor_crud.update()
+    assert exc_info.value.status_code == 502
