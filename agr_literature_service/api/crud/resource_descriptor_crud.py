@@ -1,12 +1,12 @@
-from agr_literature_service.api.initialize import update_resource_descriptor
-from sqlalchemy.orm import Session
+from typing import List
 
-from agr_literature_service.api.models import ResourceDescriptorModel
-
-
-def update(db: Session):
-    return update_resource_descriptor(db)
+from agr_literature_service.api import resource_descriptor_cache
 
 
-def show(db: Session):
-    return db.query(ResourceDescriptorModel).all()
+def update() -> List[resource_descriptor_cache.ResourceDescriptor]:
+    """Force-refresh this worker's in-memory descriptor cache from A-team."""
+    return resource_descriptor_cache.force_refresh()
+
+
+def show() -> List[resource_descriptor_cache.ResourceDescriptor]:
+    return resource_descriptor_cache.get_all()
