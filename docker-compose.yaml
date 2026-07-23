@@ -401,6 +401,8 @@ services:
     build:
       context: .
       dockerfile: docker/debezium_connector.dockerfile
+      args:
+        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
     ports:
       - 8083:8083
     environment:
