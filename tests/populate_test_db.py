@@ -39,6 +39,7 @@ from agr_literature_service.api.models.obsolete_model import ObsoleteReferenceMo
 from agr_literature_service.api.models.reference_email_model import ReferenceEmailModel  # noqa: E402
 from agr_literature_service.api.models.indexing_priority_model import IndexingPriorityModel  # noqa: E402
 from agr_literature_service.api.models.manual_indexing_tag_model import ManualIndexingTagModel  # noqa: E402
+from agr_literature_service.api.models.curation_status_model import CurationStatusModel  # noqa: E402
 
 
 class MockDataFactory:
@@ -228,6 +229,21 @@ class MockDataFactory:
         )
         db_session.add(tag)
         return tag
+
+    def create_curation_status(self, db_session, reference: ReferenceModel,
+                               mod: ModModel, status_id: int) -> CurationStatusModel:
+        """Create a curation status entry for testing."""
+        topics = ["ATP:0000002", "ATP:0000005", "ATP:0000009"]
+        statuses = ["ATP:0000237", "ATP:0000238", "ATP:0000239"]
+        curation_status = CurationStatusModel(
+            reference_id=reference.reference_id,
+            mod_id=mod.mod_id,
+            topic=topics[status_id % len(topics)],
+            curation_status=statuses[status_id % len(statuses)],
+            note=f"Test curation status {status_id}"
+        )
+        db_session.add(curation_status)
+        return curation_status
 
     def create_mod(self, db_session, mod_id: int) -> ModModel:
         """Create a MOD (Model Organism Database) entry."""
@@ -473,6 +489,12 @@ def _create_references_with_associations(db, factory, resources, citations,
         if i % 4 == 0:  # Add to every fourth reference
             mit_mod = mods[i % len(mods)]
             factory.create_manual_indexing_tag(db, reference, mit_mod, i)
+
+        # Add curation statuses - REQUIRED for Debezium: without at least one row the
+        # abc.public.curation_status topic is never created, so the ksql curation_tags
+        # table (and everything joined onto it, including reference_joined) fails to build
+        cs_mod = mods[i % len(mods)]
+        factory.create_curation_status(db, reference, cs_mod, i)
 
         # Add MOD corpus associations - REQUIRED for Debezium
         mod = mods[i % len(mods)]
