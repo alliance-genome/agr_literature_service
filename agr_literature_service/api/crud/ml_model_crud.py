@@ -1,9 +1,12 @@
 import gzip
+import logging
 import os
 import shutil
+import tempfile
 from typing import Optional
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile, HTTPException
 from sqlalchemy.orm import Session, joinedload
 from starlette.background import BackgroundTask
@@ -21,6 +24,7 @@ from agr_literature_service.api.schemas.ml_model_schemas import (
 from agr_literature_service.lit_processing.utils.s3_utils import download_file_from_s3
 
 s3_client = boto3.client('s3')
+logger = logging.getLogger(__name__)
 
 
 def get_ml_model_s3_folder(task_type: str, mod_abbreviation: str, topic: str):
@@ -124,6 +128,11 @@ def cleanup(file_path):
     os.remove(file_path)
 
 
+def cleanup_dir(dir_path):
+    """Remove a temporary working directory and its contents; never raises."""
+    shutil.rmtree(dir_path, ignore_errors=True)
+
+
 def get_mod(db: Session, mod_abbreviation: str):
     mod = db.query(ModModel).filter(ModModel.abbreviation == mod_abbreviation).first()
     if not mod:
@@ -222,19 +231,56 @@ def download_model_file(db: Session, task_type: str, mod_abbreviation: str, topi
 
     folder = get_ml_model_s3_folder(task_type, mod_abbreviation, topic)
     object_key = f"{folder}/{str(model.version_num)}.gz"
-    file_name_gzipped = f"{str(model.version_num)}.gz"
-    file_name = f"{str(model.version_num)}.{model.file_extension}"
-    downloaded = download_file_from_s3(file_name_gzipped, bucketname="agr-literature", s3_file_location=object_key)
-    if not downloaded or not os.path.exists(file_name_gzipped):
-        # The DB record exists but the S3 object is missing (e.g. it was removed
-        # via destroy(), which keeps the row). Return a 404 instead of letting
-        # gzip.open raise an unhandled FileNotFoundError (HTTP 500).
-        raise HTTPException(
-            status_code=404,
-            detail=f"Model file not found in storage for task_type='{task_type}', "
-                   f"mod='{mod_abbreviation}', topic='{topic}', version={model.version_num}")
-    with gzip.open(file_name_gzipped, 'rb') as f_in, open(file_name, 'wb') as f_out:
-        shutil.copyfileobj(f_in, f_out)
-    os.remove(file_name_gzipped)
-    return FileResponse(path=file_name, filename=file_name, media_type="application/octet-stream",
-                        background=BackgroundTask(cleanup, file_name))
+
+    # Use a unique per-request working directory. Previously the gzipped download
+    # and its decompressed output used bare relative filenames derived only from
+    # the version number ("<version>.gz" / "<version>.<ext>"), so concurrent
+    # downloads of the same model (e.g. the parallel entity-extraction pipeline)
+    # collided: one request's os.remove / cleanup deleted the file another was
+    # still reading, surfacing as an unhandled 500. A per-request tmp dir isolates them.
+    work_dir = tempfile.mkdtemp(prefix="ml_model_dl_")
+    file_name_gzipped = os.path.join(work_dir, f"{model.version_num}.gz")
+    file_name = os.path.join(work_dir, f"{model.version_num}.{model.file_extension}")
+    try:
+        try:
+            downloaded = download_file_from_s3(
+                file_name_gzipped, bucketname="agr-literature", s3_file_location=object_key)
+        except (BotoCoreError, ClientError) as exc:
+            # Storage errors that download_file_from_s3 does not swallow
+            # (missing credentials, connectivity/timeout, etc.).
+            logger.error("S3 download error for %s: %s", object_key, exc)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Error retrieving model file from storage for task_type='{task_type}', "
+                       f"mod='{mod_abbreviation}', topic='{topic}', version={model.version_num}")
+
+        if not downloaded or not os.path.exists(file_name_gzipped):
+            # The DB record exists but the S3 object is missing (e.g. it was removed
+            # via destroy(), which keeps the row). Return a 404 instead of letting
+            # gzip.open raise an unhandled FileNotFoundError (HTTP 500).
+            raise HTTPException(
+                status_code=404,
+                detail=f"Model file not found in storage for task_type='{task_type}', "
+                       f"mod='{mod_abbreviation}', topic='{topic}', version={model.version_num}")
+
+        try:
+            with gzip.open(file_name_gzipped, 'rb') as f_in, open(file_name, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        except (OSError, EOFError) as exc:
+            # Object exists but is truncated / not valid gzip (gzip.BadGzipFile is an
+            # OSError subclass). Surface a clear error instead of a raw 500.
+            logger.error("Failed to decompress model file %s: %s", object_key, exc)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Stored model file is corrupt or not gzip for task_type='{task_type}', "
+                       f"mod='{mod_abbreviation}', topic='{topic}', version={model.version_num}")
+    except Exception:
+        # Any failure before the FileResponse is handed off: clean up now. On success
+        # the tmp dir must survive until the response is streamed, so it is removed by
+        # the background task below instead.
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise
+
+    return FileResponse(path=file_name, filename=os.path.basename(file_name),
+                        media_type="application/octet-stream",
+                        background=BackgroundTask(cleanup_dir, work_dir))
