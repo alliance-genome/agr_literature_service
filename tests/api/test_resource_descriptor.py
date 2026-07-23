@@ -16,7 +16,10 @@ ATEAM_SAMPLE = [
         "idExample": "TESTMOD:123",
         "idPattern": r"^TESTMOD:\d+$",
         "defaultUrlTemplate": "http://test.org/[%s]",
-        "resourcePages": [{"name": "homepage", "urlTemplate": "http://test.org/"}],
+        "resourcePages": [
+            {"name": "gene", "urlTemplate": "http://test.org/gene/[%s]"},
+            {"name": "homepage", "urlTemplate": "http://test.org/"},
+        ],
     }
 ]
 
