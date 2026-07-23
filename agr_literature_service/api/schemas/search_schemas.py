@@ -26,6 +26,9 @@ class FacetsOptionsSchema(BaseModel):
     query_fields: Optional[str] = None
     partial_match: bool = True
     tet_nested_facets_values: Dict[str, Any] = Field(default_factory=dict)
+    # Advanced Topic query builder (SCRUM-6228): an optional AND/OR tree over TET
+    # sub-facets. When present it replaces the flat tet_nested_facets_values path.
+    tet_advanced_query: Optional[Dict[str, Any]] = None
 
     # the tests send "query_field" (singular) and "sort"
     sort: Optional[List[Dict[str, Any]]] = None

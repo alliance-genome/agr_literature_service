@@ -112,7 +112,6 @@ jobs:
           COGNITO_ADMIN_CLIENT_ID: ${{ secrets.cognito_admin_client_id }}
           COGNITO_ADMIN_CLIENT_SECRET: ${{ secrets.cognito_admin_client_secret }}
           COGNITO_TOKEN_URL: 'https://auth.alliancegenome.org/oauth2/token'
-          RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
           ELASTICSEARCH_HOST: localhost
           ELASTICSEARCH_PORT: 9200
           ELASTICSEARCH_INDEX: references_index

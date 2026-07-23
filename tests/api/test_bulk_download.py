@@ -1,9 +1,9 @@
 import json
 
 from fastapi import status
-from sqlalchemy import text
 from starlette.testclient import TestClient
 
+import agr_literature_service.api.resource_descriptor_cache as rdc
 from agr_literature_service.api.main import app
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
@@ -11,9 +11,8 @@ from .fixtures import auth_headers  # noqa
 
 def _insert_xref_descriptor(db, prefix):  # noqa
     """Register a cross-reference db_prefix so /cross_reference/ POSTs are accepted."""
-    with db.begin():
-        db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                        f"VALUES ('{prefix}', 'Madeup {prefix}', 'http://www.example.com/[%s]')"))
+    rdc._seed([rdc.ResourceDescriptor(db_prefix=prefix, name=f"Madeup {prefix}",
+                                      default_url="http://www.example.com/[%s]")])
 
 
 def _by_curie(payload):
