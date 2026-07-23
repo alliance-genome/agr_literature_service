@@ -230,7 +230,7 @@ CREATE TABLE curation_status_with_mod AS
 
 CREATE TABLE curation_tags AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('topic':=topic, 'curation_status':=curation_status, 'abbreviation':=abbreviation )) \"CURATION_TAGS\"
+    collect_list(map('topic':=\"TOPIC\", 'curation_status':=curation_status, 'abbreviation':=abbreviation )) \"CURATION_TAGS\"
     FROM curation_status_with_mod
     GROUP BY reference_id
     EMIT CHANGES;
