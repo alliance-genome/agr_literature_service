@@ -14,6 +14,22 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_TTL_SECONDS = 900
+DEFAULT_TIMEOUT_SECONDS = 5
+RETRY_BACKOFF_SECONDS = 60
+
+
+def _int_env(name: str, default: int) -> int:
+    """Read an int env var, falling back to default when unset, blank, or invalid."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %d", name, raw, default)
+        return default
+
 
 @dataclass(frozen=True)
 class DescriptorPage:
@@ -58,7 +74,7 @@ def _normalize_ateam_descriptor(rd: Dict[str, Any]) -> Optional[ResourceDescript
 
 def _fetch_from_ateam() -> List[ResourceDescriptor]:
     from agr_curation_api import AGRCurationAPIClient  # type: ignore
-    timeout_seconds = int(os.getenv("ATEAM_FETCH_TIMEOUT_SECONDS", "5"))
+    timeout_seconds = _int_env("ATEAM_FETCH_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
     client = AGRCurationAPIClient(config={"timeout": timedelta(seconds=timeout_seconds), "max_retries": 1})
     raw_descriptors = client.get_resource_descriptors() or []
     out: List[ResourceDescriptor] = []
@@ -70,12 +86,8 @@ def _fetch_from_ateam() -> List[ResourceDescriptor]:
     return out
 
 
-DEFAULT_TTL_SECONDS = 900
-RETRY_BACKOFF_SECONDS = 60
-
-
 def _ttl() -> timedelta:
-    return timedelta(seconds=int(os.getenv("ATEAM_FETCH_TTL_SECONDS", str(DEFAULT_TTL_SECONDS))))
+    return timedelta(seconds=_int_env("ATEAM_FETCH_TTL_SECONDS", DEFAULT_TTL_SECONDS))
 
 
 @dataclass

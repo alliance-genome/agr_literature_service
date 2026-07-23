@@ -189,3 +189,20 @@ def test_crud_update_raises_502_when_ateam_fails(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         resource_descriptor_crud.update()
     assert exc_info.value.status_code == 502
+
+
+def test_int_env_falls_back_on_unset_blank_and_invalid(monkeypatch):
+    monkeypatch.delenv("ATEAM_FETCH_TTL_SECONDS", raising=False)
+    assert rdc._int_env("ATEAM_FETCH_TTL_SECONDS", 900) == 900
+    for bad in ("", "   ", "notanint"):
+        monkeypatch.setenv("ATEAM_FETCH_TTL_SECONDS", bad)
+        assert rdc._int_env("ATEAM_FETCH_TTL_SECONDS", 900) == 900
+    monkeypatch.setenv("ATEAM_FETCH_TTL_SECONDS", "120")
+    assert rdc._int_env("ATEAM_FETCH_TTL_SECONDS", 900) == 120
+
+
+def test_ttl_reads_env(monkeypatch):
+    monkeypatch.setenv("ATEAM_FETCH_TTL_SECONDS", "120")
+    assert rdc._ttl() == timedelta(seconds=120)
+    monkeypatch.setenv("ATEAM_FETCH_TTL_SECONDS", "")   # blank -> default
+    assert rdc._ttl() == timedelta(seconds=900)
