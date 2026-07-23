@@ -4,6 +4,8 @@ Unit tests for small, self-contained helpers in sort_crud.
 These call the helpers directly against the db fixture (or as pure functions),
 avoiding the Elasticsearch/auth paths exercised by the API-level sort tests.
 """
+from unittest.mock import patch
+
 import pytest
 
 from agr_literature_service.api.crud import sort_crud
@@ -79,3 +81,89 @@ class TestBuildNeedReviewBaseQuery:
         db, _, ref = need_review_setup  # noqa
         query = sort_crud._build_need_review_base_query("WB", db)
         assert ref.reference_id in [r.reference_id for r in query.all()]
+
+
+HELPERS = "agr_literature_service.api.crud.sort_crud"
+
+
+class TestSearchEsForCuries:
+
+    def test_returns_curies_and_total_from_search(self):
+        fake_result = {
+            "hits": [{"curie": "AGRKB:1"}, {"curie": "AGRKB:2"}, {"no_curie": "x"}],
+            "return_count": 2,
+        }
+        with patch(f"{HELPERS}.search_crud.search_references", return_value=fake_result):
+            curies, total = sort_crud._search_es_for_curies("WB", "kinase")
+        assert curies == ["AGRKB:1", "AGRKB:2"]
+        assert total == 2
+
+    def test_search_exception_returns_empty(self):
+        with patch(f"{HELPERS}.search_crud.search_references", side_effect=RuntimeError("es down")):
+            curies, total = sort_crud._search_es_for_curies("WB", "kinase")
+        assert curies == []
+        assert total == 0
+
+
+class TestShowNeedReview:
+
+    def test_search_query_with_no_es_matches_returns_empty(self, need_review_setup): # noqa
+        db, _, _ = need_review_setup  # noqa
+        with patch(f"{HELPERS}._search_es_for_curies", return_value=([], 0)):
+            result = sort_crud.show_need_review("WB", None, db, search_query="nomatch")
+        assert result == {"total_count": 0, "references": []}
+
+    def test_sort_source_path_counts_and_sorts(self, need_review_setup): # noqa
+        db, _, ref = need_review_setup  # noqa
+        # patch schema-building so we exercise the query/sort/limit branches only
+        with patch(f"{HELPERS}.show_sort_result", return_value=[]) as show_result:
+            result = sort_crud.show_need_review(
+                "WB", 5, db, sort_source="mod_pubmed_search",
+                sort_by="date_published", sort_order="asc")
+        assert result["total_count"] == 1
+        passed_refs = show_result.call_args[0][0]
+        assert ref.reference_id in [r.reference_id for r in passed_refs]
+
+    def test_search_query_with_matches_filters_by_curie(self, need_review_setup): # noqa
+        db, _, ref = need_review_setup  # noqa
+        with patch(f"{HELPERS}._search_es_for_curies", return_value=([ref.curie], 1)), \
+                patch(f"{HELPERS}.show_sort_result", return_value=[]) as show_result:
+            result = sort_crud.show_need_review("WB", None, db, search_query="hit")
+        assert result["total_count"] == 1
+        passed_refs = show_result.call_args[0][0]
+        assert [r.reference_id for r in passed_refs] == [ref.reference_id]
+
+
+class TestGetReferencefileMod:
+
+    def test_no_rows_returns_empty_list(self, db): # noqa
+        populate_test_mods()
+        assert sort_crud.get_referencefile_mod(999999, db) == []
+
+
+class TestRecentlySorted:
+
+    def test_get_mod_curators_returns_empty_maps_when_no_rows(self, db): # noqa
+        populate_test_mods()
+        name_to_email, email_to_id = sort_crud.get_mod_curators(db, "WB")
+        assert name_to_email == {}
+        assert email_to_id == {}
+
+    def test_get_recently_sorted_reference_ids_no_data(self, db): # noqa
+        populate_test_mods()
+        ids = sort_crud.get_recently_sorted_reference_ids(db, "WB", count=10,
+                                                          curator_id=None, day=7)
+        assert ids == []
+
+    def test_get_recently_sorted_reference_ids_with_curator_and_count(self, db): # noqa
+        populate_test_mods()
+        # curator_id and count exercise the optional SQL clauses
+        ids = sort_crud.get_recently_sorted_reference_ids(db, "WB", count=5,
+                                                          curator_id="123", day=30)
+        assert ids == []
+
+    def test_show_recently_sorted_no_data(self, db): # noqa
+        populate_test_mods()
+        result = sort_crud.show_recently_sorted(db, "WB", count=10,
+                                                curator_email=None, day=7)
+        assert result == {"curator_data": {}, "data": []}
