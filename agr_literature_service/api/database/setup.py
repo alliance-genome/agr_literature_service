@@ -1,7 +1,7 @@
 import logging
 import os
 from sqlalchemy import text
-from agr_literature_service.api.initialize import setup_resource_descriptor
+from agr_literature_service.api.resource_descriptor_cache import load_initial
 from agr_literature_service.api.models import initialize
 from agr_literature_service.api.database.main import engine
 
@@ -35,7 +35,7 @@ def setup_database():
             try:
                 # Perform initialization
                 initialize()
-                setup_resource_descriptor()
+                load_initial()
                 logger.info(f"[PID:{pid}] Database initialization completed successfully")
             except Exception as e:
                 logger.error(f"[PID:{pid}] Database initialization failed: {e}", exc_info=True)

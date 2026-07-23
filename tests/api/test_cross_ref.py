@@ -3,8 +3,8 @@ from collections import namedtuple
 import pytest
 from starlette.testclient import TestClient
 from fastapi import status
-from sqlalchemy import text
 
+import agr_literature_service.api.resource_descriptor_cache as rdc
 from agr_literature_service.api.crud.cross_reference_crud import check_xref_and_generate_mod_id
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel
@@ -21,10 +21,8 @@ XrefTestData = namedtuple('XrefTestData', ['response', 'related_ref_curie'])
 def test_cross_reference(db, auth_headers, test_reference): # noqa
     print("***** Adding a test cross reference *****")
     with TestClient(app) as client:
-        with db.begin():
-            db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                            "VALUES ('XREF', 'Madeup', 'http://www.bob.com/[%s]')"))
-            # No need for db.commit() here, it is handled by `with db.begin()`
+        rdc._seed([rdc.ResourceDescriptor(db_prefix="XREF", name="Madeup",
+                                          default_url="http://www.bob.com/[%s]")])
         new_cross_ref = {
             "curie": "XREF:123456",
             "reference_curie": test_reference.new_ref_curie,
@@ -117,10 +115,12 @@ class TestCrossRef:
 
     def test_show_all_xrefs(self, db, test_cross_reference, test_reference, auth_headers): # noqa
         with TestClient(app) as client:
-            with db.begin():
-                db.execute(text("INSERT INTO resource_descriptors (db_prefix, name, default_url) "
-                                "VALUES ('XREF2', 'Madeup2', 'http://www.bob2.com/[%s]')"))
-                # XREF is already inserted by test_cross_reference fixture, no need to insert again
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="XREF", name="Madeup",
+                                       default_url="http://www.bob.com/[%s]"),
+                rdc.ResourceDescriptor(db_prefix="XREF2", name="Madeup2",
+                                       default_url="http://www.bob2.com/[%s]"),
+            ])
             new_cross_ref = {
                 "curie": "XREF2:123456",
                 "reference_curie": test_reference.new_ref_curie,

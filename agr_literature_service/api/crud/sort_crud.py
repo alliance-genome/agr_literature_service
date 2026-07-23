@@ -6,9 +6,10 @@ from sqlalchemy import text
 
 from agr_literature_service.api.models import (
     ReferenceModel, WorkflowTagModel, CrossReferenceModel,
-    ModCorpusAssociationModel, ModModel, ResourceDescriptorModel,
+    ModCorpusAssociationModel, ModModel,
     ReferencefileModAssociationModel
 )
+from agr_literature_service.api import resource_descriptor_cache
 from agr_literature_service.api.schemas import (
     ReferenceSchemaNeedReviewShow, CrossReferenceSchemaShow,
     ReferencefileSchemaRelated, ReferencefileModSchemaShow,
@@ -205,10 +206,9 @@ def show_need_review(
 
 
 def show_sort_result(references, mod_abbreviation, db):
-    resource_descriptor_default_urls = db.query(ResourceDescriptorModel).all()
     resource_descriptor_default_urls_dict = {
-        resource_descriptor_default_url.db_prefix: resource_descriptor_default_url.default_url
-        for resource_descriptor_default_url in resource_descriptor_default_urls}
+        rd.db_prefix: rd.default_url
+        for rd in resource_descriptor_cache.get_all()}
 
     mod_id_to_mod = dict([(x.mod_id, x.abbreviation) for x in db.query(ModModel).all()])
 

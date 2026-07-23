@@ -169,7 +169,7 @@ def check_key_envs():  # pragma: no cover
         'API_PORT', 'API_SERVER', 'XML_PATH', 'AWS_SECRET_ACCESS_KEY',
         'AWS_ACCESS_KEY_ID', 'ENV_STATE',
         'PSQL_USERNAME', 'PSQL_PASSWORD', 'PSQL_HOST', 'PSQL_PORT', 'PSQL_DATABASE',
-        'RESOURCE_DESCRIPTOR_URL', 'HOST', 'ATEAM_API_URL',
+        'HOST', 'ATEAM_API_URL',
         'COGNITO_REGION', 'COGNITO_USER_POOL_ID', 'COGNITO_CLIENT_ID'
     ]
     okay_to_continue = True
