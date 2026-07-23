@@ -454,8 +454,13 @@ def show_tag(db: Session, topic_entity_tag_id: int):      # noqa: C901
     if topic_entity_tag.validated_by:
         add_list_of_users_who_validated_tag(topic_entity_tag, topic_entity_tag_data)
         add_list_of_validating_tag_ids(topic_entity_tag, topic_entity_tag_data)
-    if 'ml_model_id' in topic_entity_tag_data:
-        ml = db.query(MLModel).get(topic_entity_tag_data["ml_model_id"])
+    # Only look up the model when an ml_model_id is actually set: the key is
+    # often present with a None value (TETs without a model), and .get(None)
+    # emits SQLAlchemy's "fully NULL primary key identity" warning (and may
+    # raise in a future release). Use the 2.0-style Session.get().
+    ml_model_id = topic_entity_tag_data.get("ml_model_id")
+    if ml_model_id is not None:
+        ml = db.get(MLModel, ml_model_id)
         if ml:
             topic_entity_tag_data["ml_model_version"] = ml.version_num
 
