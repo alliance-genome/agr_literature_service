@@ -421,6 +421,12 @@
         "type": "keyword",
         "normalizer": "sortNormalizer"
       },
+      "can_display_image": {
+        "type": "boolean"
+      },
+      "image_count": {
+        "type": "integer"
+      },
       "workflow_tags": {
         "type": "nested",
         "properties": {
@@ -504,6 +510,18 @@
             "normalizer": "sortNormalizer"
           },
           "source_method": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "validation_by_professional_biocurator": {
             "type": "text",
             "analyzer": "autocompleteAnalyzer",
             "search_analyzer": "autocompleteSearchAnalyzer",

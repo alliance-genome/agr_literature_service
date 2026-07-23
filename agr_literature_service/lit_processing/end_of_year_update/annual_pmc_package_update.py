@@ -552,6 +552,62 @@ def batch_process_changed_files(to_update_file_list, to_remove_file_list, to_add
         db.close()
 
 
+def get_sibling_image_sizes(file_with_path, file_name):
+    """Return {file_extension: size} for same-named image files in the package
+    directory on disk.
+
+    Used to classify a gif as a thumbnail when it is the smaller half of a
+    same-named gif/jpg pair (SCRUM-6095). Raw file sizes are preferred over
+    the gzipped copies when both are present.
+    """
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    base = file_name.rsplit(".", 1)[0].lower() if "." in file_name else file_name.lower()
+    directory = path.dirname(file_with_path)
+    sibling_sizes: Dict = {}
+    try:
+        entries = listdir(directory)
+    except OSError:
+        return sibling_sizes
+    for entry in entries:
+        is_gz = entry.lower().endswith(".gz")
+        name = entry[:-3] if is_gz else entry
+        if "." not in name:
+            continue
+        ent_base, ent_ext = name.rsplit(".", 1)
+        ent_ext = ent_ext.lower()
+        if ent_ext not in image_exts or ent_base.lower() != base:
+            continue
+        if ent_ext in sibling_sizes and is_gz:
+            continue  # keep the raw size if we already have it
+        try:
+            sibling_sizes[ent_ext] = path.getsize(path.join(directory, entry))
+        except OSError:
+            continue
+    return sibling_sizes
+
+
+def get_sibling_display_names(file_with_path):
+    """Return the set of image display names (without extension, lowercased) in
+    the package directory, for detecting color/B&W rendition twins (_OC/_PB,
+    SCRUM-6095).
+    """
+    image_exts = ('jpg', 'jpeg', 'gif', 'tif', 'tiff', 'png')
+    directory = path.dirname(file_with_path)
+    names: set = set()
+    try:
+        entries = listdir(directory)
+    except OSError:
+        return names
+    for entry in entries:
+        name = entry[:-3] if entry.lower().endswith('.gz') else entry
+        if "." not in name:
+            continue
+        base, ext = name.rsplit(".", 1)
+        if ext.lower() in image_exts:
+            names.add(base.lower())
+    return names
+
+
 def add_file(db, pmid, file_name, md5sum, old_file_class, pmcid, reference_id, referencefile_ids_added):
     """
     Add one PMC file for a given PMID into S3 and DB.
@@ -591,7 +647,11 @@ def add_file(db, pmid, file_name, md5sum, old_file_class, pmcid, reference_id, r
             _, file_extension = file_name.rsplit(".", 1)
         else:
             file_extension = ""
-        file_class = classify_pmc_file(file_name, file_extension.lower())
+        file_size = path.getsize(file_with_path)
+        sibling_sizes = get_sibling_image_sizes(file_with_path, file_name)
+        sibling_names = get_sibling_display_names(file_with_path)
+        file_class = classify_pmc_file(file_name, file_extension.lower(), file_size,
+                                       sibling_sizes, sibling_names)
 
     logger.info(f"{pmid}: file_class for {file_name} is {file_class}")
 

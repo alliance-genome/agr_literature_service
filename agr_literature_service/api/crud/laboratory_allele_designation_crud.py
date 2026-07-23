@@ -51,6 +51,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
         laboratory_id=laboratory_id,
         mod_id=mod_id,
         allele_designation=data["allele_designation"],
+        is_obsolete=bool(data.get("is_obsolete", False)),
     )
     db.add(obj)
     try:
@@ -60,7 +61,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
-                "An allele designation for this laboratory and MOD already exists."
+                "An active allele designation for this laboratory and MOD already exists."
             ),
         )
     db.refresh(obj)
@@ -135,6 +136,9 @@ def patch(db: Session, laboratory_allele_designation_id: int, patch_dict: Dict[s
     if "allele_designation" in data and data["allele_designation"] is not None:
         obj.allele_designation = data["allele_designation"]
 
+    if "is_obsolete" in data and data["is_obsolete"] is not None:
+        obj.is_obsolete = bool(data["is_obsolete"])
+
     try:
         db.commit()
     except IntegrityError:
@@ -142,7 +146,7 @@ def patch(db: Session, laboratory_allele_designation_id: int, patch_dict: Dict[s
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
-                "An allele designation for this laboratory and MOD already exists."
+                "An active allele designation for this laboratory and MOD already exists."
             ),
         )
     return {"message": "updated"}

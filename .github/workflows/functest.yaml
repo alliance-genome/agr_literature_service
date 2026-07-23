@@ -31,7 +31,6 @@ jobs:
           PSQL_HOST: postgres
           PSQL_PORT: 5433
           PSQL_DATABASE: literature-test
-          RESOURCE_DESCRIPTOR_URL: 'https://raw.githubusercontent.com/alliance-genome/agr_schemas/master/resourceDescriptors.yaml'
           COGNITO_REGION: us-east-1
           COGNITO_USER_POOL_ID: us-east-1_d3eK6SYpI
           COGNITO_CLIENT_ID: ${{ secrets.cognito_client_id }}

@@ -18,8 +18,6 @@ from agr_literature_service.api.models.mod_corpus_association_model import ModCo
 from agr_literature_service.api.models.reference_relation_model import \
     ReferenceRelationModel
 from agr_literature_service.api.models.reference_model import ReferenceModel
-from agr_literature_service.api.models.resource_descriptor_models import (
-    ResourceDescriptorModel, ResourceDescriptorPageModel)
 from agr_literature_service.api.models.resource_model import ResourceModel
 from agr_literature_service.api.models.user_model import UserModel
 from agr_literature_service.api.models.person_model import PersonModel

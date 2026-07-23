@@ -51,6 +51,91 @@ def _curie_prefix_from(curie: str) -> str:
     return curie.split(":", 1)[0]
 
 
+def _resolve_inline_allele_designations(db: Session, allele_designations_data):
+    """Resolve inline allele designations to (mod_id, allele_designation,
+    is_obsolete) tuples, validating each mod_abbreviation and enforcing at most
+    one NON-OBSOLETE designation per MOD within the request (obsolete rows are
+    exempt). Raises before anything is created."""
+    resolved: List[Any] = []
+    if not allele_designations_data:
+        return resolved
+    seen_mod_ids: set = set()
+    for ad in allele_designations_data:
+        mod_abbreviation = ad["mod_abbreviation"]
+        row = (
+            db.query(ModModel.mod_id)
+            .filter(ModModel.abbreviation == mod_abbreviation)
+            .one_or_none()
+        )
+        if not row:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"MOD with abbreviation '{mod_abbreviation}' not found",
+            )
+        mod_id = row[0]
+        is_obsolete = bool(ad.get("is_obsolete", False))
+        if not is_obsolete:
+            if mod_id in seen_mod_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=(
+                        f"Multiple active allele designations for MOD "
+                        f"'{mod_abbreviation}' in the request; at most one "
+                        "per MOD is allowed."
+                    ),
+                )
+            seen_mod_ids.add(mod_id)
+        resolved.append((mod_id, ad["allele_designation"], is_obsolete))
+    return resolved
+
+
+def _validate_inline_xrefs(db: Session, xrefs_data):
+    """Validate inline cross-references against the non-obsolete uniqueness rules:
+    curie is unique and (laboratory_id, curie_prefix) is unique per-laboratory,
+    both among non-obsolete rows only. Obsolete xrefs are exempt and may
+    duplicate freely. Raises before anything is created."""
+    if not xrefs_data:
+        return
+    seen_curies: set = set()
+    seen_prefixes: set = set()
+    for xr in xrefs_data:
+        curie = xr["curie"].strip()
+        curie_prefix = _curie_prefix_from(curie)
+        if bool(xr.get("is_obsolete", False)):
+            continue
+
+        if curie in seen_curies:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cross-reference '{curie}' is duplicated in the request",
+            )
+        seen_curies.add(curie)
+
+        if curie_prefix in seen_prefixes:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    f"Multiple cross-references with prefix '{curie_prefix}' "
+                    "in the request; at most one per prefix is allowed."
+                ),
+            )
+        seen_prefixes.add(curie_prefix)
+
+        existing = (
+            db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
+            .filter(
+                LaboratoryCrossReferenceModel.curie == curie,
+                LaboratoryCrossReferenceModel.is_obsolete.is_(False),
+            )
+            .first()
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Cross-reference '{curie}' already exists",
+            )
+
+
 def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
     data: Dict[str, Any] = jsonable_encoder(payload)
 
@@ -60,75 +145,14 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
     xrefs_data = data.pop("cross_references", None)
-    alleles_data = data.pop("allele_designations", None)
+    allele_designations_data = data.pop("allele_designations", None)
 
-    # Resolve + validate inline allele designations BEFORE creating anything, so an
-    # invalid mod_abbreviation (or a duplicated MOD in the request) fails the whole
-    # request atomically — no laboratory, cross-references, or alleles are created.
-    resolved_alleles = []
-    if alleles_data:
-        seen_mod_ids: set = set()
-        for al in alleles_data:
-            mod_abbreviation = al["mod_abbreviation"]
-            row = (
-                db.query(ModModel.mod_id)
-                .filter(ModModel.abbreviation == mod_abbreviation)
-                .one_or_none()
-            )
-            if not row:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"MOD with abbreviation '{mod_abbreviation}' not found",
-                )
-            mod_id = row[0]
-            if mod_id in seen_mod_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=(
-                        f"Multiple allele designations for MOD '{mod_abbreviation}' "
-                        "in the request; at most one per MOD is allowed."
-                    ),
-                )
-            seen_mod_ids.add(mod_id)
-            resolved_alleles.append((mod_id, al["allele_designation"]))
-
-    # Validate cross-references against the two unique constraints on
-    # laboratory_cross_reference: curie is globally unique, and
-    # (laboratory_id, curie_prefix) is unique per-laboratory.
-    if xrefs_data:
-        seen_curies: set = set()
-        seen_prefixes: set = set()
-        for xr in xrefs_data:
-            curie = xr["curie"].strip()
-            curie_prefix = _curie_prefix_from(curie)
-
-            if curie in seen_curies:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Cross-reference '{curie}' is duplicated in the request",
-                )
-            seen_curies.add(curie)
-
-            if curie_prefix in seen_prefixes:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=(
-                        f"Multiple cross-references with prefix '{curie_prefix}' "
-                        "in the request; at most one per prefix is allowed."
-                    ),
-                )
-            seen_prefixes.add(curie_prefix)
-
-            existing = (
-                db.query(LaboratoryCrossReferenceModel.laboratory_cross_reference_id)
-                .filter(LaboratoryCrossReferenceModel.curie == curie)
-                .first()
-            )
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Cross-reference '{curie}' already exists",
-                )
+    # Resolve + validate inline children BEFORE creating anything, so an invalid
+    # mod_abbreviation, a duplicated MOD, or a conflicting xref fails the whole
+    # request atomically — no laboratory, cross-references, or allele
+    # designations are created.
+    resolved_allele_designations = _resolve_inline_allele_designations(db, allele_designations_data)
+    _validate_inline_xrefs(db, xrefs_data)
 
     # Allocate the curie from MATI (like reference/resource/person). Done after all
     # validation above so a rejected request doesn't waste an external MATI id.
@@ -136,33 +160,37 @@ def create(db: Session, payload: LaboratorySchemaCreate) -> LaboratoryModel:
 
     obj = LaboratoryModel(**data)
     db.add(obj)
-    db.flush()  # get laboratory_id for the inline children
-    new_laboratory_id = obj.laboratory_id
+    # Wrap flush and commit: DB constraints (e.g. ck_laboratory_name_or_strain,
+    # curie NOT NULL/unique) can fire at the flush that assigns laboratory_id, not
+    # just at commit. Convert any such violation into a 422 instead of a raw 500.
+    try:
+        db.flush()  # get laboratory_id for the inline children
+        new_laboratory_id = obj.laboratory_id
 
-    if xrefs_data:
-        for xr in xrefs_data:
-            curie = xr["curie"].strip()
-            curie_prefix = _curie_prefix_from(curie)
+        if xrefs_data:
+            for xr in xrefs_data:
+                curie = xr["curie"].strip()
+                curie_prefix = _curie_prefix_from(curie)
+                db.add(
+                    LaboratoryCrossReferenceModel(
+                        laboratory_id=obj.laboratory_id,
+                        curie=curie,
+                        curie_prefix=curie_prefix,
+                        pages=xr.get("pages"),
+                        is_obsolete=bool(xr.get("is_obsolete", False)),
+                    )
+                )
+
+        for mod_id, allele_designation, is_obsolete in resolved_allele_designations:
             db.add(
-                LaboratoryCrossReferenceModel(
+                LaboratoryAlleleDesignationModel(
                     laboratory_id=obj.laboratory_id,
-                    curie=curie,
-                    curie_prefix=curie_prefix,
-                    pages=xr.get("pages"),
-                    is_obsolete=bool(xr.get("is_obsolete", False)),
+                    mod_id=mod_id,
+                    allele_designation=allele_designation,
+                    is_obsolete=is_obsolete,
                 )
             )
 
-    for mod_id, allele_designation in resolved_alleles:
-        db.add(
-            LaboratoryAlleleDesignationModel(
-                laboratory_id=obj.laboratory_id,
-                mod_id=mod_id,
-                allele_designation=allele_designation,
-            )
-        )
-
-    try:
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -223,7 +251,16 @@ def patch(db: Session, curie_or_laboratory_id: str, patch_dict: Dict[str, Any]) 
             continue
         setattr(obj, field, value)
 
-    db.commit()
+    # e.g. clearing both name and strain_designation violates
+    # ck_laboratory_name_or_strain; surface as 422, not a raw 500.
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Database constraint violation; please verify input and retry.",
+        )
     return {"message": "updated"}
 
 
@@ -249,22 +286,10 @@ def show(db: Session, curie_or_laboratory_id: str) -> LaboratoryModel:
     return obj
 
 
-def find_by_name_or_strain_designation(db: Session, query: str) -> List[LaboratoryModel]:
-    """Resolve a free-text laboratory lookup with a fixed precedence:
-
-    1. exact, case-insensitive match on strain_designation (a short code) — return
-       all such labs (normally one; more only if a code is shared);
-    2. otherwise a case-insensitive substring match on name, ordered by name;
-    3. otherwise an empty list.
-
-    Matching strain exactly (never as a substring) keeps a short code from
-    polluting name results. Each result eager-loads the same joins as show().
-    """
-    query = (query or "").strip()
-    if not query:
-        return []
-
-    options = (
+def _show_load_options():
+    """Eager-load options matching show(): cross_references, allele_designations
+    (+ their mod), and lab_persons (+ their person)."""
+    return (
         selectinload(LaboratoryModel.cross_references),
         selectinload(LaboratoryModel.allele_designations).selectinload(
             LaboratoryAlleleDesignationModel.mod
@@ -272,20 +297,34 @@ def find_by_name_or_strain_designation(db: Session, query: str) -> List[Laborato
         selectinload(LaboratoryModel.lab_persons).selectinload(LaboratoryPersonModel.person),
     )
 
-    strain_matches = (
+
+def find_by_name(db: Session, query: str) -> List[LaboratoryModel]:
+    """Case-insensitive substring match on laboratory name, ordered by name."""
+    query = (query or "").strip()
+    if not query:
+        return []
+    return (
         db.query(LaboratoryModel)
-        .options(*options)
-        .filter(func.lower(LaboratoryModel.strain_designation) == query.lower())
+        .options(*_show_load_options())
+        .filter(LaboratoryModel.name.ilike(f"%{query}%"))
         .order_by(LaboratoryModel.name.asc())
         .all()
     )
-    if strain_matches:
-        return strain_matches
 
+
+def find_by_strain_designation(db: Session, query: str) -> List[LaboratoryModel]:
+    """Exact, case-insensitive match on strain_designation, ordered by name.
+
+    A strain designation is a short code, so it is matched exactly (never as a
+    substring). Normally one lab; more only when a code is shared.
+    """
+    query = (query or "").strip()
+    if not query:
+        return []
     return (
         db.query(LaboratoryModel)
-        .options(*options)
-        .filter(LaboratoryModel.name.ilike(f"%{query}%"))
+        .options(*_show_load_options())
+        .filter(func.lower(LaboratoryModel.strain_designation) == query.lower())
         .order_by(LaboratoryModel.name.asc())
         .all()
     )

@@ -15,9 +15,9 @@ from agr_literature_service.api.crud.reference_resource import (add_reference_re
                                                                 create_obj)
 from agr_literature_service.api.models import (
     CrossReferenceModel,
-    ReferenceModel,
-    ResourceDescriptorModel
+    ReferenceModel
 )
+from agr_literature_service.api import resource_descriptor_cache
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 
@@ -108,9 +108,8 @@ def show_from_curies(db: Session, curies: List[str]) -> List[dict]:
     for xref in cross_references:
         if xref.curie not in unique_cross_refs or unique_cross_refs[xref.curie].is_obsolete is True:
             unique_cross_refs[xref.curie] = xref
-    resource_descriptors = db.query(ResourceDescriptorModel).filter(
-        ResourceDescriptorModel.db_prefix.in_([curie.split(":")[0] for curie in curies])).all()
-    resource_desc_prefix_obj_map = {rd.db_prefix: rd for rd in resource_descriptors}
+    resource_desc_prefix_obj_map = resource_descriptor_cache.get_map(
+        [curie.split(":")[0] for curie in curies])
     formatted_cross_references = []
     for cross_reference in unique_cross_refs.values():
         cross_reference_data = jsonable_encoder(cross_reference)
@@ -184,9 +183,7 @@ def show(db: Session, curie_or_cross_reference_id: str) -> dict:
     cross_reference = get_cross_reference(db, curie_or_cross_reference_id)
     cross_reference_data = custom_jsonable_encoder(cross_reference, exclude_fields={"cross_references"})
     db_prefix = cross_reference.curie.split(":")[0]
-    resource_descriptor = db.query(ResourceDescriptorModel).filter(
-        ResourceDescriptorModel.db_prefix == db_prefix).first()
-    resource_desc_prefix_obj_map = {db_prefix: resource_descriptor}
+    resource_desc_prefix_obj_map = resource_descriptor_cache.get_map([db_prefix])
     return format_cross_reference_data(db=db, cross_reference_object=cross_reference,
                                        cross_reference_data=cross_reference_data,
                                        resource_desc_prefix_obj_map=resource_desc_prefix_obj_map)

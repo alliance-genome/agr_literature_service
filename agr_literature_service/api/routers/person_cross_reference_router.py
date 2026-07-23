@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 from agr_literature_service.api import database
 from agr_literature_service.api.crud import person_crud, person_cross_reference_crud
 from agr_literature_service.api.schemas import (
-    PersonCrossReferenceSchemaCreate,
     PersonCrossReferenceSchemaPost,
     PersonCrossReferenceSchemaShow,
     PersonCrossReferenceSchemaRelated,
+    PersonCrossReferenceSchemaUpdate,
 )
 from agr_literature_service.api.user import set_global_user_from_cognito
 from agr_literature_service.api.auth import get_authenticated_user
@@ -74,7 +74,7 @@ def show(
 )
 def patch(
     person_cross_reference_id: int,
-    request: PersonCrossReferenceSchemaCreate,
+    request: PersonCrossReferenceSchemaUpdate,
     user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
     db: Session = db_session,
 ):

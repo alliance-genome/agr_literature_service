@@ -1,6 +1,6 @@
 from typing import Dict
 from sqlalchemy import (
-    Column, Integer, String, ARRAY, Boolean,
+    Column, Integer, String, ARRAY, Boolean, CheckConstraint, UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
@@ -14,12 +14,26 @@ class LaboratoryModel(Base, AuditedModel):
     __tablename__ = "laboratory"
     __versioned__: Dict = {}
 
+    __table_args__ = (
+        # A laboratory must be identifiable by at least a strain_designation or a
+        # name (curie alone is not enough). DB-level backstop for the API validator.
+        CheckConstraint(
+            "strain_designation IS NOT NULL OR name IS NOT NULL",
+            name="ck_laboratory_name_or_strain",
+        ),
+        # name and strain_designation each identify a lab, so each is unique.
+        # Both are nullable; Postgres allows multiple NULLs, so a lab with only a
+        # name and a lab with only a strain_designation are unaffected.
+        UniqueConstraint("name", name="uq_laboratory_name"),
+        UniqueConstraint("strain_designation", name="uq_laboratory_strain_designation"),
+    )
+
     laboratory_id = Column(Integer, primary_key=True, autoincrement=True)
 
     # Allocated from MATI on create (laboratory subdomain -> AGRKB:104), like
-    # reference/resource/person. Indexed for lookup but intentionally not unique
-    # (no DB constraints on Laboratory fields).
-    curie = Column(String(), nullable=True, index=True)
+    # reference/resource/person. Required and unique like those siblings; the
+    # unique constraint's own index serves lookups, so no separate index=True.
+    curie = Column(String(), nullable=False, unique=True)
 
     name = Column(String(), nullable=True)
     strain_designation = Column(String(), nullable=True)

@@ -16,6 +16,7 @@ class LaboratoryAlleleDesignationSchemaCreate(BaseModel):
 
     mod_abbreviation: str
     allele_designation: str
+    is_obsolete: bool = False
 
     @field_validator("mod_abbreviation")
     @classmethod
@@ -39,6 +40,7 @@ class LaboratoryAlleleDesignationSchemaUpdate(BaseModel):
 
     mod_abbreviation: Optional[str] = None
     allele_designation: Optional[str] = None
+    is_obsolete: Optional[bool] = None
 
     @field_validator("mod_abbreviation")
     @classmethod
@@ -64,6 +66,7 @@ class LaboratoryAlleleDesignationSchemaShow(AuditedObjectModelSchema):
     mod_id: int
     mod_abbreviation: Optional[str] = None
     allele_designation: str
+    is_obsolete: bool = False
 
 
 class LaboratoryAlleleDesignationSchemaRelated(AuditedObjectModelSchema):
@@ -74,3 +77,4 @@ class LaboratoryAlleleDesignationSchemaRelated(AuditedObjectModelSchema):
     mod_id: int
     mod_abbreviation: Optional[str] = None
     allele_designation: str
+    is_obsolete: bool = False

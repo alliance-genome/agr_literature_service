@@ -35,10 +35,13 @@ class GlobalConfig(BaseSettings):
     PSQL_PORT: str = Field(..., env="PSQL_PORT")
     PSQL_DATABASE: str = Field(..., env="PSQL_DATABASE")
 
-    RESOURCE_DESCRIPTOR_URL: str = Field(..., env="RESOURCE_DESCRIPTOR_URL")
     ELASTICSEARCH_HOST: str = Field(..., env="ELASTICSEARCH_HOST")
     ELASTICSEARCH_PORT: str = Field(..., env="ELASTICSEARCH_PORT")
     ELASTICSEARCH_INDEX: str = Field(..., env="ELASTICSEARCH_INDEX")
+
+    # Embedding generation (SCRUM-6142). Optional: when unset, the pdf2md
+    # conversion job skips embedding generation (feature stays dormant).
+    OPENAI_API_KEY: Optional[str] = Field(None, env="OPENAI_API_KEY")
 
 
 # instantiate once for application‑wide use

@@ -674,6 +674,16 @@ def _execute_sync_nxml(db: Session, reference: ReferenceModel,
         reference_curie=reference.curie,
         mod_abbreviation=assessment["mod_abbreviation"],
     )
+    if success:
+        # Generate classifier embeddings for the freshly-converted merged
+        # Markdown. Isolated + idempotent, and skipped for references not in a
+        # classifier MOD's corpus.
+        from agr_literature_service.lit_processing.embedding.embedding_generation import (
+            maybe_generate_classifier_embeddings,
+        )
+        maybe_generate_classifier_embeddings(
+            db, reference.reference_id, reference.curie
+        )
     return success, error
 
 

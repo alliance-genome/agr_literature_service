@@ -87,6 +87,29 @@ class TestLaboratory:
             res = client.post("/laboratory/", json={}, headers=auth_headers)
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_name_or_strain_required(self, db, auth_headers):  # noqa
+        """A laboratory with a substantive field but no name/strain_designation is
+        rejected by the ck_laboratory_name_or_strain check constraint (surfaced as
+        422 by the CRUD layer)."""
+        with TestClient(app) as client:
+            res = client.post(
+                "/laboratory/",
+                json={"institution": ["Caltech"]},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_clearing_name_and_strain_rejected(self, auth_headers, test_laboratory):  # noqa
+        """Clearing both name and strain_designation violates
+        ck_laboratory_name_or_strain; surfaced as 422, not a 500."""
+        with TestClient(app) as client:
+            res = client.patch(
+                f"/laboratory/{test_laboratory.new_laboratory_id}",
+                json={"name": None, "strain_designation": None},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_bad_status_rejected(self, auth_headers):  # noqa
         with TestClient(app) as client:
             res = client.post(
@@ -214,7 +237,7 @@ class TestLaboratory:
                 headers=auth_headers,
             )
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "QX"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "QX"}, headers=auth_headers
             )
             assert res.status_code == status.HTTP_200_OK
             rows = res.json()
@@ -222,66 +245,62 @@ class TestLaboratory:
             assert rows[0]["strain_designation"] == "QX"
             # case-insensitive
             res2 = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "qx"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "qx"}, headers=auth_headers
             )
             assert len(res2.json()) == 1
-
-    def test_find_by_strain_shared_returns_list(self, auth_headers):  # noqa
-        # A strain code shared by >1 lab returns all of them (a pick-list).
-        with TestClient(app) as client:
-            for nm in ("Shared Strain A ZZQ", "Shared Strain B ZZQ"):
-                client.post(
-                    "/laboratory/",
-                    json={"name": nm, "strain_designation": "SHX"},
-                    headers=auth_headers,
-                )
-            res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "SHX"}, headers=auth_headers
-            )
-            assert res.status_code == status.HTTP_200_OK
-            assert len(res.json()) == 2
 
     def test_find_by_name_substring_single_and_multiple(self, auth_headers):  # noqa
         with TestClient(app) as client:
             client.post("/laboratory/", json={"name": "Unique Kappa Lab UNIQK"}, headers=auth_headers)
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "UNIQK"}, headers=auth_headers
+                "/laboratory/by_name", params={"query": "UNIQK"}, headers=auth_headers
             )
             assert len(res.json()) == 1
 
             client.post("/laboratory/", json={"name": "Multi MMTOKEN One"}, headers=auth_headers)
             client.post("/laboratory/", json={"name": "Multi MMTOKEN Two"}, headers=auth_headers)
             res2 = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "MMTOKEN"}, headers=auth_headers
+                "/laboratory/by_name", params={"query": "MMTOKEN"}, headers=auth_headers
             )
             assert len(res2.json()) == 2
 
-    def test_strain_exact_short_circuits_name(self, auth_headers):  # noqa
-        # One lab has the query as its strain code; another merely contains it in
-        # its name. The exact-strain match wins and the name match is not returned.
+    def test_name_and_strain_endpoints_are_separate(self, auth_headers):  # noqa
+        # One lab has the query as its strain code (name does NOT contain it);
+        # another merely contains it in its name. The two endpoints keep the
+        # lookups cleanly separated: by_strain_designation returns only the
+        # exact-strain lab, by_name returns only the name-containing lab.
         with TestClient(app) as client:
             client.post(
                 "/laboratory/",
-                json={"name": "Has strain code SCQ", "strain_designation": "SCQ"},
+                json={"name": "Has strain code only", "strain_designation": "SCQ"},
                 headers=auth_headers,
             )
             client.post("/laboratory/", json={"name": "Name contains SCQ here"}, headers=auth_headers)
-            res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "SCQ"}, headers=auth_headers
+
+            strain_res = client.get(
+                "/laboratory/by_strain_designation", params={"query": "SCQ"}, headers=auth_headers
             )
-            rows = res.json()
-            assert len(rows) == 1
-            assert rows[0]["strain_designation"] == "SCQ"
+            strain_rows = strain_res.json()
+            assert len(strain_rows) == 1
+            assert strain_rows[0]["strain_designation"] == "SCQ"
+
+            name_res = client.get(
+                "/laboratory/by_name", params={"query": "SCQ"}, headers=auth_headers
+            )
+            name_rows = name_res.json()
+            assert len(name_rows) == 1
+            assert name_rows[0]["name"] == "Name contains SCQ here"
 
     def test_find_no_match_empty_list(self, auth_headers):  # noqa
         with TestClient(app) as client:
-            res = client.get(
-                "/laboratory/by_name_or_strain_designation",
-                params={"query": "NOSUCHLABTOKENXYZ"},
-                headers=auth_headers,
-            )
-            assert res.status_code == status.HTTP_200_OK
-            assert res.json() == []
+            for endpoint in ("/laboratory/by_name", "/laboratory/by_strain_designation"):
+                res = client.get(
+                    endpoint,
+                    params={"query": "NOSUCHLABTOKENXYZ"},
+                    headers=auth_headers,
+                )
+                assert res.status_code == status.HTTP_200_OK
+                assert res.json() == []
 
     def test_find_results_include_joins(self, db, auth_headers):  # noqa
         mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").one_or_none()
@@ -297,7 +316,7 @@ class TestLaboratory:
             }
             client.post("/laboratory/", json=payload, headers=auth_headers)
             res = client.get(
-                "/laboratory/by_name_or_strain_designation", params={"query": "JNQ"}, headers=auth_headers
+                "/laboratory/by_strain_designation", params={"query": "JNQ"}, headers=auth_headers
             )
             rows = res.json()
             assert len(rows) == 1
@@ -305,3 +324,42 @@ class TestLaboratory:
             assert lab["cross_references"][0]["curie"] == "WB:WBlabJNQ"
             assert lab["allele_designations"][0]["allele_designation"] == "j"
             assert "lab_persons" in lab
+
+    def test_duplicate_name_rejected(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/laboratory/", json={"name": "Unique Name Lab UNQNM"}, headers=auth_headers
+            )
+            assert r1.status_code == status.HTTP_201_CREATED
+            r2 = client.post(
+                "/laboratory/", json={"name": "Unique Name Lab UNQNM"}, headers=auth_headers
+            )
+            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_duplicate_strain_designation_rejected(self, auth_headers):  # noqa
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/laboratory/", json={"strain_designation": "UNQST"}, headers=auth_headers
+            )
+            assert r1.status_code == status.HTTP_201_CREATED
+            r2 = client.post(
+                "/laboratory/", json={"strain_designation": "UNQST"}, headers=auth_headers
+            )
+            assert r2.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_null_name_and_strain_allowed_multiple(self, auth_headers):  # noqa
+        # name and strain_designation are each nullable, so many labs may leave
+        # one of them NULL (identified by the other) — the unique constraints
+        # only constrain non-NULL values.
+        with TestClient(app) as client:
+            r1 = client.post(
+                "/laboratory/", json={"strain_designation": "NULLNMA"}, headers=auth_headers
+            )
+            r2 = client.post(
+                "/laboratory/", json={"strain_designation": "NULLNMB"}, headers=auth_headers
+            )
+            assert r1.status_code == status.HTTP_201_CREATED
+            assert r2.status_code == status.HTTP_201_CREATED
+            # both have NULL name — multiple NULLs are allowed
+            assert r1.json()["name"] is None
+            assert r2.json()["name"] is None

@@ -166,6 +166,43 @@ class TestPersonCrossReference:
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_obsolete_xref_does_not_block_new_curie(self, auth_headers, test_person_xref):  # noqa
+        """An obsolete xref must not block re-adding the same curie/prefix (SCRUM-6257).
+
+        Uniqueness on person_cross_reference is enforced only among non-obsolete
+        rows, mirroring the Biblio cross_reference partial unique indexes.
+        """
+        with TestClient(app) as client:
+            # Soft-delete the baseline ORCID xref (partial patch, curie omitted).
+            res = client.patch(
+                f"/person_cross_reference/{test_person_xref.new_person_cross_reference_id}",
+                json={"is_obsolete": True},
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+
+            # Same curie (and same prefix) for the same person now succeeds.
+            res = client.post(
+                "/person_cross_reference/",
+                json={
+                    "person_curie": str(test_person_xref.person_id),
+                    "curie": "ORCID:0000-0001-2345-6789",
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+
+            # A second non-obsolete row with that curie is still rejected.
+            res = client.post(
+                "/person_cross_reference/",
+                json={
+                    "person_curie": str(test_person_xref.person_id),
+                    "curie": "ORCID:0000-0001-2345-6789",
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_list_for_person(self, auth_headers, test_person_xref):  # noqa
         with TestClient(app) as client:
             res = client.get(

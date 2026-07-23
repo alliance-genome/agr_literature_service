@@ -17,7 +17,7 @@ from agr_literature_service.api.crud.cross_reference_crud import (
 from agr_literature_service.api.crud.reference_resource import create_obj
 from agr_literature_service.api.models import (CrossReferenceModel, EditorModel,
                                                MeshDetailModel, ResourceModel)
-from agr_literature_service.api.models.resource_descriptor_models import ResourceDescriptorModel
+from agr_literature_service.api import resource_descriptor_cache
 from agr_literature_service.api.schemas import ResourceSchemaPost, ResourceSchemaUpdate
 from agr_literature_service.global_utils import get_next_resource_curie
 from agr_literature_service.api.crud.user_utils import map_to_user_id
@@ -215,9 +215,7 @@ def show_all(db: Session):
                 if ':' in xref.curie:
                     all_prefixes.add(xref.curie.split(":")[0])
 
-    resource_descriptors = db.query(ResourceDescriptorModel).filter(
-        ResourceDescriptorModel.db_prefix.in_(list(all_prefixes))).all()
-    resource_desc_prefix_obj_map = {rd.db_prefix: rd for rd in resource_descriptors}
+    resource_desc_prefix_obj_map = resource_descriptor_cache.get_map(list(all_prefixes))
 
     resources_data = []
     for resource in resources:

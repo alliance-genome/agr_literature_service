@@ -12,7 +12,10 @@ from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud.topic_entity_tag_utils import get_map_ateam_curies_to_names
 from agr_literature_service.api.crud.workflow_tag_crud import atp_get_all_descendants
-from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_abbreviations
+from agr_literature_service.lit_processing.utils.db_read_utils import (
+    get_mod_abbreviations,
+    get_cross_reference_curie_prefixes,
+)
 
 from agr_literature_service.api.crud.search_ranking import (
     TEXT_FIELDS,
@@ -41,6 +44,7 @@ entity_extraction_root_ids = ["ATP:0000172"]
 manual_indexing_root_ids = ["ATP:0000273"]
 curation_classification_root_ids = ["ATP:0000311", "ATP:0000210"]
 community_curation_classification_root_ids = ["ATP:0000235"]
+first_pass_curation_root_ids = ["ATP:0000329"]
 email_extraction_root_ids = ["ATP:0000354"]
 
 WORKFLOW_FACETS = [
@@ -50,6 +54,7 @@ WORKFLOW_FACETS = [
     "reference_classification",
     "curation_classification",
     "community_curation",
+    "first_pass_curation",
     "email_extraction"
 ]
 
@@ -93,11 +98,12 @@ def search_references(
     query_fields: str = None,
     partial_match: bool = True,
     tet_nested_facets_values: Optional[Dict] = None,
+    tet_advanced_query: Optional[Dict] = None,
     sort: Optional[List[Dict[str, Any]]] = None,
 ):
     has_any_input = any([
         query, facets_values, author_filter, date_pubmed_modified, date_pubmed_arrive,
-        date_published, date_created, tet_nested_facets_values, sort
+        date_published, date_created, tet_nested_facets_values, tet_advanced_query, sort
     ])
     if not has_any_input and not return_facets_only:
         raise HTTPException(
@@ -119,12 +125,14 @@ def search_references(
         if q_norm.upper().startswith("AGRKB:"):
             query_fields = "Curie"
         elif ':' in q_norm:
-            curie_prefix_list = get_mod_abbreviations()  # e.g. ["SGD", "WB", "XB", ...]
-            # normalize to a set for easy lookup
-            curie_prefix_list = set(curie_prefix_list)
-
-            # also accept publication and DOI prefixes
+            # Route xref-style queries to the dedicated cross_reference lookup. The
+            # accepted prefixes are the MOD abbreviations, the common publication
+            # prefixes, and every distinct cross_reference curie_prefix in the DB
+            # (GEO, PDB, ArrayExpress, ...), so a paper can be found by any of its
+            # cross-reference ids rather than only a hardcoded handful.
+            curie_prefix_list = {p.upper() for p in get_mod_abbreviations()}
             curie_prefix_list.update({"PMID", "PMCID", "DOI"})
+            curie_prefix_list.update({p.upper() for p in get_cross_reference_curie_prefixes()})
 
             query_prefix = q_norm.split(':', 1)[0]
             if query_prefix.upper() in curie_prefix_list:
@@ -204,6 +212,21 @@ def search_references(
                     "field": "retraction_status",
                     "min_doc_count": 0,
                     "size": facets_limits.get("retraction_status.keyword", 10)
+                }
+            },
+            "can_display_image": {
+                "terms": {
+                    "field": "can_display_image",
+                    "min_doc_count": 0,
+                    "size": 2
+                }
+            },
+            "has_image": {
+                "filters": {
+                    "filters": {
+                        "true": {"range": {"image_count": {"gt": 0}}},
+                        "false": {"range": {"image_count": {"lte": 0}}}
+                    }
                 }
             },
             "mods_in_corpus.keyword": {
@@ -339,7 +362,14 @@ def search_references(
 
     # search papers by TET
     tet_facets = {}
-    if tet_nested_facets_values and (
+    has_tet_advanced = False
+    if tet_advanced_query:
+        # Advanced Topic query builder (SCRUM-6228): an AND/OR tree over TET
+        # sub-facets replaces the flat facet path when present. Facet count
+        # aggregations can't reflect an arbitrary boolean tree, so they run
+        # unfiltered by the tree (counts are not tree-scoped in advanced mode).
+        has_tet_advanced = add_tet_advanced_query(es_body, tet_advanced_query)
+    elif tet_nested_facets_values and (
         "tet_facets_values" in tet_nested_facets_values
         or "tet_facets_negative_values" in tet_nested_facets_values
     ):
@@ -509,6 +539,18 @@ def search_references(
                     }
                     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
 
+            elif facet_field == "has_image":
+                # image_count-derived boolean facet: "true" => figures uploaded (image_count > 0)
+                should: List[Dict[str, Any]] = []
+                for facet_value in facet_list_values:
+                    if str(facet_value).lower() == "true":
+                        should.append({"range": {"image_count": {"gt": 0}}})
+                    else:
+                        should.append({"range": {"image_count": {"lte": 0}}})
+                es_body["query"]["bool"]["filter"]["bool"]["must"].append(
+                    {"bool": {"should": should, "minimum_should_match": 1}}
+                )
+
             else:
                 if facet_field == "authors.name.keyword":
                     for facet_value in facet_list_values:
@@ -566,6 +608,16 @@ def search_references(
                             }
                         }
                     })
+            elif facet_field == "has_image":
+                for facet_value in facet_list_values:
+                    if str(facet_value).lower() == "true":
+                        es_body["query"]["bool"]["filter"]["bool"]["must_not"].append(
+                            {"range": {"image_count": {"gt": 0}}}
+                        )
+                    else:
+                        es_body["query"]["bool"]["filter"]["bool"]["must_not"].append(
+                            {"range": {"image_count": {"lte": 0}}}
+                        )
             else:
                 # Map facet field to actual ES field (retraction_status is keyword type, no .keyword suffix)
                 es_field = "retraction_status" if facet_field == "retraction_status.keyword" else facet_field
@@ -581,21 +633,24 @@ def search_references(
         date_created=date_created,
     )
 
-    # Remove empty filter if no facets/dates were added. A standalone source method / SEA
-    # exclusion adds a top-level must_not nested clause, so keep the filter in that case.
+    # Remove empty filter if no facets/dates were added. A standalone confidence level /
+    # source method / SEA exclusion adds a top-level must_not nested clause, so keep the
+    # filter in that case.
     has_tet_whole_ref_negation = bool(
         tet_nested_facets_values
         and tet_nested_facets_values.get("tet_facets_negative_values")
         and any(
             tet_nested_facets_values["tet_facets_negative_values"][0].get(k)
             for k in (
+                "topic_entity_tags.confidence_level.keyword",
                 "topic_entity_tags.source_method.keyword",
                 "topic_entity_tags.source_evidence_assertion.keyword",
             )
         )
     )
     if (not facets_values and not date_range and not negated_facets_values
-            and not tet_facets and not has_tet_whole_ref_negation):
+            and not tet_facets and not has_tet_whole_ref_negation
+            and not has_tet_advanced):
         es_body["query"]["bool"].pop("filter", None)
 
     # Additional author_filter (outside the query_fields switch)
@@ -658,6 +713,8 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "reference_emails": ref["_source"].get("reference_emails", []),
         "indexing_priorities": ref["_source"].get("indexing_priorities", []),
         "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),
+        "can_display_image": ref["_source"].get("can_display_image", False),
+        "image_count": ref["_source"].get("image_count", 0),
         "highlight": remap_highlights(ref.get("highlight", {}))
     } for ref in res["hits"]["hits"]]
 
@@ -687,6 +744,23 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     if retraction_status_agg:
         add_curie_to_name_values(retraction_status_agg)
 
+    # normalize image facets to the standard terms-bucket shape (string true/false keys)
+    can_display_agg = res["aggregations"].get("can_display_image")
+    if can_display_agg and "buckets" in can_display_agg:
+        for bucket in can_display_agg["buckets"]:
+            if "key_as_string" in bucket:
+                bucket["key"] = bucket["key_as_string"]
+
+    has_image_agg = res["aggregations"].get("has_image")
+    if has_image_agg and isinstance(has_image_agg.get("buckets"), dict):
+        image_buckets = has_image_agg["buckets"]
+        res["aggregations"]["has_image"] = {
+            "buckets": [
+                {"key": "true", "doc_count": image_buckets.get("true", {}).get("doc_count", 0)},
+                {"key": "false", "doc_count": image_buckets.get("false", {}).get("doc_count", 0)},
+            ]
+        }
+
     return {
         "hits": hits,
         "aggregations": res["aggregations"],
@@ -711,6 +785,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
     confidence_scores = extract_filtered_agg(res, "confidence_score_aggregation", "confidence_scores")
     source_methods = extract_filtered_agg(res, "source_method_aggregation", "source_methods")
     data_novelty = extract_filtered_agg(res, "data_novelty_aggregation", "data_novelty")
+    validation_by_professional_biocurator = extract_filtered_agg(
+        res, "validation_by_professional_biocurator_aggregation", "validation_by_professional_biocurator")
 
     raw_sea = extract_filtered_agg(res, "source_evidence_assertion_aggregation", "source_evidence_assertions")
     group_sea = extract_filtered_agg(res, "source_evidence_assertion_group_aggregation", "source_evidence_assertions")
@@ -735,7 +811,8 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         'source_method_aggregation',
         'source_evidence_assertion_aggregation',
         'source_evidence_assertion_group_aggregation',
-        'data_novelty_aggregation'
+        'data_novelty_aggregation',
+        'validation_by_professional_biocurator_aggregation'
     ]:
         res['aggregations'].pop(k, None)
 
@@ -764,6 +841,7 @@ def process_topic_entity_tags_aggregations(res):  # pragma: no cover
         "source_methods": source_methods,
         "source_evidence_assertions": source_evidence_assertions,
         "data_novelty": data_novelty,
+        "validation_by_professional_biocurator": validation_by_professional_biocurator,
     }
 
 
@@ -787,6 +865,7 @@ def process_workflow_tags_aggregations(res, wft_mod_abbreviations):  # pragma: n
         "manual_indexing": get_atp_ids(manual_indexing_root_ids),
         "curation_classification": get_atp_ids(curation_classification_root_ids),
         "community_curation": get_atp_ids(community_curation_classification_root_ids),
+        "first_pass_curation": get_atp_ids(first_pass_curation_root_ids),
         "email_extraction": get_atp_ids(email_extraction_root_ids)
     }
 
@@ -940,32 +1019,57 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
         negated = tet_nested_facets_values["tet_facets_negative_values"][0]
         if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
             es_body["query"]["bool"]["filter"]["bool"]["must"] = []
-        # Confidence level exclusion: applied as must_not within each positive nested tag query
-        for level in negated.get("topic_entity_tags.confidence_level.keyword", []):
-            levels.append({"term": {"topic_entity_tags.confidence_level.keyword": level}})
+
+        must_not_clauses = []
+
+        # Confidence level exclusion: topic-scoped whole-reference semantics. Drop a reference
+        # if it has a tag that matches the selected topic/entity AND carries an excluded
+        # confidence level (e.g. NEG). The negated level is combined with the positive facet's
+        # identity terms in ONE nested clause, so a NEG tag on a *different* topic does not
+        # remove the reference. When no positive TET facet is selected the exclusion falls back
+        # to any tag with the excluded level. (Previously this was a must_not *inside* the
+        # positive nested query, which kept a reference as long as one matching tag was not NEG
+        # -- letting through references that had a NEG tag for the selected topic.)
+        negated_levels = negated.get("topic_entity_tags.confidence_level.keyword", [])
+        if negated_levels:
+            level_term = {"terms": {"topic_entity_tags.confidence_level.keyword": negated_levels}}
+            scopes = [
+                terms for terms in (
+                    _positive_scope_terms(f)
+                    for f in tet_nested_facets_values.get("tet_facets_values", [])
+                ) if terms
+            ] or [[]]
+            for scope in scopes:
+                must_not_clauses.append({
+                    "nested": {
+                        "path": "topic_entity_tags",
+                        "query": {"bool": {"must": scope + [level_term]}},
+                    }
+                })
 
         # Source method / source evidence assertion exclusion: whole-reference semantics --
         # drop a reference if ANY of its topic_entity_tags matches an excluded value.
-        whole_ref_negations = []
+        source_negations = []
         for value in negated.get("topic_entity_tags.source_method.keyword", []):
-            whole_ref_negations.append(("topic_entity_tags.source_method.keyword", value))
+            source_negations.append(("topic_entity_tags.source_method.keyword", value))
         for value in negated.get("topic_entity_tags.source_evidence_assertion.keyword", []):
             field = "topic_entity_tags.source_evidence_assertion.keyword"
             # Remap SEA group if needed (mirror the positive remap in add_nested_query)
             if value.upper() in ("ECO:0007669", "ECO:0006155"):
                 field = "topic_entity_tags.source_evidence_assertion_group.keyword"
-            whole_ref_negations.append((field, value))
+            source_negations.append((field, value))
+        for field, value in source_negations:
+            must_not_clauses.append({
+                "nested": {
+                    "path": "topic_entity_tags",
+                    "query": {"bool": {"must": [{"term": {field: value}}]}},
+                }
+            })
 
-        if whole_ref_negations:
+        if must_not_clauses:
             if "must_not" not in es_body["query"]["bool"]["filter"]["bool"]:
                 es_body["query"]["bool"]["filter"]["bool"]["must_not"] = []
-            for field, value in whole_ref_negations:
-                es_body["query"]["bool"]["filter"]["bool"]["must_not"].append({
-                    "nested": {
-                        "path": "topic_entity_tags",
-                        "query": {"bool": {"must": [{"term": {field: value}}]}},
-                    }
-                })
+            es_body["query"]["bool"]["filter"]["bool"]["must_not"].extend(must_not_clauses)
 
     for facet_name_value_dict in tet_nested_facets_values.get("tet_facets_values", []):
         add_nested_query(es_body, facet_name_value_dict, levels)
@@ -975,6 +1079,25 @@ def add_tet_facets_values(es_body, tet_nested_facets_values, apply_to_single_tet
                 tet_facet_values[key] = facet_value
 
     return tet_facet_values
+
+
+def _positive_scope_terms(facet_name_values_dict):  # pragma: no cover
+    """The tag-identity terms of a positive TET facet selection (topic / entity /
+    source), used to scope a confidence-level exclusion to the same tag. The
+    confidence_score range is skipped: it constrains which tags match positively,
+    but a paper's negative tag should still remove it regardless of that slider."""
+    terms = []
+    for facet_name, facet_values in facet_name_values_dict.items():
+        if facet_name == "topic_entity_tags.confidence_score":
+            continue
+        name = facet_name
+        # Remap SEA group if needed (mirror the positive remap in add_nested_query)
+        if name == "topic_entity_tags.source_evidence_assertion.keyword":
+            vals = facet_values if isinstance(facet_values, (list, tuple)) else [facet_values]
+            if any(str(v).upper() in ("ECO:0007669", "ECO:0006155") for v in vals):
+                name = "topic_entity_tags.source_evidence_assertion_group.keyword"
+        terms.append({"term": {name: facet_values}})
+    return terms
 
 
 def add_nested_query(es_body, facet_name_values_dict, levels):  # pragma: no cover
@@ -1000,6 +1123,114 @@ def add_nested_query(es_body, facet_name_values_dict, levels):  # pragma: no cov
         }
     }
     es_body["query"]["bool"]["filter"]["bool"]["must"].append(nested_query)
+
+
+# --------------------------- TET advanced query builder (SCRUM-6228) ---------------------------
+
+# Source-evidence-assertion values that live under the grouped SEA field rather
+# than the raw field (mirrors the remap in add_nested_query / _positive_scope_terms).
+TET_SEA_GROUP_VALUES = ("ECO:0007669", "ECO:0006155")
+
+
+def _tet_leaf_field(short_name, values):
+    """Map a short TET sub-facet name (e.g. "topic", "source_method") to its
+    Elasticsearch field, applying the source-evidence-assertion group remap used
+    elsewhere in this module. ``confidence_score`` maps to the numeric field;
+    ``has_data`` maps to the boolean ``negated`` field (no ``.keyword``)."""
+    if short_name == "confidence_score":
+        return "topic_entity_tags.confidence_score"
+    if short_name == "has_data":
+        # "Has data" is the human-facing view of a tag's boolean ``negated``
+        # attribute (yes => negated False, no => negated True).
+        return "topic_entity_tags.negated"
+    field = f"topic_entity_tags.{short_name}.keyword"
+    if short_name == "source_evidence_assertion":
+        vals = values if isinstance(values, (list, tuple)) else [values]
+        if any(str(v).upper() in TET_SEA_GROUP_VALUES for v in vals):
+            field = "topic_entity_tags.source_evidence_assertion_group.keyword"
+    return field
+
+
+def _tet_leaf_nested_query(match, negate=False):
+    """Build the nested query for one leaf condition: all listed sub-facets must
+    co-occur on the SAME topic_entity_tags tag (bool.must); values within a
+    sub-facet are OR-ed (terms). A ``confidence_score`` value of ``[lo, hi]``
+    becomes a range. When ``negate`` is true the nested query is wrapped in a
+    bool.must_not so the reference is dropped if any tag matches (whole-reference
+    exclusion)."""
+    must_conditions = []
+    for short_name, values in match.items():
+        field = _tet_leaf_field(short_name, values)
+        if short_name == "confidence_score":
+            must_conditions.append({"range": {field: {"gte": values[0], "lte": values[1]}}})
+        elif short_name == "has_data":
+            # Map the yes/no tokens to the boolean ``negated`` field, inverted:
+            # yes => has data (negated False); no => no data (negated True).
+            # Unknown tokens are ignored (no condition added).
+            bool_values = []
+            for value in values:
+                token = str(value).strip().lower()
+                if token in ("yes", "true", "has_data", "has data") and False not in bool_values:
+                    bool_values.append(False)
+                elif token in ("no", "false", "no_data", "no data") and True not in bool_values:
+                    bool_values.append(True)
+            if bool_values:
+                must_conditions.append({"terms": {field: bool_values}})
+        else:
+            must_conditions.append({"terms": {field: values}})
+    # No effective conditions (e.g. a has_data leaf with only unknown tokens) would
+    # otherwise produce a match-all nested query; collapse it away instead.
+    if not must_conditions:
+        return None
+    nested_query = {
+        "nested": {
+            "path": "topic_entity_tags",
+            "query": {"bool": {"must": must_conditions}},
+        }
+    }
+    if negate:
+        return {"bool": {"must_not": [nested_query]}}
+    return nested_query
+
+
+def build_tet_advanced_query(node):
+    """Recursively compile an advanced TET query tree into an Elasticsearch clause.
+
+    Leaf nodes -- ``{"type": "tet", "match": {short_name: [values], ...},
+    "negate": bool}`` -- become nested tag queries. Internal nodes --
+    ``{"operator": "AND"|"OR", "children": [...]}`` -- combine their compiled
+    children with bool.must (AND) or bool.should+minimum_should_match:1 (OR).
+    Empty nodes/children collapse away; a node with a single effective child
+    returns that child directly. Returns ``None`` when nothing to add."""
+    if not node:
+        return None
+    if node.get("type") == "tet":
+        match = node.get("match") or {}
+        if not match:
+            return None
+        return _tet_leaf_nested_query(match, node.get("negate", False))
+    children = [build_tet_advanced_query(child) for child in node.get("children", [])]
+    children = [child for child in children if child]
+    if not children:
+        return None
+    if len(children) == 1:
+        return children[0]
+    if str(node.get("operator", "AND")).upper() == "OR":
+        return {"bool": {"should": children, "minimum_should_match": 1}}
+    return {"bool": {"must": children}}
+
+
+def add_tet_advanced_query(es_body, tet_advanced_query):
+    """Attach a compiled advanced TET query tree to ``es_body``'s filter, ANDing
+    it with any other filters. Returns True when a clause was added, False when
+    the tree was empty (so callers can decide whether to keep the filter block)."""
+    compiled = build_tet_advanced_query(tet_advanced_query)
+    if compiled is None:
+        return False
+    if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
+        es_body["query"]["bool"]["filter"]["bool"]["must"] = []
+    es_body["query"]["bool"]["filter"]["bool"]["must"].append(compiled)
+    return True
 
 
 def create_filtered_aggregation_with_dp(path, tet_facets, term_field, term_key, allowed_dp, size=10):  # pragma: no cover
@@ -1119,6 +1350,16 @@ def apply_all_tags_tet_aggregations(es_body, tet_facets, facets_limits, tet_data
         allowed_dp=allowed_dp,
         size=facets_limits.get("source_methods", 10)
     )
+
+    es_body["aggregations"]["validation_by_professional_biocurator_aggregation"] = \
+        create_filtered_aggregation_with_dp(
+            path="topic_entity_tags",
+            tet_facets=tet_facets,
+            term_field="topic_entity_tags.validation_by_professional_biocurator.keyword",
+            term_key="validation_by_professional_biocurator",
+            allowed_dp=allowed_dp,
+            size=facets_limits.get("validation_by_professional_biocurator", 10)
+        )
 
     # SEA facets: count over filtered hits but not restricted by SEA value itself
     sea_tet_facets = {k: v for k, v in tet_facets.items() if k != "source_evidence_assertion"}
