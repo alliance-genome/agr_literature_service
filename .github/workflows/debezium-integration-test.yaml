@@ -6,12 +6,22 @@ on:
       - 'tests/test_debezium_integration.py'
       - 'tests/populate_test_db.py'
       - '.github/workflows/debezium-integration-test.yaml'
+      - 'docker-compose.yaml'
+      - 'docker/debezium_connector.dockerfile'
+      - 'docker/debezium_setup.dockerfile'
+      - 'docker/ksqldb.dockerfile'
+      - '.env.test'
   pull_request:
     paths:
       - 'debezium/**'
       - 'tests/test_debezium_integration.py'
       - 'tests/populate_test_db.py'
       - '.github/workflows/debezium-integration-test.yaml'
+      - 'docker-compose.yaml'
+      - 'docker/debezium_connector.dockerfile'
+      - 'docker/debezium_setup.dockerfile'
+      - 'docker/ksqldb.dockerfile'
+      - '.env.test'
 
 jobs:
   run-debezium-integration-tests:
