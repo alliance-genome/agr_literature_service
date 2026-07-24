@@ -142,6 +142,19 @@ jobs:
              --topic abc.public.author --from-beginning --timeout-ms 10000 \
              --property print.key=true" || echo "author topic dump failed"
 
+          echo "=== AUTHORS aggregate topic dump (did collect_list retract?) ==="
+          docker compose --env-file .env.test exec -T dbz_kafka bash -c \
+            "/kafka/bin/kafka-console-consumer.sh --bootstrap-server dbz_kafka:9092 \
+             --topic AUTHORS --from-beginning --timeout-ms 10000 \
+             --property print.key=true" | tail -20 || echo "AUTHORS topic dump failed"
+
+          echo "=== authors table changelog via push query ==="
+          curl -s --max-time 15 -X POST http://localhost:8088/query \
+            -H "Content-Type: application/vnd.ksql.v1+json" \
+            -d '{"ksql":"SELECT * FROM authors EMIT CHANGES LIMIT 25;","streamsProperties":{"ksql.streams.auto.offset.reset":"earliest"}}' \
+            | head -c 4000 || true
+          echo ""
+
           echo "=== delete-test doc post-hoc (authors should be 1 if delete propagated late) ==="
           curl -s "http://localhost:9200/test_references_index/_search" \
             -H 'Content-Type: application/json' \
