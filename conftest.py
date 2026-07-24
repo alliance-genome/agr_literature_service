@@ -9,6 +9,7 @@ Without xdist (``PYTEST_XDIST_WORKER`` unset) this is a no-op, so serial runs
 and the other CI jobs are unaffected.
 """
 import os
+from urllib.parse import urlparse
 
 
 def _create_worker_db() -> None:
@@ -25,7 +26,10 @@ def _create_worker_db() -> None:
     # Never run the destructive per-worker DROP/CREATE DATABASE against a real
     # (stage/prod) host. Mirrors the guard in the `db` fixture, which this path
     # bypasses because it runs at import time before any fixture.
-    if "rds.amazonaws.com" in os.environ.get("PSQL_HOST", ""):
+    psql_host = os.environ.get("PSQL_HOST", "")
+    parsed = urlparse(psql_host if "://" in psql_host else f"//{psql_host}")
+    host = (parsed.hostname or "").lower()
+    if host == "rds.amazonaws.com" or host.endswith(".rds.amazonaws.com"):
         import pytest
 
         pytest.exit("Refusing to create per-worker test databases on an RDS host")
