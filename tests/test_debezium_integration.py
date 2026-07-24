@@ -429,7 +429,11 @@ class TestDebeziumIntegration:
         def orcids(authors):
             return {a.get('orcid') for a in authors if isinstance(a, dict)}
 
-        max_wait_time = 30  # seconds
+        # The private chain crosses many ksql sub-topologies, each paced by the 3s
+        # commit interval (see dbz_ksql_server in docker-compose.yaml): typical sync
+        # is ~15s but slow CI runners have exceeded 30s, so allow a wide margin.
+        # Polling exits early, so green runs are unaffected.
+        max_wait_time = 90  # seconds
         poll_interval = 2
 
         # Wait until both authors have been synced to the private index
@@ -514,7 +518,10 @@ class TestDebeziumIntegration:
                 return None
             return resp.json()['hits']['total']['value']
 
-        max_wait_time = 30  # seconds
+        # Same wide margin as the other real-time tests: the pipeline's per-hop
+        # latency (3s ksql commit interval x many sub-topologies) can exceed 30s
+        # on slow CI runners. Polling exits early, so green runs are unaffected.
+        max_wait_time = 90  # seconds
         poll_interval = 2
 
         # Wait until the reference is indexed in both the private and public indexes
