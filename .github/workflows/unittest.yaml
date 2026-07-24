@@ -13,6 +13,10 @@ jobs:
         name: setup python
         with:
           python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements.dev.txt
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -49,10 +53,7 @@ jobs:
           COGNITO_TOKEN_URL: 'https://auth.alliancegenome.org/oauth2/token'
         run: |
           docker compose --env-file .env.test down -v
-          docker compose --env-file .env.test up -d postgres
-          sleep 5
-          docker compose --env-file .env.test up -d elasticsearch
-          sleep 10
+          docker compose --env-file .env.test up -d --wait postgres elasticsearch
           set +e
           pytest -m "not webtest" --ignore=tests/test_debezium_integration.py
           PYTEST_RC=$?
