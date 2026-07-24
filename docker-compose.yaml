@@ -564,7 +564,14 @@ services:
       # explicit cap instead; fraction default 0.15 (~4.8 GB on a 32 GB box).
       - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_BOUNDED=true
       - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_TOTAL_OFFHEAP_BYTES=${DBZ_ROCKSDB_TOTAL_OFFHEAP_BYTES:-0}
-      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_OFFHEAP_FRACTION=${DBZ_ROCKSDB_OFFHEAP_FRACTION:-0.15}
+      # 0.10 (was 0.15): shared block-cache share of container RAM. The swapless pilot showed the
+      # dominant off-heap term is per-store memtables across ~115 FK-join substores, not the cache.
+      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_OFFHEAP_FRACTION=${DBZ_ROCKSDB_OFFHEAP_FRACTION:-0.10}
+      # Per-store memtable floor (SCRUM-6318 lever 1): 8 MiB x 2 = 16 MiB/store vs Kafka Streams'
+      # 16 MiB x 3 = 48 MiB default. Aggregate memtable across ~115 stores: ~5.5 GiB -> ~1.8 GiB.
+      # Both are serialized to each store's OPTIONS file, so the applied value is verifiable.
+      - KSQL_KSQL_STREAMS_ROCKSDB_WRITE_BUFFER_SIZE_BYTES=${DBZ_ROCKSDB_WRITE_BUFFER_SIZE_BYTES:-8388608}
+      - KSQL_KSQL_STREAMS_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=${DBZ_ROCKSDB_MAX_WRITE_BUFFER_NUMBER:-2}
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
     networks:
       - agr-literature

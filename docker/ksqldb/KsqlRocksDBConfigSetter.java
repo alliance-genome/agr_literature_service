@@ -48,6 +48,8 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     static final String MEMORY_TOTAL_OFFHEAP_BYTES = "rocksdb.memory.total.offheap.bytes";
     static final String MEMORY_OFFHEAP_FRACTION = "rocksdb.memory.offheap.fraction";
     static final String MEMORY_WRITE_BUFFER_FRACTION = "rocksdb.memory.write.buffer.fraction";
+    static final String WRITE_BUFFER_SIZE_BYTES = "rocksdb.write.buffer.size.bytes";
+    static final String MAX_WRITE_BUFFER_NUMBER = "rocksdb.max.write.buffer.number";
 
     // 594 MiB/s == the m5.4xlarge instance EBS-bandwidth ceiling (NOT the gp3 volume cap, which is
     // also 594; the instance baseline is the real wall). Override per-environment for other instances.
@@ -65,10 +67,24 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     // reindex and historically triggered the kernel OOM killer on swapless boxes. One shared
     // LRUCache with the memtable budget charged INTO it (WriteBufferManager) gives a single
     // instance-wide cap, auto-sized from the RAM actually visible to the container.
-    private static final double DEFAULT_OFFHEAP_FRACTION = 0.15;
+    // 0.10 (was 0.15): the SCRUM-6318 swapless pilot showed off-heap plateaued at ~12.7 GiB on a
+    // 31 GiB box -- the block cache is only part of it; the dominant term is per-store memtables
+    // summed across the ~115 RocksDB instances the FK-join substores create. Shrinking the shared
+    // cache AND the per-store memtable floor (below) both matter.
+    private static final double DEFAULT_OFFHEAP_FRACTION = 0.10;
     private static final double DEFAULT_WRITE_BUFFER_FRACTION = 0.5;
     private static final long MIN_OFFHEAP_BYTES = 512L * 1024 * 1024;
     private static final long FALLBACK_TOTAL_RAM_BYTES = 8L * 1024 * 1024 * 1024;
+
+    // Per-store memtable floor. With ~115 RocksDB instances, aggregate memtable memory is
+    // instances * write_buffer_size * max_write_buffer_number, and it is additive to the block
+    // cache whenever the WriteBufferManager's charge-into-cache is not honoured through the Kafka
+    // Streams Options adapter. Kafka Streams' own defaults (16 MiB * 3 = 48 MiB/store) put that
+    // floor at ~5.5 GiB; 8 MiB * 2 = 16 MiB/store cuts it to ~1.8 GiB. Verified in a rocksdbjni
+    // harness: 455.8 -> 167.8 MiB retained memtable for the same write set (2.7x). Both are
+    // serialized to the store's OPTIONS file, so the applied value is verifiable on the box.
+    private static final long DEFAULT_WRITE_BUFFER_SIZE_BYTES = 8L * 1024 * 1024;
+    private static final int DEFAULT_MAX_WRITE_BUFFER_NUMBER = 2;
     // Share of the cache reserved as high-priority space for index/filter blocks, so bulk data
     // scans cannot evict them (matches ksqlDB's bounded-memory reference implementation).
     private static final double INDEX_FILTER_BLOCK_RATIO = 0.1;
@@ -109,6 +125,14 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
         final boolean bounded = getBoolean(configs, MEMORY_BOUNDED, true);
         if (bounded) {
             initBoundedMemory(configs);
+            // Per-store memtable floor (lever 1). Applied to EVERY store, so the aggregate across
+            // all ~115 instances is bounded even if the shared WriteBufferManager charge-into-cache
+            // is not honoured by the Kafka Streams adapter.
+            final long writeBufferSize = getLong(configs, WRITE_BUFFER_SIZE_BYTES, DEFAULT_WRITE_BUFFER_SIZE_BYTES);
+            final int maxWriteBufferNumber =
+                    (int) getLong(configs, MAX_WRITE_BUFFER_NUMBER, DEFAULT_MAX_WRITE_BUFFER_NUMBER);
+            options.setWriteBufferSize(writeBufferSize);
+            options.setMaxWriteBufferNumber(maxWriteBufferNumber);
             final Object tf = options.tableFormatConfig();
             if (tf instanceof BlockBasedTableConfig) {
                 final BlockBasedTableConfig tableConfig = (BlockBasedTableConfig) tf;
@@ -159,7 +183,9 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
             sharedWriteBufferManager = new WriteBufferManager(writeBufferBytes, cache);
             sharedCache = cache;
             LOG.info("KsqlRocksDBConfigSetter bounded RocksDB off-heap: total=" + total + " B (" + sizedFrom
-                    + "), writeBufferBudget=" + writeBufferBytes + " B");
+                    + "), writeBufferBudget=" + writeBufferBytes + " B, per-store memtable floor="
+                    + getLong(configs, WRITE_BUFFER_SIZE_BYTES, DEFAULT_WRITE_BUFFER_SIZE_BYTES) + " B x "
+                    + (int) getLong(configs, MAX_WRITE_BUFFER_NUMBER, DEFAULT_MAX_WRITE_BUFFER_NUMBER));
         }
     }
 
