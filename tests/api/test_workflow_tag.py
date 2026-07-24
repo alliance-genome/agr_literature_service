@@ -508,3 +508,111 @@ class TestWorkflowTag:
 
         sgd_result = get_indexing_and_community_workflow_tags(db, ref_curie, 'SGD')
         assert 'first pass curation' not in sgd_result
+
+
+class TestPreCurationWorkflowOverview:
+    """Cover get_pre_curation_workflow_overview and its helpers (SCRUM-6298)."""
+
+    def test_get_process_status_pure(self):
+        from agr_literature_service.api.crud.workflow_tag_crud import _get_process_status
+        mapping = {"complete": ["ATP:0000134"], "needed": ["ATP:0000141"]}
+        # 'complete' is checked before 'needed'
+        assert _get_process_status(["ATP:0000134", "ATP:0000141"], mapping) == ("complete", "ATP:0000134")
+        assert _get_process_status(["ATP:0000141"], mapping) == ("needed", "ATP:0000141")
+        assert _get_process_status([], mapping) == (None, None)
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_overview_unknown_curie_returns_404(self, db, auth_headers):  # noqa
+        # The get_db dependency resolves the curie and raises 404 for an
+        # unknown reference before the overview crud runs.
+        with TestClient(app) as client:
+            response = client.get(url="/workflow_tag/pre_curation_overview/AGRKB:doesnotexist",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_overview_returns_status_per_mod(self, db, test_workflow_tag, auth_headers):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        # Mirror the proven counters-test setup: patch the ateam curie->name map
+        # so MOD-corpus automation does not reach the real A-team API.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map:
+            mock_get_map.return_value = {"ATP:0000141": "file needed", "ATP:0001111": "test"}
+            curie = test_workflow_tag.related_ref_curie
+            mod = test_workflow_tag.related_mod_abbreviation
+
+            # Put the reference in the MOD corpus so it surfaces in the overview.
+            add_to_corpus = {
+                "mod_abbreviation": mod,
+                "reference_curie": curie,
+                "mod_corpus_sort_source": "manual_creation",
+                "corpus": True,
+            }
+            response = client.post(url="/reference/mod_corpus_association/",
+                                   json=add_to_corpus, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            response = client.get(url=f"/workflow_tag/pre_curation_overview/{curie}",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            data = response.json()
+            assert set(["mods", "workflows", "details"]).issubset(data.keys())
+            assert mod in data["workflows"]
+            assert "file_upload" in data["workflows"][mod]
+
+
+class TestWorkflowTagReportsAndPriority:
+    """Cover diagram 404 and set_priority paths in workflow_tag_crud (SCRUM-6298)."""
+
+    def test_diagram_unknown_mod_returns_404(self, db, auth_headers):  # noqa
+        with TestClient(app) as client:
+            response = client.get(url="/workflow_tag/workflow_diagram/NO_SUCH_MOD",
+                                  headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_set_priority_without_needed_tag_returns_404(self, db, test_workflow_tag, auth_headers):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        # The reference has no "pre-indexing prioritization needed" tag, so
+        # set_priority raises 404 after building its ATP mappings + query.
+        with TestClient(app) as client:
+            curie = test_workflow_tag.related_ref_curie
+            mod = test_workflow_tag.related_mod_abbreviation
+            response = client.post(
+                url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_set_priority_success_transitions_needed_tag(self, db, test_workflow_tag, auth_headers):  # noqa
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.workflow_tag_crud.get_map_ateam_curies_to_names") as \
+                mock_get_map:
+            mock_get_map.return_value = {
+                "ATP:0000306": "pre-indexing prioritization needed",
+                "ATP:0000211": "priority 1",
+                "ATP:0000303": "pre-indexing prioritization complete",
+            }
+            curie = test_workflow_tag.related_ref_curie
+            mod = test_workflow_tag.related_mod_abbreviation
+
+            # Seed the "pre-indexing prioritization needed" tag that set_priority
+            # looks for before assigning a priority.
+            new_wt = {
+                "reference_curie": curie,
+                "mod_abbreviation": mod,
+                "workflow_tag_id": "ATP:0000306",
+            }
+            response = client.post(url="/workflow_tag/", json=new_wt, headers=auth_headers)
+            assert response.status_code == status.HTTP_201_CREATED
+
+            response = client.post(
+                url=f"/workflow_tag/set_priority/{curie}/{mod}/priority_1",
+                headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK

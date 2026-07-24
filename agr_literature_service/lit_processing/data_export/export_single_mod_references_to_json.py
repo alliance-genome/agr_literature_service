@@ -265,7 +265,7 @@ def dump_data(mod=None, email=None, ondemand=False, ui_root_url=None):  # noqa: 
 
     base = environ.get('XML_PATH', '') + 'json_data/'
     if not path.exists(base):
-        makedirs(base)
+        makedirs(base, exist_ok=True)
     out_path = base + json_fname
 
     # ─── 2. preload shared lookups ────────────────────────────────────────────

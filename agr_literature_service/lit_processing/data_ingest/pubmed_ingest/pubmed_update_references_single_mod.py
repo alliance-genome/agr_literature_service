@@ -642,15 +642,15 @@ def set_paths():  # pragma: no cover
     if environ.get('REPLY_TO'):
         reply_to = environ['REPLY_TO']
     if not path.exists(xml_path):
-        makedirs(xml_path)
+        makedirs(xml_path, exist_ok=True)
     if not path.exists(json_path):
-        makedirs(json_path)
+        makedirs(json_path, exist_ok=True)
     if not path.exists(old_xml_path):
-        makedirs(old_xml_path)
+        makedirs(old_xml_path, exist_ok=True)
     if not path.exists(old_json_path):
-        makedirs(old_json_path)
+        makedirs(old_json_path, exist_ok=True)
     if not path.exists(log_path):
-        makedirs(log_path)
+        makedirs(log_path, exist_ok=True)
 
     return (xml_path, json_path, old_xml_path, old_json_path, log_path, log_url,
             email_recipients, sender_email, sender_password, reply_to)

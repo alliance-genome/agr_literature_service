@@ -13,6 +13,10 @@ jobs:
         name: setup python
         with:
           python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements.dev.txt
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -49,9 +53,19 @@ jobs:
           COGNITO_TOKEN_URL: 'https://auth.alliancegenome.org/oauth2/token'
         run: |
           docker compose --env-file .env.test down -v
-          docker compose --env-file .env.test up -d postgres
-          sleep 5
-          docker compose --env-file .env.test up -d elasticsearch
-          sleep 10
-          pytest -m "not webtest" --ignore=tests/test_debezium_integration.py
+          docker compose --env-file .env.test up -d --wait postgres elasticsearch
+          set +e
+          pytest -m "not webtest" --ignore=tests/test_debezium_integration.py -n auto --dist loadfile
+          PYTEST_RC=$?
+          set -e
+          echo ""
+          echo "===================================================================="
+          echo "===== FILES WITH THE MOST MISSED STATEMENTS (targeting list) ======="
+          echo "===================================================================="
+          python -m coverage report --sort=miss | tail -n 70
+          echo "===================================================================="
+          echo "===== MISSING LINE RANGES FOR THE TOP GAP FILES ===================="
+          python -m coverage report -m --include="*/api/crud/workflow_tag_crud.py,*/api/crud/reference_crud.py,*/api/crud/resource_crud.py,*/api/crud/sort_crud.py,*/api/crud/mod_corpus_association_crud.py"
+          echo "===================================================================="
           docker compose --env-file .env.test down -v
+          exit $PYTEST_RC

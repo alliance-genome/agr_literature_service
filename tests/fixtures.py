@@ -31,14 +31,20 @@ def delete_all_table_content(engine, db_session):
         db_session.commit()  # Commit the transaction
 
 
-@pytest.fixture
-def db() -> Generator[Session, None, None]:
-    print("***** Creating DB session *****")
-    if "rds.amazonaws.com" in config.PSQL_HOST:
-        msg = "***** Warning: not allowed to run test on stage or prod database *****"
-        pytest.exit(msg)
-    else:
-        engine = create_engine(
+# Process-wide engine + one-time schema initialization.
+#
+# The engine and the DDL performed by initialize() (mapper configuration,
+# table creation, default user, triggers) only need to happen once per test
+# process. Per-test isolation is handled by delete_all_table_content(), which
+# only clears rows. Rebuilding the engine and re-running all DDL on every test
+# was a major source of test-suite slowness, so we cache them here.
+_engine = None
+
+
+def _get_engine():
+    global _engine
+    if _engine is None:
+        _engine = create_engine(
             SQLALCHEMY_DATABASE_URL,
             connect_args={"options": "-c timezone=utc"},
             pool_pre_ping=True,  # Verify connections before using them
@@ -46,8 +52,19 @@ def db() -> Generator[Session, None, None]:
             pool_size=10,        # Connection pool size
             max_overflow=20      # Max overflow connections
         )
-
         initialize()
+    return _engine
+
+
+@pytest.fixture
+def db() -> Generator[Session, None, None]:
+    print("***** Creating DB session *****")
+    if "rds.amazonaws.com" in config.PSQL_HOST:
+        msg = "***** Warning: not allowed to run test on stage or prod database *****"
+        pytest.exit(msg)
+    else:
+        engine = _get_engine()
+
         db_session = sessionmaker(bind=engine, autoflush=True)()  # Create session
         db_session.commit()
         delete_all_table_content(engine, db_session)  # Clean before test starts

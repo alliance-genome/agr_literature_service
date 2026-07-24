@@ -125,7 +125,7 @@ def download_pubmed_xml(pmids_wanted: List[str]):  # pragma: no cover
     storage_path = base_path + 'pubmed_xml/'
 
     if not path.exists(storage_path):
-        makedirs(storage_path)
+        makedirs(storage_path, exist_ok=True)
 
     # comparing through a set instead of a list takes 2.6 seconds instead of 4256
     pmids_found: Set[str] = set()

@@ -352,7 +352,7 @@ def find_resource_abbreviation_not_matched_to_nlm_or_res_mod(resource_not_found:
     # with get_pubmed_nlm_resource_unmatched.py
     resource_xml_path = base_dir + 'resource_xml/'
     if not path.exists(resource_xml_path):
-        makedirs(resource_xml_path)
+        makedirs(resource_xml_path, exist_ok=True)
     resource_abbreviation_not_found_filename = resource_xml_path + 'resource_abbreviation_not_matched'
     already_reported_res_abbrs = set()
     with open(resource_abbreviation_not_found_filename, "w") as resource_abbreviation_not_found_fh:
@@ -480,7 +480,7 @@ def aggregate_dqm_with_pubmed(input_path, input_mod, output_directory, base_dir=
 
     json_storage_path = base_path + output_directory + 'sanitized_reference_json/'
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
 
     report_writer = ReportWriter(mod_reports_dir=base_path + output_directory + 'report_files/',
                                  multimod_reports_file_path=base_path + output_directory + 'report_files/multi_mod')

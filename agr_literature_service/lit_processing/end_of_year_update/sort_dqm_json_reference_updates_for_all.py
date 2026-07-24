@@ -138,7 +138,7 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
     if environ.get('LOG_PATH'):
         report_file_path = path.join(environ['LOG_PATH'], 'dqm_load/')
     if report_file_path and not path.exists(report_file_path):
-        makedirs(report_file_path)
+        makedirs(report_file_path, exist_ok=True)
 
     report = {}
     missing_papers_in_mod = {}
@@ -466,9 +466,9 @@ def sort_dqm_references(input_path, input_mod, base_dir=base_path):      # noqa:
         output_directory_name = 'process_dqm_update_' + mod
         output_directory_path = base_path + output_directory_name
         if not path.exists(output_directory_path):
-            makedirs(output_directory_path)
+            makedirs(output_directory_path, exist_ok=True)
         if not path.exists(output_directory_path + '/inputs'):
-            makedirs(output_directory_path + '/inputs')
+            makedirs(output_directory_path + '/inputs', exist_ok=True)
 
         # get list of pmids to process from dqm papers filtered down to references_to_create
         # equivalent to python3 parse_dqm_json_reference.py -f dqm_data_updates_new/ -p
@@ -580,7 +580,7 @@ def save_new_references_to_file(references_to_create, mod):
 
     json_storage_path = base_path + 'dqm_data_updates_new/'
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
     dqm_data = dict()
     dqm_data['data'] = references_to_create
     # dqm_data['data'] = references_to_create[0:100]	# sample for less papers

@@ -20,7 +20,7 @@ base_path = environ.get('XML_PATH', "")
 dqm_json_path = base_path + 'dqm_data/'
 
 if not path.exists(dqm_json_path):
-    makedirs(dqm_json_path)
+    makedirs(dqm_json_path, exist_ok=True)
 
 
 def download_dqm_json():  # pragma: no cover
