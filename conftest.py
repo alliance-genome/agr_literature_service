@@ -46,6 +46,14 @@ def _create_worker_db() -> None:
 
     os.environ["PSQL_DATABASE"] = worker_db
 
+    # Give each worker its own on-disk tmp directory too. XML_PATH is a shared
+    # scratch dir that several tests both create (init_tmp_dir) and delete
+    # (cleanup_tmp_files_when_done -> rmtree); without per-worker isolation one
+    # worker's teardown rmtree pulls the directory out from under another.
+    xml_path = os.environ.get("XML_PATH")
+    if xml_path and not xml_path.rstrip("/").endswith(f"_{worker}"):
+        os.environ["XML_PATH"] = xml_path.rstrip("/") + f"_{worker}/"
+
 
 def pytest_collection_finish(session):
     """Build the worker's schema once collection is complete.
