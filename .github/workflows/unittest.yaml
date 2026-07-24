@@ -55,7 +55,7 @@ jobs:
           docker compose --env-file .env.test down -v
           docker compose --env-file .env.test up -d --wait postgres elasticsearch
           set +e
-          pytest -m "not webtest" --ignore=tests/test_debezium_integration.py
+          pytest -m "not webtest" --ignore=tests/test_debezium_integration.py -n auto --dist loadfile
           PYTEST_RC=$?
           set -e
           echo ""
