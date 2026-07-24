@@ -376,6 +376,82 @@ class TestDebeziumIntegration:
 
     @pytest.mark.debezium
     @pytest.mark.webtest
+    def test_real_time_delete_sync(self, db, mock_data_factory, elasticsearch_config):  # noqa
+        """Test that row deletions propagate to Elasticsearch via tombstones.
+
+        The unwrap SMT keeps tombstones (delete.tombstone.handling.mode=tombstone);
+        a tombstone removes the row from its ksql table and, through the join chain,
+        from the index documents. Deleting one of two authors exercises that path
+        end-to-end without changing document counts in either index.
+        """
+        import time
+
+        resource = mock_data_factory.create_resource(db, 998)
+        citation = mock_data_factory.create_citation(db, 998)
+        reference = mock_data_factory.create_reference(db, 998, citation, resource)
+        mock_data_factory.create_author(db, reference, 997)
+        mock_data_factory.create_author(db, reference, 998)
+        mock_data_factory.create_cross_reference(db, reference, 998, False)
+
+        # Corpus association keeps this reference in BOTH indexes, so
+        # test_document_counts_match stays balanced after this test runs.
+        mod = db.query(ModModel).first()
+        mock_data_factory.create_mod_corpus_association(db, reference, mod, True)
+        db.commit()
+
+        test_curie = "AGRKB:101000998"
+        deleted_orcid = "0000-0000-0000-0998"
+        es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
+
+        def fetch_authors():
+            response = requests.post(
+                f"{es_url}/{elasticsearch_config['private_index']}/_search",
+                json={"query": {"term": {"curie.keyword": test_curie}}, "size": 1}
+            )
+            if response.status_code != 200:
+                return None
+            hits = response.json()['hits']['hits']
+            if not hits:
+                return None
+            return hits[0]['_source'].get('authors') or []
+
+        max_wait_time = 60
+        poll_interval = 2
+
+        # Phase 1: wait until the new reference is indexed with both authors
+        elapsed_time = 0
+        authors = None
+        while elapsed_time < max_wait_time:
+            time.sleep(poll_interval)
+            elapsed_time += poll_interval
+            authors = fetch_authors()
+            if authors is not None and len(authors) == 2:
+                break
+        assert authors is not None and len(authors) == 2, (
+            f"Reference {test_curie} not indexed with 2 authors after "
+            f"{max_wait_time}s (got {authors})")
+
+        # Phase 2: delete one author row in Postgres
+        db.query(AuthorModel).filter(AuthorModel.orcid == deleted_orcid).delete()
+        db.commit()
+
+        # Phase 3: the deletion must reach the index document
+        elapsed_time = 0
+        while elapsed_time < max_wait_time:
+            time.sleep(poll_interval)
+            elapsed_time += poll_interval
+            authors = fetch_authors()
+            if authors and len(authors) == 1:
+                break
+        assert authors and len(authors) == 1, (
+            f"Deleted author still present in {test_curie} after "
+            f"{max_wait_time}s (got {authors})")
+        remaining_orcids = [author.get('orcid') for author in authors]
+        assert deleted_orcid not in remaining_orcids, (
+            f"Deleted author orcid {deleted_orcid} still in index: {remaining_orcids}")
+
+    @pytest.mark.debezium
+    @pytest.mark.webtest
     def test_elasticsearch_indexes_exist(self, elasticsearch_config):
         """Test that both public and private Elasticsearch indexes exist."""
         es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
