@@ -18,7 +18,7 @@
     "heartbeat.topics.prefix": "__debezium-heartbeat.unified",
     "transforms": "unwrap,extractKeyCitation,extractValueCitation,extractKeyReference,extractValueReference,extractKeyResource,extractValueResource,extractKeyModCorpusAssociation,extractValueModCorpusAssociation,extractKeyTopicEntityTagSource,extractValueTopicEntityTagSource,extractKeyModReferencetype,extractValueModReferencetype,extractKeyMod,extractValueMod,extractKeyReferencetype,extractValueReferencetype,extractKeyCopyrightLicense,extractValueCopyrightLicense",
     "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
-    "transforms.unwrap.drop.tombstones": "false",
+    "transforms.unwrap.delete.tombstone.handling.mode": "tombstone",
     "transforms.unwrap.add.headers": "op",
     "transforms.unwrap.predicate": "isJoinedTable",
     "transforms.extractKeyCitation.type": "org.apache.kafka.connect.transforms.ExtractField$Key",
