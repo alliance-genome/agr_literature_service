@@ -379,6 +379,15 @@ class TestDebeziumIntegration:
 
     @pytest.mark.debezium
     @pytest.mark.webtest
+    @pytest.mark.xfail(
+        strict=True,
+        reason="SCRUM-6337: ksqlDB drops tombstones on repartitioned table sources "
+               "(SourceBuilder skips materialization when the source is repartitioned "
+               "by GROUP BY, so it cannot emit the old value needed to retract from "
+               "collect_list aggregates; identical in 0.26 and 0.29). Deletes only "
+               "reach the index via the next full reindex. strict=True so this trips "
+               "if the pipeline ever starts propagating deletes.",
+    )
     def test_real_time_delete_sync(self, db, mock_data_factory, elasticsearch_config):  # noqa
         """Test that row deletions propagate to Elasticsearch via tombstones.
 
@@ -386,6 +395,9 @@ class TestDebeziumIntegration:
         a tombstone removes the row from its ksql table and, through the join chain,
         from the index documents. Deleting one of two authors exercises that path
         end-to-end without changing document counts in either index.
+
+        Currently xfail: the tombstone provably reaches abc.public.author, but
+        ksqlDB never applies it (see SCRUM-6337 for the verified root cause).
         """
         import time
 
