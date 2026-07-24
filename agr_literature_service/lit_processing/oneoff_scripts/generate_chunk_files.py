@@ -67,7 +67,7 @@ def generate_chunk_files():
             chunk_count_string = '0' + chunk_count_string
         chunk_dir = process_path + 'pubmed_tgz_' + date + '_' + chunk_count_string
         if not path.exists(chunk_dir):
-            makedirs(chunk_dir)
+            makedirs(chunk_dir, exist_ok=True)
 
         output_chunk_file = process_path + date + '_' + chunk_count_string + '.txt'
         with open(output_chunk_file, "w") as output_fh:

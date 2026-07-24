@@ -215,9 +215,9 @@ def generate_json(pmids, previous_pmids, not_found_xml=None, base_dir=base_path)
     storage_path = base_dir + 'pubmed_xml/'
     json_storage_path = base_path + 'pubmed_json/'
     if not path.exists(storage_path):
-        makedirs(storage_path)
+        makedirs(storage_path, exist_ok=True)
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
 
     # md5dict = load_s3_md5data(['PMID'])
 

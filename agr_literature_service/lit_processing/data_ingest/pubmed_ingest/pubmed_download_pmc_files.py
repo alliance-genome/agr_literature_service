@@ -607,10 +607,10 @@ def create_tmp_dirs():  # pragma: no cover
 
     if path.exists(dataDir):
         shutil.rmtree(dataDir)
-    makedirs(dataDir)
+    makedirs(dataDir, exist_ok=True)
     if path.exists(pmcFileDir):
         shutil.rmtree(pmcFileDir)
-    makedirs(pmcFileDir)
+    makedirs(pmcFileDir, exist_ok=True)
 
 
 if __name__ == "__main__":

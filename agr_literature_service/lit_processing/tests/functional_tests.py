@@ -575,7 +575,7 @@ def test_pubmed_types_to_category_mapping(base_dir=base_path):
 
     json_path = base_path + "pubmed_json/"
     if not path.exists(json_path):
-        makedirs(json_path)
+        makedirs(json_path, exist_ok=True)
 
     pmids = ['26051182', '19678847', '7567443']
     # 26051182 ['Journal Article', 'Research Support, N.I.H., Extramural', "Research Support, Non-U.S. Gov't"]

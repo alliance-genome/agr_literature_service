@@ -85,7 +85,7 @@ def update_sanitized_resources(datatype):
 
     json_storage_path = base_path + 'sanitized_resource_json_updates/'
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
 
     xref_ref, ref_xref_valid, ref_xref_obsolete = sqlalchemy_load_ref_xref('resource')
     sanitized_resources = load_sanitized_resource(datatype)

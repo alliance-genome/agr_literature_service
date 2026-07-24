@@ -37,10 +37,10 @@ process_path = base_path + 'chunking_pmids/'
 
 base_expand_dir = process_path + 'expand_tgz/'
 if not path.exists(base_expand_dir):
-    makedirs(base_expand_dir)
+    makedirs(base_expand_dir, exist_ok=True)
 temp_expand_dir = process_path + 'expand_tgz/temp_expand/'
 if not path.exists(temp_expand_dir):
-    makedirs(temp_expand_dir)
+    makedirs(temp_expand_dir, exist_ok=True)
 
 
 def expand_tgz(tgz_file, expand_dir):

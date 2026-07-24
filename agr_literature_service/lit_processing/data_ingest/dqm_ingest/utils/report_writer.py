@@ -16,7 +16,7 @@ class ReportWriter:
         self.multimod_reports_file_path = multimod_reports_file_path
         self.report_file_handlers = defaultdict(dict)
         if not path.exists(mod_reports_dir):
-            makedirs(mod_reports_dir)
+            makedirs(mod_reports_dir, exist_ok=True)
 
     def get_report_file_name(self, mod, report_type):
         if report_type == "multi":

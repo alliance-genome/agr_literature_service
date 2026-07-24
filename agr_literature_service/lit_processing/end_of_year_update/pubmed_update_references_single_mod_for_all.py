@@ -244,8 +244,8 @@ def clean_up_files(xml_path, json_path):
     except OSError as e:
         logger.info("Error deleting old xml/json: %s" % (e.strerror))
 
-    makedirs(xml_path)
-    makedirs(json_path)
+    makedirs(xml_path, exist_ok=True)
+    makedirs(json_path, exist_ok=True)
 
 
 if __name__ == "__main__":
