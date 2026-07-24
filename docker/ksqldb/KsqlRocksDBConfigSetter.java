@@ -50,6 +50,7 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     static final String MEMORY_WRITE_BUFFER_FRACTION = "rocksdb.memory.write.buffer.fraction";
     static final String WRITE_BUFFER_SIZE_BYTES = "rocksdb.write.buffer.size.bytes";
     static final String MAX_WRITE_BUFFER_NUMBER = "rocksdb.max.write.buffer.number";
+    static final String MEMORY_REPORT_ENABLED = "rocksdb.memory.report.enabled";
 
     // 594 MiB/s == the m5.4xlarge instance EBS-bandwidth ceiling (NOT the gp3 volume cap, which is
     // also 594; the instance baseline is the real wall). Override per-environment for other instances.
@@ -186,7 +187,58 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
                     + "), writeBufferBudget=" + writeBufferBytes + " B, per-store memtable floor="
                     + getLong(configs, WRITE_BUFFER_SIZE_BYTES, DEFAULT_WRITE_BUFFER_SIZE_BYTES) + " B x "
                     + (int) getLong(configs, MAX_WRITE_BUFFER_NUMBER, DEFAULT_MAX_WRITE_BUFFER_NUMBER));
+            if (getBoolean(configs, MEMORY_REPORT_ENABLED, true)) {
+                startMemoryReporter();
+            }
         }
+    }
+
+    /**
+     * SCRUM-6318 diagnostic: the ~12 GiB off-heap growth on 2.7 is not memtables (hard-capped by
+     * write_buffer_size x max_write_buffer_number, verified in each store's OPTIONS file). This
+     * daemon reports, from inside the JVM every 30 s, the actual usage of each off-heap bucket so
+     * the growing one can be identified without JMX/NMT:
+     *   - sharedBlockCache usage + pinned  (if this stays near 0, ksqlDB is NOT using our shared
+     *     cache and each of the ~115 stores keeps its own default cache instead)
+     *   - JVM non-heap (metaspace/code cache) and direct byte buffers (Netty/Kafka client)
+     */
+    private static void startMemoryReporter() {
+        final Thread t = new Thread(() -> {
+            final java.lang.management.MemoryMXBean mem =
+                    java.lang.management.ManagementFactory.getMemoryMXBean();
+            final java.util.List<java.lang.management.BufferPoolMXBean> pools =
+                    java.lang.management.ManagementFactory.getPlatformMXBeans(
+                            java.lang.management.BufferPoolMXBean.class);
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    Thread.sleep(30_000L);
+                    long cacheUsage = -1;
+                    long cachePinned = -1;
+                    if (sharedCache != null) {
+                        cacheUsage = sharedCache.getUsage();
+                        cachePinned = sharedCache.getPinnedUsage();
+                    }
+                    long direct = 0;
+                    for (final java.lang.management.BufferPoolMXBean p : pools) {
+                        if ("direct".equals(p.getName())) {
+                            direct = p.getMemoryUsed();
+                        }
+                    }
+                    LOG.info("MEMREPORT sharedCacheUsage={} sharedCachePinned={} heapUsed={} "
+                            + "nonHeapUsed={} directBuffers={} (bytes)",
+                            cacheUsage, cachePinned, mem.getHeapMemoryUsage().getUsed(),
+                            mem.getNonHeapMemoryUsage().getUsed(), direct);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return;
+                } catch (final Exception e) {
+                    LOG.warn("MEMREPORT error: {}", e.toString());
+                }
+            }
+        }, "ksql-rocksdb-memreport");
+        t.setDaemon(true);
+        t.start();
+        LOG.info("KsqlRocksDBConfigSetter MEMREPORT diagnostic thread started (30s interval)");
     }
 
     /**
