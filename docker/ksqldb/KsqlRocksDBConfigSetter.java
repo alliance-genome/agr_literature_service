@@ -1,13 +1,19 @@
 package org.alliancegenome.ksql;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 import org.apache.kafka.streams.state.RocksDBConfigSetter;
+import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.Cache;
 import org.rocksdb.CompactionStyle;
 import org.rocksdb.CompressionType;
+import org.rocksdb.LRUCache;
 import org.rocksdb.Options;
 import org.rocksdb.RateLimiter;
 import org.rocksdb.RateLimiterMode;
+import org.rocksdb.WriteBufferManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +44,10 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     static final String RATELIMIT_ENABLED = "rocksdb.ratelimit.enabled";
     static final String RATELIMIT_DISK_MAX = "rocksdb.ratelimit.disk.max.bytes.per.sec";
     static final String RATELIMIT_FRACTION = "rocksdb.ratelimit.fraction";
+    static final String MEMORY_BOUNDED = "rocksdb.memory.bounded";
+    static final String MEMORY_TOTAL_OFFHEAP_BYTES = "rocksdb.memory.total.offheap.bytes";
+    static final String MEMORY_OFFHEAP_FRACTION = "rocksdb.memory.offheap.fraction";
+    static final String MEMORY_WRITE_BUFFER_FRACTION = "rocksdb.memory.write.buffer.fraction";
 
     // 594 MiB/s == the m5.4xlarge instance EBS-bandwidth ceiling (NOT the gp3 volume cap, which is
     // also 594; the instance baseline is the real wall). Override per-environment for other instances.
@@ -49,6 +59,22 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     // ONE shared limiter across all stores. A per-store limiter would give an aggregate cap of
     // N * rate and protect nothing -- the whole point is a single instance-wide background-I/O cap.
     private static volatile RateLimiter sharedRateLimiter;
+
+    // --- SCRUM-6318: bound RocksDB OFF-HEAP memory (block caches + memtables) across all stores ---
+    // Unbounded, ~32 queries' state stores grew several GB past the JVM heap during the full
+    // reindex and historically triggered the kernel OOM killer on swapless boxes. One shared
+    // LRUCache with the memtable budget charged INTO it (WriteBufferManager) gives a single
+    // instance-wide cap, auto-sized from the RAM actually visible to the container.
+    private static final double DEFAULT_OFFHEAP_FRACTION = 0.15;
+    private static final double DEFAULT_WRITE_BUFFER_FRACTION = 0.5;
+    private static final long MIN_OFFHEAP_BYTES = 512L * 1024 * 1024;
+    private static final long FALLBACK_TOTAL_RAM_BYTES = 8L * 1024 * 1024 * 1024;
+    // Share of the cache reserved as high-priority space for index/filter blocks, so bulk data
+    // scans cannot evict them (matches ksqlDB's bounded-memory reference implementation).
+    private static final double INDEX_FILTER_BLOCK_RATIO = 0.1;
+
+    private static volatile Cache sharedCache;
+    private static volatile WriteBufferManager sharedWriteBufferManager;
 
     @Override
     public void setConfig(final String storeName, final Options options, final Map<String, Object> configs) {
@@ -80,8 +106,95 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
         if (ratelimit) {
             options.setRateLimiter(sharedRateLimiter(configs));
         }
-        LOG.debug("KsqlRocksDBConfigSetter applied to store {} (compression={}, universal={}, ratelimit={})",
-                storeName, compression, universal, ratelimit);
+        final boolean bounded = getBoolean(configs, MEMORY_BOUNDED, true);
+        if (bounded) {
+            initBoundedMemory(configs);
+            final Object tf = options.tableFormatConfig();
+            if (tf instanceof BlockBasedTableConfig) {
+                final BlockBasedTableConfig tableConfig = (BlockBasedTableConfig) tf;
+                tableConfig.setBlockCache(sharedCache);
+                // Count index/filter blocks against the same budget and keep them in the cache's
+                // high-priority pool, so the cap covers ALL block memory, not just data blocks.
+                tableConfig.setCacheIndexAndFilterBlocks(true);
+                tableConfig.setCacheIndexAndFilterBlocksWithHighPriority(true);
+                tableConfig.setPinTopLevelIndexAndFilter(true);
+                options.setTableFormatConfig(tableConfig);
+            } else {
+                LOG.warn("Store {} table format is {}; block cache left unbounded for this store",
+                        storeName, tf == null ? "null" : tf.getClass().getName());
+            }
+            options.setWriteBufferManager(sharedWriteBufferManager);
+        }
+        LOG.debug("KsqlRocksDBConfigSetter applied to store {} (compression={}, universal={}, ratelimit={}, "
+                + "boundedMemory={})", storeName, compression, universal, ratelimit, bounded);
+    }
+
+    private static void initBoundedMemory(final Map<String, Object> configs) {
+        if (sharedCache != null) {
+            return;
+        }
+        synchronized (KsqlRocksDBConfigSetter.class) {
+            if (sharedCache != null) {
+                return;
+            }
+            long total = getLong(configs, MEMORY_TOTAL_OFFHEAP_BYTES, 0L);
+            final String sizedFrom;
+            if (total <= 0) {
+                final long ram = detectTotalMemoryBytes();
+                final double fraction = getDouble(configs, MEMORY_OFFHEAP_FRACTION, DEFAULT_OFFHEAP_FRACTION);
+                total = (long) (ram * fraction);
+                sizedFrom = "auto: detectedRam=" + ram + " * fraction=" + fraction;
+            } else {
+                sizedFrom = "explicit " + MEMORY_TOTAL_OFFHEAP_BYTES;
+            }
+            if (total < MIN_OFFHEAP_BYTES) {
+                total = MIN_OFFHEAP_BYTES;
+            }
+            final double wbFraction =
+                    getDouble(configs, MEMORY_WRITE_BUFFER_FRACTION, DEFAULT_WRITE_BUFFER_FRACTION);
+            final long writeBufferBytes = (long) (total * wbFraction);
+            final Cache cache = new LRUCache(total, -1, false, INDEX_FILTER_BLOCK_RATIO);
+            // Charging memtables INTO the block cache makes `total` the single budget for all
+            // RocksDB off-heap across every store in the JVM.
+            sharedWriteBufferManager = new WriteBufferManager(writeBufferBytes, cache);
+            sharedCache = cache;
+            LOG.info("KsqlRocksDBConfigSetter bounded RocksDB off-heap: total=" + total + " B (" + sizedFrom
+                    + "), writeBufferBudget=" + writeBufferBytes + " B");
+        }
+    }
+
+    /**
+     * RAM visible to this container: host MemTotal, capped by the cgroup memory limit when one is
+     * set (cgroup v2 then v1). Falls back to a conservative 8 GiB if neither is readable.
+     */
+    private static long detectTotalMemoryBytes() {
+        long total = FALLBACK_TOTAL_RAM_BYTES;
+        try {
+            for (final String line : Files.readAllLines(Path.of("/proc/meminfo"))) {
+                if (line.startsWith("MemTotal:")) {
+                    total = Long.parseLong(line.replaceAll("[^0-9]", "")) * 1024L;
+                    break;
+                }
+            }
+        } catch (final Exception e) {
+            LOG.warn("Could not read /proc/meminfo ({}); assuming {} bytes", e.toString(), total);
+        }
+        for (final String path : new String[]{"/sys/fs/cgroup/memory.max",
+                                              "/sys/fs/cgroup/memory/memory.limit_in_bytes"}) {
+            try {
+                final String raw = Files.readString(Path.of(path)).trim();
+                if (!raw.isEmpty() && !"max".equals(raw)) {
+                    final long limit = Long.parseLong(raw);
+                    if (limit > 0 && limit < total) {
+                        total = limit;
+                    }
+                }
+                break;
+            } catch (final Exception ignored) {
+                // cgroup v2 file absent -> try the v1 path; neither readable -> keep MemTotal.
+            }
+        }
+        return total;
     }
 
     private static RateLimiter sharedRateLimiter(final Map<String, Object> configs) {
@@ -108,9 +221,10 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
 
     @Override
     public void close(final String storeName, final Options options) {
-        // The shared RateLimiter is intentionally NOT disposed here: it is reused across all stores
-        // and lives for the JVM lifetime (one native object, freed on process exit). Disposing it
-        // when a single store closes would corrupt the limiter still in use by the other stores.
+        // The shared RateLimiter, LRUCache and WriteBufferManager are intentionally NOT disposed
+        // here: they are reused across all stores and live for the JVM lifetime (native objects,
+        // freed on process exit). Disposing them when a single store closes would corrupt the
+        // instances still in use by the other stores.
     }
 
     private static boolean getBoolean(final Map<String, Object> configs, final String key, final boolean def) {
