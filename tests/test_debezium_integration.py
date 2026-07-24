@@ -379,94 +379,184 @@ class TestDebeziumIntegration:
 
     @pytest.mark.debezium
     @pytest.mark.webtest
-    @pytest.mark.xfail(
-        strict=True,
-        reason="SCRUM-6337: ksqlDB drops tombstones on repartitioned table sources "
-               "(SourceBuilder skips materialization when the source is repartitioned "
-               "by GROUP BY, so it cannot emit the old value needed to retract from "
-               "collect_list aggregates; identical in 0.26 and 0.29). Deletes only "
-               "reach the index via the next full reindex. strict=True so this trips "
-               "if the pipeline ever starts propagating deletes.",
-    )
-    def test_real_time_delete_sync(self, db, mock_data_factory, elasticsearch_config):  # noqa
-        """Test that row deletions propagate to Elasticsearch via tombstones.
+    def test_real_time_author_delete_sync(self, db, mock_data_factory, elasticsearch_config):  # noqa
+        """Deleting a joined-table row must be reflected in the reference's ES document.
 
-        The unwrap SMT keeps tombstones (delete.tombstone.handling.mode=tombstone);
-        a tombstone removes the row from its ksql table and, through the join chain,
-        from the index documents. Deleting one of two authors exercises that path
-        end-to-end without changing document counts in either index.
+        Creates a reference with two authors, waits for both to appear in the private
+        index, then deletes one author and asserts it is removed from the reference's
+        ``authors`` array while the other author remains.
 
-        Currently xfail: the tombstone provably reaches abc.public.author, but
-        ksqlDB never applies it (see SCRUM-6337 for the verified root cause).
+        This exercises the joined-table delete path (``author`` -> ``GROUP BY
+        reference_id`` aggregate). If a row deletion is not propagated, the deleted
+        author lingers in the document and this test fails. See SCRUM-6337.
         """
         import time
 
+        test_curie = "AGRKB:101000998"
+        kept_orcid = "0000-0000-0000-9981"
+        deleted_orcid = "0000-0000-0000-9982"
+
+        # Build a reference with two distinct authors and a MOD corpus association
         resource = mock_data_factory.create_resource(db, 998)
         citation = mock_data_factory.create_citation(db, 998)
         reference = mock_data_factory.create_reference(db, 998, citation, resource)
-        mock_data_factory.create_author(db, reference, 997)
-        mock_data_factory.create_author(db, reference, 998)
-        mock_data_factory.create_cross_reference(db, reference, 998, False)
+        mock_data_factory.create_author(db, reference, 9981)
+        author_to_delete = mock_data_factory.create_author(db, reference, 9982)
 
-        # Corpus association keeps this reference in BOTH indexes, so
-        # test_document_counts_match stays balanced after this test runs.
-        mod = db.query(ModModel).first()
+        # Reuse the WB MOD created by populate_test_db.py (abbreviation is unique)
+        mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").first()
+        if mod is None:
+            mod = mock_data_factory.create_mod(db, 0)
         mock_data_factory.create_mod_corpus_association(db, reference, mod, True)
         db.commit()
 
-        test_curie = "AGRKB:101000998"
-        deleted_orcid = "0000-0000-0000-0998"
         es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
+        index = elasticsearch_config['private_index']
 
         def fetch_authors():
-            response = requests.post(
-                f"{es_url}/{elasticsearch_config['private_index']}/_search",
+            """Return the authors array of the reference doc, or None if not indexed yet."""
+            resp = requests.post(
+                f"{es_url}/{index}/_search",
                 json={"query": {"term": {"curie.keyword": test_curie}}, "size": 1}
             )
-            if response.status_code != 200:
+            if resp.status_code != 200:
                 return None
-            hits = response.json()['hits']['hits']
+            hits = resp.json()['hits']['hits']
             if not hits:
                 return None
             return hits[0]['_source'].get('authors') or []
 
-        # Deletes traverse the same commit-interval-paced chain as inserts (author
-        # table -> authors aggregate -> reference_joined -> sink); slow CI runners
-        # have pushed single-hop sync past 30s, so give each phase a wide margin.
-        max_wait_time = 120
+        def orcids(authors):
+            return {a.get('orcid') for a in authors if isinstance(a, dict)}
+
+        max_wait_time = 30  # seconds
         poll_interval = 2
 
-        # Phase 1: wait until the new reference is indexed with both authors
+        # Wait until both authors have been synced to the private index
+        both_present = False
         elapsed_time = 0
-        authors = None
-        while elapsed_time < max_wait_time:
+        while elapsed_time < max_wait_time and not both_present:
             time.sleep(poll_interval)
             elapsed_time += poll_interval
             authors = fetch_authors()
-            if authors is not None and len(authors) == 2:
-                break
-        assert authors is not None and len(authors) == 2, (
-            f"Reference {test_curie} not indexed with 2 authors after "
-            f"{max_wait_time}s (got {authors})")
+            if authors is not None and {kept_orcid, deleted_orcid}.issubset(orcids(authors)):
+                both_present = True
 
-        # Phase 2: delete one author row in Postgres
-        db.query(AuthorModel).filter(AuthorModel.orcid == deleted_orcid).delete()
+        assert both_present, (
+            f"Both authors of {test_curie} should be present in the private index "
+            f"after {max_wait_time}s before testing deletion"
+        )
+
+        # Delete one author -> Debezium should emit a tombstone for that author row
+        db.delete(author_to_delete)
         db.commit()
 
-        # Phase 3: the deletion must reach the index document
+        # Wait for the deleted author to disappear from the reference document
+        deleted_gone = False
+        current_authors = None
         elapsed_time = 0
-        while elapsed_time < max_wait_time:
+        while elapsed_time < max_wait_time and not deleted_gone:
             time.sleep(poll_interval)
             elapsed_time += poll_interval
-            authors = fetch_authors()
-            if authors and len(authors) == 1:
-                break
-        assert authors and len(authors) == 1, (
-            f"Deleted author still present in {test_curie} after "
-            f"{max_wait_time}s (got {authors})")
-        remaining_orcids = [author.get('orcid') for author in authors]
-        assert deleted_orcid not in remaining_orcids, (
-            f"Deleted author orcid {deleted_orcid} still in index: {remaining_orcids}")
+            current_authors = fetch_authors()
+            if current_authors is not None and deleted_orcid not in orcids(current_authors):
+                deleted_gone = True
+
+        assert deleted_gone, (
+            f"Deleted author {deleted_orcid} still present in {test_curie} document "
+            f"after {max_wait_time}s -- row deletion was not propagated to the index"
+        )
+        assert kept_orcid in orcids(current_authors), (
+            f"Author {kept_orcid} should remain in {test_curie} document after "
+            f"deleting the other author"
+        )
+
+    @pytest.mark.debezium
+    @pytest.mark.webtest
+    def test_real_time_reference_delete_sync(self, db, mock_data_factory, elasticsearch_config):  # noqa
+        """Deleting an entire reference must remove its document from both indexes.
+
+        Creates a reference (with an author, a cross-reference and a MOD corpus
+        association), waits for it to appear in the private and public indexes, then
+        deletes the reference and asserts the document is removed from both indexes.
+
+        If the deletion is not propagated, the stale document lingers and this test
+        fails. See SCRUM-6337.
+        """
+        import time
+
+        test_curie = "AGRKB:101000997"
+
+        resource = mock_data_factory.create_resource(db, 997)
+        citation = mock_data_factory.create_citation(db, 997)
+        reference = mock_data_factory.create_reference(db, 997, citation, resource)
+        mock_data_factory.create_author(db, reference, 997)
+        mock_data_factory.create_cross_reference(db, reference, 997, False)
+
+        # Reuse the WB MOD created by populate_test_db.py (abbreviation is unique)
+        mod = db.query(ModModel).filter(ModModel.abbreviation == "WB").first()
+        if mod is None:
+            mod = mock_data_factory.create_mod(db, 0)
+        mock_data_factory.create_mod_corpus_association(db, reference, mod, True)
+        db.commit()
+
+        es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
+        private_index = elasticsearch_config['private_index']
+        public_index = elasticsearch_config['public_index']
+
+        def count_in(index):
+            """Return the number of docs matching the curie, or None on a failed request."""
+            resp = requests.post(
+                f"{es_url}/{index}/_search",
+                json={"query": {"term": {"curie.keyword": test_curie}}, "size": 1}
+            )
+            if resp.status_code != 200:
+                return None
+            return resp.json()['hits']['total']['value']
+
+        max_wait_time = 30  # seconds
+        poll_interval = 2
+
+        # Wait until the reference is indexed in both the private and public indexes
+        present = False
+        elapsed_time = 0
+        while elapsed_time < max_wait_time and not present:
+            time.sleep(poll_interval)
+            elapsed_time += poll_interval
+            if count_in(private_index) and count_in(public_index):
+                present = True
+
+        assert present, (
+            f"{test_curie} should be indexed in both the private and public indexes "
+            f"after {max_wait_time}s before testing deletion"
+        )
+
+        # Delete the reference (ondelete=CASCADE removes author/xref/mod_corpus rows).
+        # Re-fetch to operate on a managed instance, mirroring reference_crud.destroy.
+        ref = db.query(ReferenceModel).filter(ReferenceModel.curie == test_curie).one()
+        db.delete(ref)
+        db.commit()
+
+        # Wait for the reference document to be removed from both indexes
+        private_gone = False
+        public_gone = False
+        elapsed_time = 0
+        while elapsed_time < max_wait_time and not (private_gone and public_gone):
+            time.sleep(poll_interval)
+            elapsed_time += poll_interval
+            if not private_gone and count_in(private_index) == 0:
+                private_gone = True
+            if not public_gone and count_in(public_index) == 0:
+                public_gone = True
+
+        assert private_gone, (
+            f"{test_curie} still present in the private index after {max_wait_time}s "
+            f"-- reference deletion was not propagated to the index"
+        )
+        assert public_gone, (
+            f"{test_curie} still present in the public index after {max_wait_time}s "
+            f"-- reference deletion was not propagated to the index"
+        )
 
     @pytest.mark.debezium
     @pytest.mark.webtest
