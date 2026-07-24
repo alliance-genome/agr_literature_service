@@ -51,6 +51,8 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     static final String WRITE_BUFFER_SIZE_BYTES = "rocksdb.write.buffer.size.bytes";
     static final String MAX_WRITE_BUFFER_NUMBER = "rocksdb.max.write.buffer.number";
     static final String MEMORY_REPORT_ENABLED = "rocksdb.memory.report.enabled";
+    static final String MAX_OPEN_FILES = "rocksdb.max.open.files";
+    static final String STATS_DUMP_ENABLED = "rocksdb.stats.dump.enabled";
 
     // 594 MiB/s == the m5.4xlarge instance EBS-bandwidth ceiling (NOT the gp3 volume cap, which is
     // also 594; the instance baseline is the real wall). Override per-environment for other instances.
@@ -86,6 +88,12 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
     // serialized to the store's OPTIONS file, so the applied value is verifiable on the box.
     private static final long DEFAULT_WRITE_BUFFER_SIZE_BYTES = 8L * 1024 * 1024;
     private static final int DEFAULT_MAX_WRITE_BUFFER_NUMBER = 2;
+
+    // Cap RocksDB's per-store table cache (open SST table readers). Default -1 (unlimited) is what
+    // let table-reader memory grow without bound across ~115 stores during the reindex. 128 open
+    // files/store x 115 ~= 14.7k FDs (well under typical nofile limits) while keeping enough files
+    // hot to avoid heavy reopen churn. Env-tunable; -1 restores the unbounded default.
+    private static final int DEFAULT_MAX_OPEN_FILES = 128;
     // Share of the cache reserved as high-priority space for index/filter blocks, so bulk data
     // scans cannot evict them (matches ksqlDB's bounded-memory reference implementation).
     private static final double INDEX_FILTER_BLOCK_RATIO = 0.1;
@@ -134,6 +142,20 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
                     (int) getLong(configs, MAX_WRITE_BUFFER_NUMBER, DEFAULT_MAX_WRITE_BUFFER_NUMBER);
             options.setWriteBufferSize(writeBufferSize);
             options.setMaxWriteBufferNumber(maxWriteBufferNumber);
+            // ROOT CAUSE (SCRUM-6318): max_open_files=-1 (RocksDB/Kafka Streams default) keeps
+            // EVERY SST file's table reader resident in a per-store, unbounded table cache. Across
+            // ~115 stores that memory grows without bound with SST count during the reindex -- it is
+            // the ~3+ GiB of anon that climbs past the (bounded) heap + block cache + memtable
+            // ceiling. Bounding max_open_files caps the table cache: readers are evicted past the
+            // limit and reopened on demand. Env-tunable; -1 restores the unbounded default.
+            final int maxOpenFiles = (int) getLong(configs, MAX_OPEN_FILES, DEFAULT_MAX_OPEN_FILES);
+            options.setMaxOpenFiles(maxOpenFiles);
+            // Diagnostic: emit RocksDB's own periodic stats (incl. table-readers / memtable / cache
+            // memory) to each store's LOG so the fix can be confirmed against ground truth.
+            if (getBoolean(configs, STATS_DUMP_ENABLED, true)) {
+                options.setStatsDumpPeriodSec(60);
+                options.setInfoLogLevel(org.rocksdb.InfoLogLevel.INFO_LEVEL);
+            }
             final Object tf = options.tableFormatConfig();
             if (tf instanceof BlockBasedTableConfig) {
                 final BlockBasedTableConfig tableConfig = (BlockBasedTableConfig) tf;

@@ -572,6 +572,12 @@ services:
       # Both are serialized to each store's OPTIONS file, so the applied value is verifiable.
       - KSQL_KSQL_STREAMS_ROCKSDB_WRITE_BUFFER_SIZE_BYTES=${DBZ_ROCKSDB_WRITE_BUFFER_SIZE_BYTES:-8388608}
       - KSQL_KSQL_STREAMS_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=${DBZ_ROCKSDB_MAX_WRITE_BUFFER_NUMBER:-2}
+      # ROOT-CAUSE FIX (SCRUM-6318): cap the per-store table cache. max_open_files=-1 (default) kept
+      # every SST file's table reader resident, growing unbounded across ~115 stores during reindex
+      # -- the memory that climbed past heap + block cache + memtable ceiling. -1 = unbounded default.
+      - KSQL_KSQL_STREAMS_ROCKSDB_MAX_OPEN_FILES=${DBZ_ROCKSDB_MAX_OPEN_FILES:-128}
+      # Diagnostic: RocksDB periodic stats (table-readers/memtable/cache mem) to each store's LOG.
+      - KSQL_KSQL_STREAMS_ROCKSDB_STATS_DUMP_ENABLED=${DBZ_ROCKSDB_STATS_DUMP_ENABLED:-true}
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
     networks:
       - agr-literature
