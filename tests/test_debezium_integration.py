@@ -276,7 +276,10 @@ class TestDebeziumIntegration:
         es_url = f"http://{elasticsearch_config['host']}:{elasticsearch_config['port']}"
         test_curie = "AGRKB:101000999"
 
-        max_wait_time = 30  # Maximum wait time in seconds
+        # The private chain crosses many ksql sub-topologies, each paced by the 3s
+        # commit interval (see dbz_ksql_server in docker-compose.yaml): typical sync
+        # is ~15s but slow CI runners have exceeded 30s, so allow a wide margin.
+        max_wait_time = 90  # Maximum wait time in seconds
         poll_interval = 2   # Poll every 2 seconds
         elapsed_time = 0
 
@@ -415,7 +418,10 @@ class TestDebeziumIntegration:
                 return None
             return hits[0]['_source'].get('authors') or []
 
-        max_wait_time = 60
+        # Deletes traverse the same commit-interval-paced chain as inserts (author
+        # table -> authors aggregate -> reference_joined -> sink); slow CI runners
+        # have pushed single-hop sync past 30s, so give each phase a wide margin.
+        max_wait_time = 120
         poll_interval = 2
 
         # Phase 1: wait until the new reference is indexed with both authors

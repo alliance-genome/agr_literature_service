@@ -136,6 +136,18 @@ jobs:
           echo "=== KsqlDB Status ==="
           curl -s http://localhost:8088/info || echo "KsqlDB not responding"
           
+          echo "=== author topic dump (tombstones print as 'key<TAB>null') ==="
+          docker compose --env-file .env.test exec -T dbz_kafka bash -c \
+            "/kafka/bin/kafka-console-consumer.sh --bootstrap-server dbz_kafka:9092 \
+             --topic abc.public.author --from-beginning --timeout-ms 10000 \
+             --property print.key=true" || echo "author topic dump failed"
+
+          echo "=== delete-test doc post-hoc (authors should be 1 if delete propagated late) ==="
+          curl -s "http://localhost:9200/test_references_index/_search" \
+            -H 'Content-Type: application/json' \
+            -d '{"query":{"term":{"curie.keyword":"AGRKB:101000998"}},"_source":["curie","authors"]}' \
+            || echo "post-hoc doc fetch failed"
+
           echo "=== Container Logs ==="
           docker compose --env-file .env.test logs --tail=50 dbz_connector
           docker compose --env-file .env.test logs --tail=50 dbz_ksql_server
