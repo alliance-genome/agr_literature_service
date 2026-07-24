@@ -11,7 +11,13 @@ and the other CI jobs are unaffected.
 import os
 
 
-def _configure_xdist_worker_db() -> None:
+def _create_worker_db() -> None:
+    """Provision a per-worker database and point the engines at it.
+
+    Done at import time, before ``agr_literature_service.api.config`` is read,
+    so both the app engine and the test fixtures connect to the worker's own
+    database. Schema creation happens later (see ``pytest_collection_finish``).
+    """
     worker = os.environ.get("PYTEST_XDIST_WORKER")
     if not worker:
         return
@@ -38,17 +44,25 @@ def _configure_xdist_worker_db() -> None:
     finally:
         conn.close()
 
-    # Point every engine (app + test fixtures) at this worker's database.
     os.environ["PSQL_DATABASE"] = worker_db
 
-    # Build this worker's schema now, before any test runs. Schema creation is
-    # otherwise triggered lazily by the `db` fixture, so a TestClient-only test
-    # that happens to run first on a fresh worker database would hit a
-    # schema-less DB ("relation \"users\" does not exist"). Priming the shared
-    # fixtures engine here also caches it, so the fixture does not re-initialize.
+
+def pytest_collection_finish(session):
+    """Build the worker's schema once collection is complete.
+
+    Schema creation is otherwise triggered lazily by the ``db`` fixture, so a
+    TestClient-only test that runs first on a fresh worker database would hit a
+    schema-less DB. It must run *after* collection, though: test-only tables
+    (e.g. ``audited_dummy`` in test_audited_model.py) are only registered on
+    ``Base.metadata`` once their modules are imported during collection.
+    Priming the shared fixtures engine here also caches it so the ``db``
+    fixture does not re-initialize.
+    """
+    if not os.environ.get("PYTEST_XDIST_WORKER"):
+        return
     from tests import fixtures
 
     fixtures._get_engine()
 
 
-_configure_xdist_worker_db()
+_create_worker_db()
