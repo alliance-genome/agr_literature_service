@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   postgres:
-    image: postgres:13.1-alpine
+    image: postgres:17-alpine
     hostname: postgres
     restart: always
     environment:
@@ -402,6 +402,8 @@ services:
     build:
       context: .
       dockerfile: docker/debezium_connector.dockerfile
+      args:
+        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
     ports:
       - 8083:8083
     environment:

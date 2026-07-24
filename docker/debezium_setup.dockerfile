@@ -1,6 +1,6 @@
-FROM alpine:3.14
+FROM alpine:3.21
 
-RUN apk add --no-cache bash curl gettext postgresql-client jq
+RUN apk add --no-cache bash curl gettext postgresql17-client jq
 
 COPY debezium/setup.sh /setup.sh
 COPY debezium/status_manager.sh /status_manager.sh
