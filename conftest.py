@@ -22,6 +22,14 @@ def _create_worker_db() -> None:
     if not worker:
         return
 
+    # Never run the destructive per-worker DROP/CREATE DATABASE against a real
+    # (stage/prod) host. Mirrors the guard in the `db` fixture, which this path
+    # bypasses because it runs at import time before any fixture.
+    if "rds.amazonaws.com" in os.environ.get("PSQL_HOST", ""):
+        import pytest
+
+        pytest.exit("Refusing to create per-worker test databases on an RDS host")
+
     base_db = os.environ.get("PSQL_DATABASE")
     if not base_db or base_db.endswith(f"_{worker}"):
         return
