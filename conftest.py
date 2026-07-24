@@ -41,5 +41,14 @@ def _configure_xdist_worker_db() -> None:
     # Point every engine (app + test fixtures) at this worker's database.
     os.environ["PSQL_DATABASE"] = worker_db
 
+    # Build this worker's schema now, before any test runs. Schema creation is
+    # otherwise triggered lazily by the `db` fixture, so a TestClient-only test
+    # that happens to run first on a fresh worker database would hit a
+    # schema-less DB ("relation \"users\" does not exist"). Priming the shared
+    # fixtures engine here also caches it, so the fixture does not re-initialize.
+    from tests import fixtures
+
+    fixtures._get_engine()
+
 
 _configure_xdist_worker_db()
