@@ -579,6 +579,12 @@ services:
       # Diagnostic: RocksDB periodic stats (table-readers/memtable/cache mem) to each store's LOG.
       - KSQL_KSQL_STREAMS_ROCKSDB_STATS_DUMP_ENABLED=${DBZ_ROCKSDB_STATS_DUMP_ENABLED:-true}
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
+      # SCRUM-6318: bound glibc malloc arenas. Default is 8 x cores (= 64 here); with ~600 ksqlDB
+      # threads churning RocksDB memtable allocations during a reindex, per-arena retention of freed
+      # chunks left ~7 GiB of memory the OS never got back (anon stayed ~20.7 GiB AFTER the reindex,
+      # vs ~13 GiB live). 2 arenas slashes that retention. Env-tunable; if insufficient, switch to
+      # jemalloc (LD_PRELOAD), the allocator RocksDB officially recommends.
+      - MALLOC_ARENA_MAX=${DBZ_MALLOC_ARENA_MAX:-2}
     networks:
       - agr-literature
 
