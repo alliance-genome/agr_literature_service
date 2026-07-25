@@ -150,9 +150,10 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
             // limit and reopened on demand. Env-tunable; -1 restores the unbounded default.
             final int maxOpenFiles = (int) getLong(configs, MAX_OPEN_FILES, DEFAULT_MAX_OPEN_FILES);
             options.setMaxOpenFiles(maxOpenFiles);
-            // Diagnostic: emit RocksDB's own periodic stats (incl. table-readers / memtable / cache
-            // memory) to each store's LOG so the fix can be confirmed against ground truth.
-            if (getBoolean(configs, STATS_DUMP_ENABLED, true)) {
+            // Diagnostic (OPT-IN, default off): emit RocksDB's own periodic stats (table-readers /
+            // memtable / cache memory) to each store's LOG. Verbose across ~115 stores, so keep it
+            // off in normal operation; enable via rocksdb.stats.dump.enabled to investigate memory.
+            if (getBoolean(configs, STATS_DUMP_ENABLED, false)) {
                 options.setStatsDumpPeriodSec(60);
                 options.setInfoLogLevel(org.rocksdb.InfoLogLevel.INFO_LEVEL);
             }
@@ -209,7 +210,10 @@ public class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
                     + "), writeBufferBudget=" + writeBufferBytes + " B, per-store memtable floor="
                     + getLong(configs, WRITE_BUFFER_SIZE_BYTES, DEFAULT_WRITE_BUFFER_SIZE_BYTES) + " B x "
                     + (int) getLong(configs, MAX_WRITE_BUFFER_NUMBER, DEFAULT_MAX_WRITE_BUFFER_NUMBER));
-            if (getBoolean(configs, MEMORY_REPORT_ENABLED, true)) {
+            // Diagnostic (OPT-IN, default off): one INFO line every 30s with the off-heap bucket
+            // breakdown (shared cache / heap / non-heap / direct). Enable via
+            // rocksdb.memory.report.enabled to investigate memory; off in normal operation.
+            if (getBoolean(configs, MEMORY_REPORT_ENABLED, false)) {
                 startMemoryReporter();
             }
         }

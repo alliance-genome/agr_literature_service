@@ -578,8 +578,11 @@ services:
       # every SST file's table reader resident, growing unbounded across ~115 stores during reindex
       # -- the memory that climbed past heap + block cache + memtable ceiling. -1 = unbounded default.
       - KSQL_KSQL_STREAMS_ROCKSDB_MAX_OPEN_FILES=${DBZ_ROCKSDB_MAX_OPEN_FILES:-128}
-      # Diagnostic: RocksDB periodic stats (table-readers/memtable/cache mem) to each store's LOG.
-      - KSQL_KSQL_STREAMS_ROCKSDB_STATS_DUMP_ENABLED=${DBZ_ROCKSDB_STATS_DUMP_ENABLED:-true}
+      # Diagnostic (opt-in, default off): RocksDB periodic stats to each store's LOG -- verbose across
+      # ~115 stores. Set DBZ_ROCKSDB_STATS_DUMP_ENABLED=true only to investigate memory.
+      - KSQL_KSQL_STREAMS_ROCKSDB_STATS_DUMP_ENABLED=${DBZ_ROCKSDB_STATS_DUMP_ENABLED:-false}
+      # Diagnostic (opt-in, default off): one INFO line/30s with the off-heap bucket breakdown.
+      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_REPORT_ENABLED=${DBZ_ROCKSDB_MEMORY_REPORT_ENABLED:-false}
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
       # SCRUM-6318: bound glibc malloc arenas. Default is 8 x cores (= 64 here); with ~600 ksqlDB
       # threads churning RocksDB memtable allocations during a reindex, per-arena retention of freed
