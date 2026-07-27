@@ -210,3 +210,6 @@ from .reference_email_schemas import (
     ReferenceEmailSchemaShow,
     ReferenceEmailSchemaRelated,
 )
+
+from agr_literature_service.api.schemas.vocabulary_abc_schemas import (  # noqa
+    VocabularyAbcSchemaPost, VocabularyAbcSchemaUpdate, VocabularyAbcSchemaShow)
