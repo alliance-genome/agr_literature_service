@@ -367,33 +367,40 @@ services:
       - agr-logs:/logs
       - .:/usr/local/bin/src/literature
 
-  dbz_zookeeper:
-    container_name: agr.literature.${ENV_STATE}.dbz.zookeeper.${COMPOSE_PROJECT_NAME}
-    logging:
-      driver: gelf
-      options:
-        gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: quay.io/debezium/zookeeper:${DEBEZIUM_VERSION}
-    ports:
-      - 2181:2181
-      - 2888:2888
-      - 3888:3888
-    networks:
-      - agr-literature
-
+  # SCRUM-6336: Kafka 4.1 in KRaft mode (single combined broker+controller). Replaces the old
+  # ZooKeeper + Kafka 2.7 pair -- ZooKeeper is gone entirely (Kafka 4.x is KRaft-only). The broker
+  # is intentionally plain apache/kafka (not the Debezium image) so it is decoupled from the
+  # Debezium connector version. CLUSTER_ID is validated/reformatted at deploy (P2).
   dbz_kafka:
     container_name: agr.literature.${ENV_STATE}.dbz.kafka.${COMPOSE_PROJECT_NAME}
     logging:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: quay.io/debezium/kafka:${DEBEZIUM_VERSION}
+    image: apache/kafka:4.1.1
     ports:
       - 9092:9092
     environment:
-      - ZOOKEEPER_CONNECT=dbz_zookeeper:2181
-      - KAFKA_MESSAGE_MAX_BYTES=200000000
-      - KAFKA_SOCKET_REQUEST_MAX_BYTES=200000000
+      # --- KRaft combined broker + controller ---
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@dbz_kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://dbz_kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      # single-node: everything replication-factor 1
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # large messages (carried over from the 2.7 stack -- big joined docs / batches)
+      KAFKA_MESSAGE_MAX_BYTES: 200000000
+      KAFKA_SOCKET_REQUEST_MAX_BYTES: 200000000
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 200000000
+      # stable cluster id (valid base64 16-byte UUID) so storage isn't reformatted on restart
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
     networks:
       - agr-literature
 
@@ -403,11 +410,9 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    build:
-      context: .
-      dockerfile: docker/debezium_connector.dockerfile
-      args:
-        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
+    # SCRUM-6336: plain Debezium 3.5 Connect image -- SOURCE ONLY (no ES sink jar any more; Flink is
+    # the sink). Kafka scripts (kafka-topics.sh) still ship in this image for the make targets.
+    image: quay.io/debezium/connect:${DEBEZIUM_VERSION}
     ports:
       - 8083:8083
     environment:
@@ -415,6 +420,7 @@ services:
       - GROUP_ID=1
       - CONFIG_STORAGE_TOPIC=my_source_connect_configs
       - OFFSET_STORAGE_TOPIC=my_source_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_source_connect_statuses
       - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
       - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
     networks:
@@ -455,164 +461,70 @@ services:
     command:
       /setup.sh
 
-  dbz_ksql_server:
-    container_name: agr.literature.${ENV_STATE}.dbz.ksql.${COMPOSE_PROJECT_NAME}
+  # SCRUM-6336: Flink 2.0.x replaces ksqlDB as the streaming-join engine (JobManager + TaskManager).
+  # The SQL job (debezium/flink/*.sql) reads the Debezium 3.5 CDC topics, computes the reference /
+  # public joins as clean multi-way joins, and writes directly to Elasticsearch 7.10 via the
+  # flink-sql ES-7 upsert sink. Connector jars (flink-sql-connector-kafka 4.0.1,
+  # flink-sql-connector-elasticsearch7 v4.0.0) are baked in by docker/flink.dockerfile.
+  # Memory is hard-bounded via ONE managed-memory budget (the real fix for the ksqlDB OOM).
+  flink_jobmanager:
+    container_name: agr.literature.${ENV_STATE}.flink.jobmanager.${COMPOSE_PROJECT_NAME}
+    # hostname must match jobmanager.rpc.address so pekko recognizes its own advertised address
+    hostname: flink_jobmanager
     logging:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    # Custom image: stock ksqlDB 0.26.0 + the RocksDB config-setter jar baked onto the classpath
-    # (SCRUM-6231). `make build` builds it; FROM still pins the upstream 0.26.0 as the base.
     build:
       context: .
-      dockerfile: docker/ksqldb.dockerfile
-    image: agr.literature.ksqldb-server:0.26.0
+      dockerfile: docker/flink.dockerfile
+    image: agr.literature.flink:2.0.2
     depends_on:
       - dbz_kafka
-      - dbz_connector
     ports:
-      - "8088:8088"
-    hostname: dbz_ksql_server
+      # host 18081 -> Flink web UI/REST 8081 (8081 is already used on the debezium test box)
+      - "18081:8081"
+    command: jobmanager
     environment:
-      - KSQL_BOOTSTRAP_SERVERS=dbz_kafka:9092
-      - KSQL_HOST_NAME=dbz_ksql_server
-      - KSQL_APPLICATION_ID="cp-all-in-one"
-      - KSQL_LISTENERS=http://0.0.0.0:8088
-      # --- SCRUM-6231: reindex was disk-write-bound (ksqlDB RocksDB ~405 MB/s saturating EBS) ---
-      # cache.max.bytes.buffering=0 forced ksqlDB to flush every record straight to RocksDB.
-      # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
-      # NOTE: this cache is PER persistent query (~32 CTAS in ksql_queries.ksql), so total
-      # on-heap cache ~= 32 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
-      #   150 MB/query x ~32 ~= 4.8 GB of the 16 GB ksqlDB heap (bumped below).
-      # Raised 100->150 MB to coalesce/dedupe more state-store updates in memory during the
-      # ramp-up rebuild before they reach RocksDB (fewer SST writes). Steady-state latency is
-      # unaffected: the 3s commit interval still bounds flush staleness. Can push toward 200 MB
-      # (and heap to 24 GB) IF `free -g` shows headroom alongside Kafka/ES/connector on the box.
-      # Env-overridable (default = dev m5.4xlarge sizing). Scale DOWN with the heap on smaller boxes:
-      # the cache is PER persistent query (~32), so total on-heap cache ~= 32 x this value. Prod
-      # m5.2xlarge (8g heap) uses DBZ_KSQL_CACHE_MAX_BYTES=78643200 (75 MiB -> ~2.4 GB across queries).
-      - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=${DBZ_KSQL_CACHE_MAX_BYTES:-157286400}
-      # Commit/flush interval, balancing two MEASURED constraints from the dev reindex:
-      #   - 10s added too much per-hop latency -> real-time CDC sync took >30s to reach ES and
-      #     broke the debezium integration test.
-      #   - 1s under-coalesces -> ~4600 write IOPS (vs ~2000 at 10s), riding the gp3 4500 cap
-      #     (latency stayed healthy ~2.5ms, but no IOPS headroom left).
-      # 3s coalesces more to restore IOPS headroom while keeping real-time sync ~15s (< 30s test).
-      # Bulk throughput/latency are unaffected: the record cache (size pressure) drives batching.
-      # 5s was tried (2026-06-24) but REVERTED: it pushed the deeper public_reference_joined path
-      # over the 30s assertion -- test_real_time_data_sync failed (new ref reached the private index
-      # but not the public index within 30s) and test_document_counts_match diverged (private=14,
-      # public=13). The 5s disk benefit was unmeasured anyway (1s and 3s are disk-equivalent; only
-      # 10s cut load, and that also breaks the test). 3s is the validated sweet spot.
-      - KSQL_KSQL_STREAMS_COMMIT_INTERVAL_MS=3000
-      # Bump ksqlDB heap from the 3g default to hold the (now larger) record caches + processing.
-      # 16g is a conservative step from 12g: it fits ~4.8 GB of caches with ample processing
-      # headroom while leaving RAM on the shared 64 GB box for Kafka/Zookeeper/connector/ES.
-      # Env-overridable. Default 16g = dev m5.4xlarge (64 GB) sizing. On the 32 GB prod m5.2xlarge
-      # (Debezium stack co-located with the API) set DBZ_KSQL_HEAP_SIZE=8g so ksqlDB heap + RocksDB
-      # off-heap + Kafka/Connect + the API all fit. Xmx and Xms are pinned equal.
-      - KSQL_HEAP_OPTS=-Xmx${DBZ_KSQL_HEAP_SIZE:-16g} -Xms${DBZ_KSQL_HEAP_SIZE:-16g}
-      # --- SCRUM-6231 follow-up: trim reindex disk writes ---
-      # (#6) Standby replicas duplicate every state-store write to a second RocksDB; keep at 0 so
-      # the reindex writes each store once. (0 is the ksqlDB default; pinned here to be explicit.)
-      - KSQL_KSQL_STREAMS_NUM_STANDBY_REPLICAS=0
-      # NOTE: KSQL_KSQL_STREAMS_NUM_STREAM_THREADS=2 was A/B-tested on the dev box (2026-06-25) and
-      # REVERTED -- it did NOT shave the disk peak and MORE THAN TRIPLED the run (still pinned at 8.8h,
-      # vs ~2.4h baseline). Compaction write-amplification is driven by data volume + LSM structure,
-      # NOT by thread count, so fewer threads only stretched the timeline while compaction kept the
-      # disk pinned (report: reindex-report-threads2-2026-06-25.md). Lesson: env-only throttling is
-      # EXHAUSTED -- no KSQL_* knob reduces RocksDB's on-disk write VOLUME. The volume-cutting levers
-      # (RocksDB SST compression + universal compaction + a shared background-I/O rate limiter) live in
-      # the rocksdb.config.setter JAR baked into docker/ksqldb.dockerfile and are wired via
-      # KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER + KSQL_ROCKSDB_* below.
-      # (#5) Compress the bytes ksqlDB producers write to the changelog/repartition topics (Kafka
-      # broker disk, same EBS). zstd for best ratio; CPU is spare during the I/O-bound reindex.
-      - KSQL_KSQL_STREAMS_PRODUCER_COMPRESSION_TYPE=zstd
-      # (#2) Let Kafka Streams reuse source topics as changelogs (skip duplicate changelog topics)
-      # and merge repartition topics -> fewer internal-topic writes during the rebuild AND
-      # permanently fewer changelog topics on the broker.
-      # SAFE under our workflow: restart-debezium-* wipes Kafka + the connector and re-snapshots,
-      # so ksqlDB always rebuilds its source tables from a complete, fresh source topic (no stale-
-      # retention gap) and the topology change only ever takes effect at that clean rebuild.
-      # Residual edge case: a ksqlDB-only restart that loses local RocksDB state WITHOUT a Kafka
-      # re-snapshot would restore source KTables from the (possibly aged) source topic -> in that
-      # case rebuild rather than bare-restart. Revert with =none if needed.
-      - KSQL_KSQL_STREAMS_TOPOLOGY_OPTIMIZATION=all
-      # --- RocksDB config-setter (baked into docker/ksqldb.dockerfile) -- the disk-write-VOLUME
-      # levers env knobs can't reach. The class reads its tuning from the KSQL_KSQL_STREAMS_ROCKSDB_*
-      # keys below (Kafka Streams passes them through to the setter); all have safe in-code defaults,
-      # so the commented overrides can be flipped WITHOUT rebuilding the image.
-      #   - compression: LZ4 upper levels + ZSTD bottommost -> fewer bytes per compaction.
-      #   - universal compaction: trades transient disk space (abundant) for lower write-amp.
-      #   - rate limiter: ONE shared, auto-tuned, writes-only cap = disk.max * fraction (~475 MB/s),
-      #     leaving headroom for other ops. Toggle off if it lengthens the reindex (compression is
-      #     the real volume win; the limiter is a usability guardrail).
-      # Kafka Streams key is `rocksdb.config.setter` (NOT `...class`) -> env must omit _CLASS, else
-      # Streams logs "isn't a known config" and the setter never registers (rocksdb.config.setter=null).
-      - KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER=org.alliancegenome.ksql.KsqlRocksDBConfigSetter
-      # Made EXPLICIT (these match the config-setter's in-code defaults: compression/universal/ratelimit
-      # all default true, KsqlRocksDBConfigSetter.java:55-57). Toggle off only to diagnose.
-      - KSQL_KSQL_STREAMS_ROCKSDB_COMPRESSION_ENABLED=true
-      - KSQL_KSQL_STREAMS_ROCKSDB_COMPACTION_UNIVERSAL=true
-      - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_ENABLED=true
-      # disk.max = the box's SUSTAINED EBS bandwidth, NOT the burst. Default 622854144 (594 MiB/s) =
-      # dev m5.4xlarge sustained. Effective RocksDB write cap = disk.max x fraction. Override per box:
-      # prod m5.2xlarge sustained baseline = 287.5 MB/s -> DBZ_ROCKSDB_DISK_MAX_BYTES_PER_SEC=287500000
-      # (burst 593.75 MB/s lasts only ~30 min/24h, so a multi-hour reindex must size to baseline).
-      - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_DISK_MAX_BYTES_PER_SEC=${DBZ_ROCKSDB_DISK_MAX_BYTES_PER_SEC:-622854144}
-      - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_FRACTION=0.8
-      # SCRUM-6318: hard cap on RocksDB OFF-HEAP memory (block caches + memtables) across all
-      # ~32 queries' stores -- unbounded it grew several GB past the heap during full reindexes
-      # and OOM-killed processes on swapless boxes. 0 = auto-size: (RAM visible to the container,
-      # cgroup-aware) x fraction, floor 512 MiB. Set DBZ_ROCKSDB_TOTAL_OFFHEAP_BYTES to pin an
-      # explicit cap instead; fraction default 0.15 (~4.8 GB on a 32 GB box).
-      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_BOUNDED=true
-      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_TOTAL_OFFHEAP_BYTES=${DBZ_ROCKSDB_TOTAL_OFFHEAP_BYTES:-0}
-      # 0.06 (was 0.10, was 0.15): shared block-cache share of container RAM. Local A/B showed the
-      # block cache is the one lever that lowers the reindex PEAK ~1:1 with its size (memtable cuts
-      # are self-defeating -- more compaction). 0.06 ~= 1.85 GiB cache on a 31 GiB box, shaving
-      # ~1.2 GiB off the ~21.7 GiB peak for a modest read-side cost. Env-tunable per box.
-      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_OFFHEAP_FRACTION=${DBZ_ROCKSDB_OFFHEAP_FRACTION:-0.06}
-      # Per-store memtable floor (SCRUM-6318 lever 1): 8 MiB x 2 = 16 MiB/store vs Kafka Streams'
-      # 16 MiB x 3 = 48 MiB default. Aggregate memtable across ~115 stores: ~5.5 GiB -> ~1.8 GiB.
-      # Both are serialized to each store's OPTIONS file, so the applied value is verifiable.
-      - KSQL_KSQL_STREAMS_ROCKSDB_WRITE_BUFFER_SIZE_BYTES=${DBZ_ROCKSDB_WRITE_BUFFER_SIZE_BYTES:-8388608}
-      - KSQL_KSQL_STREAMS_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=${DBZ_ROCKSDB_MAX_WRITE_BUFFER_NUMBER:-2}
-      # ROOT-CAUSE FIX (SCRUM-6318): cap the per-store table cache. max_open_files=-1 (default) kept
-      # every SST file's table reader resident, growing unbounded across ~115 stores during reindex
-      # -- the memory that climbed past heap + block cache + memtable ceiling. -1 = unbounded default.
-      - KSQL_KSQL_STREAMS_ROCKSDB_MAX_OPEN_FILES=${DBZ_ROCKSDB_MAX_OPEN_FILES:-128}
-      # Diagnostic (opt-in, default off): RocksDB periodic stats to each store's LOG -- verbose across
-      # ~115 stores. Set DBZ_ROCKSDB_STATS_DUMP_ENABLED=true only to investigate memory.
-      - KSQL_KSQL_STREAMS_ROCKSDB_STATS_DUMP_ENABLED=${DBZ_ROCKSDB_STATS_DUMP_ENABLED:-false}
-      # Diagnostic (opt-in, default off): one INFO line/30s with the off-heap bucket breakdown.
-      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_REPORT_ENABLED=${DBZ_ROCKSDB_MEMORY_REPORT_ENABLED:-false}
-      - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
-      # SCRUM-6318: bound glibc malloc arenas. Default is 8 x cores (= 64 here); with ~600 ksqlDB
-      # threads churning RocksDB memtable allocations during a reindex, per-arena retention of freed
-      # chunks left ~7 GiB of memory the OS never got back (anon stayed ~20.7 GiB AFTER the reindex,
-      # vs ~13 GiB live). 2 arenas slashes that retention. Env-tunable; if insufficient, switch to
-      # jemalloc (LD_PRELOAD), the allocator RocksDB officially recommends.
-      - MALLOC_ARENA_MAX=${DBZ_MALLOC_ARENA_MAX:-2}
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: localhost
+        env.java.opts.all: -Djava.net.preferIPv4Stack=true
+        rest.bind-address: 0.0.0.0
+        parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
+        state.backend.type: rocksdb
+        execution.checkpointing.interval: 60s
+        jobmanager.memory.process.size: 1600m
     networks:
       - agr-literature
 
-  # KSQLDB client for manual queries during development
-  #
-  # To start it:
-  # - start the docker-compose service: $ docker-compose up -d dbz_ksql_cli
-  # - run bash on the container: $ docker exec -it agr-literature-main-dbz_ksql_cli-1 bash
-  # - determine the server IP address (for some reason this version of ksqldb cli does not work with host names): $ ping dbz_ksql_server
-  # - start the ksql client connecting to the server: $ ksql http://<ksqldb_server_ip>:8088
-  dbz_ksql_cli:
-    image: confluentinc/ksqldb-cli:0.26.0
+  flink_taskmanager:
+    container_name: agr.literature.${ENV_STATE}.flink.taskmanager.${COMPOSE_PROJECT_NAME}
+    # Share the JobManager's network namespace -> JM<->TM RPC is pure localhost, avoiding the
+    # cross-container pekko self-association failure on this box's Docker network. Single-node
+    # Flink (1 JM + 1 TM per box) is our deployment shape everywhere, so this is fine.
+    network_mode: "service:flink_jobmanager"
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
+    image: agr.literature.flink:2.0.2
     depends_on:
-      - dbz_ksql_server
-    networks:
-      - agr-literature
-    entrypoint:
-      - /bin/bash
-    tty: true
+      - flink_jobmanager
+    command: taskmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: localhost
+        env.java.opts.all: -Djava.net.preferIPv4Stack=true
+        taskmanager.host: localhost
+        taskmanager.numberOfTaskSlots: ${DBZ_FLINK_TASK_SLOTS:-4}
+        parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
+        state.backend.type: rocksdb
+        # ONE bounded managed-memory budget for all operators' RocksDB state -- replaces ksqlDB's
+        # ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per box via env.
+        taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
+        taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.5}
 
   jenkins:
     image: jenkins/jenkins:2.540-jdk21
