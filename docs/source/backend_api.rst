@@ -189,7 +189,7 @@ Current docker-compose file
     services:
       postgres:
         container_name: agr-literature-pg
-        image: postgres:13.1-alpine
+        image: postgres:17-alpine
         restart: always
         environment:
           POSTGRES_USER: ${PSQL_USERNAME}
