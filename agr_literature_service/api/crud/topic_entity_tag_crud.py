@@ -1463,6 +1463,7 @@ def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
         "source_label": label,
         "source_description": source_data.get("description"),
         "source_evidence_assertion": source_data.get("source_evidence_assertion"),
+        "source_evidence_assertion_name": source_data.get("source_evidence_assertion_name"),
     }
 
 
