@@ -28,7 +28,7 @@ services:
 
 
   pgadmin:
-    image: dpage/pgadmin4:5.1
+    image: dpage/pgadmin4:9.16
     hostname: pgadmin
     restart: always
     environment:
@@ -42,8 +42,6 @@ services:
       - "agr-literature-pgadmin-data:/var/lib/pgadmin"
     networks:
       - agr-literature
-    depends_on:
-      - postgres
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
