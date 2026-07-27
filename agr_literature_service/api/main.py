@@ -42,6 +42,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 xml2md_router, vocabulary_router,
                                                 vocabulary_abc_router,
                                                 vocabulary_term_abc_router,
+                                                vocabulary_term_synonym_abc_router,
                                                 authentication)
 
 TITLE = "Alliance Literature Service"
@@ -138,6 +139,7 @@ app.include_router(resource_descriptor_router.router)
 app.include_router(vocabulary_router.router)
 app.include_router(vocabulary_abc_router.router)
 app.include_router(vocabulary_term_abc_router.router)
+app.include_router(vocabulary_term_synonym_abc_router.router)
 app.include_router(mesh_detail_router.router)
 app.include_router(mod_reference_type_router.router)
 app.include_router(database_router.router)

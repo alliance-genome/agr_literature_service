@@ -215,3 +215,6 @@ from agr_literature_service.api.schemas.vocabulary_abc_schemas import (  # noqa
     VocabularyAbcSchemaPost, VocabularyAbcSchemaUpdate, VocabularyAbcSchemaShow)
 from agr_literature_service.api.schemas.vocabulary_term_abc_schemas import (  # noqa
     VocabularyTermAbcSchemaPost, VocabularyTermAbcSchemaUpdate, VocabularyTermAbcSchemaShow)
+from agr_literature_service.api.schemas.vocabulary_term_synonym_abc_schemas import (  # noqa
+    VocabularyTermSynonymAbcSchemaPost, VocabularyTermSynonymAbcSchemaUpdate,
+    VocabularyTermSynonymAbcSchemaShow)

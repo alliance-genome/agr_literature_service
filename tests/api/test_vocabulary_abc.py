@@ -60,3 +60,20 @@ class TestVocabularyTermAbc:
             r = client.post("/vocabulary_term_abc/",
                             json={"vocabulary_abc_id": vid, "name": "Technician"}, headers=auth_headers)
             assert r.status_code == status.HTTP_409_CONFLICT
+
+
+class TestVocabularyTermSynonymAbc:
+    def test_create_and_show(self, db, test_vocabulary, auth_headers):  # noqa
+        vid = test_vocabulary.json()
+        with TestClient(app) as client:
+            tid = client.post("/vocabulary_term_abc/",
+                              json={"vocabulary_abc_id": vid, "name": "Post-Doc"},
+                              headers=auth_headers).json()
+            r = client.post("/vocabulary_term_synonym_abc/",
+                            json={"vocabulary_term_abc_id": tid, "synonym_name": "postdoc"},
+                            headers=auth_headers)
+            assert r.status_code == status.HTTP_201_CREATED
+            sid = r.json()
+            g = client.get(f"/vocabulary_term_synonym_abc/{sid}", headers=auth_headers)
+            assert g.status_code == status.HTTP_200_OK
+            assert g.json()["synonym_name"] == "postdoc"
