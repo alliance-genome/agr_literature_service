@@ -21,14 +21,14 @@ RUN apt-get update -y && \
     gettext \
     bash \
     jq \
-    gnupg \
-    postgresql-client && \
+    gnupg && \
     apt-get clean
 
 # Set up PostgreSQL repository
 RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/postgres.list' && \
     wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | tee /etc/apt/trusted.gpg.d/postgresql.asc > /dev/null && \
-    apt-get update -y
+    apt-get update -y && \
+    apt-get install -y postgresql-client-17
 
 # Copy requirements and install Python dependencies
 RUN pip3 install --upgrade pip && \

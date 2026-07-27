@@ -113,7 +113,7 @@ make stop-debezium            # Stop Debezium services
 
 - **FastAPI 0.95.x** - Async Python web framework
 - **SQLAlchemy 2.0.x** - Modern ORM with type hints
-- **PostgreSQL 13.x** - Primary database
+- **PostgreSQL 17.x** - Primary database
 - **Elasticsearch 7.x** - Search indexing
 - **Alembic** - Database migrations
 - **Docker Compose** - Development orchestration

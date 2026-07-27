@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   postgres:
-    image: postgres:13.1-alpine
+    image: postgres:17-alpine
     hostname: postgres
     restart: always
     environment:
@@ -402,6 +402,8 @@ services:
     build:
       context: .
       dockerfile: docker/debezium_connector.dockerfile
+      args:
+        DEBEZIUM_VERSION: ${DEBEZIUM_VERSION}
     ports:
       - 8083:8083
     environment:
@@ -555,7 +557,39 @@ services:
       # (burst 593.75 MB/s lasts only ~30 min/24h, so a multi-hour reindex must size to baseline).
       - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_DISK_MAX_BYTES_PER_SEC=${DBZ_ROCKSDB_DISK_MAX_BYTES_PER_SEC:-622854144}
       - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_FRACTION=0.8
+      # SCRUM-6318: hard cap on RocksDB OFF-HEAP memory (block caches + memtables) across all
+      # ~32 queries' stores -- unbounded it grew several GB past the heap during full reindexes
+      # and OOM-killed processes on swapless boxes. 0 = auto-size: (RAM visible to the container,
+      # cgroup-aware) x fraction, floor 512 MiB. Set DBZ_ROCKSDB_TOTAL_OFFHEAP_BYTES to pin an
+      # explicit cap instead; fraction default 0.15 (~4.8 GB on a 32 GB box).
+      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_BOUNDED=true
+      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_TOTAL_OFFHEAP_BYTES=${DBZ_ROCKSDB_TOTAL_OFFHEAP_BYTES:-0}
+      # 0.06 (was 0.10, was 0.15): shared block-cache share of container RAM. Local A/B showed the
+      # block cache is the one lever that lowers the reindex PEAK ~1:1 with its size (memtable cuts
+      # are self-defeating -- more compaction). 0.06 ~= 1.85 GiB cache on a 31 GiB box, shaving
+      # ~1.2 GiB off the ~21.7 GiB peak for a modest read-side cost. Env-tunable per box.
+      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_OFFHEAP_FRACTION=${DBZ_ROCKSDB_OFFHEAP_FRACTION:-0.06}
+      # Per-store memtable floor (SCRUM-6318 lever 1): 8 MiB x 2 = 16 MiB/store vs Kafka Streams'
+      # 16 MiB x 3 = 48 MiB default. Aggregate memtable across ~115 stores: ~5.5 GiB -> ~1.8 GiB.
+      # Both are serialized to each store's OPTIONS file, so the applied value is verifiable.
+      - KSQL_KSQL_STREAMS_ROCKSDB_WRITE_BUFFER_SIZE_BYTES=${DBZ_ROCKSDB_WRITE_BUFFER_SIZE_BYTES:-8388608}
+      - KSQL_KSQL_STREAMS_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=${DBZ_ROCKSDB_MAX_WRITE_BUFFER_NUMBER:-2}
+      # ROOT-CAUSE FIX (SCRUM-6318): cap the per-store table cache. max_open_files=-1 (default) kept
+      # every SST file's table reader resident, growing unbounded across ~115 stores during reindex
+      # -- the memory that climbed past heap + block cache + memtable ceiling. -1 = unbounded default.
+      - KSQL_KSQL_STREAMS_ROCKSDB_MAX_OPEN_FILES=${DBZ_ROCKSDB_MAX_OPEN_FILES:-128}
+      # Diagnostic (opt-in, default off): RocksDB periodic stats to each store's LOG -- verbose across
+      # ~115 stores. Set DBZ_ROCKSDB_STATS_DUMP_ENABLED=true only to investigate memory.
+      - KSQL_KSQL_STREAMS_ROCKSDB_STATS_DUMP_ENABLED=${DBZ_ROCKSDB_STATS_DUMP_ENABLED:-false}
+      # Diagnostic (opt-in, default off): one INFO line/30s with the off-heap bucket breakdown.
+      - KSQL_KSQL_STREAMS_ROCKSDB_MEMORY_REPORT_ENABLED=${DBZ_ROCKSDB_MEMORY_REPORT_ENABLED:-false}
       - KSQL_OPTS=-Dmax.request.size=30000000 -Dmax.message.bytes=30000000 -Dmessage.max.bytes=30000000
+      # SCRUM-6318: bound glibc malloc arenas. Default is 8 x cores (= 64 here); with ~600 ksqlDB
+      # threads churning RocksDB memtable allocations during a reindex, per-arena retention of freed
+      # chunks left ~7 GiB of memory the OS never got back (anon stayed ~20.7 GiB AFTER the reindex,
+      # vs ~13 GiB live). 2 arenas slashes that retention. Env-tunable; if insufficient, switch to
+      # jemalloc (LD_PRELOAD), the allocator RocksDB officially recommends.
+      - MALLOC_ARENA_MAX=${DBZ_MALLOC_ARENA_MAX:-2}
     networks:
       - agr-literature
 
