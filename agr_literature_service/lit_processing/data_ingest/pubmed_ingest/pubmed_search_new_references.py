@@ -142,14 +142,13 @@ search_outfile_path = search_path + 'search_new_mods/'
 pmc_process_path = search_path + 'pmc_processing/'
 pmc_storage_path = search_path + 'pmc_processing/pmc_xml/'
 
-if not path.exists(search_path):
-    makedirs(search_path)
-if not path.exists(search_outfile_path):
-    makedirs(search_outfile_path)
-if not path.exists(pmc_process_path):
-    makedirs(pmc_process_path)
-if not path.exists(pmc_storage_path):
-    makedirs(pmc_storage_path)
+# exist_ok=True keeps these idempotent and race-safe: this module is imported
+# by many test modules at once under pytest-xdist, so a check-then-makedirs
+# would race on the shared filesystem (FileExistsError during collection).
+makedirs(search_path, exist_ok=True)
+makedirs(search_outfile_path, exist_ok=True)
+makedirs(pmc_process_path, exist_ok=True)
+makedirs(pmc_storage_path, exist_ok=True)
 
 # PubMed ESearch API limit: max 10,000 results per query
 PUBMED_MAX_RESULTS = 10000

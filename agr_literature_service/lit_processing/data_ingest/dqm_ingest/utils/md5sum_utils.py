@@ -58,7 +58,7 @@ def get_json_storage_path(mod):
 
     mod_json_storage_path = base_path + 'dqm_json/' + mod + '/'
     if not path.exists(mod_json_storage_path):
-        makedirs(mod_json_storage_path)
+        makedirs(mod_json_storage_path, exist_ok=True)
     return mod_json_storage_path
 
 
@@ -78,7 +78,7 @@ def generate_new_md5(input_path, mods, base_dir=base_path):
 
     json_storage_path = base_dir + 'dqm_json/'
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
 
     md5dict = {}
     counter = 0

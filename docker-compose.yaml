@@ -70,6 +70,12 @@ services:
       - "${ELASTICSEARCH_PORT}:${ELASTICSEARCH_PORT}"
     networks:
       - agr-literature
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
   api:
     container_name: agr.literature.${ENV_STATE}.api.server.${COMPOSE_PROJECT_NAME}

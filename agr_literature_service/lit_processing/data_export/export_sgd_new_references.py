@@ -47,7 +47,7 @@ def dump_data(email, ondemand, ui_root_url=None):  # noqa: C901  pragma: no cove
     base_path = environ.get('XML_PATH', "")
     json_path = base_path + "json_data/"
     if not path.exists(json_path):
-        makedirs(json_path)
+        makedirs(json_path, exist_ok=True)
 
     db_session = create_postgres_session(False)
 

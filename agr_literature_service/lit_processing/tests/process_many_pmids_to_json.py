@@ -42,7 +42,7 @@ def download_and_convert_pmids(pmids_wanted, skip_download_flag, base_dir=base_p
 
     inputs_path = base_path + 'inputs/'
     if not path.exists(inputs_path):
-        makedirs(inputs_path)
+        makedirs(inputs_path, exist_ok=True)
     pubmed_only_filepath = base_path + 'inputs/pubmed_only_pmids'
     pmids_additional.sort(key=int)
     # for pmid in pmids_additional:

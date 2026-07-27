@@ -59,7 +59,7 @@ def generate_dqm_json_test_set_from_sample_json(input_file, output_directory):  
         return
     sample_path = base_path + output_directory
     if not path.exists(sample_path):
-        makedirs(sample_path)
+        makedirs(sample_path, exist_ok=True)
     pmids_wanted = set()
     mod_ids_wanted = dict()
     ids_wanted = set()
@@ -123,7 +123,7 @@ def generate_dqm_json_test_set_from_start_mid_end():
     """
     sample_path = base_path + 'dqm_sample/'
     if not path.exists(sample_path):
-        makedirs(sample_path)
+        makedirs(sample_path, exist_ok=True)
     sample_amount = 10
     mods = ['SGD', 'RGD', 'FB', 'WB', 'MGI', 'ZFIN']
     # mods = ['MGI']

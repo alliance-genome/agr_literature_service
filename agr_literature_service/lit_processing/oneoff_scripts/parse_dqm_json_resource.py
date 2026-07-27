@@ -226,7 +226,7 @@ if __name__ == "__main__":
     base_path = environ.get('XML_PATH', "")
     json_storage_path = base_path + 'sanitized_resource_json/'
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
 
     mods = ['RGD', 'MGI', 'SGD', 'FB', 'ZFIN', 'WB']
 

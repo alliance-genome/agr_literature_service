@@ -86,8 +86,8 @@ def download_and_parse_daily_update(db_session, pmids_all):  # pragma: no cover
     except OSError as e:
         logger.info("Error deleting old xml/json: %s" % (e.strerror))
 
-    makedirs(xml_path)
-    makedirs(json_path)
+    makedirs(xml_path, exist_ok=True)
+    makedirs(json_path, exist_ok=True)
 
     updated_pmids_for_mod = {}
     deleted_pmids = []

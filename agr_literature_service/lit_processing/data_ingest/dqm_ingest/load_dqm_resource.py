@@ -276,7 +276,7 @@ if __name__ == "__main__":  # noqa: C901
     if environ.get('LOG_PATH'):
         report_file_path = path.join(environ['LOG_PATH'], 'dqm_load/')
     if report_file_path and not path.exists(report_file_path):
-        makedirs(report_file_path)
+        makedirs(report_file_path, exist_ok=True)
     if environ.get('LOG_URL'):
         log_url = environ['LOG_URL'] + "dqm_load/"
 

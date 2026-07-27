@@ -50,7 +50,7 @@ def download_pubmed_tgz(pmids_wanted):
     # ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.txt
 
     if not path.exists(storage_path):
-        makedirs(storage_path)
+        makedirs(storage_path, exist_ok=True)
 
     pmids_found_set = set()
     foundfile = storage_path + 'pmids_found'
