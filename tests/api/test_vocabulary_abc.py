@@ -36,3 +36,27 @@ class TestVocabularyAbc:
         with TestClient(app) as client:
             r = client.post("/vocabulary_abc/", json={"vocabulary": "  "}, headers=auth_headers)
             assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+class TestVocabularyTermAbc:
+    def test_create_and_show(self, db, test_vocabulary, auth_headers):  # noqa
+        vid = test_vocabulary.json()
+        with TestClient(app) as client:
+            r = client.post("/vocabulary_term_abc/",
+                            json={"vocabulary_abc_id": vid, "name": "Post-Doc"},
+                            headers=auth_headers)
+            assert r.status_code == status.HTTP_201_CREATED
+            tid = r.json()
+            g = client.get(f"/vocabulary_term_abc/{tid}", headers=auth_headers)
+            assert g.status_code == status.HTTP_200_OK
+            assert g.json()["name"] == "Post-Doc"
+            assert g.json()["is_obsolete"] is False
+
+    def test_duplicate_name_in_vocab_conflict(self, db, test_vocabulary, auth_headers):  # noqa
+        vid = test_vocabulary.json()
+        with TestClient(app) as client:
+            client.post("/vocabulary_term_abc/",
+                        json={"vocabulary_abc_id": vid, "name": "Technician"}, headers=auth_headers)
+            r = client.post("/vocabulary_term_abc/",
+                            json={"vocabulary_abc_id": vid, "name": "Technician"}, headers=auth_headers)
+            assert r.status_code == status.HTTP_409_CONFLICT
