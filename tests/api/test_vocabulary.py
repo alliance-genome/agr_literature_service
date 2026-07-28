@@ -1,65 +1,15 @@
-"""Vocabulary tests.
+"""Table-backed vocabulary tests.
 
-The static-enum ``vocabulary_crud`` unit tests are pure (no TestClient / DB / auth)
-so they run locally. The table-backed cases exercise the full endpoint through a
-TestClient and need DB + Cognito, so they run in the containerized CI suite. The
-DB/auth fixtures pull in config deps that are absent from the bare local shell, so
-their import is guarded: locally the table-backed tests skip, in CI they run.
+These exercise the full ``/vocabulary`` endpoint through a TestClient and need
+DB + Cognito, so they run in the containerized CI suite. The pure static-enum
+unit tests live in ``test_vocabulary_static.py``.
 """
-import pytest
 from fastapi import status
+from starlette.testclient import TestClient
 
-from agr_literature_service.api.crud import vocabulary_crud as vc
-
-try:
-    from ..fixtures import db  # noqa
-    from .fixtures import auth_headers  # noqa
-except ModuleNotFoundError:  # pragma: no cover - CI has these deps; local shell may not
-    @pytest.fixture
-    def db():  # noqa
-        pytest.skip("DB fixtures unavailable outside the container")
-
-    @pytest.fixture
-    def auth_headers():  # noqa
-        pytest.skip("auth fixtures unavailable outside the container")
-
-
-def _terms(values):
-    return [{"value": v, "label": v, "is_obsolete": False} for v in values]
-
-
-def test_person_active_status_values():
-    assert vc.get_vocabulary(None, "person_active_status") == _terms(
-        ["active", "retired", "deceased"])
-
-
-def test_person_privacy_values():
-    assert vc.get_vocabulary(None, "person_privacy") == _terms(
-        ["show_all", "logged_in_only", "fully_hidden", "hide_email"])
-
-
-def test_laboratory_status_values():
-    assert vc.get_vocabulary(None, "laboratory_status") == _terms(
-        ["active", "closed", "unknown"])
-
-
-def test_laboratory_email_visibility_values():
-    assert vc.get_vocabulary(None, "laboratory_email_visibility") == _terms(
-        ["public", "logged_in_user", "not_shown"])
-
-
-def test_vocabulary_term_shape():
-    term = vc.get_vocabulary(None, "person_active_status")[0]
-    assert set(term) == {"value", "label", "is_obsolete"}
-    assert term["value"] == term["label"] == "active"
-    assert term["is_obsolete"] is False
-
-
-def test_list_vocabularies():
-    names = vc.list_vocabularies()
-    assert names == sorted(names)  # stable, sorted
-    assert {"person_active_status", "person_privacy",
-            "laboratory_status", "laboratory_email_visibility"} <= set(names)
+from agr_literature_service.api.main import app
+from ..fixtures import db  # noqa
+from .fixtures import auth_headers  # noqa
 
 
 class TestTableBackedVocabulary:
@@ -67,8 +17,6 @@ class TestTableBackedVocabulary:
     autocomplete matches term names and synonyms (runs in CI)."""
 
     def test_show_and_search_table_backed(self, db, auth_headers):  # noqa
-        from starlette.testclient import TestClient
-        from agr_literature_service.api.main import app
         with TestClient(app) as client:
             vid = client.post(
                 "/vocabulary_abc/", json={"vocabulary": "Laboratory Role"},
@@ -95,8 +43,6 @@ class TestTableBackedVocabulary:
             assert any(h["value"] == tid and h["label"] == "Post-Doc" for h in hits)
 
     def test_unknown_vocabulary_raises_404(self, db, auth_headers):  # noqa
-        from starlette.testclient import TestClient
-        from agr_literature_service.api.main import app
         with TestClient(app) as client:
             r = client.get("/vocabulary/does_not_exist", headers=auth_headers)
             assert r.status_code == status.HTTP_404_NOT_FOUND

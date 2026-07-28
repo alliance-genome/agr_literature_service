@@ -13,7 +13,7 @@ endpoint in a later phase.
 from typing import Any, Dict, List, get_args
 
 from fastapi import HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.schemas.person_schemas import ActiveStatus, Privacy
 from agr_literature_service.api.schemas.laboratory_schemas import (
@@ -82,7 +82,9 @@ def search_vocabulary(db: Session, name: str, q: str) -> List[Dict[str, Any]]:
             detail=f"Unknown vocabulary '{name}'",
         )
     needle = q.strip().lower()
-    terms = db.query(VocabularyTermAbcModel).filter(
+    terms = db.query(VocabularyTermAbcModel).options(
+        selectinload(VocabularyTermAbcModel.synonyms)
+    ).filter(
         VocabularyTermAbcModel.vocabulary_abc_id == vocab.vocabulary_abc_id
     ).all()
     out = []
