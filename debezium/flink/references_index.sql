@@ -4,6 +4,17 @@
 -- ksqlDB-built references_index (validated against the golden docs).
 SET 'execution.runtime-mode' = 'streaming';
 SET 'pipeline.name' = 'references_index';
+-- Mini-batch: coalesce aggregate + join updates so each reference is written ~once with its
+-- aggregates attached, instead of re-writing on every child row (kills the reindex write-amplification
+-- / "temp objects to the index" churn and relieves the backpressure that starves the source reads).
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '5 s';
+SET 'table.exec.mini-batch.size' = '20000';
+SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
+-- Dedupe the repeated rewrites of a reference (once per aggregate that arrives) so the ES sink
+-- writes each doc ~once with detect_noop, instead of 13x -- backlog phase becomes batch-like in
+-- write volume while the SAME job keeps tailing live CDC (one job covers reindex + steady-state).
+SET 'table.exec.sink.upsert-materialize' = 'FORCE';
 
 -- ============================ SOURCE TABLES (Debezium CDC, full envelope) ============================
 CREATE TABLE reference (

@@ -493,7 +493,11 @@ services:
         rest.bind-address: 0.0.0.0
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
         state.backend.type: rocksdb
-        execution.checkpointing.interval: 60s
+        # Checkpointing intentionally OFF: the reindex is a from-scratch, idempotent (upsert-by-id)
+        # rebuild -- on failure we just re-run. Enabling it (without durable checkpoint storage) made
+        # the growing 13-aggregate join state fail async snapshots and restart-loop the job, so it
+        # never converged. Steady-state fault tolerance (checkpoint dir on a shared volume) is P4.
+        restart-strategy: none
         jobmanager.memory.process.size: 1600m
     networks:
       - agr-literature
