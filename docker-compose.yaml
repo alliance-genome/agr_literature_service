@@ -484,6 +484,9 @@ services:
     ports:
       # host 18081 -> Flink web UI/REST 8081 (8081 is already used on the debezium test box)
       - "18081:8081"
+      # host 18083 -> Flink SQL Gateway REST 8083 (the gateway runs in flink_sqlgateway, which
+      # shares this container's netns, so its port is published here).
+      - "18083:8083"
     command: jobmanager
     environment:
       - |
@@ -529,6 +532,33 @@ services:
         # ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per box via env.
         taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.5}
+
+  # SCRUM-6336: Flink SQL Gateway -- lets the reindex orchestrator (setup_flink.sh) submit SQL over
+  # REST with curl, staying container-friendly like the old ksqlDB setup. Shares the JobManager netns
+  # so it reaches the JM on localhost (same pekko-avoidance as the TaskManager); its REST is published
+  # via the JobManager's 18083->8083 mapping.
+  flink_sqlgateway:
+    container_name: agr.literature.${ENV_STATE}.flink.sqlgateway.${COMPOSE_PROJECT_NAME}
+    network_mode: "service:flink_jobmanager"
+    logging:
+      driver: gelf
+      options:
+        gelf-address: 'udp://logs.alliancegenome.org:12201'
+    image: agr.literature.flink:2.0.2
+    depends_on:
+      - flink_jobmanager
+      - flink_taskmanager
+    command: >
+      bash -c "/opt/flink/bin/sql-gateway.sh start-foreground
+      -Dsql-gateway.endpoint.type=rest
+      -Dsql-gateway.endpoint.rest.address=0.0.0.0
+      -Dsql-gateway.endpoint.rest.port=8083"
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: localhost
+        rest.address: localhost
+        env.java.opts.all: -Djava.net.preferIPv4Stack=true
 
   jenkins:
     image: jenkins/jenkins:2.540-jdk21
