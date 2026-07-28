@@ -4,6 +4,14 @@
 -- One multi-way join; output must be byte-identical to the ksqlDB public_reference_joined.
 SET 'execution.runtime-mode' = 'streaming';
 SET 'pipeline.name' = 'public_references_index';
+-- Same tuning as references_index.sql: mini-batch coalesces aggregate+join updates so each reference
+-- is written ~once with its aggregates attached (kills reindex write-amplification / temp-object churn).
+-- upsert-materialize is intentionally NOT forced (it backpressures the DAG and starves heavy aggregates;
+-- the ES sink upserts by PRIMARY KEY so the final doc converges, and we flip the alias only after Gate 2).
+SET 'table.exec.mini-batch.enabled' = 'true';
+SET 'table.exec.mini-batch.allow-latency' = '5 s';
+SET 'table.exec.mini-batch.size' = '20000';
+SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
 
 -- ============================ SOURCE TABLES ============================
 CREATE TABLE reference (

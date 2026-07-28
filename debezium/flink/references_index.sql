@@ -11,10 +11,12 @@ SET 'table.exec.mini-batch.enabled' = 'true';
 SET 'table.exec.mini-batch.allow-latency' = '5 s';
 SET 'table.exec.mini-batch.size' = '20000';
 SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
--- Dedupe the repeated rewrites of a reference (once per aggregate that arrives) so the ES sink
--- writes each doc ~once with detect_noop, instead of 13x -- backlog phase becomes batch-like in
--- write volume while the SAME job keeps tailing live CDC (one job covers reindex + steady-state).
-SET 'table.exec.sink.upsert-materialize' = 'FORCE';
+-- NOTE: upsert-materialize is intentionally NOT forced. It inserts a full-result-set stateful
+-- operator ahead of the sink that must hold/sort every keyed row; under the 13-way retraction churn
+-- of a from-scratch reindex it backpressures the whole DAG and starves the heavy aggregates
+-- (authors 7.7M / cross_references 3.4M never attach). The ES sink upserts by PRIMARY KEY, so the
+-- final doc converges anyway -- late-arriving aggregate retractions just overwrite the earlier
+-- null-aggregate doc, and we only flip the alias after Gate 2 (catch-up) confirms a stable count.
 
 -- ============================ SOURCE TABLES (Debezium CDC, full envelope) ============================
 CREATE TABLE reference (
