@@ -448,6 +448,47 @@
           }
         }
       },
+      "curation_tags": {
+        "type": "nested",
+        "properties": {
+          "curation_status": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "languageNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "topic": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "languageNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
+          "abbreviation": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "languageNormalizer",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      },
       "topic_entity_tags": {
         "type": "nested",
         "properties": {

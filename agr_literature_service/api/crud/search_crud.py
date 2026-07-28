@@ -283,6 +283,28 @@ def search_references(
                     }
                 }
             },
+            "curation_tags": {
+                "nested": {"path": "curation_tags"},
+                "aggs": {
+                    "by_curation_status": {
+                        "terms": {
+                            "field": "curation_tags.curation_status",
+                            "min_doc_count": 0,
+                            "size": 100
+                        },
+                        "aggs": {
+                            "topics": {
+                                "terms": {
+                                    "field": "curation_tags.topic.keyword",
+                                    "min_doc_count": 0,
+                                    "size": 100
+                                },
+                                "aggs": {"reverse_docs": {"reverse_nested": {}}}
+                            }
+                        }
+                    }
+                }
+            },
             "indexing_priorities": {
                 "nested": {"path": "indexing_priorities"},
                 "aggs": {
