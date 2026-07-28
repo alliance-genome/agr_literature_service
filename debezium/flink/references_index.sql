@@ -5,18 +5,24 @@
 SET 'execution.runtime-mode' = 'streaming';
 SET 'pipeline.name' = 'references_index';
 -- Mini-batch: coalesce aggregate + join updates so each reference is written ~once with its
--- aggregates attached, instead of re-writing on every child row (kills the reindex write-amplification
--- / "temp objects to the index" churn and relieves the backpressure that starves the source reads).
+-- aggregates attached, instead of re-writing on every child row. This is THE lever against the
+-- reindex write-amplification: the huge child aggregates (mesh_detail 18M, author 7.7M, cross 4M,
+-- topic_entity_tag 2.7M) otherwise emit an ES update per row (measured ~19k ES ops/min of pure churn,
+-- swamping new-reference throughput). Large windows collapse each reference's incremental ARRAY_AGG
+-- updates into ~one emission upstream, WITHOUT the full-result-set materializer state that OOM/walls a
+-- bounded TM (see upsert-materialize note below). 30s latency is fine for a reindex + curation index.
 SET 'table.exec.mini-batch.enabled' = 'true';
-SET 'table.exec.mini-batch.allow-latency' = '5 s';
-SET 'table.exec.mini-batch.size' = '20000';
+SET 'table.exec.mini-batch.allow-latency' = '30 s';
+SET 'table.exec.mini-batch.size' = '200000';
 SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
--- NOTE: upsert-materialize is intentionally NOT forced. It inserts a full-result-set stateful
--- operator ahead of the sink that must hold/sort every keyed row; under the 13-way retraction churn
--- of a from-scratch reindex it backpressures the whole DAG and starves the heavy aggregates
--- (authors 7.7M / cross_references 3.4M never attach). The ES sink upserts by PRIMARY KEY, so the
--- final doc converges anyway -- late-arriving aggregate retractions just overwrite the earlier
--- null-aggregate doc, and we only flip the alias after Gate 2 (catch-up) confirms a stable count.
+-- Disable the sink upsert-materializer entirely. In AUTO mode Flink inserts a full-result-set stateful
+-- operator ahead of the ES sink that holds EVERY keyed row (~1.3M docs) in RocksDB -- on top of the
+-- already-huge aggregate state (mesh_detail 18M, author 7.7M, cross 4M, tet 2.7M) this blows past the
+-- managed-memory budget and RocksDB thrashes on disk compaction (reindex throughput collapses to a
+-- crawl). NONE removes that operator: the ES sink upserts by PRIMARY KEY so the final doc converges
+-- from the aggregate retractions anyway, and we only flip the alias after Gate 2 (catch-up) confirms a
+-- stable count -- correct for a from-scratch idempotent reindex.
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
 
 -- ============================ SOURCE TABLES (Debezium CDC, full envelope) ============================
 CREATE TABLE reference (

@@ -9,9 +9,13 @@ SET 'pipeline.name' = 'public_references_index';
 -- upsert-materialize is intentionally NOT forced (it backpressures the DAG and starves heavy aggregates;
 -- the ES sink upserts by PRIMARY KEY so the final doc converges, and we flip the alias only after Gate 2).
 SET 'table.exec.mini-batch.enabled' = 'true';
-SET 'table.exec.mini-batch.allow-latency' = '5 s';
-SET 'table.exec.mini-batch.size' = '20000';
+SET 'table.exec.mini-batch.allow-latency' = '30 s';
+SET 'table.exec.mini-batch.size' = '200000';
 SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
+-- Disable the sink upsert-materializer (see references_index.sql): AUTO inserts a full-result-set
+-- stateful operator that, on top of the aggregate state, blows the managed-memory budget and makes
+-- RocksDB thrash. NONE relies on PK upsert convergence + Gate 2 catch-up before the alias flip.
+SET 'table.exec.sink.upsert-materialize' = 'NONE';
 
 -- ============================ SOURCE TABLES ============================
 CREATE TABLE reference (
@@ -112,7 +116,11 @@ CREATE TABLE public_references_index_sink (
   cross_references ARRAY<MAP<STRING,STRING>>, authors ARRAY<MAP<STRING,STRING>>,
   relations ARRAY<MAP<STRING,STRING>>, mesh_terms ARRAY<MAP<STRING,STRING>>, mods_in_corpus ARRAY<STRING>,
   PRIMARY KEY (reference_id) NOT ENFORCED
-) WITH ('connector'='elasticsearch-7','hosts'='http://elasticsearch:9200','index'='flink_public_references_index');
+) WITH ('connector'='elasticsearch-7','hosts'='http://elasticsearch:9200','index'='flink_public_references_index',
+  -- Bound the sink so a slow ES backpressures the pipeline instead of hoarding bulk requests on heap
+  -- (batch reindex bursts ~1.1M docs to the sink once the join finishes; unbounded buffering OOMs the TM).
+  'sink.bulk-flush.max-actions'='500','sink.bulk-flush.max-size'='2mb','sink.bulk-flush.interval'='1s',
+  'sink.bulk-flush.backoff.strategy'='CONSTANT','sink.bulk-flush.backoff.max-retries'='5','sink.bulk-flush.backoff.delay'='2s');
 
 -- ============================ FINAL ASSEMBLY ============================
 INSERT INTO public_references_index_sink

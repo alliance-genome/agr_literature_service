@@ -28,6 +28,7 @@ PUBLIC_ALIAS="public_references_index"
 PRIVATE_MAPPING="${BASE_DIR}elasticsearch-settings.json"
 PUBLIC_MAPPING="${BASE_DIR}elasticsearch-settings-public.json"
 SOURCE_JSON="${BASE_DIR}postgres-source-flink.json"
+SOURCE_CONNECTOR="postgres-source-flink"
 SLOT_NAME="debezium_unified"
 CATCHUP_STABLE_SECS="${DBZ_FLINK_CATCHUP_STABLE_SECS:-120}"   # index size unchanged this long == caught up
 CATCHUP_MAX_SECS="${DBZ_DATA_PROCESSING_SLEEP:-20000}"        # hard cap
@@ -58,7 +59,7 @@ flip_alias() {          # $1=alias  $2=new index (slot)
 # ---- Debezium source (fresh snapshot) --------------------------------------------------------------
 deploy_source() {
   # drop the connector + slot/publication so we re-snapshot from scratch (same as setup.sh)
-  curl -s -X DELETE "${CONNECT}/connectors/postgres-source-flink" >/dev/null 2>&1 || true
+  curl -s -X DELETE "${CONNECT}/connectors/${SOURCE_CONNECTOR}" >/dev/null 2>&1 || true
   PGPASSWORD="$PSQL_PASSWORD" psql -h "$PSQL_HOST" -p "$PSQL_PORT" -U "$PSQL_USERNAME" -d "$PSQL_DATABASE" -tAc \
     "SELECT pg_drop_replication_slot('${SLOT_NAME}') WHERE EXISTS (SELECT 1 FROM pg_replication_slots WHERE slot_name='${SLOT_NAME}');" >/dev/null 2>&1 || true
   PGPASSWORD="$PSQL_PASSWORD" psql -h "$PSQL_HOST" -p "$PSQL_PORT" -U "$PSQL_USERNAME" -d "$PSQL_DATABASE" -c \
@@ -71,10 +72,13 @@ deploy_source() {
   log "deployed Debezium 3.5 source (fresh snapshot starting)"
 }
 
-wait_for_snapshot() {   # Gate 1: reference topic has rows
-  log "Gate 1: waiting for snapshot to populate abc.public.reference ..."
+wait_for_source_running() {   # Gate 1: Debezium source connector + task are RUNNING (snapshot streaming into Kafka)
+  log "Gate 1: waiting for Debezium source '${SOURCE_CONNECTOR}' to be RUNNING ..."
   local n=0
-  until [ "$(es_count "$1")" -gt 0 ] 2>/dev/null || [ $n -ge 600 ]; do sleep 5; n=$((n+5)); done
+  # status JSON reports "state":"RUNNING" once for the connector and once for each task -> expect >=2
+  until [ "$(curl -s "${CONNECT}/connectors/${SOURCE_CONNECTOR}/status" | grep -o '"state":"RUNNING"' | wc -l)" -ge 2 ] \
+        || [ $n -ge 300 ]; do sleep 5; n=$((n+5)); done
+  log "Gate 1: source is RUNNING (waited ${n}s); Flink jobs read from earliest as the snapshot streams in"
 }
 
 # ---- Flink SQL Gateway submission ------------------------------------------------------------------
@@ -118,7 +122,7 @@ PRIV_IDX="${PRIVATE_ALIAS}_${SLOT}"; PUB_IDX="${PUBLIC_ALIAS}_${SLOT}"
 create_slot_index "$PRIV_IDX" "$PRIVATE_MAPPING"
 create_slot_index "$PUB_IDX"  "$PUBLIC_MAPPING"
 deploy_source
-wait_for_snapshot "abc.public.reference"     # not slot-specific; source topic
+wait_for_source_running                       # Gate 1: source connector RUNNING (not slot-specific)
 flink_submit_file "${SQL_DIR}/references_index.sql"        flink_references_index        "$PRIV_IDX"
 flink_submit_file "${SQL_DIR}/public_references_index.sql" flink_public_references_index "$PUB_IDX"
 wait_for_catchup "$PRIV_IDX"

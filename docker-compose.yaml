@@ -55,7 +55,7 @@ services:
       - cluster.name=es-docker-cluster
       - discovery.type=single-node
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "ES_JAVA_OPTS=-Xms${ES_HEAP:-512m} -Xmx${ES_HEAP:-512m}"
       - "http.cors.enabled=true"
       - "http.cors.allow-origin=*"
     ulimits:
@@ -423,6 +423,7 @@ services:
       - STATUS_STORAGE_TOPIC=my_source_connect_statuses
       - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
       - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
+      - KAFKA_JVM_PERFORMANCE_OPTS=-server -XX:+UseParallelGC -XX:MaxInlineLevel=15 -Djava.awt.headless=true
     networks:
       - agr-literature
 
@@ -492,7 +493,7 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: localhost
-        env.java.opts.all: -Djava.net.preferIPv4Stack=true
+        env.java.opts.all: -Djava.net.preferIPv4Stack=true -XX:+UseParallelGC
         rest.bind-address: 0.0.0.0
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
         state.backend.type: rocksdb
@@ -523,7 +524,7 @@ services:
       - |
         FLINK_PROPERTIES=
         jobmanager.rpc.address: localhost
-        env.java.opts.all: -Djava.net.preferIPv4Stack=true
+        env.java.opts.all: -Djava.net.preferIPv4Stack=true -XX:+UseParallelGC
         taskmanager.host: localhost
         taskmanager.numberOfTaskSlots: ${DBZ_FLINK_TASK_SLOTS:-4}
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
@@ -558,7 +559,7 @@ services:
         FLINK_PROPERTIES=
         jobmanager.rpc.address: localhost
         rest.address: localhost
-        env.java.opts.all: -Djava.net.preferIPv4Stack=true
+        env.java.opts.all: -Djava.net.preferIPv4Stack=true -XX:+UseParallelGC
 
   jenkins:
     image: jenkins/jenkins:2.540-jdk21
