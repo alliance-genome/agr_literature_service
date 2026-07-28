@@ -224,7 +224,11 @@ CREATE TABLE references_index_sink (
   workflow_tags ARRAY<MAP<STRING,STRING>>, reference_emails ARRAY<STRING>,
   indexing_priorities ARRAY<MAP<STRING,STRING>>, manual_indexing_tags ARRAY<MAP<STRING,STRING>>,
   PRIMARY KEY (reference_id) NOT ENFORCED
-) WITH ('connector'='elasticsearch-7','hosts'='http://elasticsearch:9200','index'='flink_references_index');
+) WITH ('connector'='elasticsearch-7','hosts'='http://elasticsearch:9200','index'='flink_references_index',
+  -- Bound the sink so a slow ES backpressures the pipeline instead of hoarding bulk requests on heap
+  -- (batch reindex sends ~1.3M docs in a burst once the join finishes; unbounded buffering OOMs the TM).
+  'sink.bulk-flush.max-actions'='500','sink.bulk-flush.max-size'='2mb','sink.bulk-flush.interval'='1s',
+  'sink.bulk-flush.backoff.strategy'='CONSTANT','sink.bulk-flush.backoff.max-retries'='5','sink.bulk-flush.backoff.delay'='2s');
 
 -- ============================ FINAL ASSEMBLY: one multi-way join ============================
 INSERT INTO references_index_sink
