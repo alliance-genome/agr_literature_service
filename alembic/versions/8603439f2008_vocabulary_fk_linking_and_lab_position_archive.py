@@ -45,13 +45,44 @@ def _fk_col(tbl: str) -> str:
         else "relationship_vocabulary_term_abc_id"
 
 
+def _short(col: str) -> str:
+    """Abbreviate the column for use in CONSTRAINT/INDEX identifiers only.
+
+    Postgres caps identifiers at 63 chars; the full
+    ``fk_person_lineage_submission_relationship_vocabulary_term_abc_id`` is 64.
+    The column itself keeps its full name; only the derived index/FK names use
+    the ``vta_id`` abbreviation. Kept consistent across all three tables so
+    upgrade and downgrade agree.
+    """
+    return col.replace("vocabulary_term_abc_id", "vta_id")
+
+
+def _fk_name(tbl: str, col: str) -> str:
+    return f"fk_{tbl}_{_short(col)}"
+
+
+def _ix_name(tbl: str, col: str) -> str:
+    return f"ix_{tbl}_{_short(col)}"
+
+
+# Guard against regressing past Postgres's 63-char identifier limit: every
+# CONSTRAINT / INDEX name this migration creates must fit. Checked at import.
+_CREATED_IDENTIFIERS = [_PL_UNIQUE] + [
+    name
+    for tbl in ("laboratory_person", "person_lineage", "person_lineage_submission")
+    for name in (_fk_name(tbl, _fk_col(tbl)), _ix_name(tbl, _fk_col(tbl)))
+]
+_OVERLONG = [n for n in _CREATED_IDENTIFIERS if len(n) > 63]
+assert not _OVERLONG, f"identifiers exceed the 63-char Postgres limit: {_OVERLONG}"
+
+
 def _add_fk_columns():
     for tbl in ("laboratory_person", "person_lineage", "person_lineage_submission"):
         col = _fk_col(tbl)
         op.add_column(tbl, sa.Column(col, sa.Integer(), nullable=True))
-        op.create_index(op.f(f"ix_{tbl}_{col}"), tbl, [col], unique=False)
+        op.create_index(op.f(_ix_name(tbl, col)), tbl, [col], unique=False)
         op.create_foreign_key(
-            f"fk_{tbl}_{col}", tbl, "vocabulary_term_abc",
+            _fk_name(tbl, col), tbl, "vocabulary_term_abc",
             [col], ["vocabulary_term_abc_id"],
         )
         # mirror on the _version table (plain column, no index/FK), matching the
@@ -189,8 +220,8 @@ def downgrade():
     # drop the FK columns (base + _version) — reverse of _add_fk_columns
     for tbl in ("laboratory_person", "person_lineage", "person_lineage_submission"):
         col = _fk_col(tbl)
-        op.drop_constraint(f"fk_{tbl}_{col}", tbl, type_="foreignkey")
-        op.drop_index(op.f(f"ix_{tbl}_{col}"), table_name=tbl)
+        op.drop_constraint(_fk_name(tbl, col), tbl, type_="foreignkey")
+        op.drop_index(op.f(_ix_name(tbl, col)), table_name=tbl)
         op.drop_column(tbl, col)
         op.drop_column(f"{tbl}_version", f"{col}_mod")
         op.drop_column(f"{tbl}_version", col)
