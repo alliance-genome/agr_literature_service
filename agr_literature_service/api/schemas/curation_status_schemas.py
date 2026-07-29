@@ -52,6 +52,18 @@ class CurationStatusSchemaShow(AuditedObjectModelSchema):
     note: Optional[str] = None
 
 
+class TETSourcePredictionSchema(BaseModel):
+    """One computed (non-manual) topic_entity_tag, for curator validation."""
+    model_config = ConfigDict(extra='forbid')
+
+    source_method: Optional[str] = None
+    source_evidence_assertion: Optional[str] = None
+    confidence_score: Optional[float] = None
+    confidence_level: Optional[str] = None
+    negated: bool = False
+    assessment: Optional[str] = None
+
+
 class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     """Aggregated curation status and TET info, for combined views."""
     model_config = ConfigDict(
@@ -76,3 +88,10 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     tet_info_has_data: bool = False
     tet_info_new_data: bool = False
     tet_info_no_data: bool = False
+    # Manual (author/biocurator) assessments already recorded for this topic, so
+    # the UI can prevent duplicate curation.
+    tet_info_manual_has_data: bool = False
+    tet_info_manual_new_data: bool = False
+    tet_info_manual_no_data: bool = False
+    # Computed predictions with their source method and confidence.
+    tet_info_source_predictions: List[TETSourcePredictionSchema] = Field(default_factory=list)

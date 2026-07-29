@@ -123,6 +123,22 @@ def show(db: Session, curation_status_id: int) -> dict:
     return curation_status_data
 
 
+# Source evidence assertions that identify a manually created tag (author or
+# professional biocurator). Everything else is treated as a computed prediction.
+MANUAL_ASSERTIONS = {'ATP:0000035', 'ATP:0000036'}  # author, professional biocurator
+# Data-novelty terms that mark a positive tag as "new data".
+NEW_NOVELTY_TERMS = {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}
+
+
+def _assessment_kind(tet):
+    """Which assessment column a tag falls under: 'no', 'new', or 'has'."""
+    if tet.negated:
+        return 'no'
+    if tet.data_novelty in NEW_NOVELTY_TERMS:
+        return 'new'
+    return 'has'
+
+
 def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     if topic_curie not in topic_tet_list_dict or len(topic_tet_list_dict[topic_curie]) == 0:
         return {
@@ -130,7 +146,11 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             "tet_info_topic_source": [],
             "tet_info_has_data": False,
             "tet_info_new_data": False,
-            "tet_info_no_data": False
+            "tet_info_no_data": False,
+            "tet_info_manual_has_data": False,
+            "tet_info_manual_new_data": False,
+            "tet_info_manual_no_data": False,
+            "tet_info_source_predictions": []
         }
     # initialize earliest_dt from the very first row
     first_tet, _ = topic_tet_list_dict[topic_curie][0]
@@ -140,15 +160,17 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
         date_str = str(first_tet.date_created).split()[0]
         earliest_dt = datetime.strptime(date_str, "%Y-%m-%d")
     has_data = new_data = no_data = False
+    manual_has = manual_new = manual_no = False
     topic_sources = set()
+    source_predictions = []
     source_map = {
         'ATP:0000035': 'author',
         'ATP:0000036': 'biocurator'
     }
     for tet, tet_source in topic_tet_list_dict[topic_curie]:
-        topic_sources.add(
-            source_map.get(tet_source.source_evidence_assertion, 'computational')
-        )
+        assertion = tet_source.source_evidence_assertion
+        is_manual = assertion in MANUAL_ASSERTIONS
+        topic_sources.add(source_map.get(assertion, 'computational'))
         if isinstance(tet.date_created, datetime):
             dt = tet.date_created
         else:
@@ -156,19 +178,41 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             dt = datetime.strptime(date_str, "%Y-%m-%d")
         if dt < earliest_dt:
             earliest_dt = dt
-        if tet.negated:
+        kind = _assessment_kind(tet)
+        if kind == 'no':
             no_data = True
+            if is_manual:
+                manual_no = True
         else:
             has_data = True
-            if tet.data_novelty in {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}:
+            if is_manual:
+                manual_has = True
+            if kind == 'new':
                 new_data = True
+                if is_manual:
+                    manual_new = True
+        # Expose each computed (non-manual) tag so the UI can show which source
+        # predicted what, with its confidence, for curator validation.
+        if not is_manual:
+            source_predictions.append({
+                "source_method": tet_source.source_method,
+                "source_evidence_assertion": assertion,
+                "confidence_score": tet.confidence_score,
+                "confidence_level": tet.confidence_level,
+                "negated": bool(tet.negated),
+                "assessment": kind
+            })
     topic_added = earliest_dt.isoformat()
     return {
         "tet_info_date_created": topic_added,
         "tet_info_topic_source": sorted(topic_sources),
         "tet_info_has_data": has_data,
         "tet_info_new_data": new_data,
-        "tet_info_no_data": no_data
+        "tet_info_no_data": no_data,
+        "tet_info_manual_has_data": manual_has,
+        "tet_info_manual_new_data": manual_new,
+        "tet_info_manual_no_data": manual_no,
+        "tet_info_source_predictions": source_predictions
     }
 
 
