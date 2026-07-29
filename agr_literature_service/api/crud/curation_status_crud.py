@@ -200,7 +200,9 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
                 "confidence_score": tet.confidence_score,
                 "confidence_level": tet.confidence_level,
                 "negated": bool(tet.negated),
-                "assessment": kind
+                "assessment": kind,
+                "entity": tet.entity,
+                "entity_type": tet.entity_type
             })
     topic_added = earliest_dt.isoformat()
     return {

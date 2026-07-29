@@ -62,6 +62,10 @@ class TETSourcePredictionSchema(BaseModel):
     confidence_level: Optional[str] = None
     negated: bool = False
     assessment: Optional[str] = None
+    # The extracted entity (e.g. a gene curie) and its type, so consolidated
+    # predictions can be broken down per entity on hover.
+    entity: Optional[str] = None
+    entity_type: Optional[str] = None
 
 
 class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
