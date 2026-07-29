@@ -330,6 +330,29 @@ class TestPersonLineageCrud:
             )
         assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_patch_person_and_relationship_collision_rejected(self, db, two_people):  # noqa
+        # A single patch that BOTH reassigns a person into an existing triple AND
+        # carries a relationship id (so validate_term_id runs while the row is
+        # already dirtied). The pre-commit query must not autoflush the dirty row:
+        # the collision must surface as a clean 422, never an uncaught 500.
+        term_id = _ppr_id(db, "PhD Supervisor of")
+        person_c = PersonModel(display_name="Canon Three", curie="AGRKB:test-canon-3c")
+        db.add(person_c)
+        db.commit()
+        db.refresh(person_c)
+        s_id = two_people["person_subject_id"]
+        r1 = _create(db, s_id, two_people["person_object_id"], term_id)  # A -> B
+        _create(db, s_id, person_c.person_id, term_id)                   # A -> C
+        # Reassign A->B's object to C (collides with A->C) AND resend the relationship
+        # id, forcing validate_term_id to query with the row already dirty.
+        with pytest.raises(HTTPException) as exc_info:
+            person_lineage_crud.patch(
+                db,
+                r1["person_lineage_id"],
+                {"person_object_curie_or_id": person_c.person_id, "relationship": term_id},
+            )
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_find_or_create_symmetric_matches_reversed(self, db, two_people):  # noqa
         # find_or_create normalizes symmetric pairs by term id, so a reversed lookup
         # finds the existing canonical instead of creating a duplicate.

@@ -218,33 +218,40 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
-    # Person corrections: resolve curie-or-id and repoint the canonical. The
-    # submission link (person_lineage_id) is independent of which persons the
-    # canonical references, so any linked submissions stay attached — their name
-    # claim is now simply resolved to the corrected person.
-    if "person_subject_curie_or_id" in data and data["person_subject_curie_or_id"] is not None:
-        obj.person_subject_id = person_crud.resolve_person_id(db, str(data["person_subject_curie_or_id"]))
-    if "person_object_curie_or_id" in data and data["person_object_curie_or_id"] is not None:
-        obj.person_object_id = person_crud.resolve_person_id(db, str(data["person_object_curie_or_id"]))
-    _reject_self_pair(obj.person_subject_id, obj.person_object_id)
+    # Everything from the first attribute mutation up to the commit runs under
+    # no_autoflush: once obj is dirtied, any intervening query (validate_term_id,
+    # the _normalize_pair term lookup, ...) would otherwise autoflush the dirty row
+    # and surface a unique-constraint IntegrityError BEFORE the commit's try/except,
+    # turning the intended 422 into an uncaught 500. Deferring the only flush to the
+    # explicit commit keeps every constraint violation catchable.
+    with db.no_autoflush:
+        # Person corrections: resolve curie-or-id and repoint the canonical. The
+        # submission link (person_lineage_id) is independent of which persons the
+        # canonical references, so any linked submissions stay attached — their name
+        # claim is now simply resolved to the corrected person.
+        if "person_subject_curie_or_id" in data and data["person_subject_curie_or_id"] is not None:
+            obj.person_subject_id = person_crud.resolve_person_id(db, str(data["person_subject_curie_or_id"]))
+        if "person_object_curie_or_id" in data and data["person_object_curie_or_id"] is not None:
+            obj.person_object_id = person_crud.resolve_person_id(db, str(data["person_object_curie_or_id"]))
+        _reject_self_pair(obj.person_subject_id, obj.person_object_id)
 
-    # The relationship is the incoming vocabulary_term_abc id; validate before storing.
-    if "relationship" in data and data["relationship"] is not None:
-        term_id = data["relationship"]
-        vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
-        obj.relationship_vocabulary_term_abc_id = term_id
+        # The relationship is the incoming vocabulary_term_abc id; validate before storing.
+        if "relationship" in data and data["relationship"] is not None:
+            term_id = data["relationship"]
+            vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
+            obj.relationship_vocabulary_term_abc_id = term_id
 
-    for field, value in data.items():
-        if field not in _SCALAR_FIELDS:
-            continue
-        setattr(obj, field, value)
+        for field, value in data.items():
+            if field not in _SCALAR_FIELDS:
+                continue
+            setattr(obj, field, value)
 
-    # If the (possibly updated) relationship is non-directional, re-normalize the
-    # id order so a row patched into a symmetric relationship can't become a reversed
-    # duplicate of an existing row for the same pair.
-    obj.person_subject_id, obj.person_object_id = _normalize_pair(
-        db, obj.person_subject_id, obj.person_object_id, obj.relationship_vocabulary_term_abc_id
-    )
+        # If the (possibly updated) relationship is non-directional, re-normalize the
+        # id order so a row patched into a symmetric relationship can't become a reversed
+        # duplicate of an existing row for the same pair.
+        obj.person_subject_id, obj.person_object_id = _normalize_pair(
+            db, obj.person_subject_id, obj.person_object_id, obj.relationship_vocabulary_term_abc_id
+        )
 
     try:
         db.commit()
