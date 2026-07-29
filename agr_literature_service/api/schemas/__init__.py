@@ -163,7 +163,6 @@ from .person_setting_schemas import (
     PersonSettingSchemaUpdate,
     PersonSettingSchemaShow
 )
-from .person_lineage_relationship_enum import PersonPersonRole, SYMMETRIC_RELATIONSHIPS
 from .person_lineage_schemas import (
     PersonLineageSchemaCreate,
     PersonLineageSchemaUpdate,
@@ -177,7 +176,6 @@ from .person_lineage_submission_schemas import (
     PersonLineageSubmissionSchemaRelated,
     PersonLineageSubmissionValidateSchema,
 )
-from .laboratory_position_enum import LabPosition
 from .laboratory_cross_reference_schemas import (
     LaboratoryCrossReferenceSchemaCreate,
     LaboratoryCrossReferenceSchemaPost,

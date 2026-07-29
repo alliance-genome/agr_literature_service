@@ -36,7 +36,7 @@ class TestTableBackedVocabulary:
             assert {"value": tid, "label": "Post-Doc", "is_obsolete": False} in terms
 
             # synonym "postdoc" resolves to the canonical "Post-Doc" term
-            s = client.get("/vocabulary/Laboratory Role/search?q=postd",
+            s = client.get("/vocabulary/Laboratory Role/autocomplete?q=postd",
                            headers=auth_headers)
             assert s.status_code == status.HTTP_200_OK
             hits = s.json()
@@ -46,3 +46,12 @@ class TestTableBackedVocabulary:
         with TestClient(app) as client:
             r = client.get("/vocabulary/does_not_exist", headers=auth_headers)
             assert r.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_autocomplete_route_exists():
+    """The vocabulary typeahead route is served at ``/autocomplete``; the old
+    ``/search`` path no longer exists. Asserted via route inspection so it needs
+    no DB or Cognito auth."""
+    paths = {r.path for r in app.routes}
+    assert "/vocabulary/{name}/autocomplete" in paths
+    assert "/vocabulary/{name}/search" not in paths

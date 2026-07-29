@@ -30,10 +30,10 @@ def show(name: str,
     return vocabulary_crud.get_vocabulary(db, name)
 
 
-@router.get('/{name}/search',
+@router.get('/{name}/autocomplete',
             status_code=200)
-def search(name: str,
-           q: str = "",
-           user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
-           db: Session = db_session) -> List[Dict[str, Any]]:
+def autocomplete(name: str,
+                 q: str = "",
+                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+                 db: Session = db_session) -> List[Dict[str, Any]]:
     return vocabulary_crud.search_vocabulary(db, name, q)
