@@ -24,8 +24,13 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
     # The claim — always required.
     person_subject_name = Column(String(), nullable=False)
     person_object_name = Column(String(), nullable=False)
-    # Controlled vocabulary enforced by the API (PersonPersonRole).
-    relationship = Column(String(), nullable=False)
+    # Controlled vocabulary: FK to the "person_person_relationship" vocabulary term.
+    relationship_vocabulary_term_abc_id = Column(
+        Integer,
+        ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
+        nullable=False,
+        index=True,
+    )
     who_sent_this = Column(String(), nullable=False)
 
     # Resolution — set independently as a curator matches each name to a person.
@@ -77,6 +82,6 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
 
     def __str__(self) -> str:
         return (
-            f"{self.person_subject_name} -[{self.relationship}]-> "
+            f"{self.person_subject_name} -[{self.relationship_vocabulary_term_abc_id}]-> "
             f"{self.person_object_name} [{self.status}]"
         )

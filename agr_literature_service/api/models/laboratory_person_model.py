@@ -1,5 +1,5 @@
 from typing import Dict
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Boolean, Index
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Boolean, Index
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
 from agr_literature_service.api.database.versioning import enable_versioning
@@ -38,8 +38,13 @@ class LaboratoryPersonModel(Base, AuditedModel):
     is_lab_contact = Column(Boolean, nullable=False, default=False, server_default="false")
     can_edit_lab = Column(Boolean, nullable=False, default=False, server_default="false")
 
-    # Controlled vocabulary enforced by the API (LabPosition).
-    lab_position = Column(String(), nullable=True)
+    # Controlled vocabulary: FK to the "lab_position" vocabulary term.
+    lab_position_vocabulary_term_abc_id = Column(
+        Integer,
+        ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
+        nullable=True,
+        index=True,
+    )
 
     __table_args__ = (
         Index("ix_laboratory_person_laboratory_person", "laboratory_id", "person_id"),
