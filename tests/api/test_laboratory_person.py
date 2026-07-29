@@ -19,6 +19,11 @@ from agr_literature_service.lit_processing.tests.vocabulary_populate_load import
 )
 from agr_literature_service.api.crud import vocabulary_crud
 from agr_literature_service.api.crud import vocabulary_seed_data as sd
+from agr_literature_service.api.crud.vocabulary_crud import VocabularyTermRefSchema
+from agr_literature_service.api.schemas import (
+    LaboratoryPersonSchemaShow,
+    LaboratoryPersonSchemaRelated,
+)
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
@@ -270,6 +275,15 @@ class TestLaboratoryPersonCrud:
         assert obj.lab_position_vocabulary_term_abc_id == term_id
         assert obj.is_lab_contact is True
 
+        # The read-side serialization path is real: the crud dict validates against
+        # the response schema (exercises the model_rebuild() forward-ref resolution),
+        # and lab_position deserializes into a VocabularyTermRefSchema.
+        validated = LaboratoryPersonSchemaShow.model_validate(created)
+        assert isinstance(validated.lab_position, VocabularyTermRefSchema)
+        assert validated.lab_position.value == term_id
+        assert validated.lab_position.label == "Lab Member"
+        assert validated.lab_position.is_obsolete is False
+
     def test_show_and_list_return_term_ref(self, db, seeded_lab_and_person):  # noqa
         term_id = _term_id_by_label(db, "Lab Member")
         created = laboratory_person_crud.create_for_laboratory(
@@ -279,17 +293,29 @@ class TestLaboratoryPersonCrud:
         lp_id = created["laboratory_person_id"]
         expected = {"value": term_id, "label": "Lab Member", "is_obsolete": False}
 
-        assert laboratory_person_crud.show(db, lp_id)["lab_position"] == expected
+        shown = laboratory_person_crud.show(db, lp_id)
+        assert shown["lab_position"] == expected
+        # show() output validates against the Show response schema.
+        validated_show = LaboratoryPersonSchemaShow.model_validate(shown)
+        assert isinstance(validated_show.lab_position, VocabularyTermRefSchema)
+        assert validated_show.lab_position.value == term_id
 
         by_person = laboratory_person_crud.list_for_person(
             db, seeded_lab_and_person["person_id"])
         row = next(r for r in by_person if r["laboratory_person_id"] == lp_id)
         assert row["lab_position"] == expected
+        # A list item validates against the Related schema — the type embedded in the
+        # parent Person/Laboratory Show schemas.
+        validated_related = LaboratoryPersonSchemaRelated.model_validate(row)
+        assert isinstance(validated_related.lab_position, VocabularyTermRefSchema)
+        assert validated_related.lab_position.label == "Lab Member"
+        assert validated_related.lab_position.is_obsolete is False
 
         by_lab = laboratory_person_crud.list_for_laboratory(
             db, seeded_lab_and_person["laboratory_id"])
         row = next(r for r in by_lab if r["laboratory_person_id"] == lp_id)
         assert row["lab_position"] == expected
+        LaboratoryPersonSchemaRelated.model_validate(row)
 
     def test_patch_updates_and_clears_fk(self, db, seeded_lab_and_person):  # noqa
         term_id = _term_id_by_label(db, "Lab Member")
@@ -306,6 +332,20 @@ class TestLaboratoryPersonCrud:
 
         laboratory_person_crud.patch(db, lp_id, {"lab_position": None})
         assert laboratory_person_crud.show(db, lp_id)["lab_position"] is None
+
+    def test_patch_unknown_term_id_raises_422(self, db, seeded_lab_and_person):  # noqa
+        term_id = _term_id_by_label(db, "Lab Member")
+        created = laboratory_person_crud.create_for_laboratory(
+            db, seeded_lab_and_person["laboratory_id"],
+            {"person_id": seeded_lab_and_person["person_id"], "lab_position": term_id},
+        )
+        lp_id = created["laboratory_person_id"]
+        with pytest.raises(HTTPException) as exc_info:
+            laboratory_person_crud.patch(db, lp_id, {"lab_position": 999999})
+        assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        # The rejected patch left the original term id in place (fail-closed).
+        assert laboratory_person_crud.show(db, lp_id)["lab_position"] == {
+            "value": term_id, "label": "Lab Member", "is_obsolete": False}
 
     def test_create_unknown_term_id_raises_422(self, db, seeded_lab_and_person):  # noqa
         populate_test_vocabularies(db)
