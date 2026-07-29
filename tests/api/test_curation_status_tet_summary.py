@@ -15,11 +15,13 @@ NEW_DATA_NOVELTY = "ATP:0000321"
 
 
 def _tet(date_created, negated=False, data_novelty=None,
-         confidence_score=None, confidence_level=None):
+         confidence_score=None, confidence_level=None,
+         entity=None, entity_type=None):
     return SimpleNamespace(date_created=date_created, negated=negated,
                            data_novelty=data_novelty,
                            confidence_score=confidence_score,
-                           confidence_level=confidence_level)
+                           confidence_level=confidence_level,
+                           entity=entity, entity_type=entity_type)
 
 
 def _source(assertion, source_method=None):
@@ -110,7 +112,8 @@ def test_classifier_prediction_carries_method_and_confidence():
     topic = "ATP:0000001"
     rows = {topic: [
         (_tet(datetime(2025, 5, 1), negated=False, confidence_score=0.92,
-              confidence_level="high"),
+              confidence_level="high", entity="WB:WBGene00000912",
+              entity_type="ATP:0000005"),
          _source("ECO:0008004", source_method="abc_document_classifier")),
     ]}
     summary = get_tet_list_summary(topic, rows)
@@ -124,4 +127,6 @@ def test_classifier_prediction_carries_method_and_confidence():
         "confidence_level": "high",
         "negated": False,
         "assessment": "has",
+        "entity": "WB:WBGene00000912",
+        "entity_type": "ATP:0000005",
     }
