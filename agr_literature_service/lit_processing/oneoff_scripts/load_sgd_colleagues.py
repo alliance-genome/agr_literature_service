@@ -88,6 +88,16 @@ and deletes consume none. Re-runs are safe and convergent: a second run with no
 SGD changes is a no-op.
 """
 
+# SCRUM-6311: This loader is currently BROKEN against the post-migration schema
+# and code. (a) It imports ``PersonPersonRole`` / ``LabPosition`` from
+# ``agr_literature_service.api.schemas``, which no longer exist -- that import
+# now raises ImportError, so the module cannot even load. (b) It writes the
+# dropped ``relationship`` / ``lab_position`` slug columns, which no longer
+# exist on the tables. Before it is re-run it MUST be rewritten to resolve
+# ``vocabulary_term_abc`` ids (via the "lab_position" and
+# "person_person_relationship" vocabularies) and write those FK ids instead of
+# the old slug strings. Not updated by SCRUM-6311.
+
 import argparse
 import csv
 import json
