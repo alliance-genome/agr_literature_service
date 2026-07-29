@@ -18,8 +18,9 @@ db_session: Session = Depends(get_db)
 
 @router.get('/',
             status_code=200)
-def list_all(user: Optional[Dict[str, Any]] = Security(get_authenticated_user)) -> List[str]:
-    return vocabulary_crud.list_vocabularies()
+def list_all(user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
+             db: Session = db_session) -> List[str]:
+    return vocabulary_crud.list_vocabularies(db)
 
 
 @router.get('/{name}',

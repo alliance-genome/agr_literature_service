@@ -8,6 +8,10 @@ from fastapi import status
 from starlette.testclient import TestClient
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.crud import vocabulary_crud as vc
+from agr_literature_service.lit_processing.tests.vocabulary_populate_load import (
+    populate_test_vocabularies,
+)
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 
@@ -46,6 +50,17 @@ class TestTableBackedVocabulary:
         with TestClient(app) as client:
             r = client.get("/vocabulary/does_not_exist", headers=auth_headers)
             assert r.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_list_vocabularies_includes_static_and_table_backed(db):  # noqa
+    """GET /vocabulary/ lists both the static Literal vocabularies and the
+    table-backed ones (db-level; no Cognito needed)."""
+    populate_test_vocabularies(db)
+    names = vc.list_vocabularies(db)
+    assert names == sorted(names)  # stable, sorted
+    assert {"person_active_status", "person_privacy",
+            "laboratory_status", "laboratory_email_visibility"} <= set(names)
+    assert {"lab_position", "person_person_relationship"} <= set(names)
 
 
 def test_autocomplete_route_exists():

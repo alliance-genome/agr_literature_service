@@ -30,9 +30,12 @@ _STATIC_VOCABULARIES: Dict[str, Any] = {
 }
 
 
-def list_vocabularies() -> List[str]:
-    """Return the known vocabulary names (sorted, stable)."""
-    return sorted(_STATIC_VOCABULARIES)
+def list_vocabularies(db: Session) -> List[str]:
+    """Return all known vocabulary names (sorted, stable): the static ``Literal``
+    vocabularies plus every table-backed vocabulary registered in ``vocabulary_abc``."""
+    from agr_literature_service.api.models import VocabularyAbcModel
+    table_backed = {name for (name,) in db.query(VocabularyAbcModel.vocabulary).all()}
+    return sorted(set(_STATIC_VOCABULARIES) | table_backed)
 
 
 def get_vocabulary(db: Session, name: str) -> List[Dict[str, Any]]:

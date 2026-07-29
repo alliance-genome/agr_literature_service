@@ -31,10 +31,3 @@ def test_vocabulary_term_shape():
     assert set(term) == {"value", "label", "is_obsolete"}
     assert term["value"] == term["label"] == "active"
     assert term["is_obsolete"] is False
-
-
-def test_list_vocabularies():
-    names = vc.list_vocabularies()
-    assert names == sorted(names)  # stable, sorted
-    assert {"person_active_status", "person_privacy",
-            "laboratory_status", "laboratory_email_visibility"} <= set(names)
