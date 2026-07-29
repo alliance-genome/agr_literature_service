@@ -6,13 +6,14 @@ Serves controlled-vocabulary value lists to the UI from a single source.
 For short, stable app enums, the ABC API's own Pydantic ``Literal`` types are the
 source of truth: this registry maps a public vocabulary name to the ``Literal`` that
 already validates the field, so validation and the UI dropdown read the same definition
-(no duplication, no DB table). Longer/curated vocabularies (e.g. lab_position,
-person-person roles) will be served from the A-team-backed cache under the same
-endpoint in a later phase.
+(no duplication, no DB table). Longer curated vocabularies (lab_position,
+person_person_relationship) are served from the ``vocabulary_abc`` tables under the
+same endpoint.
 """
-from typing import Any, Dict, List, get_args
+from typing import Any, Dict, List, Optional, get_args
 
 from fastapi import HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.schemas.person_schemas import ActiveStatus, Privacy
@@ -94,3 +95,52 @@ def search_vocabulary(db: Session, name: str, q: str) -> List[Dict[str, Any]]:
             out.append({"value": t.vocabulary_term_abc_id, "label": t.name,
                         "is_obsolete": t.is_obsolete})
     return out
+
+
+class VocabularyTermRefSchema(BaseModel):
+    value: int
+    label: str
+    is_obsolete: bool
+
+
+def serialize_term_ref(db: Session, term_id: Optional[int]) -> Optional[Dict[str, Any]]:
+    """Expand a stored vocabulary_term_abc id to the uniform {value,label,is_obsolete}
+    object the UI consumes, or None when unset."""
+    if term_id is None:
+        return None
+    from agr_literature_service.api.models import VocabularyTermAbcModel
+    term = db.query(VocabularyTermAbcModel).filter(
+        VocabularyTermAbcModel.vocabulary_term_abc_id == term_id
+    ).first()
+    if term is None:
+        return None
+    return {"value": term.vocabulary_term_abc_id, "label": term.name,
+            "is_obsolete": term.is_obsolete}
+
+
+def validate_term_id(db: Session, vocabulary_key: str, term_id: int) -> None:
+    """Fail-closed: raise 422 unless term_id is a non-obsolete term of the named
+    vocabulary."""
+    from agr_literature_service.api.models import (
+        VocabularyAbcModel, VocabularyTermAbcModel
+    )
+    term = (
+        db.query(VocabularyTermAbcModel)
+        .join(VocabularyAbcModel,
+              VocabularyTermAbcModel.vocabulary_abc_id == VocabularyAbcModel.vocabulary_abc_id)
+        .filter(
+            VocabularyTermAbcModel.vocabulary_term_abc_id == term_id,
+            VocabularyAbcModel.vocabulary == vocabulary_key,
+        )
+        .first()
+    )
+    if term is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unknown or wrong-vocabulary term id {term_id} for '{vocabulary_key}'",
+        )
+    if term.is_obsolete:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Term id {term_id} is obsolete and cannot be assigned",
+        )
