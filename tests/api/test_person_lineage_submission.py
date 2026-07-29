@@ -93,7 +93,7 @@ class TestPersonLineageSubmissionCrud:
             )
             .one()
         )
-        assert row.relationship_vocabulary_term_abc_id == term_id
+        assert row.relationship_vocab_term_abc_id == term_id
         assert row.status == "pending"
         assert row.person_lineage_id is None
 
@@ -140,7 +140,7 @@ class TestPersonLineageSubmissionCrud:
             .filter(PersonLineageModel.person_lineage_id == canonical_id)
             .one()
         )
-        assert canonical.relationship_vocabulary_term_abc_id == term_id
+        assert canonical.relationship_vocab_term_abc_id == term_id
         assert canonical.person_subject_id == two_people["person_subject_id"]
         assert canonical.person_object_id == two_people["person_object_id"]
 
@@ -172,7 +172,7 @@ class TestPersonLineageSubmissionCrud:
             .filter(
                 PersonLineageModel.person_subject_id == two_people["person_subject_id"],
                 PersonLineageModel.person_object_id == two_people["person_object_id"],
-                PersonLineageModel.relationship_vocabulary_term_abc_id == term_id,
+                PersonLineageModel.relationship_vocab_term_abc_id == term_id,
             )
             .count()
         )

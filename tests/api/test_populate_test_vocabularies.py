@@ -11,6 +11,6 @@ def test_populate_is_idempotent_and_complete(db):  # noqa
     populate_test_vocabularies(db)  # second call must not duplicate
     lab = vocabulary_crud.get_vocabulary(db, sd.LAB_POSITION_VOCAB)
     ppr = vocabulary_crud.get_vocabulary(db, sd.PERSON_LINEAGE_VOCAB)
-    assert len(lab) == 15
+    assert len(lab) == 14
     assert len(ppr) == 11
     assert {t["label"] for t in ppr} == set(sd.PERSON_LINEAGE_TERMS)

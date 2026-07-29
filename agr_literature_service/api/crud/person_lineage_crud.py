@@ -19,7 +19,7 @@ from agr_literature_service.api.models import VocabularyTermAbcModel
 
 logger = logging.getLogger(__name__)
 
-_SCALAR_FIELDS = {"relationship_vocabulary_term_abc_id", "start_date", "end_date"}
+_SCALAR_FIELDS = {"relationship_vocab_term_abc_id", "start_date", "end_date"}
 
 
 def _is_symmetric_term(db: Session, term_id: int) -> bool:
@@ -69,7 +69,7 @@ def _to_show_dict(db: Session, obj: PersonLineageModel) -> Dict[str, Any]:
         "person_object_curie": obj.person_object_curie,
         "person_object_name": obj.person_object_name,
         "relationship": vocabulary_crud.serialize_term_ref(
-            db, obj.relationship_vocabulary_term_abc_id),
+            db, obj.relationship_vocab_term_abc_id),
         "start_date": obj.start_date,
         "end_date": obj.end_date,
         "date_created": obj.date_created,
@@ -99,7 +99,7 @@ def create(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     obj = PersonLineageModel(
         person_subject_id=one_id,
         person_object_id=two_id,
-        relationship_vocabulary_term_abc_id=term_id,
+        relationship_vocab_term_abc_id=term_id,
         start_date=data.get("start_date"),
         end_date=data.get("end_date"),
     )
@@ -141,7 +141,7 @@ def find_or_create(
         .filter(
             PersonLineageModel.person_subject_id == person_subject_id,
             PersonLineageModel.person_object_id == person_object_id,
-            PersonLineageModel.relationship_vocabulary_term_abc_id == relationship_term_id,
+            PersonLineageModel.relationship_vocab_term_abc_id == relationship_term_id,
         )
         .first()
     )
@@ -151,7 +151,7 @@ def find_or_create(
     obj = PersonLineageModel(
         person_subject_id=person_subject_id,
         person_object_id=person_object_id,
-        relationship_vocabulary_term_abc_id=relationship_term_id,
+        relationship_vocab_term_abc_id=relationship_term_id,
         start_date=start_date,
         end_date=end_date,
     )
@@ -239,7 +239,7 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
         if "relationship" in data and data["relationship"] is not None:
             term_id = data["relationship"]
             vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
-            obj.relationship_vocabulary_term_abc_id = term_id
+            obj.relationship_vocab_term_abc_id = term_id
 
         for field, value in data.items():
             if field not in _SCALAR_FIELDS:
@@ -250,7 +250,7 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
         # id order so a row patched into a symmetric relationship can't become a reversed
         # duplicate of an existing row for the same pair.
         obj.person_subject_id, obj.person_object_id = _normalize_pair(
-            db, obj.person_subject_id, obj.person_object_id, obj.relationship_vocabulary_term_abc_id
+            db, obj.person_subject_id, obj.person_object_id, obj.relationship_vocab_term_abc_id
         )
 
     try:

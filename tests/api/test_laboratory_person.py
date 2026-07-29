@@ -92,7 +92,7 @@ class TestLaboratoryPerson:
             .one()
         )
         assert obj.person_id == test_lab_person.person_id
-        assert obj.lab_position_vocabulary_term_abc_id == test_lab_person.term_id
+        assert obj.lab_position_vocab_term_abc_id == test_lab_person.term_id
         assert obj.is_lab_contact is True
         assert obj.can_edit_lab is False
 
@@ -272,7 +272,7 @@ class TestLaboratoryPersonCrud:
                     == created["laboratory_person_id"])
             .one()
         )
-        assert obj.lab_position_vocabulary_term_abc_id == term_id
+        assert obj.lab_position_vocab_term_abc_id == term_id
         assert obj.is_lab_contact is True
 
         # The read-side serialization path is real: the crud dict validates against

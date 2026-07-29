@@ -17,11 +17,11 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 logger = logging.getLogger(__name__)
 
 _SCALAR_FIELDS = {
-    "person_subject_name", "person_object_name", "relationship_vocabulary_term_abc_id",
+    "person_subject_name", "person_object_name", "relationship_vocab_term_abc_id",
     "who_sent_this", "start_date", "end_date", "status",
 }
 _NOT_NULL = {
-    "person_subject_name", "person_object_name", "relationship_vocabulary_term_abc_id",
+    "person_subject_name", "person_object_name", "relationship_vocab_term_abc_id",
     "who_sent_this", "status",
 }
 
@@ -40,7 +40,7 @@ def _to_show_dict(db: Session, obj: PersonLineageSubmissionModel) -> Dict[str, A
         "person_subject_name": obj.person_subject_name,
         "person_object_name": obj.person_object_name,
         "relationship": vocabulary_crud.serialize_term_ref(
-            db, obj.relationship_vocabulary_term_abc_id),
+            db, obj.relationship_vocab_term_abc_id),
         "who_sent_this": obj.who_sent_this,
         "person_subject_id": obj.person_subject_id,
         "person_subject_curie": obj.person_subject_curie,
@@ -72,7 +72,7 @@ def create(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     obj = PersonLineageSubmissionModel(
         person_subject_name=data["person_subject_name"],
         person_object_name=data["person_object_name"],
-        relationship_vocabulary_term_abc_id=term_id,
+        relationship_vocab_term_abc_id=term_id,
         who_sent_this=data["who_sent_this"],
         person_subject_id=_resolve_person(db, data.get("person_subject_curie_or_id")),
         person_object_id=_resolve_person(db, data.get("person_object_curie_or_id")),
@@ -165,7 +165,7 @@ def patch(db: Session, person_lineage_submission_id: int, patch_dict: Dict[str, 
     if "relationship" in data and data["relationship"] is not None:
         term_id = data["relationship"]
         vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
-        obj.relationship_vocabulary_term_abc_id = term_id
+        obj.relationship_vocab_term_abc_id = term_id
 
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:
@@ -263,7 +263,7 @@ def validate(
     # The relationship steering the canonical is a vocabulary_term_abc id (from the
     # override body or, falling back, the submission's stored term id). Validate it
     # before building the canonical.
-    relationship_term_id = overrides.get("relationship") or obj.relationship_vocabulary_term_abc_id
+    relationship_term_id = overrides.get("relationship") or obj.relationship_vocab_term_abc_id
     vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, relationship_term_id)
     start_date = overrides["start_date"] if "start_date" in overrides else obj.start_date
     end_date = overrides["end_date"] if "end_date" in overrides else obj.end_date

@@ -7,14 +7,14 @@ brand-new database that runs the seed migration fresh.
 """
 from typing import Dict, List, Set
 
-SEED_USER_ID: str = "SCRUM-6311"
+SEED_USER_ID: str = "default_user"
 
 LAB_POSITION_VOCAB: str = "lab_position"
 PERSON_LINEAGE_VOCAB: str = "person_person_relationship"
 
-# Laboratory Role — human-readable labels (15).
+# Laboratory Role — human-readable labels (14). PI status is encoded by the
+# ``is_pi`` timestamp on laboratory_person, so there is no PI role term here.
 LAB_POSITION_TERMS: List[str] = [
-    "Principal Investigator/Director",
     "Group Leader",
     "Senior Scientist",
     "MD/Veterinarian",

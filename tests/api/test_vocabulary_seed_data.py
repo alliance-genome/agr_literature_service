@@ -2,8 +2,8 @@
 from agr_literature_service.api.crud import vocabulary_seed_data as sd
 
 
-def test_lab_position_has_15_terms_including_new_ones():
-    assert len(sd.LAB_POSITION_TERMS) == 15
+def test_lab_position_has_14_terms_including_new_ones():
+    assert len(sd.LAB_POSITION_TERMS) == 14
     assert "Professional Biocurator" in sd.LAB_POSITION_TERMS
     assert "Group Leader" in sd.LAB_POSITION_TERMS
     assert "Group leader" not in sd.LAB_POSITION_TERMS  # casing fix

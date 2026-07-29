@@ -38,7 +38,7 @@ def _to_show_dict(db: Session, obj: LaboratoryPersonModel) -> Dict[str, Any]:
         "is_pi": obj.is_pi, "former_pi": obj.former_pi, "alum": obj.alum,
         "is_lab_contact": obj.is_lab_contact, "can_edit_lab": obj.can_edit_lab,
         "lab_position": vocabulary_crud.serialize_term_ref(
-            db, obj.lab_position_vocabulary_term_abc_id),
+            db, obj.lab_position_vocab_term_abc_id),
         "date_created": obj.date_created, "date_updated": obj.date_updated,
         "created_by": obj.created_by, "updated_by": obj.updated_by,
     }
@@ -78,7 +78,7 @@ def create_for_laboratory(db: Session, laboratory_id: int, payload: Dict[str, An
         alum=data.get("alum"),
         is_lab_contact=bool(data.get("is_lab_contact", False)),
         can_edit_lab=bool(data.get("can_edit_lab", False)),
-        lab_position_vocabulary_term_abc_id=term_id,
+        lab_position_vocab_term_abc_id=term_id,
     )
     db.add(obj)
     try:
@@ -174,7 +174,7 @@ def patch(db: Session, laboratory_person_id: int, patch_dict: Dict[str, Any]) ->
         term_id = data["lab_position"]
         if term_id is not None:
             vocabulary_crud.validate_term_id(db, LAB_POSITION_VOCAB, term_id)
-        obj.lab_position_vocabulary_term_abc_id = term_id
+        obj.lab_position_vocab_term_abc_id = term_id
 
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:

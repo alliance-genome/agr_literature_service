@@ -34,7 +34,9 @@ class PersonLineageModel(Base, AuditedModel):
     )
 
     # Controlled vocabulary: FK to the "person_person_relationship" vocabulary term.
-    relationship_vocabulary_term_abc_id = Column(
+    # FK to the vocabulary_term_abc table; 'vocab' abbreviates 'vocabulary' so the
+    # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
+    relationship_vocab_term_abc_id = Column(
         Integer,
         ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
         nullable=False,
@@ -70,7 +72,7 @@ class PersonLineageModel(Base, AuditedModel):
 
     __table_args__ = (
         UniqueConstraint(
-            "person_subject_id", "person_object_id", "relationship_vocabulary_term_abc_id",
+            "person_subject_id", "person_object_id", "relationship_vocab_term_abc_id",
             name="uq_person_lineage_person_ids_relationship",
         ),
     )
@@ -78,5 +80,5 @@ class PersonLineageModel(Base, AuditedModel):
     def __str__(self) -> str:
         return (
             f"person_lineage({self.person_subject_id} "
-            f"-[{self.relationship_vocabulary_term_abc_id}]-> {self.person_object_id})"
+            f"-[{self.relationship_vocab_term_abc_id}]-> {self.person_object_id})"
         )

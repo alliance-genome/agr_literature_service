@@ -77,7 +77,7 @@ class TestPersonLineageCrud:
         )
         assert obj.person_subject_id == two_people["person_subject_id"]
         assert obj.person_object_id == two_people["person_object_id"]
-        assert obj.relationship_vocabulary_term_abc_id == term_id
+        assert obj.relationship_vocab_term_abc_id == term_id
 
         # The read-side serialization path is real: the crud dict validates against
         # the response schema (exercises model_rebuild() forward-ref resolution) and
@@ -174,7 +174,7 @@ class TestPersonLineageCrud:
         assert exc_info.value.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         count = (
             db.query(PersonLineageModel)
-            .filter(PersonLineageModel.relationship_vocabulary_term_abc_id == collab)
+            .filter(PersonLineageModel.relationship_vocab_term_abc_id == collab)
             .count()
         )
         assert count == 1

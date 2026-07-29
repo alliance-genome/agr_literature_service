@@ -39,7 +39,9 @@ class LaboratoryPersonModel(Base, AuditedModel):
     can_edit_lab = Column(Boolean, nullable=False, default=False, server_default="false")
 
     # Controlled vocabulary: FK to the "lab_position" vocabulary term.
-    lab_position_vocabulary_term_abc_id = Column(
+    # FK to the vocabulary_term_abc table; 'vocab' abbreviates 'vocabulary' so the
+    # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
+    lab_position_vocab_term_abc_id = Column(
         Integer,
         ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
         nullable=True,

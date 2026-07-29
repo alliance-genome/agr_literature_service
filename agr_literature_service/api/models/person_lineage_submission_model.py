@@ -25,7 +25,9 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
     person_subject_name = Column(String(), nullable=False)
     person_object_name = Column(String(), nullable=False)
     # Controlled vocabulary: FK to the "person_person_relationship" vocabulary term.
-    relationship_vocabulary_term_abc_id = Column(
+    # FK to the vocabulary_term_abc table; 'vocab' abbreviates 'vocabulary' so the
+    # auto-derived fk_/ix_ identifier names stay within Postgres's 63-char limit.
+    relationship_vocab_term_abc_id = Column(
         Integer,
         ForeignKey("vocabulary_term_abc.vocabulary_term_abc_id"),
         nullable=False,
@@ -82,6 +84,6 @@ class PersonLineageSubmissionModel(Base, AuditedModel):
 
     def __str__(self) -> str:
         return (
-            f"{self.person_subject_name} -[{self.relationship_vocabulary_term_abc_id}]-> "
+            f"{self.person_subject_name} -[{self.relationship_vocab_term_abc_id}]-> "
             f"{self.person_object_name} [{self.status}]"
         )

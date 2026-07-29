@@ -3,9 +3,9 @@
 FK-links the retired String relationship/lab_position fields to the ABC
 controlled vocabularies (SCRUM-6311):
 
-* seeds the SCRUM-6311 automation user, the ``lab_position`` and
+* seeds the ``default_user`` automation user, the ``lab_position`` and
   ``person_person_relationship`` vocabularies, and their terms;
-* adds the ``*_vocabulary_term_abc_id`` FK columns (base + continuum
+* adds the ``*_vocab_term_abc_id`` FK columns (base + continuum
   ``_version`` twins) to laboratory_person, person_lineage and
   person_lineage_submission;
 * cleans out non-loader laboratory_person rows and archives each non-blank
@@ -41,28 +41,16 @@ _PL_UNIQUE = "uq_person_lineage_person_ids_relationship"
 
 
 def _fk_col(tbl: str) -> str:
-    return "lab_position_vocabulary_term_abc_id" if tbl == "laboratory_person" \
-        else "relationship_vocabulary_term_abc_id"
-
-
-def _short(col: str) -> str:
-    """Abbreviate the column for use in CONSTRAINT/INDEX identifiers only.
-
-    Postgres caps identifiers at 63 chars; the full
-    ``fk_person_lineage_submission_relationship_vocabulary_term_abc_id`` is 64.
-    The column itself keeps its full name; only the derived index/FK names use
-    the ``vta_id`` abbreviation. Kept consistent across all three tables so
-    upgrade and downgrade agree.
-    """
-    return col.replace("vocabulary_term_abc_id", "vta_id")
+    return "lab_position_vocab_term_abc_id" if tbl == "laboratory_person" \
+        else "relationship_vocab_term_abc_id"
 
 
 def _fk_name(tbl: str, col: str) -> str:
-    return f"fk_{tbl}_{_short(col)}"
+    return f"fk_{tbl}_{col}"
 
 
 def _ix_name(tbl: str, col: str) -> str:
-    return f"ix_{tbl}_{_short(col)}"
+    return f"ix_{tbl}_{col}"
 
 
 # Guard against regressing past Postgres's 63-char identifier limit: every
@@ -151,14 +139,14 @@ def upgrade():
         ), {"vid": ppr_id, "name": label}).scalar_one()
         for tbl in ("person_lineage", "person_lineage_submission"):
             conn.execute(sa.text(
-                f"UPDATE {tbl} SET relationship_vocabulary_term_abc_id = :tid "
+                f"UPDATE {tbl} SET relationship_vocab_term_abc_id = :tid "
                 f"WHERE relationship = :slug"
             ), {"tid": term_id, "slug": slug})
 
     # 7. guard: no unmapped relationship rows before NOT NULL
     for tbl in ("person_lineage", "person_lineage_submission"):
         left = conn.execute(sa.text(
-            f"SELECT count(*) FROM {tbl} WHERE relationship_vocabulary_term_abc_id IS NULL"
+            f"SELECT count(*) FROM {tbl} WHERE relationship_vocab_term_abc_id IS NULL"
         )).scalar_one()
         assert left == 0, f"{tbl}: {left} rows have an unmapped relationship slug"
 
@@ -175,13 +163,13 @@ def upgrade():
     op.drop_column("person_lineage_submission_version", "relationship")
 
     # 10. now that the data is populated, enforce NOT NULL on the two required FKs
-    op.alter_column("person_lineage", "relationship_vocabulary_term_abc_id", nullable=False)
-    op.alter_column("person_lineage_submission", "relationship_vocabulary_term_abc_id", nullable=False)
+    op.alter_column("person_lineage", "relationship_vocab_term_abc_id", nullable=False)
+    op.alter_column("person_lineage_submission", "relationship_vocab_term_abc_id", nullable=False)
 
     # 11. recreate the uniqueness constraint on the new FK column
     op.create_unique_constraint(
         _PL_UNIQUE, "person_lineage",
-        ["person_subject_id", "person_object_id", "relationship_vocabulary_term_abc_id"],
+        ["person_subject_id", "person_object_id", "relationship_vocab_term_abc_id"],
     )
 
 
@@ -201,7 +189,7 @@ def downgrade():
             conn.execute(sa.text(f"""
                 UPDATE {tbl} SET relationship = :slug
                 FROM vocabulary_term_abc t
-                WHERE {tbl}.relationship_vocabulary_term_abc_id = t.vocabulary_term_abc_id
+                WHERE {tbl}.relationship_vocab_term_abc_id = t.vocabulary_term_abc_id
                   AND t.name = :label
             """), {"slug": slug, "label": label})
         op.alter_column(tbl, "relationship", nullable=False)
@@ -226,7 +214,7 @@ def downgrade():
         op.drop_column(f"{tbl}_version", f"{col}_mod")
         op.drop_column(f"{tbl}_version", col)
 
-    # delete seeded terms + vocabularies (SCRUM-6311 users row left in place)
+    # delete seeded terms + vocabularies (default_user users row left in place)
     for key in (LAB_POSITION_VOCAB, PERSON_LINEAGE_VOCAB):
         conn.execute(sa.text(
             "DELETE FROM vocabulary_term_abc WHERE vocabulary_abc_id = "
