@@ -9,15 +9,21 @@ from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonLineageSubmissionModel
 from agr_literature_service.api.crud import person_lineage_crud, person_crud
+from agr_literature_service.api.crud import vocabulary_crud
+from agr_literature_service.api.crud.vocabulary_crud import VocabularyTermRefSchema
+from agr_literature_service.api.crud.vocabulary_seed_data import PERSON_LINEAGE_VOCAB
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
 _SCALAR_FIELDS = {
-    "person_subject_name", "person_object_name", "relationship", "who_sent_this",
-    "start_date", "end_date", "status",
+    "person_subject_name", "person_object_name", "relationship_vocabulary_term_abc_id",
+    "who_sent_this", "start_date", "end_date", "status",
 }
-_NOT_NULL = {"person_subject_name", "person_object_name", "relationship", "who_sent_this", "status"}
+_NOT_NULL = {
+    "person_subject_name", "person_object_name", "relationship_vocabulary_term_abc_id",
+    "who_sent_this", "status",
+}
 
 
 def _resolve_person(db: Session, curie_or_id: Optional[Union[str, int]]) -> Optional[int]:
@@ -28,7 +34,30 @@ def _resolve_person(db: Session, curie_or_id: Optional[Union[str, int]]) -> Opti
     return person_crud.resolve_person_id(db, str(curie_or_id))
 
 
-def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel:
+def _to_show_dict(db: Session, obj: PersonLineageSubmissionModel) -> Dict[str, Any]:
+    return {
+        "person_lineage_submission_id": obj.person_lineage_submission_id,
+        "person_subject_name": obj.person_subject_name,
+        "person_object_name": obj.person_object_name,
+        "relationship": vocabulary_crud.serialize_term_ref(
+            db, obj.relationship_vocabulary_term_abc_id),
+        "who_sent_this": obj.who_sent_this,
+        "person_subject_id": obj.person_subject_id,
+        "person_subject_curie": obj.person_subject_curie,
+        "person_object_id": obj.person_object_id,
+        "person_object_curie": obj.person_object_curie,
+        "start_date": obj.start_date,
+        "end_date": obj.end_date,
+        "status": obj.status,
+        "person_lineage_id": obj.person_lineage_id,
+        "date_created": obj.date_created,
+        "date_updated": obj.date_updated,
+        "created_by": obj.created_by,
+        "updated_by": obj.updated_by,
+    }
+
+
+def create(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     data = jsonable_encoder(payload)
 
     if "created_by" in data and data["created_by"] is not None:
@@ -36,10 +65,14 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
+    # The relationship is the incoming vocabulary_term_abc id; validate before storing.
+    term_id = data["relationship"]
+    vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
+
     obj = PersonLineageSubmissionModel(
         person_subject_name=data["person_subject_name"],
         person_object_name=data["person_object_name"],
-        relationship=data["relationship"],
+        relationship_vocabulary_term_abc_id=term_id,
         who_sent_this=data["who_sent_this"],
         person_subject_id=_resolve_person(db, data.get("person_subject_curie_or_id")),
         person_object_id=_resolve_person(db, data.get("person_object_curie_or_id")),
@@ -56,7 +89,7 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageSubmissionModel
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)
-    return obj
+    return _to_show_dict(db, obj)
 
 
 _PERSON_OBJS = (
@@ -65,7 +98,7 @@ _PERSON_OBJS = (
 )
 
 
-def show(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmissionModel:
+def _get_or_404(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmissionModel:
     obj = (
         db.query(PersonLineageSubmissionModel)
         .options(*_PERSON_OBJS)
@@ -80,10 +113,14 @@ def show(db: Session, person_lineage_submission_id: int) -> PersonLineageSubmiss
     return obj
 
 
-def list_for_person(db: Session, person_id: int) -> List[PersonLineageSubmissionModel]:
+def show(db: Session, person_lineage_submission_id: int) -> Dict[str, Any]:
+    return _to_show_dict(db, _get_or_404(db, person_lineage_submission_id))
+
+
+def list_for_person(db: Session, person_id: int) -> List[Dict[str, Any]]:
     """All submissions in which the person is resolved on either side
     (person_subject_id or person_object_id)."""
-    return (
+    rows = (
         db.query(PersonLineageSubmissionModel)
         .options(*_PERSON_OBJS)
         .filter(
@@ -95,6 +132,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonLineageSubmission
         .order_by(PersonLineageSubmissionModel.person_lineage_submission_id.asc())
         .all()
     )
+    return [_to_show_dict(db, o) for o in rows]
 
 
 def patch(db: Session, person_lineage_submission_id: int, patch_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -121,6 +159,13 @@ def patch(db: Session, person_lineage_submission_id: int, patch_dict: Dict[str, 
         obj.person_subject_id = _resolve_person(db, data["person_subject_curie_or_id"])
     if "person_object_curie_or_id" in data:
         obj.person_object_id = _resolve_person(db, data["person_object_curie_or_id"])
+
+    # The relationship is the incoming vocabulary_term_abc id; validate before storing.
+    # (The Update schema already rejects an explicit null for relationship.)
+    if "relationship" in data and data["relationship"] is not None:
+        term_id = data["relationship"]
+        vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
+        obj.relationship_vocabulary_term_abc_id = term_id
 
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:
@@ -152,7 +197,7 @@ def validate(
     db: Session,
     person_lineage_submission_id: int,
     overrides: Optional[Dict[str, Any]] = None,
-) -> PersonLineageSubmissionModel:
+) -> Dict[str, Any]:
     """Promote a fully-resolved submission to a canonical person_lineage.
 
     Requires both person ids to be resolved. Finds or creates the canonical PPR
@@ -177,7 +222,7 @@ def validate(
       - both people must resolve (from the override body or the submission).
     """
     overrides = overrides or {}
-    obj = show(db, person_lineage_submission_id)
+    obj = _get_or_404(db, person_lineage_submission_id)
 
     # A rejected submission must be deliberately un-rejected (its status reset)
     # before it can be validated — validate() won't silently reverse a rejection
@@ -193,7 +238,7 @@ def validate(
     # 'validated' to 'duplicate'). This also makes "reset status, validate again"
     # harmless without resurrecting a stale state.
     if obj.person_lineage_id is not None:
-        return obj
+        return _to_show_dict(db, obj)
 
     # Resolve the canonical's people from the override body when supplied, else
     # fall back to the submission's stored links. Resolution does NOT write back to
@@ -215,7 +260,11 @@ def validate(
                    "body or the submission) before validating.",
         )
 
-    relationship = overrides.get("relationship") or obj.relationship
+    # The relationship steering the canonical is a vocabulary_term_abc id (from the
+    # override body or, falling back, the submission's stored term id). Validate it
+    # before building the canonical.
+    relationship_term_id = overrides.get("relationship") or obj.relationship_vocabulary_term_abc_id
+    vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, relationship_term_id)
     start_date = overrides["start_date"] if "start_date" in overrides else obj.start_date
     end_date = overrides["end_date"] if "end_date" in overrides else obj.end_date
 
@@ -227,7 +276,7 @@ def validate(
             db,
             person_subject_id=subject_id,
             person_object_id=object_id,
-            relationship=relationship,
+            relationship_term_id=relationship_term_id,
             start_date=start_date,
             end_date=end_date,
         )
@@ -241,4 +290,21 @@ def validate(
             detail="Database constraint violation; please verify input and retry.",
         )
     db.refresh(obj)
-    return obj
+    return _to_show_dict(db, obj)
+
+
+# --- Forward-reference resolution -------------------------------------------------
+# person_lineage_submission_schemas declares its relationship field type
+# (VocabularyTermRefSchema) under TYPE_CHECKING to avoid a schemas<->crud import
+# cycle. VocabularyTermRefSchema is a name in this module's globals (imported above),
+# so calling model_rebuild() here completes the read schemas. This module is imported
+# by the person_lineage_submission router at startup, so the ref resolves before any
+# request.
+_ = VocabularyTermRefSchema  # keep the name bound for model_rebuild's namespace
+from agr_literature_service.api.schemas.person_lineage_submission_schemas import (  # noqa: E402
+    PersonLineageSubmissionSchemaShow,
+    PersonLineageSubmissionSchemaRelated,
+)
+
+PersonLineageSubmissionSchemaShow.model_rebuild()
+PersonLineageSubmissionSchemaRelated.model_rebuild()
