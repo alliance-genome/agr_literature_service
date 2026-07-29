@@ -14,13 +14,17 @@ BIOCURATOR = "ATP:0000036"
 NEW_DATA_NOVELTY = "ATP:0000321"
 
 
-def _tet(date_created, negated=False, data_novelty=None):
+def _tet(date_created, negated=False, data_novelty=None,
+         confidence_score=None, confidence_level=None):
     return SimpleNamespace(date_created=date_created, negated=negated,
-                           data_novelty=data_novelty)
+                           data_novelty=data_novelty,
+                           confidence_score=confidence_score,
+                           confidence_level=confidence_level)
 
 
-def _source(assertion):
-    return SimpleNamespace(source_evidence_assertion=assertion)
+def _source(assertion, source_method=None):
+    return SimpleNamespace(source_evidence_assertion=assertion,
+                           source_method=source_method)
 
 
 def test_topic_missing_returns_defaults():
@@ -31,6 +35,10 @@ def test_topic_missing_returns_defaults():
         "tet_info_has_data": False,
         "tet_info_new_data": False,
         "tet_info_no_data": False,
+        "tet_info_manual_has_data": False,
+        "tet_info_manual_new_data": False,
+        "tet_info_manual_no_data": False,
+        "tet_info_source_predictions": [],
     }
 
 
@@ -48,6 +56,9 @@ def test_negated_tet_sets_no_data_with_biocurator_source():
     assert summary["tet_info_has_data"] is False
     assert summary["tet_info_topic_source"] == ["biocurator"]
     assert summary["tet_info_date_created"] == datetime(2025, 3, 5).isoformat()
+    # A biocurator tag is a manual assessment, not a computed prediction.
+    assert summary["tet_info_manual_no_data"] is True
+    assert summary["tet_info_source_predictions"] == []
 
 
 def test_positive_new_data_from_string_date_and_author_source():
@@ -60,6 +71,10 @@ def test_positive_new_data_from_string_date_and_author_source():
     assert summary["tet_info_no_data"] is False
     assert summary["tet_info_topic_source"] == ["author"]
     assert summary["tet_info_date_created"] == datetime(2025, 3, 5).isoformat()
+    # An author tag is manual: both has and new manual flags set, no predictions.
+    assert summary["tet_info_manual_has_data"] is True
+    assert summary["tet_info_manual_new_data"] is True
+    assert summary["tet_info_source_predictions"] == []
 
 
 def test_positive_without_new_data_novelty():
@@ -83,3 +98,30 @@ def test_unknown_assertion_maps_to_computational_and_earliest_date_wins():
     assert summary["tet_info_has_data"] is True
     assert summary["tet_info_no_data"] is True
     assert summary["tet_info_topic_source"] == ["author", "computational"]
+    # The computational tag surfaces as a prediction; the author (negated) tag
+    # is a manual "no data" assessment.
+    assert summary["tet_info_manual_no_data"] is True
+    assert summary["tet_info_manual_has_data"] is False
+    assert len(summary["tet_info_source_predictions"]) == 1
+    assert summary["tet_info_source_predictions"][0]["assessment"] == "has"
+
+
+def test_classifier_prediction_carries_method_and_confidence():
+    topic = "ATP:0000001"
+    rows = {topic: [
+        (_tet(datetime(2025, 5, 1), negated=False, confidence_score=0.92,
+              confidence_level="high"),
+         _source("ECO:0008004", source_method="abc_document_classifier")),
+    ]}
+    summary = get_tet_list_summary(topic, rows)
+    assert summary["tet_info_manual_has_data"] is False
+    preds = summary["tet_info_source_predictions"]
+    assert len(preds) == 1
+    assert preds[0] == {
+        "source_method": "abc_document_classifier",
+        "source_evidence_assertion": "ECO:0008004",
+        "confidence_score": 0.92,
+        "confidence_level": "high",
+        "negated": False,
+        "assessment": "has",
+    }
