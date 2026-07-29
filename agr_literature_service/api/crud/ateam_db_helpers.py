@@ -114,6 +114,33 @@ def search_atp_descendants(ancestor_curie: str) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(data))
 
 
+def get_topic_term_details(curies: List[str]) -> JSONResponse:
+    """Return name/definition/synonyms for a list of ontology term curies.
+
+    Used by the Quick Topic Addition UI to show each topic's definition and
+    synonyms alongside its name (SCRUM-6168). Returns a mapping keyed by curie;
+    curies with no matching (non-obsolete) term are omitted.
+    """
+    if not curies:
+        return JSONResponse(content={})
+    cli = _get_client()
+    try:
+        terms = cli.get_ontology_terms(curies) or {}
+    except AGRAPIError as e:
+        raise HTTPException(status_code=502, detail=f"Ontology term lookup failed: {e}")
+    data: Dict[str, dict] = {}
+    for curie, term in terms.items():
+        if term is None:
+            continue
+        data[curie] = {
+            "curie": term.curie,
+            "name": term.name,
+            "definition": term.definition,
+            "synonyms": term.synonyms or [],
+        }
+    return JSONResponse(content=jsonable_encoder(data))
+
+
 def search_species(species: str) -> JSONResponse:
     """Search NCBITaxonTerm via client (by name or CURIE)."""
     cli = _get_client()
