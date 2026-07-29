@@ -9,22 +9,44 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from agr_literature_service.api.models import PersonLineageModel, PersonLineageSubmissionModel
-from agr_literature_service.api.schemas import SYMMETRIC_RELATIONSHIPS, PersonPersonRole
 from agr_literature_service.api.crud import person_crud
+from agr_literature_service.api.crud import vocabulary_crud
+from agr_literature_service.api.crud.vocabulary_seed_data import (
+    PERSON_LINEAGE_VOCAB, SYMMETRIC_RELATIONSHIP_NAMES,
+)
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.models import VocabularyTermAbcModel
 
 logger = logging.getLogger(__name__)
 
-_SCALAR_FIELDS = {"relationship", "start_date", "end_date"}
+_SCALAR_FIELDS = {"relationship_vocabulary_term_abc_id", "start_date", "end_date"}
 
 
-def _normalize_pair(person_subject_id: int, person_object_id: int, relationship: Any) -> Tuple[int, int]:
+def _is_symmetric_term(db: Session, term_id: int) -> bool:
+    """A relationship term is non-directional when its term NAME is in the
+    seed-data symmetric set (e.g. "Collaborator of").
+
+    The lookup runs under ``no_autoflush`` so it never flushes a caller's pending
+    (dirty) row: in ``patch`` the person/relationship edits are already staged, and
+    an autoflush here would raise the unique-constraint IntegrityError outside the
+    commit's try/except. Deferring the flush to the explicit commit keeps the
+    violation catchable (surfaced as a clean 422).
+    """
+    with db.no_autoflush:
+        term = db.query(VocabularyTermAbcModel).filter(
+            VocabularyTermAbcModel.vocabulary_term_abc_id == term_id
+        ).first()
+    return bool(term and term.name in SYMMETRIC_RELATIONSHIP_NAMES)
+
+
+def _normalize_pair(
+    db: Session, person_subject_id: int, person_object_id: int, relationship_term_id: int
+) -> Tuple[int, int]:
     """For non-directional relationships, return the pair in ascending id order so
     (A, B) and (B, A) collapse to the same canonical row. Directional relationships
     keep the submitted order.
     """
-    rel = relationship.value if isinstance(relationship, PersonPersonRole) else relationship
-    if rel in SYMMETRIC_RELATIONSHIPS and person_subject_id > person_object_id:
+    if _is_symmetric_term(db, relationship_term_id) and person_subject_id > person_object_id:
         return person_object_id, person_subject_id
     return person_subject_id, person_object_id
 
@@ -37,7 +59,27 @@ def _reject_self_pair(person_subject_id: int, person_object_id: int) -> None:
         )
 
 
-def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
+def _to_show_dict(db: Session, obj: PersonLineageModel) -> Dict[str, Any]:
+    return {
+        "person_lineage_id": obj.person_lineage_id,
+        "person_subject_id": obj.person_subject_id,
+        "person_subject_curie": obj.person_subject_curie,
+        "person_subject_name": obj.person_subject_name,
+        "person_object_id": obj.person_object_id,
+        "person_object_curie": obj.person_object_curie,
+        "person_object_name": obj.person_object_name,
+        "relationship": vocabulary_crud.serialize_term_ref(
+            db, obj.relationship_vocabulary_term_abc_id),
+        "start_date": obj.start_date,
+        "end_date": obj.end_date,
+        "date_created": obj.date_created,
+        "date_updated": obj.date_updated,
+        "created_by": obj.created_by,
+        "updated_by": obj.updated_by,
+    }
+
+
+def create(db: Session, payload: Dict[str, Any]) -> Dict[str, Any]:
     data = jsonable_encoder(payload)
 
     if "created_by" in data and data["created_by"] is not None:
@@ -45,16 +87,19 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
     if "updated_by" in data and data["updated_by"] is not None:
         data["updated_by"] = map_to_user_id(data["updated_by"], db)
 
+    term_id = data["relationship"]
+    vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
+
     # Both people are required; given by curie OR integer id (404 if unknown).
     subject_id = person_crud.resolve_person_id(db, str(data["person_subject_curie_or_id"]))
     object_id = person_crud.resolve_person_id(db, str(data["person_object_curie_or_id"]))
     _reject_self_pair(subject_id, object_id)
 
-    one_id, two_id = _normalize_pair(subject_id, object_id, data["relationship"])
+    one_id, two_id = _normalize_pair(db, subject_id, object_id, term_id)
     obj = PersonLineageModel(
         person_subject_id=one_id,
         person_object_id=two_id,
-        relationship=data["relationship"],
+        relationship_vocabulary_term_abc_id=term_id,
         start_date=data.get("start_date"),
         end_date=data.get("end_date"),
     )
@@ -71,30 +116,32 @@ def create(db: Session, payload: Dict[str, Any]) -> PersonLineageModel:
             ),
         )
     db.refresh(obj)
-    return obj
+    return _to_show_dict(db, obj)
 
 
 def find_or_create(
     db: Session,
     person_subject_id: int,
     person_object_id: int,
-    relationship: str,
+    relationship_term_id: int,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
 ) -> Tuple[PersonLineageModel, bool]:
     """Return (canonical, created). Looks up an existing canonical PPR for the
-    (person_subject_id, person_object_id, relationship) triple; creates one if absent.
-    For non-directional relationships the pair is normalized to ascending id
-    order first, so a reversed submission matches the existing row.
+    (person_subject_id, person_object_id, relationship_term_id) triple; creates one
+    if absent. For non-directional relationships the pair is normalized to ascending
+    id order first, so a reversed submission matches the existing row.
     """
     _reject_self_pair(person_subject_id, person_object_id)
-    person_subject_id, person_object_id = _normalize_pair(person_subject_id, person_object_id, relationship)
+    person_subject_id, person_object_id = _normalize_pair(
+        db, person_subject_id, person_object_id, relationship_term_id
+    )
     existing = (
         db.query(PersonLineageModel)
         .filter(
             PersonLineageModel.person_subject_id == person_subject_id,
             PersonLineageModel.person_object_id == person_object_id,
-            PersonLineageModel.relationship == relationship,
+            PersonLineageModel.relationship_vocabulary_term_abc_id == relationship_term_id,
         )
         .first()
     )
@@ -104,7 +151,7 @@ def find_or_create(
     obj = PersonLineageModel(
         person_subject_id=person_subject_id,
         person_object_id=person_object_id,
-        relationship=relationship,
+        relationship_vocabulary_term_abc_id=relationship_term_id,
         start_date=start_date,
         end_date=end_date,
     )
@@ -119,7 +166,7 @@ _PERSON_OBJS = (
 )
 
 
-def show(db: Session, person_lineage_id: int) -> PersonLineageModel:
+def show(db: Session, person_lineage_id: int) -> Dict[str, Any]:
     obj = (
         db.query(PersonLineageModel)
         .options(*_PERSON_OBJS)
@@ -131,13 +178,13 @@ def show(db: Session, person_lineage_id: int) -> PersonLineageModel:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"PersonLineage with id {person_lineage_id} not found",
         )
-    return obj
+    return _to_show_dict(db, obj)
 
 
-def list_for_person(db: Session, person_id: int) -> List[PersonLineageModel]:
+def list_for_person(db: Session, person_id: int) -> List[Dict[str, Any]]:
     """All canonical PPRs in which the person appears, on either side
     (person_subject_id or person_object_id)."""
-    return (
+    rows = (
         db.query(PersonLineageModel)
         .options(*_PERSON_OBJS)
         .filter(
@@ -149,6 +196,7 @@ def list_for_person(db: Session, person_id: int) -> List[PersonLineageModel]:
         .order_by(PersonLineageModel.person_lineage_id.asc())
         .all()
     )
+    return [_to_show_dict(db, o) for o in rows]
 
 
 def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -180,18 +228,22 @@ def patch(db: Session, person_lineage_id: int, patch_dict: Dict[str, Any]) -> Di
         obj.person_object_id = person_crud.resolve_person_id(db, str(data["person_object_curie_or_id"]))
     _reject_self_pair(obj.person_subject_id, obj.person_object_id)
 
+    # The relationship is the incoming vocabulary_term_abc id; validate before storing.
+    if "relationship" in data and data["relationship"] is not None:
+        term_id = data["relationship"]
+        vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, term_id)
+        obj.relationship_vocabulary_term_abc_id = term_id
+
     for field, value in data.items():
         if field not in _SCALAR_FIELDS:
-            continue
-        if field == "relationship" and value is None:
             continue
         setattr(obj, field, value)
 
     # If the (possibly updated) relationship is non-directional, re-normalize the
-    # id order so a row patched into collaborator_of can't become a reversed
-    # duplicate of an existing collaborator_of for the same pair.
+    # id order so a row patched into a symmetric relationship can't become a reversed
+    # duplicate of an existing row for the same pair.
     obj.person_subject_id, obj.person_object_id = _normalize_pair(
-        obj.person_subject_id, obj.person_object_id, obj.relationship
+        db, obj.person_subject_id, obj.person_object_id, obj.relationship_vocabulary_term_abc_id
     )
 
     try:
@@ -226,3 +278,17 @@ def destroy(db: Session, person_lineage_id: int) -> None:
     ).update({"status": "pending"}, synchronize_session=False)
     db.delete(obj)
     db.commit()
+
+
+# --- Forward-reference resolution -------------------------------------------------
+# person_lineage_schemas declares its relationship field type (VocabularyTermRefSchema)
+# under TYPE_CHECKING to avoid a schemas<->crud import cycle. VocabularyTermRefSchema is
+# a name in this module's globals (imported via vocabulary_crud below), so calling
+# model_rebuild() here completes the read schema. This module is imported by the
+# person_lineage router at startup, so the ref resolves before any request.
+from agr_literature_service.api.crud.vocabulary_crud import VocabularyTermRefSchema  # noqa: E402,F401
+from agr_literature_service.api.schemas.person_lineage_schemas import (  # noqa: E402
+    PersonLineageSchemaShow,
+)
+
+PersonLineageSchemaShow.model_rebuild()
