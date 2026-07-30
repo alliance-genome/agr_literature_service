@@ -90,6 +90,10 @@ SOURCE_DESCRIPTION = (
     "ZFIN curation interface."
 )
 
+# Emit a progress line every this many rows read from the file, so a long run
+# (the file has hundreds of thousands of rows) shows a heartbeat.
+PROGRESS_LOG_INTERVAL = 1000
+
 base_path = environ.get("XML_PATH", "")
 file_path = base_path + "zfin_data/"
 log_path = environ.get("LOG_PATH", "")
@@ -271,6 +275,13 @@ def load_zfin_gene_reference_tags(input_file: Optional[str] = None) -> Dict:  # 
 
         for gene_id, pub_id, pmid in parse_gene_publication(file_with_path):
             counts["total_pairs"] += 1
+            if counts["total_pairs"] % PROGRESS_LOG_INTERVAL == 0:
+                logger.info(
+                    "Processed %d pairs: created=%d skipped_duplicate=%d "
+                    "missing_reference=%d not_in_corpus=%d errors=%d",
+                    counts["total_pairs"], counts["created"], counts["skipped_duplicate"],
+                    counts["missing_reference"], counts["not_in_corpus"], counts["errors"],
+                )
             entity_curie = f"{ZFIN_CURIE_PREFIX}:{gene_id}"
             reference_curie = resolve_reference_curie(
                 db, pub_id, pmid, pub_to_ref_curie, pmid_cache
