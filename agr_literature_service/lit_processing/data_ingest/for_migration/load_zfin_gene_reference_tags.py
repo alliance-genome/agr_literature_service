@@ -90,9 +90,6 @@ SOURCE_DESCRIPTION = (
     "ZFIN curation interface."
 )
 
-# Created/updated user for every tag in this load (ticket: "ZFIN:Curator").
-CREATED_BY = "ZFIN:Curator"
-
 base_path = environ.get("XML_PATH", "")
 file_path = base_path + "zfin_data/"
 log_path = environ.get("LOG_PATH", "")
@@ -221,8 +218,6 @@ def _build_tag_payload(reference_curie: str, entity_curie: str,
         data_novelty=EXISTING_DATA_NOVELTY_ATP,
         negated=False,
         topic_entity_tag_source_id=source_id,
-        created_by=CREATED_BY,
-        updated_by=CREATED_BY,
     )
 
 
