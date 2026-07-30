@@ -185,10 +185,18 @@ def populate(commit=False):
         inserted = 0
         skipped_existing = 0
         not_found = 0
+        blank_atp = 0
+        blank_atp_rows = []     # (paper, datatype) rows with no ATP topic in the TSV
         conflicts = []          # existing value != our target (curated/curatable)
         seen_new = set()        # dedup identical (topic, ref) rows within the TSV
 
         for row in rows:
+            if not row["atp"]:
+                # No ATP topic in the source row (e.g. exprmosaic / geneticmosaic
+                # datatypes); never insert a curation_status row with an empty topic.
+                blank_atp += 1
+                blank_atp_rows.append((row["paper"], row["datatype"]))
+                continue
             curie = "WB:WBPaper" + row["paper"]
             if curie not in ref_map:
                 not_found += 1
@@ -233,10 +241,14 @@ def populate(commit=False):
         logger.info("")
         logger.info("=== SUMMARY ===")
         logger.info(f"  paper not found in DB:            {not_found}")
+        logger.info(f"  skipped (blank ATP topic):        {blank_atp}")
         logger.info(f"  skipped (already have a value):   {skipped_existing}")
         logger.info(f"    of which CONFLICTS (value != curated/curatable): {len(conflicts)}")
         verb = "INSERTED" if commit else "WOULD INSERT"
         logger.info(f"  {verb} (new curated rows):        {inserted}")
+        if blank_atp_rows:
+            datatypes = sorted({d for _, d in blank_atp_rows})
+            logger.info(f"  (blank-ATP datatypes skipped: {', '.join(datatypes)})")
         if conflicts:
             logger.info("")
             logger.info("  conflicts (in TSV as positive, but already valued in DB):")
