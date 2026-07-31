@@ -21,8 +21,19 @@ DEST_PREFIX="develop/"
 # Config file location
 CONFIG_FILE="${HOME}/.agr_sync_config.json"
 
-# Temporary file for database dump
-DUMP_FILE="/tmp/agr_literature_dump_$(date +%Y%m%d_%H%M%S).dump"
+# Temporary target for the database dump. Parallel dumps require directory format
+# (pg_dump -j only works with -Fd), so the target is a directory when JOBS > 1 and a
+# single custom-format file otherwise. Both live under /tmp.
+DUMP_STAMP="$(date +%Y%m%d_%H%M%S)"
+DUMP_FILE="/tmp/agr_literature_dump_${DUMP_STAMP}.dump"
+DUMP_DIR="/tmp/agr_literature_dump_${DUMP_STAMP}.dir"
+
+# Parallel jobs for pg_dump/pg_restore, used by default (a plain `make sync-data`
+# is parallel). Scales with the host but capped at 8: each job opens its own
+# connection, and the source is often a shared or production server. Lower it with
+# `--jobs 2`, or `--jobs 1` for the original serial single-file behaviour.
+DEFAULT_JOBS=$( { nproc 2>/dev/null || echo 2; } | awk '{ j=$1+0; if (j>8) j=8; if (j<1) j=1; print j }' )
+JOBS="$DEFAULT_JOBS"
 
 # Colors for output
 RED='\033[0;31m'
@@ -91,6 +102,14 @@ parse_args() {
                 DELETE_CONNECTION="$2"
                 shift 2
                 ;;
+            --jobs|-j)
+                if [[ ! "$2" =~ ^[0-9]+$ ]] || [[ "$2" -lt 1 ]]; then
+                    print_error "--jobs requires a positive integer (got '${2:-}')"
+                    exit 1
+                fi
+                JOBS="$2"
+                shift 2
+                ;;
             --help|-h)
                 show_help
                 exit 0
@@ -116,12 +135,18 @@ show_help() {
     echo "  --dest <name>          Use saved connection as destination database"
     echo "  --list                 List all saved connections"
     echo "  --delete <name>        Delete a saved connection"
+    echo "  --jobs, -j <n>         Parallel dump/restore jobs (default: ${DEFAULT_JOBS})"
+    echo "                         n > 1 uses directory-format dumps (required by"
+    echo "                         pg_dump -j); n = 1 uses a single custom-format file."
+    echo "                         Each job opens its own connection to the server."
     echo "  --help, -h             Show this help message"
     echo ""
     echo "Examples:"
     echo "  sync_data.sh                                    # Interactive mode"
     echo "  sync_data.sh --db-only                          # Database sync only"
     echo "  sync_data.sh --db-only --source prod --dest dev # Use saved connections"
+    echo "  sync_data.sh --db-only --jobs 8                 # Faster sync, 8 jobs"
+    echo "  sync_data.sh --db-only --jobs 1                 # Serial (old behaviour)"
     echo "  sync_data.sh --list                             # List saved connections"
     echo ""
 }
@@ -381,11 +406,26 @@ sync_database() {
     # Get destination database credentials (using saved connection if provided)
     get_db_credentials "destination" "$DEST_CONNECTION"
 
+    # Parallel dumps need directory format; a single job keeps the original
+    # single-file custom format.
+    if [[ "$JOBS" -gt 1 ]]; then
+        DUMP_TARGET="$DUMP_DIR"
+        DUMP_FORMAT_ARGS=( -Fd -j "$JOBS" )
+        RESTORE_JOB_ARGS=( -j "$JOBS" )
+        DUMP_DESC="directory format, ${JOBS} parallel jobs"
+    else
+        DUMP_TARGET="$DUMP_FILE"
+        DUMP_FORMAT_ARGS=( -Fc )
+        RESTORE_JOB_ARGS=()
+        DUMP_DESC="custom format, single job"
+    fi
+
     echo ""
     echo "=== Database Sync Configuration ==="
     echo "Source:      ${SOURCE_DB_USER}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
     echo "Destination: ${DEST_DB_USER}@${DEST_DB_HOST}:${DEST_DB_PORT}/${DEST_DB_NAME}"
-    echo "Dump file:   ${DUMP_FILE}"
+    echo "Dump target: ${DUMP_TARGET}"
+    echo "Parallelism: ${DUMP_DESC}"
     echo ""
 
     # Check that source and destination are not the same database
@@ -425,18 +465,19 @@ sync_database() {
         -p "$SOURCE_DB_PORT" \
         -U "$SOURCE_DB_USER" \
         -d "$SOURCE_DB_NAME" \
-        -Fc \
+        "${DUMP_FORMAT_ARGS[@]}" \
         --no-owner \
         --no-acl \
         --verbose \
-        -f "$DUMP_FILE"
+        -f "$DUMP_TARGET"
 
-    if [[ ! -f "$DUMP_FILE" ]]; then
+    # -e, not -f: a directory-format dump is a directory, not a regular file
+    if [[ ! -e "$DUMP_TARGET" ]]; then
         print_error "Failed to create database dump!"
         return 1
     fi
 
-    DUMP_SIZE=$(du -h "$DUMP_FILE" | cut -f1)
+    DUMP_SIZE=$(du -sh "$DUMP_TARGET" | cut -f1)
     print_success "Dump created successfully! Size: ${DUMP_SIZE}"
 
     echo ""
@@ -471,10 +512,11 @@ sync_database() {
         -p "$DEST_DB_PORT" \
         -U "$DEST_DB_USER" \
         -d "$DEST_DB_NAME" \
+        "${RESTORE_JOB_ARGS[@]}" \
         --no-owner \
         --no-acl \
         --verbose \
-        "$DUMP_FILE" || RESTORE_EXIT_CODE=$?
+        "$DUMP_TARGET" || RESTORE_EXIT_CODE=$?
 
     if [[ $RESTORE_EXIT_CODE -ne 0 ]]; then
         print_warning "pg_restore exited with code ${RESTORE_EXIT_CODE} (may include warnings)"
@@ -492,15 +534,15 @@ sync_database() {
 
     print_success "Database restore completed!"
 
-    # Cleanup dump file
+    # Cleanup dump (a file for -Fc, a directory for -Fd)
     echo ""
-    read -p "Delete temporary dump file? (yes/no) [yes]: " cleanup
+    read -p "Delete temporary dump? (yes/no) [yes]: " cleanup
     cleanup=${cleanup:-yes}
     if [[ "$cleanup" == "yes" ]]; then
-        rm -f "$DUMP_FILE"
-        echo "Dump file deleted."
+        rm -rf "$DUMP_TARGET"
+        echo "Dump deleted."
     else
-        echo "Dump file kept at: ${DUMP_FILE}"
+        echo "Dump kept at: ${DUMP_TARGET}"
     fi
 
     print_success "=== Database sync complete ==="
