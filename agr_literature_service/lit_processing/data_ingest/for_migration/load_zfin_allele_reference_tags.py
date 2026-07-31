@@ -27,6 +27,11 @@ as well as ZFIN publication curies; both are resolved.
 Idempotent and cheap to re-run: already-loaded pairs are read once up front and
 skipped before create_tag, so the weekly cron only does real work for new
 associations.
+
+Limitation: this loader is add-only. If ZFIN drops an allele-publication
+association, the previously created tag persists -- no run retracts it. That is an
+accepted trade-off for this "simple, temporary" load (the tags would be dropped
+and reloaded wholesale if ZFIN's full data is ever loaded into the Alliance).
 """
 import argparse
 import json
@@ -133,7 +138,7 @@ def _build_tag_payload(reference_curie: str, allele_curie: str, species_curie: s
     )
 
 
-def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:  # pragma: no cover
+def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
     """Load ZFIN allele-reference associations as entity TETs.
 
     Args:
@@ -280,7 +285,7 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:  
         db.close()
 
 
-def compose_report_message(counts: Dict) -> str:  # pragma: no cover
+def compose_report_message(counts: Dict) -> str:
     """Compose the HTML email report message from the run counts."""
     message = "<b>ZFIN Allele-Reference Association Loading Report</b><p>"
     if counts.get("download_failed"):

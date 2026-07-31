@@ -150,17 +150,21 @@ def build_zfin_corpus_ref_curies(db: Session) -> Set[str]:
 
 
 def load_existing_entity_pairs(db: Session, source_id: int,
-                               entity_type_atp: str) -> Set[Tuple[str, str]]:
+                               entity_atp: str) -> Set[Tuple[str, str]]:
     """Return the set of (reference_curie, entity) already tagged by this source
-    for the given entity_type. Used to skip already-loaded pairs up front so a
-    weekly re-run does not pay create_tag's per-row duplicate-check cost."""
+    as pure entity tags (topic == entity_type == entity_atp). Used to skip
+    already-loaded pairs up front so a weekly re-run does not pay create_tag's
+    per-row duplicate-check cost. Both topic and entity_type are constrained so
+    the skip set is exactly the rows this loader owns -- a hypothetical mixed tag
+    (topic != entity_type) on this source would not suppress a pure entity tag."""
     rows = db.execute(text(
         "SELECT r.curie, tet.entity "
         "FROM   topic_entity_tag tet "
         "JOIN   reference r ON tet.reference_id = r.reference_id "
         "WHERE  tet.topic_entity_tag_source_id = :sid "
-        "AND    tet.entity_type = :et"
-    ), {"sid": source_id, "et": entity_type_atp}).fetchall()
+        "AND    tet.topic = :atp "
+        "AND    tet.entity_type = :atp"
+    ), {"sid": source_id, "atp": entity_atp}).fetchall()
     return {(row[0], row[1]) for row in rows}
 
 

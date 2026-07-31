@@ -159,6 +159,27 @@ class TestLoadLoop:
         assert counts["not_in_corpus_refs"] == {"AGRKB:3": "ZFIN:ZDB-PUB-3"}
         assert mock_create_tag.call_count == 2
 
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs", return_value=set())
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={"ZFIN:ZDB-PUB-1": "AGRKB:1"})
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag", side_effect=RuntimeError("boom"))
+    def test_aborts_after_consecutive_errors(self, mock_create_tag, mock_session, *_mocks):
+        db = MagicMock()
+        mock_session.return_value = db
+        # Distinct alleles (one shared reference) so every pair reaches create_tag.
+        records = [(f"ZFIN:ZDB-ALT-{i}", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-1"])
+                   for i in range(40)]
+        with patch.object(mod, "parse_allele_records", return_value=iter(records)):
+            counts = mod.load_zfin_allele_reference_tags(input_file="ignored.json")
+        assert counts.get("aborted") is True
+        assert counts["errors"] == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
+        assert db.rollback.call_count == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
+        assert counts["total_pairs"] == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

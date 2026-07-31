@@ -154,6 +154,27 @@ class TestLoadLoop:
         assert counts["created"] == 0
         mock_create_tag.assert_not_called()
 
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs", return_value=set())
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={"ZFIN:ZDB-PUB-1": "AGRKB:1"})
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag", side_effect=RuntimeError("boom"))
+    def test_aborts_after_consecutive_errors(self, mock_create_tag, mock_session, *_mocks):
+        db = MagicMock()
+        mock_session.return_value = db
+        # Distinct entities (one pub) so every row reaches create_tag and raises.
+        rows = [(f"ZDB-GENE-{i}", "ZDB-PUB-1", "") for i in range(40)]
+        with patch.object(mod, "parse_gene_publication", return_value=iter(rows)):
+            counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
+        assert counts.get("aborted") is True
+        assert counts["errors"] == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
+        assert db.rollback.call_count == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
+        # Stopped early rather than draining all 40 rows.
+        assert counts["total_pairs"] == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
