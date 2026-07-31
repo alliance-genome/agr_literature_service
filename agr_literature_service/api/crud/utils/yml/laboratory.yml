@@ -1,0 +1,20 @@
+#
+# laboratory xref curie patterns (laboratory_cross_reference)
+# label (2nd tuple element) MUST equal the curie prefix; patterns anchored ^...$
+#
+ZFIN:
+  example: 'ZFIN:ZDB-LAB-030131-1'
+  pattern:
+    - ['^ZFIN:ZDB-LAB-\d{6}-\d{1,4}$', 'ZFIN']
+Xenbase:
+  example: 'Xenbase:XB-LAB-123'
+  pattern:
+    - ['^Xenbase:XB-LAB-\d+$', 'Xenbase']
+WB:
+  example: 'WB:PS'
+  pattern:
+    - ['^WB:[A-Z]{2,3}$', 'WB']
+SGD:
+  example: 'SGD:Lab_1273663'
+  pattern:
+    - ['^SGD:Lab_\d+$', 'SGD']

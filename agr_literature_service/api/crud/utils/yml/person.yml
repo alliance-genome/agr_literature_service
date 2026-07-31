@@ -1,0 +1,20 @@
+#
+# person xref curie patterns (person_cross_reference)
+# label (2nd tuple element) MUST equal the curie prefix; patterns anchored ^...$
+#
+ZFIN:
+  example: 'ZFIN:ZDB-PERS-030131-1'
+  pattern:
+    - ['^ZFIN:ZDB-PERS-\d{6}-\d{1,4}$', 'ZFIN']
+Xenbase:
+  example: 'Xenbase:XB-PERS-123'
+  pattern:
+    - ['^Xenbase:XB-PERS-\d+$', 'Xenbase']
+WB:
+  example: 'WB:WBPerson123'
+  pattern:
+    - ['^WB:WBPerson\d+$', 'WB']
+SGD:
+  example: 'SGD:Colleague_1269583'
+  pattern:
+    - ['^SGD:Colleague_\d+$', 'SGD']
