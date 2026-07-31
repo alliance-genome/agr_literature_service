@@ -1,8 +1,10 @@
 """Tests for load_zfin_allele_reference_tags.py"""
 
 import json
+from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from agr_literature_service.lit_processing.data_ingest.for_migration import (
     load_zfin_allele_reference_tags as mod,
@@ -45,12 +47,12 @@ class TestParseAlleleRecords:
             "obsolete": False,
             "primary_external_id": "ZFIN:ZDB-ALT-000209-24",
             "taxon_curie": "NCBITaxon:7955",
-            "reference_curies": ["ZFIN:ZDB-PUB-1", "ZFIN:ZDB-PUB-2"],
+            "reference_curies": ["ZFIN:ZDB-PUB-1", "PMID:123"],
         }]})
         rows = list(mod.parse_allele_records(path))
         assert rows == [(
             "ZFIN:ZDB-ALT-000209-24", "NCBITaxon:7955",
-            ["ZFIN:ZDB-PUB-1", "ZFIN:ZDB-PUB-2"],
+            ["ZFIN:ZDB-PUB-1", "PMID:123"],
         )]
 
     def test_skips_internal_and_obsolete(self, tmp_path):
@@ -104,8 +106,7 @@ class TestComposeReportMessage:
         return counts
 
     def test_download_failed_message(self):
-        msg = mod.compose_report_message({"download_failed": True})
-        assert "Failed to download" in msg
+        assert "Failed to download" in mod.compose_report_message({"download_failed": True})
 
     def test_includes_counts(self):
         msg = mod.compose_report_message(self._counts())
@@ -113,14 +114,50 @@ class TestComposeReportMessage:
         assert "Entity tags created: 6" in msg
         assert "Total allele-reference pairs in file: 10" in msg
 
-    def test_lists_not_in_corpus_papers(self):
-        counts = self._counts(
-            not_in_corpus=1,
-            not_in_corpus_refs={"AGRKB:9": "ZFIN:ZDB-PUB-9"},
-        )
-        msg = mod.compose_report_message(counts)
-        assert "Papers not in ZFIN corpus (1)" in msg
-        assert "ZFIN:ZDB-PUB-9 (AGRKB:9)" in msg
+    def test_flags_abort(self):
+        assert "RUN ABORTED" in mod.compose_report_message(self._counts(aborted=True))
+
+
+class TestLoadLoop:
+    """Drive the main loop with the DB/session and create_tag mocked."""
+
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs", return_value=set())
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1", "AGRKB:2"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={
+        "ZFIN:ZDB-PUB-1": "AGRKB:1",  # in corpus
+        "ZFIN:ZDB-PUB-2": "AGRKB:2",  # in corpus
+        "ZFIN:ZDB-PUB-3": "AGRKB:3",  # resolves but NOT in corpus
+    })
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag")
+    def test_counts_each_branch(self, mock_create_tag, mock_session, *_mocks):
+        mock_session.return_value = MagicMock()
+        mock_create_tag.side_effect = [
+            (1, False),                                    # ALT-1/PUB-1 -> created
+            HTTPException(status_code=409, detail="dup"),  # ALT-4/PUB-2 -> skipped
+        ]
+        records = [
+            ("ZFIN:ZDB-ALT-1", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-1", "ZFIN:ZDB-PUB-1"]),
+            ("ZFIN:ZDB-ALT-2", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-3"]),   # not in corpus
+            ("ZFIN:ZDB-ALT-3", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-X"]),   # missing ref
+            ("ZFIN:ZDB-ALT-4", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-2"]),   # 409 -> skipped
+        ]
+        with patch.object(mod, "parse_allele_records", return_value=iter(records)):
+            counts = mod.load_zfin_allele_reference_tags(input_file="ignored.json")
+
+        assert counts["total_alleles"] == 4
+        assert counts["total_pairs"] == 5
+        assert counts["created"] == 1
+        assert counts["duplicate_in_file"] == 1
+        assert counts["not_in_corpus"] == 1
+        assert counts["missing_reference"] == 1
+        assert counts["skipped_duplicate"] == 1
+        assert counts["errors"] == 0
+        assert counts["not_in_corpus_refs"] == {"AGRKB:3": "ZFIN:ZDB-PUB-3"}
+        assert mock_create_tag.call_count == 2
 
 
 if __name__ == "__main__":

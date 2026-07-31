@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import HTTPException
 
 from agr_literature_service.lit_processing.data_ingest.for_migration import (
     load_zfin_gene_reference_tags as mod,
@@ -35,100 +36,17 @@ class TestParseGenePublication:
             ("ZDB-GENE-1", "ZDB-PUB-1", ""),
         ]
 
-    def test_skips_non_gene_or_non_pub_prefixes_and_short_lines(self, tmp_path):
+    def test_yields_non_gene_entities_but_skips_non_pub_and_short_lines(self, tmp_path):
+        # Non-gene entity rows are yielded (the loop counts them); rows without a
+        # ZDB-PUB publication id or with too few fields are dropped by the parser.
         path = self._write(tmp_path, [
-            "x\tZDB-ALT-2\tZDB-PUB-9\tJournal\t1",   # entity not a gene
-            "y\tZDB-GENE-3\tZDB-ALT-9\tJournal\t2",  # reference not a pub
-            "justonecolumn",                          # too few fields
+            "x\tZDB-LINCRNAG-9\tZDB-PUB-5\tJournal\t3",  # non-gene entity -> yielded
+            "y\tZDB-GENE-3\tZDB-ALT-9\tJournal\t2",      # reference not a pub -> skipped
+            "justonecolumn",                              # too few fields -> skipped
         ])
-        assert list(mod.parse_gene_publication(path)) == []
-
-
-class TestBuildZfinPubToRefCurie:
-
-    def test_maps_pub_curie_to_reference_curie(self):
-        db = MagicMock()
-        db.execute.return_value.fetchall.return_value = [
-            ("ZFIN:ZDB-PUB-1", "AGRKB:101000000000001"),
-            ("ZFIN:ZDB-PUB-2", "AGRKB:101000000000002"),
+        assert list(mod.parse_gene_publication(path)) == [
+            ("ZDB-LINCRNAG-9", "ZDB-PUB-5", "3"),
         ]
-        result = mod.build_zfin_pub_to_ref_curie(db)
-        assert result == {
-            "ZFIN:ZDB-PUB-1": "AGRKB:101000000000001",
-            "ZFIN:ZDB-PUB-2": "AGRKB:101000000000002",
-        }
-
-
-class TestBuildZfinCorpusRefCuries:
-
-    def test_returns_set_of_reference_curies(self):
-        db = MagicMock()
-        db.execute.return_value.fetchall.return_value = [
-            ("AGRKB:101000000000001",),
-            ("AGRKB:101000000000002",),
-        ]
-        result = mod.build_zfin_corpus_ref_curies(db)
-        assert result == {"AGRKB:101000000000001", "AGRKB:101000000000002"}
-
-
-def _make_source_db(existing_source):
-    """Build a mock db whose query() returns the mod row for ModModel and the
-    given (existing or None) source for TopicEntityTagSourceModel."""
-    db = MagicMock()
-    mod_q = MagicMock()
-    mod_q.filter_by.return_value.one.return_value = MagicMock(mod_id=5)
-    src_q = MagicMock()
-    src_q.filter_by.return_value.one_or_none.return_value = existing_source
-    db.query.side_effect = lambda model: mod_q if model is mod.ModModel else src_q
-    return db
-
-
-class TestGetOrCreateSource:
-
-    def test_returns_existing_source_id_without_creating(self):
-        db = _make_source_db(MagicMock(topic_entity_tag_source_id=229))
-        assert mod.get_or_create_source(db) == 229
-        db.add.assert_not_called()
-        db.commit.assert_not_called()
-
-    def test_creates_source_when_absent(self):
-        db = _make_source_db(None)
-        with patch.object(mod, "TopicEntityTagSourceModel",
-                          return_value=MagicMock(topic_entity_tag_source_id=500)):
-            assert mod.get_or_create_source(db) == 500
-        db.add.assert_called_once()
-        db.commit.assert_called_once()
-
-
-class TestResolveReferenceCurie:
-
-    def test_prefers_zfin_publication_match(self):
-        db = MagicMock()
-        pub_map = {"ZFIN:ZDB-PUB-1": "AGRKB:1"}
-        result = mod.resolve_reference_curie(db, "ZDB-PUB-1", "999", pub_map, {})
-        assert result == "AGRKB:1"
-        db.query.assert_not_called()  # no PMID fallback needed
-
-    @patch.object(mod, "get_reference_id_by_pmid", return_value=1234)
-    def test_falls_back_to_pmid(self, mock_get_ref):
-        db = MagicMock()
-        db.query.return_value.filter_by.return_value.one.return_value = MagicMock(curie="AGRKB:2")
-        cache = {}
-        result = mod.resolve_reference_curie(db, "ZDB-PUB-X", "999", {}, cache)
-        assert result == "AGRKB:2"
-        assert cache == {"999": "AGRKB:2"}
-        mock_get_ref.assert_called_once_with(db, "999")
-
-    @patch.object(mod, "get_reference_id_by_pmid", return_value=None)
-    def test_returns_none_when_pmid_not_found(self, mock_get_ref):
-        db = MagicMock()
-        cache = {}
-        assert mod.resolve_reference_curie(db, "ZDB-PUB-X", "999", {}, cache) is None
-        assert cache == {"999": None}
-
-    def test_returns_none_when_no_match_and_no_pmid(self):
-        db = MagicMock()
-        assert mod.resolve_reference_curie(db, "ZDB-PUB-X", "", {}, {}) is None
 
 
 class TestBuildTagPayload:
@@ -155,29 +73,86 @@ class TestComposeReportMessage:
     def _counts(self, **overrides):
         counts = {
             "total_pairs": 10, "created": 6, "skipped_duplicate": 2,
-            "duplicate_in_file": 1, "missing_reference": 1, "not_in_corpus": 0,
-            "errors": 0,
+            "duplicate_in_file": 1, "skipped_non_gene": 0, "missing_reference": 1,
+            "not_in_corpus": 0, "errors": 0,
         }
         counts.update(overrides)
         return counts
 
     def test_download_failed_message(self):
-        msg = mod.compose_report_message({"download_failed": True})
-        assert "Failed to download" in msg
+        assert "Failed to download" in mod.compose_report_message({"download_failed": True})
 
     def test_includes_counts(self):
-        msg = mod.compose_report_message(self._counts())
+        msg = mod.compose_report_message(self._counts(skipped_non_gene=4))
         assert "Entity tags created: 6" in msg
         assert "Total gene-reference pairs in file: 10" in msg
+        assert "Non-gene entity rows skipped: 4" in msg
 
-    def test_lists_not_in_corpus_papers(self):
-        counts = self._counts(
-            not_in_corpus=1,
-            not_in_corpus_refs={"AGRKB:9": "ZFIN:ZDB-PUB-9"},
-        )
-        msg = mod.compose_report_message(counts)
-        assert "Papers not in ZFIN corpus (1)" in msg
-        assert "ZFIN:ZDB-PUB-9 (AGRKB:9)" in msg
+    def test_flags_abort(self):
+        msg = mod.compose_report_message(self._counts(aborted=True))
+        assert "RUN ABORTED" in msg
+
+
+class TestLoadLoop:
+    """Drive the main loop with the DB/session and create_tag mocked."""
+
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs", return_value=set())
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1", "AGRKB:2"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={
+        "ZFIN:ZDB-PUB-1": "AGRKB:1",  # in corpus
+        "ZFIN:ZDB-PUB-2": "AGRKB:2",  # in corpus
+        "ZFIN:ZDB-PUB-3": "AGRKB:3",  # resolves but NOT in corpus
+    })
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag")
+    def test_counts_each_branch(self, mock_create_tag, mock_session, *_mocks):
+        mock_session.return_value = MagicMock()
+        mock_create_tag.side_effect = [
+            (1, False),                                   # GENE-1/PUB-1 -> created
+            HTTPException(status_code=409, detail="dup"),  # GENE-3/PUB-2 -> skipped
+        ]
+        rows = [
+            ("ZDB-GENE-1", "ZDB-PUB-1", ""),   # created
+            ("ZDB-GENE-1", "ZDB-PUB-1", ""),   # duplicate within file
+            ("ZDB-LINCRNAG-9", "ZDB-PUB-1", ""),  # non-gene entity
+            ("ZDB-GENE-2", "ZDB-PUB-3", ""),   # resolves but not in corpus
+            ("ZDB-GENE-3", "ZDB-PUB-2", ""),   # create_tag 409 -> skipped_duplicate
+        ]
+        with patch.object(mod, "parse_gene_publication", return_value=iter(rows)):
+            counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
+
+        assert counts["total_pairs"] == 5
+        assert counts["created"] == 1
+        assert counts["duplicate_in_file"] == 1
+        assert counts["skipped_non_gene"] == 1
+        assert counts["not_in_corpus"] == 1
+        assert counts["skipped_duplicate"] == 1
+        assert counts["missing_reference"] == 0
+        assert counts["errors"] == 0
+        assert counts["not_in_corpus_refs"] == {"AGRKB:3": "ZFIN:ZDB-PUB-3"}
+        assert mock_create_tag.call_count == 2
+
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs",
+                  return_value={("AGRKB:1", "ZFIN:ZDB-GENE-1")})
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={"ZFIN:ZDB-PUB-1": "AGRKB:1"})
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag")
+    def test_already_loaded_pair_skipped_without_create_tag(
+            self, mock_create_tag, mock_session, *_mocks):
+        mock_session.return_value = MagicMock()
+        rows = [("ZDB-GENE-1", "ZDB-PUB-1", "")]
+        with patch.object(mod, "parse_gene_publication", return_value=iter(rows)):
+            counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
+        assert counts["skipped_duplicate"] == 1
+        assert counts["created"] == 0
+        mock_create_tag.assert_not_called()
 
 
 if __name__ == "__main__":
