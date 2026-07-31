@@ -1,8 +1,31 @@
-"""SCRUM-6130: populate curation_status from the Caltech curated-positive TSV.
+"""SCRUM-6130: Caltech curated-positive TSV -> literature curation_status (WB).
 
 Reads WormBase's Caltech "curated positive" export (a public TSV) and, for every
-(WBPaper, ATP topic) row, creates a WB curation_status row in the literature DB
-mirroring the curation event:
+(WBPaper, ATP topic) row, resolves the paper to its literature reference and
+compares against the WB curation_status table. The script has two run modes:
+
+  --mode populate   (default) INSERT a WB curation_status row for each new
+                    (topic, reference) pair, mirroring the curation event.
+                    Dry-run unless --commit is given.
+
+  --mode report     Write a read-only, human-readable report grouped by ATP
+                    topic (one line per paper: reference_id, AGRKB, WB:WBPaper,
+                    datatype, and status) to --output. Never touches the DB.
+
+Both modes share the same source parsing and classification, so their counts
+always agree. Each source (paper, ATP) pair is classified as:
+
+  new              no curation_status row yet -> would be inserted by populate
+  already-curated  a row exists with curation_status=ATP:0000239/tag=ATP:0000227
+  conflict         a row exists with a DIFFERENT value (e.g. a validated-negative
+                   backfill row, ATP:0000299/ATP:0000226) -- reported, never
+                   overwritten
+  blank-ATP        the source row has no ATP topic (e.g. exprmosaic /
+                   geneticmosaic datatypes) -- skipped and listed, never inserted
+                   with an empty topic
+  not-found        WB:WBPaper<id> has no reference in the DB -- skipped and listed
+
+populate mode row mapping:
 
   topic            <- atp                         (TSV column 'atp')
   reference_id     <- reference for WB:WBPaper<cur_paper>
@@ -20,15 +43,10 @@ preserved: AuditedModel.before_insert only fills date/user fields when they are
 None, and it auto-creates the referenced created_by/updated_by users, so a
 curator id that is not yet in the users table does not violate the FK.
 
-Idempotent and non-destructive: a curation_status row already present for a
-(topic, reference_id, mod_id) key is left untouched (never updated), so re-runs
-insert nothing new AND pre-existing rows -- including any that disagree with this
-positive set (e.g. rows previously backfilled as validated-negative,
-ATP:0000299/ATP:0000226) -- are reported as conflicts rather than overwritten.
-Resolving those conflicts is a separate, deliberate step.
-
-Dry-run by default: the script only reports what it WOULD do. Pass --commit to
-actually insert. Read-only against the database unless --commit is given.
+populate mode is idempotent and non-destructive: an existing (topic,
+reference_id, mod_id) row is never updated, so re-runs insert nothing new and
+conflicts are reported rather than overwritten. Resolving conflicts is a
+separate, deliberate step.
 
 TSV url defaults to the 20260729 snapshot; override with env
 WB_CURATED_POSITIVE_TSV_URL (the /files/pub/ path is public, no credentials).
@@ -37,11 +55,19 @@ Run against literature-4005 by loading its env file first, from the repository
 root (the directory that contains the agr_literature_service package), e.g.:
 
     cd /home/azurebrd/git/api_general
-    env $(grep -v '^#' agr_literature_service/.env.devserver_4005 | xargs) \
-        python agr_literature_service/lit_processing/oneoff_scripts/SCRUM-6130_populate_curation_status_from_caltech_positive.py
+    ENV="$(grep -v '^#' agr_literature_service/.env.devserver_4005 | xargs)"
+    BASE=agr_literature_service/lit_processing/oneoff_scripts
+    SCRIPT=$BASE/SCRUM-6130_populate_curation_status_from_caltech_positive.py
+
+    # report mode (read-only):
+    env $ENV python $SCRIPT --mode report --output curated_positive_report.txt
+
+    # populate mode (dry-run, then real insert):
+    env $ENV python $SCRIPT --mode populate
+    env $ENV python $SCRIPT --mode populate --commit
 
 (The filename contains a hyphen, so it cannot be run with `python -m`; run the
-file path directly. Add --commit to perform the inserts.)
+file path directly.)
 """
 
 import argparse
@@ -49,10 +75,12 @@ import logging
 import os
 import re
 import urllib.request
+from collections import defaultdict
 from datetime import datetime
 
 import pytz
 
+from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
 from agr_literature_service.api.models import (
     CrossReferenceModel,
     CurationStatusModel,
@@ -80,6 +108,7 @@ DEFAULT_TSV_URL = (
 )
 TSV_URL = os.environ.get("WB_CURATED_POSITIVE_TSV_URL", DEFAULT_TSV_URL)
 
+DEFAULT_REPORT_FILE = "curated_positive_vs_curation_status.txt"
 BATCH_COMMIT_SIZE = 500
 
 
@@ -157,124 +186,218 @@ def resolve_references(db, papers):
     return result
 
 
-def populate(commit=False):
+def classify(db, rows):
+    """Resolve + classify every TSV row against WB curation_status.
+
+    Returns (wb_mod_id, records, blank_rows, not_found_rows) where records is a
+    list of dicts (one per distinct (atp, reference_id) pair) each carrying the
+    source row fields plus wb_curie / reference_id / agrkb / status / existing.
+    status is one of 'new', 'already-curated', 'conflict'.
+    """
+    wb_mod_id = (
+        db.query(ModModel.mod_id)
+        .filter(ModModel.abbreviation == MOD_ABBREVIATION)
+        .scalar()
+    )
+    logger.info(f"WB mod_id: {wb_mod_id}")
+
+    ref_map = resolve_references(db, {r["paper"] for r in rows})
+    logger.info(f"papers resolved to a reference: {len(ref_map)}")
+
+    existing = {}
+    for topic, reference_id, status, tag in db.query(
+        CurationStatusModel.topic,
+        CurationStatusModel.reference_id,
+        CurationStatusModel.curation_status,
+        CurationStatusModel.curation_tag,
+    ).filter(CurationStatusModel.mod_id == wb_mod_id):
+        existing[(topic, reference_id)] = (status, tag)
+
+    records = []
+    blank_rows = []
+    not_found_rows = []
+    seen = set()
+    for row in rows:
+        if not row["atp"]:
+            blank_rows.append(row)
+            continue
+        curie = "WB:WBPaper" + row["paper"]
+        if curie not in ref_map:
+            not_found_rows.append(row)
+            continue
+        reference_id, agrkb = ref_map[curie]
+        key = (row["atp"], reference_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        prior = existing.get(key)
+        if prior is None:
+            status = "new"
+        elif prior == (CURATION_STATUS, CURATION_TAG):
+            status = "already-curated"
+        else:
+            status = "conflict"
+        records.append({
+            **row,
+            "wb_curie": curie,
+            "reference_id": reference_id,
+            "agrkb": agrkb,
+            "status": status,
+            "existing": prior,
+        })
+    return wb_mod_id, records, blank_rows, not_found_rows
+
+
+def run_populate(db, wb_mod_id, records, blank_rows, not_found_rows, commit):
+    """Insert curation_status rows for the 'new' records (only when commit)."""
+    inserted = 0
+    for record in records:
+        if record["status"] != "new":
+            continue
+        if commit:
+            db.add(CurationStatusModel(
+                topic=record["atp"],
+                reference_id=record["reference_id"],
+                mod_id=wb_mod_id,
+                curation_status=CURATION_STATUS,
+                curation_tag=CURATION_TAG,
+                note=build_note(record["selcomment"], record["txtcomment"]),
+                created_by=record["curator"] or None,
+                updated_by=record["curator"] or None,
+                date_created=parse_timestamp(record["timestamp"]),
+                date_updated=parse_timestamp(record["timestamp"]),
+            ))
+            if (inserted + 1) % BATCH_COMMIT_SIZE == 0:
+                db.commit()
+                logger.info(f"  committed {inserted + 1} so far")
+        inserted += 1
+    if commit:
+        db.commit()
+
+    conflicts = [r for r in records if r["status"] == "conflict"]
+    already = sum(1 for r in records if r["status"] == "already-curated")
+
+    logger.info("")
+    logger.info("=== SUMMARY ===")
+    logger.info(f"  paper not found in DB:            {len(not_found_rows)}")
+    logger.info(f"  skipped (blank ATP topic):        {len(blank_rows)}")
+    logger.info(f"  skipped (already have a value):   {already + len(conflicts)}")
+    logger.info(f"    of which CONFLICTS (value != curated/curatable): {len(conflicts)}")
+    verb = "INSERTED" if commit else "WOULD INSERT"
+    logger.info(f"  {verb} (new curated rows):        {inserted}")
+    if blank_rows:
+        datatypes = sorted({r["datatype"] for r in blank_rows})
+        logger.info(f"  (blank-ATP datatypes skipped: {', '.join(datatypes)})")
+    if conflicts:
+        logger.info("")
+        logger.info("  conflicts (in TSV as positive, but already valued in DB):")
+        logger.info("    %-18s %-22s %-12s %-13s %-13s %s"
+                    % ("WBPaper", "AGRKB", "datatype", "atp",
+                       "existing_status", "existing_tag"))
+        for r in conflicts:
+            status, tag = r["existing"]
+            logger.info("    %-18s %-22s %-12s %-13s %-13s %s"
+                        % (r["wb_curie"], r["agrkb"], r["datatype"], r["atp"],
+                           status, tag))
+    if not commit:
+        logger.info("")
+        logger.info("  DRY RUN -- no rows written. Re-run with --commit to insert.")
+
+
+def run_report(total_rows, records, blank_rows, not_found_rows, output_file):
+    """Write a read-only detailed report grouped by ATP topic."""
+    by_topic = defaultdict(list)
+    for record in records:
+        by_topic[record["atp"]].append(record)
+    names = map_curies_to_names("atp", sorted(by_topic))
+
+    n_new = sum(1 for r in records if r["status"] == "new")
+    n_already = sum(1 for r in records if r["status"] == "already-curated")
+    n_conflict = sum(1 for r in records if r["status"] == "conflict")
+
+    with open(output_file, "w") as out:
+        out.write("Caltech curated-positive TSV  vs  literature curation_status (WB)\n")
+        out.write(f"source TSV : {TSV_URL}\n")
+        out.write("assigns    : curation_status=ATP:0000239 (curated), "
+                  "curation_tag=ATP:0000227 (curatable)\n")
+        out.write("mode       : report (read-only; no database writes)\n\n")
+        out.write("=== SUMMARY ===\n")
+        out.write(f"  TSV data rows                      : {total_rows}\n")
+        out.write(f"  distinct (paper,atp) pairs shown   : {len(records)}\n")
+        out.write(f"  papers not found in DB             : {len(not_found_rows)}\n")
+        out.write(f"  skipped (blank ATP topic)          : {len(blank_rows)}\n")
+        out.write(f"  new (would insert)                 : {n_new}\n")
+        out.write(f"  already curated (curated/curatable): {n_already}\n")
+        out.write(f"  CONFLICT (other existing value)    : {n_conflict}\n\n")
+
+        for atp in sorted(by_topic, key=lambda a: (-len(by_topic[a]), a)):
+            entries = by_topic[atp]
+            out.write(f"=== {atp}  {names.get(atp, atp)}  ({len(entries)} papers) ===\n")
+            for r in sorted(entries, key=lambda x: x["wb_curie"]):
+                if r["status"] == "conflict":
+                    status, tag = r["existing"]
+                    label = f"CONFLICT existing={status}/{tag}"
+                else:
+                    label = r["status"]
+                out.write(f"  reference_id={r['reference_id']}  {r['agrkb']}  "
+                          f"{r['wb_curie']}  {r['datatype']}  [{label}]\n")
+            out.write("\n")
+
+        if blank_rows:
+            out.write(f"=== BLANK-ATP ROWS SKIPPED ({len(blank_rows)}) ===\n")
+            for r in blank_rows:
+                out.write(f"  WB:WBPaper{r['paper']}  {r['datatype']}  "
+                          f"{r['curator']}  {r['timestamp']}\n")
+            out.write("\n")
+        if not_found_rows:
+            out.write(f"=== PAPERS NOT FOUND IN DB ({len(not_found_rows)}) ===\n")
+            for r in not_found_rows:
+                out.write(f"  WB:WBPaper{r['paper']}  {r['datatype']}  atp={r['atp']}\n")
+
+    logger.info(f"new={n_new} already-curated={n_already} conflict={n_conflict} "
+                f"blank={len(blank_rows)} not_found={len(not_found_rows)}")
+    logger.info(f"wrote {output_file}")
+
+
+def main(mode, commit, output_file):
     rows = fetch_tsv_rows()
     db = create_postgres_session(False)
     try:
-        wb_mod_id = (
-            db.query(ModModel.mod_id)
-            .filter(ModModel.abbreviation == MOD_ABBREVIATION)
-            .scalar()
-        )
-        logger.info(f"WB mod_id: {wb_mod_id}")
-
-        ref_map = resolve_references(db, {r["paper"] for r in rows})
-        logger.info(f"papers resolved to a reference: {len(ref_map)}")
-
-        # Existing WB curation_status keys (+ their current value, for conflict
-        # reporting), so re-runs stay idempotent and existing rows are untouched.
-        existing = {}
-        for topic, reference_id, status, tag in db.query(
-            CurationStatusModel.topic,
-            CurationStatusModel.reference_id,
-            CurationStatusModel.curation_status,
-            CurationStatusModel.curation_tag,
-        ).filter(CurationStatusModel.mod_id == wb_mod_id):
-            existing[(topic, reference_id)] = (status, tag)
-
-        inserted = 0
-        skipped_existing = 0
-        not_found = 0
-        blank_atp = 0
-        blank_atp_rows = []     # (paper, datatype) rows with no ATP topic in the TSV
-        conflicts = []          # existing value != our target (curated/curatable)
-        seen_new = set()        # dedup identical (topic, ref) rows within the TSV
-
-        for row in rows:
-            if not row["atp"]:
-                # No ATP topic in the source row (e.g. exprmosaic / geneticmosaic
-                # datatypes); never insert a curation_status row with an empty topic.
-                blank_atp += 1
-                blank_atp_rows.append((row["paper"], row["datatype"]))
-                continue
-            curie = "WB:WBPaper" + row["paper"]
-            if curie not in ref_map:
-                not_found += 1
-                logger.warning(f"  paper not found in DB: {curie} (atp {row['atp']})")
-                continue
-            reference_id, agrkb = ref_map[curie]
-            key = (row["atp"], reference_id)
-
-            if key in existing:
-                skipped_existing += 1
-                cur_status, cur_tag = existing[key]
-                if (cur_status, cur_tag) != (CURATION_STATUS, CURATION_TAG):
-                    conflicts.append(
-                        (curie, agrkb, row["datatype"], row["atp"], cur_status, cur_tag)
-                    )
-                continue
-            if key in seen_new:
-                continue
-            seen_new.add(key)
-
-            if commit:
-                db.add(CurationStatusModel(
-                    topic=row["atp"],
-                    reference_id=reference_id,
-                    mod_id=wb_mod_id,
-                    curation_status=CURATION_STATUS,
-                    curation_tag=CURATION_TAG,
-                    note=build_note(row["selcomment"], row["txtcomment"]),
-                    created_by=row["curator"] or None,
-                    updated_by=row["curator"] or None,
-                    date_created=parse_timestamp(row["timestamp"]),
-                    date_updated=parse_timestamp(row["timestamp"]),
-                ))
-                if (inserted + 1) % BATCH_COMMIT_SIZE == 0:
-                    db.commit()
-                    logger.info(f"  committed {inserted + 1} so far")
-            inserted += 1
-
-        if commit:
-            db.commit()
-
-        logger.info("")
-        logger.info("=== SUMMARY ===")
-        logger.info(f"  paper not found in DB:            {not_found}")
-        logger.info(f"  skipped (blank ATP topic):        {blank_atp}")
-        logger.info(f"  skipped (already have a value):   {skipped_existing}")
-        logger.info(f"    of which CONFLICTS (value != curated/curatable): {len(conflicts)}")
-        verb = "INSERTED" if commit else "WOULD INSERT"
-        logger.info(f"  {verb} (new curated rows):        {inserted}")
-        if blank_atp_rows:
-            datatypes = sorted({d for _, d in blank_atp_rows})
-            logger.info(f"  (blank-ATP datatypes skipped: {', '.join(datatypes)})")
-        if conflicts:
-            logger.info("")
-            logger.info("  conflicts (in TSV as positive, but already valued in DB):")
-            logger.info("    %-18s %-22s %-12s %-13s %-13s %s"
-                        % ("WBPaper", "AGRKB", "datatype", "atp",
-                           "existing_status", "existing_tag"))
-            for curie, agrkb, datatype, atp, status, tag in conflicts:
-                logger.info("    %-18s %-22s %-12s %-13s %-13s %s"
-                            % (curie, agrkb, datatype, atp, status, tag))
-        if not commit:
-            logger.info("")
-            logger.info("  DRY RUN -- no rows written. Re-run with --commit to insert.")
+        wb_mod_id, records, blank_rows, not_found_rows = classify(db, rows)
+        if mode == "report":
+            run_report(len(rows), records, blank_rows, not_found_rows, output_file)
+        else:
+            run_populate(db, wb_mod_id, records, blank_rows, not_found_rows, commit)
     except Exception as e:
         db.rollback()
-        logger.error(f"error during populate, rolled back: {e}")
+        logger.error(f"error during {mode}, rolled back: {e}")
         raise
     finally:
         db.close()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description="Caltech curated-positive TSV -> curation_status (populate or report)."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["populate", "report"],
+        default="populate",
+        help="populate: insert curation_status rows (dry-run unless --commit); "
+             "report: write a read-only detailed report to --output",
+    )
     parser.add_argument(
         "--commit",
         action="store_true",
-        help="actually insert curation_status rows (default: dry-run, no writes)",
+        help="populate mode only: actually insert rows (default: dry-run, no writes)",
+    )
+    parser.add_argument(
+        "--output",
+        default=DEFAULT_REPORT_FILE,
+        help=f"report mode only: output file path (default: {DEFAULT_REPORT_FILE})",
     )
     args = parser.parse_args()
-    populate(commit=args.commit)
+    if args.commit and args.mode != "populate":
+        parser.error("--commit is only valid with --mode populate")
+    main(mode=args.mode, commit=args.commit, output_file=args.output)
