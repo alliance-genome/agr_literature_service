@@ -47,6 +47,12 @@ class TestLoadExistingEntityPairs:
         ]
         result = util.load_existing_entity_pairs(db, 229, "ATP:0000005")
         assert result == {("AGRKB:1", "ZFIN:ZDB-GENE-1"), ("AGRKB:2", "ZFIN:ZDB-GENE-2")}
+        # Pin the topic + entity_type scoping so the skip set is exactly this
+        # loader's pure entity tags (not any mixed tag on the shared source).
+        sql, params = db.execute.call_args[0]
+        assert "tet.topic = :atp" in str(sql)
+        assert "tet.entity_type = :atp" in str(sql)
+        assert params == {"sid": 229, "atp": "ATP:0000005"}
 
 
 def _make_source_db(existing_first, existing_second=None):
