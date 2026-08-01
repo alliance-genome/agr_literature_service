@@ -26,13 +26,6 @@
     "transforms.dropPrefix.type":"org.apache.kafka.connect.transforms.RegexRouter",
     "transforms.dropPrefix.regex":"reference_joined",
     "transforms.dropPrefix.replacement":"${SINK_INDEX_NAME}",
-    "auto.create.indices.at.start": "false",
-    "behavior.on.malformed.documents": "warn",
-    "errors.tolerance": "all",
-    "errors.deadletterqueue.topic.name": "reference_joined_dlq",
-    "errors.deadletterqueue.topic.replication.factor": 1,
-    "errors.deadletterqueue.context.headers.enable": true,
-    "errors.log.enable": true,
-    "errors.log.include.messages": true
+    "auto.create.indices.at.start": "false"
   }
 }
