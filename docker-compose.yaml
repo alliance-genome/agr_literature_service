@@ -478,6 +478,16 @@ services:
       - KSQL_HOST_NAME=dbz_ksql_server
       - KSQL_APPLICATION_ID="cp-all-in-one"
       - KSQL_LISTENERS=http://0.0.0.0:8088
+      # Cap the number of tags COLLECT_LIST gathers per reference for topic_entity_tags (and every
+      # other per-reference COLLECT_LIST in ksql_queries.ksql). Elasticsearch maps topic_entity_tags
+      # as a `nested` field, whose per-document sub-document count is capped by
+      # index.mapping.nested_objects.limit (default 10000). A few bulk ZFIN papers carry
+      # 10k-50k gene/allele TET tags; without this cap ksqlDB emits a >10k-element nested array, ES
+      # rejects the document, and the (single-partition, fail-fast) ES sink task dies -- silently
+      # halting the WHOLE reindex at that record. 9000 stays safely under the 10000 ES limit so no
+      # document is ever rejected. The database keeps every association (source of truth); only the
+      # search document is bounded. Keep this < the ES nested_objects.limit if that is ever raised.
+      - KSQL_KSQL_FUNCTIONS_COLLECT_LIST_LIMIT=9000
       # --- SCRUM-6231: reindex was disk-write-bound (ksqlDB RocksDB ~405 MB/s saturating EBS) ---
       # cache.max.bytes.buffering=0 forced ksqlDB to flush every record straight to RocksDB.
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
