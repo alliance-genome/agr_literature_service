@@ -417,6 +417,14 @@ services:
       - OFFSET_STORAGE_TOPIC=my_source_connect_offsets
       - CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE=false
       - CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE=false
+      # Raise the Kafka Connect worker heap above the debezium/connect image default (-Xmx2G). The ES
+      # sink OOM'd serializing large reference_joined records (each now carrying up to ~5000 elements
+      # per COLLECT_LIST field -- topic_entity_tags, authors, etc.) while buffering many of them at
+      # once. The ES nested-limit halt is already fixed (KSQL_KSQL_FUNCTIONS_COLLECT__LIST_LIMIT); this
+      # is the separate heap ceiling that surfaced next. Paired with the reduced sink buffering in
+      # elasticsearch-sink.json (max.buffered.records/batch.size). Safe on this 61 GB box: ES runs
+      # off-box (AWS), leaving headroom alongside ksqlDB's ~24 GB.
+      - KAFKA_HEAP_OPTS=-Xms2g -Xmx6g
     networks:
       - agr-literature
 
