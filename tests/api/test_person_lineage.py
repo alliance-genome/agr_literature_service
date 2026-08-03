@@ -1,6 +1,7 @@
 # flake8: noqa: F811
 import pytest
 from fastapi import status, HTTPException
+from pydantic import ValidationError
 
 from agr_literature_service.api.crud import person_lineage_crud
 from agr_literature_service.api.models import (
@@ -15,9 +16,26 @@ from agr_literature_service.lit_processing.tests.vocabulary_populate_load import
 from agr_literature_service.api.crud import vocabulary_crud
 from agr_literature_service.api.crud import vocabulary_seed_data as sd
 from agr_literature_service.api.crud.vocabulary_crud import VocabularyTermRefSchema
-from agr_literature_service.api.schemas import PersonLineageSchemaShow
+from agr_literature_service.api.schemas import PersonLineageSchemaShow, PersonLineageSchemaUpdate
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
+
+
+class TestPersonLineageUpdateSchema:
+    """PersonLineageSchemaUpdate rejects an explicit null relationship (fail-loud,
+    matching PersonLineageSubmissionSchemaUpdate) rather than silently ignoring it."""
+
+    def test_null_relationship_rejected(self):
+        with pytest.raises(ValidationError):
+            PersonLineageSchemaUpdate.model_validate({"relationship": None})
+
+    def test_omitted_relationship_ok(self):
+        m = PersonLineageSchemaUpdate.model_validate({"start_date": None})
+        assert m.relationship is None
+
+    def test_present_relationship_ok(self):
+        m = PersonLineageSchemaUpdate.model_validate({"relationship": 5})
+        assert m.relationship == 5
 
 
 def _ppr_id(db, label):  # noqa

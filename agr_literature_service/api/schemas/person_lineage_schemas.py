@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Optional, Union, TYPE_CHECKING
-from pydantic import BaseModel, ConfigDict
+from typing import Any, Optional, Union, TYPE_CHECKING
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from .base_schemas import AuditedObjectModelSchema
 
@@ -40,6 +40,16 @@ class PersonLineageSchemaUpdate(BaseModel):
     relationship: Optional[int] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_null_relationship(cls, data: Any) -> Any:
+        # relationship is a NOT NULL FK — reject an explicit null (omit the field to
+        # leave it unchanged), matching PersonLineageSubmissionSchemaUpdate's fail-loud
+        # behavior rather than silently ignoring it.
+        if isinstance(data, dict) and "relationship" in data and data["relationship"] is None:
+            raise ValueError("relationship cannot be null; omit the field to leave it unchanged")
+        return data
 
 
 class PersonLineageSchemaShow(AuditedObjectModelSchema):

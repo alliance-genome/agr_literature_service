@@ -37,13 +37,25 @@ class TestVocabularyAbc:
             r = client.post("/vocabulary_abc/", json={"vocabulary": "  "}, headers=auth_headers)
             assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-    def test_destroy_unused_vocabulary(self, db, test_vocabulary, auth_headers):  # noqa
+    def test_destroy_unused_vocabulary_cascades_terms_and_synonyms(self, db, test_vocabulary, auth_headers):  # noqa
+        # Deleting a vocabulary whose terms are all unused succeeds (204) and the ORM
+        # cascade removes its terms and their synonyms too.
         vid = test_vocabulary.json()
         with TestClient(app) as client:
+            tid = client.post("/vocabulary_term_abc/",
+                              json={"vocabulary_abc_id": vid, "name": "Intern"},
+                              headers=auth_headers).json()
+            sid = client.post("/vocabulary_term_synonym_abc/",
+                              json={"vocabulary_term_abc_id": tid, "synonym_name": "trainee"},
+                              headers=auth_headers).json()
             d = client.delete(f"/vocabulary_abc/{vid}", headers=auth_headers)
             assert d.status_code == status.HTTP_204_NO_CONTENT
-            g = client.get(f"/vocabulary_abc/{vid}", headers=auth_headers)
-            assert g.status_code == status.HTTP_404_NOT_FOUND
+            assert client.get(f"/vocabulary_abc/{vid}",
+                              headers=auth_headers).status_code == status.HTTP_404_NOT_FOUND
+            assert client.get(f"/vocabulary_term_abc/{tid}",
+                              headers=auth_headers).status_code == status.HTTP_404_NOT_FOUND
+            assert client.get(f"/vocabulary_term_synonym_abc/{sid}",
+                              headers=auth_headers).status_code == status.HTTP_404_NOT_FOUND
 
 
 class TestVocabularyTermAbc:
@@ -96,3 +108,20 @@ class TestVocabularyTermSynonymAbc:
             g = client.get(f"/vocabulary_term_synonym_abc/{sid}", headers=auth_headers)
             assert g.status_code == status.HTTP_200_OK
             assert g.json()["synonym_name"] == "postdoc"
+
+    def test_destroy_synonym(self, db, test_vocabulary, auth_headers):  # noqa
+        vid = test_vocabulary.json()
+        with TestClient(app) as client:
+            tid = client.post("/vocabulary_term_abc/",
+                              json={"vocabulary_abc_id": vid, "name": "Post-Doc"},
+                              headers=auth_headers).json()
+            sid = client.post("/vocabulary_term_synonym_abc/",
+                              json={"vocabulary_term_abc_id": tid, "synonym_name": "postdoc"},
+                              headers=auth_headers).json()
+            d = client.delete(f"/vocabulary_term_synonym_abc/{sid}", headers=auth_headers)
+            assert d.status_code == status.HTTP_204_NO_CONTENT
+            assert client.get(f"/vocabulary_term_synonym_abc/{sid}",
+                              headers=auth_headers).status_code == status.HTTP_404_NOT_FOUND
+            # the parent term is untouched by deleting its synonym
+            assert client.get(f"/vocabulary_term_abc/{tid}",
+                              headers=auth_headers).status_code == status.HTTP_200_OK

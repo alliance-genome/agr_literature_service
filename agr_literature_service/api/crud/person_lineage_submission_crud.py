@@ -266,8 +266,22 @@ def validate(
     # The relationship steering the canonical is a vocabulary_term_abc id (from the
     # override body or, falling back, the submission's stored term id). Validate it
     # before building the canonical.
+    from_override = overrides.get("relationship") is not None
     relationship_term_id = overrides.get("relationship") or obj.relationship_vocab_term_abc_id
-    vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, relationship_term_id)
+    try:
+        vocabulary_crud.validate_term_id(db, PERSON_LINEAGE_VOCAB, relationship_term_id)
+    except HTTPException as e:
+        # When the rejected term came from the STORED submission (not the curator's
+        # override), the generic message ("Term id N is obsolete...") reads as if the
+        # curator supplied it. Clarify that the stale id is the submission's, so the
+        # fix (re-validate with a current relationship) is obvious.
+        if not from_override and e.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(f"This submission's stored relationship term ({relationship_term_id}) is no "
+                        f"longer assignable ({e.detail}); re-validate with a current relationship."),
+            )
+        raise
     start_date = overrides["start_date"] if "start_date" in overrides else obj.start_date
     end_date = overrides["end_date"] if "end_date" in overrides else obj.end_date
 
