@@ -60,10 +60,14 @@ SOURCE_DESCRIPTION = (
 # Emit a progress line every this many rows so a long run shows a heartbeat.
 PROGRESS_LOG_INTERVAL = 1000
 
-# Skip a paper entirely when it has more than this many entity associations in the
-# ZFIN file. Papers with thousands of gene/allele associations blow the
-# Elasticsearch nested_objects.limit on the reference document and halt the search
-# reindex, so we do not tag them at all (SCRUM-6363).
+# Skip a paper entirely when it has more than this many entity associations of a
+# given type in the ZFIN file. Elasticsearch caps the reference document's
+# `topic_entity_tags` nested field at 10000 sub-documents
+# (index.mapping.nested_objects.limit); a handful of bulk ZFIN papers carried
+# 10k-50k gene/allele tags and halted the search reindex. This per-type cap keeps
+# ZFIN's contribution well under that ceiling (SCRUM-6363). Note the ES limit is
+# on the reference's *total* nested tags across all sources, so this per-type,
+# per-source cap bounds ZFIN's share rather than the document as a whole.
 MAX_ASSOCIATIONS_PER_PAPER = 250
 
 # Cap the number of "not in corpus" papers listed inline in the emailed report;

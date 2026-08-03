@@ -42,6 +42,23 @@ class TestDeleteReferenceTags:
         db.delete.assert_has_calls([call(tag1), call(tag2)], any_order=True)
 
 
+class TestCountAffectedDatasetEntries:
+
+    def test_zero_when_no_work(self):
+        assert mod.count_affected_dataset_entries(MagicMock(), 229, {}) == 0
+
+    def test_sums_dataset_entries_across_entity_types(self):
+        # The tag subquery is built with select(), so only DatasetEntryModel is
+        # queried through the session -- once per entity type.
+        count_q = MagicMock()
+        count_q.filter.return_value = count_q
+        count_q.count.side_effect = [2, 5]  # gene tags -> 2 entries, allele -> 5
+        db = MagicMock()
+        db.query.return_value = count_q
+        work = {11: [("gene", mod.GENE_ATP)], 22: [("allele", mod.ALLELE_ATP)]}
+        assert mod.count_affected_dataset_entries(db, 229, work) == 7
+
+
 class TestComposeReportMessage:
 
     def test_source_missing(self):
@@ -57,17 +74,27 @@ class TestComposeReportMessage:
         assert "Gene: 2 papers over cap, 700 tags" in msg
         assert "Allele: 1 papers over cap, 300 tags" in msg
 
-    def test_delete_mode_shows_revalidated_count(self):
+    def test_delete_mode_shows_affected_reference_count(self):
         msg = mod.compose_report_message({
             "deleted": True, "gene_papers": 1, "gene_tags": 300,
             "allele_papers": 0, "allele_tags": 0, "affected_references": 1,
         })
         assert "DELETED" in msg
-        assert "References revalidated: 1" in msg
+        assert "References affected: 1" in msg
+
+    def test_dataset_entry_impact_is_flagged(self):
+        msg = mod.compose_report_message({
+            "deleted": False, "gene_papers": 1, "gene_tags": 300,
+            "allele_papers": 0, "allele_tags": 0, "affected_references": 1,
+            "dataset_entries_affected": 4,
+        })
+        assert "WARNING" in msg
+        assert "4 ML dataset_entry rows" in msg
 
 
 class TestCleanupOrchestration:
 
+    @patch.object(mod, "count_affected_dataset_entries", return_value=0)
     @patch.object(mod, "revalidate_all_tags")
     @patch.object(mod, "delete_reference_tags")
     @patch.object(mod, "find_over_cap_references")
@@ -75,7 +102,7 @@ class TestCleanupOrchestration:
     @patch.object(mod, "set_global_user_id")
     @patch.object(mod, "create_postgres_session")
     def test_dry_run_reports_without_deleting(
-            self, mock_session, _user, _src, mock_find, mock_delete, mock_reval):
+            self, mock_session, _user, _src, mock_find, mock_delete, mock_reval, _dataset):
         mock_session.return_value = MagicMock()
         # gene: two over-cap papers; allele: one.
         mock_find.side_effect = [[(11, 300), (22, 260)], [(33, 251)]]
@@ -84,10 +111,12 @@ class TestCleanupOrchestration:
         assert counts["gene_tags"] == 560
         assert counts["allele_papers"] == 1
         assert counts["allele_tags"] == 251
+        assert counts["affected_references"] == 3
         assert counts["deleted"] is False
         mock_delete.assert_not_called()
         mock_reval.assert_not_called()
 
+    @patch.object(mod, "count_affected_dataset_entries", return_value=0)
     @patch.object(mod, "revalidate_all_tags")
     @patch.object(mod, "delete_reference_tags", return_value=300)
     @patch.object(mod, "find_over_cap_references")
@@ -95,7 +124,7 @@ class TestCleanupOrchestration:
     @patch.object(mod, "set_global_user_id")
     @patch.object(mod, "create_postgres_session")
     def test_delete_removes_tags_and_revalidates_each_reference(
-            self, mock_session, _user, _src, mock_find, mock_delete, mock_reval):
+            self, mock_session, _user, _src, mock_find, mock_delete, mock_reval, _dataset):
         db = MagicMock()
         mock_session.return_value = db
         mock_find.side_effect = [[(11, 300)], [(11, 300)]]  # ref 11 over cap for both types
@@ -108,6 +137,7 @@ class TestCleanupOrchestration:
         assert counts["affected_references"] == 1
         mock_reval.assert_called_once_with(curie_or_reference_id="11")
 
+    @patch.object(mod, "count_affected_dataset_entries", return_value=0)
     @patch.object(mod, "revalidate_all_tags")
     @patch.object(mod, "delete_reference_tags", return_value=300)
     @patch.object(mod, "find_over_cap_references")
@@ -115,7 +145,7 @@ class TestCleanupOrchestration:
     @patch.object(mod, "set_global_user_id")
     @patch.object(mod, "create_postgres_session")
     def test_no_revalidate_flag_skips_revalidation(
-            self, mock_session, _user, _src, mock_find, _mock_delete, mock_reval):
+            self, mock_session, _user, _src, mock_find, _mock_delete, mock_reval, _dataset):
         mock_session.return_value = MagicMock()
         mock_find.side_effect = [[(11, 300)], []]
         mod.cleanup_zfin_over_cap_reference_tags(delete=True, revalidate=False)

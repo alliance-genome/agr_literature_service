@@ -17,23 +17,32 @@ The cap is applied per entity type, exactly as the loaders apply it: a paper is
 over cap for genes when it has more than MAX_ASSOCIATIONS_PER_PAPER pure gene
 tags (topic == entity_type == gene) from this source, and independently for
 alleles. When a paper is over cap for a type, ALL of that type's tags for the
-paper are removed. Deleting a tag cascades to its prop and validation rows at the
-database level; the affected references are revalidated once at the end so the
-validation of any surviving tags stays consistent.
+paper are removed. Deleting a tag cascades to its validation rows at the database
+level; each affected reference is revalidated immediately after its delete
+commits, so an interrupted run leaves already-processed references consistent and
+a rerun (which recomputes over-cap membership from the live table) resumes the
+rest.
+
+Caveat: dataset_entry.supporting_topic_entity_tag_id is ON DELETE SET NULL, so
+deleting a tag cited by an ML dataset entry nulls that support. The dry run
+reports how many dataset_entry rows would be affected so the impact is visible
+before anyone passes ``--delete``.
 
 Safe by default: without ``--delete`` the script only reports what it would
 remove (dry run). Pass ``--delete`` to actually delete.
 """
 import argparse
 import logging
+from collections import defaultdict
 from os import path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
-from sqlalchemy import func
+from sqlalchemy import func, select
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags
 from agr_literature_service.api.models import TopicEntityTagModel
+from agr_literature_service.api.models.dataset_model import DatasetEntryModel
 from agr_literature_service.api.user import set_global_user_id
 from agr_literature_service.lit_processing.data_ingest.for_migration.load_zfin_allele_reference_tags import (
     ALLELE_ATP,
@@ -81,8 +90,8 @@ def find_over_cap_references(db, source_id: int, entity_atp: str) -> List[Tuple[
 
 def delete_reference_tags(db, source_id: int, entity_atp: str, reference_id: int) -> int:
     """Delete every pure entity tag of this type for this reference/source via the
-    ORM (so versioning/audit fire and prop/validation rows cascade). Returns the
-    number of tags deleted."""
+    ORM (so versioning/audit fire and validation rows cascade). Returns the number
+    of tags deleted."""
     tags = (
         db.query(TopicEntityTagModel)
         .filter(
@@ -98,6 +107,33 @@ def delete_reference_tags(db, source_id: int, entity_atp: str, reference_id: int
     return len(tags)
 
 
+def count_affected_dataset_entries(db, source_id: int,
+                                   work_by_reference: Dict[int, List[Tuple[str, str]]]) -> int:
+    """Count ML dataset_entry rows that cite a to-be-deleted tag as their support.
+
+    dataset_entry.supporting_topic_entity_tag_id is ON DELETE SET NULL, so deleting
+    such a tag nulls the entry's support (a state the application otherwise rejects).
+    Surfaced in the dry run so the impact is visible before ``--delete``."""
+    if not work_by_reference:
+        return 0
+    refs_by_atp: Dict[str, List[int]] = defaultdict(list)
+    for reference_id, type_items in work_by_reference.items():
+        for _label, entity_atp in type_items:
+            refs_by_atp[entity_atp].append(reference_id)
+    total = 0
+    for entity_atp, reference_ids in refs_by_atp.items():
+        tag_ids = select(TopicEntityTagModel.topic_entity_tag_id).where(
+            TopicEntityTagModel.topic_entity_tag_source_id == source_id,
+            TopicEntityTagModel.topic == entity_atp,
+            TopicEntityTagModel.entity_type == entity_atp,
+            TopicEntityTagModel.reference_id.in_(reference_ids),
+        )
+        total += db.query(DatasetEntryModel).filter(
+            DatasetEntryModel.supporting_topic_entity_tag_id.in_(tag_ids)
+        ).count()
+    return total
+
+
 def cleanup_zfin_over_cap_reference_tags(delete: bool = False,
                                          revalidate: bool = True) -> Dict:
     """Find (and, with ``delete``, remove) ZFIN over-cap gene/allele entity tags.
@@ -109,7 +145,6 @@ def cleanup_zfin_over_cap_reference_tags(delete: bool = False,
     set_global_user_id(db, script_name)
 
     counts: Dict = {"deleted": delete}
-    affected_reference_ids: Set[int] = set()
 
     try:
         source_id = find_zfin_source_id(db)
@@ -118,28 +153,43 @@ def cleanup_zfin_over_cap_reference_tags(delete: bool = False,
             counts["source_missing"] = True
             return counts
 
+        # Gather over-cap work grouped by reference so a paper over cap for both
+        # entity types is deleted and revalidated as a single unit.
+        work_by_reference: Dict[int, List[Tuple[str, str]]] = {}
         for label, entity_atp in ENTITY_TYPES:
             over_cap = find_over_cap_references(db, source_id, entity_atp)
             counts[f"{label}_papers"] = len(over_cap)
             counts[f"{label}_tags"] = sum(n for _ref, n in over_cap)
+            for reference_id, _n in over_cap:
+                work_by_reference.setdefault(reference_id, []).append((label, entity_atp))
             logger.info(
                 "%s: %d papers over the %d cap (%d tags)%s",
                 label, len(over_cap), MAX_ASSOCIATIONS_PER_PAPER,
                 counts[f"{label}_tags"], "" if delete else " [dry-run]",
             )
-            if not delete:
-                continue
-            for reference_id, _n in over_cap:
+
+        counts["affected_references"] = len(work_by_reference)
+        counts["dataset_entries_affected"] = count_affected_dataset_entries(
+            db, source_id, work_by_reference)
+        if counts["dataset_entries_affected"]:
+            logger.warning(
+                "%d ML dataset_entry rows cite tags slated for deletion; their "
+                "supporting_topic_entity_tag_id would be set NULL",
+                counts["dataset_entries_affected"],
+            )
+
+        if not delete:
+            return counts
+
+        # Delete both entity types for a reference in one transaction, then
+        # revalidate it immediately so an interrupted run stays self-consistent.
+        for reference_id, type_items in work_by_reference.items():
+            for label, entity_atp in type_items:
                 deleted = delete_reference_tags(db, source_id, entity_atp, reference_id)
-                db.commit()
-                affected_reference_ids.add(reference_id)
                 logger.info("  deleted %d %s tags for reference_id=%d",
                             deleted, label, reference_id)
-
-        counts["affected_references"] = len(affected_reference_ids)
-        if delete and revalidate and affected_reference_ids:
-            logger.info("Revalidating %d affected references", len(affected_reference_ids))
-            for reference_id in sorted(affected_reference_ids):
+            db.commit()
+            if revalidate:
                 try:
                     revalidate_all_tags(curie_or_reference_id=str(reference_id))
                 except Exception as e:  # best-effort: one failure must not abort the rest
@@ -163,8 +213,11 @@ def compose_report_message(counts: Dict) -> str:
     for label in ("gene", "allele"):
         message += (f"<li>{label.capitalize()}: {counts.get(f'{label}_papers', 0)} papers over cap, "
                     f"{counts.get(f'{label}_tags', 0)} tags")
-    if counts.get("deleted"):
-        message += f"<li>References revalidated: {counts.get('affected_references', 0)}"
+    message += f"<li>References affected: {counts.get('affected_references', 0)}"
+    dataset_affected = counts.get("dataset_entries_affected", 0)
+    if dataset_affected:
+        message += (f"<li><b>WARNING: {dataset_affected} ML dataset_entry rows cite tags slated "
+                    f"for deletion; their supporting_topic_entity_tag_id would be set NULL</b>")
     message += "</ul>"
     return message
 

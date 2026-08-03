@@ -199,6 +199,9 @@ def load_zfin_gene_reference_tags(input_file: Optional[str] = None) -> Dict:
         genes_by_paper = count_gene_associations_per_paper(file_with_path)
         over_cap_papers = select_over_cap_papers(genes_by_paper)
         counts["papers_over_cap"] = len(over_cap_papers)
+        # Distinct associations withheld (per-paper counts already dedup within
+        # the file), so this is the tag count we refuse -- not raw file rows.
+        counts["skipped_over_cap"] = sum(over_cap_papers.values())
         logger.info(
             "%d papers exceed %d gene associations and will be skipped",
             len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
@@ -225,7 +228,6 @@ def load_zfin_gene_reference_tags(input_file: Optional[str] = None) -> Dict:
             entity_curie = f"{ZFIN_CURIE_PREFIX}:{gene_id}"
             ref_token = f"{ZFIN_CURIE_PREFIX}:{pub_id}"
             if ref_token in over_cap_papers:
-                counts["skipped_over_cap"] += 1
                 continue
             reference_curie = resolve_reference_curie(
                 db, ref_token, pmid, pub_to_ref_curie, pmid_cache, unresolved_prefixes
