@@ -60,11 +60,26 @@ SOURCE_DESCRIPTION = (
 # Emit a progress line every this many rows so a long run shows a heartbeat.
 PROGRESS_LOG_INTERVAL = 1000
 
+# Skip a paper entirely when it has more than this many entity associations in the
+# ZFIN file. Papers with thousands of gene/allele associations blow the
+# Elasticsearch nested_objects.limit on the reference document and halt the search
+# reindex, so we do not tag them at all (SCRUM-6363).
+MAX_ASSOCIATIONS_PER_PAPER = 250
+
 # Cap the number of "not in corpus" papers listed inline in the emailed report;
 # the full set is always written to the log file.
 NOT_IN_CORPUS_REPORT_CAP = 100
 
 log_path = environ.get("LOG_PATH", "")
+
+
+def select_over_cap_papers(entities_by_paper: Dict[str, Set[str]]) -> Dict[str, int]:
+    """Given a mapping of paper token -> set of associated entity curies, return
+    the papers whose association count exceeds MAX_ASSOCIATIONS_PER_PAPER, mapped
+    to that count. These papers are skipped so they never overflow the
+    Elasticsearch nested-object limit on the reference document."""
+    return {token: len(entities) for token, entities in entities_by_paper.items()
+            if len(entities) > MAX_ASSOCIATIONS_PER_PAPER}
 
 
 def download_file(url: str, file_with_path: str, timeout: int = 300) -> bool:  # pragma: no cover
