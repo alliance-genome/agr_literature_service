@@ -36,6 +36,7 @@ and reloaded wholesale if ZFIN's full data is ever loaded into the Alliance).
 import argparse
 import json
 import logging
+from collections import defaultdict
 from os import environ, makedirs, path
 from typing import Dict, Iterator, List, Optional, Set, Tuple
 
@@ -51,6 +52,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.zfin_refere
     DANIO_RERIO_TAXON,
     ENTITY_ID_VALIDATION,
     EXISTING_DATA_NOVELTY_ATP,
+    MAX_ASSOCIATIONS_PER_PAPER,
     PROGRESS_LOG_INTERVAL,
     build_zfin_corpus_ref_curies,
     build_zfin_pub_to_ref_curie,
@@ -61,6 +63,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.zfin_refere
     load_existing_entity_pairs,
     new_unresolved_prefix_counter,
     resolve_reference_curie,
+    select_over_cap_papers,
     write_id_log,
 )
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import (
@@ -86,6 +89,7 @@ file_path = base_path + "zfin_data/"
 
 MISSING_LOG = "zfin_allele_reference_missing_ref_curies.log"
 NOT_IN_CORPUS_LOG = "zfin_allele_reference_not_in_corpus.log"
+OVER_CAP_LOG = "zfin_allele_reference_over_cap.log"
 
 
 def _extract_ingest_records(data) -> List[Dict]:
@@ -123,6 +127,19 @@ def parse_allele_records(file_with_path: str) -> Iterator[Tuple[str, str, List[s
         yield allele_curie, taxon_curie, reference_curies
 
 
+def count_allele_associations_per_paper(file_with_path: str) -> Dict[str, Set[str]]:
+    """First pass over the file: map each reference curie to the set of distinct
+    allele curies associated with it. Used to identify papers whose allele
+    association count exceeds MAX_ASSOCIATIONS_PER_PAPER so they can be skipped
+    wholesale (they would otherwise overflow the Elasticsearch nested-object
+    limit on the reference page)."""
+    alleles_by_paper: Dict[str, Set[str]] = defaultdict(set)
+    for allele_curie, _taxon_curie, reference_curies in parse_allele_records(file_with_path):
+        for zfin_ref_curie in reference_curies:
+            alleles_by_paper[zfin_ref_curie].add(allele_curie)
+    return alleles_by_paper
+
+
 def _build_tag_payload(reference_curie: str, allele_curie: str, species_curie: str,
                        source_id: int) -> TopicEntityTagSchemaPost:
     return TopicEntityTagSchemaPost(
@@ -136,6 +153,21 @@ def _build_tag_payload(reference_curie: str, allele_curie: str, species_curie: s
         negated=False,
         topic_entity_tag_source_id=source_id,
     )
+
+
+def _resolve_input_file(input_file: Optional[str], db, counts: Dict) -> Optional[str]:
+    """Return the local allele JSON path to read, downloading it from ZFIN when
+    ``input_file`` is not given. Returns None (after closing ``db`` and marking
+    ``counts['download_failed']``) if the download fails."""
+    if input_file:
+        return input_file
+    makedirs(file_path, exist_ok=True)
+    file_with_path = f"{file_path}ZFIN_Allele_ml.json"
+    if download_file(ZFIN_ALLELE_JSON_URL, file_with_path):
+        return file_with_path
+    db.close()
+    counts["download_failed"] = True
+    return None
 
 
 def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
@@ -160,6 +192,8 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         "duplicate_in_file": 0,
         "missing_reference": 0,
         "not_in_corpus": 0,
+        "skipped_over_cap": 0,
+        "papers_over_cap": 0,
         "errors": 0,
     }
     missing_ref_curies: Set[str] = set()
@@ -168,15 +202,9 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
     not_in_corpus_refs: Dict[str, str] = {}
     unresolved_prefixes = new_unresolved_prefix_counter()
 
-    if input_file:
-        file_with_path = input_file
-    else:
-        makedirs(file_path, exist_ok=True)
-        file_with_path = f"{file_path}ZFIN_Allele_ml.json"
-        if not download_file(ZFIN_ALLELE_JSON_URL, file_with_path):
-            db.close()
-            counts["download_failed"] = True
-            return counts
+    file_with_path = _resolve_input_file(input_file, db, counts)
+    if file_with_path is None:
+        return counts
 
     try:
         source_id = get_or_create_source(db)
@@ -186,6 +214,17 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         logger.info(f"Loaded {len(zfin_corpus_ref_curies)} references in the ZFIN corpus")
         existing_pairs = load_existing_entity_pairs(db, source_id, ALLELE_ATP)
         logger.info(f"Loaded {len(existing_pairs)} allele tags already present for this source")
+
+        alleles_by_paper = count_allele_associations_per_paper(file_with_path)
+        over_cap_papers = select_over_cap_papers(alleles_by_paper)
+        counts["papers_over_cap"] = len(over_cap_papers)
+        # Distinct associations withheld (per-paper counts already dedup within
+        # the file), so this is the tag count we refuse -- not raw file pairs.
+        counts["skipped_over_cap"] = sum(over_cap_papers.values())
+        logger.info(
+            "%d papers exceed %d allele associations and will be skipped",
+            len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
+        )
 
         pmid_cache: Dict[str, Optional[str]] = {}
         seen_pairs: Set[Tuple[str, str]] = set()
@@ -203,6 +242,9 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
                         counts["skipped_duplicate"], counts["missing_reference"],
                         counts["not_in_corpus"], counts["errors"],
                     )
+
+                if zfin_ref_curie in over_cap_papers:
+                    continue
 
                 reference_curie = resolve_reference_curie(
                     db, zfin_ref_curie, None, pub_to_ref_curie, pmid_cache,
@@ -267,10 +309,11 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         logger.info(
             "ZFIN allele-reference load done: total_alleles=%d total_pairs=%d created=%d "
             "skipped_duplicate=%d duplicate_in_file=%d missing_reference=%d "
-            "not_in_corpus=%d errors=%d",
+            "not_in_corpus=%d skipped_over_cap=%d papers_over_cap=%d errors=%d",
             counts["total_alleles"], counts["total_pairs"], counts["created"],
             counts["skipped_duplicate"], counts["duplicate_in_file"],
-            counts["missing_reference"], counts["not_in_corpus"], counts["errors"],
+            counts["missing_reference"], counts["not_in_corpus"],
+            counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],
         )
         if unresolved_prefixes:
             logger.info("Unresolved reference curie prefixes: %s", dict(unresolved_prefixes))
@@ -280,6 +323,10 @@ def load_zfin_allele_reference_tags(input_file: Optional[str] = None) -> Dict:
         write_id_log(NOT_IN_CORPUS_LOG,
                      f"References not in the ZFIN corpus ({len(not_in_corpus_refs)})",
                      [f"{tok}\t{ref}" for ref, tok in sorted(not_in_corpus_refs.items())])
+        write_id_log(OVER_CAP_LOG,
+                     f"Papers skipped for exceeding {MAX_ASSOCIATIONS_PER_PAPER} "
+                     f"allele associations ({len(over_cap_papers)})",
+                     [f"{curie}\t{count}" for curie, count in sorted(over_cap_papers.items())])
         return counts
     finally:
         db.close()
@@ -301,6 +348,8 @@ def compose_report_message(counts: Dict) -> str:
     message += f"<li>Duplicate pairs within file: {counts['duplicate_in_file']}"
     message += f"<li>References not found in ABC: {counts['missing_reference']}"
     message += f"<li>Associations skipped (paper not in ZFIN corpus): {counts['not_in_corpus']}"
+    message += (f"<li>Papers skipped (&gt; {MAX_ASSOCIATIONS_PER_PAPER} allele associations): "
+                f"{counts['papers_over_cap']} papers, {counts['skipped_over_cap']} associations")
     message += f"<li>Errors: {counts['errors']}"
     message += format_not_in_corpus_section(counts.get("not_in_corpus_refs", {}),
                                             NOT_IN_CORPUS_LOG)
