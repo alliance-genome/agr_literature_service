@@ -12,6 +12,7 @@ VALID = {
     "person": [
         "ZFIN:ZDB-PERS-030131-1", "Xenbase:XB-PERS-123",
         "WB:WBPerson123", "SGD:Colleague_1269583",
+        "ORCID:0000-0002-3843-3472",
     ],
     "laboratory": [
         "ZFIN:ZDB-LAB-030131-1", "Xenbase:XB-LAB-123",
@@ -20,10 +21,15 @@ VALID = {
 }
 
 
-def test_patterns_maps_have_all_four_prefixes():
+def test_patterns_maps_have_expected_prefixes():
     p = patterns_check.get_patterns()
-    for datatype in ("person", "laboratory"):
-        assert set(p[datatype]) == {"ZFIN", "Xenbase", "WB", "SGD"}
+    assert set(p["person"]) == {"ZFIN", "Xenbase", "WB", "SGD", "ORCID"}
+    assert set(p["laboratory"]) == {"ZFIN", "Xenbase", "WB", "SGD"}
+
+
+def test_orcid_malformed_rejected():
+    assert patterns_check.check_pattern("person", "ORCID:1234") is False
+    assert patterns_check.check_pattern("person", "ORCID:0000-0002-3843-3472X") is False
 
 
 def test_valid_curies_match():

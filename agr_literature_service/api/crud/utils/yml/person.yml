@@ -18,3 +18,7 @@ SGD:
   example: 'SGD:Colleague_1269583'
   pattern:
     - ['^SGD:Colleague_\d+$', 'SGD']
+ORCID:
+  example: 'ORCID:0000-0002-3843-3472'
+  pattern:
+    - ['^ORCID:\d{4}-\d{4}-\d{4}-(\d{3}X|\d{4})$', 'ORCID']
