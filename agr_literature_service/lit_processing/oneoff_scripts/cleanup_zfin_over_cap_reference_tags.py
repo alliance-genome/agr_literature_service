@@ -38,7 +38,7 @@ from os import path
 from typing import Dict, List, Tuple
 
 from dotenv import load_dotenv
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import revalidate_all_tags
 from agr_literature_service.api.models import TopicEntityTagModel
@@ -89,22 +89,26 @@ def find_over_cap_references(db, source_id: int, entity_atp: str) -> List[Tuple[
 
 
 def delete_reference_tags(db, source_id: int, entity_atp: str, reference_id: int) -> int:
-    """Delete every pure entity tag of this type for this reference/source via the
-    ORM (so versioning/audit fire and validation rows cascade). Returns the number
-    of tags deleted."""
-    tags = (
-        db.query(TopicEntityTagModel)
-        .filter(
-            TopicEntityTagModel.topic_entity_tag_source_id == source_id,
-            TopicEntityTagModel.topic == entity_atp,
-            TopicEntityTagModel.entity_type == entity_atp,
-            TopicEntityTagModel.reference_id == reference_id,
-        )
-        .all()
+    """Delete every pure entity tag of this type for this reference/source with a
+    single bulk SQL DELETE. Validation rows cascade and dataset_entry references
+    are nulled by the FK ON DELETE actions at the database level. Returns the
+    number of tags deleted.
+
+    Bulk SQL is used deliberately rather than ORM per-object deletes: these
+    references carry tens of thousands of tags (one has 36k), and ORM deletion --
+    a DELETE per object plus SQLAlchemy-Continuum version tracking on each -- does
+    not scale to that volume (it stalls on commit). These are add-only, machine
+    loaded tags, so the skipped version history is an acceptable trade-off."""
+    result = db.execute(
+        text(
+            "DELETE FROM topic_entity_tag "
+            "WHERE topic_entity_tag_source_id = :sid "
+            "AND topic = :atp AND entity_type = :atp "
+            "AND reference_id = :ref"
+        ),
+        {"sid": source_id, "atp": entity_atp, "ref": reference_id},
     )
-    for tag in tags:
-        db.delete(tag)
-    return len(tags)
+    return result.rowcount
 
 
 def count_affected_dataset_entries(db, source_id: int,

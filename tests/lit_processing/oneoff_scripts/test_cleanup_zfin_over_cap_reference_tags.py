@@ -1,6 +1,6 @@
 """Tests for cleanup_zfin_over_cap_reference_tags.py"""
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -34,12 +34,14 @@ class TestFindOverCapReferences:
 
 class TestDeleteReferenceTags:
 
-    def test_deletes_each_tag_and_returns_count(self):
-        tag1, tag2 = MagicMock(), MagicMock()
-        db, _q = _chained_query([tag1, tag2])
+    def test_issues_bulk_delete_and_returns_rowcount(self):
+        db = MagicMock()
+        db.execute.return_value.rowcount = 36444
         deleted = mod.delete_reference_tags(db, 229, mod.GENE_ATP, 11)
-        assert deleted == 2
-        db.delete.assert_has_calls([call(tag1), call(tag2)], any_order=True)
+        assert deleted == 36444
+        # A single parameterized DELETE scoped to source, entity type, reference.
+        params = db.execute.call_args[0][1]
+        assert params == {"sid": 229, "atp": mod.GENE_ATP, "ref": 11}
 
 
 class TestCountAffectedDatasetEntries:
