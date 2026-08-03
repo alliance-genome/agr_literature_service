@@ -7,7 +7,7 @@ from agr_literature_service.api.models import VocabularyAbcModel, VocabularyTerm
 from ..fixtures import db  # noqa
 
 
-def _seed_one(db, vocab_key, name, is_obsolete=False):
+def _seed_one(db, vocab_key, name, is_obsolete=False):  # noqa
     v = db.query(VocabularyAbcModel).filter(VocabularyAbcModel.vocabulary == vocab_key).first()
     if v is None:
         v = VocabularyAbcModel(vocabulary=vocab_key)
