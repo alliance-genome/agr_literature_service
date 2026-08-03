@@ -59,4 +59,12 @@ def destroy(db: Session, vocabulary_term_abc_id: int) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"vocabulary_term_abc {vocabulary_term_abc_id} not found")
     db.delete(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        # A term still referenced by laboratory_person / person_lineage(_submission)
+        # cannot be deleted (FK NO ACTION). Surface a clean 409 instead of the
+        # IntegrityError bubbling out of commit() as a 500.
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Term is in use and cannot be deleted: {e.orig}")

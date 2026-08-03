@@ -16,12 +16,15 @@ from agr_literature_service.api.crud.user_utils import map_to_user_id
 
 logger = logging.getLogger(__name__)
 
+# The relationship FK is handled explicitly in patch() (validate_term_id before
+# storing) and is deliberately kept OUT of the generic copy-through loop, so the raw
+# FK can never be written unvalidated even if the Update schema were widened.
 _SCALAR_FIELDS = {
-    "person_subject_name", "person_object_name", "relationship_vocab_term_abc_id",
+    "person_subject_name", "person_object_name",
     "who_sent_this", "start_date", "end_date", "status",
 }
 _NOT_NULL = {
-    "person_subject_name", "person_object_name", "relationship_vocab_term_abc_id",
+    "person_subject_name", "person_object_name",
     "who_sent_this", "status",
 }
 

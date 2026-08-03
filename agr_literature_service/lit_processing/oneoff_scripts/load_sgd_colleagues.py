@@ -97,6 +97,12 @@ SGD changes is a no-op.
 # ``vocabulary_term_abc`` ids (via the "lab_position" and
 # "person_person_relationship" vocabularies) and write those FK ids instead of
 # the old slug strings. Not updated by SCRUM-6311.
+#
+# It is left in the tree ON PURPOSE, as the historical record of how the SGD
+# colleague data (the laboratory_person rows the 8603439f2008 migration
+# preserves) was originally loaded -- NOT as a runnable script. Do not run it as
+# is; rewrite it against vocabulary_term_abc first if SGD colleague data ever
+# needs to be reloaded or refreshed.
 
 import argparse
 import csv

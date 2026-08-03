@@ -19,7 +19,11 @@ from agr_literature_service.api.models import VocabularyTermAbcModel
 
 logger = logging.getLogger(__name__)
 
-_SCALAR_FIELDS = {"relationship_vocab_term_abc_id", "start_date", "end_date"}
+# The relationship FK is handled explicitly in patch() (validate_term_id before
+# storing) and is deliberately NOT listed here: keeping it out of the generic
+# copy-through loop means the raw FK can never be written unvalidated, even if the
+# Update schema were ever widened to expose it.
+_SCALAR_FIELDS = {"start_date", "end_date"}
 
 
 def _is_symmetric_term(db: Session, term_id: int) -> bool:

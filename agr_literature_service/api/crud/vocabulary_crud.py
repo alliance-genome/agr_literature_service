@@ -73,7 +73,12 @@ def get_vocabulary(db: Session, name: str) -> List[Dict[str, Any]]:
 
 
 def search_vocabulary(db: Session, name: str, q: str) -> List[Dict[str, Any]]:
-    """Autocomplete over term names + synonyms; returns matching canonical terms."""
+    """Autocomplete over term names + synonyms; returns matching canonical terms.
+
+    Obsolete terms are excluded: autocomplete is a selection surface, and picking an
+    obsolete term would only earn a 422 from ``validate_term_id`` on save. (Contrast
+    ``get_vocabulary``, which *keeps* obsolete terms so the UI can resolve a stored id
+    to its label.)"""
     from agr_literature_service.api.models import (
         VocabularyAbcModel, VocabularyTermAbcModel
     )
@@ -93,6 +98,8 @@ def search_vocabulary(db: Session, name: str, q: str) -> List[Dict[str, Any]]:
     ).all()
     out = []
     for t in terms:
+        if t.is_obsolete:
+            continue
         names = [t.name] + [s.synonym_name for s in t.synonyms]
         if any(needle in n.lower() for n in names):
             out.append({"value": t.vocabulary_term_abc_id, "label": t.name,
@@ -108,7 +115,17 @@ class VocabularyTermRefSchema(BaseModel):
 
 def serialize_term_ref(db: Session, term_id: Optional[int]) -> Optional[Dict[str, Any]]:
     """Expand a stored vocabulary_term_abc id to the uniform {value,label,is_obsolete}
-    object the UI consumes, or None when unset."""
+    object the UI consumes, or None when unset.
+
+    Scale note (SCRUM-6311): this is called once per row from the per-row
+    ``_to_show_dict`` of the laboratory_person / person_lineage(_submission) list
+    endpoints, so a list of N rows issues N single-row lookups (an N+1). Left as-is
+    deliberately — measured on the live DB the fan-out is tiny (max 17 members per
+    lab, 21 lineage rows per person) against a 25-row vocabulary_term_abc table, all
+    primary-key lookups, so the extra round-trips are negligible. If these lists ever
+    grow large, resolve it by selectinload-ing a term relationship on each model, or
+    batch-resolving the distinct term ids once per list call and passing a lookup dict
+    into ``_to_show_dict``."""
     if term_id is None:
         return None
     from agr_literature_service.api.models import VocabularyTermAbcModel

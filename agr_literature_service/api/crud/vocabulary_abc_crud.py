@@ -59,4 +59,12 @@ def destroy(db: Session, vocabulary_abc_id: int) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"vocabulary_abc {vocabulary_abc_id} not found")
     db.delete(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        # The ORM cascade deletes the child terms first; if any term is still
+        # referenced (FK NO ACTION) the commit raises. Surface a clean 409 instead
+        # of a 500 rather than leaving the vocabulary half-deleted.
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Vocabulary has a term in use and cannot be deleted: {e.orig}")

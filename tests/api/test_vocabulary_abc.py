@@ -37,6 +37,14 @@ class TestVocabularyAbc:
             r = client.post("/vocabulary_abc/", json={"vocabulary": "  "}, headers=auth_headers)
             assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_destroy_unused_vocabulary(self, db, test_vocabulary, auth_headers):  # noqa
+        vid = test_vocabulary.json()
+        with TestClient(app) as client:
+            d = client.delete(f"/vocabulary_abc/{vid}", headers=auth_headers)
+            assert d.status_code == status.HTTP_204_NO_CONTENT
+            g = client.get(f"/vocabulary_abc/{vid}", headers=auth_headers)
+            assert g.status_code == status.HTTP_404_NOT_FOUND
+
 
 class TestVocabularyTermAbc:
     def test_create_and_show(self, db, test_vocabulary, auth_headers):  # noqa
@@ -60,6 +68,17 @@ class TestVocabularyTermAbc:
             r = client.post("/vocabulary_term_abc/",
                             json={"vocabulary_abc_id": vid, "name": "Technician"}, headers=auth_headers)
             assert r.status_code == status.HTTP_409_CONFLICT
+
+    def test_destroy_unused_term(self, db, test_vocabulary, auth_headers):  # noqa
+        vid = test_vocabulary.json()
+        with TestClient(app) as client:
+            tid = client.post("/vocabulary_term_abc/",
+                              json={"vocabulary_abc_id": vid, "name": "Volunteer"},
+                              headers=auth_headers).json()
+            d = client.delete(f"/vocabulary_term_abc/{tid}", headers=auth_headers)
+            assert d.status_code == status.HTTP_204_NO_CONTENT
+            g = client.get(f"/vocabulary_term_abc/{tid}", headers=auth_headers)
+            assert g.status_code == status.HTTP_404_NOT_FOUND
 
 
 class TestVocabularyTermSynonymAbc:

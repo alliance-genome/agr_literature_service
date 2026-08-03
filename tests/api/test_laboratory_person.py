@@ -246,6 +246,37 @@ class TestLaboratoryPerson:
             )
             assert res.status_code == status.HTTP_204_NO_CONTENT
 
+    def test_destroy_in_use_lab_position_term_conflicts(self, auth_headers, test_lab_person):  # noqa
+        # The lab_person row's lab_position FK still references this term, so deleting
+        # the term must return a clean 409 -- not a 500 out of commit() (SCRUM-6311).
+        with TestClient(app) as client:
+            res = client.delete(
+                f"/vocabulary_term_abc/{test_lab_person.term_id}", headers=auth_headers
+            )
+            assert res.status_code == status.HTTP_409_CONFLICT
+
+    def test_patch_term_obsolete_blocks_new_assignment(self, db, auth_headers, seeded_lab_and_person):  # noqa
+        # Flip a term obsolete through the PATCH endpoint, then confirm it can no longer
+        # be assigned: validate_term_id rejects it with a 422.
+        term_id = _term_id_by_label(db, "Post-Doc")
+        with TestClient(app) as client:
+            p = client.patch(
+                f"/vocabulary_term_abc/{term_id}",
+                json={"is_obsolete": True},
+                headers=auth_headers,
+            )
+            assert p.status_code == status.HTTP_200_OK
+            res = client.post(
+                "/laboratory_person/",
+                json={
+                    "laboratory_curie": str(seeded_lab_and_person["laboratory_id"]),
+                    "person_curie": str(seeded_lab_and_person["person_id"]),
+                    "lab_position": term_id,
+                },
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
 
 class TestLaboratoryPersonCrud:
     """DB-level tests exercising laboratory_person_crud directly (no HTTP/auth).

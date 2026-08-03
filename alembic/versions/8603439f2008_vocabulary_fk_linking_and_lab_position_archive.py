@@ -61,7 +61,8 @@ _CREATED_IDENTIFIERS = [_PL_UNIQUE] + [
     for name in (_fk_name(tbl, _fk_col(tbl)), _ix_name(tbl, _fk_col(tbl)))
 ]
 _OVERLONG = [n for n in _CREATED_IDENTIFIERS if len(n) > 63]
-assert not _OVERLONG, f"identifiers exceed the 63-char Postgres limit: {_OVERLONG}"
+if _OVERLONG:  # not assert: must survive `python -O`, which strips assert statements
+    raise RuntimeError(f"identifiers exceed the 63-char Postgres limit: {_OVERLONG}")
 
 
 def _add_fk_columns():
@@ -112,7 +113,19 @@ def upgrade():
     # 3. add FK columns (base + _version)
     _add_fk_columns()
 
-    # 4. cleanup non-loader laboratory_person rows (no-op on prod)
+    # 4. cleanup non-loader laboratory_person rows.
+    #
+    #    Ordering note (deliberate): this DELETE runs BEFORE the archive in step 5,
+    #    so any non-loader row's lab_position is discarded without being archived.
+    #    That is intended, and safe on prod, because on prod every laboratory_person
+    #    row was written by the load_sgd_colleagues loader (created_by =
+    #    'load_sgd_colleagues'): this DELETE therefore matches nothing and step 5 goes
+    #    on to archive every row's lab_position. Non-loader rows exist only on dev /
+    #    beta / restored dumps as throwaway test data, whose positions we do not want
+    #    in person_note — so deleting them unarchived is the desired behaviour, not a
+    #    data-loss bug. (created_by IS NULL rows, if any, are likewise non-loader; they
+    #    survive this DELETE and would be archived — again a non-issue on prod, which
+    #    has none.)
     conn.execute(sa.text(
         "DELETE FROM laboratory_person WHERE created_by <> 'load_sgd_colleagues'"
     ))
@@ -148,7 +161,8 @@ def upgrade():
         left = conn.execute(sa.text(
             f"SELECT count(*) FROM {tbl} WHERE relationship_vocab_term_abc_id IS NULL"
         )).scalar_one()
-        assert left == 0, f"{tbl}: {left} rows have an unmapped relationship slug"
+        if left:  # not assert: must survive `python -O`, which strips assert statements
+            raise RuntimeError(f"{tbl}: {left} rows have an unmapped relationship slug")
 
     # 8. swap the person_lineage uniqueness constraint off the retired String
     #    column before it can be dropped.
