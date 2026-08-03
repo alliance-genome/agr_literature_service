@@ -1272,7 +1272,7 @@ def check_handle_duplicate(db_session: Session, mod, pmids, xref_ref, ref_xref_v
         if environ.get('LOG_URL'):
             log_url = path.join(environ['LOG_URL'], 'pubmed_search/')
     if not path.exists(log_path):
-        makedirs(log_path)
+        makedirs(log_path, exist_ok=True)
     log_file = log_path + "duplicate_rows_" + mod + ".log"
     fw = None
     if path.exists(log_file):

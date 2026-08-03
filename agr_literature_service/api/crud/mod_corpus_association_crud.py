@@ -316,16 +316,18 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
         reference_curie = mca.reference.curie if mca.reference else None
         mod_abbreviation = mca.mod.abbreviation if mca.mod else None
 
-        # Use savepoint for each item to enable individual rollback on failure
-        nested = None
+        # NOTE: the workflow/TET/xref helpers called below each issue their own
+        # db.commit() on the session, which ends the outer transaction. A per-item
+        # SAVEPOINT therefore cannot isolate an item (the first inner commit detaches
+        # it, and nested.commit()/rollback() then warn "nested transaction already
+        # deassociated from connection"). We instead commit per item and roll back
+        # only the uncommitted tail on failure.
         try:
-            nested = db.begin_nested()  # SAVEPOINT
-
             # Setting corpus to False (moving OUT)
             if corpus is False and mca.corpus is True:
                 has_manual_tags = has_manual_tet(db, str(mca.reference_id), mod_abbreviation)
                 if has_manual_tags and not force_out:
-                    nested.rollback()
+                    db.rollback()
                     results.append(ModCorpusAssociationBatchResultItem(
                         mod_corpus_association_id=mca_id,
                         success=False,
@@ -363,7 +365,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                 mca.mod_corpus_sort_source = ModCorpusSortSourceType.Manual_creation
             db.add(mca)
 
-            nested.commit()  # Commit savepoint
+            db.commit()  # Persist this item
             results.append(ModCorpusAssociationBatchResultItem(
                 mod_corpus_association_id=mca_id,
                 success=True,
@@ -372,8 +374,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
             ))
 
         except Exception as e:
-            if nested is not None:
-                nested.rollback()  # Rollback savepoint on failure
+            db.rollback()  # Drop this item's uncommitted changes
             results.append(ModCorpusAssociationBatchResultItem(
                 mod_corpus_association_id=mca_id,
                 success=False,
@@ -381,7 +382,7 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                 reference_curie=reference_curie
             ))
 
-    # Commit all successful changes
+    # Safety net: commit any residual pending state (items are already committed above)
     db.commit()
 
     return results

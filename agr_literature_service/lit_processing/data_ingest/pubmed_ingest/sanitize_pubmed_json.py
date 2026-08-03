@@ -18,7 +18,7 @@ def sanitize_pubmed_json_list(pmids, inject_list):
     base_path = environ.get('XML_PATH')
     sanitized_reference_json_path = base_path + 'sanitized_reference_json/'
     if not path.exists(sanitized_reference_json_path):
-        makedirs(sanitized_reference_json_path)
+        makedirs(sanitized_reference_json_path, exist_ok=True)
 
     pmid_fields = ['authors', 'volume', 'title', 'pages', 'issueName', 'datePublished',
                    'datePublishedStart', 'datePublishedEnd', 'dateArrivedInPubmed',

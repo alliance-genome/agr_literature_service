@@ -13,8 +13,8 @@ aiofiles==23.1.0             # Updated for better performance.
 alembic==1.14.1              # Upgrade for compatibility with SQLAlchemy 2.0.x.
 async-exit-stack==1.0.1      # No update needed.
 async-generator==1.10        # No update needed.
-asyncpg==0.27.0              # Updated for compatibility.
-psycopg2-binary==2.9.8       # Updated for better compatibility with newer PostgreSQL.
+asyncpg==0.30.0              # Bumped for PostgreSQL 17 support (SCRUM-6318).
+psycopg2-binary==2.9.10      # Bumped for PostgreSQL 17 support (libpq 17 wheels) (SCRUM-6318).
 pydantic-settings>=0.12.1    # This gives us the new pydantic_settings module
 
 # Security and Authentication

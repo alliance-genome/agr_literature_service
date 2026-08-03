@@ -2,8 +2,10 @@ import io
 import json
 import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
+from botocore.exceptions import ClientError
 from fastapi import status, HTTPException
 from starlette.testclient import TestClient
 
@@ -16,6 +18,15 @@ from ..fixtures import db  # noqa
 
 
 model_file_test_content = b"This is a test joblib file."
+
+
+atp_curie_to_name = {"ATP:0000061": "Topic 61", "ATP:0000062": "Data novelty 62"}
+
+
+def patch_map_curies_to_names(category, curies):
+    if category in ("atpterm", "atp"):
+        return {c: atp_curie_to_name.get(c, c) for c in curies}
+    return {c: c for c in curies}
 
 
 @pytest.fixture
@@ -103,6 +114,7 @@ class TestMLModel:
         assert test_ml_model["date_created"] is not None
         assert test_ml_model["created_by"] is not None
 
+    @patch("agr_literature_service.api.crud.ml_model_crud.map_curies_to_names", patch_map_curies_to_names)
     def test_get_all_models_no_filter(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.get(url="/ml_model/all", headers=auth_headers)
@@ -112,6 +124,7 @@ class TestMLModel:
             assert len(payload) >= 2
             assert all("ml_model_id" in m for m in payload)
 
+    @patch("agr_literature_service.api.crud.ml_model_crud.map_curies_to_names", patch_map_curies_to_names)
     def test_get_all_models_filter_by_mod(self, test_ml_model, test_ml_model2, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.get(
@@ -128,6 +141,7 @@ class TestMLModel:
             response = client.get(url="/ml_model/all?mod_abbreviation=BOGUS", headers=auth_headers)
             assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @patch("agr_literature_service.api.crud.ml_model_crud.map_curies_to_names", patch_map_curies_to_names)
     def test_get_all_models_has_atp_name_fields(self, test_ml_model, test_mod, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.get(url="/ml_model/all", headers=auth_headers)
@@ -269,3 +283,63 @@ def test_download_model_missing_s3_file_returns_404(db, monkeypatch):  # noqa
         ml_model_crud.download_model_file(
             db, "biocuration_entity_extraction", "MLT", "ATP:0000110", "99")
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_download_model_corrupt_gzip_returns_502(db, monkeypatch):  # noqa
+    # The S3 object exists but is not valid gzip (truncated / wrong content).
+    # download_model_file must surface a 502 rather than let gzip.open raise an
+    # unhandled BadGzipFile (HTTP 500).
+    mod = ModModel(abbreviation="MLT2", short_name="MLT2", full_name="ML test mod 2")
+    db.add(mod)
+    db.commit()
+    model = MLModel(mod_id=mod.mod_id,
+                    version_num=42,
+                    topic="ATP:0000110",
+                    production=False,
+                    task_type="biocuration_entity_extraction",
+                    file_extension="joblib",
+                    model_type="no_file")
+    db.add(model)
+    db.commit()
+
+    def fake_download(filepath, *args, **kwargs):
+        # Simulate a successful download of a non-gzip payload.
+        with open(filepath, "wb") as fh:
+            fh.write(b"this is not gzip content")
+        return True
+
+    monkeypatch.setattr(
+        "agr_literature_service.api.crud.ml_model_crud.download_file_from_s3", fake_download)
+
+    with pytest.raises(HTTPException) as exc_info:
+        ml_model_crud.download_model_file(
+            db, "biocuration_entity_extraction", "MLT2", "ATP:0000110", "42")
+    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY
+
+
+def test_download_model_s3_error_returns_502(db, monkeypatch):  # noqa
+    # download_file_from_s3 only swallows ClientError; if the storage call raises
+    # (credentials/connectivity/other), download_model_file must return 502, not 500.
+    mod = ModModel(abbreviation="MLT3", short_name="MLT3", full_name="ML test mod 3")
+    db.add(mod)
+    db.commit()
+    model = MLModel(mod_id=mod.mod_id,
+                    version_num=7,
+                    topic="ATP:0000110",
+                    production=False,
+                    task_type="biocuration_entity_extraction",
+                    file_extension="joblib",
+                    model_type="no_file")
+    db.add(model)
+    db.commit()
+
+    def raise_client_error(*args, **kwargs):
+        raise ClientError({"Error": {"Code": "500", "Message": "boom"}}, "GetObject")
+
+    monkeypatch.setattr(
+        "agr_literature_service.api.crud.ml_model_crud.download_file_from_s3", raise_client_error)
+
+    with pytest.raises(HTTPException) as exc_info:
+        ml_model_crud.download_model_file(
+            db, "biocuration_entity_extraction", "MLT3", "ATP:0000110", "7")
+    assert exc_info.value.status_code == status.HTTP_502_BAD_GATEWAY

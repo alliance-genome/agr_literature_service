@@ -51,7 +51,7 @@ def update_resource_pubmed_nlm(set_user=None):
     base_path = environ.get('XML_PATH', "")
     json_storage_path = base_path + 'sanitized_resource_json/'
     if not path.exists(json_storage_path):
-        makedirs(json_storage_path)
+        makedirs(json_storage_path, exist_ok=True)
     save_resource_file(json_storage_path, resources_to_create, 'NLM')
     post_resources(db_session, 'sanitized_resource_json', 'NLM')
     db_session.close()

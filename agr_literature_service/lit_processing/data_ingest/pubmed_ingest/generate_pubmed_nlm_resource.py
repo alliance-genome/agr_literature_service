@@ -100,7 +100,7 @@ def generate_json(nlm_info, upload_to_s3):  # pragma: no cover
     storage_path = base_path + 'pubmed_resource_json/'
 
     if not path.exists(storage_path):
-        makedirs(storage_path)
+        makedirs(storage_path, exist_ok=True)
 
     # Write the json data to output json file
     filename = 'resource_pubmed_all.json'
