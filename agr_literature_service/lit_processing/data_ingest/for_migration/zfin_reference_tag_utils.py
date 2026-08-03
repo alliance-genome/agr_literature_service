@@ -107,6 +107,17 @@ def _query_source(db: Session, mod_id: int) -> Optional[TopicEntityTagSourceMode
     ).one_or_none()
 
 
+def find_zfin_source_id(db: Session) -> Optional[int]:
+    """Return the topic_entity_tag_source.id for the shared ZFIN reference-curation
+    source, or None if it (or the ZFIN mod) does not exist. Read-only counterpart
+    to get_or_create_source, for tools that must not create the source."""
+    mod = db.query(ModModel).filter_by(abbreviation=SECONDARY_DATA_PROVIDER_ABBR).one_or_none()
+    if mod is None:
+        return None
+    source = _query_source(db, mod.mod_id)
+    return source.topic_entity_tag_source_id if source else None
+
+
 def get_or_create_source(db: Session) -> int:
     """Return the topic_entity_tag_source.id for the shared ZFIN reference-curation
     source, creating it if absent. On a unique-constraint race (two first runs at
