@@ -74,7 +74,8 @@ class TestComposeReportMessage:
         counts = {
             "total_pairs": 10, "created": 6, "skipped_duplicate": 2,
             "duplicate_in_file": 1, "skipped_non_gene": 0, "missing_reference": 1,
-            "not_in_corpus": 0, "errors": 0,
+            "not_in_corpus": 0, "skipped_over_cap": 0, "papers_over_cap": 0,
+            "errors": 0,
         }
         counts.update(overrides)
         return counts
@@ -121,7 +122,9 @@ class TestLoadLoop:
             ("ZDB-GENE-2", "ZDB-PUB-3", ""),   # resolves but not in corpus
             ("ZDB-GENE-3", "ZDB-PUB-2", ""),   # create_tag 409 -> skipped_duplicate
         ]
-        with patch.object(mod, "parse_gene_publication", return_value=iter(rows)):
+        # side_effect (not return_value) so both the counting pass and the main
+        # loop each get a fresh iterator over the rows.
+        with patch.object(mod, "parse_gene_publication", side_effect=lambda *a, **k: iter(rows)):
             counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
 
         assert counts["total_pairs"] == 5
@@ -148,11 +151,42 @@ class TestLoadLoop:
             self, mock_create_tag, mock_session, *_mocks):
         mock_session.return_value = MagicMock()
         rows = [("ZDB-GENE-1", "ZDB-PUB-1", "")]
-        with patch.object(mod, "parse_gene_publication", return_value=iter(rows)):
+        with patch.object(mod, "parse_gene_publication", side_effect=lambda *a, **k: iter(rows)):
             counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
         assert counts["skipped_duplicate"] == 1
         assert counts["created"] == 0
         mock_create_tag.assert_not_called()
+
+    @patch("agr_literature_service.lit_processing.data_ingest.for_migration."
+           "zfin_reference_tag_utils.MAX_ASSOCIATIONS_PER_PAPER", 2)
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs", return_value=set())
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1", "AGRKB:2"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={
+        "ZFIN:ZDB-PUB-1": "AGRKB:1",
+        "ZFIN:ZDB-PUB-2": "AGRKB:2",
+    })
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag")
+    def test_skips_papers_over_association_cap(self, mock_create_tag, mock_session, *_mocks):
+        mock_session.return_value = MagicMock()
+        mock_create_tag.return_value = (1, False)
+        # PUB-1 has 3 gene associations (over the patched cap of 2) so none of its
+        # tags load; PUB-2 has 1 and loads normally.
+        rows = [
+            ("ZDB-GENE-1", "ZDB-PUB-1", ""),
+            ("ZDB-GENE-2", "ZDB-PUB-1", ""),
+            ("ZDB-GENE-3", "ZDB-PUB-1", ""),
+            ("ZDB-GENE-9", "ZDB-PUB-2", ""),
+        ]
+        with patch.object(mod, "parse_gene_publication", side_effect=lambda *a, **k: iter(rows)):
+            counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
+        assert counts["papers_over_cap"] == 1
+        assert counts["skipped_over_cap"] == 3
+        assert counts["created"] == 1
+        mock_create_tag.assert_called_once()
 
     @patch.object(mod, "write_id_log")
     @patch.object(mod, "load_existing_entity_pairs", return_value=set())
@@ -167,7 +201,7 @@ class TestLoadLoop:
         mock_session.return_value = db
         # Distinct entities (one pub) so every row reaches create_tag and raises.
         rows = [(f"ZDB-GENE-{i}", "ZDB-PUB-1", "") for i in range(40)]
-        with patch.object(mod, "parse_gene_publication", return_value=iter(rows)):
+        with patch.object(mod, "parse_gene_publication", side_effect=lambda *a, **k: iter(rows)):
             counts = mod.load_zfin_gene_reference_tags(input_file="ignored.txt")
         assert counts.get("aborted") is True
         assert counts["errors"] == mod.ABORT_AFTER_CONSECUTIVE_ERRORS
