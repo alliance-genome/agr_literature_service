@@ -10,7 +10,8 @@ compares against the WB curation_status table. The script has two run modes:
 
   --mode report     Write a read-only, human-readable report grouped by ATP
                     topic (one line per paper: reference_id, AGRKB, WB:WBPaper,
-                    datatype, and status) to --output. Never touches the DB.
+                    datatype, curator, and status) to --output. Never touches
+                    the DB.
 
 Both modes share the same source parsing and classification, so their counts
 always agree. Each source (paper, ATP) pair is classified as:
@@ -340,7 +341,8 @@ def run_report(total_rows, records, blank_rows, not_found_rows, output_file):
                 else:
                     label = r["status"]
                 out.write(f"  reference_id={r['reference_id']}  {r['agrkb']}  "
-                          f"{r['wb_curie']}  {r['datatype']}  [{label}]\n")
+                          f"{r['wb_curie']}  {r['datatype']}  {r['curator']}  "
+                          f"[{label}]\n")
             out.write("\n")
 
         if blank_rows:
