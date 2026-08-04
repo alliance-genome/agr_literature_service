@@ -100,7 +100,8 @@ class TestComposeReportMessage:
         counts = {
             "total_alleles": 4, "total_pairs": 10, "created": 6,
             "skipped_duplicate": 2, "duplicate_in_file": 1, "missing_reference": 1,
-            "not_in_corpus": 0, "errors": 0,
+            "not_in_corpus": 0, "skipped_over_cap": 0, "papers_over_cap": 0,
+            "errors": 0,
         }
         counts.update(overrides)
         return counts
@@ -145,7 +146,9 @@ class TestLoadLoop:
             ("ZFIN:ZDB-ALT-3", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-X"]),   # missing ref
             ("ZFIN:ZDB-ALT-4", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-2"]),   # 409 -> skipped
         ]
-        with patch.object(mod, "parse_allele_records", return_value=iter(records)):
+        # side_effect (not return_value) so both the counting pass and the main
+        # loop each get a fresh iterator over the records.
+        with patch.object(mod, "parse_allele_records", side_effect=lambda *a, **k: iter(records)):
             counts = mod.load_zfin_allele_reference_tags(input_file="ignored.json")
 
         assert counts["total_alleles"] == 4
@@ -158,6 +161,36 @@ class TestLoadLoop:
         assert counts["errors"] == 0
         assert counts["not_in_corpus_refs"] == {"AGRKB:3": "ZFIN:ZDB-PUB-3"}
         assert mock_create_tag.call_count == 2
+
+    @patch("agr_literature_service.lit_processing.data_ingest.for_migration."
+           "zfin_reference_tag_utils.MAX_ASSOCIATIONS_PER_PAPER", 2)
+    @patch.object(mod, "write_id_log")
+    @patch.object(mod, "load_existing_entity_pairs", return_value=set())
+    @patch.object(mod, "build_zfin_corpus_ref_curies", return_value={"AGRKB:1", "AGRKB:2"})
+    @patch.object(mod, "build_zfin_pub_to_ref_curie", return_value={
+        "ZFIN:ZDB-PUB-1": "AGRKB:1",
+        "ZFIN:ZDB-PUB-2": "AGRKB:2",
+    })
+    @patch.object(mod, "get_or_create_source", return_value=229)
+    @patch.object(mod, "set_global_user_id")
+    @patch.object(mod, "create_postgres_session")
+    @patch.object(mod, "create_tag")
+    def test_skips_papers_over_association_cap(self, mock_create_tag, mock_session, *_mocks):
+        mock_session.return_value = MagicMock()
+        mock_create_tag.return_value = (1, False)
+        # PUB-1 is referenced by 3 distinct alleles (over the patched cap of 2) so
+        # none of its tags load; PUB-2 is referenced by 1 and loads normally.
+        records = [
+            ("ZFIN:ZDB-ALT-1", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-1"]),
+            ("ZFIN:ZDB-ALT-2", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-1"]),
+            ("ZFIN:ZDB-ALT-3", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-1", "ZFIN:ZDB-PUB-2"]),
+        ]
+        with patch.object(mod, "parse_allele_records", side_effect=lambda *a, **k: iter(records)):
+            counts = mod.load_zfin_allele_reference_tags(input_file="ignored.json")
+        assert counts["papers_over_cap"] == 1
+        assert counts["skipped_over_cap"] == 3
+        assert counts["created"] == 1
+        mock_create_tag.assert_called_once()
 
     @patch.object(mod, "write_id_log")
     @patch.object(mod, "load_existing_entity_pairs", return_value=set())
@@ -173,7 +206,7 @@ class TestLoadLoop:
         # Distinct alleles (one shared reference) so every pair reaches create_tag.
         records = [(f"ZFIN:ZDB-ALT-{i}", "NCBITaxon:7955", ["ZFIN:ZDB-PUB-1"])
                    for i in range(40)]
-        with patch.object(mod, "parse_allele_records", return_value=iter(records)):
+        with patch.object(mod, "parse_allele_records", side_effect=lambda *a, **k: iter(records)):
             counts = mod.load_zfin_allele_reference_tags(input_file="ignored.json")
         assert counts.get("aborted") is True
         assert counts["errors"] == mod.ABORT_AFTER_CONSECUTIVE_ERRORS

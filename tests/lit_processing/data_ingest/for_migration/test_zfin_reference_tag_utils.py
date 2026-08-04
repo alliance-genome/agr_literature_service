@@ -124,6 +124,25 @@ class TestResolveReferenceCurie:
         assert unresolved == {"ZFIN": 1}
 
 
+class TestSelectOverCapPapers:
+
+    def test_returns_only_papers_over_the_cap_with_counts(self):
+        entities_by_paper = {
+            "ZFIN:ZDB-PUB-big": {f"ZFIN:ZDB-GENE-{i}" for i in range(
+                util.MAX_ASSOCIATIONS_PER_PAPER + 1)},
+            "ZFIN:ZDB-PUB-exact": {f"ZFIN:ZDB-GENE-{i}" for i in range(
+                util.MAX_ASSOCIATIONS_PER_PAPER)},
+            "ZFIN:ZDB-PUB-small": {"ZFIN:ZDB-GENE-1"},
+        }
+        # Exactly at the cap is allowed; only strictly-greater papers are returned.
+        assert util.select_over_cap_papers(entities_by_paper) == {
+            "ZFIN:ZDB-PUB-big": util.MAX_ASSOCIATIONS_PER_PAPER + 1,
+        }
+
+    def test_empty_input(self):
+        assert util.select_over_cap_papers({}) == {}
+
+
 class TestFormatNotInCorpusSection:
 
     def test_empty(self):

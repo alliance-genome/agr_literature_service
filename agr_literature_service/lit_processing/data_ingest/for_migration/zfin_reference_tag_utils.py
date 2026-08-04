@@ -60,11 +60,30 @@ SOURCE_DESCRIPTION = (
 # Emit a progress line every this many rows so a long run shows a heartbeat.
 PROGRESS_LOG_INTERVAL = 1000
 
+# Skip a paper entirely when it has more than this many entity associations of a
+# given type in the ZFIN file. Elasticsearch caps the reference document's
+# `topic_entity_tags` nested field at 10000 sub-documents
+# (index.mapping.nested_objects.limit); a handful of bulk ZFIN papers carried
+# 10k-50k gene/allele tags and halted the search reindex. This per-type cap keeps
+# ZFIN's contribution well under that ceiling (SCRUM-6363). Note the ES limit is
+# on the reference's *total* nested tags across all sources, so this per-type,
+# per-source cap bounds ZFIN's share rather than the document as a whole.
+MAX_ASSOCIATIONS_PER_PAPER = 250
+
 # Cap the number of "not in corpus" papers listed inline in the emailed report;
 # the full set is always written to the log file.
 NOT_IN_CORPUS_REPORT_CAP = 100
 
 log_path = environ.get("LOG_PATH", "")
+
+
+def select_over_cap_papers(entities_by_paper: Dict[str, Set[str]]) -> Dict[str, int]:
+    """Given a mapping of paper token -> set of associated entity curies, return
+    the papers whose association count exceeds MAX_ASSOCIATIONS_PER_PAPER, mapped
+    to that count. These papers are skipped so they never overflow the
+    Elasticsearch nested-object limit on the reference document."""
+    return {token: len(entities) for token, entities in entities_by_paper.items()
+            if len(entities) > MAX_ASSOCIATIONS_PER_PAPER}
 
 
 def download_file(url: str, file_with_path: str, timeout: int = 300) -> bool:  # pragma: no cover
@@ -90,6 +109,17 @@ def _query_source(db: Session, mod_id: int) -> Optional[TopicEntityTagSourceMode
         data_provider=SOURCE_DATA_PROVIDER,
         secondary_data_provider_id=mod_id,
     ).one_or_none()
+
+
+def find_zfin_source_id(db: Session) -> Optional[int]:
+    """Return the topic_entity_tag_source.id for the shared ZFIN reference-curation
+    source, or None if it (or the ZFIN mod) does not exist. Read-only counterpart
+    to get_or_create_source, for tools that must not create the source."""
+    mod = db.query(ModModel).filter_by(abbreviation=SECONDARY_DATA_PROVIDER_ABBR).one_or_none()
+    if mod is None:
+        return None
+    source = _query_source(db, mod.mod_id)
+    return source.topic_entity_tag_source_id if source else None
 
 
 def get_or_create_source(db: Session) -> int:
