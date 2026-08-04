@@ -1,4 +1,7 @@
-"""vocabulary fk linking and lab_position archive
+"""vocabulary fk linking and lab_position mapping
+
+(Filename still says "archive" -- it encodes the immutable revision id; the
+migration now maps lab_position into the vocabulary rather than archiving it.)
 
 FK-links the retired String relationship/lab_position fields to the ABC
 controlled vocabularies (SCRUM-6311):
@@ -434,7 +437,7 @@ def upgrade():
     #    a real curator-created membership exists on prod (laboratory_person 5620 —
     #    Ceri Van Slyke in the Elizabeth Grayhack Lab, created 2026-07-29, after the
     #    survey). Deleting non-loader rows would destroy that real data, so the step is
-    #    gone; the archive below already ignores rows with a blank lab_position. (SCRUM-6311)
+    #    gone; the mapping below only touches rows with a non-blank lab_position. (SCRUM-6311)
 
     # 5. map each non-blank lab_position into the controlled vocabulary using the
     #    hardcoded curator mapping (_LAB_POSITION_TEXT_TO_TERM above). Fail-closed:
@@ -477,6 +480,25 @@ def upgrade():
         raise RuntimeError(
             "lab_position values absent from the curator mapping "
             f"(add them and re-run): {unmapped}"
+        )
+
+    # Fail-closed: a PI-bucket membership already marked former_pi or alum but with
+    # is_pi NULL is contradictory -- the is_pi stamp below would present a departed or
+    # former PI as a sitting one. Abort and let a curator resolve it rather than guess.
+    # (0 such rows on prod; a stray one must be cleared before the migration runs.)
+    pi_keys = [k for k, v in _LAB_POSITION_TEXT_TO_TERM.items() if v == pi_director]
+    conflict = conn.execute(
+        sa.text(
+            "SELECT count(*) FROM laboratory_person "
+            "WHERE is_pi IS NULL AND (former_pi IS NOT NULL OR alum IS NOT NULL) "
+            "AND lower(btrim(lab_position)) IN :keys"
+        ).bindparams(sa.bindparam("keys", expanding=True)),
+        {"keys": pi_keys},
+    ).scalar_one()
+    if conflict:
+        raise RuntimeError(
+            f"{conflict} PI-title laboratory_person row(s) are former_pi/alum with "
+            "is_pi NULL; resolve the is_pi/former_pi/alum contradiction before migrating."
         )
 
     for value in present:
