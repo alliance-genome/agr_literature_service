@@ -28,6 +28,9 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
     update_sgd_corpus_flag_to_true,
     associate_sgd_papers_with_corpus,
 )
+from agr_literature_service.lit_processing.data_ingest.interaction.mark_curation_status import (
+    mark_interaction_curation_complete,
+)
 
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -81,6 +84,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                                   all_pmids, new_pmids, pmid_to_src,
                                                   full_obsolete_set, message)
+        mark_interaction_curation_complete(db_session, datasetName, dataType, all_pmids)
         return message
 
     download_pubmed_xml(list(new_pmids))
@@ -111,6 +115,7 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,
                                               full_obsolete_set, message)
+    mark_interaction_curation_complete(db_session, datasetName, dataType, all_pmids)
     return message
 
 
