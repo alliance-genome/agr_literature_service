@@ -152,6 +152,31 @@ class TestMarkInteractionCurationComplete:
         assert db.add.call_args_list[0].args[0].topic == "ATP:0000068"
         assert mock_refs.call_args.args[1] == {"111"}
 
+    @patch(f"{MODULE}._get_existing_status_by_reference")
+    @patch(f"{MODULE}._get_reference_ids_for_pmids")
+    def test_decision_uses_presnapshot_not_post_commit_value(self, mock_refs, mock_existing):
+        # A batch commit expires the ORM rows; if the fill/skip decision read the
+        # live attribute (regression) it would see the refetched value. Simulate
+        # that by flipping the rows' status to non-NULL on commit -- the snapshot
+        # taken before the loop must still drive both rows down the fill path.
+        db = self._mod_session()
+        row_a = SimpleNamespace(curation_status=None, updated_by="c", note=None)
+        row_b = SimpleNamespace(curation_status=None, updated_by="c", note=None)
+        mock_refs.return_value = {"111": 10, "222": 20}
+        mock_existing.return_value = {10: row_a, 20: row_b}
+
+        def flip_on_commit():
+            row_a.curation_status = "ATP:flipped"
+            row_b.curation_status = "ATP:flipped"
+        db.commit.side_effect = flip_on_commit
+
+        with patch.object(mcs, "BATCH_COMMIT_SIZE", 1):
+            result = mcs.mark_interaction_curation_complete(
+                db, "WB", "MOL", {"111", "222"}, {}, in_corpus_set={"111", "222"})
+
+        # A live read would have skipped the second row after the first commit.
+        assert result == {"topic": "ATP:0000069", "added": 0, "updated": 2, "skipped": 0}
+
     @patch(f"{MODULE}._get_existing_status_by_reference", return_value={})
     @patch(f"{MODULE}._get_reference_ids_for_pmids")
     def test_commit_failure_is_rolled_back_not_raised(self, mock_refs, _mock_existing):
