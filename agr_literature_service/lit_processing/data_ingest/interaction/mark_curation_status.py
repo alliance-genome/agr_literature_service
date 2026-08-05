@@ -35,6 +35,8 @@ from agr_literature_service.api.models import (
 from agr_literature_service.lit_processing.utils.db_read_utils import get_mod_papers
 
 logger = logging.getLogger(__name__)
+# Emit the INFO summary of what was marked (root stays at WARNING otherwise).
+logger.setLevel(logging.INFO)
 
 # "curation complete" -- the status the curation UI writes when a topic is
 # marked curated (see updateCurationStatusToCurated in the UI's BiblioWorkflow).
@@ -51,10 +53,11 @@ DATATYPE_TO_TOPIC = {
     "MOL": "ATP:0000069",  # physical interaction
 }
 
-# MODs for which the interaction load marks curation status complete. Kept as a
-# set so FB (and others) can be turned on once they confirm they want the same
-# behavior; the topic mapping above already applies to any MOD. Dataset names
-# are normalized to their MOD abbreviation (e.g. XBXL/XBXT -> XB) before use.
+# MOD abbreviations for which the interaction load marks curation status
+# complete. The membership test normalizes the dataset name first, so to enable
+# Xenbase add "XB" here (not "XBXL"/"XBXT"). Kept as a set so FB (and others)
+# can be turned on once they confirm they want the same behavior; the topic
+# mapping above already applies to any MOD.
 CURATION_COMPLETE_MODS = {"WB"}
 
 # Commit in batches so a first (large) run does not build one giant transaction.
@@ -64,8 +67,9 @@ BATCH_COMMIT_SIZE = 500
 def get_top_source(source_counts: Dict[str, int]) -> Optional[str]:
     """Return the source with the most interaction rows for a paper.
 
-    Ties are broken alphabetically so the result is deterministic. Returns None
-    when there are no sources.
+    Ties are broken by ASCII order of the source name (so the result is
+    deterministic; note uppercase sorts before lowercase). Returns None when
+    there are no sources.
     """
     if not source_counts:
         return None
@@ -153,7 +157,8 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
     interaction load. A no-op for MODs not in ``CURATION_COMPLETE_MODS`` or
     unmapped data types.
     """
-    if datasetName not in CURATION_COMPLETE_MODS:
+    abbreviation = _mod_abbreviation(datasetName)
+    if abbreviation not in CURATION_COMPLETE_MODS:
         return None
 
     topic = DATATYPE_TO_TOPIC.get(dataType)
@@ -162,7 +167,6 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
                        f"{dataType}; skipping curation status for {datasetName}.")
         return None
 
-    abbreviation = _mod_abbreviation(datasetName)
     mod = db_session.query(ModModel).filter_by(abbreviation=abbreviation).one_or_none()
     if mod is None:
         logger.error(f"MOD {abbreviation} not found; skipping interaction curation status.")
@@ -201,10 +205,13 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
                     # A curator (or an earlier run) already set a status: leave it.
                     skipped += 1
                     continue
-                # Row exists but the status is blank -- fill only the status,
-                # leaving any curator-entered note / curation_tag untouched.
+                # Row exists but the status is blank -- fill the status, and add
+                # the source provenance note only if the curator left none (never
+                # overwrite a curator-entered note / curation_tag).
                 existing.curation_status = CURATION_COMPLETE_STATUS
                 existing.updated_by = author
+                if existing.note is None:
+                    existing.note = note
                 updated += 1
             else:
                 db_session.add(
@@ -226,10 +233,15 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
                 pending = 0
         db_session.commit()
     except Exception as e:
+        # Rolls back only the uncommitted batch (session-wide, but nothing else
+        # is pending on this session at this point). Already-committed batches
+        # stay; the step is fill-blanks-only/idempotent, so the next run picks up
+        # whatever remains. The interaction load report is unaffected.
         db_session.rollback()
         logger.error(
-            f"{datasetName} {dataType} interaction curation status failed and was "
-            f"rolled back; the interaction load report is unaffected. Error: {e}"
+            f"{datasetName} {dataType} interaction curation status failed after "
+            f"{added} inserted / {updated} filled; the uncommitted batch was rolled "
+            f"back and the remainder will be retried on the next run. Error: {e}"
         )
         return None
 

@@ -94,10 +94,10 @@ class TestMarkInteractionCurationComplete:
     def test_insert_update_and_skip(self, mock_refs, mock_existing):
         db = self._mod_session()
         # 111->10 new(biogrid), 222->20 existing-set(skip),
-        # 333->30 new(no source), 444->40 existing-NULL(fill)
+        # 333->30 new(no source), 444->40 existing-NULL,no-note(fill+provenance)
         mock_refs.return_value = {"111": 10, "222": 20, "333": 30, "444": 40}
         existing_set = SimpleNamespace(curation_status="ATP:0000237", updated_by="curator")
-        existing_null = SimpleNamespace(curation_status=None, updated_by="curator", note="keep me")
+        existing_null = SimpleNamespace(curation_status=None, updated_by="curator", note=None)
         mock_existing.return_value = {20: existing_set, 40: existing_null}
         pmid_to_src_counts = {"111": {"biogrid": 5, "IntAct": 2}, "444": {"MINT": 1}}
 
@@ -116,13 +116,27 @@ class TestMarkInteractionCurationComplete:
         assert by_ref[10].curation_status == mcs.CURATION_COMPLETE_STATUS
         assert by_ref[30].created_by == "load_interactions"
         assert by_ref[30].note is None
-        # NULL-status row filled in place; curator note preserved
+        # NULL-status row filled in place; provenance note added (was empty)
         assert existing_null.curation_status == mcs.CURATION_COMPLETE_STATUS
         assert existing_null.updated_by == "MINT"
-        assert existing_null.note == "keep me"
+        assert existing_null.note == "MINT (1)"
         # curator-set row untouched
         assert existing_set.curation_status == "ATP:0000237"
         db.commit.assert_called()
+
+    @patch(f"{MODULE}._get_existing_status_by_reference")
+    @patch(f"{MODULE}._get_reference_ids_for_pmids")
+    def test_update_preserves_existing_curator_note(self, mock_refs, mock_existing):
+        db = self._mod_session()
+        mock_refs.return_value = {"111": 10}
+        existing = SimpleNamespace(curation_status=None, updated_by="curator", note="curator note")
+        mock_existing.return_value = {10: existing}
+        result = mcs.mark_interaction_curation_complete(
+            db, "WB", "MOL", {"111"}, {"111": {"biogrid": 2}}, in_corpus_set={"111"})
+        assert result["updated"] == 1
+        assert existing.curation_status == mcs.CURATION_COMPLETE_STATUS
+        assert existing.note == "curator note"  # not overwritten
+        db.add.assert_not_called()
 
     @patch(f"{MODULE}.get_mod_papers")
     @patch(f"{MODULE}._get_existing_status_by_reference", return_value={})

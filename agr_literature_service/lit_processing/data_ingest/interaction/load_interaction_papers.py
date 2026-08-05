@@ -1,6 +1,7 @@
 import argparse
 import logging
 import gzip
+import re
 from typing import Dict, Set
 from os import environ, path
 from dotenv import load_dotenv
@@ -31,6 +32,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
 from agr_literature_service.lit_processing.data_ingest.interaction.mark_curation_status import (
     mark_interaction_curation_complete,
     get_top_source,
+    INTERACTION_LOAD_USER,
 )
 
 logging.basicConfig(format='%(message)s')
@@ -64,6 +66,21 @@ log_path = environ.get("LOG_PATH", "")
 log_url = environ.get("LOG_URL", "")
 
 
+def append_curation_status_message(message, result):
+    """Fold the curation-status marking counts into the Slack report so the work
+    the feature did (which replaces manual curation) is visible. No-op when the
+    step didn't run or failed (result is None)."""
+    if not result:
+        return message
+    message += (
+        f"<ul><li>Interaction curation status ({result['topic']}): "
+        f"{result['added']} marked complete, "
+        f"{result['updated']} blank status filled, "
+        f"{result['skipped']} left as-is (curator already set a status)</ul>"
+    )
+    return message
+
+
 def load_data(datasetName, dataType, full_obsolete_set, message):
 
     if not has_interactions.get(dataType) or datasetName not in has_interactions[dataType]:
@@ -71,8 +88,9 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
         return
 
     db_session = create_postgres_session(False)
-    scriptNm = path.basename(__file__).replace(".py", "")
-    set_global_user_id(db_session, scriptNm)
+    # Attribute every row this script writes (references, corpus associations,
+    # curation status) to a single "load_interactions" automation user.
+    set_global_user_id(db_session, INTERACTION_LOAD_USER)
 
     clean_up_tmp_directories([file_path, xml_path, json_path])
 
@@ -101,9 +119,10 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
                                                   all_pmids, new_pmids, pmid_to_src,
                                                   full_obsolete_set, message,
                                                   in_corpus_set, out_corpus_set)
-        mark_interaction_curation_complete(db_session, datasetName, dataType,
-                                           all_pmids, pmid_to_src_counts, in_corpus_set)
-        return message
+        cur_result = mark_interaction_curation_complete(db_session, datasetName, dataType,
+                                                        all_pmids, pmid_to_src_counts,
+                                                        in_corpus_set)
+        return append_curation_status_message(message, cur_result)
 
     download_pubmed_xml(list(new_pmids))
     generate_json(list(new_pmids), [])
@@ -134,27 +153,30 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
                                               all_pmids, pmids_loaded, pmid_to_src,
                                               full_obsolete_set, message,
                                               in_corpus_set, out_corpus_set)
-    mark_interaction_curation_complete(db_session, datasetName, dataType,
-                                       all_pmids, pmid_to_src_counts, in_corpus_set)
-    return message
+    cur_result = mark_interaction_curation_complete(db_session, datasetName, dataType,
+                                                    all_pmids, pmid_to_src_counts,
+                                                    in_corpus_set)
+    return append_curation_status_message(message, cur_result)
 
 
-def parse_interaction_source(field):
-    """Extract the interaction source name from column 13 of an interaction row.
+def parse_interaction_sources(field):
+    """Extract the interaction source name(s) from column 13 of an interaction row.
 
-    The column looks like ``psi-mi:"MI:0463"(biogrid)``; the source name is the
-    text of the last parenthetical. This value is later written verbatim to
-    ``created_by`` / ``updated_by`` (and so becomes a users.id), so a value that
-    still contains structural characters (``|`` ``:`` ``"``) -- a multi-source or
-    malformed row -- is rejected rather than turned into a garbage identity.
-    Returns the source name, or None if it can't be cleanly parsed.
+    Column 13 of PSI-MITAB is legitimately multi-valued (pipe-separated), each
+    value like ``psi-mi:"MI:0463"(biogrid)`` -- the source name is the text in
+    parentheses. Every source in the cell is returned so a row reported by both
+    BioGRID and IntAct counts for each. These values are later written verbatim
+    to ``created_by`` / ``updated_by`` (and so become a users.id), so any token
+    that still contains structural characters (``|`` ``:`` ``"``) -- a malformed
+    or unexpected format -- is dropped rather than turned into a garbage identity.
+    Returns a list of clean source names (possibly empty).
     """
-    if "(" not in field:
-        return None
-    src = field.rsplit("(", 1)[-1].rstrip().rstrip(")").strip()
-    if not src or any(ch in src for ch in '|:"'):
-        return None
-    return src
+    sources = []
+    for group in re.findall(r"\(([^)]*)\)", field):
+        src = group.strip()
+        if src and not any(ch in src for ch in '|:"'):
+            sources.append(src)
+    return sources
 
 
 def extract_pmids(db_session, datasetName, dataType):
@@ -184,8 +206,7 @@ def extract_pmids(db_session, datasetName, dataType):
             if pmid:
                 all_pmids.add(pmid)
                 if len(items) > 12:
-                    src = parse_interaction_source(items[12])
-                    if src:
+                    for src in parse_interaction_sources(items[12]):
                         src_counts = pmid_to_src_counts.setdefault(pmid, {})
                         src_counts[src] = src_counts.get(src, 0) + 1
             # else:
@@ -226,11 +247,11 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
     logfile_name = file_name.replace(".tsv.gz", ".log")
     fw = open(log_path + logfile_name, "w")
     has_logfile = False
-    if datasetName in ["SGD", "WB", "FB", "ZFIN", "MGI", "RGD", "XBXL", "XBXT"]:
+    if datasetName in CORPUS_DATASETS:
         mod = datasetName
         if mod.startswith("XB"):
             mod = "XB"
-        if in_corpus_set is None:
+        if in_corpus_set is None or out_corpus_set is None:
             in_corpus_set, out_corpus_set = get_mod_papers(db_session, mod)
         for pmid in set(all_pmids):
             if pmid in in_corpus_set:

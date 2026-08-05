@@ -19,21 +19,21 @@ def _row(pmid_field, source_col12):
     return "\t".join(items)
 
 
-class TestParseInteractionSource:
-    def test_extracts_name_from_last_parenthetical(self):
-        assert lip.parse_interaction_source('psi-mi:"MI:0463"(biogrid)') == "biogrid"
+class TestParseInteractionSources:
+    def test_extracts_single_source(self):
+        assert lip.parse_interaction_sources('psi-mi:"MI:0463"(biogrid)') == ["biogrid"]
 
-    def test_multi_source_cell_takes_last_clean_source(self):
+    def test_multi_source_cell_returns_every_source(self):
         field = 'psi-mi:"MI:0463"(biogrid)|psi-mi:"MI:0469"(intact)'
-        assert lip.parse_interaction_source(field) == "intact"
+        assert lip.parse_interaction_sources(field) == ["biogrid", "intact"]
 
-    def test_no_parenthetical_returns_none(self):
-        assert lip.parse_interaction_source("no-parentheses-here") is None
+    def test_no_parenthetical_returns_empty(self):
+        assert lip.parse_interaction_sources("no-parentheses-here") == []
 
-    def test_structural_characters_rejected(self):
-        # A parsed token that still carries structural chars must not become an id.
-        assert lip.parse_interaction_source("foo(psi-mi:MI:0463)") is None
-        assert lip.parse_interaction_source("foo()") is None
+    def test_structural_characters_dropped(self):
+        # tokens that would make garbage users.id values are dropped
+        assert lip.parse_interaction_sources("foo(psi-mi:MI:0463)") == []
+        assert lip.parse_interaction_sources("foo()") == []
 
 
 class TestExtractPmids:
@@ -56,6 +56,16 @@ class TestExtractPmids:
         assert counts["111"] == {"biogrid": 2, "IntAct": 1}
         assert counts["222"] == {"MINT": 1}
 
+    def test_multi_source_row_counts_each_source(self, tmp_path):
+        gz = tmp_path / "INTERACTION-MOL_WB.tsv.gz"
+        _write_gz(str(gz), [
+            _row("pubmed:111", 'psi-mi:"MI:0463"(biogrid)|psi-mi:"MI:0469"(HPIDb)'),
+        ])
+        with patch(f"{MODULE}.file_path", str(tmp_path) + "/"), \
+                patch(f"{MODULE}.download_file"):
+            _, _, counts = lip.extract_pmids(None, "WB", "MOL")
+        assert counts["111"] == {"biogrid": 1, "HPIDb": 1}
+
     def test_unparseable_source_is_not_counted(self, tmp_path):
         gz = tmp_path / "INTERACTION-MOL_WB.tsv.gz"
         _write_gz(str(gz), [_row("pubmed:111", "no-parentheses-here")])
@@ -75,6 +85,18 @@ class TestComposeReportTitle:
         assert lip.compose_report_title("INTERACTION-MOL_XBXL.tsv.gz") == "XB: INTERACTION-MOL XBXL"
 
 
+class TestAppendCurationStatusMessage:
+    def test_none_result_is_noop(self):
+        assert lip.append_curation_status_message("m", None) == "m"
+
+    def test_folds_counts_into_message(self):
+        result = {"topic": "ATP:0000069", "added": 2, "updated": 1, "skipped": 3}
+        msg = lip.append_curation_status_message("m", result)
+        assert msg.startswith("m")
+        assert "ATP:0000069" in msg and "2 marked complete" in msg \
+            and "1 blank status filled" in msg and "3 left as-is" in msg
+
+
 class TestLoadDataMarksCurationStatus:
     @patch(f"{MODULE}.mark_interaction_curation_complete")
     @patch(f"{MODULE}.check_pmids_and_compose_message", return_value="msg")
@@ -84,17 +106,23 @@ class TestLoadDataMarksCurationStatus:
     @patch(f"{MODULE}.clean_up_tmp_directories")
     @patch(f"{MODULE}.set_global_user_id")
     @patch(f"{MODULE}.create_postgres_session")
-    def test_no_new_pmids_still_marks_curation(
+    def test_no_new_pmids_still_marks_and_reports(
             self, mock_session, mock_user, mock_clean, mock_extract,
             mock_retrieve, mock_mod_papers, mock_check, mock_mark):
         mock_extract.return_value = (
             "INTERACTION-MOL_WB.tsv.gz", {"111"}, {"111": {"biogrid": 3}}
         )
+        mock_mark.return_value = {"topic": "ATP:0000069", "added": 1,
+                                  "updated": 0, "skipped": 0}
         message = lip.load_data("WB", "MOL", set(), "")
 
-        assert message == "msg"
+        # single automation user for every write this script makes
+        assert mock_user.call_args.args[1] == "load_interactions"
         # corpus fetched once and shared with both the report and the marking
         mock_mod_papers.assert_called_once()
         mock_mark.assert_called_once()
         assert mock_mark.call_args.args[4] == {"111": {"biogrid": 3}}
         assert mock_mark.call_args.args[5] == set()  # shared in_corpus_set
+        # counts reach the Slack report
+        assert message.startswith("msg")
+        assert "1 marked complete" in message
