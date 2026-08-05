@@ -39,7 +39,11 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 laboratory_cross_reference_router,
                                                 laboratory_allele_designation_router,
                                                 laboratory_person_router,
-                                                xml2md_router, authentication)
+                                                xml2md_router, vocabulary_router,
+                                                vocabulary_abc_router,
+                                                vocabulary_term_abc_router,
+                                                vocabulary_term_synonym_abc_router,
+                                                authentication)
 
 TITLE = "Alliance Literature Service"
 VERSION = "0.1.0"
@@ -132,6 +136,10 @@ app.include_router(author_router.router)
 app.include_router(editor_router.router)
 app.include_router(cross_reference_router.router)
 app.include_router(resource_descriptor_router.router)
+app.include_router(vocabulary_router.router)
+app.include_router(vocabulary_abc_router.router)
+app.include_router(vocabulary_term_abc_router.router)
+app.include_router(vocabulary_term_synonym_abc_router.router)
 app.include_router(mesh_detail_router.router)
 app.include_router(mod_reference_type_router.router)
 app.include_router(database_router.router)

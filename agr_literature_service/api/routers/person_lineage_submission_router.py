@@ -32,7 +32,7 @@ def create(
     """Submit a person-to-person relationship claim."""
     set_global_user_from_cognito(db, user)
     submission = person_lineage_submission_crud.create(db, request.model_dump())
-    response.headers["Location"] = person_lineage_submission_url(submission.person_lineage_submission_id)
+    response.headers["Location"] = person_lineage_submission_url(submission["person_lineage_submission_id"])
     return submission
 
 

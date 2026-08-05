@@ -49,6 +49,10 @@ from agr_literature_service.api.models.laboratory_model import LaboratoryModel
 from agr_literature_service.api.models.laboratory_cross_reference_model import LaboratoryCrossReferenceModel
 from agr_literature_service.api.models.laboratory_allele_designation_model import LaboratoryAlleleDesignationModel
 from agr_literature_service.api.models.laboratory_person_model import LaboratoryPersonModel
+from agr_literature_service.api.models.vocabulary_abc_model import VocabularyAbcModel  # noqa
+from agr_literature_service.api.models.vocabulary_term_abc_model import VocabularyTermAbcModel  # noqa
+from agr_literature_service.api.models.vocabulary_term_synonym_abc_model import (  # noqa
+    VocabularyTermSynonymAbcModel)
 
 import logging
 
