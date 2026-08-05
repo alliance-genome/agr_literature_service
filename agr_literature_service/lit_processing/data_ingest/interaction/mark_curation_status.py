@@ -53,8 +53,12 @@ DATATYPE_TO_TOPIC = {
 
 # MODs for which the interaction load marks curation status complete. Kept as a
 # set so FB (and others) can be turned on once they confirm they want the same
-# behavior; the topic mapping above already applies to any MOD.
+# behavior; the topic mapping above already applies to any MOD. Dataset names
+# are normalized to their MOD abbreviation (e.g. XBXL/XBXT -> XB) before use.
 CURATION_COMPLETE_MODS = {"WB"}
+
+# Commit in batches so a first (large) run does not build one giant transaction.
+BATCH_COMMIT_SIZE = 500
 
 
 def get_top_source(source_counts: Dict[str, int]) -> Optional[str]:
@@ -78,6 +82,15 @@ def format_all_sources(source_counts: Dict[str, int]) -> Optional[str]:
     return ", ".join(f"{src} ({source_counts[src]})" for src in ordered)
 
 
+def _mod_abbreviation(dataset_name: str) -> str:
+    """Map an interaction dataset name to its MOD abbreviation.
+
+    Xenbase datasets (XBXL / XBXT) share the ``XB`` abbreviation; every other
+    dataset name is already the abbreviation.
+    """
+    return "XB" if dataset_name.startswith("XB") else dataset_name
+
+
 def _get_reference_ids_for_pmids(db_session: Session, pmids: Set[str]) -> Dict[str, int]:
     """Bulk-resolve PMIDs (without the ``PMID:`` prefix) to reference_ids."""
     pmid_to_reference_id: Dict[str, int] = {}
@@ -98,15 +111,16 @@ def _get_reference_ids_for_pmids(db_session: Session, pmids: Set[str]) -> Dict[s
     return pmid_to_reference_id
 
 
-def _get_reference_ids_with_status(db_session: Session, mod_id: int, topic: str,
-                                   reference_ids: List[int]) -> Set[int]:
-    """Return reference_ids that already have a curation_status row for this
-    mod/topic. Used to fill blanks only -- never overwrite a curator's value."""
-    existing: Set[int] = set()
+def _get_existing_status_by_reference(db_session: Session, mod_id: int, topic: str,
+                                      reference_ids: List[int]) -> Dict[int, CurationStatusModel]:
+    """Return ``{reference_id: CurationStatusModel}`` for the existing rows of this
+    mod/topic. Lets the caller fill a blank (NULL) status while never overwriting
+    a status a curator has already set."""
+    existing: Dict[int, CurationStatusModel] = {}
     for i in range(0, len(reference_ids), 1000):
         chunk = reference_ids[i:i + 1000]
         rows = (
-            db_session.query(CurationStatusModel.reference_id)
+            db_session.query(CurationStatusModel)
             .filter(
                 CurationStatusModel.mod_id == mod_id,
                 CurationStatusModel.topic == topic,
@@ -114,23 +128,30 @@ def _get_reference_ids_with_status(db_session: Session, mod_id: int, topic: str,
             )
             .all()
         )
-        existing.update(row[0] for row in rows)
+        for row in rows:
+            existing[row.reference_id] = row
     return existing
 
 
 def mark_interaction_curation_complete(db_session: Session, datasetName: str,
                                        dataType: str, all_pmids: Set[str],
-                                       pmid_to_src_counts: Dict[str, Dict[str, int]]) -> Optional[Dict]:
+                                       pmid_to_src_counts: Dict[str, Dict[str, int]],
+                                       in_corpus_set: Optional[Set[str]] = None) -> Optional[Dict]:
     """Mark the interaction topic "curation complete" for the MOD's interaction
     papers.
 
     Only papers already in the MOD's corpus are marked (those are the papers the
-    MOD curates and that appear in its workflow editor). Existing curation_status
-    rows are left untouched (fill-blanks-only), so a curator's manual value is
-    never overwritten. Each new row is attributed to the paper's dominant
-    interaction source, with all sources recorded in the note.
+    MOD curates and that appear in its workflow editor). Fill-blanks-only: a row
+    whose curation_status a curator has already set is never touched, and a row
+    that exists with a NULL status has only its status filled (any curator note /
+    curation_tag is left intact). Each newly created row is attributed to the
+    paper's dominant interaction source, with all sources recorded in the note.
 
-    A no-op for MODs not in ``CURATION_COMPLETE_MODS`` or unmapped data types.
+    ``in_corpus_set`` may be passed in to reuse a corpus membership set the caller
+    already computed; otherwise it is fetched. A failure is logged and rolled back
+    rather than raised, so curation-status marking degrades independently of the
+    interaction load. A no-op for MODs not in ``CURATION_COMPLETE_MODS`` or
+    unmapped data types.
     """
     if datasetName not in CURATION_COMPLETE_MODS:
         return None
@@ -141,52 +162,80 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
                        f"{dataType}; skipping curation status for {datasetName}.")
         return None
 
-    mod = db_session.query(ModModel).filter_by(abbreviation=datasetName).one_or_none()
+    abbreviation = _mod_abbreviation(datasetName)
+    mod = db_session.query(ModModel).filter_by(abbreviation=abbreviation).one_or_none()
     if mod is None:
-        logger.error(f"MOD {datasetName} not found; skipping interaction curation status.")
+        logger.error(f"MOD {abbreviation} not found; skipping interaction curation status.")
         return None
     mod_id = mod.mod_id
 
     # Only papers in this MOD's corpus: those are the papers it curates.
-    in_corpus_set, _ = get_mod_papers(db_session, datasetName)
+    if in_corpus_set is None:
+        in_corpus_set, _ = get_mod_papers(db_session, abbreviation)
     target_pmids = set(all_pmids) & in_corpus_set
 
     pmid_to_reference_id = _get_reference_ids_for_pmids(db_session, target_pmids)
     reference_ids = list(set(pmid_to_reference_id.values()))
-    already_set = _get_reference_ids_with_status(db_session, mod_id, topic, reference_ids)
+    existing_by_reference = _get_existing_status_by_reference(
+        db_session, mod_id, topic, reference_ids)
 
-    added = 0
-    inserted_reference_ids: Set[int] = set()
-    for pmid in target_pmids:
-        reference_id = pmid_to_reference_id.get(pmid)
-        # Skip: no reference, already has a status, or already inserted this run
-        # (guards the (topic, reference_id, mod_id) unique constraint when two
-        # PMIDs resolve to the same reference).
-        if reference_id is None or reference_id in already_set \
-                or reference_id in inserted_reference_ids:
-            continue
-        source_counts = pmid_to_src_counts.get(pmid, {})
-        author = get_top_source(source_counts) or INTERACTION_LOAD_USER
-        note = format_all_sources(source_counts)
-        db_session.add(
-            CurationStatusModel(
-                reference_id=reference_id,
-                mod_id=mod_id,
-                topic=topic,
-                curation_status=CURATION_COMPLETE_STATUS,
-                note=note,
-                created_by=author,
-                updated_by=author,
-            )
+    added = updated = skipped = 0
+    processed: Set[int] = set()
+    try:
+        pending = 0
+        for pmid in target_pmids:
+            reference_id = pmid_to_reference_id.get(pmid)
+            # Guard the (topic, reference_id, mod_id) unique constraint when two
+            # PMIDs resolve to the same reference within this run.
+            if reference_id is None or reference_id in processed:
+                continue
+            processed.add(reference_id)
+
+            source_counts = pmid_to_src_counts.get(pmid, {})
+            author = get_top_source(source_counts) or INTERACTION_LOAD_USER
+            note = format_all_sources(source_counts)
+
+            existing = existing_by_reference.get(reference_id)
+            if existing is not None:
+                if existing.curation_status is not None:
+                    # A curator (or an earlier run) already set a status: leave it.
+                    skipped += 1
+                    continue
+                # Row exists but the status is blank -- fill only the status,
+                # leaving any curator-entered note / curation_tag untouched.
+                existing.curation_status = CURATION_COMPLETE_STATUS
+                existing.updated_by = author
+                updated += 1
+            else:
+                db_session.add(
+                    CurationStatusModel(
+                        reference_id=reference_id,
+                        mod_id=mod_id,
+                        topic=topic,
+                        curation_status=CURATION_COMPLETE_STATUS,
+                        note=note,
+                        created_by=author,
+                        updated_by=author,
+                    )
+                )
+                added += 1
+
+            pending += 1
+            if pending >= BATCH_COMMIT_SIZE:
+                db_session.commit()
+                pending = 0
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        logger.error(
+            f"{datasetName} {dataType} interaction curation status failed and was "
+            f"rolled back; the interaction load report is unaffected. Error: {e}"
         )
-        inserted_reference_ids.add(reference_id)
-        added += 1
+        return None
 
-    db_session.commit()
-    skipped = len(reference_ids) - added
     logger.info(
         f"{datasetName} {dataType} interaction curation status (topic {topic}): "
-        f"{added} paper(s) marked 'curation complete', "
-        f"{skipped} already had a status."
+        f"{added} marked 'curation complete', {updated} blank status filled, "
+        f"{skipped} left as-is (curator already set a status)."
     )
-    return {"topic": topic, "added": added, "skipped": skipped}
+    return {"topic": topic, "added": added, "updated": updated, "skipped": skipped}

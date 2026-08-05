@@ -51,6 +51,11 @@ has_interactions = {
     ]
 }
 
+# Datasets that map to a MOD corpus (i.e. not HUMAN / SARS-CoV-2). For these the
+# corpus membership is fetched once per load and shared by the report and the
+# curation-status marking.
+CORPUS_DATASETS = ["SGD", "WB", "FB", "ZFIN", "MGI", "RGD", "XBXL", "XBXT"]
+
 base_path = environ.get("XML_PATH", "")
 file_path = base_path + "interaction_data/"
 json_path = base_path + "pubmed_json/"
@@ -77,6 +82,14 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
 
+    # Fetch corpus membership once and share it between the report and the
+    # curation-status marking (avoids scanning the corpus twice per data type).
+    in_corpus_set = None
+    out_corpus_set = None
+    if datasetName in CORPUS_DATASETS:
+        corpus_mod = "XB" if datasetName.startswith("XB") else datasetName
+        in_corpus_set, out_corpus_set = get_mod_papers(db_session, corpus_mod)
+
     # Associate HUMAN papers with AGR MOD (even if already in another MOD corpus)
     if datasetName == "HUMAN":
         associate_papers_with_alliance(db_session, all_pmids, 'AGR',
@@ -86,9 +99,10 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     if len(new_pmids) == 0:
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                                   all_pmids, new_pmids, pmid_to_src,
-                                                  full_obsolete_set, message)
+                                                  full_obsolete_set, message,
+                                                  in_corpus_set, out_corpus_set)
         mark_interaction_curation_complete(db_session, datasetName, dataType,
-                                           all_pmids, pmid_to_src_counts)
+                                           all_pmids, pmid_to_src_counts, in_corpus_set)
         return message
 
     download_pubmed_xml(list(new_pmids))
@@ -118,10 +132,29 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,
-                                              full_obsolete_set, message)
+                                              full_obsolete_set, message,
+                                              in_corpus_set, out_corpus_set)
     mark_interaction_curation_complete(db_session, datasetName, dataType,
-                                       all_pmids, pmid_to_src_counts)
+                                       all_pmids, pmid_to_src_counts, in_corpus_set)
     return message
+
+
+def parse_interaction_source(field):
+    """Extract the interaction source name from column 13 of an interaction row.
+
+    The column looks like ``psi-mi:"MI:0463"(biogrid)``; the source name is the
+    text of the last parenthetical. This value is later written verbatim to
+    ``created_by`` / ``updated_by`` (and so becomes a users.id), so a value that
+    still contains structural characters (``|`` ``:`` ``"``) -- a multi-source or
+    malformed row -- is rejected rather than turned into a garbage identity.
+    Returns the source name, or None if it can't be cleanly parsed.
+    """
+    if "(" not in field:
+        return None
+    src = field.rsplit("(", 1)[-1].rstrip().rstrip(")").strip()
+    if not src or any(ch in src for ch in '|:"'):
+        return None
+    return src
 
 
 def extract_pmids(db_session, datasetName, dataType):
@@ -150,10 +183,11 @@ def extract_pmids(db_session, datasetName, dataType):
                     pmid = id.replace("pubmed:", "")
             if pmid:
                 all_pmids.add(pmid)
-                if len(items) > 12 and "(" in items[12]:
-                    src = items[12].split("(")[1].replace(")", "")
-                    src_counts = pmid_to_src_counts.setdefault(pmid, {})
-                    src_counts[src] = src_counts.get(src, 0) + 1
+                if len(items) > 12:
+                    src = parse_interaction_source(items[12])
+                    if src:
+                        src_counts = pmid_to_src_counts.setdefault(pmid, {})
+                        src_counts[src] = src_counts.get(src, 0) + 1
             # else:
             #    all_other_ids.append(items[8])
 
@@ -172,7 +206,7 @@ def compose_report_title(file_name):
     return f"{mod}: {title} {fileType}"
 
 
-def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmids, pmids_loaded, pmid_to_src, full_obsolete_set, message):  # noqa: C901 pragma: no cover
+def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmids, pmids_loaded, pmid_to_src, full_obsolete_set, message, in_corpus_set=None, out_corpus_set=None):  # noqa: C901 pragma: no cover
 
     logger.info(f"{file_name}:\n")
     logger.info(f"New Reference(s) Added: {len(pmids_loaded)}")
@@ -196,7 +230,8 @@ def check_pmids_and_compose_message(db_session, datasetName, file_name, all_pmid
         mod = datasetName
         if mod.startswith("XB"):
             mod = "XB"
-        in_corpus_set, out_corpus_set = get_mod_papers(db_session, mod)
+        if in_corpus_set is None:
+            in_corpus_set, out_corpus_set = get_mod_papers(db_session, mod)
         for pmid in set(all_pmids):
             if pmid in in_corpus_set:
                 pmids_in_corpus_set.add(pmid)
