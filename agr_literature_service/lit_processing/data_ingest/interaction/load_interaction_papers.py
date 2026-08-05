@@ -1,7 +1,7 @@
 import argparse
 import logging
 import gzip
-from typing import Set
+from typing import Dict, Set
 from os import environ, path
 from dotenv import load_dotenv
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_postgres_session
@@ -30,6 +30,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
 )
 from agr_literature_service.lit_processing.data_ingest.interaction.mark_curation_status import (
     mark_interaction_curation_complete,
+    get_top_source,
 )
 
 logging.basicConfig(format='%(message)s')
@@ -70,7 +71,9 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
 
     clean_up_tmp_directories([file_path, xml_path, json_path])
 
-    file_name, all_pmids, pmid_to_src = extract_pmids(db_session, datasetName, dataType)
+    file_name, all_pmids, pmid_to_src_counts = extract_pmids(db_session, datasetName, dataType)
+    # Single "top" source per PMID (most interaction rows) for report logging.
+    pmid_to_src = {pmid: get_top_source(counts) for pmid, counts in pmid_to_src_counts.items()}
     all_pmids_db = retrieve_all_pmids(db_session)
     new_pmids = all_pmids - set(all_pmids_db)
 
@@ -84,7 +87,8 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
         message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                                   all_pmids, new_pmids, pmid_to_src,
                                                   full_obsolete_set, message)
-        mark_interaction_curation_complete(db_session, datasetName, dataType, all_pmids)
+        mark_interaction_curation_complete(db_session, datasetName, dataType,
+                                           all_pmids, pmid_to_src_counts)
         return message
 
     download_pubmed_xml(list(new_pmids))
@@ -115,7 +119,8 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
     message = check_pmids_and_compose_message(db_session, datasetName, file_name,
                                               all_pmids, pmids_loaded, pmid_to_src,
                                               full_obsolete_set, message)
-    mark_interaction_curation_complete(db_session, datasetName, dataType, all_pmids)
+    mark_interaction_curation_complete(db_session, datasetName, dataType,
+                                       all_pmids, pmid_to_src_counts)
     return message
 
 
@@ -127,7 +132,10 @@ def extract_pmids(db_session, datasetName, dataType):
     download_file(url_to_download, file_with_path)
     all_pmids = set()
     # all_other_ids = []
-    pmid_to_src = {}
+    # Count interaction rows per source per PMID so we can attribute the paper's
+    # curation to the source with the most rows and record all sources in the
+    # curation_status note (see mark_curation_status).
+    pmid_to_src_counts: Dict[str, Dict[str, int]] = {}
     with gzip.open(file_with_path, "rt") as f:
         for line in f:
             if line.startswith("#"):
@@ -142,12 +150,14 @@ def extract_pmids(db_session, datasetName, dataType):
                     pmid = id.replace("pubmed:", "")
             if pmid:
                 all_pmids.add(pmid)
-                if len(items) > 12:
-                    pmid_to_src[pmid] = items[12].split("(")[1].replace(")", "")
+                if len(items) > 12 and "(" in items[12]:
+                    src = items[12].split("(")[1].replace(")", "")
+                    src_counts = pmid_to_src_counts.setdefault(pmid, {})
+                    src_counts[src] = src_counts.get(src, 0) + 1
             # else:
             #    all_other_ids.append(items[8])
 
-    return file_name, all_pmids, pmid_to_src
+    return file_name, all_pmids, pmid_to_src_counts
 
 
 def compose_report_title(file_name):
