@@ -13,7 +13,8 @@ class TestGetTopSource:
     def test_picks_source_with_most_rows(self):
         assert mcs.get_top_source({"IntAct": 2, "biogrid": 5}) == "biogrid"
 
-    def test_tie_broken_alphabetically(self):
+    def test_tie_broken_by_ascii_order(self):
+        # ASCII order: uppercase sorts before lowercase
         assert mcs.get_top_source({"IntAct": 3, "biogrid": 3}) == "IntAct"
 
 

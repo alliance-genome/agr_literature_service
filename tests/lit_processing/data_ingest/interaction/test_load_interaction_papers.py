@@ -35,6 +35,10 @@ class TestParseInteractionSources:
         assert lip.parse_interaction_sources("foo(psi-mi:MI:0463)") == []
         assert lip.parse_interaction_sources("foo()") == []
 
+    def test_nested_parenthetical_dropped(self):
+        # a stray "(" leaked by the non-greedy capture must not become an id
+        assert lip.parse_interaction_sources('psi-mi:"MI:1106"(pdbe (ebi))') == []
+
 
 class TestExtractPmids:
     def test_counts_rows_per_source_per_pmid(self, tmp_path):
@@ -66,6 +70,16 @@ class TestExtractPmids:
             _, _, counts = lip.extract_pmids(None, "WB", "MOL")
         assert counts["111"] == {"biogrid": 1, "HPIDb": 1}
 
+    def test_same_source_twice_in_a_row_counts_once(self, tmp_path):
+        gz = tmp_path / "INTERACTION-MOL_WB.tsv.gz"
+        _write_gz(str(gz), [
+            _row("pubmed:111", 'psi-mi:"MI:0463"(biogrid)|psi-mi:"MI:0463"(biogrid)'),
+        ])
+        with patch(f"{MODULE}.file_path", str(tmp_path) + "/"), \
+                patch(f"{MODULE}.download_file"):
+            _, _, counts = lip.extract_pmids(None, "WB", "MOL")
+        assert counts["111"] == {"biogrid": 1}
+
     def test_unparseable_source_is_not_counted(self, tmp_path):
         gz = tmp_path / "INTERACTION-MOL_WB.tsv.gz"
         _write_gz(str(gz), [_row("pubmed:111", "no-parentheses-here")])
@@ -94,7 +108,7 @@ class TestAppendCurationStatusMessage:
         msg = lip.append_curation_status_message("m", result)
         assert msg.startswith("m")
         assert "ATP:0000069" in msg and "2 marked complete" in msg \
-            and "1 blank status filled" in msg and "3 left as-is" in msg
+            and "1 blank status filled" in msg and "3 already had a status" in msg
 
 
 class TestLoadDataMarksCurationStatus:

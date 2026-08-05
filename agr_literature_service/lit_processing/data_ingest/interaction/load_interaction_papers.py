@@ -76,7 +76,7 @@ def append_curation_status_message(message, result):
         f"<ul><li>Interaction curation status ({result['topic']}): "
         f"{result['added']} marked complete, "
         f"{result['updated']} blank status filled, "
-        f"{result['skipped']} left as-is (curator already set a status)</ul>"
+        f"{result['skipped']} already had a status</ul>"
     )
     return message
 
@@ -167,14 +167,14 @@ def parse_interaction_sources(field):
     parentheses. Every source in the cell is returned so a row reported by both
     BioGRID and IntAct counts for each. These values are later written verbatim
     to ``created_by`` / ``updated_by`` (and so become a users.id), so any token
-    that still contains structural characters (``|`` ``:`` ``"``) -- a malformed
-    or unexpected format -- is dropped rather than turned into a garbage identity.
-    Returns a list of clean source names (possibly empty).
+    that still contains structural characters (``|`` ``:`` ``"`` ``(`` ``)``) --
+    a malformed, nested, or unexpected format -- is dropped rather than turned
+    into a garbage identity. Returns a list of clean source names (possibly empty).
     """
     sources = []
     for group in re.findall(r"\(([^)]*)\)", field):
         src = group.strip()
-        if src and not any(ch in src for ch in '|:"'):
+        if src and not any(ch in src for ch in '|:"()'):
             sources.append(src)
     return sources
 
@@ -206,7 +206,9 @@ def extract_pmids(db_session, datasetName, dataType):
             if pmid:
                 all_pmids.add(pmid)
                 if len(items) > 12:
-                    for src in parse_interaction_sources(items[12]):
+                    # dedupe within a row so each source counts once per row
+                    # (the note's "(N)" is a row count, not an occurrence count)
+                    for src in set(parse_interaction_sources(items[12])):
                         src_counts = pmid_to_src_counts.setdefault(pmid, {})
                         src_counts[src] = src_counts.get(src, 0) + 1
             # else:

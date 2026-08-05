@@ -248,6 +248,6 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
     logger.info(
         f"{datasetName} {dataType} interaction curation status (topic {topic}): "
         f"{added} marked 'curation complete', {updated} blank status filled, "
-        f"{skipped} left as-is (curator already set a status)."
+        f"{skipped} already had a status."
     )
     return {"topic": topic, "added": added, "updated": updated, "skipped": skipped}
