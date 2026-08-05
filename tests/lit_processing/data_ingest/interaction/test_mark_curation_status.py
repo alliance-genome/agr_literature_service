@@ -97,7 +97,7 @@ class TestMarkInteractionCurationComplete:
         # 111->10 new(biogrid), 222->20 existing-set(skip),
         # 333->30 new(no source), 444->40 existing-NULL,no-note(fill+provenance)
         mock_refs.return_value = {"111": 10, "222": 20, "333": 30, "444": 40}
-        existing_set = SimpleNamespace(curation_status="ATP:0000237", updated_by="curator")
+        existing_set = SimpleNamespace(curation_status="ATP:0000237", updated_by="curator", note=None)
         existing_null = SimpleNamespace(curation_status=None, updated_by="curator", note=None)
         mock_existing.return_value = {20: existing_set, 40: existing_null}
         pmid_to_src_counts = {"111": {"biogrid": 5, "IntAct": 2}, "444": {"MINT": 1}}

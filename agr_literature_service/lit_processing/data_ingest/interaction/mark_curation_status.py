@@ -182,6 +182,11 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
     reference_ids = list(set(pmid_to_reference_id.values()))
     existing_by_reference = _get_existing_status_by_reference(
         db_session, mod_id, topic, reference_ids)
+    # Snapshot the decision fields as plain values now, before any mid-loop
+    # commit expires the ORM instances (expire_on_commit defaults to True) --
+    # otherwise reading them later in the loop would fire per-row refresh SELECTs.
+    existing_status = {rid: row.curation_status for rid, row in existing_by_reference.items()}
+    existing_note = {rid: row.note for rid, row in existing_by_reference.items()}
 
     added = updated = skipped = 0
     processed: Set[int] = set()
@@ -201,7 +206,7 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
 
             existing = existing_by_reference.get(reference_id)
             if existing is not None:
-                if existing.curation_status is not None:
+                if existing_status[reference_id] is not None:
                     # A curator (or an earlier run) already set a status: leave it.
                     skipped += 1
                     continue
@@ -210,7 +215,7 @@ def mark_interaction_curation_complete(db_session: Session, datasetName: str,
                 # overwrite a curator-entered note / curation_tag).
                 existing.curation_status = CURATION_COMPLETE_STATUS
                 existing.updated_by = author
-                if existing.note is None:
+                if existing_note[reference_id] is None:
                     existing.note = note
                 updated += 1
             else:
