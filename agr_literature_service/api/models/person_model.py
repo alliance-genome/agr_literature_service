@@ -1,7 +1,7 @@
 from typing import Dict
 from sqlalchemy import (
     Column, DateTime, Integer, String, ARRAY, Boolean,
-    Index, CheckConstraint,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from agr_literature_service.api.database.base import Base
@@ -70,14 +70,6 @@ class PersonModel(Base, AuditedModel):
             "display_name",
             postgresql_using="gin",
             postgresql_ops={"display_name": "gin_trgm_ops"},
-        ),
-        CheckConstraint(
-            "active_status IN ('active', 'retired', 'deceased')",
-            name="ck_person_active_status",
-        ),
-        CheckConstraint(
-            "privacy IN ('show_all', 'logged_in_only', 'fully_hidden', 'hide_email')",
-            name="ck_person_privacy",
         ),
     )
 
