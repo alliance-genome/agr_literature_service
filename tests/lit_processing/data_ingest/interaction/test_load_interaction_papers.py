@@ -111,8 +111,7 @@ class TestAppendCurationStatusMessage:
             and "1 blank status filled" in msg and "3 already had a status" in msg
 
 
-class TestLoadDataMarksCurationStatus:
-    @patch(f"{MODULE}.mark_interaction_curation_complete")
+class TestLoadDataCurationStatusDisabled:
     @patch(f"{MODULE}.check_pmids_and_compose_message", return_value="msg")
     @patch(f"{MODULE}.get_mod_papers", return_value=(set(), set()))
     @patch(f"{MODULE}.retrieve_all_pmids", return_value=["111"])
@@ -120,23 +119,16 @@ class TestLoadDataMarksCurationStatus:
     @patch(f"{MODULE}.clean_up_tmp_directories")
     @patch(f"{MODULE}.set_global_user_id")
     @patch(f"{MODULE}.create_postgres_session")
-    def test_no_new_pmids_still_marks_and_reports(
+    def test_curation_marking_is_disabled_for_now(
             self, mock_session, mock_user, mock_clean, mock_extract,
-            mock_retrieve, mock_mod_papers, mock_check, mock_mark):
+            mock_retrieve, mock_mod_papers, mock_check):
         mock_extract.return_value = (
             "INTERACTION-MOL_WB.tsv.gz", {"111"}, {"111": {"biogrid": 3}}
         )
-        mock_mark.return_value = {"topic": "ATP:0000069", "added": 1,
-                                  "updated": 0, "skipped": 0}
         message = lip.load_data("WB", "MOL", set(), "")
 
-        # single automation user for every write this script makes
+        # single automation user is still applied to the load's writes
         assert mock_user.call_args.args[1] == "load_interactions"
-        # corpus fetched once and shared with both the report and the marking
-        mock_mod_papers.assert_called_once()
-        mock_mark.assert_called_once()
-        assert mock_mark.call_args.args[4] == {"111": {"biogrid": 3}}
-        assert mock_mark.call_args.args[5] == set()  # shared in_corpus_set
-        # counts reach the Slack report
-        assert message.startswith("msg")
-        assert "1 marked complete" in message
+        # curation-status marking is commented out until WB is ready, so the
+        # report is exactly what check_pmids_and_compose_message returned
+        assert message == "msg"

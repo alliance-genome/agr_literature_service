@@ -30,7 +30,7 @@ from agr_literature_service.lit_processing.data_ingest.utils.alliance_paper_util
     associate_sgd_papers_with_corpus,
 )
 from agr_literature_service.lit_processing.data_ingest.interaction.mark_curation_status import (
-    mark_interaction_curation_complete,
+    # mark_interaction_curation_complete,  # disabled for now: WB not ready to load curation status
     get_top_source,
     INTERACTION_LOAD_USER,
 )
@@ -119,10 +119,13 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
                                                   all_pmids, new_pmids, pmid_to_src,
                                                   full_obsolete_set, message,
                                                   in_corpus_set, out_corpus_set)
-        cur_result = mark_interaction_curation_complete(db_session, datasetName, dataType,
-                                                        all_pmids, pmid_to_src_counts,
-                                                        in_corpus_set)
-        return append_curation_status_message(message, cur_result)
+        # Disabled for now -- WB is not ready to load curation status. Re-enable
+        # when WB confirms (SCRUM-6392):
+        # cur_result = mark_interaction_curation_complete(db_session, datasetName, dataType,
+        #                                                 all_pmids, pmid_to_src_counts,
+        #                                                 in_corpus_set)
+        # message = append_curation_status_message(message, cur_result)
+        return message
 
     download_pubmed_xml(list(new_pmids))
     generate_json(list(new_pmids), [])
@@ -153,10 +156,13 @@ def load_data(datasetName, dataType, full_obsolete_set, message):
                                               all_pmids, pmids_loaded, pmid_to_src,
                                               full_obsolete_set, message,
                                               in_corpus_set, out_corpus_set)
-    cur_result = mark_interaction_curation_complete(db_session, datasetName, dataType,
-                                                    all_pmids, pmid_to_src_counts,
-                                                    in_corpus_set)
-    return append_curation_status_message(message, cur_result)
+    # Disabled for now -- WB is not ready to load curation status. Re-enable
+    # when WB confirms (SCRUM-6392):
+    # cur_result = mark_interaction_curation_complete(db_session, datasetName, dataType,
+    #                                                 all_pmids, pmid_to_src_counts,
+    #                                                 in_corpus_set)
+    # message = append_curation_status_message(message, cur_result)
+    return message
 
 
 def parse_interaction_sources(field):
