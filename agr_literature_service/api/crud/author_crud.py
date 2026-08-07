@@ -139,13 +139,14 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
     if "updated_by" in author_data and author_data["updated_by"] is not None:
         author_data["updated_by"] = map_to_user_id(author_data["updated_by"], db)
 
+    reference_curie = author_data.get("reference_curie")
+    reference_id = db.query(ReferenceModel.reference_id).filter(
+        ReferenceModel.curie == reference_curie).scalar() if reference_curie else None
+
     if person_id is not None:
         # Handle a pre-existing person link BEFORE inserting, and build the new row
         # already carrying person_id, so the row never flushes in a person-less /
         # order-less state that would violate ck_author_person_or_order.
-        reference_curie = author_data.get("reference_curie")
-        reference_id = db.query(ReferenceModel.reference_id).filter(
-            ReferenceModel.curie == reference_curie).scalar() if reference_curie else None
         new_has_order = author_data.get("author_order") is not None
         existing = db.query(AuthorModel).filter(
             AuthorModel.reference_id == reference_id,
@@ -167,6 +168,23 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
             db.delete(existing)
             db.flush()
         author_data["person_id"] = person_id
+
+    # uq_author_ref_order is DEFERRABLE INITIALLY IMMEDIATE, so a duplicate
+    # (reference_id, author_order) would otherwise surface as a raw IntegrityError/500
+    # at flush/commit. Pre-check here and raise a clean 409, symmetric with the
+    # (reference_id, person_id) handling above. (Done after the stub-absorb so a
+    # freed order is honored; an absorbed stub is order-NULL and frees nothing.)
+    new_order = author_data.get("author_order")
+    if new_order is not None and reference_id is not None:
+        order_taken = db.query(AuthorModel.author_id).filter(
+            AuthorModel.reference_id == reference_id,
+            AuthorModel.author_order == new_order,
+        ).first()
+        if order_taken is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"author_order {new_order} is already taken on this reference; "
+                       f"use POST /author/reorder")
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
 

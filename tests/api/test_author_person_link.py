@@ -327,6 +327,32 @@ class TestReachable500Hardening:
         assert a.author_order is None
         assert a.affiliations is None
 
+    def test_create_duplicate_author_order_409(self, db, auth_headers, test_reference):  # noqa
+        # POST /author with an author_order already taken on the reference must be a
+        # clean 409 (uq_author_ref_order is DEFERRABLE, else a raw 500 at commit).
+        with TestClient(app) as client:
+            first = client.post(url="/author/",
+                                json={"author_order": 3, "name": "First",
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+            second = client.post(url="/author/",
+                                 json={"author_order": 3, "name": "Second",
+                                       "reference_curie": test_reference.new_ref_curie},
+                                 headers=auth_headers)
+        assert second.status_code == status.HTTP_409_CONFLICT
+
+    def test_reference_create_duplicate_embedded_author_order_409(self, db, auth_headers):  # noqa
+        # POST /reference with two embedded authors sharing author_order must be a
+        # clean 409 (uq_author_ref_order would otherwise raise a raw 500 at commit).
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Dup order", "category": "thesis",
+                                  "authors": [{"author_order": 1, "name": "A"},
+                                              {"author_order": 1, "name": "B"}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_409_CONFLICT
+
     def test_patch_metadata_onto_person_only_stub_rejected(self, db, auth_headers, test_reference):  # noqa
         # PATCHing real metadata onto a person-only stub (author_order NULL, which
         # PATCH cannot set) would violate ck_person_only_link_only -> must 422.

@@ -269,6 +269,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     reference_data = {}  # type: Dict[str, Any]
     author_names_order = []
     seen_person_ids: set = set()
+    seen_orders: set = set()
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -325,6 +326,17 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                                            "on the same reference")
                             seen_person_ids.add(pid)
                             obj_data["person_id"] = pid
+                        # two embedded authors sharing an author_order would violate
+                        # uq_author_ref_order at commit -> raw IntegrityError/500.
+                        # Catch it here as a clean 409 before the flush.
+                        order = obj_data.get("author_order")
+                        if order is not None:
+                            if order in seen_orders:
+                                raise HTTPException(
+                                    status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"author_order {order} is duplicated among the "
+                                           f"reference's authors")
+                            seen_orders.add(order)
                         # pre-validate the author CHECK constraints (embedded authors
                         # inherit the parent reference, so reference_curie isn't required)
                         # to surface a clean 422 instead of a raw IntegrityError/500.
