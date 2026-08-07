@@ -92,6 +92,17 @@ class TestReference:
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
 
+            # an embedded author with an unknown person_curie is POST-body validation:
+            # it must surface as 422 (like other reference-create validations), not 404.
+            bad_person_reference = {
+                "title": "HasBadPerson",
+                "category": "thesis",
+                "authors": [{"author_order": 1, "name": "X",
+                             "person_curie": "AGR:AP-DOES-NOT-EXIST"}]
+            }
+            response = client.post(url="/reference/", json=bad_person_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
             # No title
             # ReferenceSchemaPost no longer raises exception
             none_title_reference = {

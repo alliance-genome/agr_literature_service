@@ -148,3 +148,69 @@ class TestPersonLinkMerge:
                                    "reference_curie": test_author.related_ref_curie},
                              headers=auth_headers)
         assert r.status_code == status.HTTP_409_CONFLICT
+
+    def test_create_absorbs_link_only_stub(self, db, auth_headers, test_reference):  # noqa
+        # POST /author for a person that already has a link-only stub on the reference
+        # should absorb the stub (like PATCH), not 500 on the uniqueness constraint.
+        ref_id = test_reference.related_ref_id
+        p = _person(db)
+        stub = AuthorModel(reference_id=ref_id, person_id=p.person_id)
+        db.add(stub)
+        db.commit()
+        stub_id = stub.author_id
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"author_order": 1, "name": "Real",
+                                  "person_curie": p.curie,
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        db.expire_all()
+        assert db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one_or_none() is None
+        new_id = r.json()["author_id"]
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == new_id).one()
+        assert a.person_id == p.person_id
+        assert a.author_order == 1
+
+    def test_create_person_already_full_author_errors(self, db, auth_headers, test_reference):  # noqa
+        # POST /author for a person already a full author on the reference -> 409, not 500.
+        ref_id = test_reference.related_ref_id
+        p = _person(db)
+        db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id, author_order=2, name="Other"))
+        db.commit()
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"author_order": 1, "name": "Real",
+                                  "person_curie": p.curie,
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_409_CONFLICT
+
+    def test_create_person_only_link_stub(self, db, auth_headers, test_reference):  # noqa
+        # POST /author with only person_curie (+ reference), no author_order and no
+        # prior collision -> 201 and a valid link-only stub (person set, order NULL).
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"person_curie": p.curie,
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        new_id = r.json()["author_id"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == new_id).one()
+        assert a.person_id == p.person_id
+        assert a.author_order is None
+
+    def test_create_person_only_duplicate_stub_errors(self, db, auth_headers, test_reference):  # noqa
+        # a second person-only POST for the same person/reference -> 409, not 500.
+        ref_id = test_reference.related_ref_id
+        p = _person(db)
+        db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))
+        db.commit()
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"person_curie": p.curie,
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_409_CONFLICT

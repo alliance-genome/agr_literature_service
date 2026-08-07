@@ -63,8 +63,7 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
     author_data = jsonable_encoder(author)
 
     person_id = _resolve_person_curie(db, author_data)
-    if person_id is not None:
-        author_data["person_id"] = person_id
+    author_data.pop("person_id", None)  # never set person_id directly from the payload
 
     # orcid = None
     # if "orcid" in author_data:
@@ -75,6 +74,35 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
         author_data["created_by"] = map_to_user_id(author_data["created_by"], db)
     if "updated_by" in author_data and author_data["updated_by"] is not None:
         author_data["updated_by"] = map_to_user_id(author_data["updated_by"], db)
+
+    if person_id is not None:
+        # Handle a pre-existing person link BEFORE inserting, and build the new row
+        # already carrying person_id, so the row never flushes in a person-less /
+        # order-less state that would violate ck_author_person_or_order.
+        reference_curie = author_data.get("reference_curie")
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == reference_curie).scalar() if reference_curie else None
+        new_has_order = author_data.get("author_order") is not None
+        existing = db.query(AuthorModel).filter(
+            AuthorModel.reference_id == reference_id,
+            AuthorModel.person_id == person_id,
+        ).one_or_none()
+        if existing is not None:
+            if existing.author_order is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Person is already author #{existing.author_order} on this "
+                           f"reference; unlink there first")
+            if not new_has_order:
+                # both the existing row and the new row are link-only stubs
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Person is already linked to this reference")
+            # existing is a link-only stub and the new row is a real author -> absorb
+            # the stub (per-statement uniqueness) then let the new row carry the person.
+            db.delete(existing)
+            db.flush()
+        author_data["person_id"] = person_id
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
 

@@ -268,6 +268,7 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     }
     reference_data = {}  # type: Dict[str, Any]
     author_names_order = []
+    seen_person_ids: set = set()
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -293,8 +294,27 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 db_obj = None
                 if field in ["authors"]:
                     from agr_literature_service.api.crud.author_crud import _resolve_person_curie
-                    pid = _resolve_person_curie(db, obj_data)
+                    try:
+                        pid = _resolve_person_curie(db, obj_data)
+                    except HTTPException as exc:
+                        # a bad embedded person_curie is POST-body validation here:
+                        # surface it as 422 for consistency with the other reference
+                        # create validations (resource/merged_into), not 404.
+                        if exc.status_code == status.HTTP_404_NOT_FOUND:
+                            raise HTTPException(
+                                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                detail=exc.detail)
+                        raise
                     if pid is not None:
+                        # a person may link to only one author on a reference; a
+                        # duplicate in this payload would violate uq_author_ref_person
+                        # at commit -> raw IntegrityError/500. Surface it as a clean 409.
+                        if pid in seen_person_ids:
+                            raise HTTPException(
+                                status_code=status.HTTP_409_CONFLICT,
+                                detail="A person cannot be linked to more than one author "
+                                       "on the same reference")
+                        seen_person_ids.add(pid)
                         obj_data["person_id"] = pid
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:

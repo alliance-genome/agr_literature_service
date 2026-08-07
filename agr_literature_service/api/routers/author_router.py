@@ -20,9 +20,14 @@ get_db = database.get_db
 db_session: Session = Depends(get_db)
 
 
+class AuthorOrderItem(BaseModel):
+    author_id: int
+    author_order: int
+
+
 class AuthorReorderRequest(BaseModel):
     reference_curie: str
-    ordering: List[Dict]
+    ordering: List[AuthorOrderItem]
 
 
 @router.post("/reorder", status_code=status.HTTP_200_OK)
