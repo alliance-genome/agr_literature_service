@@ -82,6 +82,18 @@ class TETManualAssessmentSchema(BaseModel):
     data_novelty: Optional[str] = None      # ATP term (new-to-DB / new-to-field / ...)
 
 
+class TETAssessmentStatesSchema(BaseModel):
+    """Per-column state for the quick-add grid: 'validated' (biocurator ✓),
+    'unvalidated' (?), or None (blank)."""
+    model_config = ConfigDict(extra='forbid')
+
+    has_data: Optional[str] = None
+    new_data: Optional[str] = None
+    new_to_db: Optional[str] = None
+    new_to_field: Optional[str] = None
+    no_data: Optional[str] = None
+
+
 class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     """Aggregated curation status and TET info, for combined views."""
     model_config = ConfigDict(
@@ -117,3 +129,7 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     # so the quick add UI can render per-bucket validated (biocurator) vs
     # unvalidated (author) state.
     tet_info_manual_assessments: List[TETManualAssessmentSchema] = Field(default_factory=list)
+    # Server-computed per-column state for the quick-add grid (validated /
+    # unvalidated / blank), applying the "exclude validated_wrong, biocurator
+    # wins the row" rules.
+    tet_info_assessment_states: TETAssessmentStatesSchema = Field(default_factory=TETAssessmentStatesSchema)

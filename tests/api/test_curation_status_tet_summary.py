@@ -16,12 +16,14 @@ NEW_DATA_NOVELTY = "ATP:0000321"
 
 def _tet(date_created, negated=False, data_novelty=None,
          confidence_score=None, confidence_level=None,
-         entity=None, entity_type=None):
+         entity=None, entity_type=None,
+         validation_by_professional_biocurator=None):
     return SimpleNamespace(date_created=date_created, negated=negated,
                            data_novelty=data_novelty,
                            confidence_score=confidence_score,
                            confidence_level=confidence_level,
-                           entity=entity, entity_type=entity_type)
+                           entity=entity, entity_type=entity_type,
+                           validation_by_professional_biocurator=validation_by_professional_biocurator)
 
 
 def _source(assertion, source_method=None):
@@ -42,6 +44,10 @@ def test_topic_missing_returns_defaults():
         "tet_info_manual_no_data": False,
         "tet_info_source_predictions": [],
         "tet_info_manual_assessments": [],
+        "tet_info_assessment_states": {
+            "has_data": None, "new_data": None, "new_to_db": None,
+            "new_to_field": None, "no_data": None,
+        },
     }
 
 
@@ -131,6 +137,48 @@ def test_classifier_prediction_carries_method_and_confidence():
         "data_novelty": None,
         "entity": "WB:WBGene00000912",
         "entity_type": "ATP:0000005",
+    }
+
+
+def test_assessment_states_biocurator_validated_wins_row():
+    topic = "ATP:0000001"
+    rows = {topic: [
+        # biocurator validated a positive "new to field" tag -> Has data + New to Field ✓
+        (_tet(datetime(2025, 5, 1), negated=False, data_novelty="ATP:0000229",
+              validation_by_professional_biocurator="validated_right_self"),
+         _source(BIOCURATOR)),
+        # an unvalidated computational "no data" -> suppressed because the row is validated
+        (_tet(datetime(2025, 5, 2), negated=True,
+              validation_by_professional_biocurator="not_validated"),
+         _source("ECO:0008004")),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states == {
+        "has_data": "validated", "new_data": None, "new_to_db": None,
+        "new_to_field": "validated", "no_data": None,
+    }
+
+
+def test_assessment_states_unvalidated_shown_and_wrong_excluded():
+    topic = "ATP:0000001"
+    rows = {topic: [
+        # unvalidated computational positive (generic new) -> ? on Has data + New data
+        (_tet(datetime(2025, 5, 1), negated=False, data_novelty="ATP:0000321",
+              validation_by_professional_biocurator="not_validated"),
+         _source("ECO:0008004")),
+        # unvalidated "no data" -> ? on No Data
+        (_tet(datetime(2025, 5, 2), negated=True,
+              validation_by_professional_biocurator="not_validated"),
+         _source("ECO:0008004")),
+        # validated_wrong is excluded entirely (should not add New to DB)
+        (_tet(datetime(2025, 5, 3), negated=False, data_novelty="ATP:0000228",
+              validation_by_professional_biocurator="validated_wrong"),
+         _source(BIOCURATOR)),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states == {
+        "has_data": "unvalidated", "new_data": "unvalidated", "new_to_db": None,
+        "new_to_field": None, "no_data": "unvalidated",
     }
 
 
