@@ -14,6 +14,34 @@ depends_on = None
 
 
 def upgrade():
+    # Pre-flight guard: abort BEFORE any locking DDL if legacy `author` data would
+    # violate the new constraints, so a production `alembic upgrade` on dirty data
+    # fails fast (nothing locked, nothing half-applied) with an actionable message
+    # instead of dying part-way through. person_id is all-NULL until it is added
+    # below, so only these three pre-existing conditions can break the migration.
+    conn = op.get_bind()
+    null_ref = conn.execute(sa.text(
+        "SELECT count(*) FROM author WHERE reference_id IS NULL")).scalar() or 0
+    null_order = conn.execute(sa.text(
+        "SELECT count(*) FROM author WHERE author_order IS NULL")).scalar() or 0
+    dup_order = conn.execute(sa.text(
+        "SELECT count(*) FROM (SELECT reference_id, author_order FROM author "
+        "WHERE author_order IS NOT NULL GROUP BY reference_id, author_order "
+        "HAVING count(*) > 1) d")).scalar() or 0
+    problems = []
+    if null_ref:
+        problems.append(f"{null_ref} row(s) with NULL reference_id (breaks reference_id NOT NULL)")
+    if null_order:
+        problems.append(f"{null_order} row(s) with NULL author_order (breaks ck_author_person_or_order)")
+    if dup_order:
+        problems.append(f"{dup_order} duplicate (reference_id, author_order) group(s) (breaks uq_author_ref_order)")
+    if problems:
+        raise RuntimeError(
+            "Aborting migration 9a1c7f2e4d10 (author person_id link) before any DDL - "
+            "legacy author data violates the new constraints:\n  - "
+            + "\n  - ".join(problems)
+            + "\nClean up these rows, then re-run the migration.")
+
     op.add_column("author", sa.Column("person_id", sa.Integer(), nullable=True))
     op.create_foreign_key("author_person_id_fkey", "author", "person",
                           ["person_id"], ["person_id"], ondelete="RESTRICT")
