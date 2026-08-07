@@ -272,3 +272,72 @@ class TestReachable500Hardening:
                                   "reference_curie": test_reference.new_ref_curie},
                             headers=auth_headers)
         assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_person_only_empty_affiliations_coerced(self, db, auth_headers, test_reference):  # noqa
+        # a person-only POST carrying affiliations: [] (a UI's "no affiliations")
+        # must not trip ck_person_only_link_only -> 201, affiliations stored NULL.
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"person_curie": p.curie,
+                                  "affiliations": [],
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        new_id = r.json()["author_id"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == new_id).one()
+        assert a.person_id == p.person_id
+        assert a.author_order is None
+        assert a.affiliations is None
+
+    def test_create_person_only_empty_name_coerced(self, db, auth_headers, test_reference):  # noqa
+        # a person-only POST carrying name: "" must not trip ck_person_only_link_only
+        # -> 201, name stored NULL.
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"person_curie": p.curie,
+                                  "name": "",
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        new_id = r.json()["author_id"]
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == new_id).one()
+        assert a.person_id == p.person_id
+        assert a.author_order is None
+        assert a.name is None
+
+    def test_reference_create_embedded_person_only_empty_affiliations(self, db, auth_headers):  # noqa
+        # an embedded person-only author with affiliations: [] (no author_order) must
+        # not trip ck_person_only_link_only through the reference-create path -> 201.
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Embedded stub", "category": "thesis",
+                                  "authors": [{"person_curie": p.curie,
+                                               "affiliations": []}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == r.json()["curie"]).scalar()
+        a = db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id).one()
+        assert a.person_id == p.person_id
+        assert a.author_order is None
+        assert a.affiliations is None
+
+    def test_patch_metadata_onto_person_only_stub_rejected(self, db, auth_headers, test_reference):  # noqa
+        # PATCHing real metadata onto a person-only stub (author_order NULL, which
+        # PATCH cannot set) would violate ck_person_only_link_only -> must 422.
+        ref_id = test_reference.related_ref_id
+        p = _person(db)
+        stub = AuthorModel(reference_id=ref_id, person_id=p.person_id)
+        db.add(stub)
+        db.commit()
+        stub_id = stub.author_id
+        with TestClient(app) as client:
+            r = client.patch(url=f"/author/{stub_id}",
+                             json={"name": "X"},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

@@ -22,6 +22,23 @@ from agr_literature_service.api.schemas import AuthorSchemaPost
 _AUTHOR_METADATA_FIELDS = ("name", "first_name", "last_name", "first_initial", "orcid", "affiliations")
 
 
+def _coerce_person_only_metadata(author_data: dict):
+    """For a person-only row (no author_order) coerce empty-string / empty-list
+    metadata to ``None`` in place so it lands as NULL and satisfies
+    ck_person_only_link_only, rather than surfacing a raw IntegrityError/500.
+
+    A UI sending ``affiliations: []`` or ``name: ""`` to mean "no metadata" then
+    creates a valid person-only stub. Only the string/array metadata fields are
+    touched; ``first_author``/``corresponding_author`` are left as-is (a ``True``
+    on a person-only row is real metadata and must still be rejected)."""
+    if author_data.get("author_order") is not None:
+        return
+    for field in _AUTHOR_METADATA_FIELDS:
+        value = author_data.get(field)
+        if value == "" or value == []:
+            author_data[field] = None
+
+
 def _resolve_person_curie(db: Session, author_data: dict):
     """Pop person_curie from the payload and return the resolved person_id (or None)."""
     curie = author_data.pop("person_curie", None)
@@ -42,6 +59,11 @@ def _validate_author_constraints(author_data: dict, person_id, require_reference
     ``person_id`` is the resolved person link (or ``None``). Set
     ``require_reference`` on the standalone POST /author path, where the row must
     carry a reference_curie (embedded-in-reference authors inherit the parent)."""
+    # Normalize empty-string/empty-list metadata to NULL on a person-only row so a
+    # UI sending e.g. ``affiliations: []`` or ``name: ""`` creates a valid stub
+    # instead of tripping ck_person_only_link_only at INSERT (raw 500).
+    _coerce_person_only_metadata(author_data)
+
     has_order = author_data.get("author_order") is not None
     has_person = person_id is not None
 
@@ -202,6 +224,21 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
 
     person_id = _resolve_person_curie(db, author_data)
     author_data.pop("person_id", None)  # never set person_id directly from the payload
+
+    # A person-only row has author_order IS NULL, and PATCH cannot set author_order
+    # (rejected above). Adding real metadata onto such a stub would violate
+    # ck_person_only_link_only at commit -> raw 500. Coerce empty metadata to NULL
+    # first (a no-op stub update stays a stub), then reject any real metadata as 422.
+    if author_db_obj.author_order is None:
+        _coerce_person_only_metadata(author_data)
+        has_metadata = (any(author_data.get(f) is not None for f in _AUTHOR_METADATA_FIELDS)
+                        or bool(author_data.get("first_author"))
+                        or bool(author_data.get("corresponding_author")))
+        if has_metadata:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Cannot add author details to a person-only row; add or link this "
+                       "person as an ordered author instead (which merges the stub)")
 
     for field, value in author_data.items():
         setattr(author_db_obj, field, value)
