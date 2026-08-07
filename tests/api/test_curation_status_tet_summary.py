@@ -140,14 +140,15 @@ def test_classifier_prediction_carries_method_and_confidence():
     }
 
 
-def test_assessment_states_biocurator_validated_wins_row():
+def test_assessment_states_validated_positive_suppresses_opposite_no_data():
     topic = "ATP:0000001"
     rows = {topic: [
         # biocurator validated a positive "new to field" tag -> Has data + New to Field ✓
         (_tet(datetime(2025, 5, 1), negated=False, data_novelty="ATP:0000229",
               validation_by_professional_biocurator="validated_right_self"),
          _source(BIOCURATOR)),
-        # an unvalidated computational "no data" -> suppressed because the row is validated
+        # an unvalidated computational "no data" -> suppressed (opposite polarity
+        # of a biocurator-validated positive)
         (_tet(datetime(2025, 5, 2), negated=True,
               validation_by_professional_biocurator="not_validated"),
          _source("ECO:0008004")),
@@ -156,6 +157,46 @@ def test_assessment_states_biocurator_validated_wins_row():
     assert states == {
         "has_data": "validated", "new_data": None, "new_to_db": None,
         "new_to_field": "validated", "no_data": None,
+    }
+
+
+def test_assessment_states_unvalidated_positive_shown_when_other_column_validated():
+    """Polarity guard: a validated positive on one column must NOT hide an
+    unvalidated prediction on a different positive column."""
+    topic = "ATP:0000001"
+    rows = {topic: [
+        # biocurator validated a bare "has data" tag (no specific novelty)
+        (_tet(datetime(2025, 5, 1), negated=False, data_novelty="ATP:0000335",
+              validation_by_professional_biocurator="validated_right_self"),
+         _source(BIOCURATOR)),
+        # unvalidated computational "new to field" prediction -> still shows "?"
+        (_tet(datetime(2025, 5, 2), negated=False, data_novelty="ATP:0000229",
+              validation_by_professional_biocurator="not_validated"),
+         _source("ECO:0008004")),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states == {
+        "has_data": "validated", "new_data": None, "new_to_db": None,
+        "new_to_field": "unvalidated", "no_data": None,
+    }
+
+
+def test_assessment_states_validated_no_data_suppresses_positive_predictions():
+    topic = "ATP:0000001"
+    rows = {topic: [
+        # biocurator validated "no data"
+        (_tet(datetime(2025, 5, 1), negated=True,
+              validation_by_professional_biocurator="validated_right_self"),
+         _source(BIOCURATOR)),
+        # unvalidated computational positive -> suppressed (opposite polarity)
+        (_tet(datetime(2025, 5, 2), negated=False, data_novelty="ATP:0000321",
+              validation_by_professional_biocurator="not_validated"),
+         _source("ECO:0008004")),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states == {
+        "has_data": None, "new_data": None, "new_to_db": None,
+        "new_to_field": None, "no_data": "validated",
     }
 
 
