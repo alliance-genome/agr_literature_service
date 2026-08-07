@@ -188,11 +188,6 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="author_order cannot be changed via PATCH; use POST /author/reorder")
 
-    if "resource_curie" in author_data and author_data["resource_curie"] and \
-            "reference_curie" in author_data and author_data["reference_curie"]:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Only supply either resource_curie or reference_curie")
-
     if "created_by" in author_data and author_data["created_by"] is not None:
         author_data["created_by"] = map_to_user_id(author_data["created_by"], db)
     if "updated_by" in author_data and author_data["updated_by"] is not None:

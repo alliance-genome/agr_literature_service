@@ -31,7 +31,6 @@ class AuthorSchemaPost(BaseModel):
     affiliations: Optional[List[str]] = None
     corresponding_author: Optional[bool] = False
     reference_curie: Optional[str] = None
-    resource_curie: Optional[str] = None
     orcid: Optional[str] = None
     person_curie: Optional[str] = None
 
@@ -69,4 +68,3 @@ class AuthorSchemaCreate(AuthorSchemaPost):
     )
 
     reference_curie: Optional[str] = None
-    resource_curie: Optional[str] = None

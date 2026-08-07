@@ -272,13 +272,3 @@ class TestReachable500Hardening:
                                   "reference_curie": test_reference.new_ref_curie},
                             headers=auth_headers)
         assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-    def test_create_author_resource_only_no_reference(self, db, auth_headers, test_resource):  # noqa
-        # POST /author with only a resource (no reference) violates reference_id
-        # NOT NULL -> 422 with a clear message.
-        with TestClient(app) as client:
-            r = client.post(url="/author/",
-                            json={"author_order": 1, "name": "Orphan",
-                                  "resource_curie": test_resource.new_resource_curie},
-                            headers=auth_headers)
-        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
