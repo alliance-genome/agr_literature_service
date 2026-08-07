@@ -1,10 +1,36 @@
+from collections import namedtuple
+
 import pytest
 from sqlalchemy.exc import IntegrityError
+from starlette.testclient import TestClient
+from fastapi import status
 
+from agr_literature_service.api.main import app
 from agr_literature_service.api.models import AuthorModel, PersonModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_reference import test_reference  # noqa
+
+
+AuthorPersonTestData = namedtuple(
+    'AuthorPersonTestData', ['new_author_id', 'related_ref_curie', 'related_ref_id'])
+
+
+@pytest.fixture
+def test_author(db, auth_headers, test_reference):  # noqa
+    with TestClient(app) as client:
+        new_author = {
+            "author_order": 1,
+            "first_name": "string",
+            "last_name": "string",
+            "first_initial": "FI",
+            "name": "003_TCU",
+            "reference_curie": test_reference.new_ref_curie
+        }
+        response = client.post(url="/author/", json=new_author, headers=auth_headers)
+        yield AuthorPersonTestData(response.json()['author_id'],
+                                   test_reference.new_ref_curie,
+                                   test_reference.related_ref_id)
 
 
 def _person(db):  # noqa
@@ -74,3 +100,51 @@ class TestAuthorPersonConstraints:
         db.add(AuthorModel(reference_id=ref_id, person_id=p1.person_id))
         db.add(AuthorModel(reference_id=ref_id, person_id=p2.person_id))
         db.commit()  # no error
+
+
+class TestPersonLinkMerge:
+    def test_patch_links_person_no_stub(self, db, auth_headers, test_author):  # noqa
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.patch(url=f"/author/{test_author.new_author_id}",
+                             json={"person_curie": p.curie,
+                                   "reference_curie": test_author.related_ref_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == test_author.new_author_id).one()
+        assert a.person_id == p.person_id
+
+    def test_patch_absorbs_link_only_stub(self, db, auth_headers, test_author):  # noqa
+        # a link-only stub for person P already exists on the same reference
+        ref_id = test_author.related_ref_id
+        p = _person(db)
+        stub = AuthorModel(reference_id=ref_id, person_id=p.person_id)
+        db.add(stub)
+        db.commit()
+        stub_id = stub.author_id
+        with TestClient(app) as client:
+            r = client.patch(url=f"/author/{test_author.new_author_id}",
+                             json={"person_curie": p.curie,
+                                   "reference_curie": test_author.related_ref_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        # stub deleted, author row now carries the person
+        assert db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one_or_none() is None
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == test_author.new_author_id).one()
+        assert a.person_id == p.person_id
+        assert a.author_order == 1
+
+    def test_patch_person_already_full_author_errors(self, db, auth_headers, test_author):  # noqa
+        # person P is already a *full* author (order set) on the reference
+        ref_id = test_author.related_ref_id
+        p = _person(db)
+        db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id, author_order=2, name="Other"))
+        db.commit()
+        with TestClient(app) as client:
+            r = client.patch(url=f"/author/{test_author.new_author_id}",
+                             json={"person_curie": p.curie,
+                                   "reference_curie": test_author.related_ref_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_409_CONFLICT

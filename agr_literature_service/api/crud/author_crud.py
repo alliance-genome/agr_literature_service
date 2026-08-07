@@ -19,6 +19,39 @@ from agr_literature_service.api.models import (
 from agr_literature_service.api.schemas import AuthorSchemaPost
 
 
+def _resolve_person_curie(db: Session, author_data: dict):
+    """Pop person_curie from the payload and return the resolved person_id (or None)."""
+    curie = author_data.pop("person_curie", None)
+    if not curie:
+        return None
+    person_id = db.query(PersonModel.person_id).filter(PersonModel.curie == curie).scalar()
+    if person_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Person with curie {curie} not found")
+    return person_id
+
+
+def link_person(db: Session, author_db_obj: AuthorModel, person_id: int):
+    """Set person_id on author_db_obj, merging/erroring per the uniqueness rules."""
+    if person_id is None:
+        return
+    existing = db.query(AuthorModel).filter(
+        AuthorModel.reference_id == author_db_obj.reference_id,
+        AuthorModel.person_id == person_id,
+        AuthorModel.author_id != author_db_obj.author_id,
+    ).one_or_none()
+    if existing is not None:
+        if existing.author_order is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Person is already author #{existing.author_order} on this reference; "
+                       f"unlink there first")
+        # existing is a link-only stub -> delete it first (per-statement uniqueness), then link
+        db.delete(existing)
+        db.flush()
+    author_db_obj.person_id = person_id
+
+
 def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
     """
     Create a new author
@@ -29,10 +62,9 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
 
     author_data = jsonable_encoder(author)
 
-    # person_curie is not a column on AuthorModel; person-linking is wired
-    # through PATCH /author/{id} in a later task, so drop it here to avoid
-    # passing an invalid keyword argument to the model constructor.
-    author_data.pop("person_curie", None)
+    person_id = _resolve_person_curie(db, author_data)
+    if person_id is not None:
+        author_data["person_id"] = person_id
 
     # orcid = None
     # if "orcid" in author_data:
@@ -99,8 +131,13 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
     res_ref = stripout(db, author_data, non_fatal=True)
     add(res_ref, author_db_obj)
 
+    person_id = _resolve_person_curie(db, author_data)
+    author_data.pop("person_id", None)  # never set person_id directly from the payload
+
     for field, value in author_data.items():
         setattr(author_db_obj, field, value)
+    if person_id is not None:
+        link_person(db, author_db_obj, person_id)
 
     author_db_obj.dateUpdated = datetime.utcnow()
     db.add(author_db_obj)
