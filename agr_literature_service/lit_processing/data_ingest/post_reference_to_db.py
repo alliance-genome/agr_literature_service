@@ -297,22 +297,26 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
 
 def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
 
-    for x in author_list_from_json:
+    # Renumber author_order sequentially 1..N over the authors sorted by their incoming
+    # rank. This mirrors replace_authors_from_json and normalizes bad payload data (e.g.
+    # duplicate or gapped authorRank) into a valid unique ordering, so a duplicate
+    # authorRank can't violate uq_author_ref_order and abort the whole batch's commit.
+    ranked_authors = [x for x in author_list_from_json if x.get('authorRank') is not None]
+    ranked_authors.sort(key=lambda x: x.get('authorRank'))
+
+    for author_order, x in enumerate(ranked_authors, start=1):
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
         affiliations = x['affiliations'] if x.get('affiliations') else []
         name = x.get('name', '')
         firstname = x.get('firstname', '')
         lastname = x.get('lastname', '')
         firstinit = x.get('firstinit', '')
-        rank = x.get('authorRank')
-        if rank is None:
-            continue
         authorData = {"reference_id": reference_id,
                       "name": name,
                       "first_name": firstname,
                       "last_name": lastname,
                       "first_initial": firstinit,
-                      "author_order": rank,
+                      "author_order": author_order,
                       "affiliations": affiliations,
                       "orcid": orcid if orcid else None,
                       "first_author": False,
