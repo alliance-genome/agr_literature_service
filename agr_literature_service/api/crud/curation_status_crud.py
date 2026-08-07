@@ -129,6 +129,20 @@ MANUAL_ASSERTIONS = {'ATP:0000035', 'ATP:0000036'}  # author, professional biocu
 # Data-novelty terms that mark a positive tag as "new data".
 NEW_NOVELTY_TERMS = {'ATP:0000321', 'ATP:0000229', 'ATP:0000228'}
 
+# Exact data-novelty term -> quick-add assessment column (no ontology-tree
+# expansion; the column is filled only on an exact match).
+NOVELTY_TO_COLUMN = {
+    'ATP:0000321': 'new_data',
+    'ATP:0000228': 'new_to_db',
+    'ATP:0000229': 'new_to_field',
+}
+# The quick-add assessment columns, in display order.
+ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field', 'no_data']
+# validation_by_professional_biocurator values that count as curator-validated
+# (green ✓); 'validated_wrong' is excluded entirely; everything else is "?".
+BIOCURATOR_VALIDATED = {'validated_right', 'validated_right_self'}
+BIOCURATOR_VALIDATED_WRONG = 'validated_wrong'
+
 
 def _assessment_kind(tet):
     """Which assessment column a tag falls under: 'no', 'new', or 'has'."""
@@ -137,6 +151,19 @@ def _assessment_kind(tet):
     if tet.data_novelty in NEW_NOVELTY_TERMS:
         return 'new'
     return 'has'
+
+
+def _assessment_columns(tet):
+    """Quick-add columns a tag fills: 'no_data' when negated; otherwise
+    'has_data' plus its exact-novelty column (new_data / new_to_db /
+    new_to_field) when the data_novelty matches one."""
+    if tet.negated:
+        return ['no_data']
+    cols = ['has_data']
+    col = NOVELTY_TO_COLUMN.get(tet.data_novelty)
+    if col:
+        cols.append(col)
+    return cols
 
 
 def get_tet_list_summary(topic_curie, topic_tet_list_dict):
@@ -151,7 +178,8 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             "tet_info_manual_new_data": False,
             "tet_info_manual_no_data": False,
             "tet_info_source_predictions": [],
-            "tet_info_manual_assessments": []
+            "tet_info_manual_assessments": [],
+            "tet_info_assessment_states": {c: None for c in ASSESSMENT_COLUMNS}
         }
     # initialize earliest_dt from the very first row
     first_tet, _ = topic_tet_list_dict[topic_curie][0]
@@ -165,6 +193,9 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     topic_sources = set()
     source_predictions = []
     manual_assessments = []
+    # Per-column validation state for the quick-add grid.
+    col_validated = set()
+    col_unvalidated = set()
     source_map = {
         'ATP:0000035': 'author',
         'ATP:0000036': 'biocurator'
@@ -216,6 +247,25 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
                 "assessment": kind,
                 "data_novelty": tet.data_novelty
             })
+        # Quick-add column state: skip tags a biocurator marked wrong; a
+        # biocurator-validated tag makes its columns "validated", otherwise
+        # they are "unvalidated" (shown only if the row has no validated tag).
+        vpb = tet.validation_by_professional_biocurator
+        if vpb != BIOCURATOR_VALIDATED_WRONG:
+            target = col_validated if vpb in BIOCURATOR_VALIDATED else col_unvalidated
+            for col in _assessment_columns(tet):
+                target.add(col)
+    # A biocurator-validated tag "wins" the row: suppress the "?" from other
+    # (unvalidated) sources so only the confirmed columns show a state.
+    row_has_validated = bool(col_validated)
+    assessment_states = {}
+    for col in ASSESSMENT_COLUMNS:
+        if col in col_validated:
+            assessment_states[col] = 'validated'
+        elif (not row_has_validated) and col in col_unvalidated:
+            assessment_states[col] = 'unvalidated'
+        else:
+            assessment_states[col] = None
     topic_added = earliest_dt.isoformat()
     return {
         "tet_info_date_created": topic_added,
@@ -227,7 +277,8 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
         "tet_info_manual_new_data": manual_new,
         "tet_info_manual_no_data": manual_no,
         "tet_info_source_predictions": source_predictions,
-        "tet_info_manual_assessments": manual_assessments
+        "tet_info_manual_assessments": manual_assessments,
+        "tet_info_assessment_states": assessment_states
     }
 
 
