@@ -249,12 +249,16 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
                 "assessment": kind,
                 "data_novelty": tet.data_novelty
             })
-        # Quick-add column state: skip tags a biocurator marked wrong; a
-        # biocurator-validated tag makes its columns "validated", otherwise
-        # they are "unvalidated" (shown only if the row has no validated tag).
+        # Quick-add column state: skip tags a biocurator marked wrong. A tag is
+        # "validated" (green ✓) when a biocurator asserted it directly
+        # (source_evidence_assertion = professional biocurator, e.g. loaded
+        # curator data) OR when it was validated by a biocurator; everything
+        # else (author / computational) is "unvalidated" ("?").
         vpb = tet.validation_by_professional_biocurator
         if vpb != BIOCURATOR_VALIDATED_WRONG:
-            target = col_validated if vpb in BIOCURATOR_VALIDATED else col_unvalidated
+            is_biocurator_asserted = source_map.get(assertion) == 'biocurator'
+            validated = is_biocurator_asserted or vpb in BIOCURATOR_VALIDATED
+            target = col_validated if validated else col_unvalidated
             for col in _assessment_columns(tet):
                 target.add(col)
     # Per-column state with a polarity guard: a biocurator-validated tag only

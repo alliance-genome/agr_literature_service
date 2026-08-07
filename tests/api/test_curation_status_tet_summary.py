@@ -140,6 +140,23 @@ def test_classifier_prediction_carries_method_and_confidence():
     }
 
 
+def test_assessment_states_biocurator_assertion_is_validated_without_vpb():
+    """Loaded biocurator data (source_evidence_assertion = biocurator) shows a
+    green check even when validation_by_professional_biocurator is not set
+    (e.g. ZFIN load_zfin_allele_reference_tags)."""
+    topic = "ATP:0000001"
+    rows = {topic: [
+        (_tet(datetime(2025, 5, 1), negated=False, data_novelty="ATP:0000335",
+              validation_by_professional_biocurator="not_validated"),
+         _source(BIOCURATOR)),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states == {
+        "has_data": "validated", "new_data": None, "new_to_db": None,
+        "new_to_field": None, "no_data": None,
+    }
+
+
 def test_assessment_states_validated_positive_suppresses_opposite_no_data():
     topic = "ATP:0000001"
     rows = {topic: [
