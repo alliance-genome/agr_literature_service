@@ -302,7 +302,18 @@ def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
     # duplicate or gapped authorRank) into a valid unique ordering, so a duplicate
     # authorRank can't violate uq_author_ref_order and abort the whole batch's commit.
     ranked_authors = [x for x in author_list_from_json if x.get('authorRank') is not None]
-    ranked_authors.sort(key=lambda x: x.get('authorRank'))
+
+    # DQM sometimes delivers authorRank as a string (see dqm_processing_utils which
+    # does int(author_dict['authorRank'])); sorting on the raw value would order
+    # "10" before "2" lexicographically and blow up on mixed str/int. Coerce to int,
+    # falling back to a large sentinel so a non-numeric rank sorts last instead of
+    # crashing the whole batch.
+    def _rank_key(x):
+        try:
+            return int(x['authorRank'])
+        except (TypeError, ValueError):
+            return 10 ** 9
+    ranked_authors.sort(key=_rank_key)
 
     for author_order, x in enumerate(ranked_authors, start=1):
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
