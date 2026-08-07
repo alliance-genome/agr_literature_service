@@ -62,10 +62,24 @@ class TETSourcePredictionSchema(BaseModel):
     confidence_level: Optional[str] = None
     negated: bool = False
     assessment: Optional[str] = None
+    # The data-novelty ATP term (e.g. new-to-DB / new-to-field), so the quick
+    # add UI can resolve the specific novelty bucket, not just has/new/no.
+    data_novelty: Optional[str] = None
     # The extracted entity (e.g. a gene curie) and its type, so consolidated
     # predictions can be broken down per entity on hover.
     entity: Optional[str] = None
     entity_type: Optional[str] = None
+
+
+class TETManualAssessmentSchema(BaseModel):
+    """One manually recorded topic_entity_tag (author or biocurator), so the UI
+    can tell which specific assessment/novelty bucket a curator validated."""
+    model_config = ConfigDict(extra='forbid')
+
+    source: Optional[str] = None            # 'author' | 'biocurator'
+    negated: bool = False
+    assessment: Optional[str] = None        # 'has' | 'new' | 'no'
+    data_novelty: Optional[str] = None      # ATP term (new-to-DB / new-to-field / ...)
 
 
 class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
@@ -99,3 +113,7 @@ class AggregatedCurationStatusAndTETInfoSchema(BaseModel):
     tet_info_manual_no_data: bool = False
     # Computed predictions with their source method and confidence.
     tet_info_source_predictions: List[TETSourcePredictionSchema] = Field(default_factory=list)
+    # Manual (author/biocurator) assessments with their negated flag and novelty,
+    # so the quick add UI can render per-bucket validated (biocurator) vs
+    # unvalidated (author) state.
+    tet_info_manual_assessments: List[TETManualAssessmentSchema] = Field(default_factory=list)

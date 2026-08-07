@@ -41,6 +41,7 @@ def test_topic_missing_returns_defaults():
         "tet_info_manual_new_data": False,
         "tet_info_manual_no_data": False,
         "tet_info_source_predictions": [],
+        "tet_info_manual_assessments": [],
     }
 
 
@@ -127,6 +128,30 @@ def test_classifier_prediction_carries_method_and_confidence():
         "confidence_level": "high",
         "negated": False,
         "assessment": "has",
+        "data_novelty": None,
         "entity": "WB:WBGene00000912",
         "entity_type": "ATP:0000005",
     }
+
+
+def test_manual_assessments_capture_source_negated_and_novelty():
+    topic = "ATP:0000001"
+    rows = {topic: [
+        (_tet(datetime(2025, 5, 1), negated=True, data_novelty="ATP:0000229"),
+         _source(BIOCURATOR)),
+        (_tet(datetime(2025, 5, 2), negated=False, data_novelty="ATP:0000228"),
+         _source(AUTHOR)),
+        (_tet(datetime(2025, 5, 3), negated=False, data_novelty="ATP:0000228"),
+         _source("ECO:0008004", source_method="abc_document_classifier")),
+    ]}
+    summary = get_tet_list_summary(topic, rows)
+    ma = summary["tet_info_manual_assessments"]
+    assert len(ma) == 2
+    assert {"source": "biocurator", "negated": True, "assessment": "no",
+            "data_novelty": "ATP:0000229"} in ma
+    assert {"source": "author", "negated": False, "assessment": "new",
+            "data_novelty": "ATP:0000228"} in ma
+    # The computed tag stays in source_predictions (not manual_assessments).
+    preds = summary["tet_info_source_predictions"]
+    assert len(preds) == 1
+    assert preds[0]["data_novelty"] == "ATP:0000228"
