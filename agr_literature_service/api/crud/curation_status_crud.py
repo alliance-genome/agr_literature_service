@@ -150,7 +150,8 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             "tet_info_manual_has_data": False,
             "tet_info_manual_new_data": False,
             "tet_info_manual_no_data": False,
-            "tet_info_source_predictions": []
+            "tet_info_source_predictions": [],
+            "tet_info_manual_assessments": []
         }
     # initialize earliest_dt from the very first row
     first_tet, _ = topic_tet_list_dict[topic_curie][0]
@@ -163,6 +164,7 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     manual_has = manual_new = manual_no = False
     topic_sources = set()
     source_predictions = []
+    manual_assessments = []
     source_map = {
         'ATP:0000035': 'author',
         'ATP:0000036': 'biocurator'
@@ -192,7 +194,9 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
                 if is_manual:
                     manual_new = True
         # Expose each computed (non-manual) tag so the UI can show which source
-        # predicted what, with its confidence, for curator validation.
+        # predicted what, with its confidence, for curator validation. Manual
+        # tags go to manual_assessments so the UI can tell an author-recorded
+        # (unvalidated) bucket from a biocurator-validated one.
         if not is_manual:
             source_predictions.append({
                 "source_method": tet_source.source_method,
@@ -201,8 +205,16 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
                 "confidence_level": tet.confidence_level,
                 "negated": bool(tet.negated),
                 "assessment": kind,
+                "data_novelty": tet.data_novelty,
                 "entity": tet.entity,
                 "entity_type": tet.entity_type
+            })
+        else:
+            manual_assessments.append({
+                "source": source_map.get(assertion),
+                "negated": bool(tet.negated),
+                "assessment": kind,
+                "data_novelty": tet.data_novelty
             })
     topic_added = earliest_dt.isoformat()
     return {
@@ -214,7 +226,8 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
         "tet_info_manual_has_data": manual_has,
         "tet_info_manual_new_data": manual_new,
         "tet_info_manual_no_data": manual_no,
-        "tet_info_source_predictions": source_predictions
+        "tet_info_source_predictions": source_predictions,
+        "tet_info_manual_assessments": manual_assessments
     }
 
 
