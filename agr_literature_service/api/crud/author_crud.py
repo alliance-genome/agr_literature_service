@@ -13,6 +13,7 @@ from agr_literature_service.api.crud.reference_resource import add, create_obj, 
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.models import (
     AuthorModel,
+    PersonModel,
     ReferenceModel
 )
 from agr_literature_service.api.schemas import AuthorSchemaPost
@@ -27,6 +28,11 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
     """
 
     author_data = jsonable_encoder(author)
+
+    # person_curie is not a column on AuthorModel; person-linking is wired
+    # through PATCH /author/{id} in a later task, so drop it here to avoid
+    # passing an invalid keyword argument to the model constructor.
+    author_data.pop("person_curie", None)
 
     # orcid = None
     # if "orcid" in author_data:
@@ -123,8 +129,11 @@ def show(db: Session, author_id: int):
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
     del author_data["reference_curie"]
-    if "person_id" in author_data:
-        del author_data["person_id"]
+    author_data["person_id"] = author.person_id
+    author_data["person_curie"] = (
+        db.query(PersonModel.curie).filter(PersonModel.person_id == author.person_id).scalar()
+        if author.person_id else None
+    )
     return author_data
 
 
