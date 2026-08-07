@@ -1255,3 +1255,24 @@ def test_reference_authors_split_person_only(db, auth_headers, test_reference): 
     assert any(a["name"] == "Real Author" for a in got["authors"])
     assert len(got["author_person_without_author_order"]) == 1
     assert got["author_person_without_author_order"][0]["person_id"] == p.person_id
+
+
+def test_citation_excludes_person_only(db, auth_headers, test_reference):  # noqa
+    from agr_literature_service.api.models import AuthorModel, PersonModel, ReferenceModel
+    ref_id = test_reference.related_ref_id
+    db.add(AuthorModel(reference_id=ref_id, author_order=1, name="Real", last_name="Real", first_initial="R"))
+    p = PersonModel(display_name="Ghost", curie="AGR:AP-CIT-1")
+    db.add(p)
+    db.commit()
+    db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))  # link-only stub, no name
+    db.commit()
+    # force citation rebuild (trigger fires on author insert)
+    ref = db.query(ReferenceModel).filter(ReferenceModel.reference_id == ref_id).one()
+    db.refresh(ref)
+    citation = ref.citation.citation if ref.citation else ""
+    # The person-only stub has no name, so it must not appear at all. If the
+    # trigger included the NULL-order row it would emit an empty author and a
+    # spurious "; ," separator ahead of the year.
+    assert "Ghost" not in citation
+    assert "; ," not in citation
+    assert citation.startswith("Real,")
