@@ -1236,3 +1236,22 @@ class TestReferenceEmails:
         addrs = sorted(row.email_address.lower() for row in listing)
         # Full replace: the curator row is dropped, only the new address remains.
         assert addrs == ["newonly@example.com"]
+
+
+def test_reference_authors_split_person_only(db, auth_headers, test_reference):  # noqa
+    from starlette.testclient import TestClient
+    from agr_literature_service.api.main import app
+    from agr_literature_service.api.models import AuthorModel, PersonModel
+    ref_id = test_reference.related_ref_id
+    db.add(AuthorModel(reference_id=ref_id, author_order=1, name="Real Author"))
+    p = PersonModel(display_name="Stub P", curie="AGR:AP-REF-1")
+    db.add(p)
+    db.commit()
+    db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))  # link-only stub
+    db.commit()
+    with TestClient(app) as client:
+        got = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers).json()
+    assert all(a["author_order"] is not None for a in got["authors"])
+    assert any(a["name"] == "Real Author" for a in got["authors"])
+    assert len(got["author_person_without_author_order"]) == 1
+    assert got["author_person_without_author_order"][0]["person_id"] == p.person_id

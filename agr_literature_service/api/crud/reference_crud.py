@@ -292,6 +292,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                 db_obj = None
                 if field in ["authors"]:
+                    from agr_literature_service.api.crud.author_crud import _resolve_person_curie
+                    pid = _resolve_person_curie(db, obj_data)
+                    if pid is not None:
+                        obj_data["person_id"] = pid
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.author_order))
@@ -906,14 +910,18 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_data['mesh_terms'] = reference_data['mesh_term']
 
     if reference.author:
-        authors = []
+        real_authors, person_only = [], []
         for author in reference_data["author"]:
-            del author["reference_id"]
-            if "person_id" in author:
-                del author["person_id"]
-            authors.append(author)
-        reference_data['authors'] = authors
-        del reference_data['author']
+            author.pop("reference_id", None)
+            if author.get("author_order") is not None:
+                real_authors.append(author)
+            else:
+                person_only.append(author)
+        reference_data["authors"] = real_authors
+        reference_data["author_person_without_author_order"] = person_only
+        del reference_data["author"]
+    else:
+        reference_data["author_person_without_author_order"] = []
 
     reference_relations_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
     for reference_relation in reference.reference_relation_out:
@@ -1453,7 +1461,8 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info = BibInfo()
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
-    for author in sorted(reference.author, key=lambda a: a.author_order):
+    real = [a for a in reference.author if a.author_order is not None]
+    for author in sorted(real, key=lambda a: a.author_order):
         last_name = str(author.last_name or '')
         first_initial = str(author.first_initial or '')
         full_name = str(author.name or '')
