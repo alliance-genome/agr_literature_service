@@ -2,7 +2,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import AuthorModel, ReferenceModel
+from agr_literature_service.api.models import AuthorModel, ReferenceModel, UserModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_reference import test_reference  # noqa
@@ -34,6 +34,42 @@ class TestReorder:
         orders = {a.author_id: a.author_order
                   for a in db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id)}
         assert orders == {a1: 3, a2: 1, a3: 2}
+
+    def test_reorder_stamps_updated_by(self, db, auth_headers, test_reference):  # noqa
+        # A reorder must stamp updated_by/date_updated with the acting user so (1) the
+        # change is visible in history and (2) the ingest curator-gate sees the
+        # reference as touched (when the actor is a curator) and won't renumber the
+        # authors back. Seed the rows with a DIFFERENT user so the acting user's stamp
+        # is detectable; pre-fix the raw UPDATE never touched updated_by -> stays the
+        # seeded value and this must fail.
+        ref_id = test_reference.related_ref_id
+        seed_uid = "reorder-seed-user"
+        # users rows survive the per-test cleanup, so get-or-create this seed user.
+        if db.query(UserModel).filter_by(id=seed_uid).one_or_none() is None:
+            db.add(UserModel(id=seed_uid, automation_username="reorderSeed"))
+            db.commit()
+        a1 = AuthorModel(reference_id=ref_id, author_order=1, name="A1",
+                         created_by=seed_uid, updated_by=seed_uid)
+        a2 = AuthorModel(reference_id=ref_id, author_order=2, name="A2",
+                         created_by=seed_uid, updated_by=seed_uid)
+        db.add_all([a1, a2])
+        db.commit()
+        a1_id, a2_id = a1.author_id, a2.author_id
+        assert a1.updated_by == seed_uid and a2.updated_by == seed_uid
+        with TestClient(app) as client:
+            r = client.post(url="/author/reorder",
+                            json={"reference_curie": test_reference.new_ref_curie,
+                                  "ordering": [{"author_id": a1_id, "author_order": 2},
+                                               {"author_id": a2_id, "author_order": 1}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        after = {a.author_id: a.updated_by
+                 for a in db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id)}
+        # the reorder stamped the acting user (no longer the seeded user) on both rows,
+        # so the reference now carries the actor's audit trail on its author rows.
+        assert after[a1_id] is not None and after[a1_id] != seed_uid
+        assert after[a2_id] is not None and after[a2_id] != seed_uid
 
     def test_patch_rejects_author_order(self, db, auth_headers, test_reference):  # noqa
         ref_id = test_reference.related_ref_id

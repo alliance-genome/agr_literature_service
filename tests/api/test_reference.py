@@ -135,6 +135,23 @@ class TestReference:
             response = client.post(url="/reference/", json=blank_category_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_create_reference_later_author_carries_reference_curie(self, db, auth_headers, test_reference):  # noqa
+        # POST /reference with 2+ authors where a LATER author carries reference_curie
+        # must not 500. create_obj -> stripout runs db.query(ReferenceModel) for that
+        # embedded reference_curie, which would otherwise autoflush the earlier pending
+        # author (still reference_id NULL) and trip author.reference_id NOT NULL.
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Two authors ref_curie", "category": "thesis",
+                                  "authors": [{"author_order": 1, "name": "A"},
+                                              {"author_order": 2, "name": "B",
+                                               "reference_curie": test_reference.new_ref_curie}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == r.json()["curie"]).scalar()
+        authors = db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id).all()
+        assert len(authors) == 2
 
     def test_retraction_status(self, db, auth_headers, test_reference):  # noqa
         # retraction_status stores ATP curies (no DB constraint):

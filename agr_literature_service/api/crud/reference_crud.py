@@ -295,40 +295,43 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                 if field in ["authors"]:
                     from agr_literature_service.api.crud.author_crud import (
                         _resolve_person_curie, _validate_author_constraints)
-                    try:
-                        # no_autoflush: authors added earlier in this loop are still
-                        # pending with no reference_id yet; the person lookup would
-                        # otherwise autoflush them and violate author.reference_id
-                        # NOT NULL. They are flushed with the parent at db.commit().
-                        with db.no_autoflush:
+                    # no_autoflush over the WHOLE per-author build: authors added
+                    # earlier in this loop are still pending with no reference_id yet.
+                    # Both the person lookup AND create_obj->stripout (which queries
+                    # ReferenceModel/ResourceModel when an embedded author carries a
+                    # reference_curie/resource_curie) would otherwise autoflush those
+                    # pending rows and violate author.reference_id NOT NULL. They are
+                    # flushed with the parent reference at db.commit().
+                    with db.no_autoflush:
+                        try:
                             pid = _resolve_person_curie(db, obj_data)
-                    except HTTPException as exc:
-                        # a bad embedded person_curie is POST-body validation here:
-                        # surface it as 422 for consistency with the other reference
-                        # create validations (resource/merged_into), not 404.
-                        if exc.status_code == status.HTTP_404_NOT_FOUND:
-                            raise HTTPException(
-                                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail=exc.detail)
-                        raise
-                    if pid is not None:
-                        # a person may link to only one author on a reference; a
-                        # duplicate in this payload would violate uq_author_ref_person
-                        # at commit -> raw IntegrityError/500. Surface it as a clean 409.
-                        if pid in seen_person_ids:
-                            raise HTTPException(
-                                status_code=status.HTTP_409_CONFLICT,
-                                detail="A person cannot be linked to more than one author "
-                                       "on the same reference")
-                        seen_person_ids.add(pid)
-                        obj_data["person_id"] = pid
-                    # pre-validate the author CHECK constraints (embedded authors
-                    # inherit the parent reference, so reference_curie isn't required)
-                    # to surface a clean 422 instead of a raw IntegrityError/500.
-                    _validate_author_constraints(obj_data, pid)
-                    db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
-                    if db_obj.name:
-                        author_names_order.append((db_obj.name, db_obj.author_order))
+                        except HTTPException as exc:
+                            # a bad embedded person_curie is POST-body validation here:
+                            # surface it as 422 for consistency with the other reference
+                            # create validations (resource/merged_into), not 404.
+                            if exc.status_code == status.HTTP_404_NOT_FOUND:
+                                raise HTTPException(
+                                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=exc.detail)
+                            raise
+                        if pid is not None:
+                            # a person may link to only one author on a reference; a
+                            # duplicate in this payload would violate uq_author_ref_person
+                            # at commit -> raw IntegrityError/500. Surface it as a clean 409.
+                            if pid in seen_person_ids:
+                                raise HTTPException(
+                                    status_code=status.HTTP_409_CONFLICT,
+                                    detail="A person cannot be linked to more than one author "
+                                           "on the same reference")
+                            seen_person_ids.add(pid)
+                            obj_data["person_id"] = pid
+                        # pre-validate the author CHECK constraints (embedded authors
+                        # inherit the parent reference, so reference_curie isn't required)
+                        # to surface a clean 422 instead of a raw IntegrityError/500.
+                        _validate_author_constraints(obj_data, pid)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
+                        if db_obj.name:
+                            author_names_order.append((db_obj.name, db_obj.author_order))
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":

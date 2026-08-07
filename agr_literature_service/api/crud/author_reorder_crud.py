@@ -1,9 +1,11 @@
 from typing import List, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ReferenceModel, AuthorModel
+from agr_literature_service.api.user import get_global_user_id
 
 
 def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
@@ -69,7 +71,11 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
                    f"include every author of the reference")
 
     values = ", ".join(f"(:id{i}, :ord{i})" for i in range(len(ordering)))
-    params: Dict = {"ref_id": ref_id}
+    # Stamp who/when in the SAME UPDATE so the reorder shows in history AND, critically,
+    # marks the reference as curator-touched: the raw UPDATE bypasses the ORM audit
+    # hooks, so without this the ingest curator-gate (_reference_touched_by_curator)
+    # would not see the reorder and a later ingest run could renumber the authors back.
+    params: Dict = {"ref_id": ref_id, "uid": get_global_user_id()}
     for i, item in enumerate(ordering):
         params[f"id{i}"] = item.author_id
         params[f"ord{i}"] = item.author_order
@@ -77,7 +83,16 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     # can be done in ONE UPDATE without a transient mid-statement collision.
     db.execute(text("SET CONSTRAINTS uq_author_ref_order DEFERRED"))
     db.execute(text(
-        f"UPDATE author AS a SET author_order = v.new_order "
+        f"UPDATE author AS a SET author_order = v.new_order, "
+        f"updated_by = :uid, date_updated = now() "
         f"FROM (VALUES {values}) AS v(author_id, new_order) "
         f"WHERE a.author_id = v.author_id AND a.reference_id = :ref_id"), params)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # a concurrent reorder can still trip the deferred uniqueness check at COMMIT;
+        # turn that residual race into a clean 409 instead of a raw 500.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Concurrent reorder detected; please retry")
