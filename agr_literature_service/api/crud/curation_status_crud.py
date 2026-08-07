@@ -138,6 +138,8 @@ NOVELTY_TO_COLUMN = {
 }
 # The quick-add assessment columns, in display order.
 ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field', 'no_data']
+# The positive (has-data) columns; "no_data" is their negated counterpart.
+POSITIVE_ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field']
 # validation_by_professional_biocurator values that count as curator-validated
 # (green ✓); 'validated_wrong' is excluded entirely; everything else is "?".
 BIOCURATOR_VALIDATED = {'validated_right', 'validated_right_self'}
@@ -255,15 +257,22 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
             target = col_validated if vpb in BIOCURATOR_VALIDATED else col_unvalidated
             for col in _assessment_columns(tet):
                 target.add(col)
-    # A biocurator-validated tag "wins" the row: suppress the "?" from other
-    # (unvalidated) sources so only the confirmed columns show a state.
-    row_has_validated = bool(col_validated)
+    # Per-column state with a polarity guard: a biocurator-validated tag only
+    # suppresses the OPPOSITE-polarity "?" (a validated positive hides a "no
+    # data" prediction and vice versa), so an unvalidated prediction on a column
+    # the biocurator hasn't resolved still shows "?" for the curator to act on.
+    has_validated_positive = bool(col_validated & set(POSITIVE_ASSESSMENT_COLUMNS))
+    has_validated_no = 'no_data' in col_validated
     assessment_states = {}
     for col in ASSESSMENT_COLUMNS:
         if col in col_validated:
             assessment_states[col] = 'validated'
-        elif (not row_has_validated) and col in col_unvalidated:
-            assessment_states[col] = 'unvalidated'
+        elif col in col_unvalidated:
+            suppressed = (
+                (col == 'no_data' and has_validated_positive)
+                or (col in POSITIVE_ASSESSMENT_COLUMNS and has_validated_no)
+            )
+            assessment_states[col] = None if suppressed else 'unvalidated'
         else:
             assessment_states[col] = None
     topic_added = earliest_dt.isoformat()
