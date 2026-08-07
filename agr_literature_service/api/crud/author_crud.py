@@ -123,6 +123,8 @@ def show(db: Session, author_id: int):
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
     del author_data["reference_curie"]
+    if "person_id" in author_data:
+        del author_data["person_id"]
     return author_data
 
 

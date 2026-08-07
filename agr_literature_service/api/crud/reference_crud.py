@@ -307,13 +307,19 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             else:
                 reference_data[field] = db_objs
         elif field == "resource":
-            resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
+            # no_autoflush: authors added above are still pending and have no
+            # reference_id yet; a plain query here would autoflush them and
+            # violate author.reference_id NOT NULL. They are flushed with the
+            # parent reference at db.commit() below.
+            with db.no_autoflush:
+                resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {value} does not exist")
             reference_data["resource"] = resource
         elif field == "merged_into_reference_curie":
-            merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+            with db.no_autoflush:
+                merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
             if not merged_into_obj:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Merged_into Reference with curie {value} does not exist")
@@ -903,6 +909,8 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         authors = []
         for author in reference_data["author"]:
             del author["reference_id"]
+            if "person_id" in author:
+                del author["person_id"]
             authors.append(author)
         reference_data['authors'] = authors
         del reference_data['author']
