@@ -19,6 +19,9 @@ from agr_literature_service.api.models import (
 from agr_literature_service.api.schemas import AuthorSchemaPost
 
 
+_AUTHOR_METADATA_FIELDS = ("name", "first_name", "last_name", "first_initial", "orcid", "affiliations")
+
+
 def _resolve_person_curie(db: Session, author_data: dict):
     """Pop person_curie from the payload and return the resolved person_id (or None)."""
     curie = author_data.pop("person_curie", None)
@@ -29,6 +32,43 @@ def _resolve_person_curie(db: Session, author_data: dict):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Person with curie {curie} not found")
     return person_id
+
+
+def _validate_author_constraints(author_data: dict, person_id, require_reference: bool = False):
+    """Pre-validate the author-table CHECK / NOT NULL constraints and raise a clear 422
+    instead of letting a raw IntegrityError surface as a 500.
+
+    ``author_data`` is expected to have had ``person_curie`` already popped;
+    ``person_id`` is the resolved person link (or ``None``). Set
+    ``require_reference`` on the standalone POST /author path, where the row must
+    carry a reference_curie (embedded-in-reference authors inherit the parent)."""
+    has_order = author_data.get("author_order") is not None
+    has_person = person_id is not None
+
+    # author.reference_id is NOT NULL: every author must belong to a reference.
+    if require_reference and not author_data.get("reference_curie"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An author must belong to a reference; supply reference_curie")
+
+    # ck_author_person_or_order: person_id IS NOT NULL OR author_order IS NOT NULL.
+    if not has_person and not has_order:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An author must have an author_order or be linked to a person (person_curie)")
+
+    # ck_person_only_link_only: with no author_order the row is a person-only link
+    # and may not carry any author metadata.
+    if not has_order:
+        has_metadata = (any(author_data.get(f) for f in _AUTHOR_METADATA_FIELDS)
+                        or bool(author_data.get("first_author"))
+                        or bool(author_data.get("corresponding_author")))
+        if has_metadata:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="A person-only link (no author_order) cannot carry author metadata "
+                       "(name/first_name/last_name/first_initial/orcid/affiliations/"
+                       "first_author/corresponding_author)")
 
 
 def link_person(db: Session, author_db_obj: AuthorModel, person_id: int):
@@ -64,6 +104,8 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
 
     person_id = _resolve_person_curie(db, author_data)
     author_data.pop("person_id", None)  # never set person_id directly from the payload
+
+    _validate_author_constraints(author_data, person_id, require_reference=True)
 
     # orcid = None
     # if "orcid" in author_data:

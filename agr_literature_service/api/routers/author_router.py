@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Response, Security, status
 from typing import Dict, Any, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
@@ -22,7 +22,7 @@ db_session: Session = Depends(get_db)
 
 class AuthorOrderItem(BaseModel):
     author_id: int
-    author_order: int
+    author_order: int = Field(ge=1)
 
 
 class AuthorReorderRequest(BaseModel):

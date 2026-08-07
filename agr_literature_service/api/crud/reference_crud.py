@@ -293,9 +293,15 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                 db_obj = None
                 if field in ["authors"]:
-                    from agr_literature_service.api.crud.author_crud import _resolve_person_curie
+                    from agr_literature_service.api.crud.author_crud import (
+                        _resolve_person_curie, _validate_author_constraints)
                     try:
-                        pid = _resolve_person_curie(db, obj_data)
+                        # no_autoflush: authors added earlier in this loop are still
+                        # pending with no reference_id yet; the person lookup would
+                        # otherwise autoflush them and violate author.reference_id
+                        # NOT NULL. They are flushed with the parent at db.commit().
+                        with db.no_autoflush:
+                            pid = _resolve_person_curie(db, obj_data)
                     except HTTPException as exc:
                         # a bad embedded person_curie is POST-body validation here:
                         # surface it as 422 for consistency with the other reference
@@ -316,6 +322,10 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                                        "on the same reference")
                         seen_person_ids.add(pid)
                         obj_data["person_id"] = pid
+                    # pre-validate the author CHECK constraints (embedded authors
+                    # inherit the parent reference, so reference_curie isn't required)
+                    # to surface a clean 422 instead of a raw IntegrityError/500.
+                    _validate_author_constraints(obj_data, pid)
                     db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
                     if db_obj.name:
                         author_names_order.append((db_obj.name, db_obj.author_order))

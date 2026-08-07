@@ -91,6 +91,30 @@ class TestReorder:
                             headers=auth_headers)
         assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_reorder_partial_collides_with_absent_author(self, db, auth_headers, test_reference):  # noqa
+        # a1=1, a2=2; a partial reorder [{a1: 2}] leaves a2 at order 2, so a1's new
+        # order collides with the absent a2 -> deferred-constraint 500 at commit
+        # unless caught. Expect 422.
+        ref_id = test_reference.related_ref_id
+        a1, a2 = _mk_authors(db, ref_id, 2)
+        with TestClient(app) as client:
+            r = client.post(url="/author/reorder",
+                            json={"reference_curie": test_reference.new_ref_curie,
+                                  "ordering": [{"author_id": a1, "author_order": 2}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_reorder_zero_author_order_rejected(self, db, auth_headers, test_reference):  # noqa
+        # author_order must be >= 1; 0 is a schema validation 422, not a 500.
+        ref_id = test_reference.related_ref_id
+        (a1,) = _mk_authors(db, ref_id, 1)
+        with TestClient(app) as client:
+            r = client.post(url="/author/reorder",
+                            json={"reference_curie": test_reference.new_ref_curie,
+                                  "ordering": [{"author_id": a1, "author_order": 0}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
     def test_reorder_missing_key_is_422(self, db, auth_headers, test_reference):  # noqa
         # a malformed ordering item (missing author_order) is a 422 from schema
         # validation, not a KeyError/500.

@@ -6,10 +6,11 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import AuthorModel, PersonModel
+from agr_literature_service.api.models import AuthorModel, PersonModel, ReferenceModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_reference import test_reference  # noqa
+from .test_resource import test_resource  # noqa
 
 
 AuthorPersonTestData = namedtuple(
@@ -214,3 +215,70 @@ class TestPersonLinkMerge:
                                   "reference_curie": test_reference.new_ref_curie},
                             headers=auth_headers)
         assert r.status_code == status.HTTP_409_CONFLICT
+
+
+class TestReachable500Hardening:
+    """The author CHECK / NOT NULL constraints must surface as clean 422s (never a
+    raw IntegrityError 500) through both the POST /author and POST /reference paths."""
+
+    def test_reference_create_later_author_person_curie(self, db, auth_headers, test_reference):  # noqa
+        # POST /reference with 2+ authors where a LATER author has person_curie must
+        # not 500 (earlier pending authors autoflushing with reference_id NULL).
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Two authors", "category": "thesis",
+                                  "authors": [{"author_order": 1, "name": "A"},
+                                              {"author_order": 2, "name": "B",
+                                               "person_curie": p.curie}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == r.json()["curie"]).scalar()
+        authors = db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id).all()
+        assert len(authors) == 2
+        author_b = db.query(AuthorModel).filter(
+            AuthorModel.reference_id == ref_id, AuthorModel.name == "B").one()
+        assert author_b.person_id == p.person_id
+
+    def test_reference_create_embedded_author_no_order_no_person(self, db, auth_headers):  # noqa
+        # an embedded author with neither author_order nor a person violates
+        # ck_author_person_or_order -> 422, not 500.
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Bad author", "category": "thesis",
+                                  "authors": [{"name": "No Order No Person"}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_author_no_order_no_person(self, db, auth_headers, test_reference):  # noqa
+        # POST /author with a reference but neither author_order nor person_curie
+        # violates ck_author_person_or_order -> 422.
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"name": "Nameless order",
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_author_person_link_with_metadata_no_order(self, db, auth_headers, test_reference):  # noqa
+        # person_curie + author metadata but no author_order violates
+        # ck_person_only_link_only -> 422.
+        p = _person(db)
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"name": "Has Name",
+                                  "person_curie": p.curie,
+                                  "reference_curie": test_reference.new_ref_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_author_resource_only_no_reference(self, db, auth_headers, test_resource):  # noqa
+        # POST /author with only a resource (no reference) violates reference_id
+        # NOT NULL -> 422 with a clear message.
+        with TestClient(app) as client:
+            r = client.post(url="/author/",
+                            json={"author_order": 1, "name": "Orphan",
+                                  "resource_curie": test_resource.new_resource_curie},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY

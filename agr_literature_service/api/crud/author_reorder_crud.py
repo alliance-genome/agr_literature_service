@@ -50,6 +50,24 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="author_order values must be unique within the reorder request")
 
+    # target orders must not collide with ordered authors of this reference that are
+    # ABSENT from the payload: those rows keep their current order, so an overlap
+    # would trip the deferred uq_author_ref_order at COMMIT (500). Require the request
+    # to renumber those rows too.
+    non_payload_orders = {
+        order for (order,) in db.query(AuthorModel.author_order).filter(
+            AuthorModel.reference_id == ref_id,
+            AuthorModel.author_order.isnot(None),
+            AuthorModel.author_id.notin_(author_ids)).all()
+    }
+    colliding = sorted(set(author_orders) & non_payload_orders)
+    if colliding:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"author_order value(s) {colliding} collide with authors of "
+                   f"reference {reference_curie} not included in the reorder request; "
+                   f"include every author of the reference")
+
     values = ", ".join(f"(:id{i}, :ord{i})" for i in range(len(ordering)))
     params: Dict = {"ref_id": ref_id}
     for i, item in enumerate(ordering):
