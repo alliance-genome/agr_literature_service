@@ -7,8 +7,7 @@ from sqlalchemy.engine import Result
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
-from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal, \
-    authors_have_same_name
+from agr_literature_service.lit_processing.data_ingest.utils.author import Author, authors_lists_are_equal
 from agr_literature_service.lit_processing.utils.sqlalchemy_utils import \
     create_postgres_session
 from agr_literature_service.lit_processing.utils.db_read_utils import \
@@ -17,7 +16,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     CrossReferenceModel, ModCorpusAssociationModel, ModModel, ReferenceRelationModel, \
     MeshDetailModel, ReferenceModReferencetypeAssociationModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
-    TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel
+    TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
@@ -733,6 +732,31 @@ def replace_authors_from_json(db_session, reference_id: int, authors_from_json: 
         db_session.add(db_author)
 
 
+def _reference_touched_by_curator(db_session, reference_id) -> bool:
+    """Return True if any author row for this reference was created or updated by a
+    human curator. Such references are curator-managed and must not be touched by the
+    DQM/PubMed ingest author sync.
+
+    Ingest scripts write as AUTOMATION users (``users.person_id IS NULL``,
+    ``automation_username`` set), while curators are person-linked users
+    (``users.person_id IS NOT NULL``) -- see the users.person_id / automation_username
+    XOR constraint. ``AuditedModel`` auto-stamps ``created_by`` / ``updated_by`` (both
+    FK to ``users.id``) with the acting user, so joining the author's audit users back
+    to ``users`` and checking for a non-null ``person_id`` distinguishes a curator
+    touch from an automation touch.
+    """
+    return db_session.query(AuthorModel.author_id).join(
+        UserModel,
+        or_(
+            UserModel.id == AuthorModel.created_by,
+            UserModel.id == AuthorModel.updated_by,
+        ),
+    ).filter(
+        AuthorModel.reference_id == reference_id,
+        UserModel.person_id.isnot(None),
+    ).first() is not None
+
+
 def update_authors(db_session: Session, reference_id, author_list_in_db: Any, author_list_in_json: Any, pub_status_changed: str, pmids_with_pub_status_changed: Dict[str, Dict[str, List]], logger=None, fw=None, pmid=None, update_log=None):  # noqa: C901 # pragma: no cover
     """
     Update authors in DB based on data from PubMed or DQM submission for a single reference
@@ -750,6 +774,13 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     in the future simultaneously.
     Skip these authors during the update and send a report to the curators.
     """
+
+    # Skip any reference a human curator has touched: if any of its author rows was
+    # created or updated by a curator (person-linked) user, its authors are
+    # curator-managed and ingest must not touch them. Returns the same "no changes"
+    # shape as the other early-returns.
+    if _reference_touched_by_curator(db_session, reference_id):
+        return []
 
     if author_list_in_json is None:
         author_list_in_json = []
@@ -784,296 +815,39 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     if authors_lists_are_equal(authors_from_json, authors_from_db):
         return []
 
-    # Compute a dynamic offset above any existing order
-    max_order = max((a.order for a in authors_from_db), default=0)
-    author_offset = max_order + 1
+    # Drop-and-reload: delete every author row for this reference and reinsert the
+    # PubMed/DQM JSON authors with fresh sequential author_order 1..N. This replaces
+    # the former incremental name-key diff (update/delete/add + order-offset juggling).
+    # NOTE: any future change to author ordering should go through
+    # author_reorder_crud.reorder_authors, not this ingest path.
+    name_removed = [author.name for author in authors_from_db if author.name]
+    name_added = [author.name for author in authors_from_json if author.name]
 
-    # create dictionaries of authors for comparison
-    # example unique key: ('maita', 'nobuo', 'n', 'nobuo maita')
-    authors_in_db_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_db}
-    authors_in_json_dict = {author.get_unique_key_based_on_names(): author for author in authors_from_json}
+    replace_authors_from_json(db_session, reference_id, authors_from_json)
+    db_session.flush()
 
-    """
-    Step 1: Identified authors as updatable for entries that have the same unique
-    author key (last_name, first_name, first_initial, and name).
-    """
+    if update_log:
+        update_log['author_name'] = update_log.get('author_name', 0) + 1
+        update_log['pmids_updated'].append(pmid)
 
-    keys_in_db = set(authors_in_db_dict.keys())
-    keys_in_json = set(authors_in_json_dict.keys())
-
-    keys_in_db_and_json = keys_in_json & keys_in_db  # keys in both db and json, add the related json objs
-
-    author_order_to_update_record = {authors_in_db_dict[key].order: authors_in_json_dict[key]
-                                     for key in keys_in_db_and_json}
-
-    keys_only_in_db = keys_in_db - keys_in_json  # keys only in db, add the objects in the list to remove
-    author_order_to_delete_record = {authors_in_db_dict[key].order: authors_in_db_dict[key] for key in keys_only_in_db}
-
-    keys_only_in_json = keys_in_json - keys_in_db  # keys only in json, add the related objects
-    author_order_to_add_record = {authors_in_json_dict[key].order: authors_in_json_dict[key]
-                                  for key in keys_only_in_json}
-
-    if (len(keys_only_in_db) + len(keys_in_db_and_json) != len(keys_in_db)
-            or len(keys_only_in_json) + len(keys_in_db_and_json) != len(keys_in_json)):
-        for order, author in author_order_to_update_record.items():
-            author_order_to_delete_record[order] = author
-            author_order_to_add_record[author.order] = author
-        author_order_to_update_record = {}
-
-    if author_order_to_delete_record or author_order_to_add_record or author_order_to_update_record:
-        if update_log:
-            update_log['author_name'] = update_log.get('author_name', 0) + 1
-            update_log['pmids_updated'].append(pmid)
-
-    """
-    Step 2: Check to see if whole set of author names are changed
-    For example, change from LastName FirstInitial to FirstName LastName
-         old: ['Keller R',       'Schneider D']
-         new: ['Rebecca Keller', 'Dirk Schneider']
-    If yes, change every row in the author record from "delete/create" to "update"
-    """
-
-    if are_additions_and_deletions_only_format_changes(len(author_list_in_db),
-                                                       author_order_to_add_record,
-                                                       author_order_to_delete_record):
-        author_order_to_update_record = author_order_to_add_record
-        author_order_to_add_record = {}
-        author_order_to_delete_record = {}
-
-    """
-    Step 3: If it is not a whole set change, try to see if any of to-be-delete
-    author row can be mapped to one and only one of to-be-added author
-    entry based on same ORCID or same LastName FirstInitial
-    If yes, remove the entry from the to-be-delete list and to-be-add
-    list, and add it to to-update-list
-    """
-
-    if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
-        old_order_to_new_order_mapping = synchronize_author_lists(author_order_to_add_record,
-                                                                  author_order_to_delete_record,
-                                                                  pmid)
-
-        for old_order in old_order_to_new_order_mapping:
-            new_order = old_order_to_new_order_mapping[old_order]
-            author_order_to_update_record[old_order] = author_order_to_add_record[new_order]
-            author_order_to_add_record.pop(new_order)
-            author_order_to_delete_record.pop(old_order)
-
-    """
-    Step 4: Update authors in the author_order_to_update_record
-    """
-
-    temp_order_map: Dict[int, int] = {}
-    name_updated: List[Tuple[str, str]] = []
-    # sort by keys (old_order)
-    for old_order, json_author in sorted(author_order_to_update_record.items()):
-        temp_order_map, name_updated = update_author_row(db_session, reference_id,
-                                                         old_order, json_author,
-                                                         pmid, temp_order_map,
-                                                         name_updated, author_offset,
-                                                         fw, logger)
-
-    """
-    Step 5: Delete author rows in the author_order_to_delete_record
-    """
-    name_removed: List[str] = []
-    for author_order in sorted(author_order_to_delete_record.keys()):
-        x = db_session.query(AuthorModel).filter_by(
-            reference_id=reference_id, author_order=author_order).one_or_none()
-        if x:
-            name_removed.append(x.name)
-            db_session.delete(x)
-
-    """
-    Step 6: Insert new author rows in the author_order_to_add_record
-    """
-    name_added = insert_authors(db_session, reference_id, pmid, author_order_to_add_record, fw, logger)
-
-    """
-    Step 7: Resolve any order conflicts - just in case the "order" in JSON is not unique
-    """
-    if len(temp_order_map.values()) != len({order for order in temp_order_map.values()}):
-        db_session.rollback()
-        raise ValueError("Duplicate order value detected")
-
-    """
-    Step 8: Set the author orders (from the temp orders) to the ones in json
-    """
-    for author_id, new_order in temp_order_map.items():
-        x = db_session.query(AuthorModel).filter_by(author_id=author_id).one_or_none()
-        if x and x.author_order != new_order:
-            x.author_order = new_order
-            db_session.add(x)
-
-    """
-    step 9: logging update summary
-    """
-    if len(name_added) > 0 or len(name_updated) > 0 or len(name_removed) > 0:
-        author_update_messages = []
-        if len(name_added) > 0 or len(name_removed) > 0:
-            name_list_removed = ', '.join(name_removed)
-            name_list_added = ', '.join(name_added)
-            author_update_messages.append(("authors", f"Deleted: {name_list_removed}", f"Inserted: {name_list_added}"))
-        old_name_list: List[str] = []
-        new_name_list: List[str] = []
-        for (old_name, new_name) in name_updated:
-            old_name_list.append(old_name)
-            new_name_list.append(new_name)
-        if len(old_name_list) > 0 or len(new_name_list) > 0:
-            name_list_old = ', '.join(old_name_list)
-            name_list_new = ', '.join(new_name_list)
-            author_update_messages.append(("authors", name_list_old, name_list_new))
+    if name_added or name_removed:
+        name_list_removed = ', '.join(name_removed)
+        name_list_added = ', '.join(name_added)
+        author_update_messages = [("authors", f"Deleted: {name_list_removed}", f"Inserted: {name_list_added}")]
         status_changed = pmids_with_pub_status_changed.get(pub_status_changed, {})
         data_changed = status_changed.get(pmid, [])
         data_changed = data_changed + author_update_messages
         status_changed[pmid] = data_changed
         pmids_with_pub_status_changed[pub_status_changed] = status_changed
-    """
-    will return any authors with author data need to be updated AND these authors are
-    connected to PERSON OR have first_author flag/corresponding_author flag set to true
-    """
+        _write_log_message(
+            reference_id,
+            f": AUTHORS drop-and-reload; Deleted: {name_list_removed}; Inserted: {name_list_added}",
+            pmid,
+            logger,
+            fw
+        )
+
     return []
-
-
-def insert_authors(db_session: Session, reference_id, pmid, author_order_to_add_record, fw, logger):  # pragma: no cover
-
-    name_added: List[str] = []
-    author: Author
-    sorted_orders = sorted(author_order_to_add_record.keys())
-    for order in sorted_orders:
-        author = author_order_to_add_record[order]
-        try:
-            x = AuthorModel(
-                reference_id=reference_id,
-                name=author.name,
-                first_name=author.first_name,
-                last_name=author.last_name,
-                first_initial=author.first_initial,
-                author_order=author.order,
-                affiliations=author.affiliations,
-                orcid=author.orcid,
-                first_author=False,
-                corresponding_author=False
-            )
-            db_session.add(x)
-            log_message = f": INSERT AUTHOR: {author.name} | '{author.affiliations}'"
-            _write_log_message(reference_id, log_message, pmid, logger, fw)
-            name_added.append(author.name)
-        except Exception as e:
-            log_message = f": INSERT AUTHOR: {author.name} failed: {str(e)}"
-            _write_log_message(reference_id, log_message, pmid, logger, fw)
-
-    return name_added
-
-
-def update_author_row(db_session: Session, reference_id, author_order, json_author: Author, pmid, temp_order_map, name_updated, author_offset, fw, logger):  # pragma: no cover
-
-    x = db_session.query(AuthorModel).filter_by(
-        reference_id=reference_id, author_order=author_order).one_or_none()
-    if x is None:
-        return temp_order_map, name_updated
-    try:
-        if x.name != json_author.name:
-            name_updated.append((x.name, json_author.name))
-            x.name = json_author.name
-        if x.first_name != json_author.first_name:
-            x.first_name = json_author.first_name
-        if x.last_name != json_author.last_name:
-            x.last_name = json_author.last_name
-        if x.first_initial != json_author.first_initial:
-            x.first_initial = json_author.first_initial
-        if x.affiliations != json_author.affiliations:
-            x.affiliations = json_author.affiliations
-        if x.orcid != json_author.orcid:
-            x.orcid = json_author.orcid
-        if x.author_order != json_author.order:
-            tmp_order = x.author_order + author_offset
-            x.author_order = tmp_order
-            temp_order_map[x.author_id] = json_author.order
-        db_session.add(x)
-        log_message = f": UPDATE AUTHOR for {x.name} | {x.affiliations}"
-        _write_log_message(reference_id, log_message, pmid, logger, fw)
-    except Exception as e:
-        log_message = f": UPDATE AUTHOR for {x.name} failed: {str(e)}"
-        _write_log_message(reference_id, log_message, pmid, logger, fw)
-
-    return temp_order_map, name_updated
-
-
-def synchronize_author_lists(author_order_to_add_record, author_order_to_delete_record, pmid):  # pragma: no cover
-
-    old_order_to_new_order_mapping = {}
-    for new_order, new_author in author_order_to_add_record.items():
-        new_name_key = new_author.get_key_based_on_unaccented_names()
-        found_match_old_orders = []
-        debugging_old_names = []
-        for old_author in author_order_to_delete_record.values():
-            if old_author.orcid and old_author.orcid == new_author.orcid:
-                found_match_old_orders = [old_author.order]
-                break
-            old_name_key = old_author.get_key_based_on_unaccented_names()
-            debugging_old_names.append(old_name_key)
-            if old_name_key == new_name_key:
-                found_match_old_orders.append(old_author.order)
-            elif ' ' not in old_name_key or ' ' not in new_name_key:
-                # for the cases: name = last_name
-                if old_name_key.split(' ')[0] == new_name_key.split(' ')[0]:
-                    found_match_old_orders.append(old_author.order)
-        if len(found_match_old_orders) == 1:
-            old_order = found_match_old_orders[0]
-            old_order_to_new_order_mapping[old_order] = new_order
-        else:
-            print(f"PMID:{pmid} NO MATCH found for '{new_name_key}' in ", debugging_old_names)
-
-    return old_order_to_new_order_mapping
-
-
-def are_additions_and_deletions_only_format_changes(author_count_db, author_order_to_add_record, author_order_to_delete_record):  # pragma: no cover
-    """
-    check if every pair of corresponding old and new name has the same last name.
-    normalize every name to remove accents and convert to lowercase before comparing.
-    """
-
-    """
-    old: ['Guadalupe-Medina V', 'Wisselink HW', 'Luttik MA', 'de Hulster E',
-          'Daran JM', 'Pronk JT', 'van Maris AJ']
-    new: ['Víctor Guadalupe-Medina', 'H Wouter Wisselink', 'Marijke Ah Luttik', 'Erik de Hulster',
-          'Jean-Marc Daran', 'Jack T Pronk', 'Antonius Ja van Maris']
-
-    old: ['Pillai RS', ' Will CL', ' Luhrmann R', ' Schumperli D', ' Muller B']
-    new: ['R S Pillai', 'C L Will', 'R Lührmann', 'D Schümperli', 'B Müller']
-
-    old: ['Keller R', 'Schneider D']
-    new: ['Rebecca Keller', 'Dirk Schneider']
-
-    old: ['Kurat CF', 'Recht J', 'Radovani E', 'Durbic T', 'Andrews B', 'Fillingham J']
-    new: ['Christoph F Kurat', 'Judith Recht', 'Ernest Radovani', 'Tanja Durbic', 'Brenda Andrews',
-          'Jeffrey Fillingham']
-
-    old: ['T Kutateladze']
-    new: ['T G Kutateladze']
-
-    old: ['Santos AL', 'Preta G']
-    new: ['Ana L Santos', 'Giulio Preta']
-
-    old: ['Zhu YH', 'Zhang C', 'Liu Y', 'Omenn GS', 'Freddolino PL', 'Yu DJ', 'Zhang Y']
-    new: ['Yi-Heng Zhu', 'Chengxin Zhang', 'Yan Liu', 'Gilbert S Omenn', 'Peter L Freddolino',
-          'Dong-Jun Yu', 'Yang Zhang']
-    """
-
-    if len(author_order_to_add_record) > 0 and len(author_order_to_delete_record) > 0:
-        sorted_author_orders = sorted(author_order_to_add_record.keys())
-        if author_count_db == len(author_order_to_add_record) and author_count_db == len(author_order_to_delete_record):
-            for author_order in sorted_author_orders:
-                json_author = author_order_to_add_record[author_order]
-                db_author = author_order_to_delete_record.get(author_order)
-                if db_author is None:
-                    return False
-                if (db_author.get_key_based_on_unaccented_names() != json_author.get_key_based_on_unaccented_names()
-                        and not authors_have_same_name(db_author, json_author)):
-                    return False
-            return True
-    return False
 
 
 def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference_id, mod_corpus_association_db, mod_corpus_association_json, logger):
