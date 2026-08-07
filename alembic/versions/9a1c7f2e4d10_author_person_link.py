@@ -13,6 +13,22 @@ branch_labels = None
 depends_on = None
 
 
+def _col_exists(conn, table: str, column: str) -> bool:
+    return bool(
+        conn.execute(
+            sa.text(
+                """
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = :t AND column_name = :c
+                """
+            ),
+            {"t": table, "c": column},
+        ).fetchone()
+    )
+
+
 def upgrade():
     # Pre-flight guard: abort BEFORE any locking DDL if legacy `author` data would
     # violate the new constraints, so a production `alembic upgrade` on dirty data
@@ -65,8 +81,24 @@ def upgrade():
     op.execute("ALTER TABLE author ADD CONSTRAINT uq_author_ref_order "
                "UNIQUE (reference_id, author_order) DEFERRABLE INITIALLY IMMEDIATE")
 
+    # author is SQLAlchemy-Continuum versioned, so the person_id column must also
+    # exist on author_version - otherwise every author INSERT/UPDATE/DELETE fails
+    # with `column "person_id" of relation "author_version" does not exist`.
+    # create_all() (dev/test) already builds these from the model, so guard with
+    # _col_exists to stay idempotent. No FK/index/NOT NULL/CHECK here: Continuum
+    # delete-version rows are mostly NULL and would violate any such constraint.
+    if not _col_exists(conn, "author_version", "person_id"):
+        op.add_column("author_version",
+                      sa.Column("person_id", sa.Integer(), autoincrement=False, nullable=True))
+    if not _col_exists(conn, "author_version", "person_id_mod"):
+        op.add_column("author_version",
+                      sa.Column("person_id_mod", sa.Boolean(),
+                                server_default=sa.text("false"), nullable=False))
+
 
 def downgrade():
+    op.drop_column("author_version", "person_id_mod")
+    op.drop_column("author_version", "person_id")
     op.drop_constraint("uq_author_ref_order", "author", type_="unique")
     op.drop_index("uq_author_ref_person", table_name="author")
     op.drop_constraint("ck_person_only_link_only", "author", type_="check")

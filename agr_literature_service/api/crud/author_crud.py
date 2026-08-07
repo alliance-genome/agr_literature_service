@@ -184,7 +184,7 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"author_order {new_order} is already taken on this reference; "
-                       f"use POST /author/reorder")
+                       f"use POST /author/reorder, or the next available author_order")
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
 
