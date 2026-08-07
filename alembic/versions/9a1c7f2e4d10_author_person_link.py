@@ -32,11 +32,14 @@ def upgrade():
         "AND COALESCE(corresponding_author, false) = false)")
 
     op.create_index("uq_author_ref_person", "author", ["reference_id", "person_id"], unique=True)
-    op.create_index("uq_author_ref_order", "author", ["reference_id", "author_order"], unique=True)
+    # Deferrable so a single-statement renumber (POST /author/reorder) can swap
+    # author_order values without tripping the per-row uniqueness check mid-UPDATE.
+    op.execute("ALTER TABLE author ADD CONSTRAINT uq_author_ref_order "
+               "UNIQUE (reference_id, author_order) DEFERRABLE INITIALLY IMMEDIATE")
 
 
 def downgrade():
-    op.drop_index("uq_author_ref_order", table_name="author")
+    op.drop_constraint("uq_author_ref_order", "author", type_="unique")
     op.drop_index("uq_author_ref_person", table_name="author")
     op.drop_constraint("ck_person_only_link_only", "author", type_="check")
     op.drop_constraint("ck_author_person_or_order", "author", type_="check")

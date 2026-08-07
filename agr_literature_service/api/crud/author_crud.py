@@ -114,6 +114,10 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
 
     author_data = jsonable_encoder(author_patch)
 
+    if author_data.get("author_order") is not None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            detail="author_order cannot be changed via PATCH; use POST /author/reorder")
+
     if "resource_curie" in author_data and author_data["resource_curie"] and \
             "reference_curie" in author_data and author_data["reference_curie"]:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

@@ -6,7 +6,7 @@ author_model.py
 from typing import Dict
 
 from sqlalchemy import (ARRAY, Boolean, CheckConstraint, Column, ForeignKey,
-                        Index, Integer, String)
+                        Index, Integer, String, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -113,7 +113,14 @@ class AuthorModel(Base, AuditedModel):
             name="ck_person_only_link_only",
         ),
         Index("uq_author_ref_person", "reference_id", "person_id", unique=True),
-        Index("uq_author_ref_order", "reference_id", "author_order", unique=True),
+        # Deferrable so a single-statement renumber (POST /author/reorder) can swap
+        # author_order values without tripping the per-row uniqueness check mid-UPDATE.
+        UniqueConstraint(
+            "reference_id", "author_order",
+            name="uq_author_ref_order",
+            deferrable=True,
+            initially="IMMEDIATE",
+        ),
     )
 
     def __str__(self):
