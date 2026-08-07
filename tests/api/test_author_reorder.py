@@ -2,7 +2,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import AuthorModel, ReferenceModel, UserModel
+from agr_literature_service.api.models import AuthorModel, PersonModel, ReferenceModel, UserModel
 from ..fixtures import db  # noqa
 from .fixtures import auth_headers  # noqa
 from .test_reference import test_reference  # noqa
@@ -150,6 +150,29 @@ class TestReorder:
                                   "ordering": [{"author_id": a1, "author_order": 0}]},
                             headers=auth_headers)
         assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_reorder_person_only_stub_rejected(self, db, auth_headers, test_reference):  # noqa
+        # a person-only stub (author_order IS NULL, person_id set) is not an ordered
+        # author; including it in a reorder payload must be rejected (422), not silently
+        # promoted to a nameless ordered author.
+        ref_id = test_reference.related_ref_id
+        (a1,) = _mk_authors(db, ref_id, 1)
+        p = PersonModel(display_name="Reorder Stub Person", curie="AGR:AP-REORDER-1")
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        stub = AuthorModel(reference_id=ref_id, person_id=p.person_id)
+        db.add(stub)
+        db.commit()
+        stub_id = stub.author_id
+        with TestClient(app) as client:
+            r = client.post(url="/author/reorder",
+                            json={"reference_curie": test_reference.new_ref_curie,
+                                  "ordering": [{"author_id": a1, "author_order": 1},
+                                               {"author_id": stub_id, "author_order": 2}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "person-only" in r.json()["detail"]
 
     def test_reorder_missing_key_is_422(self, db, auth_headers, test_reference):  # noqa
         # a malformed ordering item (missing author_order) is a 422 from schema

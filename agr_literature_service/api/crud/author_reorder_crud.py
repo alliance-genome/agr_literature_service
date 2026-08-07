@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 from fastapi import HTTPException, status
 from sqlalchemy import text
@@ -5,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import ReferenceModel, AuthorModel
-from agr_literature_service.api.user import get_global_user_id
+from agr_literature_service.api.models.audited_model import get_default_user_value
 
 
 def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
@@ -33,17 +34,28 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
             detail="author_id values must be unique within the reorder request")
 
     # every author_id must belong to this reference; a foreign/nonexistent id would
-    # otherwise be silently skipped by the WHERE guard yet still return 200.
-    owned_ids = {
-        aid for (aid,) in db.query(AuthorModel.author_id).filter(
+    # otherwise be silently skipped by the WHERE guard yet still return 200. Load the
+    # current author_order alongside so person-only stubs can be rejected next.
+    owned = {
+        aid: order for (aid, order) in db.query(
+            AuthorModel.author_id, AuthorModel.author_order).filter(
             AuthorModel.reference_id == ref_id,
             AuthorModel.author_id.in_(author_ids)).all()
     }
-    unknown = [aid for aid in author_ids if aid not in owned_ids]
+    unknown = [aid for aid in author_ids if aid not in owned]
     if unknown:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"author_id(s) {unknown} do not belong to reference {reference_curie}")
+
+    # reject person-only stubs (author_order IS NULL, person_id set): they are not
+    # ordered authors, so assigning them an order would silently promote a nameless
+    # row to an ordered author that then pollutes citations/exports.
+    person_only = [aid for aid in author_ids if owned.get(aid) is None]
+    if person_only:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"author_id(s) {person_only} are person-only rows and cannot be reordered")
 
     # target author_order values must be unique within the payload; duplicates would
     # otherwise blow up as a deferred-constraint IntegrityError (500) at COMMIT.
@@ -68,14 +80,20 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"author_order value(s) {colliding} collide with authors of "
                    f"reference {reference_curie} not included in the reorder request; "
-                   f"include every author of the reference")
+                   f"include every ordered author of the reference")
 
     values = ", ".join(f"(:id{i}, :ord{i})" for i in range(len(ordering)))
     # Stamp who/when in the SAME UPDATE so the reorder shows in history AND, critically,
     # marks the reference as curator-touched: the raw UPDATE bypasses the ORM audit
     # hooks, so without this the ingest curator-gate (_reference_touched_by_curator)
     # would not see the reorder and a later ingest run could renumber the authors back.
-    params: Dict = {"ref_id": ref_id, "uid": get_global_user_id()}
+    # Stamp updated_by with the same fallback the ORM audit path uses
+    # (get_default_user_value): an unauthenticated request lands on "default_user"
+    # rather than NULL-erasing the existing stamp. Bind date_updated as an explicit
+    # UTC datetime so the timestamp matches every other write; SQL now() would cast a
+    # timestamptz through the session TimeZone into this tz-naive column and drift.
+    params: Dict = {"ref_id": ref_id, "uid": get_default_user_value(),
+                    "now": datetime.now(timezone.utc)}
     for i, item in enumerate(ordering):
         params[f"id{i}"] = item.author_id
         params[f"ord{i}"] = item.author_order
@@ -84,15 +102,19 @@ def reorder_authors(db: Session, reference_curie: str, ordering: List[Any]):
     db.execute(text("SET CONSTRAINTS uq_author_ref_order DEFERRED"))
     db.execute(text(
         f"UPDATE author AS a SET author_order = v.new_order, "
-        f"updated_by = :uid, date_updated = now() "
+        f"updated_by = :uid, date_updated = :now "
         f"FROM (VALUES {values}) AS v(author_id, new_order) "
         f"WHERE a.author_id = v.author_id AND a.reference_id = :ref_id"), params)
     try:
         db.commit()
-    except IntegrityError:
-        # a concurrent reorder can still trip the deferred uniqueness check at COMMIT;
-        # turn that residual race into a clean 409 instead of a raw 500.
+    except IntegrityError as exc:
         db.rollback()
+        # only the deferred (reference_id, author_order) uniqueness check tripping at
+        # COMMIT is a transient race worth reporting as a clean 409; any other
+        # IntegrityError (FK / NOT NULL / CHECK) is a real data bug -> re-raise it
+        # rather than mislabel it as a concurrent reorder.
+        if "uq_author_ref_order" not in str(getattr(exc, "orig", exc)):
+            raise
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Concurrent reorder detected; please retry")
