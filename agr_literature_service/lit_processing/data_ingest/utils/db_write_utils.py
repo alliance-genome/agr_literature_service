@@ -744,6 +744,16 @@ def _reference_touched_by_curator(db_session, reference_id) -> bool:
     FK to ``users.id``) with the acting user, so joining the author's audit users back
     to ``users`` and checking for a non-null ``person_id`` distinguishes a curator
     touch from an automation touch.
+
+    Known limitation: a write made with no authenticated user falls back to the
+    ``default_user`` automation row (``get_default_user_value``), and a few other
+    auth paths can stamp an automation user for a would-be curator action. Such a
+    touch would be invisible to this gate. This is accepted (not worked around in
+    shared auth code): on production every non-person-linked author audit user is a
+    genuine ingest script and every curator write resolves person-linked, so no real
+    curator touch is currently mis-classified. Normal UI curator writes (Cognito ID
+    token -> person-linked user) and this PR's person-link / reorder endpoints all
+    stamp a person-linked user, so they are correctly protected.
     """
     return db_session.query(AuthorModel.author_id).join(
         UserModel,
