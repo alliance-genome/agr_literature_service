@@ -32,7 +32,7 @@ CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
     {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
      'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
 
-ReferenceTestData = namedtuple('ReferenceTestData', ['response', 'new_ref_curie'])
+ReferenceTestData = namedtuple('ReferenceTestData', ['response', 'new_ref_curie', 'related_ref_id'])
 
 
 @pytest.fixture
@@ -46,7 +46,10 @@ def test_reference(db, auth_headers): # noqa
             "language": "MadeUp"
         }
         response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
-        yield ReferenceTestData(response, response.json()['curie'])
+        new_ref_curie = response.json()['curie']
+        related_ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == new_ref_curie).scalar()
+        yield ReferenceTestData(response, new_ref_curie, related_ref_id)
 
 
 @pytest.fixture
@@ -89,6 +92,17 @@ class TestReference:
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
 
+            # an embedded author with an unknown person_curie is POST-body validation:
+            # it must surface as 422 (like other reference-create validations), not 404.
+            bad_person_reference = {
+                "title": "HasBadPerson",
+                "category": "thesis",
+                "authors": [{"author_order": 1, "name": "X",
+                             "person_curie": "AGR:AP-DOES-NOT-EXIST"}]
+            }
+            response = client.post(url="/reference/", json=bad_person_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
             # No title
             # ReferenceSchemaPost no longer raises exception
             none_title_reference = {
@@ -121,6 +135,23 @@ class TestReference:
             response = client.post(url="/reference/", json=blank_category_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_create_reference_later_author_carries_reference_curie(self, db, auth_headers, test_reference):  # noqa
+        # POST /reference with 2+ authors where a LATER author carries reference_curie
+        # must not 500. create_obj -> stripout runs db.query(ReferenceModel) for that
+        # embedded reference_curie, which would otherwise autoflush the earlier pending
+        # author (still reference_id NULL) and trip author.reference_id NOT NULL.
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Two authors ref_curie", "category": "thesis",
+                                  "authors": [{"author_order": 1, "name": "A"},
+                                              {"author_order": 2, "name": "B",
+                                               "reference_curie": test_reference.new_ref_curie}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == r.json()["curie"]).scalar()
+        authors = db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id).all()
+        assert len(authors) == 2
 
     def test_retraction_status(self, db, auth_headers, test_reference):  # noqa
         # retraction_status stores ATP curies (no DB constraint):
@@ -1233,3 +1264,43 @@ class TestReferenceEmails:
         addrs = sorted(row.email_address.lower() for row in listing)
         # Full replace: the curator row is dropped, only the new address remains.
         assert addrs == ["newonly@example.com"]
+
+
+def test_reference_authors_split_person_only(db, auth_headers, test_reference):  # noqa
+    from starlette.testclient import TestClient
+    from agr_literature_service.api.main import app
+    from agr_literature_service.api.models import AuthorModel, PersonModel
+    ref_id = test_reference.related_ref_id
+    db.add(AuthorModel(reference_id=ref_id, author_order=1, name="Real Author"))
+    p = PersonModel(display_name="Stub P", curie="AGR:AP-REF-1")
+    db.add(p)
+    db.commit()
+    db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))  # link-only stub
+    db.commit()
+    with TestClient(app) as client:
+        got = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers).json()
+    assert all(a["author_order"] is not None for a in got["authors"])
+    assert any(a["name"] == "Real Author" for a in got["authors"])
+    assert len(got["author_person_without_author_order"]) == 1
+    assert got["author_person_without_author_order"][0]["person_id"] == p.person_id
+
+
+def test_citation_excludes_person_only(db, auth_headers, test_reference):  # noqa
+    from agr_literature_service.api.models import AuthorModel, PersonModel, ReferenceModel
+    ref_id = test_reference.related_ref_id
+    db.add(AuthorModel(reference_id=ref_id, author_order=1, name="Real", last_name="Real", first_initial="R"))
+    p = PersonModel(display_name="Ghost", curie="AGR:AP-CIT-1")
+    db.add(p)
+    db.commit()
+    db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))  # link-only stub, no name
+    db.commit()
+    # force citation rebuild (trigger fires on author insert)
+    ref = db.query(ReferenceModel).filter(ReferenceModel.reference_id == ref_id).one()
+    db.refresh(ref)
+    citation = ref.citation.citation if ref.citation else ""
+    # The person-only stub has no name, so it must not appear at all. If the
+    # trigger included the NULL-order row it would emit an empty author and a
+    # spurious "; ," separator ahead of the year.
+    assert "Ghost" not in citation
+    assert "; ," not in citation
+    assert citation.startswith("Real,")
