@@ -775,13 +775,6 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     Skip these authors during the update and send a report to the curators.
     """
 
-    # Skip any reference a human curator has touched: if any of its author rows was
-    # created or updated by a curator (person-linked) user, its authors are
-    # curator-managed and ingest must not touch them. Returns the same "no changes"
-    # shape as the other early-returns.
-    if _reference_touched_by_curator(db_session, reference_id):
-        return []
-
     if author_list_in_json is None:
         author_list_in_json = []
     if author_list_in_db is None:
@@ -822,6 +815,15 @@ def update_authors(db_session: Session, reference_id, author_list_in_db: Any, au
     # author_reorder_crud.reorder_authors, not this ingest path.
     name_removed = [author.name for author in authors_from_db if author.name]
     name_added = [author.name for author in authors_from_json if author.name]
+
+    # Skip any reference a human curator has touched: if any of its author rows was
+    # created or updated by a curator (person-linked) user, its authors are
+    # curator-managed and ingest must not touch them. Returns the same "no changes"
+    # shape as the other early-returns. Checked here -- after the no-change early
+    # return above -- so unchanged references (the vast majority of a full run) don't
+    # pay for this query; nothing between the equality check and here mutates state.
+    if _reference_touched_by_curator(db_session, reference_id):
+        return []
 
     replace_authors_from_json(db_session, reference_id, authors_from_json)
     db_session.flush()
