@@ -47,6 +47,7 @@ BEGIN
 
     for auth in SELECT * FROM author
       WHERE author.reference_id = ref_id
+        AND author.author_order IS NOT NULL
       ORDER BY author.author_order asc
     loop
       -- raise notice 'Record %', auth;
