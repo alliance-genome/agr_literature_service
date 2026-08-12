@@ -17,6 +17,7 @@ other (same layout as zfin_reference_tag_utils.py).
 import logging
 from collections import defaultdict
 from os import environ
+from time import sleep
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from fastapi import HTTPException
@@ -83,8 +84,14 @@ PROGRESS_LOG_INTERVAL = 1000
 MAX_ASSOCIATIONS_PER_PAPER = 250
 
 # Abort a run if this many create_tag calls fail in a row (a sign the DB
-# connection or session is wedged, rather than a few bad rows).
+# connection or session is wedged, rather than a few bad rows). Each
+# consecutive error also waits ERROR_BACKOFF_SECONDS * n (capped at
+# ERROR_BACKOFF_MAX_SECONDS) before the next attempt, so a transient network
+# outage has ~10+ minutes to clear before the abort threshold is reached
+# instead of burning through it in seconds.
 ABORT_AFTER_CONSECUTIVE_ERRORS = 25
+ERROR_BACKOFF_SECONDS = 5
+ERROR_BACKOFF_MAX_SECONDS = 60
 
 # Cap the number of "not in corpus" papers listed inline in the emailed report;
 # the full set is always written to the log file.
@@ -254,6 +261,12 @@ def create_entity_tags(db: Session,
                          consecutive_errors)
             counts["aborted"] = True
             return
+        if consecutive_errors:
+            backoff = min(ERROR_BACKOFF_MAX_SECONDS,
+                          ERROR_BACKOFF_SECONDS * consecutive_errors)
+            logger.warning("Waiting %ds before next create_tag attempt "
+                           "(%d consecutive errors)", backoff, consecutive_errors)
+            sleep(backoff)
 
 
 def new_counts() -> Dict:
