@@ -274,16 +274,7 @@ def check_and_set_species(topic_entity_tag_data):
         topic_entity_tag_data['species'] = None
 
 
-def check_and_set_sgd_display_tag(topic_entity_tag_data, source_method=None):
-
-    # Pure entity association tags from the SGD reference-curation loaders
-    # (SCRUM-6404) only record that an entity is discussed by the paper; they
-    # must not assert a literature classification. Every other SGD source keeps
-    # the topic-based display_tag stamping: triage litguide topics share ATP
-    # ids with entity types (e.g. Alleles/Pathways), so topic == entity_type
-    # alone cannot distinguish the two cases.
-    if source_method == "sgd_reference_curation":
-        return
+def check_and_set_sgd_display_tag(topic_entity_tag_data):
 
     topic = topic_entity_tag_data['topic']
     entity = topic_entity_tag_data['entity']
