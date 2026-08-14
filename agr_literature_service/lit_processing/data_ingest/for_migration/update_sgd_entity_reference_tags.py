@@ -20,7 +20,7 @@ corpus membership. As in the one-off load, the tag's created_by/updated_by is
 the SGD curator who added the reference (the SGD created_by database id,
 resolved to a users.id by first/last name or Stanford email local-part -- see
 sgd_reference_tag_utils.resolve_sgd_created_by). Idempotent and add-only, so
-it is safe to run on a cron (default window of 7 days overlaps comfortably
+it is safe to run on a cron (default window of 30 days overlaps comfortably
 with a weekly schedule; already-loaded associations are skipped up front).
 
 Known limitation: the SGD endpoint windows on the reference's SGD creation
@@ -68,7 +68,7 @@ load_dotenv()
 
 SGD_BACKEND_URL = environ.get("SGD_BACKEND_URL", "https://backend.yeastgenome.org")
 
-DEFAULT_DAYS_ADDED = 7
+DEFAULT_DAYS_ADDED = 30
 REQUEST_TIMEOUT = 300
 
 MISSING_LOG = "sgd_entity_reference_update_missing_ref_ids.log"
@@ -113,6 +113,9 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
     # Rebind under a non-Optional name: mypy does not carry the None-narrowing
     # into the associations() closure below.
     references: List[Dict] = fetched
+    if not references:
+        logger.info("No references in the SGD API window; nothing to do")
+        return counts
 
     db = create_postgres_session(False)
     script_name = path.basename(__file__).replace(".py", "")
