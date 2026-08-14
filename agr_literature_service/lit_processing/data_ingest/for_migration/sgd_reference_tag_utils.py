@@ -231,19 +231,26 @@ def build_sgd_corpus_ref_curies(db: Session) -> Set[str]:
     return {row[0] for row in rows}
 
 
-def load_existing_entity_tags(db: Session, source_id: int) -> Set[Tuple[str, str, str]]:
+def load_existing_entity_tags(db: Session, source_id: int,
+                              reference_curies: Optional[Iterable[str]] = None) -> Set[Tuple[str, str, str]]:
     """Return the set of (reference_curie, entity_type_atp, entity) already tagged
     by this source as pure entity tags (topic == entity_type, one of the four SGD
     entity ATPs). Used to skip already-loaded associations up front so a re-run
-    does not pay create_tag's per-row duplicate-check cost."""
-    rows = db.execute(text(
-        "SELECT r.curie, tet.entity_type, tet.entity "
-        "FROM   topic_entity_tag tet "
-        "JOIN   reference r ON tet.reference_id = r.reference_id "
-        "WHERE  tet.topic_entity_tag_source_id = :sid "
-        "AND    tet.topic = tet.entity_type "
-        "AND    tet.entity_type = ANY(:atps)"
-    ), {"sid": source_id, "atps": list(ENTITY_TYPE_TO_ATP.values())}).fetchall()
+    does not pay create_tag's per-row duplicate-check cost. ``reference_curies``
+    limits the query to those references -- the incremental updater only touches
+    the papers in its API window, so it must not pull (and hold in memory) the
+    whole historical tag set the way the one-off full load has to."""
+    sql = ("SELECT r.curie, tet.entity_type, tet.entity "
+           "FROM   topic_entity_tag tet "
+           "JOIN   reference r ON tet.reference_id = r.reference_id "
+           "WHERE  tet.topic_entity_tag_source_id = :sid "
+           "AND    tet.topic = tet.entity_type "
+           "AND    tet.entity_type = ANY(:atps)")
+    params: Dict = {"sid": source_id, "atps": list(ENTITY_TYPE_TO_ATP.values())}
+    if reference_curies is not None:
+        sql += " AND r.curie = ANY(:ref_curies)"
+        params["ref_curies"] = list(reference_curies)
+    rows = db.execute(text(sql), params).fetchall()
     return {(row[0], row[1], row[2]) for row in rows}
 
 
@@ -352,6 +359,7 @@ def new_counts() -> Dict:
         "skipped_duplicate": 0,
         "duplicate_in_input": 0,
         "unknown_entity_type": 0,
+        "missing_entity_id": 0,
         "missing_reference": 0,
         "not_in_corpus": 0,
         "skipped_over_cap": 0,
@@ -374,6 +382,7 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
     message += f"<li>Already present (skipped): {counts['skipped_duplicate']}"
     message += f"<li>Duplicate associations within input: {counts['duplicate_in_input']}"
     message += f"<li>Unknown entity types skipped: {counts['unknown_entity_type']}"
+    message += f"<li>Associations without an entity sgdid skipped: {counts['missing_entity_id']}"
     message += f"<li>References not found in ABC: {counts['missing_reference']}"
     message += f"<li>Associations skipped (paper not in SGD corpus): {counts['not_in_corpus']}"
     message += (f"<li>Associations skipped (&gt; {MAX_ASSOCIATIONS_PER_PAPER} per entity type per paper): "
@@ -394,13 +403,14 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
 def log_run_summary(counts: Dict, label: str) -> None:
     logger.info(
         "%s done: total_associations=%d created=%d skipped_duplicate=%d "
-        "duplicate_in_input=%d unknown_entity_type=%d missing_reference=%d "
-        "not_in_corpus=%d skipped_over_cap=%d papers_over_cap=%d errors=%d",
+        "duplicate_in_input=%d unknown_entity_type=%d missing_entity_id=%d "
+        "missing_reference=%d not_in_corpus=%d skipped_over_cap=%d "
+        "papers_over_cap=%d errors=%d",
         label, counts["total_associations"], counts["created"],
         counts["skipped_duplicate"], counts["duplicate_in_input"],
-        counts["unknown_entity_type"], counts["missing_reference"],
-        counts["not_in_corpus"], counts["skipped_over_cap"],
-        counts["papers_over_cap"], counts["errors"],
+        counts["unknown_entity_type"], counts["missing_entity_id"],
+        counts["missing_reference"], counts["not_in_corpus"],
+        counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],
     )
 
 

@@ -110,7 +110,7 @@ def count_associations_per_paper(file_with_path: str) -> Dict[Tuple[str, str], S
     association count for a type exceeds MAX_ASSOCIATIONS_PER_PAPER."""
     entities_by_paper = new_entities_by_paper()
     for reference_sgdid, entity_type, entity_sgdid, _created_by in parse_references_with_entities(file_with_path):
-        if entity_type not in ENTITY_TYPE_TO_ATP:
+        if entity_type not in ENTITY_TYPE_TO_ATP or not entity_sgdid:
             continue
         entities_by_paper[(_sgd_curie(reference_sgdid), entity_type)].add(entity_sgdid)
     return entities_by_paper
@@ -164,6 +164,10 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                     )
                 if entity_type not in ENTITY_TYPE_TO_ATP:
                     counts["unknown_entity_type"] += 1
+                    continue
+                if not entity_sgdid:
+                    # would otherwise become a real tag with entity "SGD:"
+                    counts["missing_entity_id"] += 1
                     continue
                 ref_token = _sgd_curie(reference_sgdid)
                 if (ref_token, entity_type) in over_cap_papers:

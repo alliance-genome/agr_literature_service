@@ -1,6 +1,6 @@
 """
-update_sgd_gene_reference_tags.py
-=================================
+update_sgd_entity_reference_tags.py
+===================================
 
 Incremental updater for the SGD entity-reference associations loaded by
 load_sgd_entity_reference_tags.py (SCRUM-6404). Instead of a file dump, it
@@ -19,9 +19,14 @@ same shared SGD reference-curation source as the one-off load, gated on SGD
 corpus membership. As in the one-off load, the tag's created_by/updated_by is
 the SGD curator who added the reference (the SGD created_by database id,
 resolved to a users.id by first/last name or Stanford email local-part -- see
-sgd_reference_tag_utils.resolve_sgd_created_by). Idempotent and add-only, so it is safe to run on a cron
-(default window of 7 days overlaps comfortably with a weekly schedule;
-already-loaded associations are skipped up front).
+sgd_reference_tag_utils.resolve_sgd_created_by). Idempotent and add-only, so
+it is safe to run on a cron (default window of 7 days overlaps comfortably
+with a weekly schedule; already-loaded associations are skipped up front).
+
+Known limitation: the SGD endpoint windows on the reference's SGD creation
+date, so an association a curator attaches later to a paper SGD added before
+the window is never picked up here -- only a re-run of the one-off loader
+catches those. This keeps NEW papers in sync, not retrofitted associations.
 """
 import argparse
 import logging
@@ -78,7 +83,10 @@ def fetch_references_with_entities(days_added: int) -> Optional[List[Dict]]:
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
-        references = response.json().get("references", [])
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError(f"unexpected response shape: {type(payload).__name__}")
+        references = payload.get("references", [])
         logger.info(f"SGD returned {len(references)} references with entities")
         return references
     except (requests.RequestException, ValueError) as e:
@@ -90,7 +98,7 @@ def _sgd_curie(sgdid: str) -> str:
     return sgdid if sgdid.startswith(f"{SGD_CURIE_PREFIX}:") else f"{SGD_CURIE_PREFIX}:{sgdid}"
 
 
-def update_sgd_gene_reference_tags(days_added: int) -> Dict:
+def update_sgd_entity_reference_tags(days_added: int) -> Dict:
     """Create entity TETs for SGD references added in the last ``days_added`` days.
 
     Returns:
@@ -112,6 +120,7 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
 
     missing_ref_ids: Set[str] = set()
     not_in_corpus_refs: Dict[str, str] = {}
+    over_cap_paper_tokens: Set[str] = set()
     # SGD curator database id -> users.id (resolve_sgd_created_by memoization).
     user_id_cache: Dict[str, str] = {}
 
@@ -121,8 +130,16 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
         logger.info(f"Loaded {len(sgd_to_ref_curie)} SGD reference cross_references")
         sgd_corpus_ref_curies = build_sgd_corpus_ref_curies(db)
         logger.info(f"Loaded {len(sgd_corpus_ref_curies)} references in the SGD corpus")
-        existing_tags = load_existing_entity_tags(db, source_id)
-        logger.info(f"Loaded {len(existing_tags)} entity tags already present for this source")
+        # Only the references in the API window can produce tags, so scope the
+        # already-present set to them instead of pulling the whole historical
+        # tag corpus of this source into memory on every cron run.
+        window_ref_curies = [curie for curie in
+                             (sgd_to_ref_curie.get(_sgd_curie(r.get("sgdid") or ""))
+                              for r in references)
+                             if curie is not None]
+        existing_tags = load_existing_entity_tags(db, source_id, window_ref_curies)
+        logger.info(f"Loaded {len(existing_tags)} entity tags already present for "
+                    f"this source on the {len(window_ref_curies)} window references")
 
         def associations() -> Iterator[Tuple[str, str, str, Optional[str]]]:
             for reference in references:
@@ -148,13 +165,21 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
                     if entity_type not in ENTITY_TYPE_TO_ATP:
                         counts["unknown_entity_type"] += 1
                         continue
-                    entities_by_type.setdefault(entity_type, set()).add(
-                        _sgd_curie(entity.get("entity_sgdid") or ""))
+                    entity_sgdid = entity.get("entity_sgdid") or ""
+                    if not entity_sgdid:
+                        # would otherwise become a real tag with entity "SGD:"
+                        counts["missing_entity_id"] += 1
+                        continue
+                    entities_by_type.setdefault(entity_type, set()).add(_sgd_curie(entity_sgdid))
 
                 for entity_type, entity_curies in entities_by_type.items():
                     if len(entity_curies) > MAX_ASSOCIATIONS_PER_PAPER:
                         counts["skipped_over_cap"] += len(entity_curies)
-                        counts["papers_over_cap"] += 1
+                        # count distinct papers, matching the one-off loader's
+                        # report semantics (not (paper, type) groups)
+                        if ref_token not in over_cap_paper_tokens:
+                            over_cap_paper_tokens.add(ref_token)
+                            counts["papers_over_cap"] += 1
                         logger.info(
                             "Skipping %d %s associations for %s (over the %d cap)",
                             len(entity_curies), entity_type, ref_token,
@@ -208,6 +233,6 @@ if __name__ == "__main__":  # pragma: no cover
     )
     args = parser.parse_args()
 
-    run_counts = update_sgd_gene_reference_tags(days_added=args.days_added)
+    run_counts = update_sgd_entity_reference_tags(days_added=args.days_added)
     report = compose_report_message(run_counts, args.days_added)
     deliver_report("SGD Entity-Reference Association Update Report", report, args.no_email)
