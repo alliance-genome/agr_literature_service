@@ -1,16 +1,21 @@
-# Tracking multiple sources per curation tag — design proposal
+# Tracking multiple sources per curation_status entry — design proposal
 
 **Status:** proposal for discussion
 **Date:** 2026-07-31
 
+> **Terminology.** Throughout this document "curation_status entry" means a row of the
+> `curation_status` table. It is deliberately *not* called a "curation tag": `curation_tag`
+> is an existing column on both `curation_status` and `workflow_tag`, and reusing the word
+> for the row itself would be ambiguous.
+
 ## Problem
 
-Curators want to know *where* the information behind a curation tag came from, and *what
-each source said*. For one topic on one paper the information can arrive from several
+Curators want to know *where* the information behind a curation_status entry came from, and
+*what each source said*. For one topic on one paper the information can arrive from several
 places — a GAF file load, a MOD data submission, a manual curator assertion in the UI —
 and today none of that is recorded.
 
-The tag itself has to stay single. `curation_status` is unique on
+The entry itself has to stay single. `curation_status` is unique on
 `(topic, reference_id, mod_id)`: exactly one row, one current state, per topic per paper
 per MOD. That is the behaviour we want to keep.
 
@@ -19,39 +24,40 @@ per MOD. That is the behaviour we want to keep.
 This is the part worth stating out loud before any of the schema, because it is the easy
 thing to get wrong:
 
-> **The tag tracks the workflow. The sources report; they do not drive it.**
+> **The curation_status entry tracks the workflow. The sources report; they do not drive
+> it.**
 
-- A **curation tag is workflow state.** It has one current value, it moves through
+- A **curation_status entry is workflow state.** It has one current value, it moves through
   defined transitions, and it is authoritative. That is what curators act on, and it is
   what the rest of the system reads.
 - A **source contribution records what that source reported** — a status value of its own,
   alongside the provenance of where it came from. That value is *informational*. It never
-  drives, overrides, or blocks the tag.
+  drives, overrides, or blocks the entry.
 
 Four consequences fall out of that, and they are what the model below encodes:
 
 1. **Two levels of status coexist.** `curation_status.curation_status` is authoritative
    and single. `curation_status_source_association.curation_status` is per contribution
    and informational. The second never silently becomes the first.
-2. **They are allowed to disagree.** A GAF load reporting `curated` against a tag sitting
-   at `no data` is not an error or a data-integrity problem — it is precisely the
+2. **They are allowed to disagree.** A GAF load reporting `curated` against an entry
+   sitting at `no data` is not an error or a data-integrity problem — it is precisely the
    information curators asked to see.
-3. **Reconciliation is manual.** Nothing recomputes the tag from its contributions. There
+3. **Reconciliation is manual.** Nothing recomputes the entry from its contributions. There
    is no precedence order, no last-write-wins across sources, no automatic promotion. A
-   curator reads the contributions and sets the tag.
+   curator reads the contributions and sets the entry's status.
 4. **The two are decoupled in both directions.** Recording a contribution never moves the
-   workflow; changing the tag never rewrites or clears the contribution log.
+   workflow; changing the entry never rewrites or clears the contribution log.
 
 ## Proposal
 
 Keep `curation_status` as the single current-state row, and attach an **association
 table** holding one row per **contribution**. Each row carries the status that source
 reported plus the audited-object fields, so every contribution is attributable to a person
-(or an automation user) and timestamped independently of the tag itself — the row's
+(or an automation user) and timestamped independently of the entry itself — the row's
 `date_created` / `created_by` record when and by whom it was made.
 
 Note that this is one row per *contribution*, not per source: the same source may appear
-against the same tag more than once. If a GAF load supplies GO information in March and
+against the same entry more than once. If a GAF load supplies GO information in March and
 again in July, that is two rows, and both stay. Repeat contributions are exactly the
 history curators want to see, so there is deliberately no unique constraint collapsing
 them. A consequence worth spelling out: because a source can contribute repeatedly and
@@ -62,8 +68,8 @@ recent row for that source, not the only one.
 between the association rows and their parent (`assoc.curation_status IS DISTINCT FROM
 parent.curation_status`), so no flag column is proposed. What it needs is a curator: they
 look at the contributions, decide, and set `curation_status.curation_status` themselves.
-That write is an ordinary tag update, audited as it is today; it does not touch the
-contribution log, and the log keeps showing what each source reported even after the tag
+That write is an ordinary entry update, audited as it is today; it does not touch the
+contribution log, and the log keeps showing what each source reported even after the entry
 moves away from it.
 
 Two options differ only in **how the source vocabulary is modelled**. Everything else is
@@ -169,7 +175,7 @@ classDiagram
 
 - **No unique constraint** on `(curation_status_id, tag_source_id)`. Repeat contributions
   from the same source are allowed and each gets its own row, so the table reads as an
-  append-only contribution log per tag.
+  append-only contribution log per entry.
 - **No constraint tying `curation_status_source_association.curation_status` to its
   parent's value.** They are deliberately free to differ — that is the whole point. Both
   draw from the same value vocabulary as `curation_status.curation_status`.
@@ -323,8 +329,8 @@ classDiagram
    no `__versioned__` on `CurationStatusModel`, no version table in any migration, and
    no `curation_status_version` in the dev database (verified 2026-07-31 — only
    `workflow_tag_version` and `topic_entity_tag_version` are there). So "when did this go
-   from `no data` to `curated`" is currently unanswerable for curation tags, and the
-   contribution log proposed here is not a substitute for it. **Question for curators:
+   from `no data` to `curated`" is currently unanswerable for curation_status entries, and
+   the contribution log proposed here is not a substitute for it. **Question for curators:
    do they need value history on this table?** If yes, it is a one-line `__versioned__`
    addition plus a migration — small, but its own ticket rather than folded in here.
 3. **Paper-level tags.** `workflow_tag` (per reference + mod, ATP term + `curation_tag`)
@@ -332,9 +338,9 @@ classDiagram
    `workflow_tag_source_association` table. Out of scope here; worth confirming that
    curators want it there too.
 4. **Surfacing disagreement.** Manual reconciliation only works if curators can find the
-   disagreements. Is an on-demand comparison enough — a filter or report listing tags
-   whose contributions differ from the tag itself — or do they want to be actively
-   notified when a load produces a value that conflicts with the current tag? This is a
+   disagreements. Is an on-demand comparison enough — a filter or report listing entries
+   whose contributions differ from the entry itself — or do they want to be actively
+   notified when a load produces a value that conflicts with the current entry? This is a
    UI and reporting requirement rather than a schema one; the data supports either.
 5. **Naming.** `curation_status_source_association` follows the existing
    `mod_corpus_association` precedent. Shorter alternatives (`curation_status_source_link`)
