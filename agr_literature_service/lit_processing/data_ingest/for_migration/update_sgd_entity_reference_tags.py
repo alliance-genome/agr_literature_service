@@ -21,13 +21,15 @@ same shared SGD reference-curation source as the one-off load, gated on SGD
 corpus membership. As in the one-off load, the tag's created_by/updated_by is
 the SGD curator who added the reference (the SGD created_by database id,
 resolved to a users.id by first/last name or Stanford email local-part -- see
-sgd_reference_tag_utils.resolve_sgd_created_by), gene tags get a display_tag
-mapped from the SGD literature topic (see gene_display_tag; complex/allele/
-pathway display_tags are stamped by create_tag from the topic ATP), and the
-tag's date_created is preserved from SGD (the reference's date_created there)
-with the run time as date_updated. Idempotent and add-only, so
-it is safe to run on a cron (default window of 30 days overlaps comfortably
-with a weekly schedule; already-loaded associations are skipped up front).
+sgd_reference_tag_utils.resolve_sgd_created_by), every tag gets a display_tag
+mapped from the SGD literature topic (see sgd_display_tag), and the tag's
+date_created is preserved from SGD (the reference's date_created there) with
+the run time as date_updated. Idempotent, so it is safe to run on a cron
+(default window of 30 days overlaps comfortably with a weekly schedule):
+already-loaded associations in the window are corrected in place when their
+display_tag/date_created disagree with SGD (see maybe_update_existing_tag,
+e.g. a curator recategorized the paper's literature topic) and skipped
+otherwise; tags are never deleted (add-only in that sense).
 
 Known limitation: the SGD endpoint windows on the reference's SGD creation
 date, so an association a curator attaches later to a paper SGD added before
@@ -54,7 +56,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     create_entity_tags,
     deliver_report,
     format_report_counts,
-    gene_display_tag,
+    sgd_display_tag,
     get_or_create_source,
     load_existing_entity_tags,
     log_run_summary,
@@ -183,7 +185,7 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                         counts["missing_entity_id"] += 1
                         continue
                     entities_by_type.setdefault(entity_type, {})[_sgd_curie(entity_sgdid)] = \
-                        gene_display_tag(entity_type, entity.get("topic"))
+                        sgd_display_tag(entity.get("topic"))
 
                 for entity_type, entity_curies in entities_by_type.items():
                     if len(entity_curies) > MAX_ASSOCIATIONS_PER_PAPER:
