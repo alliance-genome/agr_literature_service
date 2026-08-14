@@ -17,16 +17,24 @@ zfin_reference_tag_utils.py).
 """
 import logging
 from collections import defaultdict
+from datetime import datetime
 from os import environ
 from time import sleep
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+import pytz
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
+from agr_literature_service.api.crud.topic_entity_tag_utils import (
+    sgd_additional_display_tag,
+    sgd_omics_display_tag,
+    sgd_primary_display_tag,
+    sgd_review_display_tag,
+)
 from agr_literature_service.api.models import ModModel, TopicEntityTagSourceModel
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaPost,
@@ -61,6 +69,23 @@ ENTITY_TYPE_TO_ATP = {
     "complex": "ATP:0000128",
     "pathway": "ATP:0000022",
 }
+
+# The SGD literature topic each association is annotated under (the section of
+# the SGD reference page it appears in), mapped to the ABC display_tag ATP.
+# Used for GENE tags only: create_tag's SGD branch
+# (check_and_set_sgd_display_tag) stamps the display_tag of complex, allele,
+# and pathway pure-entity tags from their topic ATP regardless of the payload
+# (complex -> primary, allele/pathway -> additional, per curator decision), so
+# a value passed for those would be silently overwritten. The gene topic
+# ATP:0000005 is in none of its topic lists, so the display_tag set from this
+# mapping survives create_tag unchanged.
+SGD_TOPIC_TO_DISPLAY_TAG = {
+    "Primary Literature": sgd_primary_display_tag,        # ATP:0000147
+    "Reviews": sgd_review_display_tag,                    # ATP:0000130
+    "Omics": sgd_omics_display_tag,                       # ATP:0000148
+    "Additional Literature": sgd_additional_display_tag,  # ATP:0000132
+}
+GENE_ENTITY_TYPE = "gene"
 
 # The shared SGD reference-curation source (SCRUM-6404). All four entity types
 # use the same source row; they are told apart by entity_type.
@@ -160,6 +185,16 @@ def resolve_sgd_created_by(db: Session, sgd_created_by: str,
                     "a users row will be auto-created for it")
     cache[key] = resolved
     return resolved
+
+
+def gene_display_tag(entity_type: str, sgd_topic: Optional[str]) -> Optional[str]:
+    """Return the display_tag ATP for a gene association annotated under the
+    given SGD literature topic (None for an unknown/absent topic, e.g. rows
+    from a pre-topic dump). Non-gene entity types always return None -- their
+    display_tag is stamped by create_tag (see SGD_TOPIC_TO_DISPLAY_TAG)."""
+    if entity_type != GENE_ENTITY_TYPE:
+        return None
+    return SGD_TOPIC_TO_DISPLAY_TAG.get((sgd_topic or "").strip())
 
 
 log_path = environ.get("LOG_PATH", "")
@@ -266,18 +301,27 @@ def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -
 
 def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: str,
                       source_id: int,
-                      created_by: Optional[str] = None) -> TopicEntityTagSchemaPost:
+                      created_by: Optional[str] = None,
+                      display_tag: Optional[str] = None,
+                      date_created: Optional[str] = None) -> TopicEntityTagSchemaPost:
     """Build the pure-entity tag payload (topic == entity_type). ``created_by``
     (a users.id or verbatim SGD curator id from resolve_sgd_created_by) stamps
     both created_by and updated_by; None leaves both to the script's global
-    automation user.
+    automation user. ``display_tag`` is only passed for gene tags, derived from
+    the association's SGD literature topic (see gene_display_tag).
+    ``date_created`` (YYYY-MM-DD, when the reference was added to SGD) is
+    preserved as the tag's date_created, with the load time as date_updated --
+    both must be set explicitly, since AuditedModel's before_insert would
+    otherwise copy date_created onto date_updated. Without a date the audit
+    layer stamps both with the load time.
 
-    Not set here but stamped by create_tag's SGD branch
-    (check_and_set_sgd_display_tag), and INTENTIONAL for these tags: a
-    display_tag of ATP:0000147 (primary literature) for complex and
-    ATP:0000132 (additional literature) for allele/pathway; gene gets none.
-    The same branch re-derives data_novelty as ATP:0000334 for topic ==
-    entity_type tags, matching the value set below."""
+    For complex/allele/pathway tags create_tag's SGD branch
+    (check_and_set_sgd_display_tag) stamps the display_tag from the topic ATP,
+    and INTENTIONALLY so: ATP:0000147 (primary literature) for complex and
+    ATP:0000132 (additional literature) for allele/pathway. The same branch
+    re-derives data_novelty as ATP:0000334 for topic == entity_type tags,
+    matching the value set below."""
+    date_updated = datetime.now(tz=pytz.timezone("UTC")) if date_created else None
     return TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
         topic=entity_type_atp,
@@ -285,30 +329,37 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
         entity=entity_curie,
         entity_id_validation=ENTITY_ID_VALIDATION,
         species=SACCHAROMYCES_CEREVISIAE_TAXON,
+        display_tag=display_tag,
         data_novelty=EXISTING_DATA_NOVELTY_ATP,
         negated=False,
         topic_entity_tag_source_id=source_id,
         created_by=created_by,
         updated_by=created_by,
+        date_created=date_created or None,
+        date_updated=date_updated,
     )
 
 
 def create_entity_tags(db: Session,
-                       associations: Iterable[Tuple[str, str, str, Optional[str]]],
+                       associations: Iterable[Tuple[str, str, str, Optional[str], Optional[str], Optional[str]]],
                        source_id: int,
                        existing_tags: Set[Tuple[str, str, str]],
                        counts: Dict) -> None:
     """Create a pure entity tag for each (reference_curie, entity_type_atp,
-    entity_curie, created_by) association, updating ``counts`` in place.
-    ``created_by`` (see resolve_sgd_created_by; may be None) stamps the tag's
-    created_by/updated_by and plays no part in duplicate detection. Associations
-    already present in ``existing_tags`` (or repeated within ``associations``)
-    are skipped; a 409 from create_tag also counts as a duplicate. Aborts
-    (setting counts["aborted"]) after ABORT_AFTER_CONSECUTIVE_ERRORS
-    consecutive errors."""
+    entity_curie, created_by, display_tag, date_created) association, updating
+    ``counts`` in place. ``created_by`` (see resolve_sgd_created_by; may be
+    None) stamps the tag's created_by/updated_by; ``display_tag`` (see
+    gene_display_tag; only set for gene tags) is the display_tag ATP derived
+    from the SGD literature topic; ``date_created`` (YYYY-MM-DD; may be None)
+    is preserved as the tag's date_created (see build_tag_payload). None of
+    the three plays a part in duplicate detection. Associations already
+    present in ``existing_tags`` (or repeated within ``associations``) are
+    skipped; a 409 from create_tag also counts as a duplicate. Aborts (setting
+    counts["aborted"]) after ABORT_AFTER_CONSECUTIVE_ERRORS consecutive
+    errors."""
     seen: Set[Tuple[str, str, str]] = set()
     consecutive_errors = 0
-    for reference_curie, entity_type_atp, entity_curie, created_by in associations:
+    for reference_curie, entity_type_atp, entity_curie, created_by, display_tag, date_created in associations:
         association = (reference_curie, entity_type_atp, entity_curie)
         if association in existing_tags:
             counts["skipped_duplicate"] += 1
@@ -321,7 +372,7 @@ def create_entity_tags(db: Session,
         try:
             _tag_id, was_upsert = create_tag(
                 db, build_tag_payload(reference_curie, entity_type_atp, entity_curie,
-                                      source_id, created_by),
+                                      source_id, created_by, display_tag, date_created),
                 validate_on_insert=False,
             )
             counts["skipped_duplicate" if was_upsert else "created"] += 1

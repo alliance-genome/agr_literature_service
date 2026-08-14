@@ -11,15 +11,21 @@ calls the SGD backend API for references recently added to SGD:
 which returns only references that have associated entities, each as
     {"sgdid": "S100004374", "date_created": "2026-07-08", "created_by": "<sgd_user_id>",
      "entities": [{"entity_type": "gene", "entity_name": "CDC48",
-                   "entity_sgdid": "S000002284"}, ...]}
-with entity_type one of gene/allele/complex/pathway.
+                   "entity_sgdid": "S000002284", "topic": "Primary Literature"}, ...]}
+with entity_type one of gene/allele/complex/pathway and topic the SGD
+literature topic the entity is annotated under (Primary Literature |
+Additional Literature | Reviews | Omics).
 
 Every association becomes a "pure entity" tag (topic == entity_type) from the
 same shared SGD reference-curation source as the one-off load, gated on SGD
 corpus membership. As in the one-off load, the tag's created_by/updated_by is
 the SGD curator who added the reference (the SGD created_by database id,
 resolved to a users.id by first/last name or Stanford email local-part -- see
-sgd_reference_tag_utils.resolve_sgd_created_by). Idempotent and add-only, so
+sgd_reference_tag_utils.resolve_sgd_created_by), gene tags get a display_tag
+mapped from the SGD literature topic (see gene_display_tag; complex/allele/
+pathway display_tags are stamped by create_tag from the topic ATP), and the
+tag's date_created is preserved from SGD (the reference's date_created there)
+with the run time as date_updated. Idempotent and add-only, so
 it is safe to run on a cron (default window of 30 days overlaps comfortably
 with a weekly schedule; already-loaded associations are skipped up front).
 
@@ -48,6 +54,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     create_entity_tags,
     deliver_report,
     format_report_counts,
+    gene_display_tag,
     get_or_create_source,
     load_existing_entity_tags,
     log_run_summary,
@@ -144,7 +151,7 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
         logger.info(f"Loaded {len(existing_tags)} entity tags already present for "
                     f"this source on the {len(window_ref_curies)} window references")
 
-        def associations() -> Iterator[Tuple[str, str, str, Optional[str]]]:
+        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[str]]]:
             for reference in references:
                 ref_token = _sgd_curie(reference.get("sgdid") or "")
                 entities = reference.get("entities") or []
@@ -161,8 +168,10 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                     continue
                 tag_created_by = resolve_sgd_created_by(
                     db, reference.get("created_by") or "", user_id_cache)
+                sgd_date_created = reference.get("date_created") or None
 
-                entities_by_type: Dict[str, Set[str]] = {}
+                # entity type -> {entity curie: display_tag ATP or None}
+                entities_by_type: Dict[str, Dict[str, Optional[str]]] = {}
                 for entity in entities:
                     entity_type = entity.get("entity_type") or ""
                     if entity_type not in ENTITY_TYPE_TO_ATP:
@@ -173,7 +182,8 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                         # would otherwise become a real tag with entity "SGD:"
                         counts["missing_entity_id"] += 1
                         continue
-                    entities_by_type.setdefault(entity_type, set()).add(_sgd_curie(entity_sgdid))
+                    entities_by_type.setdefault(entity_type, {})[_sgd_curie(entity_sgdid)] = \
+                        gene_display_tag(entity_type, entity.get("topic"))
 
                 for entity_type, entity_curies in entities_by_type.items():
                     if len(entity_curies) > MAX_ASSOCIATIONS_PER_PAPER:
@@ -190,7 +200,8 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                         )
                         continue
                     for entity_curie in sorted(entity_curies):
-                        yield reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie, tag_created_by
+                        yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie,
+                               tag_created_by, entity_curies[entity_curie], sgd_date_created)
 
         create_entity_tags(db, associations(), source_id, existing_tags, counts)
 
