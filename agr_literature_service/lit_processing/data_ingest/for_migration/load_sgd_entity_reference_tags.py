@@ -33,7 +33,7 @@ Idempotent and cheap to re-run: already-loaded associations are read once up
 front and skipped before create_tag. Add-only: if SGD drops an association,
 the previously created tag persists (same trade-off as the ZFIN loaders).
 
-The incremental counterpart is update_sgd_gene_reference_tags.py, which pulls
+The incremental counterpart is update_sgd_entity_reference_tags.py, which pulls
 recently added references from the SGD API instead of a file dump.
 """
 import argparse

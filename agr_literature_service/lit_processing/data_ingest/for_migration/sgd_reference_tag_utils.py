@@ -4,7 +4,7 @@ sgd_reference_tag_utils.py
 
 Shared helpers and constants for the SGD reference-association entity-tag
 scripts (``load_sgd_entity_reference_tags.py`` and
-``update_sgd_gene_reference_tags.py``) (SCRUM-6404).
+``update_sgd_entity_reference_tags.py``) (SCRUM-6404).
 
 Both scripts create "pure entity" topic entity tags (topic == entity_type) for
 the gene/allele/complex/pathway entities SGD displays on its reference pages,
