@@ -10,9 +10,10 @@ Both scripts create "pure entity" topic entity tags (topic == entity_type) for
 the gene/allele/complex/pathway entities SGD displays on its reference pages,
 from a single shared SGD reference-curation source, gated on SGD corpus
 membership. The pieces that are identical between them -- the source, the
-reference/corpus lookups, the already-loaded skip set, the create_tag loop,
-and report/log formatting -- live here so neither script imports from the
-other (same layout as zfin_reference_tag_utils.py).
+reference/corpus lookups, the SGD-curator-to-users.id resolution, the
+already-loaded skip set, the create_tag loop, and report/log formatting --
+live here so neither script imports from the other (same layout as
+zfin_reference_tag_utils.py).
 """
 import logging
 from collections import defaultdict
@@ -96,6 +97,70 @@ ERROR_BACKOFF_MAX_SECONDS = 60
 # Cap the number of "not in corpus" papers listed inline in the emailed report;
 # the full set is always written to the log file.
 NOT_IN_CORPUS_REPORT_CAP = 100
+
+# The SGD curators who create reference-entity associations all have Stanford
+# email addresses; requiring one keeps the loose first/last-name matching below
+# from picking up a same-named person from another MOD.
+SGD_CURATOR_EMAIL_DOMAIN = "stanford.edu"
+
+# SGD NEX2 created_by values are curator database ids that match the curator's
+# first name, last name, or Stanford email local-part -- forms the generic
+# user_utils.map_to_user_id resolver does NOT handle (it only matches users.id,
+# full email, or full-name/initials+last).
+_SGD_CURATOR_MATCH_SQL = text(r"""
+    WITH candidates AS (
+        SELECT u.id AS users_id,
+               regexp_split_to_array(trim(p.display_name), '\s+') AS toks,
+               lower(split_part(e.email_address, '@', 1)) AS email_local,
+               lower(split_part(e.email_address, '@', 2)) AS email_domain
+        FROM   users u
+        JOIN   person p ON u.person_id = p.person_id
+        JOIN   person_email e ON e.person_id = p.person_id
+    )
+    SELECT DISTINCT users_id
+    FROM   candidates
+    WHERE  email_domain = :domain
+    AND    (lower(toks[1]) = :sgd_id
+            OR lower(toks[array_length(toks, 1)]) = :sgd_id
+            OR email_local = :sgd_id)
+""")
+
+
+def resolve_sgd_created_by(db: Session, sgd_created_by: str,
+                           cache: Dict[str, str]) -> Optional[str]:
+    """Resolve an SGD NEX2 created_by database id to the users.id of the
+    matching curator, memoizing per-id results in ``cache``.
+
+    A match is a person with a @stanford.edu email whose first name, last name
+    (first/last token of person.display_name), or email local-part equals the
+    SGD id, case-insensitively. When there is no match (or several people
+    match), the SGD id itself is returned and used verbatim as
+    created_by/updated_by -- the audit layer then auto-creates an automation
+    users row for it (ensure_user_exists_on_connection), per SCRUM-6404.
+    Returns None for an empty id, leaving the tag to the script's global user.
+    """
+    key = (sgd_created_by or "").strip()
+    if not key:
+        return None
+    if key in cache:
+        return cache[key]
+    rows = db.execute(_SGD_CURATOR_MATCH_SQL,
+                      {"sgd_id": key.lower(), "domain": SGD_CURATOR_EMAIL_DOMAIN}).fetchall()
+    users_ids = sorted({row[0] for row in rows})
+    if len(users_ids) == 1:
+        resolved = users_ids[0]
+        logger.info(f"SGD created_by {key} resolved to users.id {resolved}")
+    elif users_ids:
+        resolved = key
+        logger.warning(f"SGD created_by {key} matches multiple users {users_ids}; "
+                       f"keeping {key!r} as created_by")
+    else:
+        resolved = key
+        logger.info(f"SGD created_by {key} matches no Stanford person; "
+                    "a users row will be auto-created for it")
+    cache[key] = resolved
+    return resolved
+
 
 log_path = environ.get("LOG_PATH", "")
 
@@ -193,8 +258,12 @@ def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -
 
 
 def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: str,
-                      source_id: int) -> TopicEntityTagSchemaPost:
-    """Build the pure-entity tag payload (topic == entity_type)."""
+                      source_id: int,
+                      created_by: Optional[str] = None) -> TopicEntityTagSchemaPost:
+    """Build the pure-entity tag payload (topic == entity_type). ``created_by``
+    (a users.id or verbatim SGD curator id from resolve_sgd_created_by) stamps
+    both created_by and updated_by; None leaves both to the script's global
+    automation user."""
     return TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
         topic=entity_type_atp,
@@ -205,22 +274,27 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
         data_novelty=EXISTING_DATA_NOVELTY_ATP,
         negated=False,
         topic_entity_tag_source_id=source_id,
+        created_by=created_by,
+        updated_by=created_by,
     )
 
 
 def create_entity_tags(db: Session,
-                       associations: Iterable[Tuple[str, str, str]],
+                       associations: Iterable[Tuple[str, str, str, Optional[str]]],
                        source_id: int,
                        existing_tags: Set[Tuple[str, str, str]],
                        counts: Dict) -> None:
     """Create a pure entity tag for each (reference_curie, entity_type_atp,
-    entity_curie) association, updating ``counts`` in place. Associations already
-    present in ``existing_tags`` (or repeated within ``associations``) are
-    skipped; a 409 from create_tag also counts as a duplicate. Aborts (setting
-    counts["aborted"]) after ABORT_AFTER_CONSECUTIVE_ERRORS consecutive errors."""
+    entity_curie, created_by) association, updating ``counts`` in place.
+    ``created_by`` (see resolve_sgd_created_by; may be None) stamps the tag's
+    created_by/updated_by and plays no part in duplicate detection. Associations
+    already present in ``existing_tags`` (or repeated within ``associations``)
+    are skipped; a 409 from create_tag also counts as a duplicate. Aborts
+    (setting counts["aborted"]) after ABORT_AFTER_CONSECUTIVE_ERRORS
+    consecutive errors."""
     seen: Set[Tuple[str, str, str]] = set()
     consecutive_errors = 0
-    for reference_curie, entity_type_atp, entity_curie in associations:
+    for reference_curie, entity_type_atp, entity_curie, created_by in associations:
         association = (reference_curie, entity_type_atp, entity_curie)
         if association in existing_tags:
             counts["skipped_duplicate"] += 1
@@ -232,7 +306,8 @@ def create_entity_tags(db: Session,
 
         try:
             _tag_id, was_upsert = create_tag(
-                db, build_tag_payload(reference_curie, entity_type_atp, entity_curie, source_id),
+                db, build_tag_payload(reference_curie, entity_type_atp, entity_curie,
+                                      source_id, created_by),
                 validate_on_insert=False,
             )
             counts["skipped_duplicate" if was_upsert else "created"] += 1

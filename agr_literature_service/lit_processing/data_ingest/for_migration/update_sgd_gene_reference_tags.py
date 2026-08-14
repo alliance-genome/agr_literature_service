@@ -9,14 +9,17 @@ calls the SGD backend API for references recently added to SGD:
     https://backend.yeastgenome.org/references_with_entities/days_added={days}
 
 which returns only references that have associated entities, each as
-    {"sgdid": "S100004374", "date_created": "2026-07-08",
+    {"sgdid": "S100004374", "date_created": "2026-07-08", "created_by": "<sgd_user_id>",
      "entities": [{"entity_type": "gene", "entity_name": "CDC48",
                    "entity_sgdid": "S000002284"}, ...]}
 with entity_type one of gene/allele/complex/pathway.
 
 Every association becomes a "pure entity" tag (topic == entity_type) from the
 same shared SGD reference-curation source as the one-off load, gated on SGD
-corpus membership. Idempotent and add-only, so it is safe to run on a cron
+corpus membership. As in the one-off load, the tag's created_by/updated_by is
+the SGD curator who added the reference (the SGD created_by database id,
+resolved to a users.id by first/last name or Stanford email local-part -- see
+sgd_reference_tag_utils.resolve_sgd_created_by). Idempotent and add-only, so it is safe to run on a cron
 (default window of 7 days overlaps comfortably with a weekly schedule;
 already-loaded associations are skipped up front).
 """
@@ -44,6 +47,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     load_existing_entity_tags,
     log_run_summary,
     new_counts,
+    resolve_sgd_created_by,
     write_id_log,
 )
 from agr_literature_service.api.user import set_global_user_id
@@ -94,10 +98,13 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
     """
     counts = new_counts()
 
-    references = fetch_references_with_entities(days_added)
-    if references is None:
+    fetched = fetch_references_with_entities(days_added)
+    if fetched is None:
         counts["fetch_failed"] = True
         return counts
+    # Rebind under a non-Optional name: mypy does not carry the None-narrowing
+    # into the associations() closure below.
+    references: List[Dict] = fetched
 
     db = create_postgres_session(False)
     script_name = path.basename(__file__).replace(".py", "")
@@ -105,6 +112,8 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
 
     missing_ref_ids: Set[str] = set()
     not_in_corpus_refs: Dict[str, str] = {}
+    # SGD curator database id -> users.id (resolve_sgd_created_by memoization).
+    user_id_cache: Dict[str, str] = {}
 
     try:
         source_id = get_or_create_source(db)
@@ -115,7 +124,7 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
         existing_tags = load_existing_entity_tags(db, source_id)
         logger.info(f"Loaded {len(existing_tags)} entity tags already present for this source")
 
-        def associations() -> Iterator[Tuple[str, str, str]]:
+        def associations() -> Iterator[Tuple[str, str, str, Optional[str]]]:
             for reference in references:
                 ref_token = _sgd_curie(reference.get("sgdid") or "")
                 entities = reference.get("entities") or []
@@ -130,6 +139,8 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
                     counts["not_in_corpus"] += len(entities)
                     not_in_corpus_refs.setdefault(reference_curie, ref_token)
                     continue
+                tag_created_by = resolve_sgd_created_by(
+                    db, reference.get("created_by") or "", user_id_cache)
 
                 entities_by_type: Dict[str, Set[str]] = {}
                 for entity in entities:
@@ -151,7 +162,7 @@ def update_sgd_gene_reference_tags(days_added: int) -> Dict:
                         )
                         continue
                     for entity_curie in sorted(entity_curies):
-                        yield reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie
+                        yield reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie, tag_created_by
 
         create_entity_tags(db, associations(), source_id, existing_tags, counts)
 

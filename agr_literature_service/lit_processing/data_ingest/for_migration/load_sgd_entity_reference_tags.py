@@ -14,11 +14,16 @@ Tab-delimited columns (with a header line):
     3. entity_name      (e.g. ACT1, act1-1, CPX-2921, PWY3O-46; unused here)
     4. entity_sgdid     (e.g. S000002284)              -> entity
     5. date_created     (YYYY-MM-DD the reference was added to SGD; unused here)
+    6. created_by       (SGD curator database id)             -> created_by/updated_by
 
 Every association becomes a "pure entity" tag (topic == entity_type, one of
 gene/allele/complex/pathway) from the shared SGD reference-curation source.
-This is intentionally a simple load: created_by and updated_by are the
-script's automation user and the dates are the load date.
+The tag's created_by/updated_by is the SGD curator who added the reference,
+resolved to a users.id by first/last name or Stanford email local-part (see
+sgd_reference_tag_utils.resolve_sgd_created_by; unresolved ids are stored
+verbatim and get an automation users row). Rows without a created_by column
+(pre-created_by dumps) fall back to the script's automation user; the dates
+are the load date.
 
 Only references already in the SGD corpus are tagged; associations whose paper
 is not in the SGD corpus (or not in the ABC at all) are skipped and listed in
@@ -34,7 +39,7 @@ recently added references from the SGD API instead of a file dump.
 import argparse
 import logging
 from os import path
-from typing import Dict, Iterator, Set, Tuple
+from typing import Dict, Iterator, Optional, Set, Tuple
 
 from dotenv import load_dotenv
 
@@ -56,6 +61,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     log_run_summary,
     new_counts,
     new_entities_by_paper,
+    resolve_sgd_created_by,
     select_over_cap_papers,
     write_id_log,
 )
@@ -77,10 +83,11 @@ NOT_IN_CORPUS_LOG = "sgd_entity_reference_not_in_corpus.log"
 OVER_CAP_LOG = "sgd_entity_reference_over_cap.log"
 
 
-def parse_references_with_entities(file_with_path: str) -> Iterator[Tuple[str, str, str]]:
-    """Yield (reference_sgdid, entity_type, entity_sgdid) for each data row.
-    The header line and any malformed row are skipped; entity_type is yielded
-    as-is so the caller can count unknown types."""
+def parse_references_with_entities(file_with_path: str) -> Iterator[Tuple[str, str, str, str]]:
+    """Yield (reference_sgdid, entity_type, entity_sgdid, created_by) for each
+    data row. The header line and any malformed row are skipped; entity_type is
+    yielded as-is so the caller can count unknown types. created_by is "" for
+    five-column dumps that predate the created_by column."""
     with open(file_with_path) as f:
         for line in f:
             pieces = line.rstrip("\n").split("\t")
@@ -89,7 +96,8 @@ def parse_references_with_entities(file_with_path: str) -> Iterator[Tuple[str, s
             reference_sgdid = pieces[0].strip()
             if reference_sgdid == "reference_sgdid":
                 continue
-            yield reference_sgdid, pieces[1].strip(), pieces[3].strip()
+            created_by = pieces[5].strip() if len(pieces) > 5 else ""
+            yield reference_sgdid, pieces[1].strip(), pieces[3].strip(), created_by
 
 
 def _sgd_curie(sgdid: str) -> str:
@@ -101,7 +109,7 @@ def count_associations_per_paper(file_with_path: str) -> Dict[Tuple[str, str], S
     set of distinct entity sgdids associated with it, to identify papers whose
     association count for a type exceeds MAX_ASSOCIATIONS_PER_PAPER."""
     entities_by_paper = new_entities_by_paper()
-    for reference_sgdid, entity_type, entity_sgdid in parse_references_with_entities(file_with_path):
+    for reference_sgdid, entity_type, entity_sgdid, _created_by in parse_references_with_entities(file_with_path):
         if entity_type not in ENTITY_TYPE_TO_ATP:
             continue
         entities_by_paper[(_sgd_curie(reference_sgdid), entity_type)].add(entity_sgdid)
@@ -123,6 +131,8 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
     # resolved reference curie -> SGD reference curie, for references found in
     # the ABC but not in the SGD corpus (skipped, reported for curator follow-up).
     not_in_corpus_refs: Dict[str, str] = {}
+    # SGD curator database id -> users.id (resolve_sgd_created_by memoization).
+    user_id_cache: Dict[str, str] = {}
 
     try:
         source_id = get_or_create_source(db)
@@ -141,8 +151,8 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
             len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
         )
 
-        def associations() -> Iterator[Tuple[str, str, str]]:
-            for reference_sgdid, entity_type, entity_sgdid in parse_references_with_entities(input_file):
+        def associations() -> Iterator[Tuple[str, str, str, Optional[str]]]:
+            for reference_sgdid, entity_type, entity_sgdid, sgd_created_by in parse_references_with_entities(input_file):
                 counts["total_associations"] += 1
                 if counts["total_associations"] % PROGRESS_LOG_INTERVAL == 0:
                     logger.info(
@@ -167,7 +177,8 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                     counts["not_in_corpus"] += 1
                     not_in_corpus_refs.setdefault(reference_curie, ref_token)
                     continue
-                yield reference_curie, ENTITY_TYPE_TO_ATP[entity_type], _sgd_curie(entity_sgdid)
+                yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], _sgd_curie(entity_sgdid),
+                       resolve_sgd_created_by(db, sgd_created_by, user_id_cache))
 
         create_entity_tags(db, associations(), source_id, existing_tags, counts)
 
