@@ -270,7 +270,14 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
     """Build the pure-entity tag payload (topic == entity_type). ``created_by``
     (a users.id or verbatim SGD curator id from resolve_sgd_created_by) stamps
     both created_by and updated_by; None leaves both to the script's global
-    automation user."""
+    automation user.
+
+    Not set here but stamped by create_tag's SGD branch
+    (check_and_set_sgd_display_tag), and INTENTIONAL for these tags: a
+    display_tag of ATP:0000147 (primary literature) for complex and
+    ATP:0000132 (additional literature) for allele/pathway; gene gets none.
+    The same branch re-derives data_novelty as ATP:0000334 for topic ==
+    entity_type tags, matching the value set below."""
     return TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
         topic=entity_type_atp,
