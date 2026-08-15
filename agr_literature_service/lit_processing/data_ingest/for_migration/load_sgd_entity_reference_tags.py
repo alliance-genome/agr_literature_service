@@ -13,23 +13,26 @@ Tab-delimited columns (with a header line):
     2. entity_type      (gene | allele | complex | pathway)
     3. entity_name      (e.g. ACT1, act1-1, CPX-2921, PWY3O-46; unused here)
     4. entity_sgdid     (e.g. S000002284)              -> entity
-    5. date_created     (YYYY-MM-DD the reference was added to SGD) -> date_created
-    6. created_by       (SGD curator database id)             -> created_by/updated_by
+    5. date_created     (YYYY-MM-DD the association -- the literature
+                         annotation -- was curated in SGD)    -> date_created
+    6. created_by       (SGD curator database id of whoever curated the
+                         association)                 -> created_by/updated_by
     7. topic            (SGD literature topic: Primary Literature |
                          Additional Literature | Reviews | Omics) -> display_tag
                         (see sgd_display_tag)
 
 Every association becomes a "pure entity" tag (topic == entity_type, one of
 gene/allele/complex/pathway) from the shared SGD reference-curation source.
-The tag's created_by/updated_by is the SGD curator who added the reference,
-resolved to a users.id by first/last name or Stanford email local-part (see
+The tag's created_by/updated_by is the SGD curator who curated the
+association (NOT who added the paper to SGD -- those can differ), resolved to
+a users.id by first/last name or Stanford email local-part (see
 sgd_reference_tag_utils.resolve_sgd_created_by; unresolved ids are stored
 verbatim and get an automation users row). Every tag gets a display_tag mapped
 from the association's SGD literature topic, so it shows under the right
 section (Primary/Additional Lit For, Reviews, ...) on the reference pages.
-Each tag's date_created is preserved from SGD (when the reference was added
-there) with the load time as date_updated. Rows from older dumps that predate
-a column degrade gracefully: no created_by falls back to the script's
+Each tag's date_created is preserved from SGD (when the association was
+curated there) with the load time as date_updated. Rows from older dumps that
+predate a column degrade gracefully: no created_by falls back to the script's
 automation user, no topic leaves the display_tag to create_tag's topic-ATP
 stamping (complex primary, allele/pathway additional, gene none), and no
 date_created stamps both dates with the load time.
@@ -39,10 +42,11 @@ is not in the SGD corpus (or not in the ABC at all) are skipped and listed in
 the report so a curator can follow up.
 
 Idempotent and cheap to re-run: already-loaded associations are read once up
-front, corrected in place when their display_tag/date_created disagree with
-the dump (see maybe_update_existing_tag -- no delete-and-reload needed after
-a mapping fix), and skipped otherwise. Add-only: if SGD drops an association,
-the previously created tag persists (same trade-off as the ZFIN loaders).
+front, corrected in place when their display_tag/date_created/created_by
+disagree with the dump (see maybe_update_existing_tag -- no delete-and-reload
+needed after a mapping fix), and skipped otherwise. Add-only: if SGD drops an
+association, the previously created tag persists (same trade-off as the ZFIN
+loaders).
 
 The incremental counterpart is update_sgd_entity_reference_tags.py, which pulls
 recently added references from the SGD API instead of a file dump.

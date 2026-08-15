@@ -11,25 +11,31 @@ calls the SGD backend API for references recently added to SGD:
 which returns only references that have associated entities, each as
     {"sgdid": "S100004374", "date_created": "2026-07-08", "created_by": "<sgd_user_id>",
      "entities": [{"entity_type": "gene", "entity_name": "CDC48",
-                   "entity_sgdid": "S000002284", "topic": "Primary Literature"}, ...]}
-with entity_type one of gene/allele/complex/pathway and topic the SGD
-literature topic the entity is annotated under (Primary Literature |
-Additional Literature | Reviews | Omics).
+                   "entity_sgdid": "S000002284", "topic": "Primary Literature",
+                   "date_created": "2026-07-09", "created_by": "<sgd_user_id>"}, ...]}
+with entity_type one of gene/allele/complex/pathway, topic the SGD literature
+topic the entity is annotated under (Primary Literature | Additional
+Literature | Reviews | Omics), and the per-entity date_created/created_by
+those of the literature annotation itself -- when the association was curated
+and by whom, which can differ from the reference-level fields (when the paper
+was added to SGD). Entities from a backend that predates the per-entity
+fields fall back to the reference-level ones.
 
 Every association becomes a "pure entity" tag (topic == entity_type) from the
 same shared SGD reference-curation source as the one-off load, gated on SGD
 corpus membership. As in the one-off load, the tag's created_by/updated_by is
-the SGD curator who added the reference (the SGD created_by database id,
+the SGD curator who curated the association (the SGD created_by database id,
 resolved to a users.id by first/last name or Stanford email local-part -- see
 sgd_reference_tag_utils.resolve_sgd_created_by), every tag gets a display_tag
 mapped from the SGD literature topic (see sgd_display_tag), and the tag's
-date_created is preserved from SGD (the reference's date_created there) with
+date_created is preserved from SGD (the annotation's date_created there) with
 the run time as date_updated. Idempotent, so it is safe to run on a cron
 (default window of 30 days overlaps comfortably with a weekly schedule):
 already-loaded associations in the window are corrected in place when their
-display_tag/date_created disagree with SGD (see maybe_update_existing_tag,
-e.g. a curator recategorized the paper's literature topic) and skipped
-otherwise; tags are never deleted (add-only in that sense).
+display_tag/date_created/created_by disagree with SGD (see
+maybe_update_existing_tag, e.g. a curator recategorized the paper's
+literature topic) and skipped otherwise; tags are never deleted (add-only in
+that sense).
 
 Known limitation: the SGD endpoint windows on the reference's SGD creation
 date, so an association a curator attaches later to a paper SGD added before
@@ -168,12 +174,13 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                     counts["not_in_corpus"] += len(entities)
                     not_in_corpus_refs.setdefault(reference_curie, ref_token)
                     continue
-                tag_created_by = resolve_sgd_created_by(
-                    db, reference.get("created_by") or "", user_id_cache)
-                sgd_date_created = reference.get("date_created") or None
+                # reference-level fallbacks for a backend that predates the
+                # per-entity (annotation-level) date_created/created_by fields
+                ref_created_by = reference.get("created_by") or ""
+                ref_date_created = reference.get("date_created") or None
 
-                # entity type -> {entity curie: display_tag ATP or None}
-                entities_by_type: Dict[str, Dict[str, Optional[str]]] = {}
+                # entity type -> {entity curie: (display_tag, created_by, date_created)}
+                entities_by_type: Dict[str, Dict[str, Tuple[Optional[str], str, Optional[str]]]] = {}
                 for entity in entities:
                     entity_type = entity.get("entity_type") or ""
                     if entity_type not in ENTITY_TYPE_TO_ATP:
@@ -184,8 +191,11 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                         # would otherwise become a real tag with entity "SGD:"
                         counts["missing_entity_id"] += 1
                         continue
-                    entities_by_type.setdefault(entity_type, {})[_sgd_curie(entity_sgdid)] = \
-                        sgd_display_tag(entity.get("topic"))
+                    entities_by_type.setdefault(entity_type, {})[_sgd_curie(entity_sgdid)] = (
+                        sgd_display_tag(entity.get("topic")),
+                        entity.get("created_by") or ref_created_by,
+                        entity.get("date_created") or ref_date_created,
+                    )
 
                 for entity_type, entity_curies in entities_by_type.items():
                     if len(entity_curies) > MAX_ASSOCIATIONS_PER_PAPER:
@@ -202,8 +212,10 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                         )
                         continue
                     for entity_curie in sorted(entity_curies):
+                        display_tag, sgd_created_by, date_created = entity_curies[entity_curie]
                         yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie,
-                               tag_created_by, entity_curies[entity_curie], sgd_date_created)
+                               resolve_sgd_created_by(db, sgd_created_by, user_id_cache),
+                               display_tag, date_created)
 
         create_entity_tags(db, associations(), source_id, existing_tags, counts)
 

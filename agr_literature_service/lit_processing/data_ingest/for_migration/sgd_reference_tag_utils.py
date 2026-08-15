@@ -44,6 +44,7 @@ from agr_literature_service.api.models.audited_model import (
     disable_set_updated_by_onupdate,
     enable_set_updated_by_onupdate,
 )
+from agr_literature_service.api.user import add_user_if_not_exists
 from agr_literature_service.api.schemas.topic_entity_tag_schemas import (
     TopicEntityTagSchemaPost,
 )
@@ -271,9 +272,10 @@ def build_sgd_corpus_ref_curies(db: Session) -> Set[str]:
 
 
 # What load_existing_entity_tags records per existing tag, for the in-place
-# correction of display_tag/date_created on a re-run (see
-# maybe_update_existing_tag): (topic_entity_tag_id, display_tag, date_created).
-ExistingTagRow = Tuple[int, Optional[str], Optional[datetime]]
+# correction of display_tag/date_created/created_by on a re-run (see
+# maybe_update_existing_tag): (topic_entity_tag_id, display_tag, date_created,
+# created_by).
+ExistingTagRow = Tuple[int, Optional[str], Optional[datetime], Optional[str]]
 
 
 def load_existing_entity_tags(db: Session, source_id: int,
@@ -282,15 +284,16 @@ def load_existing_entity_tags(db: Session, source_id: int,
     """Return the associations already tagged by this source as pure entity tags
     (topic == entity_type, one of the four SGD entity ATPs), mapping
     (reference_curie, entity_type_atp, entity) to the tag's
-    (topic_entity_tag_id, display_tag, date_created). Read once up
+    (topic_entity_tag_id, display_tag, date_created, created_by). Read once up
     front so a re-run does not pay create_tag's per-row duplicate-check cost,
-    and so maybe_update_existing_tag can correct display_tag/date_created in
-    place without a delete-and-reload. ``reference_curies`` limits the query to
-    those references -- the incremental updater only touches the papers in its
-    API window, so it must not pull (and hold in memory) the whole historical
-    tag set the way the one-off full load has to."""
+    and so maybe_update_existing_tag can correct display_tag / date_created /
+    created_by in place without a delete-and-reload. ``reference_curies``
+    limits the query to those references -- the incremental updater only
+    touches the papers in its API window, so it must not pull (and hold in
+    memory) the whole historical tag set the way the one-off full load has
+    to."""
     sql = ("SELECT r.curie, tet.entity_type, tet.entity, "
-           "       tet.topic_entity_tag_id, tet.display_tag, tet.date_created "
+           "       tet.topic_entity_tag_id, tet.display_tag, tet.date_created, tet.created_by "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.reference_id "
            "WHERE  tet.topic_entity_tag_source_id = :sid "
@@ -301,7 +304,7 @@ def load_existing_entity_tags(db: Session, source_id: int,
         sql += " AND r.curie = ANY(:ref_curies)"
         params["ref_curies"] = list(reference_curies)
     rows = db.execute(text(sql), params).fetchall()
-    return {(row[0], row[1], row[2]): (row[3], row[4], row[5]) for row in rows}
+    return {(row[0], row[1], row[2]): (row[3], row[4], row[5], row[6]) for row in rows}
 
 
 def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -> Dict[Tuple[str, str], int]:
@@ -355,30 +358,36 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
 
 def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
                               display_tag: Optional[str],
-                              date_created: Optional[str]) -> bool:
+                              date_created: Optional[str],
+                              created_by: Optional[str]) -> bool:
     """Correct an already-loaded tag in place when the SGD input disagrees with
-    it, so a re-run fixes loaded data without a delete-and-reload. Two fields
-    are corrected: display_tag (when the input derives one -- see
-    sgd_display_tag -- that differs from the stored value; a None desired
-    value never clears a stored one) and date_created (when the input carries
-    an SGD date and the stored value is a different calendar date). Returns
-    True when an update was made, False for the no-op case.
+    it, so a re-run fixes loaded data without a delete-and-reload. Three fields
+    are corrected, each only when the input carries a value (a None desired
+    value never clears a stored one): display_tag (see sgd_display_tag),
+    date_created (when the stored value is a different calendar date), and
+    created_by (a users.id or verbatim SGD curator id from
+    resolve_sgd_created_by; updated_by is corrected along with it, matching
+    the load convention updated_by == created_by). Returns True when an update
+    was made, False for the no-op case.
 
     Updates go through the ORM so sqlalchemy-continuum writes a version row.
-    updated_by is left untouched (it stays the SGD curator from the load --
-    re-setting it to the same value does not register as a change with the
-    audit layer, whose before_update would then overwrite it with the script
-    user), so the audit auto-stamping is disabled for the flush and
-    date_updated is set to the run time explicitly."""
-    tag_id, current_display_tag, current_date_created = existing_row
+    The audit auto-stamping is disabled for the flush -- re-setting updated_by
+    to an unchanged value does not register as a change with the audit layer,
+    whose before_update would then overwrite it with the script user -- so
+    date_updated is set to the run time explicitly, and a users row is ensured
+    for a corrected created_by (before_update's ensure is skipped too)."""
+    tag_id, current_display_tag, current_date_created, current_created_by = existing_row
     new_display_tag = display_tag if display_tag and display_tag != current_display_tag else None
     new_date_created = None
     if date_created:
         current_date = current_date_created.date().isoformat() if current_date_created else None
         if current_date != date_created:
             new_date_created = date_created
-    if new_display_tag is None and new_date_created is None:
+    new_created_by = created_by if created_by and created_by != current_created_by else None
+    if new_display_tag is None and new_date_created is None and new_created_by is None:
         return False
+    if new_created_by is not None:
+        add_user_if_not_exists(db, new_created_by)
     tag = db.query(TopicEntityTagModel).filter_by(topic_entity_tag_id=tag_id).one()
     disable_set_updated_by_onupdate(tag)
     try:
@@ -386,6 +395,9 @@ def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
             tag.display_tag = new_display_tag
         if new_date_created is not None:
             tag.date_created = datetime.strptime(new_date_created, "%Y-%m-%d")
+        if new_created_by is not None:
+            tag.created_by = new_created_by
+            tag.updated_by = new_created_by
         tag.date_updated = datetime.now(tz=pytz.timezone("UTC"))
         db.commit()
     finally:
@@ -406,9 +418,10 @@ def create_entity_tags(db: Session,
     literature topic; ``date_created`` (YYYY-MM-DD; may be None) is preserved
     as the tag's date_created (see build_tag_payload). None of the three plays
     a part in duplicate detection. An association already present in
-    ``existing_tags`` is corrected in place when its display_tag/date_created
-    disagree with the input (counted as updated_existing -- see
-    maybe_update_existing_tag) and skipped otherwise; a 409 from create_tag
+    ``existing_tags`` is corrected in place when its display_tag /
+    date_created / created_by disagree with the input (counted as
+    updated_existing -- see maybe_update_existing_tag) and skipped otherwise;
+    a 409 from create_tag
     also counts as a duplicate. Aborts (setting counts["aborted"]) after
     ABORT_AFTER_CONSECUTIVE_ERRORS consecutive errors."""
     seen: Set[Tuple[str, str, str]] = set()
@@ -423,7 +436,7 @@ def create_entity_tags(db: Session,
         try:
             if association in existing_tags:
                 if maybe_update_existing_tag(db, existing_tags[association],
-                                             display_tag, date_created):
+                                             display_tag, date_created, created_by):
                     counts["updated_existing"] += 1
                 else:
                     counts["skipped_duplicate"] += 1
@@ -496,7 +509,7 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
         message += "<li><b>RUN ABORTED early after consecutive create_tag errors</b>"
     message += f"<li>Total entity-reference associations in {input_label}: {counts['total_associations']}"
     message += f"<li>Entity tags created: {counts['created']}"
-    message += (f"<li>Existing tags corrected in place (display_tag/date_created): "
+    message += (f"<li>Existing tags corrected in place (display_tag/date_created/created_by): "
                 f"{counts['updated_existing']}")
     message += f"<li>Already present (skipped): {counts['skipped_duplicate']}"
     message += f"<li>Duplicate associations within input: {counts['duplicate_in_input']}"
