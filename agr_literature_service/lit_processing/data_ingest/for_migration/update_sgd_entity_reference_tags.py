@@ -12,12 +12,13 @@ which returns only references that have associated entities, each as
     {"sgdid": "S100004374", "date_created": "2026-07-08", "created_by": "<sgd_user_id>",
      "entities": [{"entity_type": "gene", "entity_name": "CDC48",
                    "entity_sgdid": "S000002284", "topic": "Primary Literature",
-                   "date_created": "2026-07-09", "created_by": "<sgd_user_id>"}, ...]}
+                   "date_created": "2026-07-09 09:15:04", "created_by": "<sgd_user_id>"}, ...]}
 with entity_type one of gene/allele/complex/pathway, topic the SGD literature
 topic the entity is annotated under (Primary Literature | Additional
 Literature | Reviews | Omics), and the per-entity date_created/created_by
 those of the literature annotation itself -- when the association was curated
-and by whom, which can differ from the reference-level fields (when the paper
+(SGD's local Pacific time; converted to UTC here, see parse_sgd_datetime) and
+by whom, which can differ from the reference-level fields (when the paper
 was added to SGD). Entities from a backend that predates the per-entity
 fields fall back to the reference-level ones.
 
@@ -44,6 +45,7 @@ catches those. This keeps NEW papers in sync, not retrofitted associations.
 """
 import argparse
 import logging
+from datetime import datetime
 from os import environ, path
 from typing import Dict, Iterator, List, Optional, Set, Tuple
 
@@ -62,6 +64,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     create_entity_tags,
     deliver_report,
     format_report_counts,
+    parse_sgd_datetime,
     sgd_display_tag,
     get_or_create_source,
     load_existing_entity_tags,
@@ -159,7 +162,7 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
         logger.info(f"Loaded {len(existing_tags)} entity tags already present for "
                     f"this source on the {len(window_ref_curies)} window references")
 
-        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[str]]]:
+        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]]:
             for reference in references:
                 ref_token = _sgd_curie(reference.get("sgdid") or "")
                 entities = reference.get("entities") or []
@@ -215,7 +218,7 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                         display_tag, sgd_created_by, date_created = entity_curies[entity_curie]
                         yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], entity_curie,
                                resolve_sgd_created_by(db, sgd_created_by, user_id_cache),
-                               display_tag, date_created)
+                               display_tag, parse_sgd_datetime(date_created))
 
         create_entity_tags(db, associations(), source_id, existing_tags, counts)
 

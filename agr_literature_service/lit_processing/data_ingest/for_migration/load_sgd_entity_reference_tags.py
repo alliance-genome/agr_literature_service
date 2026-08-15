@@ -13,8 +13,9 @@ Tab-delimited columns (with a header line):
     2. entity_type      (gene | allele | complex | pathway)
     3. entity_name      (e.g. ACT1, act1-1, CPX-2921, PWY3O-46; unused here)
     4. entity_sgdid     (e.g. S000002284)              -> entity
-    5. date_created     (YYYY-MM-DD the association -- the literature
-                         annotation -- was curated in SGD)    -> date_created
+    5. date_created     (YYYY-MM-DD HH:MM:SS, Pacific time; when the
+                         association -- the literature annotation -- was
+                         curated in SGD; converted to UTC)    -> date_created
     6. created_by       (SGD curator database id of whoever curated the
                          association)                 -> created_by/updated_by
     7. topic            (SGD literature topic: Primary Literature |
@@ -53,6 +54,7 @@ recently added references from the SGD API instead of a file dump.
 """
 import argparse
 import logging
+from datetime import datetime
 from os import path
 from typing import Dict, Iterator, Optional, Set, Tuple
 
@@ -71,6 +73,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     create_entity_tags,
     deliver_report,
     format_report_counts,
+    parse_sgd_datetime,
     sgd_display_tag,
     get_or_create_source,
     load_existing_entity_tags,
@@ -171,7 +174,7 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
             len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
         )
 
-        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[str]]]:
+        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]]:
             for reference_sgdid, entity_type, entity_sgdid, date_created, sgd_created_by, sgd_topic \
                     in parse_references_with_entities(input_file):
                 counts["total_associations"] += 1
@@ -205,7 +208,7 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                 yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], _sgd_curie(entity_sgdid),
                        resolve_sgd_created_by(db, sgd_created_by, user_id_cache),
                        sgd_display_tag(sgd_topic),
-                       date_created or None)
+                       parse_sgd_datetime(date_created))
 
         create_entity_tags(db, associations(), source_id, existing_tags, counts)
 

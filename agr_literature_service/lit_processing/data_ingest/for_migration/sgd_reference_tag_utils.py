@@ -193,6 +193,27 @@ def resolve_sgd_created_by(db: Session, sgd_created_by: str,
     return resolved
 
 
+# SGD's NEX2 timestamps are the database's local Pacific time (Stanford);
+# the ABC stores UTC and its UI converts back to the viewer's timezone, so
+# an unconverted date renders a day early for a Pacific viewer.
+SGD_TIMEZONE = pytz.timezone("America/Los_Angeles")
+
+
+def parse_sgd_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Parse an SGD NEX2 date_created string -- 'YYYY-MM-DD HH:MM:SS', or bare
+    'YYYY-MM-DD' from an older dump -- as Pacific time (see SGD_TIMEZONE) and
+    return it as a naive UTC datetime, comparable to the ABC's stored
+    timestamps. None for an empty or unparseable value."""
+    text_value = (value or "").strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            local = SGD_TIMEZONE.localize(datetime.strptime(text_value, fmt))
+        except ValueError:
+            continue
+        return local.astimezone(pytz.utc).replace(tzinfo=None)
+    return None
+
+
 def sgd_display_tag(sgd_topic: Optional[str]) -> Optional[str]:
     """Return the display_tag ATP for an association annotated under the given
     SGD literature topic, for any entity type. None for an unknown/absent
@@ -321,7 +342,7 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
                       source_id: int,
                       created_by: Optional[str] = None,
                       display_tag: Optional[str] = None,
-                      date_created: Optional[str] = None) -> TopicEntityTagSchemaPost:
+                      date_created: Optional[datetime] = None) -> TopicEntityTagSchemaPost:
     """Build the pure-entity tag payload (topic == entity_type). ``created_by``
     (a users.id or verbatim SGD curator id from resolve_sgd_created_by) stamps
     both created_by and updated_by; None leaves both to the script's global
@@ -330,11 +351,11 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
     SGD branch (check_and_set_sgd_display_tag) keeps it, and only when it is
     None falls back to stamping complex/allele/pathway tags from the topic ATP
     (ATP:0000147 primary for complex, ATP:0000132 additional for
-    allele/pathway; gene none). ``date_created`` (YYYY-MM-DD, when the
-    reference was added to SGD) is preserved as the tag's date_created, with
-    the load time as date_updated -- both must be set explicitly, since
-    AuditedModel's before_insert would otherwise copy date_created onto
-    date_updated. Without a date the audit layer stamps both with the load
+    allele/pathway; gene none). ``date_created`` (a UTC datetime from
+    parse_sgd_datetime -- when the association was curated in SGD) is
+    preserved as the tag's date_created, with the load time as date_updated --
+    both must be set explicitly, since AuditedModel's before_insert would
+    otherwise copy date_created onto date_updated. Without a date the audit layer stamps both with the load
     time. The same create_tag branch re-derives data_novelty as ATP:0000334
     for topic == entity_type tags, matching the value set below."""
     date_updated = datetime.now(tz=pytz.timezone("UTC")) if date_created else None
@@ -358,13 +379,14 @@ def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: 
 
 def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
                               display_tag: Optional[str],
-                              date_created: Optional[str],
+                              date_created: Optional[datetime],
                               created_by: Optional[str]) -> bool:
     """Correct an already-loaded tag in place when the SGD input disagrees with
     it, so a re-run fixes loaded data without a delete-and-reload. Three fields
     are corrected, each only when the input carries a value (a None desired
     value never clears a stored one): display_tag (see sgd_display_tag),
-    date_created (when the stored value is a different calendar date), and
+    date_created (a UTC datetime from parse_sgd_datetime, compared exactly
+    against the stored timestamp), and
     created_by (a users.id or verbatim SGD curator id from
     resolve_sgd_created_by; updated_by is corrected along with it, matching
     the load convention updated_by == created_by). Returns True when an update
@@ -379,10 +401,8 @@ def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
     tag_id, current_display_tag, current_date_created, current_created_by = existing_row
     new_display_tag = display_tag if display_tag and display_tag != current_display_tag else None
     new_date_created = None
-    if date_created:
-        current_date = current_date_created.date().isoformat() if current_date_created else None
-        if current_date != date_created:
-            new_date_created = date_created
+    if date_created is not None and current_date_created != date_created:
+        new_date_created = date_created
     new_created_by = created_by if created_by and created_by != current_created_by else None
     if new_display_tag is None and new_date_created is None and new_created_by is None:
         return False
@@ -394,7 +414,7 @@ def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
         if new_display_tag is not None:
             tag.display_tag = new_display_tag
         if new_date_created is not None:
-            tag.date_created = datetime.strptime(new_date_created, "%Y-%m-%d")
+            tag.date_created = new_date_created
         if new_created_by is not None:
             tag.created_by = new_created_by
             tag.updated_by = new_created_by
@@ -406,7 +426,7 @@ def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
 
 
 def create_entity_tags(db: Session,
-                       associations: Iterable[Tuple[str, str, str, Optional[str], Optional[str], Optional[str]]],
+                       associations: Iterable[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]],
                        source_id: int,
                        existing_tags: Dict[Tuple[str, str, str], ExistingTagRow],
                        counts: Dict) -> None:
@@ -415,8 +435,9 @@ def create_entity_tags(db: Session,
     ``counts`` in place. ``created_by`` (see resolve_sgd_created_by; may be
     None) stamps the tag's created_by/updated_by; ``display_tag`` (see
     sgd_display_tag; may be None) is the display_tag ATP derived from the SGD
-    literature topic; ``date_created`` (YYYY-MM-DD; may be None) is preserved
-    as the tag's date_created (see build_tag_payload). None of the three plays
+    literature topic; ``date_created`` (a UTC datetime from parse_sgd_datetime;
+    may be None) is preserved as the tag's date_created (see
+    build_tag_payload). None of the three plays
     a part in duplicate detection. An association already present in
     ``existing_tags`` is corrected in place when its display_tag /
     date_created / created_by disagree with the input (counted as
