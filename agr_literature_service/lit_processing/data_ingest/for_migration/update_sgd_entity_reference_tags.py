@@ -31,8 +31,12 @@ sgd_reference_tag_utils.resolve_sgd_created_by), every tag gets a display_tag
 mapped from the SGD literature topic (see sgd_display_tag), and the tag's
 date_created is preserved from SGD (the annotation's date_created there) with
 the run time as date_updated. Idempotent, so it is safe to run on a cron
-(default window of 30 days overlaps comfortably with a weekly schedule):
-already-loaded associations in the window are corrected in place when their
+(default window of 30 days overlaps comfortably with a weekly schedule): an
+association a curator already tagged directly in the ABC curation interface
+(source_method abc_literature_system, matched on entity_type/species/entity
+regardless of topic -- see load_abc_entity_tags) is skipped outright, so the
+curator's tag is neither duplicated nor touched; otherwise already-loaded
+associations in the window are corrected in place when their
 display_tag/date_created/created_by disagree with SGD (see
 maybe_update_existing_tag, e.g. a curator recategorized the paper's
 literature topic) and skipped otherwise; tags are never deleted (add-only in
@@ -67,6 +71,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     parse_sgd_datetime,
     sgd_display_tag,
     get_or_create_source,
+    load_abc_entity_tags,
     load_existing_entity_tags,
     log_run_summary,
     new_counts,
@@ -161,6 +166,9 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
         existing_tags = load_existing_entity_tags(db, source_id, window_ref_curies)
         logger.info(f"Loaded {len(existing_tags)} entity tags already present for "
                     f"this source on the {len(window_ref_curies)} window references")
+        abc_tags = load_abc_entity_tags(db, window_ref_curies)
+        logger.info(f"Loaded {len(abc_tags)} SGD entity tags curated in the ABC "
+                    f"interface on the window references")
 
         def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]]:
             for reference in references:
@@ -220,7 +228,7 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                                resolve_sgd_created_by(db, sgd_created_by, user_id_cache),
                                display_tag, parse_sgd_datetime(date_created))
 
-        create_entity_tags(db, associations(), source_id, existing_tags, counts)
+        create_entity_tags(db, associations(), source_id, existing_tags, abc_tags, counts)
 
         counts["not_in_corpus_refs"] = not_in_corpus_refs
         log_run_summary(counts, f"SGD entity-reference update (days_added={days_added})")

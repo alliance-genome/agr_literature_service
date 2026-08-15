@@ -42,7 +42,11 @@ Only references already in the SGD corpus are tagged; associations whose paper
 is not in the SGD corpus (or not in the ABC at all) are skipped and listed in
 the report so a curator can follow up.
 
-Idempotent and cheap to re-run: already-loaded associations are read once up
+Idempotent and cheap to re-run: an association a curator already tagged
+directly in the ABC curation interface (source_method abc_literature_system,
+matched on entity_type/species/entity regardless of topic -- see
+load_abc_entity_tags) is skipped outright, so the curator's tag is neither
+duplicated nor touched; otherwise already-loaded associations are read once up
 front, corrected in place when their display_tag/date_created/created_by
 disagree with the dump (see maybe_update_existing_tag -- no delete-and-reload
 needed after a mapping fix), and skipped otherwise. Add-only: if SGD drops an
@@ -76,6 +80,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     parse_sgd_datetime,
     sgd_display_tag,
     get_or_create_source,
+    load_abc_entity_tags,
     load_existing_entity_tags,
     log_run_summary,
     new_counts,
@@ -165,6 +170,8 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
         logger.info(f"Loaded {len(sgd_corpus_ref_curies)} references in the SGD corpus")
         existing_tags = load_existing_entity_tags(db, source_id)
         logger.info(f"Loaded {len(existing_tags)} entity tags already present for this source")
+        abc_tags = load_abc_entity_tags(db)
+        logger.info(f"Loaded {len(abc_tags)} SGD entity tags curated in the ABC interface")
 
         over_cap_papers = select_over_cap_papers(count_associations_per_paper(input_file))
         counts["papers_over_cap"] = len({token for token, _type in over_cap_papers})
@@ -210,7 +217,7 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                        sgd_display_tag(sgd_topic),
                        parse_sgd_datetime(date_created))
 
-        create_entity_tags(db, associations(), source_id, existing_tags, counts)
+        create_entity_tags(db, associations(), source_id, existing_tags, abc_tags, counts)
 
         counts["not_in_corpus_refs"] = not_in_corpus_refs
         log_run_summary(counts, "SGD entity-reference load")

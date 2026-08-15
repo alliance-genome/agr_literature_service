@@ -98,6 +98,11 @@ SGD_TOPIC_TO_DISPLAY_TAG = {
 # ATP:0000036 = assertion by professional curator.
 SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
 SOURCE_METHOD = "sgd_reference_curation"
+# source_method of tags curated directly in the ABC curation interface. An
+# association a curator already tagged there must not be duplicated under (or
+# corrected from) the SGD reference-curation source -- the curator's tag wins
+# (see load_abc_entity_tags / create_entity_tags).
+ABC_SOURCE_METHOD = "abc_literature_system"
 SOURCE_DATA_PROVIDER = "SGD"
 SECONDARY_DATA_PROVIDER_ABBR = "SGD"
 SOURCE_DESCRIPTION = (
@@ -328,6 +333,44 @@ def load_existing_entity_tags(db: Session, source_id: int,
     return {(row[0], row[1], row[2]): (row[3], row[4], row[5], row[6]) for row in rows}
 
 
+def load_abc_entity_tags(db: Session,
+                         reference_curies: Optional[Iterable[str]] = None
+                         ) -> Set[Tuple[str, str, str]]:
+    """Return the (reference_curie, entity_type_atp, entity) associations
+    already tagged for SGD directly in the ABC curation interface -- any tag
+    from any of the SGD mod's abc_literature_system source rows whose
+    entity_type is one of the four SGD entity ATPs and whose species is
+    S. cerevisiae. A tag matches on entity_type / species / entity regardless
+    of its topic, so a curator's richer annotation of the same entity (e.g. a
+    real topic instead of a pure entity tag) also suppresses the load.
+    create_entity_tags skips these associations entirely: they are neither
+    duplicated under the SGD reference-curation source nor corrected in place
+    (the ABC curator's tag wins over the SGD input). ``reference_curies``
+    limits the query to those references, as in load_existing_entity_tags."""
+    sql = ("SELECT r.curie, tet.entity_type, tet.entity "
+           "FROM   topic_entity_tag tet "
+           "JOIN   reference r ON tet.reference_id = r.reference_id "
+           "JOIN   topic_entity_tag_source tets "
+           "       ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
+           "JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id "
+           "WHERE  tets.source_method = :abc_method "
+           "AND    m.abbreviation = :abbr "
+           "AND    tet.species = :species "
+           "AND    tet.entity_type = ANY(:atps) "
+           "AND    tet.entity IS NOT NULL")
+    params: Dict = {
+        "abc_method": ABC_SOURCE_METHOD,
+        "abbr": SECONDARY_DATA_PROVIDER_ABBR,
+        "species": SACCHAROMYCES_CEREVISIAE_TAXON,
+        "atps": list(ENTITY_TYPE_TO_ATP.values()),
+    }
+    if reference_curies is not None:
+        sql += " AND r.curie = ANY(:ref_curies)"
+        params["ref_curies"] = list(reference_curies)
+    rows = db.execute(text(sql), params).fetchall()
+    return {(row[0], row[1], row[2]) for row in rows}
+
+
 def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -> Dict[Tuple[str, str], int]:
     """Given a mapping of (paper token, entity type) -> set of associated entity
     curies, return the (paper, type) pairs whose association count exceeds
@@ -429,6 +472,7 @@ def create_entity_tags(db: Session,
                        associations: Iterable[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]],
                        source_id: int,
                        existing_tags: Dict[Tuple[str, str, str], ExistingTagRow],
+                       abc_tags: Set[Tuple[str, str, str]],
                        counts: Dict) -> None:
     """Create a pure entity tag for each (reference_curie, entity_type_atp,
     entity_curie, created_by, display_tag, date_created) association, updating
@@ -438,8 +482,12 @@ def create_entity_tags(db: Session,
     literature topic; ``date_created`` (a UTC datetime from parse_sgd_datetime;
     may be None) is preserved as the tag's date_created (see
     build_tag_payload). None of the three plays
-    a part in duplicate detection. An association already present in
-    ``existing_tags`` is corrected in place when its display_tag /
+    a part in duplicate detection. An association already tagged in the ABC
+    curation interface (present in ``abc_tags`` -- see load_abc_entity_tags)
+    is skipped outright, counted as skipped_in_abc, even when a tag from this
+    source also exists: the ABC curator's tag wins, and this script's
+    duplicate of it is left untouched. Otherwise an association already
+    present in ``existing_tags`` is corrected in place when its display_tag /
     date_created / created_by disagree with the input (counted as
     updated_existing -- see maybe_update_existing_tag) and skipped otherwise;
     a 409 from create_tag
@@ -453,6 +501,10 @@ def create_entity_tags(db: Session,
             counts["duplicate_in_input"] += 1
             continue
         seen.add(association)
+
+        if association in abc_tags:
+            counts["skipped_in_abc"] += 1
+            continue
 
         try:
             if association in existing_tags:
@@ -508,6 +560,7 @@ def new_counts() -> Dict:
         "created": 0,
         "updated_existing": 0,
         "skipped_duplicate": 0,
+        "skipped_in_abc": 0,
         "duplicate_in_input": 0,
         "unknown_entity_type": 0,
         "missing_entity_id": 0,
@@ -533,6 +586,7 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
     message += (f"<li>Existing tags corrected in place (display_tag/date_created/created_by): "
                 f"{counts['updated_existing']}")
     message += f"<li>Already present (skipped): {counts['skipped_duplicate']}"
+    message += f"<li>Already tagged in the ABC curation interface (skipped): {counts['skipped_in_abc']}"
     message += f"<li>Duplicate associations within input: {counts['duplicate_in_input']}"
     message += f"<li>Unknown entity types skipped: {counts['unknown_entity_type']}"
     message += f"<li>Associations without an entity sgdid skipped: {counts['missing_entity_id']}"
@@ -556,12 +610,14 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
 def log_run_summary(counts: Dict, label: str) -> None:
     logger.info(
         "%s done: total_associations=%d created=%d updated_existing=%d "
-        "skipped_duplicate=%d duplicate_in_input=%d unknown_entity_type=%d "
+        "skipped_duplicate=%d skipped_in_abc=%d duplicate_in_input=%d "
+        "unknown_entity_type=%d "
         "missing_entity_id=%d missing_reference=%d not_in_corpus=%d "
         "skipped_over_cap=%d papers_over_cap=%d errors=%d",
         label, counts["total_associations"], counts["created"],
         counts["updated_existing"],
-        counts["skipped_duplicate"], counts["duplicate_in_input"],
+        counts["skipped_duplicate"], counts["skipped_in_abc"],
+        counts["duplicate_in_input"],
         counts["unknown_entity_type"], counts["missing_entity_id"],
         counts["missing_reference"], counts["not_in_corpus"],
         counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],
