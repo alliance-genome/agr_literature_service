@@ -8,23 +8,32 @@ calls the SGD backend API for references recently added to SGD:
 
     https://backend.yeastgenome.org/references_with_entities/days_added={days}
 
-which returns only references that have associated entities, each as
+which returns the references that have literature annotations, each as
     {"sgdid": "S100004374", "date_created": "2026-07-08", "created_by": "<sgd_user_id>",
      "entities": [{"entity_type": "gene", "entity_name": "CDC48",
                    "entity_sgdid": "S000002284", "topic": "Primary Literature",
-                   "date_created": "2026-07-09 09:15:04", "created_by": "<sgd_user_id>"}, ...]}
+                   "date_created": "2026-07-09 09:15:04", "created_by": "<sgd_user_id>"}, ...],
+     "topics": [{"topic": "Reviews", "date_created": "2026-07-09 09:20:11",
+                 "created_by": "<sgd_user_id>"}, ...]}
 with entity_type one of gene/allele/complex/pathway, topic the SGD literature
 topic the entity is annotated under (Primary Literature | Additional
 Literature | Reviews | Omics), and the per-entity date_created/created_by
 those of the literature annotation itself -- when the association was curated
 (SGD's local Pacific time; converted to UTC here, see parse_sgd_datetime) and
 by whom, which can differ from the reference-level fields (when the paper
-was added to SGD). Entities from a backend that predates the per-entity
-fields fall back to the reference-level ones.
+was added to SGD). "topics" lists the reference's topic-only literature
+annotations (no entity; e.g. review papers and omics/HTP papers tagged with
+just a literature topic), one per topic. Entities from a backend that
+predates the per-entity fields fall back to the reference-level
+date_created/created_by; a backend that predates "topics" simply omits it.
 
-Every association becomes a "pure entity" tag (topic == entity_type) from the
-same shared SGD reference-curation source as the one-off load, gated on SGD
-corpus membership. As in the one-off load, the tag's created_by/updated_by is
+An association with an entity becomes a "pure entity" tag (topic ==
+entity_type) from the same shared SGD reference-curation source as the
+one-off load, gated on SGD corpus membership; a topic-only annotation becomes
+a "topic-only" tag (topic ROOT_TOPIC_ATP, no entity/entity_type, identified
+by the display_tag mapped from its SGD topic -- see
+sgd_reference_tag_utils.ROOT_TOPIC_ATP). As in the one-off load, the tag's
+created_by/updated_by is
 the SGD curator who curated the association (the SGD created_by database id,
 resolved to a users.id by first/last name or Stanford email local-part -- see
 sgd_reference_tag_utils.resolve_sgd_created_by), every tag gets a display_tag
@@ -62,6 +71,7 @@ from dotenv import load_dotenv
 from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_reference_tag_utils import (
     ENTITY_TYPE_TO_ATP,
     MAX_ASSOCIATIONS_PER_PAPER,
+    ROOT_TOPIC_ATP,
     SGD_CURIE_PREFIX,
     build_sgd_corpus_ref_curies,
     build_sgd_ref_curie_map,
@@ -99,8 +109,9 @@ NOT_IN_CORPUS_LOG = "sgd_entity_reference_update_not_in_corpus.log"
 
 
 def fetch_references_with_entities(days_added: int) -> Optional[List[Dict]]:
-    """Fetch the recently added references (with their entities) from the SGD
-    backend API. Returns None if the request fails."""
+    """Fetch the recently added references (with their entities and topic-only
+    literature annotations) from the SGD backend API. Returns None if the
+    request fails."""
     url = f"{SGD_BACKEND_URL}/references_with_entities/days_added={days_added}"
     logger.info(f"Fetching {url}")
     try:
@@ -110,7 +121,7 @@ def fetch_references_with_entities(days_added: int) -> Optional[List[Dict]]:
         if not isinstance(payload, dict):
             raise ValueError(f"unexpected response shape: {type(payload).__name__}")
         references = payload.get("references", [])
-        logger.info(f"SGD returned {len(references)} references with entities")
+        logger.info(f"SGD returned {len(references)} references with literature annotations")
         return references
     except (requests.RequestException, ValueError) as e:
         logger.error(f"Failed to fetch {url}: {e}")
@@ -170,25 +181,42 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
         logger.info(f"Loaded {len(abc_tags)} SGD entity tags curated in the ABC "
                     f"interface on the window references")
 
-        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]]:
+        def associations() -> Iterator[Tuple[str, str, Optional[str], Optional[str], Optional[str], Optional[datetime]]]:
             for reference in references:
                 ref_token = _sgd_curie(reference.get("sgdid") or "")
                 entities = reference.get("entities") or []
-                counts["total_associations"] += len(entities)
+                # topic-only literature annotations (no entity); absent from a
+                # backend that predates the field
+                topic_only_annotations = reference.get("topics") or []
+                counts["total_associations"] += len(entities) + len(topic_only_annotations)
 
                 reference_curie = sgd_to_ref_curie.get(ref_token)
                 if reference_curie is None:
-                    counts["missing_reference"] += len(entities)
+                    counts["missing_reference"] += len(entities) + len(topic_only_annotations)
                     missing_ref_ids.add(ref_token)
                     continue
                 if reference_curie not in sgd_corpus_ref_curies:
-                    counts["not_in_corpus"] += len(entities)
+                    counts["not_in_corpus"] += len(entities) + len(topic_only_annotations)
                     not_in_corpus_refs.setdefault(reference_curie, ref_token)
                     continue
                 # reference-level fallbacks for a backend that predates the
                 # per-entity (annotation-level) date_created/created_by fields
                 ref_created_by = reference.get("created_by") or ""
                 ref_date_created = reference.get("date_created") or None
+
+                for annotation in topic_only_annotations:
+                    display_tag = sgd_display_tag(annotation.get("topic"))
+                    if display_tag is None:
+                        # a topic-only tag is identified by its display_tag,
+                        # so an annotation whose SGD topic cannot be mapped
+                        # is skipped
+                        counts["unknown_topic"] += 1
+                        continue
+                    yield (reference_curie, ROOT_TOPIC_ATP, None,
+                           resolve_sgd_created_by(db, annotation.get("created_by") or ref_created_by,
+                                                  user_id_cache),
+                           display_tag,
+                           parse_sgd_datetime(annotation.get("date_created") or ref_date_created))
 
                 # entity type -> {entity curie: (display_tag, created_by, date_created)}
                 entities_by_type: Dict[str, Dict[str, Tuple[Optional[str], str, Optional[str]]]] = {}
@@ -256,8 +284,8 @@ def compose_report_message(counts: Dict, days_added: int) -> str:
 
 if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(
-        description="Create entity topic entity tags for references recently added "
-                    "to SGD, from the SGD references_with_entities API"
+        description="Create topic entity tags (entity and topic-only) for references "
+                    "recently added to SGD, from the SGD references_with_entities API"
     )
     parser.add_argument(
         "-d", "--days-added",

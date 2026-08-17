@@ -10,7 +10,8 @@ Data source: references_with_entities.tsv, exported from SGD by
 SGDBackend-Nex2 scripts/dumping/reference/dump_references_with_entities.py.
 Tab-delimited columns (with a header line):
     1. reference_sgdid  (e.g. S000039113)              -> reference
-    2. entity_type      (gene | allele | complex | pathway)
+    2. entity_type      (gene | allele | complex | pathway; empty for a
+                         topic-only annotation)
     3. entity_name      (e.g. ACT1, act1-1, CPX-2921, PWY3O-46; unused here)
     4. entity_sgdid     (e.g. S000002284)              -> entity
     5. date_created     (YYYY-MM-DD HH:MM:SS, Pacific time; when the
@@ -22,8 +23,14 @@ Tab-delimited columns (with a header line):
                          Additional Literature | Reviews | Omics) -> display_tag
                         (see sgd_display_tag)
 
-Every association becomes a "pure entity" tag (topic == entity_type, one of
-gene/allele/complex/pathway) from the shared SGD reference-curation source.
+An association with an entity becomes a "pure entity" tag (topic ==
+entity_type, one of gene/allele/complex/pathway) from the shared SGD
+reference-curation source. A topic-only row (empty entity columns -- SGD
+literature annotations without an entity, e.g. review papers and omics/HTP
+papers tagged with just a literature topic) becomes a "topic-only" tag: topic
+ROOT_TOPIC_ATP, no entity/entity_type, identified by the display_tag mapped
+from its SGD topic -- the same shape SGD curators' entity-less tags take in
+the ABC curation interface (see sgd_reference_tag_utils.ROOT_TOPIC_ATP).
 The tag's created_by/updated_by is the SGD curator who curated the
 association (NOT who added the paper to SGD -- those can differ), resolved to
 a users.id by first/last name or Stanford email local-part (see
@@ -35,7 +42,8 @@ Each tag's date_created is preserved from SGD (when the association was
 curated there) with the load time as date_updated. Rows from older dumps that
 predate a column degrade gracefully: no created_by falls back to the script's
 automation user, no topic leaves the display_tag to create_tag's topic-ATP
-stamping (complex primary, allele/pathway additional, gene none), and no
+stamping (complex primary, allele/pathway additional, gene none; a topic-only
+row without a topic is skipped as unknown_topic instead), and no
 date_created stamps both dates with the load time.
 
 Only references already in the SGD corpus are tagged; associations whose paper
@@ -71,6 +79,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     ENTITY_TYPE_TO_ATP,
     MAX_ASSOCIATIONS_PER_PAPER,
     PROGRESS_LOG_INTERVAL,
+    ROOT_TOPIC_ATP,
     SGD_CURIE_PREFIX,
     build_sgd_corpus_ref_curies,
     build_sgd_ref_curie_map,
@@ -111,7 +120,8 @@ def parse_references_with_entities(file_with_path: str) -> Iterator[Tuple[str, s
     """Yield (reference_sgdid, entity_type, entity_sgdid, date_created,
     created_by, sgd_topic) for each data row. The header line and any malformed
     row are skipped; entity_type is yielded as-is so the caller can count
-    unknown types. date_created, created_by, and sgd_topic are "" for dumps
+    unknown types ("" together with an empty entity_sgdid marks a topic-only
+    row). date_created, created_by, and sgd_topic are "" for dumps
     that predate their columns."""
     with open(file_with_path) as f:
         for line in f:
@@ -181,7 +191,7 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
             len(over_cap_papers), MAX_ASSOCIATIONS_PER_PAPER,
         )
 
-        def associations() -> Iterator[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]]:
+        def associations() -> Iterator[Tuple[str, str, Optional[str], Optional[str], Optional[str], Optional[datetime]]]:
             for reference_sgdid, entity_type, entity_sgdid, date_created, sgd_created_by, sgd_topic \
                     in parse_references_with_entities(input_file):
                 counts["total_associations"] += 1
@@ -193,15 +203,24 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                         counts["skipped_duplicate"], counts["missing_reference"],
                         counts["not_in_corpus"], counts["errors"],
                     )
-                if entity_type not in ENTITY_TYPE_TO_ATP:
-                    counts["unknown_entity_type"] += 1
-                    continue
-                if not entity_sgdid:
-                    # would otherwise become a real tag with entity "SGD:"
-                    counts["missing_entity_id"] += 1
-                    continue
+                topic_only = not entity_type and not entity_sgdid
+                display_tag = sgd_display_tag(sgd_topic)
+                if topic_only:
+                    if display_tag is None:
+                        # a topic-only tag is identified by its display_tag,
+                        # so a row whose SGD topic cannot be mapped is skipped
+                        counts["unknown_topic"] += 1
+                        continue
+                else:
+                    if entity_type not in ENTITY_TYPE_TO_ATP:
+                        counts["unknown_entity_type"] += 1
+                        continue
+                    if not entity_sgdid:
+                        # would otherwise become a real tag with entity "SGD:"
+                        counts["missing_entity_id"] += 1
+                        continue
                 ref_token = _sgd_curie(reference_sgdid)
-                if (ref_token, entity_type) in over_cap_papers:
+                if not topic_only and (ref_token, entity_type) in over_cap_papers:
                     continue
                 reference_curie = sgd_to_ref_curie.get(ref_token)
                 if reference_curie is None:
@@ -212,9 +231,11 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                     counts["not_in_corpus"] += 1
                     not_in_corpus_refs.setdefault(reference_curie, ref_token)
                     continue
-                yield (reference_curie, ENTITY_TYPE_TO_ATP[entity_type], _sgd_curie(entity_sgdid),
+                yield (reference_curie,
+                       ROOT_TOPIC_ATP if topic_only else ENTITY_TYPE_TO_ATP[entity_type],
+                       None if topic_only else _sgd_curie(entity_sgdid),
                        resolve_sgd_created_by(db, sgd_created_by, user_id_cache),
-                       sgd_display_tag(sgd_topic),
+                       display_tag,
                        parse_sgd_datetime(date_created))
 
         create_entity_tags(db, associations(), source_id, existing_tags, abc_tags, counts)
@@ -248,7 +269,8 @@ def compose_report_message(counts: Dict, input_file: str) -> str:
 if __name__ == "__main__":  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Load SGD entity-reference associations (gene/allele/complex/pathway) "
-                    "from references_with_entities.tsv as entity topic entity tags"
+                    "and topic-only literature annotations (e.g. review/omics papers "
+                    "without an entity) from references_with_entities.tsv as topic entity tags"
     )
     parser.add_argument(
         "-f", "--input-file",

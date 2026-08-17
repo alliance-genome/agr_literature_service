@@ -8,12 +8,14 @@ scripts (``load_sgd_entity_reference_tags.py`` and
 
 Both scripts create "pure entity" topic entity tags (topic == entity_type) for
 the gene/allele/complex/pathway entities SGD displays on its reference pages,
-from a single shared SGD reference-curation source, gated on SGD corpus
-membership. The pieces that are identical between them -- the source, the
-reference/corpus lookups, the SGD-curator-to-users.id resolution, the
-already-loaded skip set, the create_tag loop, and report/log formatting --
-live here so neither script imports from the other (same layout as
-zfin_reference_tag_utils.py).
+plus "topic-only" tags (topic == the root topic ATP, no entity) for the
+literature annotations SGD curates without an entity -- e.g. review papers and
+omics (HTP) papers tagged with just a literature topic -- from a single shared
+SGD reference-curation source, gated on SGD corpus membership. The pieces that
+are identical between them -- the source, the reference/corpus lookups, the
+SGD-curator-to-users.id resolution, the already-loaded skip set, the
+create_tag loop, and report/log formatting -- live here so neither script
+imports from the other (same layout as zfin_reference_tag_utils.py).
 """
 import logging
 from collections import defaultdict
@@ -30,6 +32,7 @@ from sqlalchemy.orm import Session
 
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag
 from agr_literature_service.api.crud.topic_entity_tag_utils import (
+    root_topic_atp,
     sgd_additional_display_tag,
     sgd_omics_display_tag,
     sgd_primary_display_tag,
@@ -63,6 +66,21 @@ SACCHAROMYCES_CEREVISIAE_TAXON = "NCBITaxon:559292"
 # ATP:0000334 = "existing data"; used for every pure entity tag (topic == entity_type).
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
+# ATP:0000335; what create_tag's SGD branch stores as data_novelty for every
+# tag whose topic differs from its entity_type -- including the topic-only
+# tags below -- matching the tags SGD curators create in the ABC interface.
+NEW_DATA_NOVELTY_ATP = "ATP:0000335"
+
+# ATP:0000002, the root of the topic branch. SGD literature annotations
+# without an entity (topic-only rows: e.g. review papers and omics/HTP papers)
+# become tags with this topic, no entity/entity_type, and a display_tag mapped
+# from the SGD literature topic (see SGD_TOPIC_TO_DISPLAY_TAG) -- the same
+# shape the ABC curation interface stores for SGD when a curator picks a topic
+# that equals its display tag (check_and_set_sgd_display_tag generalizes the
+# topic to this root; e.g. the existing entity-less review tags are
+# topic ATP:0000002 + display_tag ATP:0000130).
+ROOT_TOPIC_ATP = root_topic_atp
+
 # entity_id_validation "alliance" resolves SGD entity curies to names via the
 # Alliance persistent store (with an SGD-API fallback for SGD: curies the
 # store cannot resolve -- see fallback_id_to_name_mapping in
@@ -85,7 +103,9 @@ ENTITY_TYPE_TO_ATP = {
 # (check_and_set_sgd_display_tag) keeps an explicitly supplied display_tag on
 # pure-entity tags (topic == entity_type), and only when none is supplied
 # (e.g. rows from a pre-topic dump) falls back to stamping one from the topic
-# ATP (complex -> primary, allele/pathway -> additional, gene none).
+# ATP (complex -> primary, allele/pathway -> additional, gene none). Also the
+# display_tag of the topic-only tags (see ROOT_TOPIC_ATP), where it is what
+# identifies the tag.
 SGD_TOPIC_TO_DISPLAY_TAG = {
     "Primary Literature": sgd_primary_display_tag,        # ATP:0000147
     "Reviews": sgd_review_display_tag,                    # ATP:0000130
@@ -307,12 +327,15 @@ ExistingTagRow = Tuple[int, Optional[str], Optional[datetime], Optional[str]]
 def load_existing_entity_tags(db: Session, source_id: int,
                               reference_curies: Optional[Iterable[str]] = None
                               ) -> Dict[Tuple[str, str, str], ExistingTagRow]:
-    """Return the associations already tagged by this source as pure entity tags
-    (topic == entity_type, one of the four SGD entity ATPs), mapping
-    (reference_curie, entity_type_atp, entity) to the tag's
-    (topic_entity_tag_id, display_tag, date_created, created_by). Read once up
-    front so a re-run does not pay create_tag's per-row duplicate-check cost,
-    and so maybe_update_existing_tag can correct display_tag / date_created /
+    """Return the associations already tagged by this source, mapping each to
+    the tag's (topic_entity_tag_id, display_tag, date_created, created_by):
+    pure entity tags (topic == entity_type, one of the four SGD entity ATPs)
+    under (reference_curie, entity_type_atp, entity), and topic-only tags
+    (topic == the root topic ATP, no entity) under (reference_curie,
+    ROOT_TOPIC_ATP, display_tag) -- the root topic ATP is not an entity-type
+    ATP, so the two key shapes cannot collide. Read once up front so a re-run
+    does not pay create_tag's per-row duplicate-check cost, and so
+    maybe_update_existing_tag can correct display_tag / date_created /
     created_by in place without a delete-and-reload. ``reference_curies``
     limits the query to those references -- the incremental updater only
     touches the papers in its API window, so it must not pull (and hold in
@@ -323,31 +346,40 @@ def load_existing_entity_tags(db: Session, source_id: int,
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.reference_id "
            "WHERE  tet.topic_entity_tag_source_id = :sid "
-           "AND    tet.topic = tet.entity_type "
-           "AND    tet.entity_type = ANY(:atps)")
-    params: Dict = {"sid": source_id, "atps": list(ENTITY_TYPE_TO_ATP.values())}
+           "AND    ((tet.topic = tet.entity_type AND tet.entity_type = ANY(:atps)) "
+           "        OR (tet.topic = :root_topic AND tet.entity IS NULL "
+           "            AND tet.display_tag IS NOT NULL))")
+    params: Dict = {"sid": source_id, "atps": list(ENTITY_TYPE_TO_ATP.values()),
+                    "root_topic": ROOT_TOPIC_ATP}
     if reference_curies is not None:
         sql += " AND r.curie = ANY(:ref_curies)"
         params["ref_curies"] = list(reference_curies)
     rows = db.execute(text(sql), params).fetchall()
-    return {(row[0], row[1], row[2]): (row[3], row[4], row[5], row[6]) for row in rows}
+    return {(row[0], row[1] or ROOT_TOPIC_ATP, row[2] or row[4]):
+            (row[3], row[4], row[5], row[6]) for row in rows}
 
 
 def load_abc_entity_tags(db: Session,
                          reference_curies: Optional[Iterable[str]] = None
                          ) -> Set[Tuple[str, str, str]]:
-    """Return the (reference_curie, entity_type_atp, entity) associations
-    already tagged for SGD directly in the ABC curation interface -- any tag
-    from any of the SGD mod's abc_literature_system source rows whose
-    entity_type is one of the four SGD entity ATPs and whose species is
-    S. cerevisiae. A tag matches on entity_type / species / entity regardless
-    of its topic, so a curator's richer annotation of the same entity (e.g. a
-    real topic instead of a pure entity tag) also suppresses the load.
-    create_entity_tags skips these associations entirely: they are neither
-    duplicated under the SGD reference-curation source nor corrected in place
-    (the ABC curator's tag wins over the SGD input). ``reference_curies``
-    limits the query to those references, as in load_existing_entity_tags."""
-    sql = ("SELECT r.curie, tet.entity_type, tet.entity "
+    """Return the associations already tagged for SGD directly in the ABC
+    curation interface -- any tag from any of the SGD mod's
+    abc_literature_system source rows whose species is S. cerevisiae -- as
+    (reference_curie, entity_type_atp, entity) for tags on one of the four SGD
+    entity ATPs, and (reference_curie, ROOT_TOPIC_ATP, display_tag) for
+    entity-less tags (matching the key shape of load_existing_entity_tags). An
+    entity tag matches on entity_type / species / entity regardless of its
+    topic, so a curator's richer annotation of the same entity (e.g. a real
+    topic instead of a pure entity tag) also suppresses the load; an
+    entity-less tag matches on its display_tag regardless of its topic, so a
+    curator's specific topic choice (e.g. non-phenotype HTP for an omics
+    paper) suppresses the root-topic tag this load would create for the same
+    reference-page section. create_entity_tags skips these associations
+    entirely: they are neither duplicated under the SGD reference-curation
+    source nor corrected in place (the ABC curator's tag wins over the SGD
+    input). ``reference_curies`` limits the query to those references, as in
+    load_existing_entity_tags."""
+    sql = ("SELECT r.curie, tet.entity_type, tet.entity, tet.display_tag "
            "FROM   topic_entity_tag tet "
            "JOIN   reference r ON tet.reference_id = r.reference_id "
            "JOIN   topic_entity_tag_source tets "
@@ -356,8 +388,8 @@ def load_abc_entity_tags(db: Session,
            "WHERE  tets.source_method = :abc_method "
            "AND    m.abbreviation = :abbr "
            "AND    tet.species = :species "
-           "AND    tet.entity_type = ANY(:atps) "
-           "AND    tet.entity IS NOT NULL")
+           "AND    ((tet.entity_type = ANY(:atps) AND tet.entity IS NOT NULL) "
+           "        OR (tet.entity IS NULL AND tet.display_tag IS NOT NULL))")
     params: Dict = {
         "abc_method": ABC_SOURCE_METHOD,
         "abbr": SECONDARY_DATA_PROVIDER_ABBR,
@@ -368,7 +400,8 @@ def load_abc_entity_tags(db: Session,
         sql += " AND r.curie = ANY(:ref_curies)"
         params["ref_curies"] = list(reference_curies)
     rows = db.execute(text(sql), params).fetchall()
-    return {(row[0], row[1], row[2]) for row in rows}
+    return {(row[0], row[1], row[2]) if row[2] is not None
+            else (row[0], ROOT_TOPIC_ATP, row[3]) for row in rows}
 
 
 def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -> Dict[Tuple[str, str], int]:
@@ -381,36 +414,43 @@ def select_over_cap_papers(entities_by_paper: Dict[Tuple[str, str], Set[str]]) -
             if len(entities) > MAX_ASSOCIATIONS_PER_PAPER}
 
 
-def build_tag_payload(reference_curie: str, entity_type_atp: str, entity_curie: str,
+def build_tag_payload(reference_curie: str, topic_atp: str, entity_curie: Optional[str],
                       source_id: int,
                       created_by: Optional[str] = None,
                       display_tag: Optional[str] = None,
                       date_created: Optional[datetime] = None) -> TopicEntityTagSchemaPost:
-    """Build the pure-entity tag payload (topic == entity_type). ``created_by``
-    (a users.id or verbatim SGD curator id from resolve_sgd_created_by) stamps
-    both created_by and updated_by; None leaves both to the script's global
-    automation user. ``display_tag`` is derived from the association's SGD
-    literature topic for every entity type (see sgd_display_tag); create_tag's
-    SGD branch (check_and_set_sgd_display_tag) keeps it, and only when it is
-    None falls back to stamping complex/allele/pathway tags from the topic ATP
-    (ATP:0000147 primary for complex, ATP:0000132 additional for
-    allele/pathway; gene none). ``date_created`` (a UTC datetime from
+    """Build the tag payload for one association. With an ``entity_curie`` it
+    is a pure-entity tag: ``topic_atp`` is one of the four SGD entity ATPs,
+    used for both topic and entity_type. Without one (None) it is a topic-only
+    tag: ``topic_atp`` is ROOT_TOPIC_ATP and entity_type /
+    entity_id_validation stay unset (see ROOT_TOPIC_ATP for the shape).
+    ``created_by`` (a users.id or verbatim SGD curator id from
+    resolve_sgd_created_by) stamps both created_by and updated_by; None leaves
+    both to the script's global automation user. ``display_tag`` is derived
+    from the association's SGD literature topic (see sgd_display_tag);
+    create_tag's SGD branch (check_and_set_sgd_display_tag) keeps it, and only
+    when it is None falls back to stamping complex/allele/pathway tags from
+    the topic ATP (ATP:0000147 primary for complex, ATP:0000132 additional for
+    allele/pathway; gene none). Topic-only tags always carry one -- it is what
+    distinguishes them. ``date_created`` (a UTC datetime from
     parse_sgd_datetime -- when the association was curated in SGD) is
     preserved as the tag's date_created, with the load time as date_updated --
     both must be set explicitly, since AuditedModel's before_insert would
     otherwise copy date_created onto date_updated. Without a date the audit layer stamps both with the load
-    time. The same create_tag branch re-derives data_novelty as ATP:0000334
-    for topic == entity_type tags, matching the value set below."""
+    time. The same create_tag branch re-derives data_novelty: ATP:0000334 for
+    topic == entity_type tags and ATP:0000335 otherwise (topic-only tags),
+    matching the values set below."""
     date_updated = datetime.now(tz=pytz.timezone("UTC")) if date_created else None
+    topic_only = entity_curie is None
     return TopicEntityTagSchemaPost(
         reference_curie=reference_curie,
-        topic=entity_type_atp,
-        entity_type=entity_type_atp,
+        topic=topic_atp,
+        entity_type=None if topic_only else topic_atp,
         entity=entity_curie,
-        entity_id_validation=ENTITY_ID_VALIDATION,
+        entity_id_validation=None if topic_only else ENTITY_ID_VALIDATION,
         species=SACCHAROMYCES_CEREVISIAE_TAXON,
         display_tag=display_tag,
-        data_novelty=EXISTING_DATA_NOVELTY_ATP,
+        data_novelty=NEW_DATA_NOVELTY_ATP if topic_only else EXISTING_DATA_NOVELTY_ATP,
         negated=False,
         topic_entity_tag_source_id=source_id,
         created_by=created_by,
@@ -469,34 +509,41 @@ def maybe_update_existing_tag(db: Session, existing_row: ExistingTagRow,
 
 
 def create_entity_tags(db: Session,
-                       associations: Iterable[Tuple[str, str, str, Optional[str], Optional[str], Optional[datetime]]],
+                       associations: Iterable[Tuple[str, str, Optional[str], Optional[str], Optional[str], Optional[datetime]]],
                        source_id: int,
                        existing_tags: Dict[Tuple[str, str, str], ExistingTagRow],
                        abc_tags: Set[Tuple[str, str, str]],
                        counts: Dict) -> None:
-    """Create a pure entity tag for each (reference_curie, entity_type_atp,
-    entity_curie, created_by, display_tag, date_created) association, updating
-    ``counts`` in place. ``created_by`` (see resolve_sgd_created_by; may be
-    None) stamps the tag's created_by/updated_by; ``display_tag`` (see
-    sgd_display_tag; may be None) is the display_tag ATP derived from the SGD
+    """Create a tag for each (reference_curie, topic_atp, entity_curie,
+    created_by, display_tag, date_created) association, updating ``counts`` in
+    place. With an ``entity_curie`` the association is a pure entity tag
+    (``topic_atp`` one of the four SGD entity ATPs); with None it is a
+    topic-only tag (``topic_atp`` == ROOT_TOPIC_ATP), identified by its
+    display_tag instead of an entity -- everywhere a key is needed (the
+    input-dedupe set, ``existing_tags``, ``abc_tags``) both shapes share
+    (reference_curie, topic_atp, entity-or-display_tag). ``created_by`` (see
+    resolve_sgd_created_by; may be None) stamps the tag's
+    created_by/updated_by; ``display_tag`` (see sgd_display_tag; may be None
+    only for entity tags) is the display_tag ATP derived from the SGD
     literature topic; ``date_created`` (a UTC datetime from parse_sgd_datetime;
     may be None) is preserved as the tag's date_created (see
-    build_tag_payload). None of the three plays
-    a part in duplicate detection. An association already tagged in the ABC
+    build_tag_payload). An association already tagged in the ABC
     curation interface (present in ``abc_tags`` -- see load_abc_entity_tags)
     is skipped outright, counted as skipped_in_abc, even when a tag from this
     source also exists: the ABC curator's tag wins, and this script's
     duplicate of it is left untouched. Otherwise an association already
     present in ``existing_tags`` is corrected in place when its display_tag /
     date_created / created_by disagree with the input (counted as
-    updated_existing -- see maybe_update_existing_tag) and skipped otherwise;
+    updated_existing -- see maybe_update_existing_tag; a topic-only tag's
+    display_tag is part of its identity, so only date_created / created_by are
+    corrected for those) and skipped otherwise;
     a 409 from create_tag
     also counts as a duplicate. Aborts (setting counts["aborted"]) after
     ABORT_AFTER_CONSECUTIVE_ERRORS consecutive errors."""
     seen: Set[Tuple[str, str, str]] = set()
     consecutive_errors = 0
-    for reference_curie, entity_type_atp, entity_curie, created_by, display_tag, date_created in associations:
-        association = (reference_curie, entity_type_atp, entity_curie)
+    for reference_curie, topic_atp, entity_curie, created_by, display_tag, date_created in associations:
+        association = (reference_curie, topic_atp, entity_curie or display_tag or "")
         if association in seen:
             counts["duplicate_in_input"] += 1
             continue
@@ -506,16 +553,18 @@ def create_entity_tags(db: Session,
             counts["skipped_in_abc"] += 1
             continue
 
+        association_label = entity_curie or f"topic-only {display_tag}"
         try:
             if association in existing_tags:
                 if maybe_update_existing_tag(db, existing_tags[association],
-                                             display_tag, date_created, created_by):
+                                             display_tag if entity_curie else None,
+                                             date_created, created_by):
                     counts["updated_existing"] += 1
                 else:
                     counts["skipped_duplicate"] += 1
             else:
                 _tag_id, was_upsert = create_tag(
-                    db, build_tag_payload(reference_curie, entity_type_atp, entity_curie,
+                    db, build_tag_payload(reference_curie, topic_atp, entity_curie,
                                           source_id, created_by, display_tag, date_created),
                     validate_on_insert=False,
                 )
@@ -530,14 +579,14 @@ def create_entity_tags(db: Session,
                 counts["errors"] += 1
                 consecutive_errors += 1
                 logger.warning(
-                    f"TET create/update failed for {reference_curie} / {entity_curie}: {e.detail}"
+                    f"TET create/update failed for {reference_curie} / {association_label}: {e.detail}"
                 )
         except Exception as e:
             db.rollback()
             counts["errors"] += 1
             consecutive_errors += 1
             logger.warning(
-                f"TET create/update failed for {reference_curie} / {entity_curie}: {e}"
+                f"TET create/update failed for {reference_curie} / {association_label}: {e}"
             )
 
         if consecutive_errors >= ABORT_AFTER_CONSECUTIVE_ERRORS:
@@ -563,6 +612,7 @@ def new_counts() -> Dict:
         "skipped_in_abc": 0,
         "duplicate_in_input": 0,
         "unknown_entity_type": 0,
+        "unknown_topic": 0,
         "missing_entity_id": 0,
         "missing_reference": 0,
         "not_in_corpus": 0,
@@ -589,6 +639,7 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
     message += f"<li>Already tagged in the ABC curation interface (skipped): {counts['skipped_in_abc']}"
     message += f"<li>Duplicate associations within input: {counts['duplicate_in_input']}"
     message += f"<li>Unknown entity types skipped: {counts['unknown_entity_type']}"
+    message += f"<li>Topic-only annotations with an unknown SGD topic skipped: {counts['unknown_topic']}"
     message += f"<li>Associations without an entity sgdid skipped: {counts['missing_entity_id']}"
     message += f"<li>References not found in ABC: {counts['missing_reference']}"
     message += f"<li>Associations skipped (paper not in SGD corpus): {counts['not_in_corpus']}"
@@ -611,14 +662,15 @@ def log_run_summary(counts: Dict, label: str) -> None:
     logger.info(
         "%s done: total_associations=%d created=%d updated_existing=%d "
         "skipped_duplicate=%d skipped_in_abc=%d duplicate_in_input=%d "
-        "unknown_entity_type=%d "
+        "unknown_entity_type=%d unknown_topic=%d "
         "missing_entity_id=%d missing_reference=%d not_in_corpus=%d "
         "skipped_over_cap=%d papers_over_cap=%d errors=%d",
         label, counts["total_associations"], counts["created"],
         counts["updated_existing"],
         counts["skipped_duplicate"], counts["skipped_in_abc"],
         counts["duplicate_in_input"],
-        counts["unknown_entity_type"], counts["missing_entity_id"],
+        counts["unknown_entity_type"], counts["unknown_topic"],
+        counts["missing_entity_id"],
         counts["missing_reference"], counts["not_in_corpus"],
         counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],
     )
