@@ -367,3 +367,88 @@ class TestReachable500Hardening:
                              json={"name": "X"},
                              headers=auth_headers)
         assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_patch_colliding_reparent_422(self, db, auth_headers, test_reference):  # noqa
+        # PATCHing reference_curie reparents the author but keeps its author_order (PATCH
+        # cannot change it). Landing on a destination whose order is taken would trip
+        # uq_author_ref_order at commit -> must be a clean 422, never a raw 500.
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Reparent dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+            blocker = client.post(url="/author/",
+                                  json={"author_order": 1, "name": "Blocker",
+                                        "reference_curie": dest_curie},
+                                  headers=auth_headers)
+            assert blocker.status_code == status.HTTP_201_CREATED
+            mover = client.post(url="/author/",
+                                json={"author_order": 1, "name": "Mover",
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert mover.status_code == status.HTTP_201_CREATED
+            mover_id = mover.json()["author_id"]
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        # rejected before any write: the author is still on its original reference
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
+        assert a.reference_id == test_reference.related_ref_id
+        assert a.author_order == 1
+
+    def test_patch_non_colliding_reparent_succeeds(self, db, auth_headers, test_reference):  # noqa
+        # the guard must only fire on a real collision: reparenting onto a destination
+        # where the author's order is free still succeeds and keeps that order.
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Free order dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+            occupant = client.post(url="/author/",
+                                   json={"author_order": 1, "name": "Occupant",
+                                         "reference_curie": dest_curie},
+                                   headers=auth_headers)
+            assert occupant.status_code == status.HTTP_201_CREATED
+            mover = client.post(url="/author/",
+                                json={"author_order": 99, "name": "Mover99",
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert mover.status_code == status.HTTP_201_CREATED
+            mover_id = mover.json()["author_id"]
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_200_OK
+        dest_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == dest_curie).scalar()
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
+        assert a.reference_id == dest_id
+        assert a.author_order == 99
+
+    def test_patch_same_reference_with_reference_curie_unaffected(self, db, auth_headers, test_reference):  # noqa
+        # the regression that matters most: the merge screen and the biblio editor resend
+        # the author's own reference_curie on ordinary metadata patches. The reparent
+        # guard must not fire when the reference is unchanged -- the author's own row
+        # holds that order, and it must never be treated as its own collision.
+        with TestClient(app) as client:
+            a1 = client.post(url="/author/",
+                             json={"author_order": 1, "name": "Same Ref",
+                                   "reference_curie": test_reference.new_ref_curie},
+                             headers=auth_headers)
+            assert a1.status_code == status.HTTP_201_CREATED
+            a1_id = a1.json()["author_id"]
+            r = client.patch(url=f"/author/{a1_id}",
+                             json={"name": "Same Ref Renamed",
+                                   "reference_curie": test_reference.new_ref_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == a1_id).one()
+        assert a.name == "Same Ref Renamed"
+        assert a.reference_id == test_reference.related_ref_id
+        assert a.author_order == 1

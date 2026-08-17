@@ -238,6 +238,34 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
     res_ref = stripout(db, author_data, non_fatal=True)
+
+    # A PATCH can still reparent an author to another reference via reference_curie, and
+    # the row carries its existing author_order along (PATCH cannot change it -- rejected
+    # above). If the destination reference already has an author at that order,
+    # uq_author_ref_order (DEFERRABLE INITIALLY IMMEDIATE) would trip at commit as a raw
+    # IntegrityError/500, so pre-check the destination and raise a clean 422 instead.
+    # A same-reference PATCH is untouched: metadata-only patches routinely resend the
+    # author's own reference_curie. Checked before add() so author_db_obj.reference_id is
+    # still the original and no relationship has been mutated yet.
+    dest_ref = res_ref.get("reference")
+    if (dest_ref is not None
+            and dest_ref.reference_id != author_db_obj.reference_id
+            and author_db_obj.author_order is not None):
+        # no_autoflush: an autoflush here would push the very write this guard exists to
+        # prevent.
+        with db.no_autoflush:
+            order_taken = db.query(AuthorModel.author_id).filter(
+                AuthorModel.reference_id == dest_ref.reference_id,
+                AuthorModel.author_order == author_db_obj.author_order,
+                AuthorModel.author_id != author_db_obj.author_id,
+            ).first()
+        if order_taken is not None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"author_order {author_db_obj.author_order} is already taken on "
+                       f"reference {dest_ref.curie}; author_order cannot be changed via "
+                       f"PATCH, so free that order there first with POST /author/reorder")
+
     add(res_ref, author_db_obj)
 
     person_id = _resolve_person_curie(db, author_data)
