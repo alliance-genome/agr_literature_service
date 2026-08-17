@@ -28,7 +28,8 @@ Every candidate address goes through the same normalization / role-account /
 garbage filtering as the Markdown extraction (extract_emails.py), so the two
 pipelines accept the same addresses.
 
-Output: a tab-delimited file, one row per (reference, source, email):
+Output: a tab-delimited file, one row per (reference, source), with multiple
+emails joined by ' | ' (papers with two corresponding authors are common):
     reference_curie  pmid  source(pubmed_metadata|pmc_corresp)  email  has_email_in_abc(Y|N)
 has_email_in_abc says whether the reference already has reference_email rows
 (from the Markdown extraction or a curator); rows with N are the backfill
@@ -245,7 +246,8 @@ def fetch_pmc_emails(pmid_to_pmcid: Dict[str, str]) -> Dict[str, List[str]]:
 def write_output_file(output_file: str, papers: List[Tuple[str, str, bool]],
                       pubmed_emails: Dict[str, List[str]],
                       pmc_emails: Dict[str, List[str]]) -> int:
-    """Write one row per (reference, source, email); returns the row count."""
+    """Write one row per (reference, source), joining multiple emails with
+    ' | '; returns the row count."""
     row_count = 0
     with open(output_file, "w") as fw:
         fw.write("reference_curie\tpmid\tsource\temail\thas_email_in_abc\n")
@@ -253,8 +255,9 @@ def write_output_file(output_file: str, papers: List[Tuple[str, str, bool]],
             flag = "Y" if has_email else "N"
             for source, emails_by_pmid in ((SOURCE_PUBMED, pubmed_emails),
                                            (SOURCE_PMC, pmc_emails)):
-                for email in emails_by_pmid.get(pmid, []):
-                    fw.write(f"{curie}\t{pmid}\t{source}\t{email}\t{flag}\n")
+                emails = emails_by_pmid.get(pmid, [])
+                if emails:
+                    fw.write(f"{curie}\t{pmid}\t{source}\t{' | '.join(emails)}\t{flag}\n")
                     row_count += 1
     return row_count
 
