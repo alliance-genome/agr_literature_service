@@ -248,7 +248,13 @@ def fetch_pubmed_emails(pmids: List[str]) -> Dict[str, List[str]]:
         if content is None:
             logger.warning("Skipping a PubMed chunk of %d PMIDs after retries", len(chunk))
             continue
-        emails_by_pmid.update(parse_pubmed_emails(content))
+        try:
+            parsed = parse_pubmed_emails(content)
+        except ElementTree.ParseError as e:
+            logger.warning("Skipping an unparseable PubMed chunk of %d PMIDs: %s",
+                           len(chunk), e)
+            continue
+        emails_by_pmid.update(parsed)
         fetched += len(chunk)
         if fetched % PROGRESS_LOG_INTERVAL < EFETCH_PUBMED_CHUNK:
             logger.info("PubMed: fetched %d/%d records (%d with emails so far)",
@@ -266,7 +272,12 @@ def map_pmids_to_pmcids(pmids: List[str]) -> Dict[str, str]:
         if content is None:
             logger.warning("Skipping an elink chunk of %d PMIDs after retries", len(chunk))
             continue
-        root = ElementTree.fromstring(content)
+        try:
+            root = ElementTree.fromstring(content)
+        except ElementTree.ParseError as e:
+            logger.warning("Skipping an unparseable elink chunk of %d PMIDs: %s",
+                           len(chunk), e)
+            continue
         for linkset in root.findall(".//LinkSet"):
             pmid = linkset.findtext("IdList/Id")
             pmcid = linkset.findtext(".//LinkSetDb/Link/Id")
@@ -287,7 +298,13 @@ def fetch_pmc_emails(pmid_to_pmcid: Dict[str, str]) -> Dict[str, List[str]]:
         if content is None:
             logger.warning("Skipping a PMC chunk of %d articles after retries", len(chunk))
             continue
-        emails_by_pmid.update(parse_pmc_emails(content, pmcid_to_pmid))
+        try:
+            parsed = parse_pmc_emails(content, pmcid_to_pmid)
+        except ElementTree.ParseError as e:
+            logger.warning("Skipping an unparseable PMC chunk of %d articles: %s",
+                           len(chunk), e)
+            continue
+        emails_by_pmid.update(parsed)
         fetched += len(chunk)
         logger.info("PMC: fetched %d/%d articles (%d with emails so far)",
                     fetched, len(pmcids), len(emails_by_pmid))
@@ -297,7 +314,10 @@ def fetch_pmc_emails(pmid_to_pmcid: Dict[str, str]) -> Dict[str, List[str]]:
 def download_emails(pmids: List[str], pmc_all: bool = False) -> Dict[str, Tuple[List[str], str]]:
     """Run the two-tier cascade over the PMIDs. Returns
     pmid -> (emails, source) for every PMID at least one address was found
-    for; tier 2 is only consulted for the PMIDs tier 1 missed unless pmc_all."""
+    for. Tier 2 is only consulted for the PMIDs tier 1 missed; with pmc_all,
+    every paper with a PMCID is fetched from PMC as well and both tiers'
+    addresses are unioned (PubMed's first) when both hit -- papers with two
+    corresponding authors sometimes carry a different one in each source."""
     pubmed_emails = fetch_pubmed_emails(pmids)
     logger.info("Tier 1 (PubMed metadata): emails for %d/%d papers",
                 len(pubmed_emails), len(pmids))
@@ -313,7 +333,12 @@ def download_emails(pmids: List[str], pmc_all: bool = False) -> Dict[str, Tuple[
     for pmid, emails in pmc_emails.items():
         results[pmid] = (emails, SOURCE_PMC)
     for pmid, emails in pubmed_emails.items():
-        results[pmid] = (emails, SOURCE_PUBMED)   # tier 1 wins when both hit
+        if pmid in results:
+            # both tiers hit (only possible with pmc_all): union the addresses
+            merged = emails + [e for e in results[pmid][0] if e not in emails]
+            results[pmid] = (merged, SOURCE_PUBMED + "|" + SOURCE_PMC)
+        else:
+            results[pmid] = (emails, SOURCE_PUBMED)
     return results
 
 
@@ -557,7 +582,8 @@ def parse_args() -> argparse.Namespace:
                    help="Cap the number of reference+mod pairs (testing)")
     p.add_argument("--pmc-all", action="store_true",
                    help="Fetch PMC XML for every paper with a PMCID, not only the "
-                        "papers PubMed metadata found no email for")
+                        "papers PubMed metadata found no email for, and union both "
+                        "sources' addresses (slower: more NCBI requests)")
     p.add_argument("--commit", action="store_true",
                    help="Apply the changes. Without this flag the script only "
                         "downloads and reports (dry run).")
