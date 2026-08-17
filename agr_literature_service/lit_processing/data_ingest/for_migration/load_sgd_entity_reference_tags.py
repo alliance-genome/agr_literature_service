@@ -94,6 +94,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     log_run_summary,
     new_counts,
     new_entities_by_paper,
+    note_unmapped_entity_topic,
     resolve_sgd_created_by,
     select_over_cap_papers,
     write_id_log,
@@ -171,6 +172,8 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
     not_in_corpus_refs: Dict[str, str] = {}
     # SGD curator database id -> users.id (resolve_sgd_created_by memoization).
     user_id_cache: Dict[str, str] = {}
+    # distinct unmappable SGD topics seen on entity rows, warned once each
+    unmapped_topics_warned: Set[str] = set()
 
     try:
         source_id = get_or_create_source(db)
@@ -219,6 +222,13 @@ def load_sgd_entity_reference_tags(input_file: str) -> Dict:
                         # would otherwise become a real tag with entity "SGD:"
                         counts["missing_entity_id"] += 1
                         continue
+                    if sgd_topic and display_tag is None:
+                        # populated but unmappable topic: the tag still loads,
+                        # falling back to create_tag's topic-ATP display
+                        # stamping (an EMPTY topic -- a pre-topic dump -- is
+                        # expected degradation and not counted)
+                        note_unmapped_entity_topic(counts, sgd_topic,
+                                                   unmapped_topics_warned)
                 ref_token = _sgd_curie(reference_sgdid)
                 if not topic_only and (ref_token, entity_type) in over_cap_papers:
                     continue

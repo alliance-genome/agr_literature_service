@@ -14,11 +14,18 @@ reference, once per source (e.g. gene AAD3 tagged by a curator in the ABC and
 again by the loader). This one-off deletes the loader's copy; the curator's
 ABC tag always wins and is never touched.
 
-A duplicate is a pure entity tag (topic == entity_type, one of the four SGD
-entity ATPs) from the SGD reference-curation source whose reference /
+A duplicate is either a pure entity tag (topic == entity_type, one of the
+four SGD entity ATPs) from the SGD reference-curation source whose reference /
 entity_type / species / entity all match an abc_literature_system tag of the
 SGD mod -- the same matching the loaders now apply, topic excluded, so a
-curator's richer annotation of the same entity (a real topic) also counts.
+curator's richer annotation of the same entity (a real topic) also counts --
+or a topic-only tag (topic == the root topic ATP, no entity, identified by
+its display_tag) whose reference / species / display_tag match an entity-less
+abc_literature_system tag, again regardless of that tag's topic (a curator's
+entity-less omics tag carries a specific HTP topic but the same display_tag).
+This mirrors load_abc_entity_tags, which prevents these duplicates going
+forward; the cleanup removes the ones created when a curator tags the same
+thing in the ABC after a load.
 
 Deletion goes through the ORM, one tag at a time, so sqlalchemy-continuum
 writes a version row for each (the expected volume -- associations curated
@@ -40,7 +47,7 @@ import argparse
 import logging
 from collections import defaultdict
 from os import path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from sqlalchemy import text
@@ -51,6 +58,7 @@ from sqlalchemy import text
 from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_reference_tag_utils import (
     ABC_SOURCE_METHOD,
     ENTITY_TYPE_TO_ATP,
+    ROOT_TOPIC_ATP,
     SECONDARY_DATA_PROVIDER_ABBR,
     SOURCE_METHOD,
     deliver_report,
@@ -78,36 +86,56 @@ REPORT_LIST_CAP = 100
 
 ATP_TO_ENTITY_TYPE = {atp: label for label, atp in ENTITY_TYPE_TO_ATP.items()}
 
-# A duplicate: a pure entity tag from the SGD reference-curation source whose
-# reference/entity_type/species/entity match an abc_literature_system tag of
-# the SGD mod (any topic), i.e. the same key load_abc_entity_tags skips on.
+# A duplicate: a tag from the SGD reference-curation source that matches an
+# abc_literature_system tag of the SGD mod (any topic) on the same key
+# load_abc_entity_tags skips on -- for a pure entity tag, on
+# reference/entity_type/species/entity; for a topic-only tag (topic == root,
+# no entity), on reference/species/display_tag against an entity-less ABC tag.
 _FIND_DUPLICATES_SQL = text("""
     SELECT sgd.topic_entity_tag_id, sgd.reference_id, r.curie,
-           sgd.entity_type, sgd.entity
+           sgd.entity_type, sgd.entity, sgd.display_tag
     FROM   topic_entity_tag sgd
     JOIN   reference r ON sgd.reference_id = r.reference_id
     WHERE  sgd.topic_entity_tag_source_id = ANY(:sids)
-    AND    sgd.topic = sgd.entity_type
-    AND    sgd.entity_type = ANY(:atps)
-    AND    EXISTS (
-               SELECT 1
-               FROM   topic_entity_tag abc
-               JOIN   topic_entity_tag_source tets
-                      ON abc.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
-               JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id
-               WHERE  tets.source_method = :abc_method
-               AND    m.abbreviation = :abbr
-               AND    abc.reference_id = sgd.reference_id
-               AND    abc.entity_type = sgd.entity_type
-               AND    abc.species = sgd.species
-               AND    abc.entity = sgd.entity
-           )
-    ORDER  BY sgd.reference_id, sgd.entity_type, sgd.entity
+    AND    ((sgd.topic = sgd.entity_type
+             AND sgd.entity_type = ANY(:atps)
+             AND EXISTS (
+                 SELECT 1
+                 FROM   topic_entity_tag abc
+                 JOIN   topic_entity_tag_source tets
+                        ON abc.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+                 JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id
+                 WHERE  tets.source_method = :abc_method
+                 AND    m.abbreviation = :abbr
+                 AND    abc.reference_id = sgd.reference_id
+                 AND    abc.entity_type = sgd.entity_type
+                 AND    abc.species = sgd.species
+                 AND    abc.entity = sgd.entity
+             ))
+            OR (sgd.topic = :root_topic
+                AND sgd.entity IS NULL
+                AND sgd.display_tag IS NOT NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM   topic_entity_tag abc
+                    JOIN   topic_entity_tag_source tets
+                           ON abc.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
+                    JOIN   mod m ON tets.secondary_data_provider_id = m.mod_id
+                    WHERE  tets.source_method = :abc_method
+                    AND    m.abbreviation = :abbr
+                    AND    abc.reference_id = sgd.reference_id
+                    AND    abc.entity IS NULL
+                    AND    abc.species = sgd.species
+                    AND    abc.display_tag = sgd.display_tag
+                )))
+    ORDER  BY sgd.reference_id, sgd.entity_type, sgd.entity, sgd.display_tag
 """)
 
-# What find_duplicate_tags returns per duplicate:
-# (topic_entity_tag_id, reference_id, reference_curie, entity_type_atp, entity).
-DuplicateRow = Tuple[int, int, str, str, str]
+# What find_duplicate_tags returns per duplicate: (topic_entity_tag_id,
+# reference_id, reference_curie, entity_type_atp, entity, display_tag) --
+# entity_type_atp and entity are None for a topic-only duplicate, which is
+# identified by its display_tag instead.
+DuplicateRow = Tuple[int, int, str, Optional[str], Optional[str], Optional[str]]
 
 
 def find_sgd_source_ids(db) -> List[int]:
@@ -129,14 +157,26 @@ def find_sgd_source_ids(db) -> List[int]:
 def find_duplicate_tags(db, source_ids: List[int]) -> List[DuplicateRow]:
     """Return the SGD reference-curation tags duplicating an ABC-curated tag,
     as (topic_entity_tag_id, reference_id, reference_curie, entity_type_atp,
-    entity), ordered by reference."""
+    entity, display_tag), ordered by reference. entity_type_atp/entity are
+    None for topic-only duplicates (matched on display_tag)."""
     rows = db.execute(_FIND_DUPLICATES_SQL, {
         "sids": source_ids,
         "atps": list(ENTITY_TYPE_TO_ATP.values()),
+        "root_topic": ROOT_TOPIC_ATP,
         "abc_method": ABC_SOURCE_METHOD,
         "abbr": SECONDARY_DATA_PROVIDER_ABBR,
     }).fetchall()
-    return [(row[0], row[1], row[2], row[3], row[4]) for row in rows]
+    return [(row[0], row[1], row[2], row[3], row[4], row[5]) for row in rows]
+
+
+def _duplicate_label(entity_type_atp: Optional[str], entity: Optional[str],
+                     display_tag: Optional[str]) -> Tuple[str, str]:
+    """(type label, entity label) for one duplicate, for the by-type counts and
+    the log/report lines: a pure entity duplicate labels as its entity type and
+    entity curie, a topic-only one as "topic-only" and its display_tag."""
+    if entity is None:
+        return "topic-only", f"display:{display_tag}"
+    return ATP_TO_ENTITY_TYPE.get(entity_type_atp or "", entity_type_atp or ""), entity
 
 
 def count_affected_dataset_entries(db, tag_ids: List[int]) -> int:
@@ -177,7 +217,7 @@ def cleanup_sgd_duplicate_entity_reference_tags(delete: bool = False,
         by_type: Dict[str, int] = defaultdict(int)
         by_reference: Dict[int, List[DuplicateRow]] = defaultdict(list)
         for dup in duplicates:
-            by_type[ATP_TO_ENTITY_TYPE.get(dup[3], dup[3])] += 1
+            by_type[_duplicate_label(dup[3], dup[4], dup[5])[0]] += 1
             by_reference[dup[1]].append(dup)
         counts["by_type"] = dict(by_type)
         counts["affected_references"] = len(by_reference)
@@ -200,8 +240,11 @@ def cleanup_sgd_duplicate_entity_reference_tags(delete: bool = False,
         write_id_log(DUPLICATES_LOG,
                      f"SGD reference-curation tags duplicating an ABC-curated tag "
                      f"({len(duplicates)}){'' if delete else ' [dry-run]'}",
-                     [f"{tag_id}\t{ref_curie}\t{entity_type_atp}\t{entity}"
-                      for tag_id, _ref_id, ref_curie, entity_type_atp, entity in duplicates])
+                     ["{}\t{}\t{}\t{}".format(
+                         tag_id, ref_curie,
+                         *_duplicate_label(entity_type_atp, entity, display_tag))
+                      for tag_id, _ref_id, ref_curie, entity_type_atp, entity, display_tag
+                      in duplicates])
 
         if not delete:
             return counts
@@ -209,14 +252,15 @@ def cleanup_sgd_duplicate_entity_reference_tags(delete: bool = False,
         # Delete a reference's duplicates in one transaction, then revalidate
         # it immediately so an interrupted run stays self-consistent.
         for reference_id, dups in by_reference.items():
-            for tag_id, _ref_id, ref_curie, entity_type_atp, entity in dups:
+            for tag_id, _ref_id, ref_curie, entity_type_atp, entity, display_tag in dups:
                 tag = db.query(TopicEntityTagModel).filter_by(
                     topic_entity_tag_id=tag_id).one_or_none()
                 if tag is None:  # already gone (e.g. deleted by a curator mid-run)
                     continue
                 db.delete(tag)
+                type_label, entity_label = _duplicate_label(entity_type_atp, entity, display_tag)
                 logger.info("  deleted tag %d (%s / %s / %s)",
-                            tag_id, ref_curie, entity_type_atp, entity)
+                            tag_id, ref_curie, type_label, entity_label)
             db.commit()
             if revalidate:
                 try:
@@ -250,9 +294,10 @@ def compose_report_message(counts: Dict) -> str:
     duplicates = counts.get("duplicate_rows", [])
     if duplicates:
         message += f"<li>Duplicates ({len(duplicates)}):<br>"
-        for _tag_id, _ref_id, ref_curie, entity_type_atp, entity in duplicates[:REPORT_LIST_CAP]:
-            label = ATP_TO_ENTITY_TYPE.get(entity_type_atp, entity_type_atp)
-            message += f"{ref_curie}\t{label}\t{entity}<br>"
+        for (_tag_id, _ref_id, ref_curie, entity_type_atp,
+             entity, display_tag) in duplicates[:REPORT_LIST_CAP]:
+            type_label, entity_label = _duplicate_label(entity_type_atp, entity, display_tag)
+            message += f"{ref_curie}\t{type_label}\t{entity_label}<br>"
         if len(duplicates) > REPORT_LIST_CAP:
             message += (f"...and {len(duplicates) - REPORT_LIST_CAP} more; "
                         f"full list in the log file<br>")

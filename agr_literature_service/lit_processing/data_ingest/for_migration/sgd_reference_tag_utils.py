@@ -239,6 +239,23 @@ def parse_sgd_datetime(value: Optional[str]) -> Optional[datetime]:
     return None
 
 
+def note_unmapped_entity_topic(counts: Dict, sgd_topic: str,
+                               warned: Set[str]) -> None:
+    """Count an entity association whose POPULATED SGD topic maps to no
+    display_tag (SGD renamed/added a section?) -- the tag still loads but falls
+    back to create_tag's topic-ATP display stamping and would land in the wrong
+    reference-page section, silently but for the entity_unknown_topic count.
+    Warns once per distinct topic (``warned`` is the caller's per-run set). An
+    EMPTY topic (a pre-topic dump / backend) is expected degradation -- callers
+    must not report it here."""
+    counts["entity_unknown_topic"] += 1
+    if sgd_topic not in warned:
+        warned.add(sgd_topic)
+        logger.warning("SGD topic %r maps to no display_tag; entity tags "
+                       "with it fall back to topic-ATP display stamping",
+                       sgd_topic)
+
+
 def sgd_display_tag(sgd_topic: Optional[str]) -> Optional[str]:
     """Return the display_tag ATP for an association annotated under the given
     SGD literature topic, for any entity type. None for an unknown/absent
@@ -539,10 +556,29 @@ def create_entity_tags(db: Session,
     corrected for those) and skipped otherwise;
     a 409 from create_tag
     also counts as a duplicate. Aborts (setting counts["aborted"]) after
-    ABORT_AFTER_CONSECUTIVE_ERRORS consecutive errors."""
+    ABORT_AFTER_CONSECUTIVE_ERRORS consecutive errors. An exception raised
+    while PRODUCING the next association (``associations`` is a lazy generator
+    doing file reads, API-payload access, and curator-resolution queries) also
+    aborts, but gracefully: a generator dies on its first exception and cannot
+    be resumed, so the run stops with the counts accumulated so far and the
+    caller still writes its report and logs instead of crashing on a bare
+    traceback."""
     seen: Set[Tuple[str, str, str]] = set()
     consecutive_errors = 0
-    for reference_curie, topic_atp, entity_curie, created_by, display_tag, date_created in associations:
+    association_iter = iter(associations)
+    while True:
+        try:
+            (reference_curie, topic_atp, entity_curie,
+             created_by, display_tag, date_created) = next(association_iter)
+        except StopIteration:
+            return
+        except Exception as e:
+            db.rollback()
+            counts["errors"] += 1
+            counts["aborted"] = True
+            logger.error("Aborting: failed to produce the next association "
+                         "(input unreadable or curator resolution failed): %s", e)
+            return
         association = (reference_curie, topic_atp, entity_curie or display_tag or "")
         if association in seen:
             counts["duplicate_in_input"] += 1
@@ -613,6 +649,7 @@ def new_counts() -> Dict:
         "duplicate_in_input": 0,
         "unknown_entity_type": 0,
         "unknown_topic": 0,
+        "entity_unknown_topic": 0,
         "missing_entity_id": 0,
         "missing_reference": 0,
         "not_in_corpus": 0,
@@ -630,8 +667,9 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
     """Render the common report body (an HTML <ul>) from the run counts."""
     message = "<ul>"
     if counts.get("aborted"):
-        message += "<li><b>RUN ABORTED early after consecutive create_tag errors</b>"
-    message += f"<li>Total entity-reference associations in {input_label}: {counts['total_associations']}"
+        message += ("<li><b>RUN ABORTED early (consecutive create_tag errors, "
+                    "or the input could not be read)</b>")
+    message += f"<li>Total associations (entity and topic-only) in {input_label}: {counts['total_associations']}"
     message += f"<li>Entity tags created: {counts['created']}"
     message += (f"<li>Existing tags corrected in place (display_tag/date_created/created_by): "
                 f"{counts['updated_existing']}")
@@ -640,6 +678,8 @@ def format_report_counts(counts: Dict, input_label: str) -> str:
     message += f"<li>Duplicate associations within input: {counts['duplicate_in_input']}"
     message += f"<li>Unknown entity types skipped: {counts['unknown_entity_type']}"
     message += f"<li>Topic-only annotations with an unknown SGD topic skipped: {counts['unknown_topic']}"
+    message += ("<li>Entity associations with an unmappable SGD topic (loaded; display_tag "
+                f"left to create_tag's topic-ATP stamping): {counts['entity_unknown_topic']}")
     message += f"<li>Associations without an entity sgdid skipped: {counts['missing_entity_id']}"
     message += f"<li>References not found in ABC: {counts['missing_reference']}"
     message += f"<li>Associations skipped (paper not in SGD corpus): {counts['not_in_corpus']}"
@@ -662,7 +702,7 @@ def log_run_summary(counts: Dict, label: str) -> None:
     logger.info(
         "%s done: total_associations=%d created=%d updated_existing=%d "
         "skipped_duplicate=%d skipped_in_abc=%d duplicate_in_input=%d "
-        "unknown_entity_type=%d unknown_topic=%d "
+        "unknown_entity_type=%d unknown_topic=%d entity_unknown_topic=%d "
         "missing_entity_id=%d missing_reference=%d not_in_corpus=%d "
         "skipped_over_cap=%d papers_over_cap=%d errors=%d",
         label, counts["total_associations"], counts["created"],
@@ -670,6 +710,7 @@ def log_run_summary(counts: Dict, label: str) -> None:
         counts["skipped_duplicate"], counts["skipped_in_abc"],
         counts["duplicate_in_input"],
         counts["unknown_entity_type"], counts["unknown_topic"],
+        counts["entity_unknown_topic"],
         counts["missing_entity_id"],
         counts["missing_reference"], counts["not_in_corpus"],
         counts["skipped_over_cap"], counts["papers_over_cap"], counts["errors"],

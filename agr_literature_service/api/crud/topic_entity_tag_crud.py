@@ -2066,7 +2066,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     # This MOD-facing export deliberately ships ONLY tags curated in the ABC
     # itself: an allowlist of source_method = 'abc_literature_system', not a
     # denylist of specific sources. Tags from classifier / pipeline / bulk
-    # loader sources (abc_document_classifier, nnc_*, svm_*,
+    # loader sources (abc_document_classifier, curation_status_form,
+    # string_matching_antibody, the PDB association pipeline, ACKnowledge/AFP,
     # sgd_reference_curation, zfin_reference_curation, ...) are intentionally
     # excluded (SCRUM-6404 review). The same filter is applied to the source
     # metadata below and in get_curie_to_name_mapping_for_mod.

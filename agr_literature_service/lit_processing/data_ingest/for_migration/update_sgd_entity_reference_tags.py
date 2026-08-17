@@ -85,6 +85,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.sgd_referen
     load_existing_entity_tags,
     log_run_summary,
     new_counts,
+    note_unmapped_entity_topic,
     resolve_sgd_created_by,
     write_id_log,
 )
@@ -132,6 +133,39 @@ def _sgd_curie(sgdid: str) -> str:
     return sgdid if sgdid.startswith(f"{SGD_CURIE_PREFIX}:") else f"{SGD_CURIE_PREFIX}:{sgdid}"
 
 
+def _entities_by_type(entities: List[Dict], ref_created_by: str,
+                      ref_date_created: Optional[str], counts: Dict,
+                      unmapped_topics_warned: Set[str],
+                      ) -> Dict[str, Dict[str, Tuple[Optional[str], str, Optional[str]]]]:
+    """Classify one reference's entity annotations from the API payload as
+    entity type -> {entity curie: (display_tag, created_by, date_created)},
+    counting unknown entity types, missing entity sgdids (which would otherwise
+    become a real tag with entity "SGD:"), and populated-but-unmappable SGD
+    topics (see note_unmapped_entity_topic; those entities still load). The
+    reference-level created_by/date_created serve as fallbacks for a backend
+    that predates the per-entity (annotation-level) fields."""
+    by_type: Dict[str, Dict[str, Tuple[Optional[str], str, Optional[str]]]] = {}
+    for entity in entities:
+        entity_type = entity.get("entity_type") or ""
+        if entity_type not in ENTITY_TYPE_TO_ATP:
+            counts["unknown_entity_type"] += 1
+            continue
+        entity_sgdid = entity.get("entity_sgdid") or ""
+        if not entity_sgdid:
+            counts["missing_entity_id"] += 1
+            continue
+        sgd_topic = entity.get("topic") or ""
+        display_tag = sgd_display_tag(sgd_topic)
+        if sgd_topic and display_tag is None:
+            note_unmapped_entity_topic(counts, sgd_topic, unmapped_topics_warned)
+        by_type.setdefault(entity_type, {})[_sgd_curie(entity_sgdid)] = (
+            display_tag,
+            entity.get("created_by") or ref_created_by,
+            entity.get("date_created") or ref_date_created,
+        )
+    return by_type
+
+
 def update_sgd_entity_reference_tags(days_added: int) -> Dict:
     """Create entity TETs for SGD references added in the last ``days_added`` days.
 
@@ -160,6 +194,8 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
     over_cap_paper_tokens: Set[str] = set()
     # SGD curator database id -> users.id (resolve_sgd_created_by memoization).
     user_id_cache: Dict[str, str] = {}
+    # distinct unmappable SGD topics seen on entities, warned once each
+    unmapped_topics_warned: Set[str] = set()
 
     try:
         source_id = get_or_create_source(db)
@@ -218,23 +254,9 @@ def update_sgd_entity_reference_tags(days_added: int) -> Dict:
                            display_tag,
                            parse_sgd_datetime(annotation.get("date_created") or ref_date_created))
 
-                # entity type -> {entity curie: (display_tag, created_by, date_created)}
-                entities_by_type: Dict[str, Dict[str, Tuple[Optional[str], str, Optional[str]]]] = {}
-                for entity in entities:
-                    entity_type = entity.get("entity_type") or ""
-                    if entity_type not in ENTITY_TYPE_TO_ATP:
-                        counts["unknown_entity_type"] += 1
-                        continue
-                    entity_sgdid = entity.get("entity_sgdid") or ""
-                    if not entity_sgdid:
-                        # would otherwise become a real tag with entity "SGD:"
-                        counts["missing_entity_id"] += 1
-                        continue
-                    entities_by_type.setdefault(entity_type, {})[_sgd_curie(entity_sgdid)] = (
-                        sgd_display_tag(entity.get("topic")),
-                        entity.get("created_by") or ref_created_by,
-                        entity.get("date_created") or ref_date_created,
-                    )
+                entities_by_type = _entities_by_type(
+                    entities, ref_created_by, ref_date_created, counts,
+                    unmapped_topics_warned)
 
                 for entity_type, entity_curies in entities_by_type.items():
                     if len(entity_curies) > MAX_ASSOCIATIONS_PER_PAPER:
