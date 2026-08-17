@@ -143,6 +143,7 @@ def test_emails_from_text_suppresses_role_accounts():
         "jane.doe@stanford.edu"
     ]
     assert emails_from_text("no address here") == []
+    assert emails_from_text("") == []
 
 
 def test_download_emails_cascade(monkeypatch):
@@ -224,6 +225,20 @@ def test_eutils_post_success(monkeypatch):
     assert content == b"<xml/>"
     assert posted["url"].endswith("/efetch.fcgi")
     assert ("id", "1") in posted["data"] and ("id", "2") in posted["data"]
+
+
+def test_eutils_post_sends_api_key_when_set(monkeypatch):
+    _no_sleep(monkeypatch)
+    posted = {}
+
+    def fake_post(url, data=None, timeout=None):
+        posted["data"] = data
+        return FakeResponse(b"<xml/>")
+
+    monkeypatch.setattr(mod.requests, "post", fake_post)
+    monkeypatch.setattr(mod, "NCBI_API_KEY", "test-key")
+    assert eutils_post("efetch", {"db": "pubmed"}, ["1"]) == b"<xml/>"
+    assert ("api_key", "test-key") in posted["data"]
 
 
 def test_eutils_post_retries_then_succeeds(monkeypatch):
@@ -470,3 +485,15 @@ def test_parse_args_defaults(monkeypatch):
     args = parse_args()
     assert args.since == mod.DEFAULT_SINCE
     assert not args.commit and args.mods is None and args.limit is None
+
+
+def test_main_invokes_run(monkeypatch):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["get_emails_from_pubmed_pmc.py", "--mods", "SGD,WB", "--limit", "3"])
+    calls = {}
+    monkeypatch.setattr(mod, "run", lambda **kwargs: calls.update(kwargs))
+    mod.main()
+    assert calls["only_mods"] == ["SGD", "WB"]
+    assert calls["limit"] == 3
+    assert calls["dry_run"] is True   # no --commit
