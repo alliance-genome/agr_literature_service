@@ -282,6 +282,16 @@ def test_fetchers_skip_unparseable_chunks(monkeypatch):
     assert fetch_pmc_emails({"1": "10"}) == {}
 
 
+def test_fetchers_warn_on_ncbi_error_documents(monkeypatch):
+    """A well-formed NCBI error document parses cleanly with zero articles;
+    it must be logged (not silent) and contribute nothing."""
+    error_xml = b'<?xml version="1.0" ?><eFetchResult><ERROR>backend failed</ERROR></eFetchResult>'
+    monkeypatch.setattr(mod, "eutils_post", lambda *args: error_xml)
+    assert fetch_pubmed_emails(["1"]) == {}
+    assert map_pmids_to_pmcids(["1"]) == {}
+    assert fetch_pmc_emails({"1": "10"}) == {}
+
+
 def test_download_emails_pmc_all_unions_both_tiers(monkeypatch):
     """With pmc_all, a paper both tiers hit gets the union of the addresses
     (PubMed's first) and a combined source."""

@@ -254,6 +254,10 @@ def fetch_pubmed_emails(pmids: List[str]) -> Dict[str, List[str]]:
             logger.warning("Skipping an unparseable PubMed chunk of %d PMIDs: %s",
                            len(chunk), e)
             continue
+        if b"<ERROR" in content:
+            # a well-formed NCBI error document parses cleanly but carries no
+            # (or not all) articles -- make the silent case visible
+            logger.warning("NCBI error in a PubMed chunk of %d PMIDs", len(chunk))
         emails_by_pmid.update(parsed)
         fetched += len(chunk)
         if fetched % PROGRESS_LOG_INTERVAL < EFETCH_PUBMED_CHUNK:
@@ -278,6 +282,8 @@ def map_pmids_to_pmcids(pmids: List[str]) -> Dict[str, str]:
             logger.warning("Skipping an unparseable elink chunk of %d PMIDs: %s",
                            len(chunk), e)
             continue
+        if b"<ERROR" in content:
+            logger.warning("NCBI error in an elink chunk of %d PMIDs", len(chunk))
         for linkset in root.findall(".//LinkSet"):
             pmid = linkset.findtext("IdList/Id")
             pmcid = linkset.findtext(".//LinkSetDb/Link/Id")
@@ -304,6 +310,8 @@ def fetch_pmc_emails(pmid_to_pmcid: Dict[str, str]) -> Dict[str, List[str]]:
             logger.warning("Skipping an unparseable PMC chunk of %d articles: %s",
                            len(chunk), e)
             continue
+        if b"<ERROR" in content:
+            logger.warning("NCBI error in a PMC chunk of %d articles", len(chunk))
         emails_by_pmid.update(parsed)
         fetched += len(chunk)
         logger.info("PMC: fetched %d/%d articles (%d with emails so far)",
