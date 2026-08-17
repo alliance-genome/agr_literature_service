@@ -452,3 +452,111 @@ class TestReachable500Hardening:
         assert a.name == "Same Ref Renamed"
         assert a.reference_id == test_reference.related_ref_id
         assert a.author_order == 1
+
+    def test_patch_reparent_duplicate_person_422(self, db, auth_headers, test_reference):  # noqa
+        # A reparent carries the row's person_id along just as it carries author_order, and
+        # uq_author_ref_person allows a person only one author per reference. Landing on a
+        # destination that already links that person must be a clean 422, never a raw 500.
+        p = PersonModel(display_name="Dup Person", curie="AGR:AP-DUP-1")
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Person reparent dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+            # destination already links the person, at an order the mover will NOT collide with
+            blocker = client.post(url="/author/",
+                                  json={"author_order": 1, "name": "Blocker",
+                                        "person_curie": p.curie,
+                                        "reference_curie": dest_curie},
+                                  headers=auth_headers)
+            assert blocker.status_code == status.HTTP_201_CREATED
+            mover = client.post(url="/author/",
+                                json={"author_order": 9, "name": "Mover",
+                                      "person_curie": p.curie,
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert mover.status_code == status.HTTP_201_CREATED
+            mover_id = mover.json()["author_id"]
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+        # order 9 is free on the destination, so only the person guard can reject this
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
+        assert a.reference_id == test_reference.related_ref_id
+
+    def test_patch_reparent_person_only_stub_duplicate_422(self, db, auth_headers, test_reference):  # noqa
+        # A person-only stub has author_order NULL, so the order guard skips it entirely --
+        # only the person guard stands between this reparent and a raw IntegrityError.
+        p = PersonModel(display_name="Stub Person", curie="AGR:AP-DUP-2")
+        db.add(p)
+        db.commit()
+        db.refresh(p)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Stub reparent dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+            blocker = client.post(url="/author/",
+                                  json={"author_order": 1, "name": "Blocker",
+                                        "person_curie": p.curie,
+                                        "reference_curie": dest_curie},
+                                  headers=auth_headers)
+            assert blocker.status_code == status.HTTP_201_CREATED
+            stub = client.post(url="/author/",
+                               json={"person_curie": p.curie,
+                                     "reference_curie": test_reference.new_ref_curie},
+                               headers=auth_headers)
+            assert stub.status_code == status.HTTP_201_CREATED
+            stub_id = stub.json()["author_id"]
+            r = client.patch(url=f"/author/{stub_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == stub_id).one()
+        assert a.reference_id == test_reference.related_ref_id
+        assert a.author_order is None
+
+    def test_patch_reparent_unrelated_person_succeeds(self, db, auth_headers, test_reference):  # noqa
+        # the person guard must only fire on a real collision: a destination that links a
+        # DIFFERENT person still accepts the reparent.
+        p_mover = PersonModel(display_name="Mover Person", curie="AGR:AP-DUP-3")
+        p_other = PersonModel(display_name="Other Person", curie="AGR:AP-DUP-4")
+        db.add_all([p_mover, p_other])
+        db.commit()
+        db.refresh(p_mover)
+        db.refresh(p_other)
+        with TestClient(app) as client:
+            dest = client.post(url="/reference/",
+                               json={"title": "Unrelated person dest", "category": "thesis"},
+                               headers=auth_headers)
+            assert dest.status_code == status.HTTP_201_CREATED
+            dest_curie = dest.json()["curie"]
+            blocker = client.post(url="/author/",
+                                  json={"author_order": 1, "name": "Blocker",
+                                        "person_curie": p_other.curie,
+                                        "reference_curie": dest_curie},
+                                  headers=auth_headers)
+            assert blocker.status_code == status.HTTP_201_CREATED
+            mover = client.post(url="/author/",
+                                json={"author_order": 9, "name": "Mover",
+                                      "person_curie": p_mover.curie,
+                                      "reference_curie": test_reference.new_ref_curie},
+                                headers=auth_headers)
+            assert mover.status_code == status.HTTP_201_CREATED
+            mover_id = mover.json()["author_id"]
+            r = client.patch(url=f"/author/{mover_id}",
+                             json={"reference_curie": dest_curie},
+                             headers=auth_headers)
+        assert r.status_code == status.HTTP_200_OK
+        db.expire_all()
+        a = db.query(AuthorModel).filter(AuthorModel.author_id == mover_id).one()
+        assert a.reference_id != test_reference.related_ref_id
+        assert a.author_order == 9
