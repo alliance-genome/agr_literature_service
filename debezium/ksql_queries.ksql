@@ -90,7 +90,8 @@ CREATE TABLE author (
     ROWKEY string PRIMARY KEY,
     reference_id string,
     orcid string,
-    name string
+    name string,
+    author_order integer
   ) WITH (
     KAFKA_TOPIC='abc.public.author',
     VALUE_FORMAT='json'
@@ -293,7 +294,7 @@ CREATE TABLE cross_references AS
 
 CREATE TABLE authors AS
     SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('name':=name, 'orcid':=orcid)) \"AUTHORS\"
+    collect_list(map('name':=name, 'orcid':=orcid, 'author_order':=cast(author_order as string))) \"AUTHORS\"
     FROM author
     GROUP BY reference_id
     EMIT CHANGES;
