@@ -282,6 +282,16 @@ def check_and_set_sgd_display_tag(topic_entity_tag_data):
     display_tag = topic_entity_tag_data['display_tag']
     if entity_type and not entity:
         topic_entity_tag_data['entity_type'] = None
+    if topic == entity_type and entity and display_tag:
+        # A pure entity tag (topic == entity_type) arriving with an explicit
+        # display_tag: the SGD entity-reference loaders (SCRUM-6404) derive it
+        # from the association's literature topic in SGD (Primary Literature /
+        # Additional Literature / Reviews / Omics), which the topic-based
+        # stamping below cannot see -- e.g. a complex annotated as Additional
+        # Literature must not be forced to primary display. Keep the supplied
+        # value; the stamping below remains the fallback for pure entity tags
+        # created without one.
+        return
     if topic in sgd_primary_topics and display_tag != sgd_primary_display_tag:
         topic_entity_tag_data['display_tag'] = sgd_primary_display_tag
     elif topic in sgd_review_topics and display_tag != sgd_review_display_tag:

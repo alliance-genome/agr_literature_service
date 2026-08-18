@@ -2063,6 +2063,14 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):
+    # This MOD-facing export deliberately ships ONLY tags curated in the ABC
+    # itself: an allowlist of source_method = 'abc_literature_system', not a
+    # denylist of specific sources. Tags from classifier / pipeline / bulk
+    # loader sources (abc_document_classifier, curation_status_form,
+    # string_matching_antibody, the PDB association pipeline, ACKnowledge/AFP,
+    # sgd_reference_curation, zfin_reference_curation, ...) are intentionally
+    # excluded (SCRUM-6404 review). The same filter is applied to the source
+    # metadata below and in get_curie_to_name_mapping_for_mod.
 
     current_date = datetime.now()
     past_date = current_date - timedelta(days=int(days_updated))
@@ -2076,6 +2084,7 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                            "JOIN users u ON tet.updated_by = u.id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
                       {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
 
@@ -2097,7 +2106,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     src_rows = db.execute(text("SELECT tets.* "
                                "FROM topic_entity_tag_source tets "
                                "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                               "WHERE m.abbreviation = :mod_abbreviation"),
+                               "WHERE m.abbreviation = :mod_abbreviation "
+                               "AND tets.source_method = 'abc_literature_system'"),
                           {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
@@ -2113,6 +2123,7 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
                            "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
                       {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
     for x in rows:
