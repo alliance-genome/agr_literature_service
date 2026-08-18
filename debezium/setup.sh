@@ -49,6 +49,11 @@ echo "(alias '${INDEX_ALIAS}' keeps serving the other slot until the cutover)"
 # Set initial reindexing status
 set_reindex_status "setup" "{\"env_state\": \"${ENV_STATE}\", \"slot\": \"${SLOT}\"}"
 
+# Ingest pipeline that sorts the authors array by author_order at index time. Both settings
+# files set it as index.default_pipeline, so it MUST exist before the indexes receive writes
+# (a missing default_pipeline makes every bulk index request fail). PUT is idempotent.
+curl -i -X PUT -H "Accept:application/json" -H "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/_ingest/pipeline/sort_authors_by_order -d @/sort-authors-pipeline.json
+
 # Delete + recreate ONLY the inactive slot (the live slot is never touched here)
 curl -i -X DELETE http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT}
 curl -i -X PUT -H "Accept:application/json" -H  "Content-Type:application/json" http://${ELASTICSEARCH_HOST}:${ELASTICSEARCH_PORT}/${INDEX_NAME_CURRENT} -d @/elasticsearch-settings.json
