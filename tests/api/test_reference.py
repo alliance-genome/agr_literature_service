@@ -419,6 +419,67 @@ class TestReference:
             for ont in response["mod_corpus_associations"]:
                 assert ont['mod_abbreviation'] == test_mod.new_mod_abbreviation
 
+    def test_reference_citation_without_journal(self, db, auth_headers, test_resource): # noqa
+        """Citations must not contain empty separators when journal, volume,
+        issue and pages are absent; the short citation falls back to the full
+        journal title, then to the reference title."""
+        with TestClient(app) as client:
+            # journal-less reference (e.g. category internal_process_reference):
+            # title used in the short citation, no trailing "():"
+            internal_reference = {
+                "category": "internal_process_reference",
+                "title": "Gene Orthologs and Disease Associations",
+                "date_published": "2018",
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "The Alliance of Genome Resources Curators"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=internal_reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+            assert response['citation'] == \
+                "The Alliance of Genome Resources Curators, (2018) Gene Orthologs and Disease Associations."
+            assert response['citation_short'] == \
+                "The Alliance of Genome Resources Curators (2018) Gene Orthologs and Disease Associations"
+
+            # resource without a title_abbreviation: short citation falls back
+            # to the full resource title
+            no_abbrev_reference = {
+                "category": "research_article",
+                "title": "A title",
+                "date_published": "2019",
+                "resource": test_resource.new_resource_curie,
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "The Alliance of Genome Resources Curators"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=no_abbrev_reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+            assert response['citation'] == \
+                "The Alliance of Genome Resources Curators, (2019) A title. Bob"
+            assert response['citation_short'] == \
+                "The Alliance of Genome Resources Curators (2019) Bob"
+
+            # authors-only reference: no dangling author/year comma
+            authors_only_reference = {
+                "category": "internal_process_reference",
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "The Alliance of Genome Resources Curators"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=authors_only_reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+            assert response['citation'] == "The Alliance of Genome Resources Curators"
+            assert response['citation_short'] == "The Alliance of Genome Resources Curators"
+
     def test_bad_mod(self, auth_headers): # noqa
         with TestClient(app) as client:
             new_reference = {

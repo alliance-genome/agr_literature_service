@@ -107,6 +107,10 @@ BEGIN
         long_citation := long_citation || ' ' || ref_details;
     END IF;
     long_citation := LTRIM(long_citation);
+    -- an authors-only reference would otherwise end with the author/year separator
+    IF RIGHT(long_citation, 1) = ',' THEN
+        long_citation := SUBSTRING(long_citation, 1, LENGTH(long_citation) - 1);
+    END IF;
     -- raise notice '%', long_citation;
     -- Build short citation; fall back to the full journal title, then the
     -- reference title, when there is no resource abbreviation
