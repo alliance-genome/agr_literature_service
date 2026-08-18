@@ -121,6 +121,11 @@ class MockDataFactory:
 
         author = AuthorModel(
             reference_id=reference.reference_id,
+            # ck_author_person_or_order (SCRUM-6155) requires person_id or author_order,
+            # and ck_person_only_link_only forbids a named/orcid'd author with a null
+            # order. Each reference here gets exactly one author, so a fixed order
+            # cannot collide on uq_author_ref_order.
+            author_order=1,
             name=author_pattern.get('name', f"Test Author {author_id}"),
             orcid=f"0000-0000-0000-{author_id:04d}"
         )
