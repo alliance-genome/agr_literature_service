@@ -391,7 +391,7 @@ class TestReference:
             response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
 
             # need to check if citation is created
-            assert response['citation'] == "Wu D; Wu S, () Some test 001 title.  433(4):538--541"
+            assert response['citation'] == "Wu D; Wu S, Some test 001 title. 433(4):538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 

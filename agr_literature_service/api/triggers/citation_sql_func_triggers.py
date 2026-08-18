@@ -10,13 +10,13 @@ CREATE OR REPLACE PROCEDURE update_citations(
 as $$
 DECLARE
 -- Short citation available to A-team system
--- <first author: Last name and initial(s)>,
--- <year>,
---   <resource abbrev>
---   <volume>(<issue>):<page(s)>
+-- <first author: Last name and initial(s)> (<year>) <resource abbrev> <volume>(<issue>):<page(s)>
+-- Empty parts are omitted along with their separators. When the reference has
+-- no resource abbreviation, the full resource title is used; when there is no
+-- resource at all (e.g. category Internal_Process_Reference), the reference
+-- title is used instead.
    sht_citation TEXT default '';
    author_short author.name%type default '';
-   s_auth record default NULL;
    ref_year reference.page_range%type;
    res_abbr TEXT default '';
    journal TEXT;
@@ -29,12 +29,9 @@ DECLARE
    -- used in queries for short
    title_abbr resource.title_abbreviation%type;
 -- Long citation
---  citation = get_citation_from_args(authorNames, year, title, journal,
---                                     ref_db_obj.volume or '',
---                                     ref_db_obj.issue_name or '',
---                                     ref_db_obj.page_range or '')
+-- <authors>, (<year>) <title>. <journal> <volume>(<issue>):<page(s)>
+-- with empty parts and their separators omitted as for the short citation
    long_citation TEXT default '';
-   -- volume, issue and page range same as short citation
    title reference.title%type;
    authors author.name%type default '';
    auth record;
@@ -50,67 +47,84 @@ BEGIN
         AND author.author_order IS NOT NULL
       ORDER BY author.author_order asc
     loop
-      -- raise notice 'Record %', auth;
       authors = CONCAT(authors, get_long_citation_author_string(auth), '; ');
-      -- raise notice 'String %', authors;
       IF author_short = '' THEN
         author_short = get_short_author_string(auth);
       END IF;
     end loop;
-    -- raise notice 'Author record for short is %', s_auth;
-    -- raise notice 'Author for short is %', author_short;
-    -- raise notice 'Authors %', authors;
     -- remove the last '; ' from the authors string
     IF authors != '' THEN
       authors := SUBSTRING(authors, 1, LENGTH(authors)-2);
-    ELSE
-       authors := '';
     END IF;
-    -- raise notice 'Authors %', authors;
     -- Get the resource abbr
     SELECT res.title_abbreviation, res.title into title_abbr, journal
       FROM reference ref, resource res
       WHERE ref.resource_id = res.resource_id AND
             ref.reference_id = ref_id;
-    IF title_abbr is not NULL THEN
-        res_abbr := title_abbr;
-    ELSE
-        res_abbr := ' ';
-    END IF;
     -- Reference details
     SELECT ref.title, ref.volume, ref.issue_name, ref.page_range, SUBSTRING(ref.date_published, 1,4), ref.citation_id
            into title, volume, issue_name, page_range, ref_year, citation_identifier
       FROM reference ref
       WHERE reference_id = ref_id;
-    if title is NULL THEN
-      title := '';
-    END IF;
-    if volume is NULL THEN
-      volume := '';
-    END IF;
-    if issue_name is NULL THEN
-      issue_name := '';
-    END IF;
-    if page_range is NULL THEN
-      page_range := '';
-    END IF;
-    if ref_year is NULL THEN
-      ref_year := '';
-    END IF;
-    if journal is NULL THEN
-      journal := '';
-    END IF;
+    title := coalesce(title, '');
+    volume := coalesce(volume, '');
+    issue_name := coalesce(issue_name, '');
+    page_range := coalesce(page_range, '');
+    ref_year := coalesce(ref_year, '');
+    journal := coalesce(journal, '');
+    res_abbr := coalesce(title_abbr, '');
+    author_short := coalesce(author_short, '');
     -- build the ref_details
-    -- <volume>(<issue>):<page(s)>
-    ref_details := volume || '(' || issue_name || '):' || page_range;
-    -- Build long citation, only add period after title if it doesn't already end with punctuation
-    long_citation := authors || ', (' || ref_year || ') ' || title;
-    IF title != '' AND NOT (RIGHT(title, 1) IN ('.', '?', '!')) THEN
-        long_citation := long_citation || '.';
+    -- <volume>(<issue>):<page(s)>, omitting empty parts and their separators
+    ref_details := volume;
+    IF issue_name != '' THEN
+        ref_details := ref_details || '(' || issue_name || ')';
     END IF;
-    long_citation := long_citation || ' ' || journal || ' ' || ref_details;
+    IF page_range != '' THEN
+        IF ref_details != '' THEN
+            ref_details := ref_details || ':' || page_range;
+        ELSE
+            ref_details := page_range;
+        END IF;
+    END IF;
+    -- Build long citation, only add period after title if it doesn't already end with punctuation
+    IF authors != '' THEN
+        long_citation := authors || ',';
+    END IF;
+    IF ref_year != '' THEN
+        long_citation := long_citation || ' (' || ref_year || ')';
+    END IF;
+    IF title != '' THEN
+        long_citation := long_citation || ' ' || title;
+        IF NOT (RIGHT(title, 1) IN ('.', '?', '!')) THEN
+            long_citation := long_citation || '.';
+        END IF;
+    END IF;
+    IF journal != '' THEN
+        long_citation := long_citation || ' ' || journal;
+    END IF;
+    IF ref_details != '' THEN
+        long_citation := long_citation || ' ' || ref_details;
+    END IF;
+    long_citation := LTRIM(long_citation);
     -- raise notice '%', long_citation;
-    sht_citation :=  author_short || ' (' || ref_year || ') ' || res_abbr || ' ' || ref_details;
+    -- Build short citation; fall back to the full journal title, then the
+    -- reference title, when there is no resource abbreviation
+    sht_citation := author_short;
+    IF ref_year != '' THEN
+        sht_citation := sht_citation || ' (' || ref_year || ')';
+    END IF;
+    IF res_abbr != '' THEN
+        sht_citation := sht_citation || ' ' || res_abbr;
+    ELSIF journal != '' THEN
+        sht_citation := sht_citation || ' ' || journal;
+    ELSIF title != '' THEN
+        sht_citation := sht_citation || ' ' || title;
+    END IF;
+    IF ref_details != '' THEN
+        sht_citation := sht_citation || ' ' || ref_details;
+    END IF;
+    sht_citation := LTRIM(sht_citation);
     -- raise notice '%', sht_citation;
     SELECT citation_id from reference where reference_id = ref_id into citation_identifier;
     raise notice 'citation_id from reference is %', citation_identifier;
