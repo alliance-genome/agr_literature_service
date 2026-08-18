@@ -238,6 +238,50 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
     res_ref = stripout(db, author_data, non_fatal=True)
+
+    # A PATCH can still reparent an author to another reference via reference_curie, and the
+    # row carries BOTH its existing author_order and its person_id along -- PATCH can change
+    # neither (author_order is rejected above; person_id is never set from the payload). Each
+    # is unique per reference, so either would trip at commit as a raw IntegrityError/500:
+    # uq_author_ref_order (DEFERRABLE INITIALLY IMMEDIATE) or uq_author_ref_person. Pre-check
+    # both and raise a clean 422 instead. They are independent checks, not alternatives:
+    # ck_author_person_or_order requires at least one of the two, not exactly one, so a row
+    # can carry both. A same-reference PATCH is untouched: metadata-only patches routinely
+    # resend the author's own reference_curie. Checked before add() so
+    # author_db_obj.reference_id is still the original and no relationship has been mutated.
+    dest_ref = res_ref.get("reference")
+    if dest_ref is not None and dest_ref.reference_id != author_db_obj.reference_id:
+        # no_autoflush: an autoflush here would push the very write these guards prevent.
+        if author_db_obj.author_order is not None:
+            with db.no_autoflush:
+                order_taken = db.query(AuthorModel.author_id).filter(
+                    AuthorModel.reference_id == dest_ref.reference_id,
+                    AuthorModel.author_order == author_db_obj.author_order,
+                    AuthorModel.author_id != author_db_obj.author_id,
+                ).first()
+            if order_taken is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"author_order {author_db_obj.author_order} is already taken on "
+                           f"reference {dest_ref.curie}; author_order cannot be changed via "
+                           f"PATCH, so free that order there first with POST /author/reorder")
+
+        # A NULL person_id never collides: Postgres treats NULLs as distinct in a unique
+        # index, which is why the many unlinked authors on one reference do not conflict.
+        if author_db_obj.person_id is not None:
+            with db.no_autoflush:
+                person_taken = db.query(AuthorModel.author_id).filter(
+                    AuthorModel.reference_id == dest_ref.reference_id,
+                    AuthorModel.person_id == author_db_obj.person_id,
+                    AuthorModel.author_id != author_db_obj.author_id,
+                ).first()
+            if person_taken is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Reference {dest_ref.curie} already links this person to author "
+                           f"{person_taken[0]}; a person may be linked to only one author per "
+                           f"reference, so merge or remove that author first")
+
     add(res_ref, author_db_obj)
 
     person_id = _resolve_person_curie(db, author_data)
