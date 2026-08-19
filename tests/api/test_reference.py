@@ -1235,6 +1235,34 @@ class TestReferenceEmails:
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_get_emails_by_pmid_and_mod_curie(self, db, auth_headers, test_reference):  # noqa
+        """The emails GET also resolves PMID and MOD cross-reference curies."""
+        curie = test_reference.new_ref_curie
+        ref = db.query(ReferenceModel).filter_by(curie=curie).one()
+        for xref_curie, prefix in (("PMID:88888888", "PMID"), ("SGD:S000888888", "SGD")):
+            db.add(CrossReferenceModel(curie=xref_curie, curie_prefix=prefix,
+                                       reference_id=ref.reference_id))
+        db.commit()
+        with TestClient(app) as client:
+            res = client.post(
+                f"/reference/{curie}/emails",
+                json="author@example.org",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+
+            for lookup in ("PMID:88888888", "SGD:S000888888", curie, str(ref.reference_id)):
+                listing = client.get(
+                    f"/reference/{lookup}/emails", headers=auth_headers
+                )
+                assert listing.status_code == status.HTTP_200_OK
+                assert [e["email_address"] for e in listing.json()] == ["author@example.org"]
+
+            missing = client.get(
+                "/reference/PMID:99999999/emails", headers=auth_headers
+            )
+            assert missing.status_code == status.HTTP_404_NOT_FOUND
+
     def test_non_human_replace_preserves_curator_added_rows(self, db, auth_headers, test_reference):  # noqa
         """When the acting user is not a real human (the email-extraction
         pipeline / a service account, here the access-token 'default_user'),

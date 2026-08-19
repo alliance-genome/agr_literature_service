@@ -26,7 +26,8 @@ from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefi
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
-from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation
+from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation, \
+    normalize_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
@@ -546,7 +547,13 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
 
 
 def get_reference_emails(db: Session, curie_or_reference_id: str):
-    """Return list of emails associated with a reference via reference_email."""
+    """Return list of emails associated with a reference via reference_email.
+
+    Accepts an AGRKB curie, a numeric reference_id, or any cross-reference
+    curie such as a PMID (e.g. PMID:39739753) or MOD curie (e.g. SGD:S000342424).
+    """
+    if not curie_or_reference_id.isdigit() and not curie_or_reference_id.startswith("AGRKB:"):
+        curie_or_reference_id = normalize_reference_curie(db, curie_or_reference_id)
     reference: ReferenceModel = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
 
