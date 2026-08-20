@@ -10,13 +10,14 @@ CREATE OR REPLACE PROCEDURE update_citations(
 as $$
 DECLARE
 -- Short citation available to A-team system
--- <first author: Last name and initial(s)> (<year>) <resource abbrev> <volume>(<issue>):<page(s)>
+-- <first author: Last name and initial(s)> [et al.] (<year>) <resource abbrev> <volume>(<issue>):<page(s)>
 -- Empty parts are omitted along with their separators. When the reference has
 -- no resource abbreviation, the full resource title is used; when there is no
 -- resource at all (e.g. category Internal_Process_Reference), the reference
 -- title is used instead.
    sht_citation TEXT default '';
    author_short author.name%type default '';
+   author_count INTEGER default 0;
    ref_year reference.page_range%type;
    res_abbr TEXT default '';
    journal TEXT;
@@ -47,6 +48,7 @@ BEGIN
         AND author.author_order IS NOT NULL
       ORDER BY author.author_order asc
     loop
+      author_count := author_count + 1;
       authors = CONCAT(authors, get_long_citation_author_string(auth), '; ');
       IF author_short = '' THEN
         author_short = get_short_author_string(auth);
@@ -115,6 +117,9 @@ BEGIN
     -- Build short citation; fall back to the full journal title, then the
     -- reference title, when there is no resource abbreviation
     sht_citation := author_short;
+    IF author_count > 1 THEN
+        sht_citation := sht_citation || ' et al.';
+    END IF;
     IF ref_year != '' THEN
         sht_citation := sht_citation || ' (' || ref_year || ')';
     END IF;

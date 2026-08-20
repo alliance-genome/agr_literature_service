@@ -480,6 +480,33 @@ class TestReference:
             assert response['citation'] == "The Alliance of Genome Resources Curators"
             assert response['citation_short'] == "The Alliance of Genome Resources Curators"
 
+    def test_short_citation_uses_et_al_for_multiple_authors(self, db, auth_headers): # noqa
+        with TestClient(app) as client:
+            reference = {
+                "category": "internal_process_reference",
+                "title": "A multi-author reference",
+                "date_published": "2024",
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "Jane Smith",
+                        "last_name": "Smith",
+                        "first_initial": "J"
+                    },
+                    {
+                        "author_order": 2,
+                        "name": "John Doe",
+                        "last_name": "Doe",
+                        "first_initial": "J"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+
+            assert response['citation_short'] == \
+                "Smith J et al. (2024) A multi-author reference"
+
     def test_bad_mod(self, auth_headers): # noqa
         with TestClient(app) as client:
             new_reference = {
