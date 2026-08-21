@@ -246,3 +246,18 @@ class TestUpdateResources:
         assert stats["errors"] == 2
         mock_db.rollback.assert_called_once()
         mock_db.commit.assert_not_called()
+
+    def test_commit_failure_counts_lost_rows_exactly_once(self):
+        resource = self._make_resource(10)
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.one_or_none.return_value = resource
+        mock_db.commit.side_effect = RuntimeError("commit failed")
+
+        journal = {"title": "Genetics Journal", "license_list": ["CC BY"], "oa_start_year": 2010}
+
+        stats = update_resources(mock_db, [(10, journal)], {"CC BY": 1})
+
+        # one lost row must count as exactly one error, not two
+        assert stats["updated"] == 0
+        assert stats["errors"] == 1
+        mock_db.rollback.assert_called_once()

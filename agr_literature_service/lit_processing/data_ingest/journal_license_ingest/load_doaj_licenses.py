@@ -214,6 +214,18 @@ def find_matching_resources(db: Session, issn_to_journal: Dict[str, dict]) -> Li
     return sorted(resource_to_journal.items())
 
 
+def commit_pending(db: Session, stats: Dict[str, int], pending: int, label: str) -> None:
+    """Commit pending updates; on failure make the summary match what persisted."""
+    try:
+        db.commit()
+        logger.info(f"{label} ({pending} updates)")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"{label} failed, discarding {pending} updates: {e}")
+        stats['updated'] -= pending
+        stats['errors'] += pending
+
+
 def update_resources(db: Session, matches: List[Tuple[int, dict]],
                      license_map: Dict[str, int], update_existing: bool = False,
                      dry_run: bool = False) -> Dict[str, int]:
@@ -279,8 +291,9 @@ def update_resources(db: Session, matches: List[Tuple[int, dict]],
             stats['updated'] += 1
 
             if not dry_run and updates_since_commit >= BATCH_COMMIT_SIZE:
-                db.commit()
-                logger.info(f"Batch commit ({updates_since_commit} updates)")
+                # commit failures are accounted inside commit_pending, without
+                # the extra per-row error a raise into the outer handler adds
+                commit_pending(db, stats, updates_since_commit, "Batch commit")
                 updates_since_commit = 0
 
         except Exception as e:
@@ -297,14 +310,7 @@ def update_resources(db: Session, matches: List[Tuple[int, dict]],
                 updates_since_commit = 0
 
     if not dry_run and updates_since_commit > 0:
-        try:
-            db.commit()
-            logger.info(f"Final commit ({updates_since_commit} updates)")
-        except Exception as e:
-            db.rollback()
-            logger.error(f"Final commit failed, discarding {updates_since_commit} updates: {e}")
-            stats['updated'] -= updates_since_commit
-            stats['errors'] += updates_since_commit
+        commit_pending(db, stats, updates_since_commit, "Final commit")
 
     return stats
 

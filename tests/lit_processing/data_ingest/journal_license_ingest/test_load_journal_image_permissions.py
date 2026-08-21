@@ -72,6 +72,11 @@ class TestHasPositivePermissionSignal:
                        Comments="This journal is no longer hybrid")
         assert has_positive_permission_signal(row, subset_can_display=False) is True
 
+    def test_hybrid_with_grant_word_only_in_comments_is_negative(self):
+        row = make_row(MGI="Hybrid Creative Commons",
+                       Comments="permission not granted")
+        assert has_positive_permission_signal(row, subset_can_display=False) is False
+
     def test_oa_matches_as_whole_word_only(self):
         row = make_row(SGD="OA")
         assert has_positive_permission_signal(row, subset_can_display=False) is True
