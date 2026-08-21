@@ -230,10 +230,8 @@ def update_resources(db: Session, matches: List[Tuple[int, dict]],
         license_list = journal["license_list"]
         oa_start_year = journal["oa_start_year"]
         most_restricted = get_most_restricted_license(license_list)
-        copyright_license_id = None
-        if most_restricted:
-            copyright_license_id = license_map.get(most_restricted)
-        if copyright_license_id is None:
+        mapped_license_id = license_map.get(most_restricted) if most_restricted else None
+        if mapped_license_id is None:
             logger.warning(f"Resource {resource_id} ('{journal['title'][:50]}'): no license in "
                            f"{license_list} maps to the copyright_license table")
 
@@ -246,11 +244,20 @@ def update_resources(db: Session, matches: List[Tuple[int, dict]],
                 stats['errors'] += 1
                 continue
 
-            has_license_data = bool(resource.license_list) or resource.copyright_license_id is not None
+            # Never clear curated values with None: when DOAJ has no mapped
+            # license or no OA start year, keep the existing values
+            new_license_id = mapped_license_id if mapped_license_id is not None \
+                else resource.copyright_license_id
+            new_start_year = oa_start_year if oa_start_year is not None \
+                else resource.license_start_year
+
+            has_license_data = (bool(resource.license_list)
+                                or resource.copyright_license_id is not None
+                                or resource.license_start_year is not None)
             unchanged = (
                 (resource.license_list or []) == license_list
-                and resource.license_start_year == oa_start_year
-                and resource.copyright_license_id == copyright_license_id
+                and resource.license_start_year == new_start_year
+                and resource.copyright_license_id == new_license_id
             )
             if unchanged:
                 stats['skipped_unchanged'] += 1
@@ -262,28 +269,42 @@ def update_resources(db: Session, matches: List[Tuple[int, dict]],
 
             action = "Would update" if dry_run else "Updated"
             logger.info(f"{action}: {resource.curie} ('{journal['title'][:50]}') - "
-                        f"licenses={license_list}, year={oa_start_year}, "
+                        f"licenses={license_list}, year={new_start_year}, "
                         f"most_restricted={most_restricted}")
             if not dry_run:
                 resource.license_list = license_list
-                resource.license_start_year = oa_start_year
-                resource.copyright_license_id = copyright_license_id
+                resource.license_start_year = new_start_year
+                resource.copyright_license_id = new_license_id
                 updates_since_commit += 1
-                if updates_since_commit >= BATCH_COMMIT_SIZE:
-                    db.commit()
-                    logger.info(f"Batch commit ({updates_since_commit} updates)")
-                    updates_since_commit = 0
             stats['updated'] += 1
+
+            if not dry_run and updates_since_commit >= BATCH_COMMIT_SIZE:
+                db.commit()
+                logger.info(f"Batch commit ({updates_since_commit} updates)")
+                updates_since_commit = 0
 
         except Exception as e:
             logger.error(f"Error updating resource {resource_id}: {e}")
             db.rollback()
-            updates_since_commit = 0
             stats['errors'] += 1
+            # the rollback also discarded every update pending since the last
+            # commit, so keep the summary honest
+            if updates_since_commit:
+                logger.error(f"Rollback discarded {updates_since_commit} pending "
+                             f"updates since the last commit")
+                stats['updated'] -= updates_since_commit
+                stats['errors'] += updates_since_commit
+                updates_since_commit = 0
 
     if not dry_run and updates_since_commit > 0:
-        db.commit()
-        logger.info(f"Final commit ({updates_since_commit} updates)")
+        try:
+            db.commit()
+            logger.info(f"Final commit ({updates_since_commit} updates)")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Final commit failed, discarding {updates_since_commit} updates: {e}")
+            stats['updated'] -= updates_since_commit
+            stats['errors'] += updates_since_commit
 
     return stats
 

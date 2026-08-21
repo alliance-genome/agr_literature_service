@@ -72,7 +72,13 @@ OA_WORD_RE = re.compile(r"\boa\b")
 
 # Signals that a journal explicitly granted image display permission,
 # as opposed to merely offering open licenses on a subset of articles
-EXPLICIT_GRANT_PATTERNS = ("blanket", "contract", "granted")
+EXPLICIT_GRANT_PATTERNS = (
+    "blanket",
+    "contract",
+    "granted",
+    "publisher permission",
+    "permission to use images",
+)
 
 PERMISSION_URL_PATTERN = re.compile(
     r"(copyright|licens|open[-_]?access|permission|polic|reprint|rights)",
@@ -282,8 +288,14 @@ def has_positive_permission_signal(row: Dict[str, str], subset_can_display: bool
 
     # Hybrid journals publish only a subset of articles under open licenses,
     # so license-name signals ("creative commons", "cc by") alone do not
-    # justify blanket image display; require an explicit grant.
-    is_hybrid = "hybrid" in combined or clean(row.get("Hybrid Journal")).lower().startswith("yes")
+    # justify blanket image display; require an explicit grant. The hybrid
+    # check ignores free-text columns (Comments, WB Acknowledgements) so a
+    # passing mention of the word does not trigger the gate.
+    hybrid_values = [clean(row.get(column)) for column in MOD_PERMISSION_COLUMNS]
+    hybrid_values.append(clean(row.get("License type")))
+    hybrid_values.append(clean(row.get("Hybrid Journal")))
+    hybrid_text = " ".join(value.lower() for value in hybrid_values if value)
+    is_hybrid = "hybrid" in hybrid_text or clean(row.get("Hybrid Journal")).lower().startswith("yes")
     if is_hybrid:
         if not any(pattern in combined for pattern in EXPLICIT_GRANT_PATTERNS):
             return False

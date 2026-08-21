@@ -197,3 +197,52 @@ class TestUpdateResources:
         assert stats["updated"] == 1
         assert resource.license_list is None
         mock_db.commit.assert_not_called()
+
+    def test_unmapped_license_keeps_existing_copyright_license_id(self):
+        resource = self._make_resource(10, license_list=["CC BY"], license_start_year=2005,
+                                       copyright_license_id=7)
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.one_or_none.return_value = resource
+
+        journal = {"title": "Genetics Journal", "license_list": ["Publisher's own license"],
+                   "oa_start_year": None}
+
+        stats = update_resources(mock_db, [(10, journal)], {"CC BY": 1}, update_existing=True)
+
+        assert stats["updated"] == 1
+        assert resource.license_list == ["Publisher's own license"]
+        assert resource.copyright_license_id == 7  # not cleared
+        assert resource.license_start_year == 2005  # not cleared
+
+    def test_only_start_year_counts_as_license_data(self):
+        resource = self._make_resource(10, license_start_year=2005)
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.one_or_none.return_value = resource
+
+        journal = {"title": "Genetics Journal", "license_list": ["CC BY"], "oa_start_year": None}
+
+        stats = update_resources(mock_db, [(10, journal)], {"CC BY": 1})
+
+        assert stats["updated"] == 0
+        assert stats["skipped_has_license"] == 1
+        assert resource.license_start_year == 2005
+
+    def test_rollback_discards_pending_updates_from_stats(self):
+        good = self._make_resource(10)
+        mock_db = MagicMock()
+        mock_db.query.return_value.filter.return_value.one_or_none.side_effect = [
+            good,
+            RuntimeError("db connection lost"),
+        ]
+
+        journal = {"title": "Genetics Journal", "license_list": ["CC BY"], "oa_start_year": 2010}
+        matches = [(10, journal), (11, journal)]
+
+        stats = update_resources(mock_db, matches, {"CC BY": 1})
+
+        # the first update was pending (uncommitted) when the second row
+        # failed, so the rollback discarded it and stats must reflect that
+        assert stats["updated"] == 0
+        assert stats["errors"] == 2
+        mock_db.rollback.assert_called_once()
+        mock_db.commit.assert_not_called()

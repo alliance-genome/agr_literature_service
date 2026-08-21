@@ -59,6 +59,19 @@ class TestHasPositivePermissionSignal:
                        WB="Blanket from publisher", ZFIN="Granted")
         assert has_positive_permission_signal(row, subset_can_display=False) is True
 
+    def test_hybrid_with_publisher_permission_is_positive(self):
+        row = make_row(MGI="Hybrid Creative Commons", WB="Publisher permission")
+        assert has_positive_permission_signal(row, subset_can_display=False) is True
+
+    def test_hybrid_with_permission_to_use_images_is_positive(self):
+        row = make_row(MGI="Hybrid Creative Commons", SGD="Permission to use images")
+        assert has_positive_permission_signal(row, subset_can_display=False) is True
+
+    def test_hybrid_mention_in_comments_does_not_gate(self):
+        row = make_row(**{"License type": "CC BY 4.0"},
+                       Comments="This journal is no longer hybrid")
+        assert has_positive_permission_signal(row, subset_can_display=False) is True
+
     def test_oa_matches_as_whole_word_only(self):
         row = make_row(SGD="OA")
         assert has_positive_permission_signal(row, subset_can_display=False) is True
