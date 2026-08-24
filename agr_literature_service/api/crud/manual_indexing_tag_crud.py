@@ -307,6 +307,11 @@ def set_manual_indexing_tag(
     difference is returning the created record rather than its id. New callers
     should use create() / POST /manual_indexing_tag/ instead.
     """
+    logger.warning(
+        "DEPRECATED endpoint POST /manual_indexing_tag/set_manual_indexing_tag called "
+        "for reference %s, MOD %s, curation_tag %s; use POST /manual_indexing_tag/ instead",
+        reference_curie, mod_abbreviation, curation_tag,
+    )
     payload = ManualIndexingTagSchemaPost(
         curation_tag=curation_tag,
         mod_abbreviation=mod_abbreviation,
