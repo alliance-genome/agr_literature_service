@@ -5,8 +5,8 @@ author_model.py
 
 from typing import Dict
 
-from sqlalchemy import (ARRAY, Boolean, Column, ForeignKey, Integer,
-                        String)
+from sqlalchemy import (ARRAY, Boolean, CheckConstraint, Column, ForeignKey,
+                        Index, Integer, String, UniqueConstraint)
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -29,7 +29,8 @@ class AuthorModel(Base, AuditedModel):
     reference_id = Column(
         Integer,
         ForeignKey("reference.reference_id", ondelete="CASCADE"),
-        index=True
+        index=True,
+        nullable=False
     )
 
     reference = relationship(
@@ -87,6 +88,39 @@ class AuthorModel(Base, AuditedModel):
         String(),
         unique=False,
         nullable=True
+    )
+
+    person_id = Column(
+        Integer,
+        ForeignKey("person.person_id", ondelete="RESTRICT", name="author_person_id_fkey"),
+        index=True,
+        nullable=True
+    )
+
+    person = relationship("PersonModel")
+
+    __table_args__ = (
+        CheckConstraint(
+            "person_id IS NOT NULL OR author_order IS NOT NULL",
+            name="ck_author_person_or_order",
+        ),
+        CheckConstraint(
+            "author_order IS NOT NULL OR ("
+            "name IS NULL AND first_name IS NULL AND last_name IS NULL "
+            "AND first_initial IS NULL AND orcid IS NULL AND affiliations IS NULL "
+            "AND COALESCE(first_author, false) = false "
+            "AND COALESCE(corresponding_author, false) = false)",
+            name="ck_person_only_link_only",
+        ),
+        Index("uq_author_ref_person", "reference_id", "person_id", unique=True),
+        # Deferrable so a single-statement renumber (POST /author/reorder) can swap
+        # author_order values without tripping the per-row uniqueness check mid-UPDATE.
+        UniqueConstraint(
+            "reference_id", "author_order",
+            name="uq_author_ref_order",
+            deferrable=True,
+            initially="IMMEDIATE",
+        ),
     )
 
     def __str__(self):

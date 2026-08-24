@@ -1,11 +1,17 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional, Union, TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from .base_schemas import AuditedObjectModelSchema
-from .person_lineage_relationship_enum import PersonPersonRole
 from .validation_utils import validate_non_empty
+
+if TYPE_CHECKING:
+    # Imported for typing only. A runtime import here would create a schemas<->crud
+    # import cycle. The relationship forward reference is resolved at runtime by
+    # person_lineage_submission_crud, which calls model_rebuild() with
+    # VocabularyTermRefSchema in scope.
+    from agr_literature_service.api.crud.vocabulary_crud import VocabularyTermRefSchema
 
 # Controlled vocabulary enforced by the API (curator-managed); no DB CheckConstraint.
 SubmissionStatus = Literal["pending", "partially_resolved", "validated", "rejected", "duplicate"]
@@ -22,7 +28,9 @@ class PersonLineageSubmissionSchemaCreate(BaseModel):
 
     person_subject_name: str
     person_object_name: str
-    relationship: PersonPersonRole
+    # The relationship is the vocabulary_term_abc id of a
+    # "person_person_relationship" term (validated server-side).
+    relationship: int
     who_sent_this: str
     # Optional person links, given by curie OR integer id (resolved server-side).
     person_subject_curie_or_id: Optional[Union[str, int]] = None
@@ -52,7 +60,7 @@ class PersonLineageSubmissionSchemaUpdate(BaseModel):
 
     person_subject_name: Optional[str] = None
     person_object_name: Optional[str] = None
-    relationship: Optional[PersonPersonRole] = None
+    relationship: Optional[int] = None
     who_sent_this: Optional[str] = None
     # Resolve a person link by curie OR integer id; send null to clear it.
     person_subject_curie_or_id: Optional[Union[str, int]] = None
@@ -96,7 +104,7 @@ class PersonLineageSubmissionValidateSchema(BaseModel):
 
     person_subject_curie_or_id: Optional[Union[str, int]] = None
     person_object_curie_or_id: Optional[Union[str, int]] = None
-    relationship: Optional[PersonPersonRole] = None
+    relationship: Optional[int] = None
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
 
@@ -107,7 +115,7 @@ class PersonLineageSubmissionSchemaShow(AuditedObjectModelSchema):
     person_lineage_submission_id: int
     person_subject_name: str
     person_object_name: str
-    relationship: str
+    relationship: VocabularyTermRefSchema
     who_sent_this: str
     person_subject_id: Optional[int] = None
     person_subject_curie: Optional[str] = None
@@ -125,7 +133,7 @@ class PersonLineageSubmissionSchemaRelated(AuditedObjectModelSchema):
     person_lineage_submission_id: int
     person_subject_name: str
     person_object_name: str
-    relationship: str
+    relationship: VocabularyTermRefSchema
     who_sent_this: str
     person_subject_id: Optional[int] = None
     person_subject_curie: Optional[str] = None
