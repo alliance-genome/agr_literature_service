@@ -26,6 +26,11 @@ always agree. Each source (paper, ATP) pair is classified as:
                    with an empty topic
   not-found        WB:WBPaper<id> has no reference in the DB -- skipped and listed
 
+By default only a curator-selected set of ATP topics is processed
+(ATP:0000061 catalytic activity, ATP:0000062 transporter function,
+ATP:0000033 site of action); rows for other topics are counted as filtered_out
+and ignored. Override with --topics (comma-separated) or --topics all.
+
 populate mode row mapping:
 
   topic            <- atp                         (TSV column 'atp')
@@ -101,6 +106,13 @@ CURATION_STATUS = "ATP:0000239"   # 'curated'
 CURATION_TAG = "ATP:0000227"      # 'curatable'
 MOD_ABBREVIATION = "WB"
 WB_CURIE_PREFIX = "WB"
+
+# Only these ATP topics are processed by default (curator's scope). Override with
+# --topics (comma-separated) or --topics all to process every topic. Names:
+#   ATP:0000061  catalytic activity
+#   ATP:0000062  transporter function
+#   ATP:0000033  site of action
+DEFAULT_TOPICS = ("ATP:0000061", "ATP:0000062", "ATP:0000033")
 
 DEFAULT_TSV_URL = (
     "https://caltech-curation.textpressolab.com/files/pub/kimberly/"
@@ -187,13 +199,17 @@ def resolve_references(db, papers):
     return result
 
 
-def classify(db, rows):
+def classify(db, rows, topics):
     """Resolve + classify every TSV row against WB curation_status.
 
-    Returns (wb_mod_id, records, blank_rows, not_found_rows) where records is a
-    list of dicts (one per distinct (atp, reference_id) pair) each carrying the
-    source row fields plus wb_curie / reference_id / agrkb / status / existing.
-    status is one of 'new', 'already-curated', 'conflict'.
+    Only rows whose atp is in ``topics`` are considered (``topics`` is a set of
+    ATP curies, or None to consider every topic); out-of-scope rows are counted
+    as filtered_out and otherwise ignored.
+
+    Returns (wb_mod_id, records, blank_rows, not_found_rows, filtered_out) where
+    records is a list of dicts (one per distinct (atp, reference_id) pair) each
+    carrying the source row fields plus wb_curie / reference_id / agrkb / status
+    / existing. status is one of 'new', 'already-curated', 'conflict'.
     """
     wb_mod_id = (
         db.query(ModModel.mod_id)
@@ -217,8 +233,12 @@ def classify(db, rows):
     records = []
     blank_rows = []
     not_found_rows = []
+    filtered_out = 0
     seen = set()
     for row in rows:
+        if topics is not None and row["atp"] not in topics:
+            filtered_out += 1
+            continue
         if not row["atp"]:
             blank_rows.append(row)
             continue
@@ -246,10 +266,11 @@ def classify(db, rows):
             "status": status,
             "existing": prior,
         })
-    return wb_mod_id, records, blank_rows, not_found_rows
+    return wb_mod_id, records, blank_rows, not_found_rows, filtered_out
 
 
-def run_populate(db, wb_mod_id, records, blank_rows, not_found_rows, commit):
+def run_populate(db, wb_mod_id, records, blank_rows, not_found_rows,
+                 filtered_out, commit):
     """Insert curation_status rows for the 'new' records (only when commit)."""
     inserted = 0
     for record in records:
@@ -280,6 +301,7 @@ def run_populate(db, wb_mod_id, records, blank_rows, not_found_rows, commit):
 
     logger.info("")
     logger.info("=== SUMMARY ===")
+    logger.info(f"  skipped (topic not selected):     {filtered_out}")
     logger.info(f"  paper not found in DB:            {len(not_found_rows)}")
     logger.info(f"  skipped (blank ATP topic):        {len(blank_rows)}")
     logger.info(f"  skipped (already have a value):   {already + len(conflicts)}")
@@ -305,7 +327,8 @@ def run_populate(db, wb_mod_id, records, blank_rows, not_found_rows, commit):
         logger.info("  DRY RUN -- no rows written. Re-run with --commit to insert.")
 
 
-def run_report(total_rows, records, blank_rows, not_found_rows, output_file):
+def run_report(total_rows, records, blank_rows, not_found_rows, filtered_out,
+               topics_display, output_file):
     """Write a read-only detailed report grouped by ATP topic."""
     by_topic = defaultdict(list)
     for record in records:
@@ -321,9 +344,11 @@ def run_report(total_rows, records, blank_rows, not_found_rows, output_file):
         out.write(f"source TSV : {TSV_URL}\n")
         out.write("assigns    : curation_status=ATP:0000239 (curated), "
                   "curation_tag=ATP:0000227 (curatable)\n")
-        out.write("mode       : report (read-only; no database writes)\n\n")
+        out.write("mode       : report (read-only; no database writes)\n")
+        out.write(f"topics     : {topics_display}\n\n")
         out.write("=== SUMMARY ===\n")
         out.write(f"  TSV data rows                      : {total_rows}\n")
+        out.write(f"  skipped (topic not selected)       : {filtered_out}\n")
         out.write(f"  distinct (paper,atp) pairs shown   : {len(records)}\n")
         out.write(f"  papers not found in DB             : {len(not_found_rows)}\n")
         out.write(f"  skipped (blank ATP topic)          : {len(blank_rows)}\n")
@@ -361,15 +386,20 @@ def run_report(total_rows, records, blank_rows, not_found_rows, output_file):
     logger.info(f"wrote {output_file}")
 
 
-def main(mode, commit, output_file):
+def main(mode, commit, output_file, topics):
+    topics_display = ", ".join(sorted(topics)) if topics is not None else "all"
+    logger.info(f"selected topics: {topics_display}")
     rows = fetch_tsv_rows()
     db = create_postgres_session(False)
     try:
-        wb_mod_id, records, blank_rows, not_found_rows = classify(db, rows)
+        wb_mod_id, records, blank_rows, not_found_rows, filtered_out = \
+            classify(db, rows, topics)
         if mode == "report":
-            run_report(len(rows), records, blank_rows, not_found_rows, output_file)
+            run_report(len(rows), records, blank_rows, not_found_rows,
+                       filtered_out, topics_display, output_file)
         else:
-            run_populate(db, wb_mod_id, records, blank_rows, not_found_rows, commit)
+            run_populate(db, wb_mod_id, records, blank_rows, not_found_rows,
+                         filtered_out, commit)
     except Exception as e:
         db.rollback()
         logger.error(f"error during {mode}, rolled back: {e}")
@@ -399,7 +429,19 @@ if __name__ == "__main__":
         default=DEFAULT_REPORT_FILE,
         help=f"report mode only: output file path (default: {DEFAULT_REPORT_FILE})",
     )
+    parser.add_argument(
+        "--topics",
+        default=",".join(DEFAULT_TOPICS),
+        help="comma-separated ATP topics to process, or 'all' for every topic "
+             f"(default: {','.join(DEFAULT_TOPICS)})",
+    )
     args = parser.parse_args()
     if args.commit and args.mode != "populate":
         parser.error("--commit is only valid with --mode populate")
-    main(mode=args.mode, commit=args.commit, output_file=args.output)
+    if args.topics.strip().lower() == "all":
+        topics = None
+    else:
+        topics = {t.strip() for t in args.topics.split(",") if t.strip()}
+        if not topics:
+            parser.error("--topics is empty; pass ATP curies or 'all'")
+    main(mode=args.mode, commit=args.commit, output_file=args.output, topics=topics)
