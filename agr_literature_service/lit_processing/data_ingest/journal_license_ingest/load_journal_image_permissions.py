@@ -21,7 +21,7 @@ import csv
 import hashlib
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from os import environ, path
 from typing import Dict, Iterable, List, Optional, Tuple
@@ -64,7 +64,20 @@ POSITIVE_PERMISSION_PATTERNS = (
     "permission to use images",
     "contract",
     "granted",
-    "oa",
+)
+
+# "oa" must match as a whole word so it does not match inside words
+# like "broad", "load" or "approach"
+OA_WORD_RE = re.compile(r"\boa\b")
+
+# Signals that a journal explicitly granted image display permission,
+# as opposed to merely offering open licenses on a subset of articles
+EXPLICIT_GRANT_PATTERNS = (
+    "blanket",
+    "contract",
+    "granted",
+    "publisher permission",
+    "permission to use images",
 )
 
 PERMISSION_URL_PATTERN = re.compile(
@@ -131,11 +144,7 @@ class LoadStats:
     links_updated: int = 0
     links_unchanged: int = 0
     errors: int = 0
-    failed_rows: List[FailedRow] = None
-
-    def __post_init__(self) -> None:
-        if self.failed_rows is None:
-            self.failed_rows = []
+    failed_rows: List[FailedRow] = field(default_factory=list)
 
 
 def clean(value: Optional[str]) -> str:
@@ -277,6 +286,23 @@ def has_positive_permission_signal(row: Dict[str, str], subset_can_display: bool
         if not strong_blanket_signal:
             return False
 
+    # Hybrid journals publish only a subset of articles under open licenses,
+    # so license-name signals ("creative commons", "cc by") alone do not
+    # justify blanket image display; require an explicit grant. Both the
+    # hybrid check and the grant check use the structured columns only, so a
+    # passing mention in free text (Comments, WB Acknowledgements) neither
+    # triggers nor satisfies the gate.
+    structured_values = [clean(row.get(column)) for column in MOD_PERMISSION_COLUMNS]
+    structured_values.append(clean(row.get("License type")))
+    structured_values.append(clean(row.get("Hybrid Journal")))
+    structured_text = " ".join(value.lower() for value in structured_values if value)
+    is_hybrid = "hybrid" in structured_text or clean(row.get("Hybrid Journal")).lower().startswith("yes")
+    if is_hybrid:
+        if not any(pattern in structured_text for pattern in EXPLICIT_GRANT_PATTERNS):
+            return False
+
+    if OA_WORD_RE.search(combined):
+        return True
     return any(pattern in combined for pattern in POSITIVE_PERMISSION_PATTERNS)
 
 
@@ -302,7 +328,7 @@ def detect_permission_type(row: Dict[str, str]) -> Optional[str]:
         return "Blanket Permission"
     if "contract" in combined:
         return "Contract"
-    if "oa" in combined or "open access" in combined:
+    if OA_WORD_RE.search(combined) or "open access" in combined:
         return "Open Access"
     if "granted" in combined:
         if "subset" in combined:
@@ -662,9 +688,9 @@ def update_permission_fields(permission: ImagePermissionModel, row: JournalPermi
         "permission_url": row.permission_url,
         "can_display_images": row.can_display_images,
     }
-    for field, value in desired.items():
-        if getattr(permission, field) != value:
-            setattr(permission, field, value)
+    for attr, value in desired.items():
+        if getattr(permission, attr) != value:
+            setattr(permission, attr, value)
             changed = True
     return changed
 
