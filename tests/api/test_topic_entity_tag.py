@@ -701,16 +701,22 @@ class TestTopicEntityTag:
 
     def test_patch_keeps_resolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
         """Counterpart to test_patch_drops_unresolvable_updated_by: an
-        updated_by that resolves to an existing users row (here WBPerson1,
-        auto-created when the fixture tag was posted) is still honored."""
+        updated_by that resolves to an existing users row is still honored.
+        The target user must differ from the tag's current updated_by
+        (WBPerson1): patching in an equal value reads as unchanged at flush
+        time, so the audit listener would stamp the authenticated user and
+        the assertion couldn't tell honored from dropped."""
+        from agr_literature_service.api.models.user_model import UserModel
+        db.add(UserModel(id="WBPerson2", automation_username="WBPerson2"))
+        db.commit()
         with TestClient(app) as client:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
                                     headers=auth_headers,
-                                    json={"note": "reviewed", "updated_by": "WBPerson1"})
+                                    json={"note": "reviewed", "updated_by": "WBPerson2"})
             assert response.status_code == status.HTTP_200_OK
         tag = db.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
-        assert tag.updated_by == "WBPerson1"
+        assert tag.updated_by == "WBPerson2"
 
     def test_destroy(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
