@@ -157,8 +157,15 @@ def map_to_existing_user_id(identifier: str, db: Session) -> Optional[str]:
     PATCH created_by/updated_by, where the UI used to send its auth token's
     Cognito sub (SCRUM-6459) -- use this and drop the field when it returns
     None, letting the audited-model listener stamp the authenticated user.
+
+    Unlike map_to_user_id, an unknown EMAIL also returns None here (there it
+    raises 422) -- all no-match outcomes look the same to a caller of this
+    helper.
     """
-    mapped = map_to_user_id(identifier, db)
+    try:
+        mapped = map_to_user_id(identifier, db)
+    except HTTPException:
+        return None
     if not mapped:
         return None
     return db.execute(_SQL_MATCH_USERS_ID_TEXT, {"identifier": mapped}).scalar_one_or_none()

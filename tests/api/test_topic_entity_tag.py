@@ -693,10 +693,18 @@ class TestTopicEntityTag:
                                     headers=auth_headers,
                                     json={"note": "entity corrected", "updated_by": cognito_sub})
             assert response.status_code == status.HTTP_200_OK
+            # An unknown email is dropped the same way (map_to_user_id raises
+            # 422 for those; map_to_existing_user_id turns that into None), so
+            # the curator's edit is not lost.
+            response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                    headers=auth_headers,
+                                    json={"note": "entity corrected again",
+                                          "updated_by": "nobody@example.org"})
+            assert response.status_code == status.HTTP_200_OK
         tag = db.query(TopicEntityTagModel).filter(
             TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
-        assert tag.note == "entity corrected"
-        assert tag.updated_by != cognito_sub
+        assert tag.note == "entity corrected again"
+        assert tag.updated_by not in (cognito_sub, "nobody@example.org")
         assert db.query(UserModel).filter_by(id=cognito_sub).one_or_none() is None
 
     def test_patch_keeps_resolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
