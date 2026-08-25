@@ -77,13 +77,21 @@ def list_report_files():
     return sorted(entries, key=lambda entry: entry["path"])
 
 
-def _resolve_within_root(relative_path, root):
+def _resolve_within_root(relative_path):
     """Absolute path for a caller-supplied report path, refusing any escape.
+
+    The root is read from LOG_PATH here rather than accepted as an argument, so
+    the containment check can only ever be made against the configured report
+    directory and no caller can hand it a root of its own choosing.
 
     realpath is what does the work: it collapses .. segments and follows
     symlinks, so a link inside LOG_PATH that points elsewhere is caught too.
     Never interpolate the caller's string into a path without this check.
     """
+    root = _log_root()
+    if root is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="Report files are not available on this host.")
     if not relative_path or not isinstance(relative_path, str):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="A report file path is required.")
@@ -104,12 +112,7 @@ def get_report_file(relative_path, tail=None):
     Tailing keeps the multi-megabyte logs usable: the largest of them is tens of
     MB, which no browser should be asked to hold just to show the end of a run.
     """
-    root = _log_root()
-    if root is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                            detail="Report files are not available on this host.")
-
-    full_path = _resolve_within_root(relative_path, root)
+    full_path = _resolve_within_root(relative_path)
     if not path.isfile(full_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"No report file at {relative_path}.")
