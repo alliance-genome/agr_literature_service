@@ -28,6 +28,7 @@ from agr_literature_service.api.routers import (author_router, bulk_downloads_ro
                                                 referencefile_router, referencefile_mod_router,
                                                 embedding_file_router,
                                                 copyright_license_router, check_router,
+                                                report_router,
                                                 dataset_router, ml_model_router,
                                                 image_permission_router,
                                                 manual_indexing_tag_router, person_router,
@@ -118,6 +119,7 @@ def custom_openapi() -> Dict[str, Any]:
     return app.openapi_schema
 
 
+app.include_router(report_router.router)
 app.include_router(resource_router.router)
 app.include_router(reference_router.router)
 app.include_router(person_router.router)
