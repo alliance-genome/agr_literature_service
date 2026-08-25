@@ -17,6 +17,14 @@ from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
 
+# Hard ceiling on how much of a report file one request may return. The largest
+# of these logs is tens of MB, and the response is buffered several times over
+# on the way out - read() to bytes, decode() to str, then JSON-encoded and
+# encoded again for the wire - so an uncapped read of a 42 MB log costs roughly
+# 170 MB of transient memory in a worker. The cap is enforced regardless of what
+# the caller asks for, so the bound does not depend on the UI passing ``tail``.
+MAX_BYTES = 2 * 1024 * 1024
+
 
 def _log_root():
     """Resolved LOG_PATH, or None when it is unset or missing."""
@@ -104,7 +112,14 @@ def _resolve_within_root(relative_path):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Report file path must be relative to the report directory.")
 
-    candidate = path.realpath(path.join(root, relative_path))
+    try:
+        candidate = path.realpath(path.join(root, relative_path))
+    except (ValueError, OSError):
+        # realpath raises ValueError - not OSError - on an embedded NUL byte,
+        # which Starlette will happily decode out of a %00 in the query string.
+        # Every other malformed path here answers 400, so this one does too.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Report file path is not a valid path.") from None
     if candidate != root and not candidate.startswith(root + path.sep):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Report file path is outside the report directory.")
@@ -124,6 +139,10 @@ def get_report_file(relative_path, tail=None):
 
     Tailing keeps the multi-megabyte logs usable: the largest of them is tens of
     MB, which no browser should be asked to hold just to show the end of a run.
+    At most ``MAX_BYTES`` are returned whichever way, so omitting ``tail`` or
+    asking for more than the cap still reads only the end of a large file and
+    reports ``truncated``. The bound therefore holds server-side rather than
+    depending on the caller to ask for it.
     """
     full_path = _resolve_within_root(relative_path)
     if not path.isfile(full_path):
@@ -131,11 +150,11 @@ def get_report_file(relative_path, tail=None):
                             detail=f"No report file at {relative_path}.")
 
     size = os_stat(full_path).st_size
-    truncated = False
+    limit = tail if tail and 0 < tail <= MAX_BYTES else MAX_BYTES
+    truncated = size > limit
     with open(full_path, 'rb') as handle:
-        if tail and tail > 0 and size > tail:
-            handle.seek(-tail, SEEK_END)
-            truncated = True
+        if truncated:
+            handle.seek(-limit, SEEK_END)
         data = handle.read()
 
     return {
