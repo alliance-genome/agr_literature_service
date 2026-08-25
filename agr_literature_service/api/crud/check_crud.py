@@ -10,9 +10,14 @@ Also test for Ateam api, but more could be added.
 ==============
 """
 import json
+import re
 import urllib.request
+from glob import glob
 from os import environ, path
 from collections import defaultdict
+from typing import List, Optional
+
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from agr_cognito_py import get_authentication_token
@@ -68,10 +73,78 @@ def check_database(db: Session):
     return res
 
 
-def check_obsolete_entities():
+# QC report keys this API serves, mapped to the filename stem the generator
+# scripts under lit_processing/data_check write into ${LOG_PATH}/QC/. Every run
+# writes a stable "<stem>.log" plus a dated copy "<stem>_YYYYMMDD.log"; those
+# dated copies are the history this whitelist makes reachable.
+QC_REPORTS = {
+    "obsolete_entities": "obsolete_entity_report",
+    "redacted_references": "redacted_references_with_tags",
+    "obsolete_pmids": "obsolete_pmid_report",
+    "duplicate_orcids": "duplicate_orcid_report",
+}
 
+DATESTAMP_RE = re.compile(r'^\d{8}$')
+
+
+def _qc_report_stem(report_key: str) -> str:
+    """Filename stem for a report key, refusing anything not whitelisted.
+
+    The stem is looked up rather than taken from the request, so no
+    caller-supplied string ever becomes part of a filename.
+    """
+    stem = QC_REPORTS.get(report_key)
+    if stem is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Unknown QC report '{report_key}'. Expected one of: "
+                                   f"{', '.join(sorted(QC_REPORTS))}.")
+    return stem
+
+
+def list_qc_report_dates(report_key: str) -> List[str]:
+    """Datestamps of the archived runs of one QC report, newest first.
+
+    A missing LOG_PATH/QC directory is not an error - it only means this host
+    has no history yet - so the listing comes back empty rather than 404ing,
+    and the caller falls back to the latest report.
+    """
+    stem = _qc_report_stem(report_key)
     log_path = environ.get('LOG_PATH', '.')
-    log_file = path.join(log_path, "QC/obsolete_entity_report.log")
+    datestamps = set()
+    for log_file in glob(path.join(log_path, f"QC/{stem}_*.log")):
+        suffix = path.basename(log_file)[len(stem) + 1:-len('.log')]
+        if DATESTAMP_RE.match(suffix):
+            datestamps.add(suffix)
+    return sorted(datestamps, reverse=True)
+
+
+def _resolve_qc_log(report_key: str, datestamp: Optional[str] = None) -> str:
+    """Path of one QC report file: a dated archive, or the latest run.
+
+    Both halves of the filename are constrained before they reach the
+    filesystem - the stem through the QC_REPORTS whitelist, the datestamp
+    through an exact eight-digit match - so a path separator or a ".." segment
+    cannot get through. Never interpolate a caller's string into a path
+    without a check like this.
+    """
+    stem = _qc_report_stem(report_key)
+    log_path = environ.get('LOG_PATH', '.')
+    if not datestamp:
+        log_file = path.join(log_path, f"QC/{stem}.log")
+    else:
+        if not DATESTAMP_RE.match(datestamp):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="datestamp must be 8 digits in YYYYMMDD form.")
+        log_file = path.join(log_path, f"QC/{stem}_{datestamp}.log")
+    if not path.isfile(log_file):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"No {report_key} report for {datestamp or 'the latest run'}.")
+    return log_file
+
+
+def check_obsolete_entities(datestamp: Optional[str] = None):
+
+    log_file = _resolve_qc_log("obsolete_entities", datestamp)
     date_produced = None
     data = defaultdict(list)
 
@@ -104,10 +177,9 @@ def check_obsolete_entities():
     }
 
 
-def check_redacted_references_with_tags():
+def check_redacted_references_with_tags(datestamp: Optional[str] = None):
 
-    log_path = environ.get('LOG_PATH', '.')
-    log_file = path.join(log_path, "QC/redacted_references_with_tags.log")
+    log_file = _resolve_qc_log("redacted_references", datestamp)
     date_produced = None
     data = defaultdict(list)
 
@@ -128,10 +200,9 @@ def check_redacted_references_with_tags():
     }
 
 
-def check_obsolete_pmids():
+def check_obsolete_pmids(datestamp: Optional[str] = None):
 
-    log_path = environ.get('LOG_PATH', '.')
-    log_file = path.join(log_path, "QC/obsolete_pmid_report.log")
+    log_file = _resolve_qc_log("obsolete_pmids", datestamp)
     date_produced = None
     data = defaultdict(list)
 
@@ -150,27 +221,23 @@ def check_obsolete_pmids():
     }
 
 
-def check_duplicate_orcids():
-    log_path = environ.get('LOG_PATH', '.')
-    log_file = path.join(log_path, "QC/duplicate_orcid_report.log")
+def check_duplicate_orcids(datestamp: Optional[str] = None):
+    log_file = _resolve_qc_log("duplicate_orcids", datestamp)
     date_produced = None
     data = defaultdict(list)
 
-    try:
-        with open(log_file, 'r') as f:
-            for line in f:
-                if 'date-produced:' in line:
-                    date_produced = line.split('date-produced: ')[1].strip()
-                else:
-                    pieces = line.strip().split('\t')
-                    if len(pieces) >= 4:
-                        data[pieces[0]].append({
-                            "reference_curie": pieces[1],
-                            "orcid": pieces[2],
-                            "author_names": pieces[3]
-                        })
-    except FileNotFoundError:
-        return {"date-produced": None, "duplicate_orcids": {}}
+    with open(log_file, 'r') as f:
+        for line in f:
+            if 'date-produced:' in line:
+                date_produced = line.split('date-produced: ')[1].strip()
+            else:
+                pieces = line.strip().split('\t')
+                if len(pieces) >= 4:
+                    data[pieces[0]].append({
+                        "reference_curie": pieces[1],
+                        "orcid": pieces[2],
+                        "author_names": pieces[3]
+                    })
 
     return {
         "date-produced": date_produced,
