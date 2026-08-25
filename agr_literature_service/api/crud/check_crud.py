@@ -101,8 +101,36 @@ def _qc_report_stem(report_key: str) -> str:
     return stem
 
 
+def _qc_latest_datestamp(stem: str, log_path: str) -> Optional[str]:
+    """The date the undated "latest" file claims, from its own header.
+
+    A run keeps the plain "<stem>.log" name while it is current and only gains
+    a "_YYYYMMDD" copy once it is superseded, so the newest report usually has
+    no datestamp in its filename. Its date has to be read out of the
+    "#!date-produced:" header instead, which is the first line of the file.
+    """
+    log_file = path.join(log_path, f"QC/{stem}.log")
+    if not path.isfile(log_file):
+        return None
+    try:
+        with open(log_file, 'r') as f:
+            first_line = f.readline()
+    except OSError:
+        return None
+    if 'date-produced:' not in first_line:
+        return None
+    datestamp = first_line.split('date-produced: ')[1].strip()
+    return datestamp if DATESTAMP_RE.match(datestamp) else None
+
+
 def list_qc_report_dates(report_key: str) -> List[str]:
-    """Datestamps of the archived runs of one QC report, newest first.
+    """Datestamps of the runs of one QC report, newest first.
+
+    Both the datestamped archives and the current run are listed. The current
+    run is the undated "<stem>.log", which gains its "_YYYYMMDD" copy only once
+    it is superseded, so listing the archives alone would leave the newest
+    report out - and a caller defaulting to the first entry would then show
+    stale data.
 
     A missing LOG_PATH/QC directory is not an error - it only means this host
     has no history yet - so the listing comes back empty rather than 404ing,
@@ -115,6 +143,9 @@ def list_qc_report_dates(report_key: str) -> List[str]:
         suffix = path.basename(log_file)[len(stem) + 1:-len('.log')]
         if DATESTAMP_RE.match(suffix):
             datestamps.add(suffix)
+    latest = _qc_latest_datestamp(stem, log_path)
+    if latest:
+        datestamps.add(latest)
     return sorted(datestamps, reverse=True)
 
 
@@ -126,16 +157,27 @@ def _resolve_qc_log(report_key: str, datestamp: Optional[str] = None) -> str:
     through an exact eight-digit match - so a path separator or a ".." segment
     cannot get through. Never interpolate a caller's string into a path
     without a check like this.
+
+    Omitting the datestamp reads the undated "latest" file. A datestamp that
+    has no archived copy still resolves to that same file when its header
+    reports that date, because the current run is not given a datestamped name
+    until it is superseded - so the newest date a caller can see listed is
+    usually one that exists only inside the undated file.
     """
     stem = _qc_report_stem(report_key)
     log_path = environ.get('LOG_PATH', '.')
+    latest_file = path.join(log_path, f"QC/{stem}.log")
+
     if not datestamp:
-        log_file = path.join(log_path, f"QC/{stem}.log")
+        log_file = latest_file
     else:
         if not DATESTAMP_RE.match(datestamp):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="datestamp must be 8 digits in YYYYMMDD form.")
         log_file = path.join(log_path, f"QC/{stem}_{datestamp}.log")
+        if not path.isfile(log_file) and _qc_latest_datestamp(stem, log_path) == datestamp:
+            log_file = latest_file
+
     if not path.isfile(log_file):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"No {report_key} report for {datestamp or 'the latest run'}.")

@@ -42,6 +42,66 @@ def qc_tree(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture
+def current_run_is_undated(tmp_path, monkeypatch):
+    """The real convention: the current run keeps the plain name.
+
+    duplicate_orcid_report.log is the latest data, and only the superseded run
+    carries a datestamp in its filename.
+    """
+    qc = tmp_path / "QC"
+    qc.mkdir()
+    _write(qc, "duplicate_orcid_report.log", "20260818",
+           ["SGD\tAGRKB:999\t0000-0002-9999-9999\tCurrent Curator"])
+    _write(qc, "duplicate_orcid_report_20250714.log", "20250714",
+           ["SGD\tAGRKB:111\t0000-0001-1111-1111\tOld Curator"])
+    monkeypatch.setenv("LOG_PATH", str(tmp_path))
+    return tmp_path
+
+
+class TestTheCurrentUndatedRun:
+    """The newest run has no datestamp in its filename until it is superseded."""
+
+    def test_the_undated_file_is_still_readable(self, current_run_is_undated):
+        result = check_crud.check_duplicate_orcids()
+        assert result["date-produced"] == "20260818"
+        assert result["duplicate_orcids"]["SGD"][0]["author_names"] == "Current Curator"
+
+    def test_the_current_run_is_listed_alongside_the_archive(self, current_run_is_undated):
+        assert check_crud.list_qc_report_dates("duplicate_orcids") == ["20260818", "20250714"]
+
+    def test_the_newest_listed_date_is_the_current_run(self, current_run_is_undated):
+        # What a caller defaulting to the first listed date must get: the newest
+        # data, not the stale archive.
+        newest = check_crud.list_qc_report_dates("duplicate_orcids")[0]
+        assert check_crud.check_duplicate_orcids(newest)["duplicate_orcids"]["SGD"][0][
+            "author_names"] == "Current Curator"
+
+    def test_the_archived_run_still_reads_from_its_dated_file(self, current_run_is_undated):
+        result = check_crud.check_duplicate_orcids("20250714")
+        assert result["date-produced"] == "20250714"
+        assert result["duplicate_orcids"]["SGD"][0]["author_names"] == "Old Curator"
+
+    def test_a_datestamp_the_undated_file_does_not_claim_is_not_found(self, current_run_is_undated):
+        with pytest.raises(HTTPException) as excinfo:
+            check_crud.check_duplicate_orcids("20260819")
+        assert excinfo.value.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_an_undated_file_without_a_header_adds_no_date(self, tmp_path, monkeypatch):
+        qc = tmp_path / "QC"
+        qc.mkdir()
+        (qc / "obsolete_pmid_report.log").write_text("MGI\t12345678\n")
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        assert check_crud.list_qc_report_dates("obsolete_pmids") == []
+        # ...and it is still readable without a datestamp.
+        assert check_crud.check_obsolete_pmids()["obsolete_pmids"] == {"MGI": ["12345678"]}
+
+    def test_a_dated_copy_of_the_current_run_is_not_listed_twice(self, current_run_is_undated):
+        _write(current_run_is_undated / "QC", "duplicate_orcid_report_20260818.log", "20260818",
+               ["SGD\tAGRKB:999\t0000-0002-9999-9999\tCurrent Curator"])
+        assert check_crud.list_qc_report_dates("duplicate_orcids") == ["20260818", "20250714"]
+
+
 class TestListQcReportDates:
 
     def test_lists_archived_runs_newest_first(self, qc_tree):
