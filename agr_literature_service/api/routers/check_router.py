@@ -93,13 +93,11 @@ def qc_report_dates(
     current run at all is not. Callers wanting the newest data should omit the
     datestamp rather than pin ``latest``, so they keep following the current run
     as it changes.
+
+    All three come from one read of the report directory, so they cannot
+    disagree with each other if a cron job rewrites a log mid-request.
     """
-    return {
-        "report": report_key,
-        "dates": check_crud.list_qc_report_dates(report_key),
-        "latest": check_crud.qc_latest_datestamp(report_key),
-        "has_latest": check_crud.qc_latest_exists(report_key)
-    }
+    return {"report": report_key, **check_crud.qc_report_runs(report_key)}
 
 
 @router.get('/environments',

@@ -7,6 +7,7 @@ import pytest
 from fastapi import HTTPException, status
 
 from agr_literature_service.api.crud import check_crud
+from agr_literature_service.api.crud.check_crud import DATESTAMP_RE
 
 
 def _write(directory, name, datestamp, rows):
@@ -140,8 +141,11 @@ class TestListQcReportDates:
     def test_ignores_suffixes_that_are_not_datestamps(self, qc_tree):
         assert "final" not in check_crud.list_qc_report_dates("obsolete_entities")
 
-    def test_does_not_list_the_undatestamped_latest_file(self, qc_tree):
-        assert all(date.isdigit() for date in check_crud.list_qc_report_dates("obsolete_entities"))
+    def test_every_listed_date_is_a_datestamp(self, qc_tree):
+        # The undated file's date is listed too (see TestTheCurrentUndatedRun);
+        # what must never appear is a non-datestamp suffix.
+        assert all(DATESTAMP_RE.fullmatch(date)
+                   for date in check_crud.list_qc_report_dates("obsolete_entities"))
 
     def test_each_report_key_lists_only_its_own_runs(self, qc_tree):
         assert check_crud.list_qc_report_dates("duplicate_orcids") == ["20260618"]
@@ -191,6 +195,83 @@ class TestReadingASpecificRun:
         assert check_crud.check_obsolete_pmids("20260618")["obsolete_pmids"] == {"MGI": ["12345678"]}
         redacted = check_crud.check_redacted_references_with_tags("20260620")
         assert redacted["redacted-references"] == {"ZFIN": [{"reference_id": "AGRKB:301"}]}
+
+
+class TestHeadersWrittenByHand:
+    """A log written by hand will not match the generators' exact spacing."""
+
+    @pytest.fixture
+    def spaceless_header(self, tmp_path, monkeypatch):
+        qc = tmp_path / "QC"
+        qc.mkdir()
+        (qc / "duplicate_orcid_report.log").write_text(
+            "#!date-produced:20260101\nSGD\tAGRKB:1\t0000-0001-0000-0001\tBy Hand\n")
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        return tmp_path
+
+    def test_listing_survives_a_header_with_no_space(self, spaceless_header):
+        # Guarding on the marker and splitting on marker-plus-space used to
+        # disagree here, raising IndexError out of the listing endpoint.
+        assert check_crud.list_qc_report_dates("duplicate_orcids") == ["20260101"]
+
+    def test_the_date_is_still_read(self, spaceless_header):
+        assert check_crud.qc_latest_datestamp("duplicate_orcids") == "20260101"
+
+    def test_the_report_still_parses(self, spaceless_header):
+        result = check_crud.check_duplicate_orcids()
+        assert result["date-produced"] == "20260101"
+        assert result["duplicate_orcids"]["SGD"][0]["author_names"] == "By Hand"
+
+    def test_that_date_resolves_back_to_the_undated_file(self, spaceless_header):
+        assert check_crud.check_duplicate_orcids("20260101")["date-produced"] == "20260101"
+
+    def test_a_header_with_extra_spacing_is_read(self, tmp_path, monkeypatch):
+        qc = tmp_path / "QC"
+        qc.mkdir()
+        (qc / "obsolete_pmid_report.log").write_text(
+            "#!date-produced:   20260101   \nMGI\t12345678\n")
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        assert check_crud.qc_latest_datestamp("obsolete_pmids") == "20260101"
+
+    def test_an_unparseable_date_is_not_offered_as_a_run(self, tmp_path, monkeypatch):
+        # Not a datestamp, so it cannot be a selectable run - but the file is
+        # still present and readable.
+        qc = tmp_path / "QC"
+        qc.mkdir()
+        (qc / "obsolete_pmid_report.log").write_text("#!date-produced: 2026-01-01\nMGI\t1\n")
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        assert check_crud.list_qc_report_dates("obsolete_pmids") == []
+        assert check_crud.qc_latest_datestamp("obsolete_pmids") is None
+        assert check_crud.qc_latest_exists("obsolete_pmids") is True
+        assert check_crud.check_obsolete_pmids()["obsolete_pmids"] == {"MGI": ["1"]}
+
+
+class TestDatestampStrictness:
+
+    @pytest.mark.parametrize("datestamp", [
+        "20260607\n",        # $ would have tolerated the newline
+        "\u0662\u0660\u0662\u0666\u0660\u0666\u0660\u0667",  # Unicode digits: \d would have matched
+    ])
+    def test_only_ascii_digits_with_no_padding_are_accepted(self, qc_tree, datestamp):
+        with pytest.raises(HTTPException) as excinfo:
+            check_crud.check_obsolete_entities(datestamp)
+        assert excinfo.value.status_code == status.HTTP_400_BAD_REQUEST
+
+
+class TestOneSnapshotPerCall:
+
+    def test_reports_dates_latest_and_presence_together(self, current_run_is_undated):
+        assert check_crud.qc_report_runs("duplicate_orcids") == {
+            "dates": ["20260818", "20250714"],
+            "latest": "20260818",
+            "has_latest": True,
+        }
+
+    def test_reports_an_empty_host(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        assert check_crud.qc_report_runs("duplicate_orcids") == {
+            "dates": [], "latest": None, "has_latest": False,
+        }
 
 
 class TestRejectedAndMissingRequests:

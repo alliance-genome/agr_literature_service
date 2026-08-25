@@ -15,7 +15,7 @@ import urllib.request
 from glob import glob
 from os import environ, path
 from collections import defaultdict
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -84,7 +84,13 @@ QC_REPORTS = {
     "duplicate_orcids": "duplicate_orcid_report",
 }
 
-DATESTAMP_RE = re.compile(r'^\d{8}$')
+# Explicit ASCII digits and fullmatch, not r'^\d{8}$': \d is Unicode-aware and
+# $ tolerates a trailing newline, so the looser form accepts strings this code
+# then describes as "eight digits". Nothing that matches either form can escape
+# the report directory, but the strict form is what the callers below claim.
+DATESTAMP_RE = re.compile(r'[0-9]{8}')
+
+DATE_PRODUCED_MARKER = 'date-produced:'
 
 
 def _qc_report_stem(report_key: str) -> str:
@@ -101,78 +107,96 @@ def _qc_report_stem(report_key: str) -> str:
     return stem
 
 
-def _qc_latest_datestamp(stem: str, log_path: str) -> Optional[str]:
-    """The date the undated "latest" file claims, from its own header.
+def _parse_date_produced(line: str) -> Optional[str]:
+    """The datestamp out of a "#!date-produced: YYYYMMDD" header line.
 
-    A run keeps the plain "<stem>.log" name while it is current and only gains
-    a "_YYYYMMDD" copy once it is superseded, so the newest report usually has
-    no datestamp in its filename. Its date has to be read out of the
-    "#!date-produced:" header instead, which is the first line of the file.
+    Split on the marker without its trailing space, so the test and the split
+    agree on one token: a hand-written "#!date-produced:20260101" would
+    otherwise pass a check for the marker and then raise IndexError on the
+    split, which reaches the caller as a 500.
+    """
+    if DATE_PRODUCED_MARKER not in line:
+        return None
+    datestamp = line.split(DATE_PRODUCED_MARKER, 1)[1].strip()
+    return datestamp if DATESTAMP_RE.fullmatch(datestamp) else None
+
+
+def _qc_latest_info(stem: str, log_path: str) -> Tuple[bool, Optional[str]]:
+    """Whether one QC report's undated file exists, and the date it claims.
+
+    The undated "<stem>.log" is the current run. Its date has to be read out of
+    the "#!date-produced:" header on its first line, because the filename
+    carries none - and on a given host the datestamped copy of that same run may
+    be missing or already pruned, so the header is the authoritative date for it.
+
+    The two halves are returned together because they differ: a log written by
+    hand has no header, so it cannot be dated even though it is present and
+    readable. Callers must tell that apart from there being no current run at
+    all - the first is still worth offering, the second is not. Reading both
+    from one open() also keeps them a single snapshot, rather than two views of
+    a file a cron job may rewrite in between.
     """
     log_file = path.join(log_path, f"QC/{stem}.log")
     if not path.isfile(log_file):
-        return None
+        return False, None
     try:
         with open(log_file, 'r') as f:
             first_line = f.readline()
     except OSError:
-        return None
-    if 'date-produced:' not in first_line:
-        return None
-    datestamp = first_line.split('date-produced: ')[1].strip()
-    return datestamp if DATESTAMP_RE.match(datestamp) else None
+        return False, None
+    return True, _parse_date_produced(first_line)
 
 
-def list_qc_report_dates(report_key: str) -> List[str]:
-    """Datestamps of the runs of one QC report, newest first.
+def qc_report_runs(report_key: str) -> Dict[str, Any]:
+    """Every run of one QC report on this host, as one snapshot.
 
-    Both the datestamped archives and the current run are listed. The current
-    run is the undated "<stem>.log", which gains its "_YYYYMMDD" copy only once
-    it is superseded, so listing the archives alone would leave the newest
-    report out - and a caller defaulting to the first entry would then show
-    stale data.
+    ``dates`` lists the datestamps newest first, covering both the archived
+    copies and the current run. The current run is the undated "<stem>.log", so
+    listing only the datestamped filenames would leave the newest report out
+    whenever its dated copy is absent - and a caller defaulting to the first
+    entry would then show stale data.
 
-    A missing LOG_PATH/QC directory is not an error - it only means this host
-    has no history yet - so the listing comes back empty rather than 404ing,
-    and the caller falls back to the latest report.
+    ``has_latest`` says whether that current run is present at all and
+    ``latest`` names its date when it has a readable header, which is the entry
+    of ``dates`` it accounts for.
+
+    A missing LOG_PATH/QC directory is not an error - it only means this host has
+    no reports yet - so this comes back empty rather than 404ing, and the caller
+    falls back to reading the latest report directly.
     """
     stem = _qc_report_stem(report_key)
     log_path = environ.get('LOG_PATH', '.')
+
     datestamps = set()
     for log_file in glob(path.join(log_path, f"QC/{stem}_*.log")):
         suffix = path.basename(log_file)[len(stem) + 1:-len('.log')]
-        if DATESTAMP_RE.match(suffix):
+        if DATESTAMP_RE.fullmatch(suffix):
             datestamps.add(suffix)
-    latest = _qc_latest_datestamp(stem, log_path)
+
+    has_latest, latest = _qc_latest_info(stem, log_path)
     if latest:
         datestamps.add(latest)
-    return sorted(datestamps, reverse=True)
+
+    return {
+        "dates": sorted(datestamps, reverse=True),
+        "latest": latest,
+        "has_latest": has_latest
+    }
+
+
+def list_qc_report_dates(report_key: str) -> List[str]:
+    """Datestamps of the runs of one QC report, newest first."""
+    return qc_report_runs(report_key)["dates"]
 
 
 def qc_latest_datestamp(report_key: str) -> Optional[str]:
-    """The date the current, undated run of one QC report reports for itself.
-
-    None when there is no undated file, or when it carries no
-    "#!date-produced:" header. Callers use this to tell which entry of
-    list_qc_report_dates is the current run, since that run is the one holding
-    the plain filename.
-    """
-    stem = _qc_report_stem(report_key)
-    return _qc_latest_datestamp(stem, environ.get('LOG_PATH', '.'))
+    """The date the current, undated run of one QC report claims for itself."""
+    return qc_report_runs(report_key)["latest"]
 
 
 def qc_latest_exists(report_key: str) -> bool:
-    """Whether the current, undated run of one QC report is on disk.
-
-    Deliberately separate from qc_latest_datestamp returning a date. A log
-    written by hand, with no "#!date-produced:" header, is still the current run
-    and still readable - it just cannot be labelled with a date. Callers need to
-    tell that apart from there being no current run at all, because the first
-    should still be offered and the second should not.
-    """
-    stem = _qc_report_stem(report_key)
-    log_path = environ.get('LOG_PATH', '.')
-    return path.isfile(path.join(log_path, f"QC/{stem}.log"))
+    """Whether the current, undated run of one QC report is on disk."""
+    return qc_report_runs(report_key)["has_latest"]
 
 
 def _resolve_qc_log(report_key: str, datestamp: Optional[str] = None) -> str:
@@ -184,11 +208,11 @@ def _resolve_qc_log(report_key: str, datestamp: Optional[str] = None) -> str:
     cannot get through. Never interpolate a caller's string into a path
     without a check like this.
 
-    Omitting the datestamp reads the undated "latest" file. A datestamp that
-    has no archived copy still resolves to that same file when its header
-    reports that date, because the current run is not given a datestamped name
-    until it is superseded - so the newest date a caller can see listed is
-    usually one that exists only inside the undated file.
+    Omitting the datestamp reads the undated "latest" file. A datestamp that has
+    no archived copy still resolves to that same file when its header reports
+    that date, because the undated file may be the only copy of that run left on
+    the host - which is why the newest date a caller sees listed can be one that
+    exists nowhere in a filename.
     """
     stem = _qc_report_stem(report_key)
     log_path = environ.get('LOG_PATH', '.')
@@ -197,11 +221,11 @@ def _resolve_qc_log(report_key: str, datestamp: Optional[str] = None) -> str:
     if not datestamp:
         log_file = latest_file
     else:
-        if not DATESTAMP_RE.match(datestamp):
+        if not DATESTAMP_RE.fullmatch(datestamp):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                                 detail="datestamp must be 8 digits in YYYYMMDD form.")
         log_file = path.join(log_path, f"QC/{stem}_{datestamp}.log")
-        if not path.isfile(log_file) and _qc_latest_datestamp(stem, log_path) == datestamp:
+        if not path.isfile(log_file) and _qc_latest_info(stem, log_path)[1] == datestamp:
             log_file = latest_file
 
     if not path.isfile(log_file):
@@ -218,8 +242,14 @@ def check_obsolete_entities(datestamp: Optional[str] = None):
 
     with open(log_file, 'r') as f:
         for line in f:
-            if 'date-produced:' in line:
-                date_produced = line.split('date-produced: ')[1].strip()
+            if DATE_PRODUCED_MARKER in line:
+                # Split on the marker without its trailing space, so a header
+                # written by hand as "#!date-produced:20260101" cannot pass this
+                # test and then raise IndexError on the split. Left permissive
+                # about the value itself, which is only echoed back to the
+                # caller - unlike the datestamps offered as selectable runs,
+                # which _parse_date_produced holds to eight digits.
+                date_produced = line.split(DATE_PRODUCED_MARKER, 1)[1].strip()
             else:
                 pieces = line.strip().split('\t')
                 if len(pieces) > 6:
@@ -253,8 +283,14 @@ def check_redacted_references_with_tags(datestamp: Optional[str] = None):
 
     with open(log_file, 'r') as f:
         for line in f:
-            if 'date-produced:' in line:
-                date_produced = line.split('date-produced: ')[1].strip()
+            if DATE_PRODUCED_MARKER in line:
+                # Split on the marker without its trailing space, so a header
+                # written by hand as "#!date-produced:20260101" cannot pass this
+                # test and then raise IndexError on the split. Left permissive
+                # about the value itself, which is only echoed back to the
+                # caller - unlike the datestamps offered as selectable runs,
+                # which _parse_date_produced holds to eight digits.
+                date_produced = line.split(DATE_PRODUCED_MARKER, 1)[1].strip()
             else:
                 pieces = line.strip().split('\t')
                 if len(pieces) >= 3:
@@ -276,8 +312,14 @@ def check_obsolete_pmids(datestamp: Optional[str] = None):
 
     with open(log_file, 'r') as f:
         for line in f:
-            if 'date-produced:' in line:
-                date_produced = line.split('date-produced: ')[1].strip()
+            if DATE_PRODUCED_MARKER in line:
+                # Split on the marker without its trailing space, so a header
+                # written by hand as "#!date-produced:20260101" cannot pass this
+                # test and then raise IndexError on the split. Left permissive
+                # about the value itself, which is only echoed back to the
+                # caller - unlike the datestamps offered as selectable runs,
+                # which _parse_date_produced holds to eight digits.
+                date_produced = line.split(DATE_PRODUCED_MARKER, 1)[1].strip()
             else:
                 pieces = line.strip().split('\t')
                 if len(pieces) >= 2:
@@ -296,8 +338,14 @@ def check_duplicate_orcids(datestamp: Optional[str] = None):
 
     with open(log_file, 'r') as f:
         for line in f:
-            if 'date-produced:' in line:
-                date_produced = line.split('date-produced: ')[1].strip()
+            if DATE_PRODUCED_MARKER in line:
+                # Split on the marker without its trailing space, so a header
+                # written by hand as "#!date-produced:20260101" cannot pass this
+                # test and then raise IndexError on the split. Left permissive
+                # about the value itself, which is only echoed back to the
+                # caller - unlike the datestamps offered as selectable runs,
+                # which _parse_date_produced holds to eight digits.
+                date_produced = line.split(DATE_PRODUCED_MARKER, 1)[1].strip()
             else:
                 pieces = line.strip().split('\t')
                 if len(pieces) >= 4:
