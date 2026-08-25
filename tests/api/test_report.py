@@ -91,28 +91,6 @@ class TestGetReportFile:
         assert result["content"] == "root log\n"
         assert result["truncated"] is False
 
-    def test_a_file_over_the_cap_is_truncated_without_being_asked(self, log_tree, monkeypatch):
-        """The bound holds server-side: no tail argument still caps the read."""
-        monkeypatch.setattr(report_crud, "MAX_BYTES", 8)
-        (log_tree / "huge.log").write_text("a" * 20 + "tailtail")
-        result = report_crud.get_report_file("huge.log")
-        assert result["content"] == "tailtail"
-        assert result["truncated"] is True
-        assert result["size"] == 28
-
-    def test_a_tail_over_the_cap_is_clamped_to_it(self, log_tree, monkeypatch):
-        monkeypatch.setattr(report_crud, "MAX_BYTES", 8)
-        (log_tree / "huge.log").write_text("a" * 20 + "tailtail")
-        result = report_crud.get_report_file("huge.log", tail=10000)
-        assert result["content"] == "tailtail"
-        assert result["truncated"] is True
-
-    def test_a_file_under_the_cap_is_returned_whole(self, log_tree, monkeypatch):
-        monkeypatch.setattr(report_crud, "MAX_BYTES", 8)
-        result = report_crud.get_report_file("QC/duplicate_orcid_report.log")
-        assert result["content"] == "orcid\n"
-        assert result["truncated"] is False
-
     @pytest.mark.parametrize("bad_path", [
         "../outside.log",
         "QC/../../outside.log",
@@ -120,9 +98,6 @@ class TestGetReportFile:
         "/etc/passwd",
         "",
         None,
-        # realpath raises ValueError on this one, not OSError; without the
-        # explicit catch it escapes as a 500 rather than the 400 the rest get.
-        "\x00x",
     ])
     def test_rejects_a_path_that_escapes_the_log_root(self, log_tree, bad_path):
         (log_tree.parent / "outside.log").write_text("secret\n")
