@@ -7,8 +7,8 @@ journals that are currently missing license information.
 The list of Springer Nature fully open access journals is loaded from:
     data/springer_oa_journals.json
 
-Source PDF:
-    https://cms-resources.apps.public.k8s.springernature.io/springer-cms/rest/v1/content/27820860/data/v2
+Source PDF (regenerate the JSON with parse_springer_oa_pdf.py):
+    https://cms-resources.apps.public.k8s.springernature.io/springer-cms/rest/v1/content/27820860/data/v3
 
 It queries the database to find resources matching those ISSNs and updates
 resources that are missing license information to set:
