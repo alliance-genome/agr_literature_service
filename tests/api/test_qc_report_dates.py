@@ -96,6 +96,36 @@ class TestTheCurrentUndatedRun:
         # ...and it is still readable without a datestamp.
         assert check_crud.check_obsolete_pmids()["obsolete_pmids"] == {"MGI": ["12345678"]}
 
+    def test_names_the_date_belonging_to_the_current_run(self, current_run_is_undated):
+        assert check_crud.qc_latest_datestamp("duplicate_orcids") == "20260818"
+
+    def test_no_current_date_when_the_undated_file_is_absent(self, qc_tree):
+        # qc_tree archives duplicate_orcid runs but has no undated file.
+        assert check_crud.qc_latest_datestamp("duplicate_orcids") is None
+
+    def test_no_current_date_when_the_undated_file_has_no_header(self, tmp_path, monkeypatch):
+        qc = tmp_path / "QC"
+        qc.mkdir()
+        (qc / "obsolete_pmid_report.log").write_text("MGI\t12345678\n")
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        assert check_crud.qc_latest_datestamp("obsolete_pmids") is None
+
+    def test_an_undatable_current_run_still_counts_as_present(self, tmp_path, monkeypatch):
+        # A hand-written log with no header cannot be dated, but it is still the
+        # current run and must still be offered.
+        qc = tmp_path / "QC"
+        qc.mkdir()
+        (qc / "obsolete_pmid_report.log").write_text("MGI\t12345678\n")
+        monkeypatch.setenv("LOG_PATH", str(tmp_path))
+        assert check_crud.qc_latest_exists("obsolete_pmids") is True
+        assert check_crud.qc_latest_datestamp("obsolete_pmids") is None
+
+    def test_current_run_is_present_when_it_has_a_header(self, current_run_is_undated):
+        assert check_crud.qc_latest_exists("duplicate_orcids") is True
+
+    def test_no_current_run_when_only_archives_exist(self, qc_tree):
+        assert check_crud.qc_latest_exists("duplicate_orcids") is False
+
     def test_a_dated_copy_of_the_current_run_is_not_listed_twice(self, current_run_is_undated):
         _write(current_run_is_undated / "QC", "duplicate_orcid_report_20260818.log", "20260818",
                ["SGD\tAGRKB:999\t0000-0002-9999-9999\tCurrent Curator"])

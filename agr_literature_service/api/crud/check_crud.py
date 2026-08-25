@@ -149,6 +149,32 @@ def list_qc_report_dates(report_key: str) -> List[str]:
     return sorted(datestamps, reverse=True)
 
 
+def qc_latest_datestamp(report_key: str) -> Optional[str]:
+    """The date the current, undated run of one QC report reports for itself.
+
+    None when there is no undated file, or when it carries no
+    "#!date-produced:" header. Callers use this to tell which entry of
+    list_qc_report_dates is the current run, since that run is the one holding
+    the plain filename.
+    """
+    stem = _qc_report_stem(report_key)
+    return _qc_latest_datestamp(stem, environ.get('LOG_PATH', '.'))
+
+
+def qc_latest_exists(report_key: str) -> bool:
+    """Whether the current, undated run of one QC report is on disk.
+
+    Deliberately separate from qc_latest_datestamp returning a date. A log
+    written by hand, with no "#!date-produced:" header, is still the current run
+    and still readable - it just cannot be labelled with a date. Callers need to
+    tell that apart from there being no current run at all, because the first
+    should still be offered and the second should not.
+    """
+    stem = _qc_report_stem(report_key)
+    log_path = environ.get('LOG_PATH', '.')
+    return path.isfile(path.join(log_path, f"QC/{stem}.log"))
+
+
 def _resolve_qc_log(report_key: str, datestamp: Optional[str] = None) -> str:
     """Path of one QC report file: a dated archive, or the latest run.
 

@@ -85,10 +85,20 @@ def qc_report_dates(
     ``report_key`` is one of obsolete_entities, redacted_references,
     obsolete_pmids or duplicate_orcids. Feed a returned datestamp back to the
     matching /check/check_* endpoint to read that run instead of the latest.
+
+    ``has_latest`` says whether a current run - the one still holding the undated
+    filename - is present at all, and ``latest`` names its date when it has a
+    date header to read. The two differ for a log written by hand: it is current
+    and readable but cannot be dated, so it is still worth offering, whereas no
+    current run at all is not. Callers wanting the newest data should omit the
+    datestamp rather than pin ``latest``, so they keep following the current run
+    as it changes.
     """
     return {
         "report": report_key,
-        "dates": check_crud.list_qc_report_dates(report_key)
+        "dates": check_crud.list_qc_report_dates(report_key),
+        "latest": check_crud.qc_latest_datestamp(report_key),
+        "has_latest": check_crud.qc_latest_exists(report_key)
     }
 
 
