@@ -87,6 +87,11 @@ def _resolve_within_root(relative_path):
     realpath is what does the work: it collapses .. segments and follows
     symlinks, so a link inside LOG_PATH that points elsewhere is caught too.
     Never interpolate the caller's string into a path without this check.
+
+    What is returned is the walk's own path, not the string built from the
+    request. The two are equivalent once the check above has passed, but only
+    the walk's path is demonstrably a file under LOG_PATH, so nothing derived
+    from the request ever reaches the filesystem calls in get_report_file.
     """
     root = _log_root()
     if root is None:
@@ -103,7 +108,15 @@ def _resolve_within_root(relative_path):
     if candidate != root and not candidate.startswith(root + path.sep):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Report file path is outside the report directory.")
-    return candidate
+
+    for dirpath, _dirnames, filenames in walk(root):
+        for filename in filenames:
+            trusted = path.join(dirpath, filename)
+            if path.realpath(trusted) == candidate:
+                return trusted
+
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"No report file at {relative_path}.")
 
 
 def get_report_file(relative_path, tail=None):
