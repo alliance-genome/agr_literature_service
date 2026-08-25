@@ -27,9 +27,9 @@ always agree. Each source (paper, ATP) pair is classified as:
   not-found        WB:WBPaper<id> has no reference in the DB -- skipped and listed
 
 By default only a curator-selected set of ATP topics is processed
-(ATP:0000061 catalytic activity, ATP:0000062 transporter function,
-ATP:0000033 site of action); rows for other topics are counted as filtered_out
-and ignored. Override with --topics (comma-separated) or --topics all.
+(ATP:0000061 catalytic activity, ATP:0000062 transporter function); rows for
+other topics are counted as filtered_out and ignored. Override with --topics
+(comma-separated) or --topics all.
 
 populate mode row mapping:
 
@@ -39,8 +39,8 @@ populate mode row mapping:
   curation_status  =  ATP:0000239   ('curated')   (constant)
   curation_tag     =  ATP:0000227   ('curatable') (constant)
   note             <- cur_selcomment / cur_txtcomment joined
-  created_by       <- cur_curator
-  updated_by       <- cur_curator
+  created_by       <- cur_curator, remapped two<n> -> WBPerson<n>
+  updated_by       <- cur_curator, remapped two<n> -> WBPerson<n>
   date_created     <- cur_timestamp (parsed, converted to UTC)
   date_updated     <- cur_timestamp
 
@@ -111,8 +111,7 @@ WB_CURIE_PREFIX = "WB"
 # --topics (comma-separated) or --topics all to process every topic. Names:
 #   ATP:0000061  catalytic activity
 #   ATP:0000062  transporter function
-#   ATP:0000033  site of action
-DEFAULT_TOPICS = ("ATP:0000061", "ATP:0000062", "ATP:0000033")
+DEFAULT_TOPICS = ("ATP:0000061", "ATP:0000062")
 
 DEFAULT_TSV_URL = (
     "https://caltech-curation.textpressolab.com/files/pub/kimberly/"
@@ -156,6 +155,19 @@ def build_note(selcomment, txtcomment):
     """Join the two TSV comment columns; return None when both are blank."""
     parts = [p for p in (selcomment, txtcomment) if p]
     return "; ".join(parts) or None
+
+
+def remap_curator(curator):
+    """Map a Caltech curator id 'two<n>' to the WBPerson curie 'WBPerson<n>'.
+
+    Values that are not of the form two<digits> are returned unchanged; a blank
+    curator returns None. Used for created_by / updated_by so the stored audit
+    user is the WormBase person curie rather than the Textpresso 'two' id.
+    """
+    if not curator:
+        return None
+    match = re.fullmatch(r"two(\d+)", curator)
+    return f"WBPerson{match.group(1)}" if match else curator
 
 
 def parse_timestamp(value):
@@ -284,8 +296,8 @@ def run_populate(db, wb_mod_id, records, blank_rows, not_found_rows,
                 curation_status=CURATION_STATUS,
                 curation_tag=CURATION_TAG,
                 note=build_note(record["selcomment"], record["txtcomment"]),
-                created_by=record["curator"] or None,
-                updated_by=record["curator"] or None,
+                created_by=remap_curator(record["curator"]),
+                updated_by=remap_curator(record["curator"]),
                 date_created=parse_timestamp(record["timestamp"]),
                 date_updated=parse_timestamp(record["timestamp"]),
             ))
