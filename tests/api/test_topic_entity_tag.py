@@ -715,8 +715,11 @@ class TestTopicEntityTag:
         time, so the audit listener would stamp the authenticated user and
         the assertion couldn't tell honored from dropped."""
         from agr_literature_service.api.models.user_model import UserModel
-        db.add(UserModel(id="WBPerson2", automation_username="WBPerson2"))
-        db.commit()
+        # users rows survive the per-test cleanup, so get-or-create this seed
+        # user to keep the suite re-runnable against a persistent DB.
+        if db.query(UserModel).filter_by(id="WBPerson2").one_or_none() is None:
+            db.add(UserModel(id="WBPerson2", automation_username="WBPerson2"))
+            db.commit()
         with TestClient(app) as client:
             response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
                                     headers=auth_headers,
