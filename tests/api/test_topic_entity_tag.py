@@ -680,6 +680,38 @@ class TestTopicEntityTag:
             for key, value in patch_data.items():
                 assert resp_data[key] == value
 
+    def test_patch_drops_unresolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
+        """SCRUM-6459: the UI used to send its auth token's Cognito sub as
+        updated_by on tag edits; the raw sub was stored verbatim and an orphan
+        automation users row was minted for it. A PATCH audit field that does
+        not resolve to an existing user must be dropped (the audited-model
+        listener stamps the authenticated user), and no users row created."""
+        from agr_literature_service.api.models.user_model import UserModel
+        cognito_sub = "74e854e8-70a1-7001-07e9-7c8d755cd538"
+        with TestClient(app) as client:
+            response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                    headers=auth_headers,
+                                    json={"note": "entity corrected", "updated_by": cognito_sub})
+            assert response.status_code == status.HTTP_200_OK
+        tag = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
+        assert tag.note == "entity corrected"
+        assert tag.updated_by != cognito_sub
+        assert db.query(UserModel).filter_by(id=cognito_sub).one_or_none() is None
+
+    def test_patch_keeps_resolvable_updated_by(self, db, test_topic_entity_tag, auth_headers):  # noqa
+        """Counterpart to test_patch_drops_unresolvable_updated_by: an
+        updated_by that resolves to an existing users row (here WBPerson1,
+        auto-created when the fixture tag was posted) is still honored."""
+        with TestClient(app) as client:
+            response = client.patch(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}",
+                                    headers=auth_headers,
+                                    json={"note": "reviewed", "updated_by": "WBPerson1"})
+            assert response.status_code == status.HTTP_200_OK
+        tag = db.query(TopicEntityTagModel).filter(
+            TopicEntityTagModel.topic_entity_tag_id == test_topic_entity_tag.new_tet_id).one()
+        assert tag.updated_by == "WBPerson1"
+
     def test_destroy(self, test_topic_entity_tag, auth_headers):  # noqa
         with TestClient(app) as client:
             response = client.delete(f"/topic_entity_tag/{test_topic_entity_tag.new_tet_id}", headers=auth_headers)

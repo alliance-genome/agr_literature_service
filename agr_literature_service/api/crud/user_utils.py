@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -142,3 +144,21 @@ def map_to_user_id(identifier: str, db: Session) -> str:
         """
         return ident
     return users_id
+
+
+def map_to_existing_user_id(identifier: str, db: Session) -> Optional[str]:
+    """
+    Like map_to_user_id, but returns None when the identifier does not resolve
+    to an EXISTING users row.
+
+    map_to_user_id deliberately echoes unknown identifiers back so admin-token
+    loads can auto-create their users rows (see audited_model auto-create).
+    Callers that must NOT mint users from caller-supplied audit fields -- e.g.
+    PATCH created_by/updated_by, where the UI used to send its auth token's
+    Cognito sub (SCRUM-6459) -- use this and drop the field when it returns
+    None, letting the audited-model listener stamp the authenticated user.
+    """
+    mapped = map_to_user_id(identifier, db)
+    if not mapped:
+        return None
+    return db.execute(_SQL_MATCH_USERS_ID_TEXT, {"identifier": mapped}).scalar_one_or_none()
