@@ -50,46 +50,60 @@ class TestZfinCorpusEntryTags:
             WorkflowTagModel.reference_id == reference_id,
             WorkflowTagModel.mod_id == mod_id).all()}
 
-    def test_grants_both_tags(self, db, load_sanitized_references): # noqa
+    def _count(self, db, reference_id, mod_id, atp_id): # noqa
+        return db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id,
+            WorkflowTagModel.workflow_tag_id == atp_id).count()
+
+    def _seed(self, db, *atp_ids): # noqa
+        """Give the reference a known ZFIN tag set.
+
+        load_sanitized_references already leaves ATP:0000306 on the ZFIN
+        reference, so the starting state has to be reset for these assertions to
+        mean anything. The db fixture is per-test and truncates every table
+        around each test, so this cannot leak.
+        """
         reference_id, mod_id = self._zfin_ref(db)
+        db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id).delete()
+        for atp_id in atp_ids:
+            db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                    workflow_tag_id=atp_id))
+        db.commit()
+        return reference_id, mod_id
+
+    def test_grants_both_tags(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._seed(db)
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
-        assert {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED} <= self._tags(db, reference_id, mod_id)
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED}
 
     def test_probe_tag_granted_when_pre_indexing_already_present(self, db, load_sanitized_references): # noqa
         """The behaviour the backfill depends on: each tag is guarded against its OWN
         workflow's states, so a reference that already finished pre-indexing
-        prioritization still picks up the probe tag."""
-        reference_id, mod_id = self._zfin_ref(db)
-        db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
-                                workflow_tag_id=self.PRE_INDEXING_COMPLETE))
-        db.commit()
+        prioritization still picks up the probe tag, and pre-indexing is not
+        re-granted."""
+        reference_id, mod_id = self._seed(db, self.PRE_INDEXING_COMPLETE)
 
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
 
-        tags = self._tags(db, reference_id, mod_id)
-        assert self.PROBE_NEEDED in tags
-        # pre-indexing already entered its workflow, so it must not be re-granted
-        assert self.PRE_INDEXING_NEEDED not in tags
+        assert self._tags(db, reference_id, mod_id) == {self.PRE_INDEXING_COMPLETE, self.PROBE_NEEDED}
 
     def test_is_idempotent(self, db, load_sanitized_references): # noqa
-        reference_id, mod_id = self._zfin_ref(db)
+        reference_id, mod_id = self._seed(db)
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
-        rows = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == reference_id,
-            WorkflowTagModel.mod_id == mod_id,
-            WorkflowTagModel.workflow_tag_id == self.PROBE_NEEDED).all()
-        assert len(rows) == 1
+        assert self._count(db, reference_id, mod_id, self.PROBE_NEEDED) == 1
+        assert self._count(db, reference_id, mod_id, self.PRE_INDEXING_NEEDED) == 1
 
     def test_probe_tag_not_regranted_once_complete(self, db, load_sanitized_references): # noqa
-        reference_id, mod_id = self._zfin_ref(db)
-        db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
-                                workflow_tag_id=self.PROBE_COMPLETE))
-        db.commit()
+        reference_id, mod_id = self._seed(db, self.PROBE_COMPLETE)
 
         add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
 
-        assert self.PROBE_NEEDED not in self._tags(db, reference_id, mod_id)
+        # probe already entered its workflow; pre-indexing had not, so only it is granted
+        assert self._tags(db, reference_id, mod_id) == {self.PROBE_COMPLETE, self.PRE_INDEXING_NEEDED}
 
 
 class TestDbReadUtils:
