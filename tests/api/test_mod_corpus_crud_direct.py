@@ -21,7 +21,9 @@ HELPERS = "agr_literature_service.api.crud.mod_corpus_association_crud"
 FILE_NEEDED = "ATP:0000141"
 SGD_INDEX = "ATP:0000274"
 ZFIN_INDEX = "ATP:0000306"
+ZFIN_PRE_INDEXING_COMPLETE = "ATP:0000303"
 ZFIN_MOLECULAR_PROBE = "ATP:0000380"
+ZFIN_MOLECULAR_PROBE_IN_PROGRESS = "ATP:0000383"
 
 
 def _reference(db, curie): # noqa
@@ -82,6 +84,32 @@ class TestCreate:
         tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
             WorkflowTagModel.reference_id == ref.reference_id).all()}
         assert {ZFIN_INDEX, ZFIN_MOLECULAR_PROBE} <= tags
+
+    def test_zfin_corpus_skips_tags_whose_workflow_already_started(self, seeded): # noqa
+        """SCRUM-5764: destroy() removes only the file-needed tag, so a reference whose
+        probe classification already moved on survives a destroy. Re-creating the
+        corpus association must not add ATP:0000380 alongside ATP:0000383 -- two
+        states of one workflow make the next status read raise MultipleResultsFound.
+        """
+        db, ref = seeded  # noqa
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == "ZFIN").scalar()
+        db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id,
+                                workflow_tag_id=ZFIN_MOLECULAR_PROBE_IN_PROGRESS))
+        db.add(WorkflowTagModel(reference_id=ref.reference_id, mod_id=mod_id,
+                                workflow_tag_id=ZFIN_PRE_INDEXING_COMPLETE))
+        db.commit()
+
+        payload = ModCorpusAssociationSchemaPost(
+            mod_abbreviation="ZFIN", reference_curie=ref.curie, corpus=True,
+            mod_corpus_sort_source=ModCorpusSortSourceType.Mod_pubmed_search)
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+                patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            mca_crud.create(db, payload)
+
+        tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id,
+            WorkflowTagModel.mod_id == mod_id).all()}
+        assert tags == {ZFIN_MOLECULAR_PROBE_IN_PROGRESS, ZFIN_PRE_INDEXING_COMPLETE}
 
     def test_sgd_corpus_adds_manual_indexing_tag(self, seeded): # noqa
         db, ref = seeded  # noqa

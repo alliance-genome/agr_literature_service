@@ -18,6 +18,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
     TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
+from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -902,31 +903,13 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
             add_zfin_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger)
 
 
-# SCRUM-5764: the workflow tags a ZFIN reference gets on entering the corpus, as
-# (tag to grant, every state of that tag's own workflow). A reference already in
-# any of those states has entered the workflow, so the tag is not re-granted.
-# Both are abstract-only classifiers triggered by "inside corpus", so neither
-# waits on a PDF -- ZFIN mints a ZDB-PUB when its PubMed query finds the
-# reference and the ABC picks it up within a day, before students are given the
-# paper.
-#
-# The molecular probe list is deliberately non-contiguous: ATP:0000381/382/384/386
-# are the GENERIC "abstract classification" needed/in progress/failed/complete
-# states (ATP:0000379), and the probe ids below are their children. There is no
-# probe-specific process node in the ontology, so get_current_workflow_status()
-# cannot be used to expand this set -- ATP:0000379 would also pull in sibling
-# abstract classifiers such as SCRUM-5765 protocol papers, which must not block
-# probe classification. Verified against ATP.owl @ origin/main, 2026-08-26.
-ZFIN_CORPUS_ENTRY_TAGS = [
-    # pre-indexing prioritization (ATP:0000210)
-    ('ATP:0000306', ['ATP:0000303', 'ATP:0000304', 'ATP:0000305', 'ATP:0000306']),
-    # molecular probe abstract classification (ATP:0000370)
-    ('ATP:0000380', ['ATP:0000380', 'ATP:0000383', 'ATP:0000385', 'ATP:0000387']),
-]
-
-
 def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
     """Grant ZFIN's corpus-entry workflow tags.
+
+    The tag table lives in api.crud.utils.zfin_corpus_entry so this and the API
+    path (mod_corpus_association_crud) guard the same tags against the same
+    workflow state sets and cannot drift; see that module for why the probe state
+    list is non-contiguous and cannot be derived from the ontology.
 
     Each tag is guarded independently against its own workflow's states, so a
     reference that already holds one still picks up the other -- which is what
@@ -939,9 +922,15 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
     immediately before, and the DQM caller commits only every
     batch_size_for_commit references -- so a plain rollback() would discard it and
     could leave a tagged reference with no mod_corpus_association row.
+
+    Note on blast radius: the commit is deliberately outside the per-tag except,
+    so a failure committing propagates to the caller rather than being logged and
+    swallowed as it was when the commit sat inside the loop. A failed commit
+    leaves the session unusable, so continuing would fail on every subsequent
+    reference anyway.
     """
     added = False
-    for atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
+    for _atp_name, atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
         try:
             with db.begin_nested():
                 existing = (

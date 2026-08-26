@@ -21,12 +21,14 @@ from agr_literature_service.api.models import ModCorpusAssociationModel, Referen
 from agr_literature_service.api.schemas import ModCorpusAssociationSchemaPost, \
     ModCorpusAssociationBatchResultItem, ModCorpusSortSourceType
 from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud.utils.zfin_corpus_entry import \
+    ZFIN_CORPUS_ENTRY_TAGS, PRE_INDEXING_PRIO_NEEDED, MOLECULAR_PROBE_CLASSIFICATION_NEEDED
 from typing import List
 
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
-pre_indexing_prio_needed_tag_atp_id = "ATP:0000306"
-molecular_probe_classification_needed_tag_atp_id = "ATP:0000380"
+pre_indexing_prio_needed_tag_atp_id = PRE_INDEXING_PRIO_NEEDED
+molecular_probe_classification_needed_tag_atp_id = MOLECULAR_PROBE_CLASSIFICATION_NEEDED
 
 
 def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: int) -> None:
@@ -39,23 +41,24 @@ def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: 
     rather than later in the workflow. Both are abstract-only classifiers, so
     neither waits on a PDF.
 
-    Skips a tag the reference already holds. destroy() only removes the
-    file-needed tag, so a destroy-then-recreate would otherwise re-insert an
-    existing (reference, mod, tag) triple and surface the unique-constraint
-    violation as a 500 from create()'s commit -- now on two tags rather than one.
+    A tag is skipped when the reference already sits in ANY state of that tag's
+    own workflow, not merely when it holds that exact tag. destroy() removes only
+    the file-needed tag, so a reference whose probe classification had already
+    moved to ATP:0000383 survives a destroy; guarding on the exact tag would then
+    let create() add ATP:0000380 alongside it, leaving two states of one workflow
+    and making the next status read for that process raise MultipleResultsFound
+    (a 500) via _get_current_workflow_tag_db_obj's .one_or_none(). patch() and
+    batch_update_corpus() are unaffected either way -- both call
+    delete_workflow_tags() on the way out of the corpus.
 
     The caller is responsible for committing.
     """
-    for tag_atp_id in (
-        name_to_atp.get("pre-indexing prioritization needed",
-                        pre_indexing_prio_needed_tag_atp_id),
-        name_to_atp.get("molecular probe classification needed",
-                        molecular_probe_classification_needed_tag_atp_id),
-    ):
+    for atp_name, tag_atp_id, workflow_states in ZFIN_CORPUS_ENTRY_TAGS:
+        tag_atp_id = name_to_atp.get(atp_name, tag_atp_id)
         if db.query(WorkflowTagModel).filter(
                 WorkflowTagModel.reference_id == reference_id,
                 WorkflowTagModel.mod_id == mod_id,
-                WorkflowTagModel.workflow_tag_id == tag_atp_id).first() is not None:
+                WorkflowTagModel.workflow_tag_id.in_(workflow_states)).first() is not None:
             continue
         db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
                                 workflow_tag_id=tag_atp_id))
