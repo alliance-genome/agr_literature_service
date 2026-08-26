@@ -39,6 +39,11 @@ def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: 
     rather than later in the workflow. Both are abstract-only classifiers, so
     neither waits on a PDF.
 
+    Skips a tag the reference already holds. destroy() only removes the
+    file-needed tag, so a destroy-then-recreate would otherwise re-insert an
+    existing (reference, mod, tag) triple and surface the unique-constraint
+    violation as a 500 from create()'s commit -- now on two tags rather than one.
+
     The caller is responsible for committing.
     """
     for tag_atp_id in (
@@ -47,6 +52,11 @@ def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: 
         name_to_atp.get("molecular probe classification needed",
                         molecular_probe_classification_needed_tag_atp_id),
     ):
+        if db.query(WorkflowTagModel).filter(
+                WorkflowTagModel.reference_id == reference_id,
+                WorkflowTagModel.mod_id == mod_id,
+                WorkflowTagModel.workflow_tag_id == tag_atp_id).first() is not None:
+            continue
         db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
                                 workflow_tag_id=tag_atp_id))
 

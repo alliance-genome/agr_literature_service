@@ -903,15 +903,24 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
 
 
 # SCRUM-5764: the workflow tags a ZFIN reference gets on entering the corpus, as
-# (tag to grant, the states meaning that workflow has already been entered).
+# (tag to grant, every state of that tag's own workflow). A reference already in
+# any of those states has entered the workflow, so the tag is not re-granted.
 # Both are abstract-only classifiers triggered by "inside corpus", so neither
 # waits on a PDF -- ZFIN mints a ZDB-PUB when its PubMed query finds the
 # reference and the ABC picks it up within a day, before students are given the
 # paper.
+#
+# The molecular probe list is deliberately non-contiguous: ATP:0000381/382/384/386
+# are the GENERIC "abstract classification" needed/in progress/failed/complete
+# states (ATP:0000379), and the probe ids below are their children. There is no
+# probe-specific process node in the ontology, so get_current_workflow_status()
+# cannot be used to expand this set -- ATP:0000379 would also pull in sibling
+# abstract classifiers such as SCRUM-5765 protocol papers, which must not block
+# probe classification. Verified against ATP.owl @ origin/main, 2026-08-26.
 ZFIN_CORPUS_ENTRY_TAGS = [
-    # pre-indexing prioritization
+    # pre-indexing prioritization (ATP:0000210)
     ('ATP:0000306', ['ATP:0000303', 'ATP:0000304', 'ATP:0000305', 'ATP:0000306']),
-    # molecular probe abstract classification
+    # molecular probe abstract classification (ATP:0000370)
     ('ATP:0000380', ['ATP:0000380', 'ATP:0000383', 'ATP:0000385', 'ATP:0000387']),
 ]
 
@@ -923,29 +932,42 @@ def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
     reference that already holds one still picks up the other -- which is what
     makes this safe to run over references acquired before the molecular probe
     workflow existed.
+
+    Each insert runs inside a SAVEPOINT and is flushed there, so a failure on one
+    tag rolls back only that insert. Both callers have unrelated pending work in
+    the session -- post_reference_to_db adds the mod_corpus_association
+    immediately before, and the DQM caller commits only every
+    batch_size_for_commit references -- so a plain rollback() would discard it and
+    could leave a tagged reference with no mod_corpus_association row.
     """
+    added = False
     for atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
         try:
-            existing = (
-                db.query(WorkflowTagModel)
-                  .filter(
-                      WorkflowTagModel.reference_id == reference_id,
-                      WorkflowTagModel.mod_id == mod_id,
-                      WorkflowTagModel.workflow_tag_id.in_(already_entered)).first()
-            )
-            if existing is None:
-                db.add(WorkflowTagModel(
-                    reference_id=reference_id,
-                    mod_id=mod_id,
-                    workflow_tag_id=atpid
-                ))
-                db.commit()
-                logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
-            else:
-                logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
+            with db.begin_nested():
+                existing = (
+                    db.query(WorkflowTagModel)
+                      .filter(
+                          WorkflowTagModel.reference_id == reference_id,
+                          WorkflowTagModel.mod_id == mod_id,
+                          WorkflowTagModel.workflow_tag_id.in_(already_entered)).first()
+                )
+                if existing is None:
+                    db.add(WorkflowTagModel(
+                        reference_id=reference_id,
+                        mod_id=mod_id,
+                        workflow_tag_id=atpid
+                    ))
+                    # Flush inside the savepoint so a constraint violation is
+                    # caught here rather than at the final commit below.
+                    db.flush()
+                    added = True
+                    logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
+                else:
+                    logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
         except Exception as e:
-            db.rollback()
             logger.error(f"Error when adding ZFIN corpus-entry tag {atpid}: {e}")
+    if added:
+        db.commit()
 
 
 def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901

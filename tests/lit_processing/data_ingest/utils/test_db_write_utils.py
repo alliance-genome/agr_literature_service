@@ -6,7 +6,7 @@ from sqlalchemy import text
 from agr_literature_service.api.models import CrossReferenceModel, ReferenceModel, \
     ModModel, ModCorpusAssociationModel, MeshDetailModel, \
     ReferenceRelationModel, ReferenceModReferencetypeAssociationModel, \
-    ReferencefileModel, ReferencefileModAssociationModel
+    ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_pmid_to_reference_id
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
@@ -20,7 +20,8 @@ from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils impo
     cleanup_tags_for_one_retracted_paper, \
     cleanup_tags_for_retracted_papers, \
     set_retraction_status, \
-    restore_file_upload_workflow_tags
+    restore_file_upload_workflow_tags, \
+    add_zfin_corpus_entry_tags
 from agr_literature_service.lit_processing.data_ingest.utils.author import Author, \
     authors_lists_are_equal, authors_have_same_name
 
@@ -29,6 +30,66 @@ from ....fixtures import db, load_sanitized_references, populate_test_mod_refere
 logging.basicConfig(format='%(message)s')
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
+
+
+class TestZfinCorpusEntryTags:
+    """SCRUM-5764: ATP:0000380 is granted alongside ATP:0000306 at corpus entry."""
+
+    PRE_INDEXING_NEEDED = "ATP:0000306"
+    PRE_INDEXING_COMPLETE = "ATP:0000303"
+    PROBE_NEEDED = "ATP:0000380"
+    PROBE_COMPLETE = "ATP:0000387"
+
+    def _zfin_ref(self, db): # noqa
+        ref = db.query(ReferenceModel).first()
+        mod_id = db.query(ModModel.mod_id).filter(ModModel.abbreviation == 'ZFIN').scalar()
+        return ref.reference_id, mod_id
+
+    def _tags(self, db, reference_id, mod_id): # noqa
+        return {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id).all()}
+
+    def test_grants_both_tags(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._zfin_ref(db)
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+        assert {self.PRE_INDEXING_NEEDED, self.PROBE_NEEDED} <= self._tags(db, reference_id, mod_id)
+
+    def test_probe_tag_granted_when_pre_indexing_already_present(self, db, load_sanitized_references): # noqa
+        """The behaviour the backfill depends on: each tag is guarded against its OWN
+        workflow's states, so a reference that already finished pre-indexing
+        prioritization still picks up the probe tag."""
+        reference_id, mod_id = self._zfin_ref(db)
+        db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                workflow_tag_id=self.PRE_INDEXING_COMPLETE))
+        db.commit()
+
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+
+        tags = self._tags(db, reference_id, mod_id)
+        assert self.PROBE_NEEDED in tags
+        # pre-indexing already entered its workflow, so it must not be re-granted
+        assert self.PRE_INDEXING_NEEDED not in tags
+
+    def test_is_idempotent(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._zfin_ref(db)
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+        rows = db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == reference_id,
+            WorkflowTagModel.mod_id == mod_id,
+            WorkflowTagModel.workflow_tag_id == self.PROBE_NEEDED).all()
+        assert len(rows) == 1
+
+    def test_probe_tag_not_regranted_once_complete(self, db, load_sanitized_references): # noqa
+        reference_id, mod_id = self._zfin_ref(db)
+        db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                workflow_tag_id=self.PROBE_COMPLETE))
+        db.commit()
+
+        add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger)
+
+        assert self.PROBE_NEEDED not in self._tags(db, reference_id, mod_id)
 
 
 class TestDbReadUtils:
