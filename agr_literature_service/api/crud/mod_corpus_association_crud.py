@@ -26,6 +26,29 @@ from typing import List
 file_needed_tag_atp_id = "ATP:0000141"  # file needed
 manual_indexing_needed_tag_atp_id = "ATP:0000274"
 pre_indexing_prio_needed_tag_atp_id = "ATP:0000306"
+molecular_probe_classification_needed_tag_atp_id = "ATP:0000380"
+
+
+def add_zfin_corpus_entry_workflow_tags(db: Session, reference_id: int, mod_id: int) -> None:
+    """Grant the workflow tags ZFIN expects the moment a reference enters the corpus.
+
+    SCRUM-5764: molecular probe abstract classification is triggered by "inside
+    corpus" -- ZFIN mints a ZDB-PUB when its PubMed query finds the reference and
+    the ABC picks it up within a day, before students are given the paper -- so
+    its "needed" tag is granted alongside the pre-indexing prioritization one
+    rather than later in the workflow. Both are abstract-only classifiers, so
+    neither waits on a PDF.
+
+    The caller is responsible for committing.
+    """
+    for tag_atp_id in (
+        name_to_atp.get("pre-indexing prioritization needed",
+                        pre_indexing_prio_needed_tag_atp_id),
+        name_to_atp.get("molecular probe classification needed",
+                        molecular_probe_classification_needed_tag_atp_id),
+    ):
+        db.add(WorkflowTagModel(reference_id=reference_id, mod_id=mod_id,
+                                workflow_tag_id=tag_atp_id))
 
 
 def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) -> int:
@@ -79,15 +102,13 @@ def create(db: Session, mod_corpus_association: ModCorpusAssociationSchemaPost) 
         if mod_abbreviation != 'AGR' and get_current_workflow_status(
                 db, reference_curie, "ATP:0000140", mod_abbreviation) is None:
             transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-        indexing_needed_tag = {
-            'SGD': manual_indexing_needed_tag_atp_id,
-            'ZFIN': pre_indexing_prio_needed_tag_atp_id
-        }.get(mod_abbreviation)
-        if indexing_needed_tag:
-            wft_obj = WorkflowTagModel(reference_id=reference.reference_id,
-                                       mod_id=mod.mod_id,
-                                       workflow_tag_id=indexing_needed_tag)
-            db.add(wft_obj)
+        if mod_abbreviation == 'ZFIN':
+            add_zfin_corpus_entry_workflow_tags(db, reference.reference_id, mod.mod_id)
+            db.commit()
+        elif mod_abbreviation == 'SGD':
+            db.add(WorkflowTagModel(reference_id=reference.reference_id,
+                                    mod_id=mod.mod_id,
+                                    workflow_tag_id=manual_indexing_needed_tag_atp_id))
             db.commit()
 
     return int(db_obj.mod_corpus_association_id)
@@ -170,10 +191,8 @@ def patch(db: Session, mod_corpus_association_id: int, mod_corpus_association_up
                         mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_obj.curie, mod_abbreviation, file_needed_tag_atp_id)
                 if mod_abbreviation == 'ZFIN':
-                    wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
-                                               mod_id=mod_corpus_association_db_obj.mod_id,
-                                               workflow_tag_id=name_to_atp["pre-indexing prioritization needed"])
-                    db.add(wft_obj)
+                    add_zfin_corpus_entry_workflow_tags(db, mod_corpus_association_db_obj.reference_id,
+                                                        mod_corpus_association_db_obj.mod_id)
                 if mod_abbreviation == 'SGD' and mod_corpus_association_data.get('index_wft_id'):
                     wft_id = mod_corpus_association_data['index_wft_id']
                     wft_obj = WorkflowTagModel(reference_id=mod_corpus_association_db_obj.reference_id,
@@ -351,12 +370,9 @@ def batch_update_corpus(db: Session, mod_corpus_association_ids: List[int],
                         db, str(mca.reference_id), "ATP:0000140",
                         mod_abbreviation=mod_abbreviation) is None:
                     transition_to_workflow_status(db, reference_curie, mod_abbreviation, file_needed_tag_atp_id)
-                # Add ZFIN-specific workflow tag
+                # Add ZFIN-specific workflow tags
                 if mod_abbreviation == 'ZFIN':
-                    wft_obj = WorkflowTagModel(reference_id=mca.reference_id,
-                                               mod_id=mca.mod_id,
-                                               workflow_tag_id=name_to_atp["pre-indexing prioritization needed"])
-                    db.add(wft_obj)
+                    add_zfin_corpus_entry_workflow_tags(db, mca.reference_id, mca.mod_id)
 
             # Update the corpus value (date_updated is auto-set by AuditedModel event)
             mca.corpus = corpus

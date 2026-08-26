@@ -21,6 +21,7 @@ HELPERS = "agr_literature_service.api.crud.mod_corpus_association_crud"
 FILE_NEEDED = "ATP:0000141"
 SGD_INDEX = "ATP:0000274"
 ZFIN_INDEX = "ATP:0000306"
+ZFIN_MOLECULAR_PROBE = "ATP:0000380"
 
 
 def _reference(db, curie): # noqa
@@ -67,6 +68,20 @@ class TestCreate:
             WorkflowTagModel.reference_id == ref.reference_id,
             WorkflowTagModel.workflow_tag_id == ZFIN_INDEX).first()
         assert tag is not None
+
+    def test_zfin_corpus_adds_molecular_probe_needed_tag(self, seeded): # noqa
+        """SCRUM-5764: the probe classifier is triggered by "inside corpus", so its
+        needed tag is granted alongside the pre-indexing prioritization one."""
+        db, ref = seeded  # noqa
+        payload = ModCorpusAssociationSchemaPost(
+            mod_abbreviation="ZFIN", reference_curie=ref.curie, corpus=True,
+            mod_corpus_sort_source=ModCorpusSortSourceType.Mod_pubmed_search)
+        with patch(f"{HELPERS}.check_xref_and_generate_mod_id"), \
+                patch(f"{HELPERS}.get_current_workflow_status", return_value="ATP:0000135"):
+            mca_crud.create(db, payload)
+        tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id).all()}
+        assert {ZFIN_INDEX, ZFIN_MOLECULAR_PROBE} <= tags
 
     def test_sgd_corpus_adds_manual_indexing_tag(self, seeded): # noqa
         db, ref = seeded  # noqa

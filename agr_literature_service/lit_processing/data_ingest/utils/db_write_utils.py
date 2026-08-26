@@ -899,39 +899,53 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
                 return
         if mod == "ZFIN" and json_mca_entry.get("corpus"):
-            add_zfin_pre_indexing_tag(db_session, reference_id, mod_to_mod_id[mod], logger)
+            add_zfin_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger)
 
 
-def add_zfin_pre_indexing_tag(db, reference_id, mod_id, logger):
-    try:
-        # all ZFIN pre-indexing–style tags
-        allowed_tags = [
-            'ATP:0000303',
-            'ATP:0000304',
-            'ATP:0000305',
-            'ATP:0000306'
-        ]
-        existing = (
-            db.query(WorkflowTagModel)
-              .filter(
-                  WorkflowTagModel.reference_id == reference_id,
-                  WorkflowTagModel.mod_id == mod_id,
-                  WorkflowTagModel.workflow_tag_id.in_(allowed_tags)).first()
-        )
-        if existing is None:
-            atpid = 'ATP:0000306'
-            x = WorkflowTagModel(
-                reference_id=reference_id,
-                mod_id=mod_id,
-                workflow_tag_id=atpid
+# SCRUM-5764: the workflow tags a ZFIN reference gets on entering the corpus, as
+# (tag to grant, the states meaning that workflow has already been entered).
+# Both are abstract-only classifiers triggered by "inside corpus", so neither
+# waits on a PDF -- ZFIN mints a ZDB-PUB when its PubMed query finds the
+# reference and the ABC picks it up within a day, before students are given the
+# paper.
+ZFIN_CORPUS_ENTRY_TAGS = [
+    # pre-indexing prioritization
+    ('ATP:0000306', ['ATP:0000303', 'ATP:0000304', 'ATP:0000305', 'ATP:0000306']),
+    # molecular probe abstract classification
+    ('ATP:0000380', ['ATP:0000380', 'ATP:0000383', 'ATP:0000385', 'ATP:0000387']),
+]
+
+
+def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
+    """Grant ZFIN's corpus-entry workflow tags.
+
+    Each tag is guarded independently against its own workflow's states, so a
+    reference that already holds one still picks up the other -- which is what
+    makes this safe to run over references acquired before the molecular probe
+    workflow existed.
+    """
+    for atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
+        try:
+            existing = (
+                db.query(WorkflowTagModel)
+                  .filter(
+                      WorkflowTagModel.reference_id == reference_id,
+                      WorkflowTagModel.mod_id == mod_id,
+                      WorkflowTagModel.workflow_tag_id.in_(already_entered)).first()
             )
-            db.add(x)
-            db.commit()
-            logger.info(f"Adding ZFIN pre-indexing tag: {atpid}")
-        else:
-            logger.info(f"ZFIN pre-indexing tag already exists: {existing.workflow_tag_id}")
-    except Exception as e:
-        logger.error(f"Error when adding ZFIN pre-indexing tag: {e}")
+            if existing is None:
+                db.add(WorkflowTagModel(
+                    reference_id=reference_id,
+                    mod_id=mod_id,
+                    workflow_tag_id=atpid
+                ))
+                db.commit()
+                logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
+            else:
+                logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error when adding ZFIN corpus-entry tag {atpid}: {e}")
 
 
 def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
