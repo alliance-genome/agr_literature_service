@@ -140,14 +140,16 @@ class TestBatchUpdateCorpus:
                 patch(f"{HELPERS}.get_current_workflow_status", return_value=None), \
                 patch(f"{HELPERS}.transition_to_workflow_status"), \
                 patch.dict(mca_crud.name_to_atp,
-                           {"pre-indexing prioritization needed": "ATP:0000306"}, clear=False):
+                           {"pre-indexing prioritization needed": "ATP:0000306",
+                            "molecular probe classification needed": "ATP:0000380"},
+                           clear=False):
             results = mca_crud.batch_update_corpus(db, [mca.mod_corpus_association_id], corpus=True)
 
         assert results[0].success is True
-        wft = db.query(WorkflowTagModel).filter(
-            WorkflowTagModel.reference_id == ref.reference_id,
-            WorkflowTagModel.workflow_tag_id == "ATP:0000306").first()
-        assert wft is not None
+        # SCRUM-5764: both abstract-classification workflows start at corpus entry.
+        tags = {t.workflow_tag_id for t in db.query(WorkflowTagModel).filter(
+            WorkflowTagModel.reference_id == ref.reference_id).all()}
+        assert {"ATP:0000306", "ATP:0000380"} <= tags
 
     def test_exception_is_rolled_back_and_reported(self, wb_setup): # noqa
         db, mod, ref = wb_setup  # noqa

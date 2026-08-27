@@ -18,6 +18,7 @@ from agr_literature_service.api.models import ReferenceModel, AuthorModel, \
     ReferencefileModel, ReferencefileModAssociationModel, WorkflowTagModel, \
     TopicEntityTagModel, TopicEntityTagSourceModel, CurationStatusModel, UserModel
 from agr_literature_service.api.crud.utils.patterns_check import check_pattern  # type: ignore
+from agr_literature_service.api.crud.utils.zfin_corpus_entry import ZFIN_CORPUS_ENTRY_TAGS
 from agr_literature_service.api.crud.workflow_tag_crud import get_workflow_tags_from_process, \
     transition_to_workflow_status, get_current_workflow_status
 from agr_literature_service.api.crud.reference_utils import get_reference
@@ -899,39 +900,63 @@ def update_mod_corpus_associations(db_session: Session, mod_to_mod_id, reference
                 logger.info("An error occurred when updating mod_corpus_association row for mod_corpus_association_id = " + str(mod_corpus_association_id) + " " + str(e))
                 return
         if mod == "ZFIN" and json_mca_entry.get("corpus"):
-            add_zfin_pre_indexing_tag(db_session, reference_id, mod_to_mod_id[mod], logger)
+            add_zfin_corpus_entry_tags(db_session, reference_id, mod_to_mod_id[mod], logger)
 
 
-def add_zfin_pre_indexing_tag(db, reference_id, mod_id, logger):
-    try:
-        # all ZFIN pre-indexing–style tags
-        allowed_tags = [
-            'ATP:0000303',
-            'ATP:0000304',
-            'ATP:0000305',
-            'ATP:0000306'
-        ]
-        existing = (
-            db.query(WorkflowTagModel)
-              .filter(
-                  WorkflowTagModel.reference_id == reference_id,
-                  WorkflowTagModel.mod_id == mod_id,
-                  WorkflowTagModel.workflow_tag_id.in_(allowed_tags)).first()
-        )
-        if existing is None:
-            atpid = 'ATP:0000306'
-            x = WorkflowTagModel(
-                reference_id=reference_id,
-                mod_id=mod_id,
-                workflow_tag_id=atpid
-            )
-            db.add(x)
-            db.commit()
-            logger.info(f"Adding ZFIN pre-indexing tag: {atpid}")
-        else:
-            logger.info(f"ZFIN pre-indexing tag already exists: {existing.workflow_tag_id}")
-    except Exception as e:
-        logger.error(f"Error when adding ZFIN pre-indexing tag: {e}")
+def add_zfin_corpus_entry_tags(db, reference_id, mod_id, logger):
+    """Grant ZFIN's corpus-entry workflow tags.
+
+    The tag table lives in api.crud.utils.zfin_corpus_entry so this and the API
+    path (mod_corpus_association_crud) guard the same tags against the same
+    workflow state sets and cannot drift; see that module for why the probe state
+    list is non-contiguous and cannot be derived from the ontology.
+
+    Each tag is guarded independently against its own workflow's states, so a
+    reference that already holds one still picks up the other -- which is what
+    makes this safe to run over references acquired before the molecular probe
+    workflow existed.
+
+    Each insert runs inside a SAVEPOINT and is flushed there, so a failure on one
+    tag rolls back only that insert. Both callers have unrelated pending work in
+    the session -- post_reference_to_db adds the mod_corpus_association
+    immediately before, and the DQM caller commits only every
+    batch_size_for_commit references -- so a plain rollback() would discard it and
+    could leave a tagged reference with no mod_corpus_association row.
+
+    Note on blast radius: the commit is deliberately outside the per-tag except,
+    so a failure committing propagates to the caller rather than being logged and
+    swallowed as it was when the commit sat inside the loop. A failed commit
+    leaves the session unusable, so continuing would fail on every subsequent
+    reference anyway.
+    """
+    added = False
+    for _atp_name, atpid, already_entered in ZFIN_CORPUS_ENTRY_TAGS:
+        try:
+            with db.begin_nested():
+                existing = (
+                    db.query(WorkflowTagModel)
+                      .filter(
+                          WorkflowTagModel.reference_id == reference_id,
+                          WorkflowTagModel.mod_id == mod_id,
+                          WorkflowTagModel.workflow_tag_id.in_(already_entered)).first()
+                )
+                if existing is None:
+                    db.add(WorkflowTagModel(
+                        reference_id=reference_id,
+                        mod_id=mod_id,
+                        workflow_tag_id=atpid
+                    ))
+                    # Flush inside the savepoint so a constraint violation is
+                    # caught here rather than at the final commit below.
+                    db.flush()
+                    added = True
+                    logger.info(f"Adding ZFIN corpus-entry tag: {atpid}")
+                else:
+                    logger.info(f"ZFIN corpus-entry tag already exists: {existing.workflow_tag_id}")
+        except Exception as e:
+            logger.error(f"Error when adding ZFIN corpus-entry tag {atpid}: {e}")
+    if added:
+        db.commit()
 
 
 def update_mod_reference_types(db_session: Session, reference_id, db_mod_ref_types, json_mod_ref_types, pubmed_types, logger):  # noqa: C901
