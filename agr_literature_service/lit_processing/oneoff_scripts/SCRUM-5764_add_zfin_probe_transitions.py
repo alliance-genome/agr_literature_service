@@ -125,6 +125,15 @@ JOB_CONDITION = "abstract_classification_job"
 # a 422 duplicate. Verified on stage 2026-08-26: with only the in-progress rows
 # all 9 test jobs stayed at ATP:0000380; with these two added, all 9 reached
 # ATP:0000387.
+#
+# Constraint to respect if this workflow is ever extended: two rows now point at
+# ATP:0000387 (from "needed" and from "in progress"), and the .one() branch in
+# transition_to_workflow_status (workflow_tag_crud.py:453) filters on
+# transition_to alone. That branch is reached only for processes listed in
+# process_atp_multiple_allowed (ATP:0000165/169/189/178/166); ATP:0000379 is not
+# in it, so the duplicate transition_to is unreachable today. Adding abstract
+# classification to that list without collapsing these rows would raise
+# MultipleResultsFound. Same applies to the two rows into ATP:0000385.
 NEW_TRANSITIONS = [
     (UPSTREAM_STATE, PROBE_NEEDED, JOB_CONDITION, [], "any"),
     (PROBE_NEEDED, PROBE_IN_PROGRESS, "on_start", [], "any"),
