@@ -20,13 +20,18 @@ the same batch.
 
 What this script does (idempotent -- safe to re-run):
 
-  (a) INSERTs four transitions for ZFIN:
-       - UPSTREAM_STATE -> ATP:0000380 (condition='classification_job',
-         transition_type='action') -- the virtual job-poll connector that makes
-         ATP:0000380 visible to load_all_jobs. transition_type='action' so
-         transition_to_workflow_status skips it, mirroring the SCRUM-5601
-         antibody entry transition.
+  (a) INSERTs six transitions for ZFIN, mirroring the shape of ZFIN's working
+      pre-indexing chain (ATP:0000306), which also defines its terminal states
+      from both "needed" and "in progress":
+       - START_STATE -> ATP:0000380 (condition='abstract_classification_job')
+         -- the virtual job-poll connector that makes ATP:0000380 visible to
+         load_all_jobs. The condition contains 'classification_job' as a
+         substring, and get_jobs filters with condition.contains(job_str), so
+         the existing load_all_jobs("classification_job") call picks these up
+         with no change on the classifier side.
        - ATP:0000380 -> ATP:0000383 (on_start)
+       - ATP:0000380 -> ATP:0000387 (on_success)   <- see NEW_TRANSITIONS
+       - ATP:0000380 -> ATP:0000385 (on_failed)    <- see NEW_TRANSITIONS
        - ATP:0000383 -> ATP:0000387 (on_success)
        - ATP:0000383 -> ATP:0000385 (on_failed)
 
@@ -108,9 +113,23 @@ UPSTREAM_STATE = "START_STATE"
 JOB_CONDITION = "abstract_classification_job"
 
 # (transition_from, transition_to, condition, actions, transition_type)
+#
+# The terminal transitions are defined from BOTH "needed" and "in progress",
+# mirroring ZFIN's pre-indexing chain (ATP:0000306), which has five rows for the
+# same reason. agr_document_classifier_classify.py calls set_job_success without
+# a preceding set_job_started on the happy path -- set_job_started appears only
+# on its failure branches -- so a successful job transitions straight out of
+# "needed". Without PROBE_NEEDED -> PROBE_COMPLETE the POST matches no
+# transition, the reference stays in "needed", and every subsequent run
+# reclassifies it forever; for a positive, the drop-path writes then retry into
+# a 422 duplicate. Verified on stage 2026-08-26: with only the in-progress rows
+# all 9 test jobs stayed at ATP:0000380; with these two added, all 9 reached
+# ATP:0000387.
 NEW_TRANSITIONS = [
     (UPSTREAM_STATE, PROBE_NEEDED, JOB_CONDITION, [], "any"),
     (PROBE_NEEDED, PROBE_IN_PROGRESS, "on_start", [], "any"),
+    (PROBE_NEEDED, PROBE_COMPLETE, "on_success", [], "any"),
+    (PROBE_NEEDED, PROBE_FAILED, "on_failed", [], "any"),
     (PROBE_IN_PROGRESS, PROBE_COMPLETE, "on_success", [], "any"),
     (PROBE_IN_PROGRESS, PROBE_FAILED, "on_failed", [], "any"),
 ]
