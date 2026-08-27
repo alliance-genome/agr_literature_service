@@ -8,7 +8,8 @@ from fastapi import status
 from unittest.mock import patch
 
 from agr_literature_service.api.main import app
-from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel
+from agr_literature_service.api.models import WorkflowTagModel, ReferenceModel, WorkflowTransitionModel, ModModel, \
+    CrossReferenceModel
 from agr_literature_service.api.crud.workflow_tag_crud import (
     get_workflow_process_from_tag,
     get_workflow_tags_from_process,
@@ -212,6 +213,56 @@ class TestWorkflowTag:
                     WorkflowTagModel.workflow_tag_id == 'ATP:0000275'
                 )
             ).first()
+
+    @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
+           load_name_to_atp_and_relationships_mock)
+    def test_transition_to_workflow_status_by_mod_curie(self, db, test_mod, test_reference,  # noqa
+                                                        auth_headers):  # noqa
+        """The transition endpoint also resolves cross-reference curies (PMID/MOD) (SCRUM-6319)."""
+        mod = db.query(ModModel).filter(ModModel.abbreviation == test_mod.new_mod_abbreviation).one()
+        db.add(WorkflowTransitionModel(mod=mod, transition_from='ATP:0000274', transition_to='ATP:0000275'))
+        reference = db.query(ReferenceModel).filter(ReferenceModel.curie == test_reference.new_ref_curie).one()
+        db.add(CrossReferenceModel(curie="SGD:S000777777", curie_prefix="SGD",
+                                   reference_id=reference.reference_id))
+        db.commit()
+        with TestClient(app) as client:
+            transition_req = {
+                "curie_or_reference_id": "SGD:S000777777",
+                "mod_abbreviation": test_mod.new_mod_abbreviation,
+                "new_workflow_tag_atp_id": "ATP:0000274"
+            }
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            assert db.query(WorkflowTagModel).filter(
+                and_(
+                    WorkflowTagModel.reference_id == reference.reference_id,
+                    WorkflowTagModel.mod_id == mod.mod_id,
+                    WorkflowTagModel.workflow_tag_id == 'ATP:0000274'
+                )
+            ).first()
+
+            # an unknown cross-reference curie is a 404, not a 500
+            transition_req["curie_or_reference_id"] = "SGD:S000999999"
+            response = client.post(url="/workflow_tag/transition_to_workflow_status", json=transition_req,
+                                   headers=auth_headers)
+            assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_patch_ref_wt_reference_by_pmid(self, db, test_workflow_tag, auth_headers):  # noqa
+        """PATCH resolves a PMID/MOD curie in reference_curie to the AGRKB reference (SCRUM-6319)."""
+        reference = db.query(ReferenceModel).filter(
+            ReferenceModel.curie == test_workflow_tag.related_ref_curie).one()
+        db.add(CrossReferenceModel(curie="PMID:77777777", curie_prefix="PMID",
+                                   reference_id=reference.reference_id))
+        db.commit()
+        with TestClient(app) as client:
+            xml = {"reference_curie": "PMID:77777777"}
+            response = client.patch(url=f"/workflow_tag/{test_workflow_tag.new_wt_id}", json=xml,
+                                    headers=auth_headers)
+            assert response.status_code == status.HTTP_200_OK
+            ref_wt_obj: WorkflowTagModel = db.query(WorkflowTagModel).filter(
+                WorkflowTagModel.reference_workflow_tag_id == test_workflow_tag.new_wt_id).one()
+            assert ref_wt_obj.reference.curie == test_workflow_tag.related_ref_curie
 
     @patch("agr_literature_service.api.crud.ateam_db_helpers.load_name_to_atp_and_relationships",
            load_name_to_atp_and_relationships_mock)
