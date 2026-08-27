@@ -407,10 +407,14 @@ def job_change_atp_code(db: Session, reference_workflow_tag_id: int, condition: 
 
 
 def normalize_reference_identifier(db: Session, curie_or_reference_id) -> str:
-    """Accept an AGRKB curie, a numeric reference_id, or any cross-reference
-    curie such as a PMID (e.g. PMID:39739753) or a MOD curie (e.g.
-    SGD:S000342424), normalizing cross-reference curies to the AGRKB curie so
-    the AGRKB-only lookups in this module resolve them (SCRUM-6319)."""
+    """Normalize any cross-reference curie, such as a PMID (e.g.
+    PMID:39739753) or a MOD curie (e.g. SGD:S000342424), to the AGRKB curie so
+    the AGRKB-only lookups in this module resolve it (SCRUM-6319). AGRKB
+    curies pass through unchanged, as do bare digits — but a numeric
+    reference_id is only honoured by callers whose subsequent lookup accepts
+    one (transition_sanity_check via get_reference); the direct
+    ReferenceModel.curie lookups (patch, set_priority,
+    show_by_reference_mod_abbreviation) never match a bare integer."""
     ident = str(curie_or_reference_id)
     if not ident.isdigit() and not ident.startswith("AGRKB:"):
         ident = normalize_reference_curie(db, ident)
