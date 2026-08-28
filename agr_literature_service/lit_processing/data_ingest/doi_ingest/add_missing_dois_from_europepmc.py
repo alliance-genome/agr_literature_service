@@ -103,7 +103,11 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
             result_list = payload.get("resultList")
             if not isinstance(result_list, dict):
                 raise ValueError(f"unexpected Europe PMC resultList type: {type(result_list).__name__}")
-            results = result_list.get("result") or []
+            # No `or []` default: a zero-hit query returns "result": [] with
+            # the key PRESENT (verified against the live service), so a
+            # missing/renamed/non-list result is a shape failure, not an
+            # empty batch.
+            results = result_list.get("result")
             if not isinstance(results, list) or not all(isinstance(x, dict) for x in results):
                 raise ValueError("unexpected Europe PMC result shape inside resultList")
             return {x["id"]: x["doi"] for x in results if x.get("id") and x.get("doi")}

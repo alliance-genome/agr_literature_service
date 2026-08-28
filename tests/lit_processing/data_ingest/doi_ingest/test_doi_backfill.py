@@ -122,7 +122,15 @@ class TestEuropePmcFetch:
                             {"resultList": {"result": ["a", "b"]}},
                             {"resultList": {"result": 5}},
                             {"resultList": {"result": {"id": "111"}}},
-                            ["top", "level", "list"]):
+                            ["top", "level", "list"],
+                            # falsy/missing result: a renamed inner key must
+                            # not read as an empty batch (zero-hit queries
+                            # return "result": [] with the key present)
+                            {"resultList": {}},
+                            {"resultList": {"result": None}},
+                            {"resultList": {"result": {}}},
+                            {"resultList": {"result": 0}},
+                            {"resultList": {"records": [{"id": "1", "doi": "10.1234/a"}]}}):
             session = MagicMock()
             response = MagicMock()
             response.json.return_value = bad_payload
