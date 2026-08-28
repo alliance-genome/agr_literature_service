@@ -990,16 +990,25 @@ if __name__ == "__main__":
 
     logger.info("starting sort_dqm_json_reference_updates.py")
 
-    # download the dqm file(s) from mod(s)
+    # download the dqm file(s) from mod(s). A failed download removes any
+    # stale REFERENCE_<MOD>.json and is reported per MOD — previously it was
+    # only a swallowed log line, and the mod was silently skipped (or worse,
+    # silently reloaded from a stale file).
+    failed_download_mods = []
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
-        download_dqm_reference_json()
+        failed_download_mods = download_dqm_reference_json()
+        for failed_mod in failed_download_mods:
+            send_report(f"{failed_mod} DQM Loading Failed",
+                        f"The {failed_mod} DQM REFERENCE download/unpack failed; "
+                        f"{failed_mod} was skipped this run. See the dqm loading "
+                        f"log for the error.")
         # update_resource_pubmed_nlm()
 
     dqm_path = args['file'] if args['file'] else "dqm_data"
     mods = [args['mod']] if args['mod'] else get_mod_abbreviations()
     for mod in mods:
-        if mod == 'SGD':
+        if mod == 'SGD' or mod in failed_download_mods:
             continue
         try:
             sort_dqm_references(dqm_path, mod, args['all'])
