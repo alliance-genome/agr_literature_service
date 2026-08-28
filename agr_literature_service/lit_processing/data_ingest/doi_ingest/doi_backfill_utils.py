@@ -2,16 +2,15 @@
 doi_backfill_utils.py
 =====================
 
-Shared helpers for the monthly DOI backfill scripts (SCRUM-4525):
+Shared helpers for the monthly DOI backfill (SCRUM-4525), currently used by
+add_missing_dois_from_europepmc.py: select references that have no
+non-obsolete DOI cross-reference, normalize DOIs, and insert DOI
+cross-references with the duplicate / conflict / curator-removed guards.
 
-- add_missing_dois_from_europepmc.py (run first)
-- add_missing_dois_from_crossref.py (run after the Europe PMC script)
-
-Both scripts find references that have no non-obsolete DOI cross-reference,
-ask an external source for the DOI, and insert DOI cross-references for the
-matches. The selection query, DOI normalization, and the guarded insertion
-(duplicate / conflict / curator-removed handling) live here so the two
-scripts cannot drift apart.
+Kept source-agnostic on purpose: the Candidate metadata (title, volume,
+pages, year, journal) and the require_pmid=False selection path serve
+bibliographic matchers like the parked CrossRef script, so that script can
+be restored by dropping its file back in.
 """
 
 import logging

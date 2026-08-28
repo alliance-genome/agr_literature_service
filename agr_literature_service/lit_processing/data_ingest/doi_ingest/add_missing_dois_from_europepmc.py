@@ -9,9 +9,9 @@ cross-reference, look the PMID up in the Europe PMC REST API and, when
 Europe PMC knows a DOI for it, add a 'DOI:...' cross-reference — so
 curators can reach full text at the publisher.
 
-Run this BEFORE add_missing_dois_from_crossref.py: the CrossRef script
-re-selects references still missing a DOI, so whatever Europe PMC
-resolves here never hits CrossRef's slower bibliographic matching.
+(A companion CrossRef bibliographic-matching script existed and was
+removed from the codebase/crontab; it is parked outside the repo
+should the long tail ever be worth its slower fuzzy matching.)
 
 Usage:
     python add_missing_dois_from_europepmc.py [--dry-run] [--limit N] [--batch-size N]

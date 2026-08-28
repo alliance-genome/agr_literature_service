@@ -15,13 +15,6 @@ from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_do
     collect_additions as europepmc_collect_additions,
     fetch_dois_for_pmids,
 )
-from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_dois_from_crossref import (
-    first_page,
-    normalize_title,
-    searchable_candidates,
-    work_matches_candidate,
-    work_year,
-)
 
 
 class TestNormalizeDoi:
@@ -40,100 +33,6 @@ class TestNormalizeDoi:
     def test_invalid_dois_rejected(self):
         for raw in (None, "", "not-a-doi", "10.1234", "11.1234/abc", "10.12/abc", "10.1234/with space"):
             assert normalize_doi(raw) is None
-
-
-class TestCrossrefMatching:
-
-    def _work(self, title, year=2020, volume="12", page="345-356", doi="10.1234/x"):
-        return {"title": [title], "DOI": doi, "volume": volume, "page": page,
-                "issued": {"date-parts": [[year]]}}
-
-    def _candidate(self, **kw):
-        defaults = dict(reference_id=1, curie="AGRKB:101", title="A tale of two cells",
-                        volume="12", page_range="345-356", year="2020")
-        defaults.update(kw)
-        return Candidate(**defaults)
-
-    def test_normalize_title(self):
-        # punctuation/spacing insensitive, and markup (tags, escaped or
-        # double-escaped entities) matches its plain-text equivalent
-        assert normalize_title("A Tale, of Two <i>Cells</i>!") == normalize_title("a tale of two cells")
-        assert normalize_title("&lt;i&gt;C. elegans&lt;/i&gt; aging") == normalize_title("C. elegans aging")
-        assert normalize_title("&amp;lt;i&amp;gt;dpp&amp;lt;/i&amp;gt; signaling") == normalize_title("dpp signaling")
-        assert normalize_title(None) is None
-        assert normalize_title("!!!") is None
-
-    def test_first_page(self):
-        assert first_page("345-356") == "345"
-        assert first_page("e0123-e0130") == "e0123"
-        assert first_page(None) is None
-
-    def test_work_year_prefers_print(self):
-        work = {"published-print": {"date-parts": [[2019]]}, "issued": {"date-parts": [[2020]]}}
-        assert work_year(work) == 2019
-
-    def test_match_title_and_year(self):
-        assert work_matches_candidate(self._work("A tale of two cells."), self._candidate())
-
-    def test_match_year_within_one(self):
-        assert work_matches_candidate(self._work("A tale of two cells", year=2021), self._candidate())
-
-    def test_reject_title_mismatch(self):
-        assert not work_matches_candidate(self._work("A tale of three cells"), self._candidate())
-
-    def test_reject_year_too_far_without_volume_page(self):
-        work = self._work("A tale of two cells", year=2015, volume="99", page="1-2")
-        assert not work_matches_candidate(work, self._candidate())
-
-    def test_match_volume_and_page_when_no_year(self):
-        work = self._work("A tale of two cells", year=2015)
-        assert work_matches_candidate(work, self._candidate(year=None))
-
-    def test_reject_missing_title(self):
-        assert not work_matches_candidate({"DOI": "10.1234/x"}, self._candidate())
-
-    def test_reject_preprint_and_component_types(self):
-        for work_type in ("posted-content", "component", "peer-review"):
-            work = self._work("A tale of two cells")
-            work["type"] = work_type
-            assert not work_matches_candidate(work, self._candidate())
-        work = self._work("A tale of two cells")
-        work["type"] = "journal-article"
-        assert work_matches_candidate(work, self._candidate())
-
-    def test_volume_conflict_vetoes_despite_matching_year(self):
-        # audit finding: a republication matched on title+year with the wrong volume
-        work = self._work("A tale of two cells", volume="22")
-        assert not work_matches_candidate(work, self._candidate(volume="1"))
-
-    def test_page_conflict_vetoes_despite_matching_year(self):
-        # audit finding: same journal, volume and year but different pages was
-        # a neighbouring article
-        work = self._work("A tale of two cells", page="65-69")
-        assert not work_matches_candidate(work, self._candidate(page_range="71-6"))
-
-    def test_journal_conflict_vetoes(self):
-        work = self._work("A tale of two cells")
-        work["container-title"] = ["Cell"]
-        assert not work_matches_candidate(work, self._candidate(journal="Development"))
-
-    def test_journal_containment_counts_as_agreement(self):
-        work = self._work("A tale of two cells")
-        work["container-title"] = ["Development (Cambridge, England)"]
-        assert work_matches_candidate(work, self._candidate(journal="Development"))
-
-    def test_journal_abbreviation_counts_as_agreement(self):
-        # agreement through EITHER of our names (title or abbreviation) skips the veto
-        work = self._work("A tale of two cells")
-        work["container-title"] = ["Genetics"]
-        cand = self._candidate(journal="Totally Different Journal Name",
-                               journal_abbreviation="Genetics")
-        assert work_matches_candidate(work, cand)
-
-    def test_unknown_journal_is_neutral(self):
-        work = self._work("A tale of two cells")
-        work["container-title"] = ["Cell"]
-        assert work_matches_candidate(work, self._candidate(journal=None))
 
 
 class TestEuropePmcFetch:
@@ -277,15 +176,3 @@ class TestAddDoiCrossReferences:
         assert stats.conflict_other_reference == 0
         assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "concurrent writer")]
         assert db.rollback.call_count == 2
-
-
-class TestSearchableCandidates:
-
-    def test_counts_unsearchable_titles_in_stats(self):
-        stats = BackfillStats()
-        good = Candidate(reference_id=1, curie="AGRKB:101", title="A perfectly reasonable title")
-        unsearchable = [Candidate(reference_id=2, curie="AGRKB:102", title=None),
-                        Candidate(reference_id=3, curie="AGRKB:103", title="short")]
-        assert searchable_candidates([good] + unsearchable, stats) == [good]
-        assert stats.no_searchable_title == 2
-        assert "no_searchable_title=2" in stats.summary()
