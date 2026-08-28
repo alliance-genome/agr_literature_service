@@ -92,6 +92,49 @@ class TestCrossrefMatching:
     def test_reject_missing_title(self):
         assert not work_matches_candidate({"DOI": "10.1234/x"}, self._candidate())
 
+    def test_reject_preprint_and_component_types(self):
+        for work_type in ("posted-content", "component", "peer-review"):
+            work = self._work("A tale of two cells")
+            work["type"] = work_type
+            assert not work_matches_candidate(work, self._candidate())
+        work = self._work("A tale of two cells")
+        work["type"] = "journal-article"
+        assert work_matches_candidate(work, self._candidate())
+
+    def test_volume_conflict_vetoes_despite_matching_year(self):
+        # audit finding: a republication matched on title+year with the wrong volume
+        work = self._work("A tale of two cells", volume="22")
+        assert not work_matches_candidate(work, self._candidate(volume="1"))
+
+    def test_page_conflict_vetoes_despite_matching_year(self):
+        # audit finding: same journal, volume and year but different pages was
+        # a neighbouring article
+        work = self._work("A tale of two cells", page="65-69")
+        assert not work_matches_candidate(work, self._candidate(page_range="71-6"))
+
+    def test_journal_conflict_vetoes(self):
+        work = self._work("A tale of two cells")
+        work["container-title"] = ["Cell"]
+        assert not work_matches_candidate(work, self._candidate(journal="Development"))
+
+    def test_journal_containment_counts_as_agreement(self):
+        work = self._work("A tale of two cells")
+        work["container-title"] = ["Development (Cambridge, England)"]
+        assert work_matches_candidate(work, self._candidate(journal="Development"))
+
+    def test_journal_abbreviation_counts_as_agreement(self):
+        # agreement through EITHER of our names (title or abbreviation) skips the veto
+        work = self._work("A tale of two cells")
+        work["container-title"] = ["Genetics"]
+        cand = self._candidate(journal="Totally Different Journal Name",
+                               journal_abbreviation="Genetics")
+        assert work_matches_candidate(work, cand)
+
+    def test_unknown_journal_is_neutral(self):
+        work = self._work("A tale of two cells")
+        work["container-title"] = ["Cell"]
+        assert work_matches_candidate(work, self._candidate(journal=None))
+
 
 class TestEuropePmcFetch:
 

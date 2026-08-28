@@ -43,6 +43,8 @@ class Candidate:
     volume: Optional[str] = None
     page_range: Optional[str] = None
     year: Optional[str] = None      # 4-digit string when known
+    journal: Optional[str] = None            # resource title
+    journal_abbreviation: Optional[str] = None
 
 
 @dataclass
@@ -102,11 +104,13 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
     order_clause = "ORDER BY random()" if limit else "ORDER BY r.reference_id"
     rows = db_session.execute(text(f"""
         SELECT r.reference_id, r.curie, p.curie AS pmid_curie, r.title, r.volume,
-               r.page_range, SUBSTRING(r.date_published, 1, 4) AS year
+               r.page_range, SUBSTRING(r.date_published, 1, 4) AS year,
+               res.title AS journal, res.title_abbreviation AS journal_abbreviation
         FROM reference r
         {pmid_join} cross_reference p
           ON p.reference_id = r.reference_id
           AND p.curie_prefix = 'PMID' AND p.is_obsolete IS FALSE
+        LEFT JOIN resource res ON res.resource_id = r.resource_id
         WHERE NOT EXISTS (
             SELECT 1 FROM cross_reference d
             WHERE d.reference_id = r.reference_id
@@ -120,7 +124,8 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
         pmid = x[2].replace("PMID:", "") if x[2] else None
         year = x[6] if x[6] and str(x[6]).isdigit() and len(str(x[6])) == 4 else None
         candidates.append(Candidate(reference_id=x[0], curie=x[1], pmid=pmid, title=x[3],
-                                    volume=x[4], page_range=x[5], year=year))
+                                    volume=x[4], page_range=x[5], year=year,
+                                    journal=x[7], journal_abbreviation=x[8]))
     return candidates
 
 

@@ -10,10 +10,13 @@ the leftovers reach CrossRef.
 
 CrossRef cannot be queried by PMID, so each reference is matched
 bibliographically and CONSERVATIVELY: a CrossRef work is accepted only
-when its normalized title is identical to the reference's title AND a
-second field corroborates it (publication year within one year, or
-volume plus first page equal). No match means no write — a wrong DOI is
-worse than a missing one.
+when its normalized title is identical to the reference's title, it is
+a linkable record type (no preprints/components), nothing we know about
+the reference CONFLICTS with it (a differing volume, first page, or
+journal vetoes the work even when the year agrees), AND a second field
+corroborates it (publication year within one year, or volume plus first
+page equal). No match means no write — a wrong DOI is worse than a
+missing one.
 
 Matches are flushed to the database every FLUSH_EVERY_QUERIES lookups,
 so an interrupted run keeps everything committed so far. The crawl is
@@ -101,18 +104,66 @@ def work_year(work: dict) -> Optional[int]:
     return None
 
 
+# CrossRef record types that are never the version of record we want to link:
+# preprints (a match would attach the preprint's DOI to the journal article),
+# figure/supplement components, and peer-review records.
+DISALLOWED_WORK_TYPES = {"posted-content", "component", "peer-review"}
+
+
+def journals_agree(cand: Candidate, work: dict) -> Optional[bool]:
+    """None when either side lacks a journal (neutral); otherwise True when
+    any CrossRef container-title and any of our journal names agree under
+    normalized containment. Containment (not equality) because the two sides
+    render names differently ("Development" vs "Development (Cambridge,
+    England)"); a lax True only skips the veto — it can never create a match
+    on its own — so over-matching here is harmless."""
+    ours: List[str] = []
+    for name in (cand.journal, cand.journal_abbreviation):
+        normalized = normalize_title(name)
+        if normalized:
+            ours.append(normalized)
+    theirs: List[str] = []
+    for container_title in (work.get("container-title") or []):
+        normalized = normalize_title(container_title)
+        if normalized:
+            theirs.append(normalized)
+    if not ours or not theirs:
+        return None
+    for cj in ours:
+        for wj in theirs:
+            if cj in wj or wj in cj:
+                return True
+    return False
+
+
 def work_matches_candidate(work: dict, cand: Candidate) -> bool:
-    """Accept only an exact normalized-title match corroborated by year
-    (within 1, print vs online years differ) or by volume + first page."""
+    """Accept only an exact normalized-title match that (a) is a linkable
+    record type, (b) does not CONFLICT with anything we know — a known volume,
+    first page, or journal that differs vetoes the work outright, even when
+    the year agrees (audit finding: same journal+year but different pages was
+    a neighbouring article, and a republication matched on year with the
+    wrong volume) — and (c) is corroborated by year (within 1, print vs
+    online years differ) or by volume + first page."""
+    if work.get("type") in DISALLOWED_WORK_TYPES:
+        return False
     titles = work.get("title") or []
     if not titles or normalize_title(titles[0]) != normalize_title(cand.title):
         return False
+    # conflict vetoes: only fields known on BOTH sides can veto
+    if cand.volume and work.get("volume") and work.get("volume") != cand.volume:
+        return False
+    cand_page = first_page(cand.page_range)
+    work_page = first_page(work.get("page"))
+    if cand_page and work_page and cand_page != work_page:
+        return False
+    if journals_agree(cand, work) is False:
+        return False
+    # corroboration
     year = work_year(work)
     if cand.year and year and abs(int(cand.year) - year) <= 1:
         return True
-    if (cand.volume and work.get("volume") == cand.volume
-            and first_page(cand.page_range)
-            and first_page(work.get("page")) == first_page(cand.page_range)):
+    # equality is implied here: a differing volume or page was vetoed above
+    if cand.volume and work.get("volume") and cand_page and work_page:
         return True
     return False
 
