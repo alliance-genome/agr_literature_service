@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import bindparam, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api.models import CrossReferenceModel
@@ -47,6 +48,7 @@ class Candidate:
 @dataclass
 class BackfillStats:
     candidates: int = 0
+    no_searchable_title: int = 0
     dois_found: int = 0
     added: int = 0
     invalid_doi: int = 0
@@ -56,7 +58,8 @@ class BackfillStats:
     # (ref curie, doi curie, owner curie) rows for the conflict report
 
     def summary(self) -> str:
-        return (f"candidates={self.candidates} dois_found={self.dois_found} added={self.added} "
+        return (f"candidates={self.candidates} no_searchable_title={self.no_searchable_title} "
+                f"dois_found={self.dois_found} added={self.added} "
                 f"invalid_doi={self.invalid_doi} conflict_other_reference={self.conflict_other_reference} "
                 f"removed_by_curator={self.removed_by_curator}")
 
@@ -113,6 +116,47 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
     return candidates
 
 
+def _doi_key(doi_curie: str) -> str:
+    """DOI suffixes are case-insensitive (DOI handbook) and sources differ in
+    the case they deliver, so every comparison uses the lowercased curie —
+    an obsoleted DOI:10.x/ABC must block re-adding 10.x/abc, and a case
+    variant must not slip past the other-reference conflict check."""
+    return doi_curie.lower()
+
+
+def _normalize_additions(additions: List[Tuple[Candidate, str]],
+                         stats: BackfillStats) -> List[Tuple[Candidate, str]]:
+    """Normalize raw DOIs, dropping (and counting) the unparseable ones."""
+    normalized: List[Tuple[Candidate, str]] = []
+    for cand, raw_doi in additions:
+        doi = normalize_doi(raw_doi)
+        if doi is None:
+            stats.invalid_doi += 1
+            logger.warning("%s: dropping invalid DOI %r", cand.curie, raw_doi)
+            continue
+        normalized.append((cand, doi))
+    return normalized
+
+
+def _lookup_existing_dois(db_session: Session,
+                          normalized: List[Tuple[Candidate, str]]) -> Dict[str, List[Tuple[int, bool]]]:
+    """One batch lookup of every DOI curie about to be touched (any
+    obsolescence), keyed case-insensitively: {lower curie: [(reference_id,
+    is_obsolete), ...]}."""
+    doi_keys = list({_doi_key(f"DOI:{doi}") for _, doi in normalized})
+    existing: Dict[str, List[Tuple[int, bool]]] = {}
+    lookup_sql = text(
+        "SELECT curie, reference_id, is_obsolete FROM cross_reference "
+        "WHERE curie_prefix = 'DOI' AND lower(curie) IN :curies"
+    ).bindparams(bindparam("curies", expanding=True))
+    for i in range(0, len(doi_keys), 1000):
+        chunk = doi_keys[i:i + 1000]
+        rows = db_session.execute(lookup_sql, {"curies": chunk}).fetchall()
+        for curie, reference_id, is_obsolete in rows:
+            existing.setdefault(_doi_key(curie), []).append((reference_id, is_obsolete))
+    return existing
+
+
 def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidate, str]],
                              stats: BackfillStats, dry_run: bool = False) -> None:
     """Insert 'DOI:<doi>' cross-references for (candidate, doi) pairs, guarding:
@@ -122,37 +166,51 @@ def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidat
       skipped and reported for curator review, never re-pointed;
     - a DOI present on the SAME reference but marked obsolete was removed by a
       curator on purpose: skipped;
-    - commits in batches; a dry run logs what would be added and writes nothing.
+    - all DOI comparisons are case-insensitive (_doi_key);
+    - commits in batches, and a unique-index race with a concurrent DOI writer
+      (daily DQM sync, weekly PubMed sync) downgrades to a per-row retry
+      instead of aborting the run;
+    - a dry run logs what would be added and writes nothing, while still
+      tracking pending DOIs so intra-run duplicates report the same
+      add/conflict split a real run would.
     """
-    normalized: List[Tuple[Candidate, str]] = []
-    for cand, raw_doi in additions:
-        doi = normalize_doi(raw_doi)
-        if doi is None:
-            stats.invalid_doi += 1
-            logger.warning("%s: dropping invalid DOI %r", cand.curie, raw_doi)
-            continue
-        normalized.append((cand, doi))
+    normalized = _normalize_additions(additions, stats)
     if not normalized:
         return
-
-    # One batch lookup of every DOI curie we are about to touch (any obsolescence).
-    doi_curies = list({f"DOI:{doi}" for _, doi in normalized})
-    existing: Dict[str, List[Tuple[int, bool]]] = {}
-    lookup_sql = text(
-        "SELECT curie, reference_id, is_obsolete FROM cross_reference "
-        "WHERE curie_prefix = 'DOI' AND curie IN :curies"
-    ).bindparams(bindparam("curies", expanding=True))
-    for i in range(0, len(doi_curies), 1000):
-        chunk = doi_curies[i:i + 1000]
-        rows = db_session.execute(lookup_sql, {"curies": chunk}).fetchall()
-        for curie, reference_id, is_obsolete in rows:
-            existing.setdefault(curie, []).append((reference_id, is_obsolete))
-
+    existing = _lookup_existing_dois(db_session, normalized)
     ref_curie_by_id = {c.reference_id: c.curie for c, _ in normalized}
-    uncommitted = 0
+    pending: List[Tuple[Candidate, str]] = []  # rows added since the last commit
+
+    def flush_pending() -> None:
+        """Commit the pending batch. If the unique index fires because a
+        concurrent writer inserted one of these DOIs after our snapshot,
+        retry row by row so the one losing row is skipped and reported
+        instead of the whole batch (and run) being lost."""
+        if not pending:
+            return
+        try:
+            db_session.commit()
+        except IntegrityError:
+            db_session.rollback()
+            for row_cand, row_doi_curie in pending:
+                try:
+                    db_session.add(CrossReferenceModel(curie=row_doi_curie, curie_prefix="DOI",
+                                                       reference_id=row_cand.reference_id,
+                                                       is_obsolete=False))
+                    db_session.commit()
+                except IntegrityError:
+                    db_session.rollback()
+                    stats.added -= 1
+                    stats.conflict_other_reference += 1
+                    stats.conflicts.append((row_cand.curie, row_doi_curie, "concurrent writer"))
+                    logger.warning("%s: %s was inserted by a concurrent writer during this run; skipped",
+                                   row_cand.curie, row_doi_curie)
+        pending.clear()
+
     for cand, doi in normalized:
         doi_curie = f"DOI:{doi}"
-        rows = existing.get(doi_curie, [])
+        key = _doi_key(doi_curie)
+        rows = existing.get(key, [])
         active_owner = next((rid for rid, obsolete in rows if not obsolete), None)
         if active_owner is not None and active_owner != cand.reference_id:
             stats.conflict_other_reference += 1
@@ -169,18 +227,16 @@ def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidat
             logger.info("%s: %s was made obsolete on this reference by a curator; skipping",
                         cand.curie, doi_curie)
             continue
+        stats.added += 1
+        existing.setdefault(key, []).append((cand.reference_id, False))
         if dry_run:
-            stats.added += 1
             logger.info("DRY RUN: would add %s to %s", doi_curie, cand.curie)
             continue
         db_session.add(CrossReferenceModel(curie=doi_curie, curie_prefix="DOI",
                                            reference_id=cand.reference_id, is_obsolete=False))
-        stats.added += 1
-        existing.setdefault(doi_curie, []).append((cand.reference_id, False))
+        pending.append((cand, doi_curie))
         logger.info("Added %s to %s", doi_curie, cand.curie)
-        uncommitted += 1
-        if uncommitted >= BATCH_COMMIT_SIZE:
-            db_session.commit()
-            uncommitted = 0
-    if not dry_run and uncommitted:
-        db_session.commit()
+        if len(pending) >= BATCH_COMMIT_SIZE:
+            flush_pending()
+    if not dry_run:
+        flush_pending()

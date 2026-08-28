@@ -3,6 +3,8 @@ and MagicMock-based, no database or network required."""
 
 from unittest.mock import MagicMock
 
+from sqlalchemy.exc import IntegrityError
+
 from agr_literature_service.lit_processing.data_ingest.doi_ingest.doi_backfill_utils import (
     BackfillStats,
     Candidate,
@@ -16,6 +18,7 @@ from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_do
 from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_dois_from_crossref import (
     first_page,
     normalize_title,
+    searchable_candidates,
     work_matches_candidate,
     work_year,
 )
@@ -184,3 +187,61 @@ class TestAddDoiCrossReferences:
         assert stats.added == 1
         assert stats.conflict_other_reference == 1
         assert stats.conflicts == [("AGRKB:102", "DOI:10.1234/aaa", "AGRKB:101")]
+
+    def test_dry_run_reports_intra_run_duplicate_like_a_real_run(self):
+        """The dry run must preview the same add/conflict split as a real run
+        when two candidates resolve to the same DOI."""
+        db = self._db_with_existing([])
+        stats = BackfillStats()
+        additions = [
+            (Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa"),
+            (Candidate(reference_id=2, curie="AGRKB:102"), "10.1234/aaa"),
+        ]
+        add_doi_cross_references(db, additions, stats, dry_run=True)
+        assert stats.added == 1
+        assert stats.conflict_other_reference == 1
+        assert stats.conflicts == [("AGRKB:102", "DOI:10.1234/aaa", "AGRKB:101")]
+        assert not db.add.called
+
+    def test_curator_removed_doi_blocks_case_variants(self):
+        db = self._db_with_existing([("DOI:10.1234/ABC", 1, True)])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/abc")], stats)
+        assert stats.removed_by_curator == 1
+        assert stats.added == 0
+        assert not db.add.called
+
+    def test_conflict_detected_across_case_variants(self):
+        db = self._db_with_existing([("DOI:10.1234/AbC", 99, False)])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/abc")], stats)
+        assert stats.conflict_other_reference == 1
+        assert stats.added == 0
+        assert not db.add.called
+
+    def test_concurrent_writer_race_skips_row_instead_of_aborting(self):
+        """A unique-index race at commit time downgrades to a per-row retry;
+        the losing row is reported, not raised, and stats reflect reality."""
+        db = self._db_with_existing([])
+        db.commit.side_effect = [
+            IntegrityError("stmt", {}, Exception("duplicate key")),  # batch commit
+            IntegrityError("stmt", {}, Exception("duplicate key")),  # per-row retry
+        ]
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
+        assert stats.added == 0
+        assert stats.conflict_other_reference == 1
+        assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "concurrent writer")]
+        assert db.rollback.call_count == 2
+
+
+class TestSearchableCandidates:
+
+    def test_counts_unsearchable_titles_in_stats(self):
+        stats = BackfillStats()
+        good = Candidate(reference_id=1, curie="AGRKB:101", title="A perfectly reasonable title")
+        unsearchable = [Candidate(reference_id=2, curie="AGRKB:102", title=None),
+                        Candidate(reference_id=3, curie="AGRKB:103", title="short")]
+        assert searchable_candidates([good] + unsearchable, stats) == [good]
+        assert stats.no_searchable_title == 2
+        assert "no_searchable_title=2" in stats.summary()

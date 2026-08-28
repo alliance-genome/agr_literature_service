@@ -15,6 +15,12 @@ second field corroborates it (publication year within one year, or
 volume plus first page equal). No match means no write — a wrong DOI is
 worse than a missing one.
 
+Matches are flushed to the database every FLUSH_EVERY_QUERIES lookups,
+so an interrupted run keeps everything committed so far. The crawl is
+rate-limited (--delay, default 1 req/s), which makes the full candidate
+set a multi-hour job — the cron entry passes --limit to bound each
+monthly run; whatever is left simply surfaces again next month.
+
 Usage:
     python add_missing_dois_from_crossref.py [--dry-run] [--limit N] [--delay SECONDS]
 
@@ -63,6 +69,8 @@ MAX_RETRIES = 3
 ROWS_PER_QUERY = 3
 # titles shorter than this normalize into too few tokens to be a safe key
 MIN_TITLE_LENGTH = 15
+# flush accumulated matches to the DB every N CrossRef queries
+FLUSH_EVERY_QUERIES = 200
 
 
 def normalize_title(title: Optional[str]) -> Optional[str]:
@@ -138,25 +146,15 @@ def fetch_doi_for_candidate(session: requests.Session, cand: Candidate,
     return None
 
 
-def collect_additions(candidates: List[Candidate], delay: float, stats: BackfillStats,
-                      session: Optional[requests.Session] = None,
-                      mailto: Optional[str] = None) -> List[Tuple[Candidate, str]]:
-    session = session or requests.Session()
-    additions: List[Tuple[Candidate, str]] = []
+def searchable_candidates(candidates: List[Candidate], stats: BackfillStats) -> List[Candidate]:
+    """Split off the candidates whose title is missing or too short to be a
+    safe match key, recording how many were skipped so the summary reconciles
+    candidates vs. what was actually queried."""
     searchable = [c for c in candidates if c.title and len(c.title.strip()) >= MIN_TITLE_LENGTH]
-    skipped = len(candidates) - len(searchable)
-    if skipped:
-        logger.info("Skipping %s candidate(s) with no/too-short title", skipped)
-    for n, cand in enumerate(searchable, start=1):
-        doi = fetch_doi_for_candidate(session, cand, mailto)
-        if doi:
-            additions.append((cand, doi))
-        if n % 100 == 0 or n == len(searchable):
-            logger.info("CrossRef progress: %s/%s queried, %s matched", n, len(searchable), len(additions))
-        if n < len(searchable):
-            time.sleep(delay)
-    stats.dois_found = len(additions)
-    return additions
+    stats.no_searchable_title = len(candidates) - len(searchable)
+    if stats.no_searchable_title:
+        logger.info("Skipping %s candidate(s) with no/too-short title", stats.no_searchable_title)
+    return searchable
 
 
 def run(dry_run: bool = False, limit: Optional[int] = None,
@@ -172,8 +170,26 @@ def run(dry_run: bool = False, limit: Optional[int] = None,
         candidates = get_references_missing_doi(db_session, require_pmid=False, limit=limit)
         stats.candidates = len(candidates)
         logger.info("%s reference(s) with no DOI", stats.candidates)
-        additions = collect_additions(candidates, delay, stats, mailto=mailto)
-        add_doi_cross_references(db_session, additions, stats, dry_run=dry_run)
+        searchable = searchable_candidates(candidates, stats)
+        # The crawl is rate-limited and can run for hours, so matches are
+        # flushed to the database as they accumulate rather than buffered for
+        # a single write at the end — an interruption then loses at most one
+        # flush window, not the whole run.
+        session = requests.Session()
+        matches: List[Tuple[Candidate, str]] = []
+        for n, cand in enumerate(searchable, start=1):
+            doi = fetch_doi_for_candidate(session, cand, mailto)
+            if doi:
+                matches.append((cand, doi))
+                stats.dois_found += 1
+            if n % FLUSH_EVERY_QUERIES == 0 or n == len(searchable):
+                if matches:
+                    add_doi_cross_references(db_session, matches, stats, dry_run=dry_run)
+                    matches = []
+                logger.info("CrossRef progress: %s/%s queried, %s matched, %s added",
+                            n, len(searchable), stats.dois_found, stats.added)
+            if n < len(searchable):
+                time.sleep(delay)
         logger.info("Done: %s", stats.summary())
         if stats.conflicts:
             logger.warning("DOI conflicts needing curator review (reference, doi, current owner):")

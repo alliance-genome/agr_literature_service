@@ -49,6 +49,7 @@ logger = logging.getLogger(__name__)
 
 EUROPEPMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 DEFAULT_BATCH_SIZE = 100
+MAX_BATCH_SIZE = 1000  # Europe PMC's pageSize cap
 REQUEST_DELAY_SECONDS = 0.4  # stay well under Europe PMC's rate expectations
 REQUEST_TIMEOUT_SECONDS = 60
 MAX_RETRIES = 3
@@ -63,7 +64,7 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str]) -> Dict[st
         "query": query,
         "resultType": "lite",
         "format": "json",
-        "pageSize": max(len(pmids), 25),
+        "pageSize": min(max(len(pmids), 25), MAX_BATCH_SIZE),
     }
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -105,6 +106,10 @@ def collect_additions(candidates: List[Candidate], batch_size: int,
 def run(dry_run: bool = False, limit: Optional[int] = None,
         batch_size: int = DEFAULT_BATCH_SIZE) -> BackfillStats:
     stats = BackfillStats()
+    if batch_size > MAX_BATCH_SIZE:
+        logger.warning("batch size %s exceeds Europe PMC's pageSize cap; clamping to %s",
+                       batch_size, MAX_BATCH_SIZE)
+        batch_size = MAX_BATCH_SIZE
     db_session = create_postgres_session(False)
     try:
         if not dry_run:
