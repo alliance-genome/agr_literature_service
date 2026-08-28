@@ -1,7 +1,7 @@
 """Unit tests for the monthly DOI backfill scripts (SCRUM-4525). Pure-function
 and MagicMock-based, no database or network required."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from sqlalchemy.exc import IntegrityError
 
@@ -62,6 +62,42 @@ class TestEuropePmcFetch:
         additions = europepmc_collect_additions([cand, no_pmid], 100, stats, session=session)
         assert additions == [(cand, "10.1234/aaa")]
         assert stats.dois_found == 1
+
+    def test_dois_found_accumulates_across_batches(self):
+        # batch_size=1 forces one request per candidate; the counter must
+        # accumulate, not report only the last window
+        session = self._session_returning([{"id": "111", "doi": "10.1234/aaa"}])
+        response2 = MagicMock()
+        response2.json.return_value = {"resultList": {"result": [{"id": "222", "doi": "10.1234/bbb"}]}}
+        response2.raise_for_status.return_value = None
+        session.get.side_effect = [session.get.return_value, response2]
+        cands = [Candidate(reference_id=1, curie="AGRKB:101", pmid="111"),
+                 Candidate(reference_id=2, curie="AGRKB:102", pmid="222")]
+        stats = BackfillStats()
+        additions = europepmc_collect_additions(cands, 1, stats, session=session)
+        assert stats.dois_found == 2
+        assert len(additions) == 2
+
+    def test_on_flush_receives_chunks_and_final_remainder(self):
+        session = self._session_returning([{"id": "111", "doi": "10.1234/aaa"}])
+        cand = Candidate(reference_id=1, curie="AGRKB:101", pmid="111")
+        stats = BackfillStats()
+        flushed = []
+        result = europepmc_collect_additions([cand], 100, stats, session=session,
+                                             on_flush=flushed.append)
+        assert result == []                       # everything went through the callback
+        assert flushed == [[(cand, "10.1234/aaa")]]
+
+    def test_failed_batch_counts_into_request_failures(self):
+        import requests as requests_lib
+        session = MagicMock()
+        session.get.side_effect = requests_lib.ConnectionError("down")
+        stats = BackfillStats()
+        with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                   "add_missing_dois_from_europepmc.time.sleep"):
+            assert fetch_dois_for_pmids(session, ["111"], stats) == {}
+        assert stats.request_failures == 1
+        assert "request_failures=1" in stats.summary()
 
 
 class TestAddDoiCrossReferences:

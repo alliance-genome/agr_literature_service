@@ -8,9 +8,11 @@ non-obsolete DOI cross-reference, normalize DOIs, and insert DOI
 cross-references with the duplicate / conflict / curator-removed guards.
 
 Kept source-agnostic on purpose: the Candidate metadata (title, volume,
-pages, year, journal) and the require_pmid=False selection path serve
-bibliographic matchers like the parked CrossRef script, so that script can
-be restored by dropping its file back in.
+pages, year) and the require_pmid=False selection path serve bibliographic
+matchers like the parked CrossRef script. (Restoring that script also needs
+its journal fields back: Candidate.journal/journal_abbreviation fed by a
+LEFT JOIN resource in the selection — removed here because nothing live
+read them.)
 """
 
 import logging
@@ -42,29 +44,30 @@ class Candidate:
     volume: Optional[str] = None
     page_range: Optional[str] = None
     year: Optional[str] = None      # 4-digit string when known
-    journal: Optional[str] = None            # resource title
-    journal_abbreviation: Optional[str] = None
 
 
 @dataclass
 class BackfillStats:
     candidates: int = 0
-    no_searchable_title: int = 0
     dois_found: int = 0
     added: int = 0
     invalid_doi: int = 0
     conflict_other_reference: int = 0
     lost_race: int = 0
     removed_by_curator: int = 0
+    # Batches the external source failed to answer after retries: a run where
+    # the source was down reads as request_failures>0, NOT as a clean
+    # dois_found=0 no-op.
+    request_failures: int = 0
     conflicts: List[Tuple[str, str, str]] = field(default_factory=list)
     # (ref curie, doi curie, owner curie) rows for the conflict report;
     # lost-race rows carry "concurrent writer" as the owner
 
     def summary(self) -> str:
-        return (f"candidates={self.candidates} no_searchable_title={self.no_searchable_title} "
-                f"dois_found={self.dois_found} added={self.added} "
+        return (f"candidates={self.candidates} dois_found={self.dois_found} added={self.added} "
                 f"invalid_doi={self.invalid_doi} conflict_other_reference={self.conflict_other_reference} "
-                f"lost_race={self.lost_race} removed_by_curator={self.removed_by_curator}")
+                f"lost_race={self.lost_race} removed_by_curator={self.removed_by_curator} "
+                f"request_failures={self.request_failures}")
 
 
 def normalize_doi(raw: Optional[str]) -> Optional[str]:
@@ -95,27 +98,19 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
     CrossRef lookup is bibliographic)."""
     pmid_join = "JOIN" if require_pmid else "LEFT JOIN"
     limit_clause = f"LIMIT {int(limit)}" if limit else ""
-    # With a LIMIT, rotate the window randomly: a fixed reference_id order
-    # would pin permanently-unmatchable references (no DOI registered
-    # anywhere) at the head, and a monthly bounded run would re-query the
-    # same head forever without ever reaching the rest of the backlog.
-    # Random order makes every candidate reachable across successive runs.
-    order_clause = "ORDER BY random()" if limit else "ORDER BY r.reference_id"
     rows = db_session.execute(text(f"""
         SELECT r.reference_id, r.curie, p.curie AS pmid_curie, r.title, r.volume,
-               r.page_range, SUBSTRING(r.date_published, 1, 4) AS year,
-               res.title AS journal, res.title_abbreviation AS journal_abbreviation
+               r.page_range, SUBSTRING(r.date_published, 1, 4) AS year
         FROM reference r
         {pmid_join} cross_reference p
           ON p.reference_id = r.reference_id
           AND p.curie_prefix = 'PMID' AND p.is_obsolete IS FALSE
-        LEFT JOIN resource res ON res.resource_id = r.resource_id
         WHERE NOT EXISTS (
             SELECT 1 FROM cross_reference d
             WHERE d.reference_id = r.reference_id
               AND d.curie_prefix = 'DOI' AND d.is_obsolete IS FALSE
         )
-        {order_clause}
+        ORDER BY r.reference_id
         {limit_clause}
     """)).fetchall()
     candidates = []
@@ -123,8 +118,7 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
         pmid = x[2].replace("PMID:", "") if x[2] else None
         year = x[6] if x[6] and str(x[6]).isdigit() and len(str(x[6])) == 4 else None
         candidates.append(Candidate(reference_id=x[0], curie=x[1], pmid=pmid, title=x[3],
-                                    volume=x[4], page_range=x[5], year=year,
-                                    journal=x[7], journal_abbreviation=x[8]))
+                                    volume=x[4], page_range=x[5], year=year))
     return candidates
 
 

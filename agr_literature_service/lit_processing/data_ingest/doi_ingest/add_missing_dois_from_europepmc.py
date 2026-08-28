@@ -26,7 +26,7 @@ import argparse
 import logging
 import sys
 import time
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -49,22 +49,32 @@ logger = logging.getLogger(__name__)
 
 EUROPEPMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
 DEFAULT_BATCH_SIZE = 100
-MAX_BATCH_SIZE = 1000  # Europe PMC's pageSize cap
+# Bounded by GET URL length, not by Europe PMC's pageSize cap of 1000: each
+# PMID adds ~15 chars of "EXT_ID:… OR ", so 300 is ~4.5 KB — safely under
+# common 8 KB URL limits, where 1000 (~14 KB) would be rejected outright and
+# surface only as a silent per-batch failure.
+MAX_BATCH_SIZE = 300
 REQUEST_DELAY_SECONDS = 0.4  # stay well under Europe PMC's rate expectations
 REQUEST_TIMEOUT_SECONDS = 60
 MAX_RETRIES = 3
+# Hand accumulated matches to the DB writer every N Europe PMC batches, so an
+# interrupted run keeps everything committed so far.
+FLUSH_EVERY_BATCHES = 25
 
 
-def fetch_dois_for_pmids(session: requests.Session, pmids: List[str]) -> Dict[str, str]:
+def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
+                         stats: Optional[BackfillStats] = None) -> Dict[str, str]:
     """Query Europe PMC for a batch of PMIDs and return {pmid: doi} for the
     records that carry a DOI. Uses the MED (PubMed) source so the returned
-    'id' is the PMID itself."""
+    'id' is the PMID itself. A batch that fails all retries counts into
+    stats.request_failures — otherwise a run with Europe PMC down would be
+    indistinguishable from a clean nothing-to-add run."""
     query = "SRC:MED AND (" + " OR ".join(f"EXT_ID:{p}" for p in pmids) + ")"
     params: Dict[str, Union[str, int]] = {
         "query": query,
         "resultType": "lite",
         "format": "json",
-        "pageSize": min(max(len(pmids), 25), MAX_BATCH_SIZE),
+        "pageSize": min(max(len(pmids), 25), 1000),
     }
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -75,31 +85,44 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str]) -> Dict[st
         except (requests.RequestException, ValueError) as e:
             logger.warning("Europe PMC request failed (attempt %s/%s): %s", attempt, MAX_RETRIES, e)
             if attempt == MAX_RETRIES:
-                return {}
+                break
             time.sleep(5 * attempt)
+    if stats is not None:
+        stats.request_failures += 1
     return {}
 
 
 def collect_additions(candidates: List[Candidate], batch_size: int,
                       stats: BackfillStats,
-                      session: Optional[requests.Session] = None) -> List[Tuple[Candidate, str]]:
+                      session: Optional[requests.Session] = None,
+                      on_flush: Optional[Callable[[List[Tuple[Candidate, str]]], None]] = None
+                      ) -> List[Tuple[Candidate, str]]:
     """Look up every candidate's PMID in Europe PMC, in batches, and pair the
-    candidates with the DOIs found."""
+    candidates with the DOIs found. With on_flush, accumulated pairs are
+    handed off every FLUSH_EVERY_BATCHES requests (and at the end) and the
+    return value is empty; without it, all pairs are returned at the end."""
     session = session or requests.Session()
     by_pmid = {c.pmid: c for c in candidates if c.pmid}
     pmids = list(by_pmid.keys())
     additions: List[Tuple[Candidate, str]] = []
-    for i in range(0, len(pmids), batch_size):
+    for batch_number, i in enumerate(range(0, len(pmids), batch_size), start=1):
         batch = pmids[i:i + batch_size]
-        pmid_to_doi = fetch_dois_for_pmids(session, batch)
+        pmid_to_doi = fetch_dois_for_pmids(session, batch, stats)
         for pmid, doi in pmid_to_doi.items():
             if pmid in by_pmid:
                 additions.append((by_pmid[pmid], doi))
+                stats.dois_found += 1
         logger.info("Europe PMC batch %s-%s of %s: %s DOI(s) found",
                     i + 1, min(i + batch_size, len(pmids)), len(pmids), len(pmid_to_doi))
+        if on_flush and additions and batch_number % FLUSH_EVERY_BATCHES == 0:
+            on_flush(additions)
+            additions = []
         if i + batch_size < len(pmids):
             time.sleep(REQUEST_DELAY_SECONDS)
-    stats.dois_found = len(additions)
+    if on_flush:
+        if additions:
+            on_flush(additions)
+        return []
     return additions
 
 
@@ -107,7 +130,7 @@ def run(dry_run: bool = False, limit: Optional[int] = None,
         batch_size: int = DEFAULT_BATCH_SIZE) -> BackfillStats:
     stats = BackfillStats()
     if batch_size > MAX_BATCH_SIZE:
-        logger.warning("batch size %s exceeds Europe PMC's pageSize cap; clamping to %s",
+        logger.warning("batch size %s would exceed safe GET URL length; clamping to %s",
                        batch_size, MAX_BATCH_SIZE)
         batch_size = MAX_BATCH_SIZE
     db_session = create_postgres_session(False)
@@ -117,8 +140,26 @@ def run(dry_run: bool = False, limit: Optional[int] = None,
         candidates = get_references_missing_doi(db_session, require_pmid=True, limit=limit)
         stats.candidates = len(candidates)
         logger.info("%s reference(s) with a PMID and no DOI", stats.candidates)
-        additions = collect_additions(candidates, batch_size, stats)
-        add_doi_cross_references(db_session, additions, stats, dry_run=dry_run)
+
+        # Real runs flush to the DB as matches accumulate, so an interruption
+        # loses at most one flush window. Dry runs buffer everything and
+        # evaluate once at the end instead: nothing is committed, so
+        # per-window evaluation would miss intra-run duplicates that span
+        # windows and the preview would differ from a real run. The per-flush
+        # timing log is the signal for whether the case-insensitive DOI
+        # lookup (unindexed since the lower(curie) migration was dropped)
+        # ever needs its index back.
+        def flush(chunk: List[Tuple[Candidate, str]]) -> None:
+            started = time.monotonic()
+            add_doi_cross_references(db_session, chunk, stats, dry_run=False)
+            logger.info("flushed %s DOI(s) to the database in %.1fs (%s added so far)",
+                        len(chunk), time.monotonic() - started, stats.added)
+
+        if dry_run:
+            additions = collect_additions(candidates, batch_size, stats)
+            add_doi_cross_references(db_session, additions, stats, dry_run=True)
+        else:
+            collect_additions(candidates, batch_size, stats, on_flush=flush)
         logger.info("Done: %s", stats.summary())
         if stats.conflicts:
             logger.warning("DOI conflicts needing curator review (reference, doi, current owner):")
