@@ -221,7 +221,16 @@ Ranked by likelihood of causing a surprise.
    contributes nothing to anyone else's rollup, and is invisible to the SCRUM-6228 search
    facet. Because the source unique key **excludes** `validation_type`
    (`topic_entity_tag_model.py:259-263`), which string a given MOD ends up with depends on
-   which row happened to be created first, so this behaves differently per MOD.
+   which row happened to be created first.
+
+   **Verified in production 2026-08-28: all seven MOD sources currently carry
+   `professional_biocurator`, so this is latent, not live.** Grid votes do count today.
+   But `CURATOR_VALIDATION_TYPE` is what the code writes on *creation*, so the first
+   genuinely new source row — a new MOD onboarding, or any change to
+   `source_evidence_assertion`, `source_method` or `data_provider` — would silently get the
+   string that is not counted, with no error and no visible symptom. Since the seven rows
+   are already uniform, changing `CURATOR_VALIDATION_TYPE` to `professional_biocurator`
+   closes it with no migration and no data change.
 2. **`validation_type` is unconstrained free text**
    (`topic_entity_tag_schemas.py:32,52`). Observed values: `author`,
    `professional_biocurator`, `professional_curator`, `manual_validation`
@@ -355,9 +364,13 @@ covers ground this document deliberately does not:
 - that author tags are kept out of the biocurator column deliberately, as "indications"
   rather than validations
 
-Two caveats when reading it. It was last revised 2026-05-21, six weeks before
-`professional_curator` was introduced in `26d72a0d` (2026-06-30) — so its section 3 claim
-that a grid click recomputes the `validated_right` / `validated_wrong` summary holds only
-for MODs whose curator source predates that change. That discrepancy is tracked as
-SCRUM-6476. Its section 5.2 classifier table also still has blank cells awaiting curator
-input.
+One caveat when reading it: its section 5.2 classifier table still has blank cells
+awaiting curator input.
+
+Its section 3 claim — that a grid click recomputes the `validated_right` /
+`validated_wrong` summary — was checked against production on 2026-08-28 and **holds**.
+All seven MOD sources carry `validation_type = 'professional_biocurator'`, so
+`get_or_create_curator_validation_source` finds an existing row every time and inherits
+that value. Grid votes do reach `validation_by_professional_biocurator` today, and the
+species proposal in its sections 4 and 5 stands unamended. The latent mismatch is tracked
+as SCRUM-6476 — see risk 1.
