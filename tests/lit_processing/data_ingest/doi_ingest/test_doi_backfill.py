@@ -230,7 +230,8 @@ class TestAddDoiCrossReferences:
         stats = BackfillStats()
         add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
         assert stats.added == 0
-        assert stats.conflict_other_reference == 1
+        assert stats.lost_race == 1
+        assert stats.conflict_other_reference == 0
         assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "concurrent writer")]
         assert db.rollback.call_count == 2
 

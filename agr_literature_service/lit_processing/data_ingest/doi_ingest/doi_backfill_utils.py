@@ -53,15 +53,17 @@ class BackfillStats:
     added: int = 0
     invalid_doi: int = 0
     conflict_other_reference: int = 0
+    lost_race: int = 0
     removed_by_curator: int = 0
     conflicts: List[Tuple[str, str, str]] = field(default_factory=list)
-    # (ref curie, doi curie, owner curie) rows for the conflict report
+    # (ref curie, doi curie, owner curie) rows for the conflict report;
+    # lost-race rows carry "concurrent writer" as the owner
 
     def summary(self) -> str:
         return (f"candidates={self.candidates} no_searchable_title={self.no_searchable_title} "
                 f"dois_found={self.dois_found} added={self.added} "
                 f"invalid_doi={self.invalid_doi} conflict_other_reference={self.conflict_other_reference} "
-                f"removed_by_curator={self.removed_by_curator}")
+                f"lost_race={self.lost_race} removed_by_curator={self.removed_by_curator}")
 
 
 def normalize_doi(raw: Optional[str]) -> Optional[str]:
@@ -92,6 +94,12 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
     CrossRef lookup is bibliographic)."""
     pmid_join = "JOIN" if require_pmid else "LEFT JOIN"
     limit_clause = f"LIMIT {int(limit)}" if limit else ""
+    # With a LIMIT, rotate the window randomly: a fixed reference_id order
+    # would pin permanently-unmatchable references (no DOI registered
+    # anywhere) at the head, and a monthly bounded run would re-query the
+    # same head forever without ever reaching the rest of the backlog.
+    # Random order makes every candidate reachable across successive runs.
+    order_clause = "ORDER BY random()" if limit else "ORDER BY r.reference_id"
     rows = db_session.execute(text(f"""
         SELECT r.reference_id, r.curie, p.curie AS pmid_curie, r.title, r.volume,
                r.page_range, SUBSTRING(r.date_published, 1, 4) AS year
@@ -104,7 +112,7 @@ def get_references_missing_doi(db_session: Session, require_pmid: bool = False,
             WHERE d.reference_id = r.reference_id
               AND d.curie_prefix = 'DOI' AND d.is_obsolete IS FALSE
         )
-        ORDER BY r.reference_id
+        {order_clause}
         {limit_clause}
     """)).fetchall()
     candidates = []
@@ -201,9 +209,13 @@ def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidat
                 except IntegrityError:
                     db_session.rollback()
                     stats.added -= 1
-                    stats.conflict_other_reference += 1
+                    stats.lost_race += 1
                     stats.conflicts.append((row_cand.curie, row_doi_curie, "concurrent writer"))
-                    logger.warning("%s: %s was inserted by a concurrent writer during this run; skipped",
+                    # Either unique index may have fired: this DOI landing on
+                    # another reference, or another DOI landing on this
+                    # reference (one non-obsolete DOI per reference).
+                    logger.warning("%s: inserting %s lost a race with a concurrent writer "
+                                   "(this DOI or this reference was claimed mid-run); skipped",
                                    row_cand.curie, row_doi_curie)
         pending.clear()
 

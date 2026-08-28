@@ -6,7 +6,7 @@ cross_reference_model.py
 
 from typing import Dict
 
-from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, Sequence
+from sqlalchemy import ARRAY, Boolean, Column, ForeignKey, Integer, String, Index, and_, func, Sequence
 from sqlalchemy.orm import relationship
 
 from agr_literature_service.api.database.base import Base
@@ -111,7 +111,13 @@ class CrossReferenceModel(Base, AuditedModel):
         Index('idx_curie',
               'curie',
               unique=True,
-              postgresql_where=(is_obsolete.is_(False)))
+              postgresql_where=(is_obsolete.is_(False))),
+
+        # Case-insensitive DOI lookups for the monthly DOI backfill
+        # (SCRUM-4525): WHERE curie_prefix = 'DOI' AND lower(curie) IN (...)
+        Index('idx_cross_reference_doi_lower',
+              func.lower(curie),
+              postgresql_where=(curie_prefix == 'DOI'))
     )
 
     def __str__(self):

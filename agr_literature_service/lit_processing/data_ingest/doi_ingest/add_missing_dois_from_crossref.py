@@ -174,7 +174,10 @@ def run(dry_run: bool = False, limit: Optional[int] = None,
         # The crawl is rate-limited and can run for hours, so matches are
         # flushed to the database as they accumulate rather than buffered for
         # a single write at the end — an interruption then loses at most one
-        # flush window, not the whole run.
+        # flush window, not the whole run. A dry run instead evaluates all
+        # matches in ONE call at the end: nothing is committed, so per-window
+        # evaluation would miss intra-run duplicates that span windows and the
+        # preview would differ from a real run.
         session = requests.Session()
         matches: List[Tuple[Candidate, str]] = []
         for n, cand in enumerate(searchable, start=1):
@@ -183,13 +186,15 @@ def run(dry_run: bool = False, limit: Optional[int] = None,
                 matches.append((cand, doi))
                 stats.dois_found += 1
             if n % FLUSH_EVERY_QUERIES == 0 or n == len(searchable):
-                if matches:
-                    add_doi_cross_references(db_session, matches, stats, dry_run=dry_run)
+                if matches and not dry_run:
+                    add_doi_cross_references(db_session, matches, stats, dry_run=False)
                     matches = []
                 logger.info("CrossRef progress: %s/%s queried, %s matched, %s added",
                             n, len(searchable), stats.dois_found, stats.added)
             if n < len(searchable):
                 time.sleep(delay)
+        if matches:
+            add_doi_cross_references(db_session, matches, stats, dry_run=dry_run)
         logger.info("Done: %s", stats.summary())
         if stats.conflicts:
             logger.warning("DOI conflicts needing curator review (reference, doi, current owner):")
