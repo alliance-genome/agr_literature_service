@@ -6,6 +6,16 @@ which no existing index covers — idx_curie and friends are on the raw
 curie column. Without this, every flush window (up to ~100 per CrossRef
 run) sequential-scans cross_reference (~4M rows).
 
+Operational note: if the CONCURRENTLY build is interrupted (deadlock,
+cancelled statement, deploy timeout), Postgres leaves the index behind
+marked invalid — and on re-run IF NOT EXISTS will see it and "succeed"
+without rebuilding, leaving an index that writes maintain but the
+planner never uses. After applying, verify with
+    SELECT indisvalid FROM pg_index
+    WHERE indexrelid = 'idx_cross_reference_doi_lower'::regclass;
+and if it is false, DROP INDEX CONCURRENTLY idx_cross_reference_doi_lower
+before running the migration again.
+
 Revision ID: b7c1d0e2a4f6
 Revises: 9a1c7f2e4d10
 Create Date: 2026-08-28

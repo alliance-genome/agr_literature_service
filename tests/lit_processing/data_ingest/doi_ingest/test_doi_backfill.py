@@ -152,16 +152,16 @@ class TestAddDoiCrossReferences:
         assert not db.commit.called
 
     def test_conflict_with_other_reference_is_skipped_and_reported(self):
-        db = self._db_with_existing([("DOI:10.1234/aaa", 99, False)])
+        db = self._db_with_existing([("DOI:10.1234/aaa", 99, False, "AGRKB:999")])
         stats = BackfillStats()
         add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
         assert stats.added == 0
         assert stats.conflict_other_reference == 1
-        assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "99")]
+        assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "AGRKB:999")]
         assert not db.add.called
 
     def test_curator_removed_doi_is_not_readded(self):
-        db = self._db_with_existing([("DOI:10.1234/aaa", 1, True)])
+        db = self._db_with_existing([("DOI:10.1234/aaa", 1, True, "AGRKB:101")])
         stats = BackfillStats()
         add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
         assert stats.added == 0
@@ -204,7 +204,7 @@ class TestAddDoiCrossReferences:
         assert not db.add.called
 
     def test_curator_removed_doi_blocks_case_variants(self):
-        db = self._db_with_existing([("DOI:10.1234/ABC", 1, True)])
+        db = self._db_with_existing([("DOI:10.1234/ABC", 1, True, "AGRKB:101")])
         stats = BackfillStats()
         add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/abc")], stats)
         assert stats.removed_by_curator == 1
@@ -212,7 +212,7 @@ class TestAddDoiCrossReferences:
         assert not db.add.called
 
     def test_conflict_detected_across_case_variants(self):
-        db = self._db_with_existing([("DOI:10.1234/AbC", 99, False)])
+        db = self._db_with_existing([("DOI:10.1234/AbC", 99, False, "AGRKB:999")])
         stats = BackfillStats()
         add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/abc")], stats)
         assert stats.conflict_other_reference == 1

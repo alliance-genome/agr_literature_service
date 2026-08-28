@@ -147,21 +147,29 @@ def _normalize_additions(additions: List[Tuple[Candidate, str]],
 
 
 def _lookup_existing_dois(db_session: Session,
-                          normalized: List[Tuple[Candidate, str]]) -> Dict[str, List[Tuple[int, bool]]]:
+                          normalized: List[Tuple[Candidate, str]]) -> Dict[str, List[Tuple[int, bool, str]]]:
     """One batch lookup of every DOI curie about to be touched (any
     obsolescence), keyed case-insensitively: {lower curie: [(reference_id,
-    is_obsolete), ...]}."""
+    is_obsolete, owner AGRKB curie), ...]}. The owner curie comes from a join
+    to reference because the conflict report must name it — the owner of a
+    cross-run conflict already has a non-obsolete DOI, so it is never in the
+    candidate batch, and curators work in AGRKB curies, not reference_ids.
+    (The inner join drops resource-owned DOI rows, whose reference_id is
+    NULL — matching the previous behaviour where they never counted as an
+    owner; if one collides at insert time the lost_race path reports it.)"""
     doi_keys = list({_doi_key(f"DOI:{doi}") for _, doi in normalized})
-    existing: Dict[str, List[Tuple[int, bool]]] = {}
+    existing: Dict[str, List[Tuple[int, bool, str]]] = {}
     lookup_sql = text(
-        "SELECT curie, reference_id, is_obsolete FROM cross_reference "
-        "WHERE curie_prefix = 'DOI' AND lower(curie) IN :curies"
+        "SELECT cr.curie, cr.reference_id, cr.is_obsolete, r.curie "
+        "FROM cross_reference cr "
+        "JOIN reference r ON r.reference_id = cr.reference_id "
+        "WHERE cr.curie_prefix = 'DOI' AND lower(cr.curie) IN :curies"
     ).bindparams(bindparam("curies", expanding=True))
     for i in range(0, len(doi_keys), 1000):
         chunk = doi_keys[i:i + 1000]
         rows = db_session.execute(lookup_sql, {"curies": chunk}).fetchall()
-        for curie, reference_id, is_obsolete in rows:
-            existing.setdefault(_doi_key(curie), []).append((reference_id, is_obsolete))
+        for curie, reference_id, is_obsolete, owner_curie in rows:
+            existing.setdefault(_doi_key(curie), []).append((reference_id, is_obsolete, owner_curie))
     return existing
 
 
@@ -186,7 +194,6 @@ def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidat
     if not normalized:
         return
     existing = _lookup_existing_dois(db_session, normalized)
-    ref_curie_by_id = {c.reference_id: c.curie for c, _ in normalized}
     pending: List[Tuple[Candidate, str]] = []  # rows added since the last commit
 
     def flush_pending() -> None:
@@ -223,24 +230,23 @@ def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidat
         doi_curie = f"DOI:{doi}"
         key = _doi_key(doi_curie)
         rows = existing.get(key, [])
-        active_owner = next((rid for rid, obsolete in rows if not obsolete), None)
-        if active_owner is not None and active_owner != cand.reference_id:
+        active = next(((rid, owner) for rid, obsolete, owner in rows if not obsolete), None)
+        if active is not None and active[0] != cand.reference_id:
             stats.conflict_other_reference += 1
-            owner_curie = ref_curie_by_id.get(active_owner, str(active_owner))
-            stats.conflicts.append((cand.curie, doi_curie, owner_curie))
+            stats.conflicts.append((cand.curie, doi_curie, active[1]))
             logger.warning("%s: %s already on reference %s; skipping (curator review needed)",
-                           cand.curie, doi_curie, owner_curie)
+                           cand.curie, doi_curie, active[1])
             continue
-        if active_owner == cand.reference_id:
-            # already there (e.g. added between selection and insertion) — nothing to do
+        if active is not None:
+            # already on this reference (e.g. added between selection and insertion)
             continue
-        if any(rid == cand.reference_id and obsolete for rid, obsolete in rows):
+        if any(rid == cand.reference_id and obsolete for rid, obsolete, _ in rows):
             stats.removed_by_curator += 1
             logger.info("%s: %s was made obsolete on this reference by a curator; skipping",
                         cand.curie, doi_curie)
             continue
         stats.added += 1
-        existing.setdefault(key, []).append((cand.reference_id, False))
+        existing.setdefault(key, []).append((cand.reference_id, False, cand.curie))
         if dry_run:
             logger.info("DRY RUN: would add %s to %s", doi_curie, cand.curie)
             continue
