@@ -91,10 +91,21 @@ def download_dqm_file(mod, url, datatype):  # pragma: no cover
         zip_json_file = json_file + ".zip"
         download_file(url, zip_json_file)
         try:
+            # Take the single .json member whatever it is named: the inner
+            # name is the submitting MOD's choice and has changed before
+            # (XB: filepart_abc_meta_data_merged.json -> XB_REFERENCE.json),
+            # which silently broke the load when it was hardcoded here.
             with zipfile.ZipFile(zip_json_file, 'r') as zip_ref:
-                zip_ref.extractall(dqm_json_path)
-            orig_json_file = dqm_json_path + "filepart_abc_meta_data_merged.json"
-            rename(orig_json_file, json_file)
+                json_members = [m for m in zip_ref.namelist()
+                                if m.lower().endswith('.json')]
+                if len(json_members) != 1:
+                    raise ValueError(
+                        f"{mod}: expected exactly one .json member in {url}, "
+                        f"found {json_members or zip_ref.namelist()}")
+                zip_ref.extract(json_members[0], dqm_json_path)
+            orig_json_file = path.join(dqm_json_path, json_members[0])
+            if path.abspath(orig_json_file) != path.abspath(json_file):
+                rename(orig_json_file, json_file)
             remove(zip_json_file)
         except Exception as e:
             logger.error(e)
