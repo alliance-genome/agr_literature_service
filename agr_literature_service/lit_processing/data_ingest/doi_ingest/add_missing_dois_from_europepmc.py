@@ -60,14 +60,22 @@ MAX_RETRIES = 3
 # Hand accumulated matches to the DB writer every N Europe PMC batches, so an
 # interrupted run keeps everything committed so far.
 FLUSH_EVERY_BATCHES = 25
+# Circuit breaker: abort the crawl after this many consecutively failed
+# batches. Without it a Europe PMC outage still walks the whole candidate
+# list at up to ~3x60s timeouts per batch — days of a cron job doing nothing
+# but accumulating warnings. Everything found before the break is already
+# flushed, and the summary still prints (with request_failures set).
+MAX_CONSECUTIVE_FAILURES = 10
 
 
 def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
-                         stats: Optional[BackfillStats] = None) -> Dict[str, str]:
+                         stats: Optional[BackfillStats] = None) -> Optional[Dict[str, str]]:
     """Query Europe PMC for a batch of PMIDs and return {pmid: doi} for the
-    records that carry a DOI. Uses the MED (PubMed) source so the returned
-    'id' is the PMID itself. A batch that fails all retries counts into
-    stats.request_failures — otherwise a run with Europe PMC down would be
+    records that carry a DOI; {} means the batch legitimately had none. Uses
+    the MED (PubMed) source so the returned 'id' is the PMID itself. A batch
+    that fails all retries returns None — distinguishable from an empty
+    batch, so the caller's circuit breaker can act on it — and counts into
+    stats.request_failures, otherwise a run with Europe PMC down would be
     indistinguishable from a clean nothing-to-add run."""
     query = "SRC:MED AND (" + " OR ".join(f"EXT_ID:{p}" for p in pmids) + ")"
     params: Dict[str, Union[str, int]] = {
@@ -89,7 +97,7 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
             time.sleep(5 * attempt)
     if stats is not None:
         stats.request_failures += 1
-    return {}
+    return None
 
 
 def collect_additions(candidates: List[Candidate], batch_size: int,
@@ -105,15 +113,26 @@ def collect_additions(candidates: List[Candidate], batch_size: int,
     by_pmid = {c.pmid: c for c in candidates if c.pmid}
     pmids = list(by_pmid.keys())
     additions: List[Tuple[Candidate, str]] = []
+    consecutive_failures = 0
     for batch_number, i in enumerate(range(0, len(pmids), batch_size), start=1):
         batch = pmids[i:i + batch_size]
         pmid_to_doi = fetch_dois_for_pmids(session, batch, stats)
-        for pmid, doi in pmid_to_doi.items():
-            if pmid in by_pmid:
-                additions.append((by_pmid[pmid], doi))
-                stats.dois_found += 1
-        logger.info("Europe PMC batch %s-%s of %s: %s DOI(s) found",
-                    i + 1, min(i + batch_size, len(pmids)), len(pmids), len(pmid_to_doi))
+        if pmid_to_doi is None:
+            consecutive_failures += 1
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                logger.error("Europe PMC failed %s batches in a row; aborting the crawl at "
+                             "batch %s (PMIDs %s-%s of %s). Everything found so far is kept.",
+                             consecutive_failures, batch_number, i + 1,
+                             min(i + batch_size, len(pmids)), len(pmids))
+                break
+        else:
+            consecutive_failures = 0
+            for pmid, doi in pmid_to_doi.items():
+                if pmid in by_pmid:
+                    additions.append((by_pmid[pmid], doi))
+                    stats.dois_found += 1
+            logger.info("Europe PMC batch %s-%s of %s: %s DOI(s) found",
+                        i + 1, min(i + batch_size, len(pmids)), len(pmids), len(pmid_to_doi))
         if on_flush and additions and batch_number % FLUSH_EVERY_BATCHES == 0:
             on_flush(additions)
             additions = []

@@ -95,9 +95,29 @@ class TestEuropePmcFetch:
         stats = BackfillStats()
         with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
                    "add_missing_dois_from_europepmc.time.sleep"):
-            assert fetch_dois_for_pmids(session, ["111"], stats) == {}
+            # None (failure) is distinguishable from {} (batch with no DOIs)
+            assert fetch_dois_for_pmids(session, ["111"], stats) is None
         assert stats.request_failures == 1
         assert "request_failures=1" in stats.summary()
+
+    def test_circuit_breaker_aborts_after_consecutive_failures(self):
+        import requests as requests_lib
+        from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_dois_from_europepmc import (
+            MAX_CONSECUTIVE_FAILURES, MAX_RETRIES,
+        )
+        session = MagicMock()
+        session.get.side_effect = requests_lib.ConnectionError("down")
+        # more candidates than the breaker threshold, one per batch
+        cands = [Candidate(reference_id=n, curie=f"AGRKB:{n}", pmid=str(n))
+                 for n in range(1, MAX_CONSECUTIVE_FAILURES + 20)]
+        stats = BackfillStats()
+        with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                   "add_missing_dois_from_europepmc.time.sleep"):
+            additions = europepmc_collect_additions(cands, 1, stats, session=session)
+        assert additions == []
+        # aborted at the threshold instead of walking all candidates
+        assert stats.request_failures == MAX_CONSECUTIVE_FAILURES
+        assert session.get.call_count == MAX_CONSECUTIVE_FAILURES * MAX_RETRIES
 
 
 class TestAddDoiCrossReferences:

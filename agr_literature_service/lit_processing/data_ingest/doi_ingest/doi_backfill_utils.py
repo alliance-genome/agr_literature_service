@@ -216,6 +216,14 @@ def add_doi_cross_references(db_session: Session, additions: List[Tuple[Candidat
                     stats.added -= 1
                     stats.lost_race += 1
                     stats.conflicts.append((row_cand.curie, row_doi_curie, "concurrent writer"))
+                    # Withdraw the claim optimistically recorded in `existing`
+                    # when this row was staged, so a later candidate in this
+                    # call resolving to the same DOI isn't reported as
+                    # conflicting with a reference that never got it.
+                    claims = existing.get(_doi_key(row_doi_curie), [])
+                    stale_claim = (row_cand.reference_id, False, row_cand.curie)
+                    if stale_claim in claims:
+                        claims.remove(stale_claim)
                     # Either unique index may have fired: this DOI landing on
                     # another reference, or another DOI landing on this
                     # reference (one non-obsolete DOI per reference).
