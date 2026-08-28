@@ -114,6 +114,23 @@ class TestEuropePmcFetch:
             assert fetch_dois_for_pmids(session, ["111"], stats) is None
         assert stats.request_failures == 1
 
+    def test_reshaped_envelope_below_top_key_counts_as_failure(self):
+        """resultList present but not a dict, or result items that aren't
+        dicts, must take the same counted-failure path as a missing envelope
+        instead of escaping as AttributeError and killing the run."""
+        for bad_payload in ({"resultList": "oops"},
+                            {"resultList": {"result": ["a", "b"]}}):
+            session = MagicMock()
+            response = MagicMock()
+            response.json.return_value = bad_payload
+            response.raise_for_status.return_value = None
+            session.get.return_value = response
+            stats = BackfillStats()
+            with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                       "add_missing_dois_from_europepmc.time.sleep"):
+                assert fetch_dois_for_pmids(session, ["111"], stats) is None
+            assert stats.request_failures == 1
+
     def test_empty_result_list_is_success_not_failure(self):
         session = self._session_returning([])
         stats = BackfillStats()

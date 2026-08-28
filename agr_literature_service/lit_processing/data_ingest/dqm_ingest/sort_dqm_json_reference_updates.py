@@ -997,12 +997,18 @@ if __name__ == "__main__":
     failed_download_mods = []
     env_state = environ.get('ENV_STATE', 'build')
     if env_state != 'test':
-        failed_download_mods = download_dqm_reference_json()
-        for failed_mod in failed_download_mods:
-            send_report(f"{failed_mod} DQM Loading Failed",
-                        f"The {failed_mod} DQM REFERENCE download/unpack failed; "
-                        f"{failed_mod} was skipped this run. See the dqm loading "
-                        f"log for the error.")
+        failed_mods = download_dqm_reference_json()
+        # Skip-and-notify only applies when processing the downloaded files.
+        # With -f the operator supplied local files the download never
+        # touched, so a network failure must not skip the mod or claim it was
+        # skipped (a genuinely missing file is skipped by sort_dqm_references).
+        if not args['file']:
+            failed_download_mods = failed_mods
+            for failed_mod in failed_download_mods:
+                send_report(f"{failed_mod} DQM Loading Failed",
+                            f"The {failed_mod} DQM REFERENCE download/unpack failed; "
+                            f"{failed_mod} was skipped this run. See the dqm loading "
+                            f"log for the error.")
         # update_resource_pubmed_nlm()
 
     dqm_path = args['file'] if args['file'] else "dqm_data"

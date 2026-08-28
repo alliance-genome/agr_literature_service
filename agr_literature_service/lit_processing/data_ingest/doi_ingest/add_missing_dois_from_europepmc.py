@@ -89,17 +89,21 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
             r = session.get(EUROPEPMC_SEARCH_URL, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
             r.raise_for_status()
             payload = r.json()
-            if "resultList" not in payload:
+            if not isinstance(payload, dict) or "resultList" not in payload:
                 # A 200 with a renamed/missing envelope (schema change, or a
                 # query rejected semantically rather than with a 4xx) must
                 # count as a FAILURE, not as "no DOIs in this batch" — it
                 # would otherwise walk the whole candidate list as a clean
                 # zero-yield run and never trip the circuit breaker.
-                raise ValueError("unexpected Europe PMC response shape; "
-                                 f"top-level keys: {sorted(payload)[:5]}")
+                keys = sorted(payload)[:5] if isinstance(payload, dict) else type(payload).__name__
+                raise ValueError(f"unexpected Europe PMC response shape; top-level: {keys}")
             results = (payload.get("resultList") or {}).get("result") or []
             return {x["id"]: x["doi"] for x in results if x.get("id") and x.get("doi")}
-        except (requests.RequestException, ValueError) as e:
+        # AttributeError/TypeError cover a RESHAPED envelope below the top key
+        # (resultList not a dict, result items not dicts, ...): every shape
+        # problem must take this same counted path — escaping instead would
+        # discard the in-flight flush window and skip the breaker accounting.
+        except (requests.RequestException, ValueError, AttributeError, TypeError) as e:
             logger.warning("Europe PMC request failed (attempt %s/%s): %s", attempt, MAX_RETRIES, e)
             if attempt == MAX_RETRIES:
                 break
