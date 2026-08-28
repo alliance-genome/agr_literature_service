@@ -89,21 +89,25 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
             r = session.get(EUROPEPMC_SEARCH_URL, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
             r.raise_for_status()
             payload = r.json()
+            # Any deviation from the expected shape — missing/renamed/reshaped
+            # envelope, non-dict items — must count as a FAILURE (ValueError ->
+            # retried -> request_failures -> circuit breaker), not as "no DOIs
+            # in this batch": it would otherwise walk the whole candidate list
+            # as a clean zero-yield run. Validated explicitly rather than by
+            # widening the except: a TypeError from our own code (e.g. a bad
+            # session.get argument) should crash loudly, not be retried and
+            # reported as a Europe PMC outage.
             if not isinstance(payload, dict) or "resultList" not in payload:
-                # A 200 with a renamed/missing envelope (schema change, or a
-                # query rejected semantically rather than with a 4xx) must
-                # count as a FAILURE, not as "no DOIs in this batch" — it
-                # would otherwise walk the whole candidate list as a clean
-                # zero-yield run and never trip the circuit breaker.
                 keys = sorted(payload)[:5] if isinstance(payload, dict) else type(payload).__name__
                 raise ValueError(f"unexpected Europe PMC response shape; top-level: {keys}")
-            results = (payload.get("resultList") or {}).get("result") or []
+            result_list = payload.get("resultList")
+            if not isinstance(result_list, dict):
+                raise ValueError(f"unexpected Europe PMC resultList type: {type(result_list).__name__}")
+            results = result_list.get("result") or []
+            if not isinstance(results, list) or not all(isinstance(x, dict) for x in results):
+                raise ValueError("unexpected Europe PMC result shape inside resultList")
             return {x["id"]: x["doi"] for x in results if x.get("id") and x.get("doi")}
-        # AttributeError/TypeError cover a RESHAPED envelope below the top key
-        # (resultList not a dict, result items not dicts, ...): every shape
-        # problem must take this same counted path — escaping instead would
-        # discard the in-flight flush window and skip the breaker accounting.
-        except (requests.RequestException, ValueError, AttributeError, TypeError) as e:
+        except (requests.RequestException, ValueError) as e:
             logger.warning("Europe PMC request failed (attempt %s/%s): %s", attempt, MAX_RETRIES, e)
             if attempt == MAX_RETRIES:
                 break

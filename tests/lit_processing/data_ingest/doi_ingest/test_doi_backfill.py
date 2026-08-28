@@ -119,7 +119,10 @@ class TestEuropePmcFetch:
         dicts, must take the same counted-failure path as a missing envelope
         instead of escaping as AttributeError and killing the run."""
         for bad_payload in ({"resultList": "oops"},
-                            {"resultList": {"result": ["a", "b"]}}):
+                            {"resultList": {"result": ["a", "b"]}},
+                            {"resultList": {"result": 5}},
+                            {"resultList": {"result": {"id": "111"}}},
+                            ["top", "level", "list"]):
             session = MagicMock()
             response = MagicMock()
             response.json.return_value = bad_payload
