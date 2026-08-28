@@ -26,7 +26,7 @@ import argparse
 import logging
 import sys
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -60,7 +60,7 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str]) -> Dict[st
     records that carry a DOI. Uses the MED (PubMed) source so the returned
     'id' is the PMID itself."""
     query = "SRC:MED AND (" + " OR ".join(f"EXT_ID:{p}" for p in pmids) + ")"
-    params = {
+    params: Dict[str, Union[str, int]] = {
         "query": query,
         "resultType": "lite",
         "format": "json",
