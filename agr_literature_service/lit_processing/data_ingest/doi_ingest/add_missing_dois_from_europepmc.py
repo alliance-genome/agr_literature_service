@@ -88,7 +88,16 @@ def fetch_dois_for_pmids(session: requests.Session, pmids: List[str],
         try:
             r = session.get(EUROPEPMC_SEARCH_URL, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
             r.raise_for_status()
-            results = (r.json().get("resultList") or {}).get("result") or []
+            payload = r.json()
+            if "resultList" not in payload:
+                # A 200 with a renamed/missing envelope (schema change, or a
+                # query rejected semantically rather than with a 4xx) must
+                # count as a FAILURE, not as "no DOIs in this batch" — it
+                # would otherwise walk the whole candidate list as a clean
+                # zero-yield run and never trip the circuit breaker.
+                raise ValueError("unexpected Europe PMC response shape; "
+                                 f"top-level keys: {sorted(payload)[:5]}")
+            results = (payload.get("resultList") or {}).get("result") or []
             return {x["id"]: x["doi"] for x in results if x.get("id") and x.get("doi")}
         except (requests.RequestException, ValueError) as e:
             logger.warning("Europe PMC request failed (attempt %s/%s): %s", attempt, MAX_RETRIES, e)
@@ -196,4 +205,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE,
                         help="PMIDs per Europe PMC request")
     args = parser.parse_args()
-    run(dry_run=args.dry_run, limit=args.limit, batch_size=args.batch_size)
+    final_stats = run(dry_run=args.dry_run, limit=args.limit, batch_size=args.batch_size)
+    # Make failed batches legible to job monitoring: the crontab redirects all
+    # output to a log file, so the exit code is the only out-of-band signal.
+    if final_stats.request_failures:
+        sys.exit(1)

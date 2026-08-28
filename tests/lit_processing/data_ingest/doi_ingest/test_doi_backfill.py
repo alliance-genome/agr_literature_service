@@ -100,6 +100,26 @@ class TestEuropePmcFetch:
         assert stats.request_failures == 1
         assert "request_failures=1" in stats.summary()
 
+    def test_unexpected_response_shape_counts_as_failure(self):
+        """A 200 whose envelope lost resultList (schema change) is a failure
+        that feeds the circuit breaker, not a clean empty batch."""
+        session = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {"renamedEnvelope": {"result": []}}
+        response.raise_for_status.return_value = None
+        session.get.return_value = response
+        stats = BackfillStats()
+        with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                   "add_missing_dois_from_europepmc.time.sleep"):
+            assert fetch_dois_for_pmids(session, ["111"], stats) is None
+        assert stats.request_failures == 1
+
+    def test_empty_result_list_is_success_not_failure(self):
+        session = self._session_returning([])
+        stats = BackfillStats()
+        assert fetch_dois_for_pmids(session, ["111"], stats) == {}
+        assert stats.request_failures == 0
+
     def test_circuit_breaker_aborts_after_consecutive_failures(self):
         import requests as requests_lib
         from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_dois_from_europepmc import (
