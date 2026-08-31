@@ -1,12 +1,18 @@
 from contextvars import ContextVar
-from typing import Optional, Dict, Any
+from typing import TYPE_CHECKING, Optional, Dict, Any
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
 
-from agr_literature_service.api.crud import user_crud
-from agr_literature_service.api.models.user_model import UserModel
+if TYPE_CHECKING:
+    from agr_literature_service.api.models.user_model import UserModel
+
+# NOTE: ``user_crud`` and ``UserModel`` are imported lazily inside the
+# functions that need them. This module sits at the centre of an import
+# cycle (models -> versioning/audited_model -> api.user -> crud -> models),
+# so a module-level import of anything from crud/models makes ``api.user``
+# unimportable as an entry point (e.g. from lit_processing scripts).
 
 # Idempotent insert of an automation user row. ``automation_username`` is set to
 # the same value as ``id`` (with ``person_id`` NULL) to satisfy the table CHECK:
@@ -27,7 +33,7 @@ _current_user_id: ContextVar[Optional[str]] = ContextVar(
 )
 
 
-def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
+def _ensure_automation_user(db: Session, program_name: str) -> "UserModel":
     """
     Ensure an automation/system user exists:
       users.id = program_name (string PK)
@@ -35,6 +41,9 @@ def _ensure_automation_user(db: Session, program_name: str) -> UserModel:
       users.person_id = NULL
     This satisfies the CHECK: (person_id IS NULL) <> (automation_username IS NULL)
     """
+    from agr_literature_service.api.crud import user_crud
+    from agr_literature_service.api.models.user_model import UserModel
+
     # Use .first() instead of .one_or_none() to avoid MultipleResultsFound
     u = db.query(UserModel).filter_by(id=program_name).first()
     if u is None:
@@ -169,6 +178,8 @@ def link_user_to_person(db: Session, user_id_str: str, person_id: int) -> None:
       person_id = <id>, automation_username = NULL
     This keeps the CHECK constraint valid.
     """
+    from agr_literature_service.api.models.user_model import UserModel
+
     # Again, use .first() to be resilient to accidental duplicates.
     u = db.query(UserModel).filter_by(id=user_id_str).first()
     if u is None:
