@@ -61,6 +61,7 @@ class TestBuildTagPayload:
         assert data["entity_id_validation"] == mod.ENTITY_ID_VALIDATION
         assert data["species"] == mod.DANIO_RERIO_TAXON
         assert data["data_novelty"] == mod.EXISTING_DATA_NOVELTY_ATP
+        assert data["data_context"] == mod.EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
         assert data["negated"] is False
         assert data["topic_entity_tag_source_id"] == 229
         # created_by/updated_by come from set_global_user_id, not the payload.

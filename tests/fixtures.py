@@ -246,7 +246,12 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000332': 'first pass curation in progress',
         'ATP:0000333': 'first pass curation blocked',
         'ATP:0000371': 'first pass curation TBD',
-        'ATP:0000330': 'first pass curation finished'
+        'ATP:0000330': 'first pass curation finished',
+        # SCRUM-5697 data_context terms (disjoint).
+        'ATP:0000325': 'experimentally studied data',
+        'ATP:0000360': 'background information',
+        'ATP:0000328': 'expression marker',
+        'ATP:0000327': 'genetic marker'
     }
     name_to_atp = {
         'phenotype': 'ATP:0000009',
@@ -277,7 +282,11 @@ def load_name_to_atp_and_relationships_mock():
         'first pass curation in progress': 'ATP:0000332',
         'first pass curation blocked': 'ATP:0000333',
         'first pass curation TBD': 'ATP:0000371',
-        'first pass curation finished': 'ATP:0000330'
+        'first pass curation finished': 'ATP:0000330',
+        'experimentally studied data': 'ATP:0000325',
+        'background information': 'ATP:0000360',
+        'expression marker': 'ATP:0000328',
+        'genetic marker': 'ATP:0000327'
     }
     workflow_parent = {}
     for atp in workflow_children.keys():
