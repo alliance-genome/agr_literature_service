@@ -372,7 +372,9 @@ def search_references(
         # sub-facets replaces the flat facet path when present. Facet count
         # aggregations can't reflect an arbitrary boolean tree, so they run
         # unfiltered by the tree (counts are not tree-scoped in advanced mode).
-        has_tet_advanced = add_tet_advanced_query(es_body, tet_advanced_query)
+        # The tree may also carry workflow-tag leaves (SCRUM-6398), which are
+        # scoped to the corpus/MOD selection like the flat workflow facet path.
+        has_tet_advanced = add_tet_advanced_query(es_body, tet_advanced_query, wft_mod_abbreviations)
     elif tet_nested_facets_values and (
         "tet_facets_values" in tet_nested_facets_values
         or "tet_facets_negative_values" in tet_nested_facets_values
@@ -1213,15 +1215,45 @@ def _tet_leaf_nested_query(match, negate=False):
     return nested_query
 
 
-def build_tet_advanced_query(node):
+def _wft_leaf_nested_query(match, negate=False, wft_mod_abbreviations=None):
+    """Build the nested query for one workflow-tag leaf condition (SCRUM-6398).
+
+    ``match`` carries ``{"workflow_tag_id": [ATP ids...]}``; values are OR-ed
+    (terms). The tag must belong to one of ``wft_mod_abbreviations`` — the same
+    corpus/MOD scoping the flat workflow facet path applies — when that list is
+    given. When ``negate`` is true the nested query is wrapped in a bool.must_not
+    so the reference is dropped if any of its workflow tags matches
+    (whole-reference exclusion)."""
+    values = [v for v in (match.get("workflow_tag_id") or []) if v]
+    if not values:
+        return None
+    must_conditions: List[Dict[str, Any]] = []
+    if wft_mod_abbreviations:
+        must_conditions.append({"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}})
+    must_conditions.append({"terms": {"workflow_tags.workflow_tag_id.keyword": values}})
+    nested_query = {
+        "nested": {
+            "path": "workflow_tags",
+            "query": {"bool": {"must": must_conditions}},
+        }
+    }
+    if negate:
+        return {"bool": {"must_not": [nested_query]}}
+    return nested_query
+
+
+def build_tet_advanced_query(node, wft_mod_abbreviations=None):
     """Recursively compile an advanced TET query tree into an Elasticsearch clause.
 
     Leaf nodes -- ``{"type": "tet", "match": {short_name: [values], ...},
-    "negate": bool}`` -- become nested tag queries. Internal nodes --
-    ``{"operator": "AND"|"OR", "children": [...]}`` -- combine their compiled
-    children with bool.must (AND) or bool.should+minimum_should_match:1 (OR).
-    Empty nodes/children collapse away; a node with a single effective child
-    returns that child directly. Returns ``None`` when nothing to add."""
+    "negate": bool}`` -- become nested tag queries; ``{"type": "wft", "match":
+    {"workflow_tag_id": [...]}, "negate": bool}`` leaves become nested
+    workflow_tags queries so topic and workflow conditions mix in one tree
+    (SCRUM-6398). Internal nodes -- ``{"operator": "AND"|"OR", "children":
+    [...]}`` -- combine their compiled children with bool.must (AND) or
+    bool.should+minimum_should_match:1 (OR). Empty nodes/children collapse away;
+    a node with a single effective child returns that child directly. Returns
+    ``None`` when nothing to add."""
     if not node:
         return None
     if node.get("type") == "tet":
@@ -1229,7 +1261,12 @@ def build_tet_advanced_query(node):
         if not match:
             return None
         return _tet_leaf_nested_query(match, node.get("negate", False))
-    children = [build_tet_advanced_query(child) for child in node.get("children", [])]
+    if node.get("type") == "wft":
+        match = node.get("match") or {}
+        if not match:
+            return None
+        return _wft_leaf_nested_query(match, node.get("negate", False), wft_mod_abbreviations)
+    children = [build_tet_advanced_query(child, wft_mod_abbreviations) for child in node.get("children", [])]
     children = [child for child in children if child]
     if not children:
         return None
@@ -1240,11 +1277,11 @@ def build_tet_advanced_query(node):
     return {"bool": {"must": children}}
 
 
-def add_tet_advanced_query(es_body, tet_advanced_query):
+def add_tet_advanced_query(es_body, tet_advanced_query, wft_mod_abbreviations=None):
     """Attach a compiled advanced TET query tree to ``es_body``'s filter, ANDing
     it with any other filters. Returns True when a clause was added, False when
     the tree was empty (so callers can decide whether to keep the filter block)."""
-    compiled = build_tet_advanced_query(tet_advanced_query)
+    compiled = build_tet_advanced_query(tet_advanced_query, wft_mod_abbreviations)
     if compiled is None:
         return False
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
