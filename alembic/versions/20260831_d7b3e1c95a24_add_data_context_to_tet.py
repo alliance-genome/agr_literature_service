@@ -15,9 +15,17 @@ represents, using four disjoint ATP terms:
 The column is added **nullable** here on purpose. Every TET-creating client
 (the extraction pipelines, the MOD loaders in this repo, WB's own scripts,
 FB's export scripts) has to start sending a value, and every existing row has
-to be backfilled, before the NOT NULL constraint can land. That flip is a
-separate revision, run after
-``lit_processing/oneoff_scripts/SCRUM-5697_backfill_data_context.py``.
+to be backfilled, before the NOT NULL constraint can land.
+
+That flip lives on its own branch/PR (revision e4f9a2c81b57) rather than here,
+because ``apply_alembic_migration.sh`` runs ``alembic upgrade head``: shipping
+both revisions together would apply this one, then abort on the NOT NULL guard
+while NULLs remain -- failing the deploy after it has already stopped the api,
+automated_scripts and Debezium containers. Keeping them separate means
+``upgrade head`` is safe at every point. Sequence:
+
+    this revision  ->  API deploy  ->  SCRUM-5697_backfill_data_context.py
+                   ->  e4f9a2c81b57 (separate PR)
 
 ``ml_model.data_context`` mirrors ``ml_model.data_novelty``: the classifier and
 entity-extraction pipelines read the value off the model they are running and
