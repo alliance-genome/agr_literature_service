@@ -145,8 +145,12 @@ def search_references(
     author_exact_token_for_boost = None
     uses_rescore = False
 
-    # Default recency order
-    order = sort_by_published_date_order if sort_by_published_date_order in ("asc", "desc") else "desc"
+    # Default recency order. An explicit "asc"/"desc" means the user picked
+    # "Oldest first"/"Newest first" and expects chronological ordering, not
+    # relevance ordering with date as a tie-breaker; None/"relevance" keeps
+    # score-first ordering with recency only breaking score ties.
+    explicit_date_sort = sort_by_published_date_order in ("asc", "desc")
+    order = sort_by_published_date_order if explicit_date_sort else "desc"
 
     # Pagination
     from_entry = (page - 1) * size_result_count
@@ -685,6 +689,7 @@ def search_references(
                 is_text_search=is_text_search,
                 uses_rescore=uses_rescore,
                 order=order,
+                explicit_date_sort=explicit_date_sort,
             )
 
     # Execute
