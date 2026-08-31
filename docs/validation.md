@@ -101,6 +101,18 @@ which includes self so exact equality still matches), and `data_novelty`. All th
 agree on direction. Cross-branch novelty — "existing data" `ATP:0000334` versus "novel
 data" `ATP:0000321` — blocks validation outright.
 
+**`data_context` is deliberately NOT a dimension.** SCRUM-5697 added a fifth ATP field to
+every tag — one of four *disjoint* terms: experimentally studied data `ATP:0000325`,
+background information `ATP:0000360`, expression marker `ATP:0000328`, genetic marker
+`ATP:0000327`. It is stored, indexed, exported to Elasticsearch and editable, but
+`validate_tags` ignores it entirely. That is not an oversight: the three ATP dimensions
+above work by walking ancestors/descendants, and disjoint terms have no
+generic/specific relationship to walk, so "all dimensions agree on direction" has no
+meaning for it. Deciding what validation *should* do when two tags agree on topic, entity
+and novelty but disagree on data context (does a background-information tag validate an
+experimentally-studied one? neither? conflict?) is SCRUM-5746's job. Until that lands,
+tags validate each other across data contexts freely.
+
 **Species is the fourth dimension**, and it follows the same generic/specific logic
 without an ontology behind it (`:612`, `:644`, `:684`, `:691`). Read a **null species as
 "more generic"** — the assertion applies regardless of organism — and a **specific species
