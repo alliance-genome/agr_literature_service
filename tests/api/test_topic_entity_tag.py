@@ -1733,6 +1733,32 @@ class TestTopicEntityTag:
             get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
             assert get_resp.json()["data_context"] == "ATP:0000360"
 
+    def test_data_context_accepts_intermediate_terms(self, test_reference, auth_headers,  # noqa
+                                                     test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: data_context is a hierarchy, not a flat set of four leaves --
+        ATP:0000323 (data context) has two intermediate groupings, ATP:0000324
+        (mentioned data) and ATP:0000326 (marker data), above the leaves. Those
+        are legitimate, less-specific values, so the ATP validity check must
+        accept them. See docs/validation.md."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            for index, term in enumerate(["ATP:0000324", "ATP:0000326"]):
+                new_tag = {
+                    "reference_curie": test_reference.new_ref_curie,
+                    "topic": "ATP:0000122",
+                    "species": "NCBITaxon:6239",
+                    "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                    "negated": False,
+                    "data_novelty": "ATP:0000334",
+                    "data_context": term,
+                    "note": f"intermediate data context {index}",
+                }
+                create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+                assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.json()
+                tag_id = create_resp.json()["topic_entity_tag_id"]
+                get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+                assert get_resp.json()["data_context"] == term
+
     def test_data_context_defaults_when_omitted(self, test_reference, auth_headers,  # noqa
                                                 test_topic_entity_tag_source):  # noqa
         """SCRUM-5697: while the column is still nullable, a caller that omits

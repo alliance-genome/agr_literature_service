@@ -211,7 +211,13 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:task1_failed': [], 'ATP:task2_failed': [], 'ATP:task3_failed': [],
         'ATP:task1_complete': [], 'ATP:task2_complete': [], 'ATP:task3_complete': [],
         'ATP:0000334': [],
-        'ATP:0000228': [], 'ATP:0000229': []
+        'ATP:0000228': [], 'ATP:0000229': [],
+        # SCRUM-5697 data_context hierarchy (see docs/validation.md)
+        'ATP:0000323': ['ATP:0000324', 'ATP:0000326'],
+        'ATP:0000324': ['ATP:0000360', 'ATP:0000325'],
+        'ATP:0000326': ['ATP:0000328', 'ATP:0000327'],
+        'ATP:0000325': [], 'ATP:0000360': [],
+        'ATP:0000327': [], 'ATP:0000328': []
     }
 
     atp_to_name = {
@@ -247,9 +253,12 @@ def load_name_to_atp_and_relationships_mock():
         'ATP:0000333': 'first pass curation blocked',
         'ATP:0000371': 'first pass curation TBD',
         'ATP:0000330': 'first pass curation finished',
-        # SCRUM-5697 data_context terms (disjoint).
-        'ATP:0000325': 'experimentally studied data',
+        # SCRUM-5697 data_context hierarchy (root, two groupings, four leaves).
+        'ATP:0000323': 'data context',
+        'ATP:0000324': 'mentioned data',
         'ATP:0000360': 'background information',
+        'ATP:0000325': 'experimentally studied data',
+        'ATP:0000326': 'marker data',
         'ATP:0000328': 'expression marker',
         'ATP:0000327': 'genetic marker'
     }
@@ -283,8 +292,11 @@ def load_name_to_atp_and_relationships_mock():
         'first pass curation blocked': 'ATP:0000333',
         'first pass curation TBD': 'ATP:0000371',
         'first pass curation finished': 'ATP:0000330',
-        'experimentally studied data': 'ATP:0000325',
+        'data context': 'ATP:0000323',
+        'mentioned data': 'ATP:0000324',
         'background information': 'ATP:0000360',
+        'experimentally studied data': 'ATP:0000325',
+        'marker data': 'ATP:0000326',
         'expression marker': 'ATP:0000328',
         'genetic marker': 'ATP:0000327'
     }
