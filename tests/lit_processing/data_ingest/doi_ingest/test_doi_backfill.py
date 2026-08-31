@@ -1,0 +1,282 @@
+"""Unit tests for the monthly DOI backfill scripts (SCRUM-4525). Pure-function
+and MagicMock-based, no database or network required."""
+
+from unittest.mock import MagicMock, patch
+
+from sqlalchemy.exc import IntegrityError
+
+from agr_literature_service.lit_processing.data_ingest.doi_ingest.doi_backfill_utils import (
+    BackfillStats,
+    Candidate,
+    add_doi_cross_references,
+    normalize_doi,
+)
+from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_dois_from_europepmc import (
+    collect_additions as europepmc_collect_additions,
+    fetch_dois_for_pmids,
+)
+
+
+class TestNormalizeDoi:
+
+    def test_plain_doi_passes_through(self):
+        assert normalize_doi("10.1371/journal.pone.0123456") == "10.1371/journal.pone.0123456"
+
+    def test_wrappers_are_stripped(self):
+        for raw in ("doi:10.1234/abc", "DOI:10.1234/abc", "https://doi.org/10.1234/abc",
+                    "http://dx.doi.org/10.1234/abc", "  10.1234/abc  "):
+            assert normalize_doi(raw) == "10.1234/abc"
+
+    def test_case_of_suffix_preserved(self):
+        assert normalize_doi("10.1234/AbC.DeF") == "10.1234/AbC.DeF"
+
+    def test_invalid_dois_rejected(self):
+        for raw in (None, "", "not-a-doi", "10.1234", "11.1234/abc", "10.12/abc", "10.1234/with space"):
+            assert normalize_doi(raw) is None
+
+
+class TestEuropePmcFetch:
+
+    def _session_returning(self, results):
+        session = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {"resultList": {"result": results}}
+        response.raise_for_status.return_value = None
+        session.get.return_value = response
+        return session
+
+    def test_fetch_maps_pmid_to_doi(self):
+        session = self._session_returning([
+            {"id": "111", "doi": "10.1234/aaa"},
+            {"id": "222"},  # no DOI in Europe PMC
+        ])
+        assert fetch_dois_for_pmids(session, ["111", "222"]) == {"111": "10.1234/aaa"}
+        query = session.get.call_args.kwargs["params"]["query"]
+        assert "SRC:MED" in query and "EXT_ID:111" in query and "EXT_ID:222" in query
+
+    def test_collect_additions_pairs_candidates(self):
+        session = self._session_returning([{"id": "111", "doi": "10.1234/aaa"}])
+        cand = Candidate(reference_id=1, curie="AGRKB:101", pmid="111")
+        no_pmid = Candidate(reference_id=2, curie="AGRKB:102", pmid=None)
+        stats = BackfillStats()
+        additions = europepmc_collect_additions([cand, no_pmid], 100, stats, session=session)
+        assert additions == [(cand, "10.1234/aaa")]
+        assert stats.dois_found == 1
+
+    def test_dois_found_accumulates_across_batches(self):
+        # batch_size=1 forces one request per candidate; the counter must
+        # accumulate, not report only the last window
+        session = self._session_returning([{"id": "111", "doi": "10.1234/aaa"}])
+        response2 = MagicMock()
+        response2.json.return_value = {"resultList": {"result": [{"id": "222", "doi": "10.1234/bbb"}]}}
+        response2.raise_for_status.return_value = None
+        session.get.side_effect = [session.get.return_value, response2]
+        cands = [Candidate(reference_id=1, curie="AGRKB:101", pmid="111"),
+                 Candidate(reference_id=2, curie="AGRKB:102", pmid="222")]
+        stats = BackfillStats()
+        additions = europepmc_collect_additions(cands, 1, stats, session=session)
+        assert stats.dois_found == 2
+        assert len(additions) == 2
+
+    def test_on_flush_receives_chunks_and_final_remainder(self):
+        session = self._session_returning([{"id": "111", "doi": "10.1234/aaa"}])
+        cand = Candidate(reference_id=1, curie="AGRKB:101", pmid="111")
+        stats = BackfillStats()
+        flushed = []
+        result = europepmc_collect_additions([cand], 100, stats, session=session,
+                                             on_flush=flushed.append)
+        assert result == []                       # everything went through the callback
+        assert flushed == [[(cand, "10.1234/aaa")]]
+
+    def test_failed_batch_counts_into_request_failures(self):
+        import requests as requests_lib
+        session = MagicMock()
+        session.get.side_effect = requests_lib.ConnectionError("down")
+        stats = BackfillStats()
+        with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                   "add_missing_dois_from_europepmc.time.sleep"):
+            # None (failure) is distinguishable from {} (batch with no DOIs)
+            assert fetch_dois_for_pmids(session, ["111"], stats) is None
+        assert stats.request_failures == 1
+        assert "request_failures=1" in stats.summary()
+
+    def test_unexpected_response_shape_counts_as_failure(self):
+        """A 200 whose envelope lost resultList (schema change) is a failure
+        that feeds the circuit breaker, not a clean empty batch."""
+        session = MagicMock()
+        response = MagicMock()
+        response.json.return_value = {"renamedEnvelope": {"result": []}}
+        response.raise_for_status.return_value = None
+        session.get.return_value = response
+        stats = BackfillStats()
+        with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                   "add_missing_dois_from_europepmc.time.sleep"):
+            assert fetch_dois_for_pmids(session, ["111"], stats) is None
+        assert stats.request_failures == 1
+
+    def test_reshaped_envelope_below_top_key_counts_as_failure(self):
+        """resultList present but not a dict, or result items that aren't
+        dicts, must take the same counted-failure path as a missing envelope
+        instead of escaping as AttributeError and killing the run."""
+        for bad_payload in ({"resultList": "oops"},
+                            {"resultList": {"result": ["a", "b"]}},
+                            {"resultList": {"result": 5}},
+                            {"resultList": {"result": {"id": "111"}}},
+                            ["top", "level", "list"],
+                            # falsy/missing result: a renamed inner key must
+                            # not read as an empty batch (zero-hit queries
+                            # return "result": [] with the key present)
+                            {"resultList": {}},
+                            {"resultList": {"result": None}},
+                            {"resultList": {"result": {}}},
+                            {"resultList": {"result": 0}},
+                            {"resultList": {"records": [{"id": "1", "doi": "10.1234/a"}]}}):
+            session = MagicMock()
+            response = MagicMock()
+            response.json.return_value = bad_payload
+            response.raise_for_status.return_value = None
+            session.get.return_value = response
+            stats = BackfillStats()
+            with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                       "add_missing_dois_from_europepmc.time.sleep"):
+                assert fetch_dois_for_pmids(session, ["111"], stats) is None
+            assert stats.request_failures == 1
+
+    def test_empty_result_list_is_success_not_failure(self):
+        session = self._session_returning([])
+        stats = BackfillStats()
+        assert fetch_dois_for_pmids(session, ["111"], stats) == {}
+        assert stats.request_failures == 0
+
+    def test_circuit_breaker_aborts_after_consecutive_failures(self):
+        import requests as requests_lib
+        from agr_literature_service.lit_processing.data_ingest.doi_ingest.add_missing_dois_from_europepmc import (
+            MAX_CONSECUTIVE_FAILURES, MAX_RETRIES,
+        )
+        session = MagicMock()
+        session.get.side_effect = requests_lib.ConnectionError("down")
+        # more candidates than the breaker threshold, one per batch
+        cands = [Candidate(reference_id=n, curie=f"AGRKB:{n}", pmid=str(n))
+                 for n in range(1, MAX_CONSECUTIVE_FAILURES + 20)]
+        stats = BackfillStats()
+        with patch("agr_literature_service.lit_processing.data_ingest.doi_ingest."
+                   "add_missing_dois_from_europepmc.time.sleep"):
+            additions = europepmc_collect_additions(cands, 1, stats, session=session)
+        assert additions == []
+        # aborted at the threshold instead of walking all candidates
+        assert stats.request_failures == MAX_CONSECUTIVE_FAILURES
+        assert session.get.call_count == MAX_CONSECUTIVE_FAILURES * MAX_RETRIES
+
+
+class TestAddDoiCrossReferences:
+
+    def _db_with_existing(self, rows):
+        db = MagicMock()
+        db.execute.return_value.fetchall.return_value = rows
+        return db
+
+    def test_adds_new_doi(self):
+        db = self._db_with_existing([])
+        stats = BackfillStats()
+        cand = Candidate(reference_id=1, curie="AGRKB:101")
+        add_doi_cross_references(db, [(cand, "10.1234/aaa")], stats)
+        assert stats.added == 1
+        assert db.add.call_count == 1
+        xref = db.add.call_args.args[0]
+        assert xref.curie == "DOI:10.1234/aaa"
+        assert xref.curie_prefix == "DOI"
+        assert xref.reference_id == 1
+        assert db.commit.called
+
+    def test_dry_run_writes_nothing(self):
+        db = self._db_with_existing([])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")],
+                                 stats, dry_run=True)
+        assert stats.added == 1
+        assert not db.add.called
+        assert not db.commit.called
+
+    def test_conflict_with_other_reference_is_skipped_and_reported(self):
+        db = self._db_with_existing([("DOI:10.1234/aaa", 99, False, "AGRKB:999")])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
+        assert stats.added == 0
+        assert stats.conflict_other_reference == 1
+        assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "AGRKB:999")]
+        assert not db.add.called
+
+    def test_curator_removed_doi_is_not_readded(self):
+        db = self._db_with_existing([("DOI:10.1234/aaa", 1, True, "AGRKB:101")])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
+        assert stats.added == 0
+        assert stats.removed_by_curator == 1
+        assert not db.add.called
+
+    def test_invalid_doi_is_counted_not_added(self):
+        db = self._db_with_existing([])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "garbage")], stats)
+        assert stats.invalid_doi == 1
+        assert stats.added == 0
+        assert not db.add.called
+
+    def test_duplicate_doi_within_run_second_reference_conflicts(self):
+        db = self._db_with_existing([])
+        stats = BackfillStats()
+        additions = [
+            (Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa"),
+            (Candidate(reference_id=2, curie="AGRKB:102"), "10.1234/aaa"),
+        ]
+        add_doi_cross_references(db, additions, stats)
+        assert stats.added == 1
+        assert stats.conflict_other_reference == 1
+        assert stats.conflicts == [("AGRKB:102", "DOI:10.1234/aaa", "AGRKB:101")]
+
+    def test_dry_run_reports_intra_run_duplicate_like_a_real_run(self):
+        """The dry run must preview the same add/conflict split as a real run
+        when two candidates resolve to the same DOI."""
+        db = self._db_with_existing([])
+        stats = BackfillStats()
+        additions = [
+            (Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa"),
+            (Candidate(reference_id=2, curie="AGRKB:102"), "10.1234/aaa"),
+        ]
+        add_doi_cross_references(db, additions, stats, dry_run=True)
+        assert stats.added == 1
+        assert stats.conflict_other_reference == 1
+        assert stats.conflicts == [("AGRKB:102", "DOI:10.1234/aaa", "AGRKB:101")]
+        assert not db.add.called
+
+    def test_curator_removed_doi_blocks_case_variants(self):
+        db = self._db_with_existing([("DOI:10.1234/ABC", 1, True, "AGRKB:101")])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/abc")], stats)
+        assert stats.removed_by_curator == 1
+        assert stats.added == 0
+        assert not db.add.called
+
+    def test_conflict_detected_across_case_variants(self):
+        db = self._db_with_existing([("DOI:10.1234/AbC", 99, False, "AGRKB:999")])
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/abc")], stats)
+        assert stats.conflict_other_reference == 1
+        assert stats.added == 0
+        assert not db.add.called
+
+    def test_concurrent_writer_race_skips_row_instead_of_aborting(self):
+        """A unique-index race at commit time downgrades to a per-row retry;
+        the losing row is reported, not raised, and stats reflect reality."""
+        db = self._db_with_existing([])
+        db.commit.side_effect = [
+            IntegrityError("stmt", {}, Exception("duplicate key")),  # batch commit
+            IntegrityError("stmt", {}, Exception("duplicate key")),  # per-row retry
+        ]
+        stats = BackfillStats()
+        add_doi_cross_references(db, [(Candidate(reference_id=1, curie="AGRKB:101"), "10.1234/aaa")], stats)
+        assert stats.added == 0
+        assert stats.lost_race == 1
+        assert stats.conflict_other_reference == 0
+        assert stats.conflicts == [("AGRKB:101", "DOI:10.1234/aaa", "concurrent writer")]
+        assert db.rollback.call_count == 2
