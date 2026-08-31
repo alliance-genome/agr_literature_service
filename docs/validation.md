@@ -86,7 +86,7 @@ ATP_ID_SOURCE_CURATOR = "professional_biocurator"  # :70
 
 Despite the names, these are **not** ATP ids — they are `validation_type` strings.
 
-### The rules: generic vs specific, in three dimensions
+### The rules: generic vs specific, in four dimensions
 
 - A new **positive** tag validates existing tags that are **more generic** (`:596`).
 - A new **negative** tag validates existing tags that are **more specific** (`:628`).
@@ -100,6 +100,24 @@ hierarchies** — `topic`, `entity_type` (via `atp_hierarchy_with_self`, `:580`,
 which includes self so exact equality still matches), and `data_novelty`. All three must
 agree on direction. Cross-branch novelty — "existing data" `ATP:0000334` versus "novel
 data" `ATP:0000321` — blocks validation outright.
+
+**Species is the fourth dimension**, and it follows the same generic/specific logic
+without an ontology behind it (`:612`, `:644`, `:684`, `:691`). Read a **null species as
+"more generic"** — the assertion applies regardless of organism — and a **specific species
+as "more specific"**. The apparent asymmetry between the branches is deliberate and
+semantically correct, not a bug:
+
+| New tag | Check | Effect |
+|---|---|---|
+| Positive | `tag_in_db.species is None or tag_in_db.species == new.species` (`:612`) | A species-specific positive validates a null-species tag: finding *C. elegans* data confirms the broader claim |
+| Negative | `new_tag_obj.species is None or tag_in_db.species == new.species` (`:644`) | A species-specific negative does **not** validate a null-species tag: "no *C. elegans* disease data" does not contradict "this paper has disease data for some organism" |
+
+That asymmetry is correct only when a classifier really is species-agnostic. When a model
+was *trained* species-specifically but still emits `species = null`, curator negatives
+scoped to a species silently fail to invalidate it while their positives validate it — so
+the model accrues positive validations and never negative ones. See the Confluence page
+linked at the end of this document, which treats this at length and proposes recording
+each model's training definition on `ml_model.species`.
 
 Edge insertion is `INSERT ... ON CONFLICT DO NOTHING` (`add_validation_to_db`, `:714-726`)
 because the overlapping rules legitimately re-assert the same pair within a single pass.
@@ -196,14 +214,23 @@ The ATP hierarchy is mocked by `load_name_to_atp_and_relationships_mock()`
 
 Ranked by likelihood of causing a surprise.
 
-1. **`professional_curator` vs `professional_biocurator`.** Grid votes use the former;
+1. **`professional_curator` vs `professional_biocurator`.** (SCRUM-6476) Grid votes use the former;
    `calculate_validation_value_for_tag` only matches the latter. Those tags *do* create
    edges in the join table (the gate is merely "`validation_type` is not null"), but the
    edges are filtered out of both buckets — so the tag reads `not_validated` and
    contributes nothing to anyone else's rollup, and is invisible to the SCRUM-6228 search
    facet. Because the source unique key **excludes** `validation_type`
    (`topic_entity_tag_model.py:259-263`), which string a given MOD ends up with depends on
-   which row happened to be created first, so this behaves differently per MOD.
+   which row happened to be created first.
+
+   **Verified in production 2026-08-28: all seven MOD sources currently carry
+   `professional_biocurator`, so this is latent, not live.** Grid votes do count today.
+   But `CURATOR_VALIDATION_TYPE` is what the code writes on *creation*, so the first
+   genuinely new source row — a new MOD onboarding, or any change to
+   `source_evidence_assertion`, `source_method` or `data_provider` — would silently get the
+   string that is not counted, with no error and no visible symptom. Since the seven rows
+   are already uniform, changing `CURATOR_VALIDATION_TYPE` to `professional_biocurator`
+   closes it with no migration and no data change.
 2. **`validation_type` is unconstrained free text**
    (`topic_entity_tag_schemas.py:32,52`). Observed values: `author`,
    `professional_biocurator`, `professional_curator`, `manual_validation`
@@ -221,11 +248,11 @@ Ranked by likelihood of causing a surprise.
    silently overwritten by the ensuing resweep.
 6. **No audit trail on validation edges.** "Who validated this, and when" is not answerable
    historically.
-7. **The three rule functions are near-duplicates** (`:596`, `:628`, `:660`) with subtly
-   *inverted* null-tolerance — `tag_in_db.species is None` at `:612` versus
-   `new_tag_obj.species is None` at `:644` versus both at `:684`/`:691` — plus three
-   near-identical entity-only loops. Any rule change must be made consistently in three to
-   six places.
+7. **The three rule functions are near-duplicates** (`:596`, `:628`, `:660`), each
+   re-implementing the same four-dimension matching, plus three near-identical entity-only
+   loops. Any rule change must be made consistently in three to six places. Note the
+   differing null-tolerance between branches (`:612` versus `:644`) is *intentional* — see
+   the species rule above — so this is a maintainability risk, not a correctness one.
 8. **`validation_by_author` is a second-class citizen** — computed and stored, but no ES
    index, no facet, no UI surface.
 9. **MOD-specific logic in a generic path.** The `opposite_negation` 409 fires only for
@@ -312,3 +339,38 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 | `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:1923` |
 | `_recompute_validation_cell` | `topic_entity_tag_crud.py:1979` |
 | `validate_topic` | `topic_entity_tag_crud.py:1999` |
+
+---
+
+## See also
+
+**Confluence — [Topic classification, automatic cross-validation, and curator validation:
+what curators need to know](https://agr-jira.atlassian.net/wiki/spaces/BLUE/pages/1360494593/Topic+classification+automatic+cross-validation+and+curator+validation+what+curators+need+to+know)**
+
+That page is the curator-facing companion to this one and should be read alongside it. It
+covers ground this document deliberately does not:
+
+- the ATP vocabulary's six top-level branches, and what a TET's columns mean to a curator
+- `confidence_score` driving `negated` at the 0.5 boundary, and the
+  `NEG` / `LOW` / `MEDIUM` / `HIGH` binning of `confidence_level`
+- the DB-to-UI remapping of the five rollup values (the author column shows
+  "agree"/"disagree"; `validated_right_self` renders as a blank cell)
+- worked examples of the topic and species rules, including one negative parent tag
+  invalidating several positive children in a single click
+- **the species / *C. elegans* problem** — classifiers emit `species = null` regardless of
+  their training definition, and the proposal to record it on `ml_model.species`
+- that the detailed per-paper TET table's tick/cross is a **third** write path, distinct
+  from the topic grid's: it mirrors the exact scope of the row being validated
+- that author tags are kept out of the biocurator column deliberately, as "indications"
+  rather than validations
+
+One caveat when reading it: its section 5.2 classifier table still has blank cells
+awaiting curator input.
+
+Its section 3 claim — that a grid click recomputes the `validated_right` /
+`validated_wrong` summary — was checked against production on 2026-08-28 and **holds**.
+All seven MOD sources carry `validation_type = 'professional_biocurator'`, so
+`get_or_create_curator_validation_source` finds an existing row every time and inherits
+that value. Grid votes do reach `validation_by_professional_biocurator` today, and the
+species proposal in its sections 4 and 5 stands unamended. The latent mismatch is tracked
+as SCRUM-6476 — see risk 1.
