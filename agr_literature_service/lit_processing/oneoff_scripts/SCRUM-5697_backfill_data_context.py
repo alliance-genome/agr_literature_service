@@ -40,11 +40,16 @@ rule wins and re-running is safe:
 
   3. FB, any tag -> ATP:0000325
 
-  4. Everything still NULL -> DEFAULT_DATA_CONTEXT
-     The catch-all. The curator rules cover WB and FB; this is what MGI, RGD,
-     ZFIN and SGD tags get, plus any WB/FB tag the rules above missed (e.g. a
-     MOD-provided rather than Alliance-provided source). Review rule 4's
-     dry-run count before running for real -- it is the least-specified part.
+  4a. WB or FB tags the rules above did not claim -> ATP:0000325
+  4b. All other MODs                              -> ATP:0000325
+
+     Same value; split only so the dry-run distinguishes them. 4b is the
+     curators' rule for MGI, RGD, ZFIN and SGD. 4a is a diagnostic: rules 1 and
+     2 are restricted to Alliance-provided sources, so a WB tag from a
+     MOD-provided source lands here and gets ATP:0000325 rather than the
+     ATP:0000323 of rule 1. A large 4a count would mean most WB tags are not
+     Alliance-provided and rules 1/2 are too narrow to express what the curators
+     asked for -- check it before running for real.
 
 Note on the going-forward values, which differ from the backfill on purpose:
 the WB entity-extraction pipelines are configured to send ATP:0000323, whereas
@@ -120,7 +125,12 @@ RULES = [
         "m.abbreviation = 'FB'",
     ),
     (
-        "4. catch-all (all other MODs and anything the rules above missed)",
+        "4a. WB or FB tags the rules above did not claim",
+        DEFAULT_DATA_CONTEXT,
+        "m.abbreviation IN ('WB', 'FB')",
+    ),
+    (
+        "4b. all other MODs",
         DEFAULT_DATA_CONTEXT,
         "TRUE",
     ),
