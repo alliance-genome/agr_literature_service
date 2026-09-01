@@ -59,7 +59,10 @@ create_slot_index() {   # $1=index name  $2=mapping file
 }
 
 alias_current_slot() {  # echo the slot (1|2) the alias currently points at, or empty
-  es GET "/_alias/$1" 2>/dev/null | grep -oE "${1}_[12]" | grep -oE '[12]$' | head -1
+  # "no alias yet" is the normal bootstrap state (fresh Elasticsearch), not an error: the greps
+  # exit 1 on no match, and under `set -euo pipefail` that would kill the script at the first
+  # main-body line with no output at all. Swallow it and let the caller treat empty as "no slot".
+  es GET "/_alias/$1" 2>/dev/null | grep -oE "${1}_[12]" | grep -oE '[12]$' | head -1 || true
 }
 
 flip_alias() {          # $1=alias  $2=new index (slot)
@@ -128,9 +131,14 @@ wait_for_topics() {     # $@ = sql files to scan for 'topic'='...'
 db_count() {            # $1 = SQL returning a single integer
   # Bounded: on a saturated box this count can crawl, and Gate 2 must not hang on it. An empty
   # result disables the stall guard, so the caller warns loudly rather than proceeding silently.
-  PGPASSWORD="$PSQL_PASSWORD" psql -h "$PSQL_HOST" -p "$PSQL_PORT" -U "$PSQL_USERNAME" \
+  # statement_timeout is applied via PGOPTIONS, NOT a second -c: psql echoes the "SET" command tag
+  # on stdout, and `tr -d '[:space:]'` then glues it onto the number ("SET1295410"). That value
+  # fails every `[ "$target" -gt 0 ]` test, which silently sets min=0 and DISABLES Gate 2's stall
+  # guard -- the run still completes and can flip the alias onto a partial index.
+  PGPASSWORD="$PSQL_PASSWORD" \
+  PGOPTIONS="-c statement_timeout=${DBZ_FLINK_TARGET_QUERY_TIMEOUT:-180s}" \
+  psql -h "$PSQL_HOST" -p "$PSQL_PORT" -U "$PSQL_USERNAME" \
     -d "$PSQL_DATABASE" -v ON_ERROR_STOP=1 \
-    -c "SET statement_timeout = '${DBZ_FLINK_TARGET_QUERY_TIMEOUT:-180s}'" \
     -tAc "$1" 2>/dev/null | tr -d '[:space:]'
 }
 
@@ -149,8 +157,10 @@ flink_job_state() {     # $1=job name  $2=only consider jobs started at/after th
 # Opens one session, executes every statement of a .sql file in order (so CREATE TABLE/VIEW precede the
 # INSERT), retargeting the ES sink index to the given slot index. The final INSERT submits the job.
 flink_submit_file() {   # $1=sql file  $2=index-name-in-file  $3=slot-index-name
+  # `|| true` so a gateway that is down (grep finds no handle -> exit 1 -> pipefail) reaches the
+  # explicit FATAL below instead of dying silently under `set -e`.
   local sh; sh=$(curl -s -X POST "${GW}/v1/sessions" -H 'Content-Type: application/json' -d '{}' \
-                 | grep -o '"sessionHandle":"[^"]*"' | cut -d'"' -f4)
+                 | grep -o '"sessionHandle":"[^"]*"' | cut -d'"' -f4 || true)
   [ -n "$sh" ] || { log "FATAL: could not open SQL Gateway session (is flink_sqlgateway up?)"; exit 1; }
   # split on statement-terminating semicolons (our SQL has no ';' inside string literals).
   # Reads from a process substitution rather than a pipe so a FATAL below aborts the whole
@@ -272,7 +282,11 @@ PUB_TARGET=$(db_count "SELECT count(DISTINCT r.reference_id) FROM reference r
                         JOIN mod_corpus_association m ON m.reference_id = r.reference_id AND m.corpus = TRUE")
 log "targets from source DB: private=${PRIV_TARGET:-unavailable} public=${PUB_TARGET:-unavailable}"
 for _t in "$PRIV_TARGET" "$PUB_TARGET"; do
-  [ -n "$_t" ] || log "WARNING: a target count could not be read -- Gate 2's stall guard is DISABLED for that index"
+  # Must be all-digits, not merely non-empty: any stray token (a psql command tag, a notice) makes
+  # every `-gt` test fail, which disables the stall guard without saying so.
+  case "$_t" in
+    "" | *[!0-9]*) log "WARNING: target count '${_t}' is not a plain number -- Gate 2's stall guard is DISABLED for that index" ;;
+  esac
 done
 flink_submit_file "${SQL_DIR}/references_index.sql"        flink_references_index        "$PRIV_IDX"
 flink_submit_file "${SQL_DIR}/public_references_index.sql" flink_public_references_index "$PUB_IDX"
