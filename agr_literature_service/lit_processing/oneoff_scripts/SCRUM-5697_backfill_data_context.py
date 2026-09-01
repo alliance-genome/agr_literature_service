@@ -141,24 +141,47 @@ _SCOPE_JOIN = """
     JOIN topic_entity_tag_source tets
       ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
     JOIN mod m ON tets.secondary_data_provider_id = m.mod_id
-    WHERE tet.data_context IS NULL AND ({extra})
+    WHERE {unset} AND ({extra})
 """
 
 
-def count_for_rule(db, extra: str) -> int:
-    sql = "SELECT count(*)" + _SCOPE_JOIN.format(extra=extra)
+def data_context_column_exists(db) -> bool:
+    """Whether the migration that adds the column (d7b3e1c95a24) has been applied.
+
+    A --dry-run is useful before it has: the counts are what curators need in
+    order to sign the rules off, and waiting for the deploy to produce them puts
+    the decision on the critical path for no reason.
+    """
+    return bool(db.execute(text("""
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'topic_entity_tag' AND column_name = 'data_context'
+    """)).fetchone())
+
+
+def unset_clause(column_exists: bool) -> str:
+    """Rows the backfill would still have to set.
+
+    Once the column exists that is the NULL ones; before it exists every row
+    qualifies, which is exactly what the counts should reflect.
+    """
+    return "tet.data_context IS NULL" if column_exists else "TRUE"
+
+
+def count_for_rule(db, extra: str, unset: str = "tet.data_context IS NULL") -> int:
+    sql = "SELECT count(*)" + _SCOPE_JOIN.format(extra=extra, unset=unset)
     return db.execute(text(sql)).scalar() or 0
 
 
-def report_null_counts(db) -> int:
-    """Log how many tags still lack a data_context, broken down by owning MOD."""
-    rows = db.execute(text("""
+def report_null_counts(db, unset: str = "tet.data_context IS NULL") -> int:
+    """Log how many tags still need a data_context, broken down by owning MOD."""
+    rows = db.execute(text(f"""
         SELECT m.abbreviation, count(*)
         FROM topic_entity_tag tet
         JOIN topic_entity_tag_source tets
           ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id
         JOIN mod m ON tets.secondary_data_provider_id = m.mod_id
-        WHERE tet.data_context IS NULL
+        WHERE {unset}
         GROUP BY m.abbreviation
         ORDER BY count(*) DESC
     """)).fetchall()
@@ -166,7 +189,7 @@ def report_null_counts(db) -> int:
     for abbreviation, count in rows:
         logger.info(f"    {abbreviation}: {count}")
         total += count
-    logger.info(f"  Total with data_context IS NULL: {total}")
+    logger.info(f"  Total needing a value: {total}")
     return total
 
 
@@ -180,7 +203,7 @@ def apply_rule(db, name: str, value: str, extra: str) -> int:
             SET data_context = :value
             WHERE topic_entity_tag_id IN (
                 SELECT tet.topic_entity_tag_id
-                {_SCOPE_JOIN.format(extra=extra)}
+                {_SCOPE_JOIN.format(extra=extra, unset='tet.data_context IS NULL')}
                 LIMIT :batch_size
             )
             """),
@@ -200,8 +223,21 @@ def backfill_data_context(dry_run: bool = False):
     script_name = path.basename(__file__).replace(".py", "")
     set_global_user_id(db, script_name)
 
-    logger.info("Tags without a data_context, by MOD:")
-    total = report_null_counts(db)
+    column_exists = data_context_column_exists(db)
+    unset = unset_clause(column_exists)
+    if not column_exists:
+        if not dry_run:
+            raise SystemExit(
+                "topic_entity_tag.data_context does not exist on this database. "
+                "Apply migration d7b3e1c95a24 first, then re-run.\n"
+                "(--dry-run works without it, and reports every tag as needing a value.)")
+        logger.info("NOTE: data_context does not exist on this database yet "
+                    "(migration d7b3e1c95a24 not applied), so every tag counts as "
+                    "needing a value. These are the numbers the rules would produce "
+                    "on deploy day.\n")
+
+    logger.info("Tags needing a data_context, by MOD:")
+    total = report_null_counts(db, unset)
     if total == 0:
         logger.info("Nothing to backfill.")
         db.close()
@@ -221,7 +257,7 @@ def backfill_data_context(dry_run: bool = False):
                 scoped = f"({extra}) AND NOT ({' OR '.join(claimed_so_far)})"
             else:
                 scoped = extra
-            claimed = count_for_rule(db, scoped)
+            claimed = count_for_rule(db, scoped, unset)
             logger.info(f"  {name}\n      -> {claimed} tags to {value}")
             claimed_so_far.append(f"({extra})")
             remaining -= claimed
