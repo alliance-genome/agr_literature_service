@@ -503,6 +503,13 @@ services:
         # never converged. Steady-state fault tolerance (checkpoint dir on a shared volume) is P4.
         restart-strategy: none
         jobmanager.memory.process.size: 1600m
+        # The reindex saturates the box (Flink + local ES on the same cores), so the TaskManager's
+        # heartbeat thread can be starved or sat behind a long GC pause for well over Flink's 50s
+        # default. With restart-strategy: none a single missed heartbeat kills the whole job --
+        # observed at ~990s in, "heartbeat of TaskManager ... timed out", TM container still Up and
+        # never restarted. Widen the window so only a genuinely dead TM fails the job.
+        heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
+        heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
     networks:
       - agr-literature
 
@@ -533,6 +540,9 @@ services:
         # ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per box via env.
         taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.5}
+        # Must match the JobManager's values -- see the heartbeat note there.
+        heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
+        heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
 
   # SCRUM-6336: Flink SQL Gateway -- lets the reindex orchestrator (setup_flink.sh) submit SQL over
   # REST with curl, staying container-friendly like the old ksqlDB setup. Shares the JobManager netns
