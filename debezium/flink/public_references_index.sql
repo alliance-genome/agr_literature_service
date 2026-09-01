@@ -53,7 +53,7 @@ CREATE TABLE cross_reference (
   'properties.group.id'='flink-pubidx','scan.startup.mode'='earliest-offset','format'='debezium-json');
 
 CREATE TABLE author (
-  author_id STRING, reference_id STRING, orcid STRING, name STRING,
+  author_id STRING, reference_id STRING, orcid STRING, name STRING, author_order INT,
   PRIMARY KEY (author_id) NOT ENFORCED
 ) WITH ('connector'='kafka','topic'='abc.public.author','properties.bootstrap.servers'='dbz_kafka:9092',
   'properties.group.id'='flink-pubidx','scan.startup.mode'='earliest-offset','format'='debezium-json');
@@ -88,7 +88,9 @@ CREATE VIEW cross_references_agg AS
   FROM cross_reference GROUP BY reference_id;
 
 CREATE VIEW authors_agg AS
-  SELECT reference_id, ARRAY_AGG(MAP['name', name, 'orcid', orcid]) AS authors
+  SELECT reference_id,
+         ARRAY_AGG(MAP['name', name, 'orcid', orcid,
+                       'author_order', CAST(author_order AS STRING)]) AS authors
   FROM author GROUP BY reference_id;
 
 CREATE VIEW mods_in_corpus_agg AS

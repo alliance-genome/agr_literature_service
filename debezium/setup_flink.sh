@@ -27,6 +27,7 @@ PRIVATE_ALIAS="${DEBEZIUM_INDEX_NAME:-references_index}"
 PUBLIC_ALIAS="public_references_index"
 PRIVATE_MAPPING="${BASE_DIR}elasticsearch-settings.json"
 PUBLIC_MAPPING="${BASE_DIR}elasticsearch-settings-public.json"
+PIPELINE_JSON="${BASE_DIR}sort-authors-pipeline.json"
 SOURCE_JSON="${BASE_DIR}postgres-source-flink.json"
 SOURCE_CONNECTOR="postgres-source-flink"
 SLOT_NAME="debezium_unified"
@@ -38,6 +39,17 @@ log() { echo "[setup_flink $(date -u +%H:%M:%S)] $*"; }
 # ---- ES helpers ------------------------------------------------------------------------------------
 es()   { curl -s -X "$1" "${ES}$2" "${@:3}"; }
 es_count() { es GET "/$1/_count" | sed 's/.*"count":\([0-9]*\).*/\1/'; }
+
+create_authors_pipeline() {
+  # Both mapping files set index.default_pipeline=sort_authors_by_order, so the pipeline MUST exist
+  # before the indexes take any writes (a missing default_pipeline fails every bulk request). PUT is
+  # idempotent. Mirrors setup.sh in the ksqlDB path (SCRUM-6405).
+  local ack; ack=$(es PUT "/_ingest/pipeline/sort_authors_by_order" \
+    -H 'Content-Type: application/json' --data-binary @"$PIPELINE_JSON" \
+    | grep -o '"acknowledged":true' || true)
+  [ -n "$ack" ] || { log "FATAL: could not create ingest pipeline sort_authors_by_order from $PIPELINE_JSON"; exit 1; }
+  log "created ingest pipeline sort_authors_by_order"
+}
 
 create_slot_index() {   # $1=index name  $2=mapping file
   es DELETE "/$1" >/dev/null 2>&1 || true
@@ -119,6 +131,7 @@ active=$(alias_current_slot "$PRIVATE_ALIAS"); [ "$active" = "1" ] && SLOT=2 || 
 log "active slot=${active:-none}; building INACTIVE slot ${SLOT}"
 PRIV_IDX="${PRIVATE_ALIAS}_${SLOT}"; PUB_IDX="${PUBLIC_ALIAS}_${SLOT}"
 
+create_authors_pipeline
 create_slot_index "$PRIV_IDX" "$PRIVATE_MAPPING"
 create_slot_index "$PUB_IDX"  "$PUBLIC_MAPPING"
 deploy_source
