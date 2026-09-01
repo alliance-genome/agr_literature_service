@@ -235,6 +235,28 @@ wait_for_catchup() {    # Gate 2: index size stable for CATCHUP_STABLE_SECS (job
   log "Gate 2: cap reached; flipping anyway (index=$1, $c docs of $target)"
 }
 
+# Both index jobs are submitted back-to-back and run CONCURRENTLY, so the cluster must hold both at
+# once: slot sharing makes a parallelism-N job occupy N slots, hence 2*N slots total. The compose
+# defaults already encode this (TASK_SLOTS=4 with PARALLELISM=2); raising PARALLELISM without raising
+# TASK_SLOTS lets the first job take its slots and the second die ~30s later with nothing but a bare
+# NoResourceAvailableException from the scheduler. Check it up front and say what to change.
+preflight_slots() {
+  local par need total avail ov
+  par="${DBZ_FLINK_PARALLELISM:-2}"; need=$(( 2 * par ))
+  ov=$(curl -s "${FLINK_REST}/overview" || true)
+  total=$(echo "$ov" | grep -o '"slots-total":[0-9]*'     | cut -d: -f2 || true)
+  avail=$(echo "$ov" | grep -o '"slots-available":[0-9]*' | cut -d: -f2 || true)
+  case "$total" in
+    "" | *[!0-9]*) log "WARNING: could not read Flink slot counts -- skipping slot preflight"; return 0 ;;
+  esac
+  [ "$total" -ge "$need" ] || {
+    log "FATAL: Flink has ${total} task slots, but this reindex runs 2 jobs at parallelism ${par} (needs ${need})."
+    log "  Raise DBZ_FLINK_TASK_SLOTS to >= ${need} (or lower DBZ_FLINK_PARALLELISM) and restart flink_taskmanager."
+    exit 1
+  }
+  log "preflight: ${total} slots total, ${avail:-?} free; need ${need} for 2 concurrent parallelism-${par} jobs"
+}
+
 # Re-running this script rebuilds a slot index from scratch (DELETE + PUT). Any job left running
 # from a previous attempt is still writing into that same index, so it must be cancelled first --
 # otherwise two generations race and the "caught up" count is meaningless.
@@ -288,6 +310,7 @@ for _t in "$PRIV_TARGET" "$PUB_TARGET"; do
     "" | *[!0-9]*) log "WARNING: target count '${_t}' is not a plain number -- Gate 2's stall guard is DISABLED for that index" ;;
   esac
 done
+preflight_slots
 flink_submit_file "${SQL_DIR}/references_index.sql"        flink_references_index        "$PRIV_IDX"
 flink_submit_file "${SQL_DIR}/public_references_index.sql" flink_public_references_index "$PUB_IDX"
 wait_for_catchup "$PRIV_IDX" references_index        "$RUN_SINCE_MS" "$PRIV_TARGET"
