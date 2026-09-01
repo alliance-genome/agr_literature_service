@@ -23,11 +23,20 @@ rule wins and re-running is safe:
      Machine classification output for WormBase. The root term: the paper was
      classified for the topic, with no claim about what kind of data that is.
 
-  2. WB, Alliance-provided, entity extraction (has entity) -> ATP:0000325
-     Excludes anything already marked ATP:0000328 (expression marker) -- those
-     keep the more specific term. Because the rule targets NULLs only, that
-     exclusion is automatic, but it is stated explicitly so the intent survives
-     a future edit.
+  2a. WB, Alliance-provided, entity extraction whose own topic (or entity_type)
+      is ATP:0000328 expression marker -> ATP:0000328
+  2b. All other WB, Alliance-provided entity extraction -> ATP:0000325
+
+     "entity extraction that don't have ATP:0000328 expression marker" is read as
+     the tag's own topic. That is the only sense in which an existing tag can
+     "have" that term: data_context is NULL everywhere until this script runs, so
+     a rule phrased against data_context would be vacuous.
+
+     The current production entity-extraction models are gene, allele, strain,
+     transgenic allele and species -- none of them ATP:0000328 -- so rule 2a may
+     claim nothing. Older non-production models are retained, so it is written to
+     catch their tags if any exist. Read the --dry-run count for 2a: if it is 0,
+     no historical WB entity tag is an expression marker and 2b covers them all.
 
   3. FB, any tag -> ATP:0000325
 
@@ -57,6 +66,7 @@ Usage (the filename contains a hyphen, so run it by path, not with ``-m``)::
 import argparse
 import logging
 from os import path
+from typing import List
 
 from sqlalchemy import text
 
@@ -91,11 +101,18 @@ RULES = [
         f"AND tet.entity IS NULL",
     ),
     (
-        "2. WB / Alliance / entity extraction (has entity)",
-        EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
+        "2a. WB / Alliance / entity extraction, expression marker",
+        EXPRESSION_MARKER_DATA_CONTEXT_ATP,
         f"m.abbreviation = 'WB' AND tets.data_provider = '{ALLIANCE_DATA_PROVIDER}' "
         f"AND tet.entity IS NOT NULL "
-        f"AND tet.data_context IS DISTINCT FROM '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}'",
+        f"AND (tet.topic = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}' "
+        f"     OR tet.entity_type = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}')",
+    ),
+    (
+        "2b. WB / Alliance / entity extraction, everything else",
+        EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
+        f"m.abbreviation = 'WB' AND tets.data_provider = '{ALLIANCE_DATA_PROVIDER}' "
+        f"AND tet.entity IS NOT NULL",
     ),
     (
         "3. FB / any tag",
@@ -183,14 +200,20 @@ def backfill_data_context(dry_run: bool = False):
     if dry_run:
         logger.info("\n--dry-run: rows each rule WOULD claim (in order, "
                     "first rule wins):")
+        # A later rule's clause can be a superset of an earlier one's -- 2b
+        # contains 2a -- so counting each independently overstates the later
+        # rule. Exclude everything the earlier rules would already have taken,
+        # which is what the ordered UPDATEs actually do.
+        claimed_so_far: List[str] = []
         remaining = total
         for name, value, extra in RULES:
-            n = count_for_rule(db, extra)
-            # Later rules only see what earlier ones leave behind; counting them
-            # independently would double-count, so report against the running
-            # remainder.
-            claimed = min(n, remaining)
+            if claimed_so_far:
+                scoped = f"({extra}) AND NOT ({' OR '.join(claimed_so_far)})"
+            else:
+                scoped = extra
+            claimed = count_for_rule(db, scoped)
             logger.info(f"  {name}\n      -> {claimed} tags to {value}")
+            claimed_so_far.append(f"({extra})")
             remaining -= claimed
         logger.info(f"  Unclaimed after all rules: {remaining} (must be 0)")
         logger.info("\nNothing was written.")
