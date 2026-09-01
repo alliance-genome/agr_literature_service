@@ -86,7 +86,12 @@ def search_references(
     facets_values: Dict[str, List[str]] = None,
     negated_facets_values: Dict[str, List[str]] = None,
     size_result_count: Optional[int] = 10,
-    sort_by_published_date_order: Optional[str] = "desc",
+    # None = caller has no ordering opinion (relevance ordering with a recency
+    # tie-break). Only an explicit "asc"/"desc" — the UI's Oldest/Newest first —
+    # switches to chronological ordering; a "desc" DEFAULT here would make
+    # internal callers that omit the argument (e.g. sort_crud's needs-review
+    # keyword search) silently lose relevance ranking (PR #1290 review).
+    sort_by_published_date_order: Optional[str] = None,
     page: Optional[int] = 1,
     facets_limits: Dict[str, int] = None,
     return_facets_only: bool = False,
@@ -150,7 +155,10 @@ def search_references(
     # relevance ordering with date as a tie-breaker; None/"relevance" keeps
     # score-first ordering with recency only breaking score ties.
     explicit_date_sort = sort_by_published_date_order in ("asc", "desc")
-    order = sort_by_published_date_order if explicit_date_sort else "desc"
+    # "asc" only when explicitly requested; "desc" covers both the explicit case
+    # and the default recency tie-break. (Comparing against the literal keeps
+    # `order` a plain str for mypy, which can't narrow through the flag above.)
+    order = "asc" if sort_by_published_date_order == "asc" else "desc"
 
     # Pagination
     from_entry = (page - 1) * size_result_count
