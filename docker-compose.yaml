@@ -538,6 +538,14 @@ services:
     # replacing ksqlDB's ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per
     # box via env. heartbeat.* must match the JobManager's -- see the note on that service.
     #
+    # SLOT COUNT IS A MEMORY KNOB, not just a concurrency knob. Flink divides managed memory evenly
+    # PER SLOT, and this job puts ~40 stateful operators (13 aggregates + ~20 joins) in each slot,
+    # every one with its own RocksDB instance sharing that slot's slice. Raising TASK_SLOTS shrinks
+    # the slice: at 0.3 of a 16g TM over 8 slots each slot got ~553MB for ~40 backends, so memtables
+    # were tiny and every join subtask sat permanently inside RocksDB.put -- a write stall, with the
+    # disk under 4% utilised and the heap at 0.07 of 8.73 GiB. Keep slots at the minimum the job
+    # needs (2 * parallelism, both jobs run concurrently) rather than filling the box with them.
+    #
     # managed.fraction is deliberately LOW. Managed memory is off-heap and only caches RocksDB, whose
     # state lives on disk regardless; whatever it takes is subtracted from the JVM heap that the
     # 13-way join actually runs in. At 0.6 of a 15g TM the heap got just 4g, ran ~90% full, and the
