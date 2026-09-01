@@ -6,16 +6,15 @@ SET 'execution.runtime-mode' = 'streaming';
 SET 'pipeline.name' = 'public_references_index';
 -- Same tuning as references_index.sql: mini-batch coalesces aggregate+join updates so each reference
 -- is written ~once with its aggregates attached (kills reindex write-amplification / temp-object churn).
--- upsert-materialize is intentionally NOT forced (it backpressures the DAG and starves heavy aggregates;
--- the ES sink upserts by PRIMARY KEY so the final doc converges, and we flip the alias only after Gate 2).
+-- upsert-materialize is AUTO: PK-upsert convergence only holds if the changelog reaches the sink
+-- ordered per key, which is not true once parallelism > 1 (see references_index.sql).
 SET 'table.exec.mini-batch.enabled' = 'true';
 SET 'table.exec.mini-batch.allow-latency' = '30 s';
 SET 'table.exec.mini-batch.size' = '200000';
 SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
--- Disable the sink upsert-materializer (see references_index.sql): AUTO inserts a full-result-set
--- stateful operator that, on top of the aggregate state, blows the managed-memory budget and makes
--- RocksDB thrash. NONE relies on PK upsert convergence + Gate 2 catch-up before the alias flip.
-SET 'table.exec.sink.upsert-materialize' = 'NONE';
+-- Sink upsert-materializer: see the note in references_index.sql. NONE is unsafe at
+-- parallelism > 1 (out-of-order retractions delete converged docs).
+SET 'table.exec.sink.upsert-materialize' = 'AUTO';
 
 -- ============================ SOURCE TABLES ============================
 CREATE TABLE reference (

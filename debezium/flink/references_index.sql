@@ -15,14 +15,16 @@ SET 'table.exec.mini-batch.enabled' = 'true';
 SET 'table.exec.mini-batch.allow-latency' = '30 s';
 SET 'table.exec.mini-batch.size' = '200000';
 SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
--- Disable the sink upsert-materializer entirely. In AUTO mode Flink inserts a full-result-set stateful
--- operator ahead of the ES sink that holds EVERY keyed row (~1.3M docs) in RocksDB -- on top of the
--- already-huge aggregate state (mesh_detail 18M, author 7.7M, cross 4M, tet 2.7M) this blows past the
--- managed-memory budget and RocksDB thrashes on disk compaction (reindex throughput collapses to a
--- crawl). NONE removes that operator: the ES sink upserts by PRIMARY KEY so the final doc converges
--- from the aggregate retractions anyway, and we only flip the alias after Gate 2 (catch-up) confirms a
--- stable count -- correct for a from-scratch idempotent reindex.
-SET 'table.exec.sink.upsert-materialize' = 'NONE';
+-- Sink upsert-materializer. This must NOT be NONE when the job runs with parallelism > 1.
+-- NONE was only safe by accident: the SQL Gateway had no parallelism.default, so it compiled every
+-- job at parallelism 1 and the single subtask kept the changelog ordered per key. Under a real
+-- parallel shuffle the sink's -U/+U can arrive out of order: a stale delete lands after the newest
+-- insert and the doc is removed for good, so the index shrinks instead of converging (measured on
+-- the dbz-test box at ~1 delete per index op, doc count going backwards). AUTO lets Flink insert the
+-- materializer only for plans that actually need it, so a genuinely safe plan still pays nothing.
+-- If its state becomes the memory problem the old comment feared, cut parallelism or raise the TM --
+-- do not go back to NONE while parallelism > 1.
+SET 'table.exec.sink.upsert-materialize' = 'AUTO';
 
 -- ============================ SOURCE TABLES (Debezium CDC, full envelope) ============================
 CREATE TABLE reference (
