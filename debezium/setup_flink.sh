@@ -32,6 +32,7 @@ SOURCE_JSON="${BASE_DIR}postgres-source-flink.json"
 SOURCE_CONNECTOR="postgres-source-flink"
 SLOT_NAME="debezium_unified"
 CATCHUP_STABLE_SECS="${DBZ_FLINK_CATCHUP_STABLE_SECS:-120}"   # index size unchanged this long == caught up
+STALL_IDLE_SECS="${DBZ_FLINK_STALL_IDLE_SECS:-600}"           # ZERO writes this long == genuinely stalled
 CATCHUP_MAX_SECS="${DBZ_DATA_PROCESSING_SLEEP:-20000}"        # hard cap
 
 log() { echo "[setup_flink $(date -u +%H:%M:%S)] $*"; }
@@ -39,6 +40,10 @@ log() { echo "[setup_flink $(date -u +%H:%M:%S)] $*"; }
 # ---- ES helpers ------------------------------------------------------------------------------------
 es()   { curl -s -X "$1" "${ES}$2" "${@:3}"; }
 es_count() { es GET "/$1/_count" | sed 's/.*"count":\([0-9]*\).*/\1/'; }
+# Monotonic tally of indexing operations, rewrites included. Unlike the doc count this keeps climbing
+# right through the backlog's retraction churn, so "took no writes at all" is the only sound stall
+# signal; a flat doc count on its own is normal mid-backlog. Empty on error -> treated as unchanged.
+es_index_total() { es GET "/$1/_stats/indexing" | grep -o '"index_total":[0-9]*' | head -1 | cut -d: -f2 || true; }
 
 create_authors_pipeline() {
   # Both mapping files set index.default_pipeline=sort_authors_by_order, so the pipeline MUST exist
@@ -192,8 +197,8 @@ wait_for_catchup() {    # Gate 2: index size stable for CATCHUP_STABLE_SECS (job
                         # $1=index  $2=flink job name  $3=run marker epoch-ms  $4=expected doc count
   local target="${4:-0}" min=0
   [ "$target" -gt 0 ] 2>/dev/null && min=$(( target * ${DBZ_FLINK_MIN_CATCHUP_PCT:-99} / 100 ))
-  log "Gate 2: waiting for $1 to catch up (target ${target:-?}, min ${min}, stable ${CATCHUP_STABLE_SECS}s, cap ${CATCHUP_MAX_SECS}s) ..."
-  local prev=-1 stable=0 elapsed=0
+  log "Gate 2: waiting for $1 to catch up (target ${target:-?}, min ${min}, stable ${CATCHUP_STABLE_SECS}s, idle-stall ${STALL_IDLE_SECS}s, cap ${CATCHUP_MAX_SECS}s) ..."
+  local prev=-1 stable=0 elapsed=0 prevw=-1 idle=0
   while [ $elapsed -lt "$CATCHUP_MAX_SECS" ]; do
     sleep 30; elapsed=$((elapsed+30))
     # A dead job leaves the count frozen, which otherwise looks identical to "still working" and
@@ -206,21 +211,25 @@ wait_for_catchup() {    # Gate 2: index size stable for CATCHUP_STABLE_SECS (job
         log "  inspect: curl ${FLINK_REST}/jobs/overview  and  /jobs/<jid>/exceptions"
         exit 1 ;;
     esac
-    local c; c=$(es_count "$1" 2>/dev/null || echo 0)
-    if [ "$c" = "$prev" ] && [ "$c" -gt 0 ]; then
-      stable=$((stable+30))
-      if [ $stable -ge "$CATCHUP_STABLE_SECS" ]; then
-        # A stalled job also holds a perfectly stable count. Only a count that actually reached the
-        # source total means "caught up"; anything else is a stall and must not reach the alias.
-        if [ "$min" -gt 0 ] && [ "$c" -lt "$min" ]; then
-          log "FATAL: $1 held at $c docs for ${stable}s but target is $target (min $min, $((c*100/target))%)."
-          log "  That is a STALL, not catch-up -- refusing to flip the alias onto a partial index."
-          exit 1
-        fi
-        log "$1 caught up at $c docs (target $target)"; return 0
-      fi
-    else stable=0; fi
-    log "  $1 = $c docs$([ "$target" -gt 0 ] 2>/dev/null && echo " ($((c*100/target))% of $target)") (stable ${stable}s, job=$js)"; prev=$c
+    local c w; c=$(es_count "$1" 2>/dev/null || echo 0); w=$(es_index_total "$1")
+    # LIVENESS is measured by writes, not by doc count. During the backlog a reference is rewritten
+    # every time one of its 13 aggregates arrives, so the top-level count legitimately plateaus for
+    # minutes while the job is working flat out (observed: 66054 docs held ~2min, then jumped to
+    # 100547). Treating a flat count as a stall aborts a perfectly healthy reindex at ~8%.
+    if [ "$w" = "$prevw" ]; then idle=$((idle+30)); else idle=0; fi
+    if [ "$c" = "$prev" ]; then stable=$((stable+30)); else stable=0; fi
+    # Caught up: reached the source total AND stopped moving. Below min it is NOT catch-up, so keep
+    # waiting -- only a genuine write-idle period or the cap ends the loop.
+    if [ "$c" -gt 0 ] && [ "$c" -ge "$min" ] && [ $stable -ge "$CATCHUP_STABLE_SECS" ]; then
+      log "$1 caught up at $c docs (target $target)"; return 0
+    fi
+    if [ $idle -ge "$STALL_IDLE_SECS" ]; then
+      log "FATAL: $1 has taken no writes for ${idle}s (still $c docs of $target) -- that is a real STALL."
+      log "  Refusing to flip the alias onto a partial index. Check the job: ${FLINK_REST}/jobs/overview"
+      exit 1
+    fi
+    log "  $1 = $c docs$([ "$target" -gt 0 ] 2>/dev/null && echo " ($((c*100/target))% of $target)") (stable ${stable}s, idle ${idle}s, writes ${w:-?}, job=$js)"
+    prev=$c; prevw=$w
   done
   # Cap reached. Flipping an alias onto an empty index takes the search down, so never do it.
   local c; c=$(es_count "$1" 2>/dev/null || echo 0)
