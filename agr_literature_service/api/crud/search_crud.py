@@ -287,7 +287,12 @@ def search_references(
                                 "terms": {
                                     "field": "workflow_tags.workflow_tag_id.keyword",
                                     "min_doc_count": 0,
-                                    "size": 100
+                                    # Overridable so the advanced-query vocab fetch
+                                    # can request the full per-MOD workflow
+                                    # vocabulary instead of the top-100 (SCRUM-6398).
+                                    "size": facets_limits.get(
+                                        "workflow_tags.workflow_tag_id.keyword", 100
+                                    )
                                 },
                                 "aggs": {"reverse_docs": {"reverse_nested": {}}}
                             }
