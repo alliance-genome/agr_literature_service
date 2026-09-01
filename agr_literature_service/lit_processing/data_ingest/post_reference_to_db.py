@@ -12,7 +12,7 @@ from agr_literature_service.lit_processing.utils.sqlalchemy_utils import create_
 from agr_literature_service.lit_processing.utils.db_read_utils import get_journal_data, \
     get_doi_data, get_reference_by_pmid
 from agr_literature_service.lit_processing.data_ingest.utils.db_write_utils import \
-    add_zfin_pre_indexing_tag
+    add_zfin_corpus_entry_tags
 from agr_literature_service.api.crud.reference_crud import get_citation_from_args
 from agr_literature_service.global_utils import get_next_reference_curie
 from agr_literature_service.lit_processing.data_ingest.utils.date_utils import parse_date
@@ -160,7 +160,7 @@ def insert_mod_corpus_associations(db_session, primaryId, reference_id, mod_to_m
             db_session.add(mca)
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'])
             if x['modAbbreviation'] == 'ZFIN' and x['corpus']:
-                add_zfin_pre_indexing_tag(db_session, reference_id, mod_id, log)
+                add_zfin_corpus_entry_tags(db_session, reference_id, mod_id, log)
         except Exception as e:
             log.info(primaryId + ": INSERT MOD_CORPUS_ASSOCIATION: for reference_id = " + str(reference_id) + ", mod_id = " + str(mod_id) + ", mod_corpus_sort_source = " + x['modCorpusSortSource'] + " " + str(e))
 
@@ -297,22 +297,37 @@ def insert_cross_references(db_session, primaryId, reference_id, doi_to_referenc
 
 def insert_authors(db_session, primaryId, reference_id, author_list_from_json):
 
-    for x in author_list_from_json:
+    # Renumber author_order sequentially 1..N over the authors sorted by their incoming
+    # rank. This mirrors replace_authors_from_json and normalizes bad payload data (e.g.
+    # duplicate or gapped authorRank) into a valid unique ordering, so a duplicate
+    # authorRank can't violate uq_author_ref_order and abort the whole batch's commit.
+    ranked_authors = [x for x in author_list_from_json if x.get('authorRank') is not None]
+
+    # DQM sometimes delivers authorRank as a string (see dqm_processing_utils which
+    # does int(author_dict['authorRank'])); sorting on the raw value would order
+    # "10" before "2" lexicographically and blow up on mixed str/int. Coerce to int,
+    # falling back to a large sentinel so a non-numeric rank sorts last instead of
+    # crashing the whole batch.
+    def _rank_key(x):
+        try:
+            return int(x['authorRank'])
+        except (TypeError, ValueError):
+            return 10 ** 9
+    ranked_authors.sort(key=_rank_key)
+
+    for author_order, x in enumerate(ranked_authors, start=1):
         orcid = 'ORCID:' + x['orcid'] if x.get('orcid') else ''
         affiliations = x['affiliations'] if x.get('affiliations') else []
         name = x.get('name', '')
         firstname = x.get('firstname', '')
         lastname = x.get('lastname', '')
         firstinit = x.get('firstinit', '')
-        rank = x.get('authorRank')
-        if rank is None:
-            continue
         authorData = {"reference_id": reference_id,
                       "name": name,
                       "first_name": firstname,
                       "last_name": lastname,
                       "first_initial": firstinit,
-                      "author_order": rank,
+                      "author_order": author_order,
                       "affiliations": affiliations,
                       "orcid": orcid if orcid else None,
                       "first_author": False,

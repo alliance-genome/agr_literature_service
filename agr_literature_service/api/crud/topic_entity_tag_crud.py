@@ -45,7 +45,7 @@ from agr_literature_service.api.schemas.topic_entity_tag_schemas import (TopicEn
                                                                          TopicEntityTagSchemaUpdate)
 from agr_literature_service.lit_processing.utils.email_utils import send_email
 from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids
-from agr_literature_service.api.crud.user_utils import map_to_user_id
+from agr_literature_service.api.crud.user_utils import map_to_user_id, map_to_existing_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -520,10 +520,22 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
                             detail=f"topic_entityTag with the topic_entity_tag_id {topic_entity_tag_id} "
                                    f"is not available")
     patch_data_dict = patch_data.model_dump(exclude_unset=True)
-    if "created_by" in patch_data_dict and patch_data_dict["created_by"] is not None:
-        patch_data_dict["created_by"] = map_to_user_id(patch_data_dict["created_by"], db)
-    if "updated_by" in patch_data_dict and patch_data_dict["updated_by"] is not None:
-        patch_data_dict["updated_by"] = map_to_user_id(patch_data_dict["updated_by"], db)
+    # Audit fields on a PATCH must resolve to an EXISTING user. An identifier
+    # that maps to no users row (e.g. the UI sending its Cognito token sub,
+    # SCRUM-6459) is dropped so the audited-model before_update listener stamps
+    # the authenticated user, instead of the raw value being stored and an
+    # orphan automation users row being minted by the auto-create path.
+    for audit_field in ("created_by", "updated_by"):
+        if patch_data_dict.get(audit_field) is None:
+            continue
+        resolved = map_to_existing_user_id(patch_data_dict[audit_field], db)
+        if resolved is None:
+            logger.warning(
+                f"patch_tag: dropping {audit_field}={patch_data_dict[audit_field]!r} on tag "
+                f"{topic_entity_tag_id}: does not resolve to an existing user")
+            del patch_data_dict[audit_field]
+        else:
+            patch_data_dict[audit_field] = resolved
     add_audited_object_users_if_not_exist(db, patch_data_dict)
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
@@ -1463,6 +1475,7 @@ def _entry_base(label: str, source_data: Dict[str, Any]) -> Dict[str, Any]:
         "source_label": label,
         "source_description": source_data.get("description"),
         "source_evidence_assertion": source_data.get("source_evidence_assertion"),
+        "source_evidence_assertion_name": source_data.get("source_evidence_assertion_name"),
     }
 
 
@@ -2062,6 +2075,14 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
 
 
 def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_updated: int = 7):
+    # This MOD-facing export deliberately ships ONLY tags curated in the ABC
+    # itself: an allowlist of source_method = 'abc_literature_system', not a
+    # denylist of specific sources. Tags from classifier / pipeline / bulk
+    # loader sources (abc_document_classifier, curation_status_form,
+    # string_matching_antibody, the PDB association pipeline, ACKnowledge/AFP,
+    # sgd_reference_curation, zfin_reference_curation, ...) are intentionally
+    # excluded (SCRUM-6404 review). The same filter is applied to the source
+    # metadata below and in get_curie_to_name_mapping_for_mod.
 
     current_date = datetime.now()
     past_date = current_date - timedelta(days=int(days_updated))
@@ -2075,6 +2096,7 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
                            "JOIN users u ON tet.updated_by = u.id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
                       {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
 
@@ -2096,7 +2118,8 @@ def get_all_topic_entity_tags_by_mod(db: Session, mod_abbreviation: str, days_up
     src_rows = db.execute(text("SELECT tets.* "
                                "FROM topic_entity_tag_source tets "
                                "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
-                               "WHERE m.abbreviation = :mod_abbreviation"),
+                               "WHERE m.abbreviation = :mod_abbreviation "
+                               "AND tets.source_method = 'abc_literature_system'"),
                           {'mod_abbreviation': mod_abbreviation}).mappings().fetchall()
     metadata = [dict(row) for row in src_rows]
 
@@ -2112,6 +2135,7 @@ def get_curie_to_name_mapping_for_mod(db, mod_abbreviation, last_date_updated):
                            "JOIN topic_entity_tag_source tets ON tet.topic_entity_tag_source_id = tets.topic_entity_tag_source_id "
                            "JOIN mod m ON tets.secondary_data_provider_id = m.mod_id "
                            "WHERE m.abbreviation = :mod_abbreviation "
+                           "AND tets.source_method = 'abc_literature_system' "
                            "AND tet.date_updated >= :last_date_updated"),
                       {'mod_abbreviation': mod_abbreviation, 'last_date_updated': last_date_updated}).mappings().fetchall()
     for x in rows:

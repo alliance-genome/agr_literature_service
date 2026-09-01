@@ -695,6 +695,21 @@ def search_references(
 
 # --------------------------- Results shaping ---------------------------
 
+def sort_authors_by_order(authors):
+    """
+    Return authors sorted by author_order so hits match the database author order.
+    The sort_authors_by_order ingest pipeline already stores the array sorted; this
+    keeps results correct for documents indexed before the pipeline existed. Authors
+    without a parseable author_order sort last, preserving their relative order.
+    """
+    def order_key(author):
+        try:
+            return (0, int(author.get("author_order")))
+        except (TypeError, ValueError):
+            return (1, 0)
+    return sorted(authors or [], key=order_key)
+
+
 def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
     hits = [{
         "curie": ref["_source"]["curie"],
@@ -709,7 +724,7 @@ def process_search_results(res, wft_mod_abbreviations):  # pragma: no cover
         "workflow_tags": ref["_source"]["workflow_tags"],
         "mod_reference_types": ref["_source"]["mod_reference_types"],
         "language": ref["fields"]["language.keyword"],
-        "authors": ref["_source"]["authors"],
+        "authors": sort_authors_by_order(ref["_source"]["authors"]),
         "reference_emails": ref["_source"].get("reference_emails", []),
         "indexing_priorities": ref["_source"].get("indexing_priorities", []),
         "manual_indexing_tags": ref["_source"].get("manual_indexing_tags", []),

@@ -13,9 +13,105 @@ from agr_literature_service.api.crud.reference_resource import add, create_obj, 
 from agr_literature_service.api.crud.user_utils import map_to_user_id
 from agr_literature_service.api.models import (
     AuthorModel,
+    PersonModel,
     ReferenceModel
 )
 from agr_literature_service.api.schemas import AuthorSchemaPost
+
+
+_AUTHOR_METADATA_FIELDS = ("name", "first_name", "last_name", "first_initial", "orcid", "affiliations")
+
+
+def _coerce_person_only_metadata(author_data: dict):
+    """For a person-only row (no author_order) coerce empty-string / empty-list
+    metadata to ``None`` in place so it lands as NULL and satisfies
+    ck_person_only_link_only, rather than surfacing a raw IntegrityError/500.
+
+    A UI sending ``affiliations: []`` or ``name: ""`` to mean "no metadata" then
+    creates a valid person-only stub. Only the string/array metadata fields are
+    touched; ``first_author``/``corresponding_author`` are left as-is (a ``True``
+    on a person-only row is real metadata and must still be rejected)."""
+    if author_data.get("author_order") is not None:
+        return
+    for field in _AUTHOR_METADATA_FIELDS:
+        value = author_data.get(field)
+        if value == "" or value == []:
+            author_data[field] = None
+
+
+def _resolve_person_curie(db: Session, author_data: dict):
+    """Pop person_curie from the payload and return the resolved person_id (or None)."""
+    curie = author_data.pop("person_curie", None)
+    if not curie:
+        return None
+    person_id = db.query(PersonModel.person_id).filter(PersonModel.curie == curie).scalar()
+    if person_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Person with curie {curie} not found")
+    return person_id
+
+
+def _validate_author_constraints(author_data: dict, person_id, require_reference: bool = False):
+    """Pre-validate the author-table CHECK / NOT NULL constraints and raise a clear 422
+    instead of letting a raw IntegrityError surface as a 500.
+
+    ``author_data`` is expected to have had ``person_curie`` already popped;
+    ``person_id`` is the resolved person link (or ``None``). Set
+    ``require_reference`` on the standalone POST /author path, where the row must
+    carry a reference_curie (embedded-in-reference authors inherit the parent)."""
+    # Normalize empty-string/empty-list metadata to NULL on a person-only row so a
+    # UI sending e.g. ``affiliations: []`` or ``name: ""`` creates a valid stub
+    # instead of tripping ck_person_only_link_only at INSERT (raw 500).
+    _coerce_person_only_metadata(author_data)
+
+    has_order = author_data.get("author_order") is not None
+    has_person = person_id is not None
+
+    # author.reference_id is NOT NULL: every author must belong to a reference.
+    if require_reference and not author_data.get("reference_curie"):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An author must belong to a reference; supply reference_curie")
+
+    # ck_author_person_or_order: person_id IS NOT NULL OR author_order IS NOT NULL.
+    if not has_person and not has_order:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="An author must have an author_order or be linked to a person (person_curie)")
+
+    # ck_person_only_link_only: with no author_order the row is a person-only link
+    # and may not carry any author metadata.
+    if not has_order:
+        has_metadata = (any(author_data.get(f) for f in _AUTHOR_METADATA_FIELDS)
+                        or bool(author_data.get("first_author"))
+                        or bool(author_data.get("corresponding_author")))
+        if has_metadata:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="A person-only link (no author_order) cannot carry author metadata "
+                       "(name/first_name/last_name/first_initial/orcid/affiliations/"
+                       "first_author/corresponding_author)")
+
+
+def link_person(db: Session, author_db_obj: AuthorModel, person_id: int):
+    """Set person_id on author_db_obj, merging/erroring per the uniqueness rules."""
+    if person_id is None:
+        return
+    existing = db.query(AuthorModel).filter(
+        AuthorModel.reference_id == author_db_obj.reference_id,
+        AuthorModel.person_id == person_id,
+        AuthorModel.author_id != author_db_obj.author_id,
+    ).one_or_none()
+    if existing is not None:
+        if existing.author_order is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Person is already author #{existing.author_order} on this reference; "
+                       f"unlink there first")
+        # existing is a link-only stub -> delete it first (per-statement uniqueness), then link
+        db.delete(existing)
+        db.flush()
+    author_db_obj.person_id = person_id
 
 
 def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
@@ -28,6 +124,11 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
 
     author_data = jsonable_encoder(author)
 
+    person_id = _resolve_person_curie(db, author_data)
+    author_data.pop("person_id", None)  # never set person_id directly from the payload
+
+    _validate_author_constraints(author_data, person_id, require_reference=True)
+
     # orcid = None
     # if "orcid" in author_data:
     #    orcid = author_data["orcid"]
@@ -37,6 +138,53 @@ def create(db: Session, author: AuthorSchemaPost) -> AuthorModel:
         author_data["created_by"] = map_to_user_id(author_data["created_by"], db)
     if "updated_by" in author_data and author_data["updated_by"] is not None:
         author_data["updated_by"] = map_to_user_id(author_data["updated_by"], db)
+
+    reference_curie = author_data.get("reference_curie")
+    reference_id = db.query(ReferenceModel.reference_id).filter(
+        ReferenceModel.curie == reference_curie).scalar() if reference_curie else None
+
+    if person_id is not None:
+        # Handle a pre-existing person link BEFORE inserting, and build the new row
+        # already carrying person_id, so the row never flushes in a person-less /
+        # order-less state that would violate ck_author_person_or_order.
+        new_has_order = author_data.get("author_order") is not None
+        existing = db.query(AuthorModel).filter(
+            AuthorModel.reference_id == reference_id,
+            AuthorModel.person_id == person_id,
+        ).one_or_none()
+        if existing is not None:
+            if existing.author_order is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Person is already author #{existing.author_order} on this "
+                           f"reference; unlink there first")
+            if not new_has_order:
+                # both the existing row and the new row are link-only stubs
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Person is already linked to this reference")
+            # existing is a link-only stub and the new row is a real author -> absorb
+            # the stub (per-statement uniqueness) then let the new row carry the person.
+            db.delete(existing)
+            db.flush()
+        author_data["person_id"] = person_id
+
+    # uq_author_ref_order is DEFERRABLE INITIALLY IMMEDIATE, so a duplicate
+    # (reference_id, author_order) would otherwise surface as a raw IntegrityError/500
+    # at flush/commit. Pre-check here and raise a clean 409, symmetric with the
+    # (reference_id, person_id) handling above. (Done after the stub-absorb so a
+    # freed order is honored; an absorbed stub is order-NULL and frees nothing.)
+    new_order = author_data.get("author_order")
+    if new_order is not None and reference_id is not None:
+        order_taken = db.query(AuthorModel.author_id).filter(
+            AuthorModel.reference_id == reference_id,
+            AuthorModel.author_order == new_order,
+        ).first()
+        if order_taken is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"author_order {new_order} is already taken on this reference; "
+                       f"use POST /author/reorder, or the next available author_order")
 
     author_model = create_obj(db, AuthorModel, author_data)  # type: AuthorModel
 
@@ -76,10 +224,9 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
 
     author_data = jsonable_encoder(author_patch)
 
-    if "resource_curie" in author_data and author_data["resource_curie"] and \
-            "reference_curie" in author_data and author_data["reference_curie"]:
+    if author_data.get("author_order") is not None:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="Only supply either resource_curie or reference_curie")
+                            detail="author_order cannot be changed via PATCH; use POST /author/reorder")
 
     if "created_by" in author_data and author_data["created_by"] is not None:
         author_data["created_by"] = map_to_user_id(author_data["created_by"], db)
@@ -91,10 +238,74 @@ def patch(db: Session, author_id: int, author_patch) -> AuthorModel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail=f"Author with author_id {author_id} not found")
     res_ref = stripout(db, author_data, non_fatal=True)
+
+    # A PATCH can still reparent an author to another reference via reference_curie, and the
+    # row carries BOTH its existing author_order and its person_id along -- PATCH can change
+    # neither (author_order is rejected above; person_id is never set from the payload). Each
+    # is unique per reference, so either would trip at commit as a raw IntegrityError/500:
+    # uq_author_ref_order (DEFERRABLE INITIALLY IMMEDIATE) or uq_author_ref_person. Pre-check
+    # both and raise a clean 422 instead. They are independent checks, not alternatives:
+    # ck_author_person_or_order requires at least one of the two, not exactly one, so a row
+    # can carry both. A same-reference PATCH is untouched: metadata-only patches routinely
+    # resend the author's own reference_curie. Checked before add() so
+    # author_db_obj.reference_id is still the original and no relationship has been mutated.
+    dest_ref = res_ref.get("reference")
+    if dest_ref is not None and dest_ref.reference_id != author_db_obj.reference_id:
+        # no_autoflush: an autoflush here would push the very write these guards prevent.
+        if author_db_obj.author_order is not None:
+            with db.no_autoflush:
+                order_taken = db.query(AuthorModel.author_id).filter(
+                    AuthorModel.reference_id == dest_ref.reference_id,
+                    AuthorModel.author_order == author_db_obj.author_order,
+                    AuthorModel.author_id != author_db_obj.author_id,
+                ).first()
+            if order_taken is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"author_order {author_db_obj.author_order} is already taken on "
+                           f"reference {dest_ref.curie}; author_order cannot be changed via "
+                           f"PATCH, so free that order there first with POST /author/reorder")
+
+        # A NULL person_id never collides: Postgres treats NULLs as distinct in a unique
+        # index, which is why the many unlinked authors on one reference do not conflict.
+        if author_db_obj.person_id is not None:
+            with db.no_autoflush:
+                person_taken = db.query(AuthorModel.author_id).filter(
+                    AuthorModel.reference_id == dest_ref.reference_id,
+                    AuthorModel.person_id == author_db_obj.person_id,
+                    AuthorModel.author_id != author_db_obj.author_id,
+                ).first()
+            if person_taken is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"Reference {dest_ref.curie} already links this person to author "
+                           f"{person_taken[0]}; a person may be linked to only one author per "
+                           f"reference, so merge or remove that author first")
+
     add(res_ref, author_db_obj)
+
+    person_id = _resolve_person_curie(db, author_data)
+    author_data.pop("person_id", None)  # never set person_id directly from the payload
+
+    # A person-only row has author_order IS NULL, and PATCH cannot set author_order
+    # (rejected above). Adding real metadata onto such a stub would violate
+    # ck_person_only_link_only at commit -> raw 500. Coerce empty metadata to NULL
+    # first (a no-op stub update stays a stub), then reject any real metadata as 422.
+    if author_db_obj.author_order is None:
+        _coerce_person_only_metadata(author_data)
+        has_metadata = (any(author_data.get(f) is not None for f in _AUTHOR_METADATA_FIELDS)
+                        or bool(author_data.get("first_author"))
+                        or bool(author_data.get("corresponding_author")))
+        if has_metadata:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Cannot add author details to a person-only row; add or link this "
+                       "person as an ordered author instead (which merges the stub)")
 
     for field, value in author_data.items():
         setattr(author_db_obj, field, value)
+    if person_id is not None:
+        link_person(db, author_db_obj, person_id)
 
     author_db_obj.dateUpdated = datetime.utcnow()
     db.add(author_db_obj)
@@ -123,6 +334,11 @@ def show(db: Session, author_id: int):
         author_data["reference_curie"] = db.query(ReferenceModel.curie).filter(ReferenceModel.reference_id == author_data["reference_id"]).first()
     del author_data["reference_id"]
     del author_data["reference_curie"]
+    author_data["person_id"] = author.person_id
+    author_data["person_curie"] = (
+        db.query(PersonModel.curie).filter(PersonModel.person_id == author.person_id).scalar()
+        if author.person_id else None
+    )
     return author_data
 
 

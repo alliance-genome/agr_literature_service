@@ -32,7 +32,7 @@ CHECK_VALID_ATP_IDS_RETURN: Tuple[set, Dict[str, str]] = (
     {'ATP:0000005', 'ATP:0000009', 'ATP:0000068', 'ATP:0000071', 'ATP:0000079', 'ATP:0000082', 'ATP:0000084',
      'ATP:0000099', 'ATP:0000122', 'WB:WBGene00003001', 'NCBITaxon:6239'}, {})
 
-ReferenceTestData = namedtuple('ReferenceTestData', ['response', 'new_ref_curie'])
+ReferenceTestData = namedtuple('ReferenceTestData', ['response', 'new_ref_curie', 'related_ref_id'])
 
 
 @pytest.fixture
@@ -46,7 +46,10 @@ def test_reference(db, auth_headers): # noqa
             "language": "MadeUp"
         }
         response = client.post(url="/reference/", json=new_reference, headers=auth_headers)
-        yield ReferenceTestData(response, response.json()['curie'])
+        new_ref_curie = response.json()['curie']
+        related_ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == new_ref_curie).scalar()
+        yield ReferenceTestData(response, new_ref_curie, related_ref_id)
 
 
 @pytest.fixture
@@ -89,6 +92,17 @@ class TestReference:
             assert db_obj.date_created is not None
             assert db_obj.date_updated is not None
 
+            # an embedded author with an unknown person_curie is POST-body validation:
+            # it must surface as 422 (like other reference-create validations), not 404.
+            bad_person_reference = {
+                "title": "HasBadPerson",
+                "category": "thesis",
+                "authors": [{"author_order": 1, "name": "X",
+                             "person_curie": "AGR:AP-DOES-NOT-EXIST"}]
+            }
+            response = client.post(url="/reference/", json=bad_person_reference, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
             # No title
             # ReferenceSchemaPost no longer raises exception
             none_title_reference = {
@@ -121,6 +135,23 @@ class TestReference:
             response = client.post(url="/reference/", json=blank_category_reference, headers=auth_headers)
             assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_create_reference_later_author_carries_reference_curie(self, db, auth_headers, test_reference):  # noqa
+        # POST /reference with 2+ authors where a LATER author carries reference_curie
+        # must not 500. create_obj -> stripout runs db.query(ReferenceModel) for that
+        # embedded reference_curie, which would otherwise autoflush the earlier pending
+        # author (still reference_id NULL) and trip author.reference_id NOT NULL.
+        with TestClient(app) as client:
+            r = client.post(url="/reference/",
+                            json={"title": "Two authors ref_curie", "category": "thesis",
+                                  "authors": [{"author_order": 1, "name": "A"},
+                                              {"author_order": 2, "name": "B",
+                                               "reference_curie": test_reference.new_ref_curie}]},
+                            headers=auth_headers)
+        assert r.status_code == status.HTTP_201_CREATED
+        ref_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == r.json()["curie"]).scalar()
+        authors = db.query(AuthorModel).filter(AuthorModel.reference_id == ref_id).all()
+        assert len(authors) == 2
 
     def test_retraction_status(self, db, auth_headers, test_reference):  # noqa
         # retraction_status stores ATP curies (no DB constraint):
@@ -360,7 +391,7 @@ class TestReference:
             response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
 
             # need to check if citation is created
-            assert response['citation'] == "Wu D; Wu S, () Some test 001 title.  433(4):538--541"
+            assert response['citation'] == "Wu D; Wu S, Some test 001 title. 433(4):538--541"
 
             assert response['cross_references'][0]['curie'] == 'FB:FBrf0221304'
 
@@ -387,6 +418,94 @@ class TestReference:
             assert response["mod_corpus_associations"]
             for ont in response["mod_corpus_associations"]:
                 assert ont['mod_abbreviation'] == test_mod.new_mod_abbreviation
+
+    def test_reference_citation_without_journal(self, db, auth_headers, test_resource): # noqa
+        """Citations must not contain empty separators when journal, volume,
+        issue and pages are absent; the short citation falls back to the full
+        journal title, then to the reference title."""
+        with TestClient(app) as client:
+            # journal-less reference (e.g. category internal_process_reference):
+            # title used in the short citation, no trailing "():"
+            internal_reference = {
+                "category": "internal_process_reference",
+                "title": "Gene Orthologs and Disease Associations",
+                "date_published": "2018",
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "The Alliance of Genome Resources Curators"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=internal_reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+            assert response['citation'] == \
+                "The Alliance of Genome Resources Curators, (2018) Gene Orthologs and Disease Associations."
+            assert response['citation_short'] == \
+                "The Alliance of Genome Resources Curators (2018) Gene Orthologs and Disease Associations"
+
+            # resource without a title_abbreviation: short citation falls back
+            # to the full resource title
+            no_abbrev_reference = {
+                "category": "research_article",
+                "title": "A title",
+                "date_published": "2019",
+                "resource": test_resource.new_resource_curie,
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "The Alliance of Genome Resources Curators"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=no_abbrev_reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+            assert response['citation'] == \
+                "The Alliance of Genome Resources Curators, (2019) A title. Bob"
+            assert response['citation_short'] == \
+                "The Alliance of Genome Resources Curators (2019) Bob"
+
+            # authors-only reference: no dangling author/year comma
+            authors_only_reference = {
+                "category": "internal_process_reference",
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "The Alliance of Genome Resources Curators"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=authors_only_reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+            assert response['citation'] == "The Alliance of Genome Resources Curators"
+            assert response['citation_short'] == "The Alliance of Genome Resources Curators"
+
+    def test_short_citation_uses_et_al_for_multiple_authors(self, db, auth_headers): # noqa
+        with TestClient(app) as client:
+            reference = {
+                "category": "internal_process_reference",
+                "title": "A multi-author reference",
+                "date_published": "2024",
+                "authors": [
+                    {
+                        "author_order": 1,
+                        "name": "Jane Smith",
+                        "last_name": "Smith",
+                        "first_initial": "J"
+                    },
+                    {
+                        "author_order": 2,
+                        "name": "John Doe",
+                        "last_name": "Doe",
+                        "first_initial": "J"
+                    }
+                ]
+            }
+            new_curie = client.post(url="/reference/", json=reference, headers=auth_headers).json()['curie']
+            response = client.get(url=f"/reference/{new_curie}", headers=auth_headers).json()
+
+            assert response['citation_short'] == \
+                "Smith J et al. (2024) A multi-author reference"
 
     def test_bad_mod(self, auth_headers): # noqa
         with TestClient(app) as client:
@@ -1143,6 +1262,34 @@ class TestReferenceEmails:
             )
             assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
+    def test_get_emails_by_pmid_and_mod_curie(self, db, auth_headers, test_reference):  # noqa
+        """The emails GET also resolves PMID and MOD cross-reference curies."""
+        curie = test_reference.new_ref_curie
+        ref = db.query(ReferenceModel).filter_by(curie=curie).one()
+        for xref_curie, prefix in (("PMID:88888888", "PMID"), ("SGD:S000888888", "SGD")):
+            db.add(CrossReferenceModel(curie=xref_curie, curie_prefix=prefix,
+                                       reference_id=ref.reference_id))
+        db.commit()
+        with TestClient(app) as client:
+            res = client.post(
+                f"/reference/{curie}/emails",
+                json="author@example.org",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_201_CREATED
+
+            for lookup in ("PMID:88888888", "SGD:S000888888", curie, str(ref.reference_id)):
+                listing = client.get(
+                    f"/reference/{lookup}/emails", headers=auth_headers
+                )
+                assert listing.status_code == status.HTTP_200_OK
+                assert [e["email_address"] for e in listing.json()] == ["author@example.org"]
+
+            missing = client.get(
+                "/reference/PMID:99999999/emails", headers=auth_headers
+            )
+            assert missing.status_code == status.HTTP_404_NOT_FOUND
+
     def test_non_human_replace_preserves_curator_added_rows(self, db, auth_headers, test_reference):  # noqa
         """When the acting user is not a real human (the email-extraction
         pipeline / a service account, here the access-token 'default_user'),
@@ -1233,3 +1380,43 @@ class TestReferenceEmails:
         addrs = sorted(row.email_address.lower() for row in listing)
         # Full replace: the curator row is dropped, only the new address remains.
         assert addrs == ["newonly@example.com"]
+
+
+def test_reference_authors_split_person_only(db, auth_headers, test_reference):  # noqa
+    from starlette.testclient import TestClient
+    from agr_literature_service.api.main import app
+    from agr_literature_service.api.models import AuthorModel, PersonModel
+    ref_id = test_reference.related_ref_id
+    db.add(AuthorModel(reference_id=ref_id, author_order=1, name="Real Author"))
+    p = PersonModel(display_name="Stub P", curie="AGR:AP-REF-1")
+    db.add(p)
+    db.commit()
+    db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))  # link-only stub
+    db.commit()
+    with TestClient(app) as client:
+        got = client.get(url=f"/reference/{test_reference.new_ref_curie}", headers=auth_headers).json()
+    assert all(a["author_order"] is not None for a in got["authors"])
+    assert any(a["name"] == "Real Author" for a in got["authors"])
+    assert len(got["author_person_without_author_order"]) == 1
+    assert got["author_person_without_author_order"][0]["person_id"] == p.person_id
+
+
+def test_citation_excludes_person_only(db, auth_headers, test_reference):  # noqa
+    from agr_literature_service.api.models import AuthorModel, PersonModel, ReferenceModel
+    ref_id = test_reference.related_ref_id
+    db.add(AuthorModel(reference_id=ref_id, author_order=1, name="Real", last_name="Real", first_initial="R"))
+    p = PersonModel(display_name="Ghost", curie="AGR:AP-CIT-1")
+    db.add(p)
+    db.commit()
+    db.add(AuthorModel(reference_id=ref_id, person_id=p.person_id))  # link-only stub, no name
+    db.commit()
+    # force citation rebuild (trigger fires on author insert)
+    ref = db.query(ReferenceModel).filter(ReferenceModel.reference_id == ref_id).one()
+    db.refresh(ref)
+    citation = ref.citation.citation if ref.citation else ""
+    # The person-only stub has no name, so it must not appear at all. If the
+    # trigger included the NULL-order row it would emit an empty author and a
+    # spurious "; ," separator ahead of the year.
+    assert "Ghost" not in citation
+    assert "; ," not in citation
+    assert citation.startswith("Real,")

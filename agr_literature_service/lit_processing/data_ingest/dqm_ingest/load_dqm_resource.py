@@ -256,7 +256,14 @@ if __name__ == "__main__":  # noqa: C901
     base_path = environ.get('XML_PATH', "")
 
     logger.info("Downloading DQM files...")
-    download_dqm_resource_json()
+    # A failed download already scrubbed any stale RESOURCE_<MOD>.json (the
+    # per-mod loader treats the missing file as "no resources"); report it so
+    # the failure isn't just a log line, matching the reference-load path.
+    for failed_mod in download_dqm_resource_json():
+        send_report(f"{failed_mod} DQM Resource Download Failed",
+                    f"The {failed_mod} DQM RESOURCE download/unpack failed; "
+                    f"{failed_mod} resources were not updated this run. See the "
+                    f"resource loading log for the error.")
 
     logger.info("Starting PubMed NLM resource update...")
     update_resource_pubmed_nlm()

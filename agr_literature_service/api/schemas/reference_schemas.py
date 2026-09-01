@@ -186,6 +186,7 @@ class ReferenceSchemaShow(AuditedObjectModelSchema):
     effective_image_permission: Optional[Dict[str, Any]] = None
     invalid_cross_reference_ids: Optional[List[str]] = None
     authors: Optional[List[AuthorSchemaShow]] = None
+    author_person_without_author_order: Optional[List[AuthorSchemaShow]] = None
     emails: Optional[List[ReferenceEmailSchemaRelated]] = None
     reference_relations: ReferenceRelationSchemaRelations = Field(default_factory=ReferenceRelationSchemaRelations)
     citation: Optional[str] = None

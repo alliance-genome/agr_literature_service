@@ -26,7 +26,8 @@ from agr_literature_service.api.crud.cross_reference_crud import set_curie_prefi
 from agr_literature_service.api.crud.mod_corpus_association_crud import create as create_mod_corpus_association
 from agr_literature_service.api.crud.mod_reference_type_crud import insert_mod_reference_type_into_db
 from agr_literature_service.api.crud.reference_resource import create_obj
-from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation
+from agr_literature_service.api.crud.reference_utils import get_reference, BibInfo, Citation, \
+    normalize_reference_curie
 from agr_literature_service.api.crud.referencefile_crud import cleanup
 from agr_literature_service.api.crud.referencefile_crud import destroy as destroy_referencefile
 from agr_literature_service.api.crud.topic_entity_tag_crud import create_tag, revalidate_all_tags
@@ -268,6 +269,8 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
     }
     reference_data = {}  # type: Dict[str, Any]
     author_names_order = []
+    seen_person_ids: set = set()
+    seen_orders: set = set()
 
     if reference.cross_references:
         for cross_reference in reference.cross_references:
@@ -292,9 +295,56 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
                     obj_data["updated_by"] = map_to_user_id(obj_data["updated_by"], db)
                 db_obj = None
                 if field in ["authors"]:
-                    db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
-                    if db_obj.name:
-                        author_names_order.append((db_obj.name, db_obj.author_order))
+                    from agr_literature_service.api.crud.author_crud import (
+                        _resolve_person_curie, _validate_author_constraints)
+                    # no_autoflush over the WHOLE per-author build: authors added
+                    # earlier in this loop are still pending with no reference_id yet.
+                    # Both the person lookup AND create_obj->stripout (which queries
+                    # ReferenceModel/ResourceModel when an embedded author carries a
+                    # reference_curie/resource_curie) would otherwise autoflush those
+                    # pending rows and violate author.reference_id NOT NULL. They are
+                    # flushed with the parent reference at db.commit().
+                    with db.no_autoflush:
+                        try:
+                            pid = _resolve_person_curie(db, obj_data)
+                        except HTTPException as exc:
+                            # a bad embedded person_curie is POST-body validation here:
+                            # surface it as 422 for consistency with the other reference
+                            # create validations (resource/merged_into), not 404.
+                            if exc.status_code == status.HTTP_404_NOT_FOUND:
+                                raise HTTPException(
+                                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                    detail=exc.detail)
+                            raise
+                        if pid is not None:
+                            # a person may link to only one author on a reference; a
+                            # duplicate in this payload would violate uq_author_ref_person
+                            # at commit -> raw IntegrityError/500. Surface it as a clean 409.
+                            if pid in seen_person_ids:
+                                raise HTTPException(
+                                    status_code=status.HTTP_409_CONFLICT,
+                                    detail="A person cannot be linked to more than one author "
+                                           "on the same reference")
+                            seen_person_ids.add(pid)
+                            obj_data["person_id"] = pid
+                        # two embedded authors sharing an author_order would violate
+                        # uq_author_ref_order at commit -> raw IntegrityError/500.
+                        # Catch it here as a clean 409 before the flush.
+                        order = obj_data.get("author_order")
+                        if order is not None:
+                            if order in seen_orders:
+                                raise HTTPException(
+                                    status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"author_order {order} is duplicated among the "
+                                           f"reference's authors")
+                            seen_orders.add(order)
+                        # pre-validate the author CHECK constraints (embedded authors
+                        # inherit the parent reference, so reference_curie isn't required)
+                        # to surface a clean 422 instead of a raw IntegrityError/500.
+                        _validate_author_constraints(obj_data, pid)
+                        db_obj = create_obj(db, AuthorModel, obj_data, non_fatal=True)
+                        if db_obj.name:
+                            author_names_order.append((db_obj.name, db_obj.author_order))
                 elif field == "mesh_terms":
                     db_obj = MeshDetailModel(**obj_data)
                 elif field == "cross_references":
@@ -307,13 +357,19 @@ def create(db: Session, reference: ReferenceSchemaPost):  # noqa
             else:
                 reference_data[field] = db_objs
         elif field == "resource":
-            resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
+            # no_autoflush: authors added above are still pending and have no
+            # reference_id yet; a plain query here would autoflush them and
+            # violate author.reference_id NOT NULL. They are flushed with the
+            # parent reference at db.commit() below.
+            with db.no_autoflush:
+                resource = db.query(ResourceModel).filter(ResourceModel.curie == value).first()
             if not resource:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Resource with curie {value} does not exist")
             reference_data["resource"] = resource
         elif field == "merged_into_reference_curie":
-            merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
+            with db.no_autoflush:
+                merged_into_obj = db.query(ReferenceModel).filter(ReferenceModel.curie == value).first()
             if not merged_into_obj:
                 raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                                     detail=f"Merged_into Reference with curie {value} does not exist")
@@ -491,7 +547,13 @@ def patch(db: Session, curie_or_reference_id: str, reference_update) -> dict:
 
 
 def get_reference_emails(db: Session, curie_or_reference_id: str):
-    """Return list of emails associated with a reference via reference_email."""
+    """Return list of emails associated with a reference via reference_email.
+
+    Accepts an AGRKB curie, a numeric reference_id, or any cross-reference
+    curie such as a PMID (e.g. PMID:39739753) or MOD curie (e.g. SGD:S000342424).
+    """
+    if not curie_or_reference_id.isdigit() and not curie_or_reference_id.startswith("AGRKB:"):
+        curie_or_reference_id = normalize_reference_curie(db, curie_or_reference_id)
     reference: ReferenceModel = get_reference(db, curie_or_reference_id)
     ref_id = reference.reference_id
 
@@ -900,12 +962,18 @@ def show(db: Session, curie_or_reference_id: str):  # noqa
         reference_data['mesh_terms'] = reference_data['mesh_term']
 
     if reference.author:
-        authors = []
+        real_authors, person_only = [], []
         for author in reference_data["author"]:
-            del author["reference_id"]
-            authors.append(author)
-        reference_data['authors'] = authors
-        del reference_data['author']
+            author.pop("reference_id", None)
+            if author.get("author_order") is not None:
+                real_authors.append(author)
+            else:
+                person_only.append(author)
+        reference_data["authors"] = real_authors
+        reference_data["author_person_without_author_order"] = person_only
+        del reference_data["author"]
+    else:
+        reference_data["author_person_without_author_order"] = []
 
     reference_relations_data = {"to_references": [], "from_references": []}  # type: Dict[str, List[str]]
     for reference_relation in reference.reference_relation_out:
@@ -1445,7 +1513,8 @@ def get_bib_info(db, curie, mod_abbreviation: str, return_format: str = 'txt'):
     bib_info = BibInfo()
     reference: ReferenceModel = get_reference(db, curie, load_authors=True)
     author: AuthorModel
-    for author in sorted(reference.author, key=lambda a: a.author_order):
+    real = [a for a in reference.author if a.author_order is not None]
+    for author in sorted(real, key=lambda a: a.author_order):
         last_name = str(author.last_name or '')
         first_initial = str(author.first_initial or '')
         full_name = str(author.name or '')

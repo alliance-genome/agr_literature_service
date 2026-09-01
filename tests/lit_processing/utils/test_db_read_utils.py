@@ -1,6 +1,6 @@
 import logging
 from agr_literature_service.api.models import ReferenceModel, CrossReferenceModel, \
-    ReferencefileModel, AuthorModel, MeshDetailModel
+    ReferencefileModel, AuthorModel, MeshDetailModel, PersonModel
 from agr_literature_service.lit_processing.utils.db_read_utils import \
     get_references_by_curies, get_curie_to_title_mapping, \
     get_pmid_list_without_pmc_package, get_pmid_to_reference_id_mapping, \
@@ -156,6 +156,37 @@ class TestDbReadUtils:
         mods.sort()
         assert mods == ['FB', 'MGI', 'RGD', 'SGD', 'WB', 'XB', 'ZFIN']
 
+
+    def test_author_readers_exclude_person_only_stub(self, db, load_sanitized_references, populate_test_mod_reference_types): # noqa
+        # person-only stub rows (author_order NULL, names NULL) must not leak into the
+        # author export readers used for MOD JSON exports / bulk download.
+        refs = db.query(ReferenceModel).order_by(ReferenceModel.curie).all()
+        ref = refs[0]
+
+        person = PersonModel(display_name="Stub Person", curie="AGR:AP-READ-STUB-1")
+        db.add(person)
+        db.commit()
+        db.refresh(person)
+        stub = AuthorModel(reference_id=ref.reference_id, person_id=person.person_id)
+        db.add(stub)
+        db.commit()
+        stub_id = stub.author_id
+
+        ref_ids = str(ref.reference_id)
+
+        # get_author_data_for_ref_ids returns author_id; the stub must be absent.
+        reference_id_to_authors = get_author_data_for_ref_ids(db, ref_ids)
+        returned = reference_id_to_authors.get(ref.reference_id, [])
+        returned_ids = [a["author_id"] for a in returned]
+        assert stub_id not in returned_ids
+        assert len(returned_ids) > 0  # real authors are still exported
+
+        # get_author_data (ref-id branch) has no author_id field; every returned row
+        # must have a non-null order (i.e. no person-only stub leaked through).
+        reference_id_to_authors2 = get_author_data(db, None, [ref.reference_id], 500)
+        authors2 = reference_id_to_authors2.get(ref.reference_id, [])
+        assert len(authors2) == len(returned_ids)
+        assert all(a.get("order") is not None for a in authors2)
 
     def test_pmc_read_and_write_functions(self, db, load_sanitized_references, populate_test_mod_reference_types): # noqa
 

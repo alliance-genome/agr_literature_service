@@ -31,8 +31,8 @@ class AuthorSchemaPost(BaseModel):
     affiliations: Optional[List[str]] = None
     corresponding_author: Optional[bool] = False
     reference_curie: Optional[str] = None
-    resource_curie: Optional[str] = None
     orcid: Optional[str] = None
+    person_curie: Optional[str] = None
 
     @field_validator('orcid')
     def check_orcids(cls, v):
@@ -57,6 +57,8 @@ class AuthorSchemaShow(AuditedObjectModelSchema):
     orcid: Optional[str] = None
     affiliations: Optional[List[str]] = None
     corresponding_author: Optional[bool] = None
+    person_id: Optional[int] = None
+    person_curie: Optional[str] = None
 
 
 class AuthorSchemaCreate(AuthorSchemaPost):
@@ -66,4 +68,3 @@ class AuthorSchemaCreate(AuthorSchemaPost):
     )
 
     reference_curie: Optional[str] = None
-    resource_curie: Optional[str] = None
