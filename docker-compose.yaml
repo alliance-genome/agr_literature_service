@@ -489,6 +489,21 @@ services:
       # shares this container's netns, so its port is published here).
       - "18083:8083"
     command: jobmanager
+    # NOTE: every line inside FLINK_PROPERTIES is parsed by the Flink entrypoint as a config entry,
+    # so a '#' comment there is NOT a comment -- it lands in flink-conf.yaml as a junk key (and any
+    # colon inside it splits into a bogus key/value). Keep explanation in YAML comments out here.
+    #
+    # restart-strategy: none, and checkpointing off. The reindex is a from-scratch, idempotent
+    # (upsert-by-id) rebuild -- on failure we just re-run. Enabling checkpointing (without durable
+    # checkpoint storage) made the growing 13-aggregate join state fail async snapshots and
+    # restart-loop the job, so it never converged. Steady-state fault tolerance (checkpoint dir on a
+    # shared volume) is P4.
+    #
+    # heartbeat.*: the reindex saturates the box (Flink + local ES on the same cores), so the
+    # TaskManager's heartbeat thread can be starved or sat behind a long GC pause for well over
+    # Flink's 50s default. With no restart strategy a single missed heartbeat kills the whole job --
+    # observed at ~990s in, "heartbeat of TaskManager ... timed out", with the TM container still Up
+    # and never restarted. Widen the window so only a genuinely dead TM fails the job.
     environment:
       - |
         FLINK_PROPERTIES=
@@ -497,17 +512,8 @@ services:
         rest.bind-address: 0.0.0.0
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
         state.backend.type: rocksdb
-        # Checkpointing intentionally OFF: the reindex is a from-scratch, idempotent (upsert-by-id)
-        # rebuild -- on failure we just re-run. Enabling it (without durable checkpoint storage) made
-        # the growing 13-aggregate join state fail async snapshots and restart-loop the job, so it
-        # never converged. Steady-state fault tolerance (checkpoint dir on a shared volume) is P4.
         restart-strategy: none
         jobmanager.memory.process.size: 1600m
-        # The reindex saturates the box (Flink + local ES on the same cores), so the TaskManager's
-        # heartbeat thread can be starved or sat behind a long GC pause for well over Flink's 50s
-        # default. With restart-strategy: none a single missed heartbeat kills the whole job --
-        # observed at ~990s in, "heartbeat of TaskManager ... timed out", TM container still Up and
-        # never restarted. Widen the window so only a genuinely dead TM fails the job.
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
         heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
     networks:
@@ -527,6 +533,10 @@ services:
     depends_on:
       - flink_jobmanager
     command: taskmanager
+    # As on the JobManager, FLINK_PROPERTIES lines are config entries, not comments -- keep prose here.
+    # taskmanager.memory.*: ONE bounded managed-memory budget for all operators' RocksDB state,
+    # replacing ksqlDB's ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per
+    # box via env. heartbeat.* must match the JobManager's -- see the note on that service.
     environment:
       - |
         FLINK_PROPERTIES=
@@ -536,11 +546,8 @@ services:
         taskmanager.numberOfTaskSlots: ${DBZ_FLINK_TASK_SLOTS:-4}
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
         state.backend.type: rocksdb
-        # ONE bounded managed-memory budget for all operators' RocksDB state -- replaces ksqlDB's
-        # ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per box via env.
         taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.5}
-        # Must match the JobManager's values -- see the heartbeat note there.
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
         heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
 
