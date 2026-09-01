@@ -221,7 +221,11 @@ def apply_rule(db, name: str, value: str, extra: str) -> int:
 def backfill_data_context(dry_run: bool = False):
     db = create_postgres_session(False)
     script_name = path.basename(__file__).replace(".py", "")
-    set_global_user_id(db, script_name)
+    if not dry_run:
+        # set_global_user_id -> _ensure_automation_user INSERTs a users row when the
+        # automation user does not exist yet. Harmless for a real run, but it would
+        # make --dry-run write to the database it is only supposed to be reading.
+        set_global_user_id(db, script_name)
 
     column_exists = data_context_column_exists(db)
     unset = unset_clause(column_exists)
