@@ -142,8 +142,12 @@ ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field', 'no_d
 POSITIVE_ASSESSMENT_COLUMNS = ['has_data', 'new_data', 'new_to_db', 'new_to_field']
 # validation_by_professional_biocurator values that count as curator-validated
 # (green ✓); 'validated_wrong' is excluded entirely; everything else is "?".
+# 'validation_conflict' (biocurators disagree) must never read as settled: it
+# blocks the biocurator-asserted auto-validation and renders as "?" so the
+# disagreement stays visible and actionable (PR review, SCRUM-6398).
 BIOCURATOR_VALIDATED = {'validated_right', 'validated_right_self'}
 BIOCURATOR_VALIDATED_WRONG = 'validated_wrong'
+BIOCURATOR_VALIDATION_CONFLICT = 'validation_conflict'
 
 
 def _assessment_kind(tet):
@@ -253,11 +257,17 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
         # "validated" (green ✓) when a biocurator asserted it directly
         # (source_evidence_assertion = professional biocurator, e.g. loaded
         # curator data) OR when it was validated by a biocurator; everything
-        # else (author / computational) is "unvalidated" ("?").
+        # else (author / computational) is "unvalidated" ("?"). A tag whose
+        # validators DISAGREE (validation_conflict) is never treated as
+        # validated — not even a biocurator-asserted one — so the conflict
+        # surfaces as "?" instead of a settled green ✓.
         vpb = tet.validation_by_professional_biocurator
         if vpb != BIOCURATOR_VALIDATED_WRONG:
             is_biocurator_asserted = source_map.get(assertion) == 'biocurator'
-            validated = is_biocurator_asserted or vpb in BIOCURATOR_VALIDATED
+            validated = (
+                vpb != BIOCURATOR_VALIDATION_CONFLICT
+                and (is_biocurator_asserted or vpb in BIOCURATOR_VALIDATED)
+            )
             target = col_validated if validated else col_unvalidated
             for col in _assessment_columns(tet):
                 target.add(col)
@@ -265,6 +275,11 @@ def get_tet_list_summary(topic_curie, topic_tet_list_dict):
     # suppresses the OPPOSITE-polarity "?" (a validated positive hides a "no
     # data" prediction and vice versa), so an unvalidated prediction on a column
     # the biocurator hasn't resolved still shows "?" for the curator to act on.
+    # The guard applies to ALL unvalidated tags on the opposite polarity —
+    # author-recorded manual assessments included, not just computed
+    # predictions: a biocurator-validated no_data deliberately blanks an
+    # author's positive "?" (the biocurator overruled the author). The
+    # tet_info_manual_* booleans still report the author's assessment.
     has_validated_positive = bool(col_validated & set(POSITIVE_ASSESSMENT_COLUMNS))
     has_validated_no = 'no_data' in col_validated
     assessment_states = {}

@@ -261,3 +261,34 @@ def test_manual_assessments_capture_source_negated_and_novelty():
     preds = summary["tet_info_source_predictions"]
     assert len(preds) == 1
     assert preds[0]["data_novelty"] == "ATP:0000228"
+
+
+def test_assessment_states_validation_conflict_never_reads_validated():
+    """A tag whose biocurator validators DISAGREE (validation_conflict) must
+    surface as an actionable "?" — even when the tag itself is
+    biocurator-asserted, the biocurator-implies-validated short-circuit does
+    not apply (PR review, SCRUM-6398)."""
+    topic = "ATP:0000001"
+    rows = {topic: [
+        (_tet(datetime(2025, 5, 1), negated=False, data_novelty="ATP:0000228",
+              validation_by_professional_biocurator="validation_conflict"),
+         _source(BIOCURATOR)),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states == {
+        "has_data": "unvalidated", "new_data": None, "new_to_db": "unvalidated",
+        "new_to_field": None, "no_data": None,
+    }
+
+
+def test_assessment_states_conflict_on_computed_tag_stays_unvalidated():
+    """Same rule on a non-biocurator tag: a conflicted prediction still shows
+    "?" (and is not dropped like validated_wrong)."""
+    topic = "ATP:0000001"
+    rows = {topic: [
+        (_tet(datetime(2025, 5, 1), negated=True,
+              validation_by_professional_biocurator="validation_conflict"),
+         _source("ECO:0008004", source_method="abc_document_classifier")),
+    ]}
+    states = get_tet_list_summary(topic, rows)["tet_info_assessment_states"]
+    assert states["no_data"] == "unvalidated"
