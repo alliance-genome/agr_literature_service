@@ -19,24 +19,19 @@ below rather than one blanket UPDATE.
 Rules, applied in order. Each only ever touches rows still NULL, so an earlier
 rule wins and re-running is safe:
 
-  1. WB, Alliance-provided, classification (no entity)  -> ATP:0000323
-     Machine classification output for WormBase. The root term: the paper was
-     classified for the topic, with no claim about what kind of data that is.
+  1. WB, Alliance classification pipelines -> ATP:0000323 data context
+     abc_document_classifier and abc_string_matching_antibody. The root term:
+     the paper was classified for the topic, with no claim about what kind of
+     data that is.
 
-  2a. WB, Alliance-provided, entity extraction whose own topic (or entity_type)
-      is ATP:0000328 expression marker -> ATP:0000328
-  2b. All other WB, Alliance-provided entity extraction -> ATP:0000325
-
-     "entity extraction that don't have ATP:0000328 expression marker" is read as
-     the tag's own topic. That is the only sense in which an existing tag can
-     "have" that term: data_context is NULL everywhere until this script runs, so
-     a rule phrased against data_context would be vacuous.
-
-     The current production entity-extraction models are gene, allele, strain,
-     transgenic allele and species -- none of them ATP:0000328 -- so rule 2a may
-     claim nothing. Older non-production models are retained, so it is written to
-     catch their tags if any exist. Read the --dry-run count for 2a: if it is 0,
-     no historical WB entity tag is an expression marker and 2b covers them all.
+  2a. WB, Alliance entity extraction whose topic or entity_type is ATP:0000328
+      expression marker -> ATP:0000328
+  2b. All other WB Alliance entity extraction -> ATP:0000325
+      abc_entity_extractor, including its topic-only "no data" negatives -- they
+      come from the extraction pipeline, so they belong with it rather than with
+      classification. On stage 2a matches 0 rows: no WB tag carries ATP:0000328
+      as a topic or entity_type. It is kept so the carve-out survives if that
+      changes.
 
   3. FB, any tag -> ATP:0000325
 
@@ -44,12 +39,14 @@ rule wins and re-running is safe:
   4b. All other MODs                              -> ATP:0000325
 
      Same value; split only so the dry-run distinguishes them. 4b is the
-     curators' rule for MGI, RGD, ZFIN and SGD. 4a is a diagnostic: rules 1 and
-     2 are restricted to Alliance-provided sources, so a WB tag from a
-     MOD-provided source lands here and gets ATP:0000325 rather than the
-     ATP:0000323 of rule 1. A large 4a count would mean most WB tags are not
-     Alliance-provided and rules 1/2 are too narrow to express what the curators
-     asked for -- check it before running for real.
+     curators' rule for the remaining MODs. 4a is the WB/FB remainder: WormBase's
+     own pipelines (nnc_*, svm_*, ACKnowledge_*, *_script) and curator/author
+     entry, which are not Alliance tags and so are not covered by rules 1-2.
+
+On identifying "Alliance": data_provider never holds the value "Alliance" -- it
+is always a MOD abbreviation. Verified against stage 2026-09-01, exactly 3 of
+WormBase's 56 sources describe themselves as Alliance pipelines, and they are
+the three abc_-prefixed machine sources named above.
 
 Note on the going-forward values, which differ from the backfill on purpose:
 the WB entity-extraction pipelines are configured to send ATP:0000323, whereas
@@ -91,7 +88,21 @@ EXPRESSION_MARKER_DATA_CONTEXT_ATP = "ATP:0000328"
 # create_tag stamps on a tag whose caller omits data_context.
 DEFAULT_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
 
-ALLIANCE_DATA_PROVIDER = "Alliance"
+# "Alliance tags" in the curator instruction. data_provider never holds
+# "Alliance" -- it is always a MOD abbreviation (verified on stage 2026-09-01) --
+# so the Alliance pipelines are identified by source_method. These are exactly
+# the WB sources whose topic_entity_tag_source.description calls them an
+# Alliance pipeline: 3 of 56, all abc_-prefixed and all machine evidence.
+# abc_literature_system is deliberately absent: it is the ABC curator entry form
+# (ATP:0000036), not a pipeline.
+ALLIANCE_CLASSIFICATION_METHODS = ("abc_document_classifier",
+                                   "abc_string_matching_antibody")
+ALLIANCE_ENTITY_EXTRACTION_METHODS = ("abc_entity_extractor",)
+
+
+def _in_list(values):
+    return "(" + ", ".join(f"'{v}'" for v in values) + ")"
+
 
 BATCH_SIZE = 500
 
@@ -100,24 +111,24 @@ BATCH_SIZE = 500
 # tet.data_context IS NULL.
 RULES = [
     (
-        "1. WB / Alliance / classification (no entity)",
+        "1. WB / Alliance classification pipelines",
         DATA_CONTEXT_ROOT,
-        f"m.abbreviation = 'WB' AND tets.data_provider = '{ALLIANCE_DATA_PROVIDER}' "
-        f"AND tet.entity IS NULL",
+        f"m.abbreviation = 'WB' "
+        f"AND tets.source_method IN {_in_list(ALLIANCE_CLASSIFICATION_METHODS)}",
     ),
     (
-        "2a. WB / Alliance / entity extraction, expression marker",
+        "2a. WB / Alliance entity extraction, expression marker",
         EXPRESSION_MARKER_DATA_CONTEXT_ATP,
-        f"m.abbreviation = 'WB' AND tets.data_provider = '{ALLIANCE_DATA_PROVIDER}' "
-        f"AND tet.entity IS NOT NULL "
-        f"AND (tet.topic = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}' "
-        f"     OR tet.entity_type = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}')",
+        f"m.abbreviation = 'WB' "
+        f"AND tets.source_method IN {_in_list(ALLIANCE_ENTITY_EXTRACTION_METHODS)} "
+        f"AND (coalesce(tet.topic, '') = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}' "
+        f"     OR coalesce(tet.entity_type, '') = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}')",
     ),
     (
-        "2b. WB / Alliance / entity extraction, everything else",
+        "2b. WB / Alliance entity extraction, everything else",
         EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
-        f"m.abbreviation = 'WB' AND tets.data_provider = '{ALLIANCE_DATA_PROVIDER}' "
-        f"AND tet.entity IS NOT NULL",
+        f"m.abbreviation = 'WB' "
+        f"AND tets.source_method IN {_in_list(ALLIANCE_ENTITY_EXTRACTION_METHODS)}",
     ),
     (
         "3. FB / any tag",
@@ -258,7 +269,14 @@ def backfill_data_context(dry_run: bool = False):
         remaining = total
         for name, value, extra in RULES:
             if claimed_so_far:
-                scoped = f"({extra}) AND NOT ({' OR '.join(claimed_so_far)})"
+                # COALESCE is load-bearing: a clause comparing a nullable column
+                # (entity_type on a topic-only tag) evaluates to NULL, not FALSE,
+                # and NOT (FALSE OR NULL) is NULL -- which silently drops the row
+                # from the count. The real run is unaffected, since apply_rule
+                # relies on rule order rather than an exclusion, so without this
+                # the dry-run under-reports what the apply would do.
+                scoped = (f"({extra}) AND NOT COALESCE("
+                          f"{' OR '.join(claimed_so_far)}, FALSE)")
             else:
                 scoped = extra
             claimed = count_for_rule(db, scoped, unset)
