@@ -533,6 +533,15 @@ services:
     depends_on:
       - flink_jobmanager
     command: taskmanager
+    # COMPRESSION A/B (same box, same data, back-to-back): Snappy 4h47m @ 5800 IOPS / 37.5 MB/s read
+    # / 64.4% util; LZ4+ZSTD-bottommost 5h32m @ 6049 IOPS / 48.4 MB/s read / 76.4% util. Compression
+    # lost on every axis (+16% wall-clock). It works for ksqlDB because that engine is THROUGHPUT-
+    # bound, pinned at the 594 MB/s ceiling, so cutting bytes relieves the real bottleneck. Flink is
+    # IOPS-bound on small random reads at only ~40 MB/s -- nowhere near the bandwidth ceiling -- so
+    # fewer bytes relieves nothing while decompression costs CPU on a box already sharing 8 vCPU with
+    # Elasticsearch. The lever that does work is CACHE PER STORE (see the managed.fraction note).
+    # Caveat: phase 2 ran with phase 1's indexes still resident in ES, adding some merge load.
+    #
     # As on the JobManager, FLINK_PROPERTIES lines are config entries, not comments -- keep prose here.
     # taskmanager.memory.*: ONE bounded managed-memory budget for all operators' RocksDB state,
     # replacing ksqlDB's ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per
@@ -573,6 +582,7 @@ services:
         state.backend.type: ${DBZ_FLINK_STATE_BACKEND:-rocksdb}
         taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.3}
+        # MEASURED: LZ4+ZSTD is NOT worth it for Flink -- see the A/B note above the environment block.
         state.backend.rocksdb.compression.per.level: ${DBZ_FLINK_ROCKSDB_COMPRESSION:-SNAPPY_COMPRESSION}
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
         heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
