@@ -479,7 +479,7 @@ services:
     build:
       context: .
       dockerfile: docker/flink.dockerfile
-    image: agr.literature.flink:2.0.2
+    image: agr.literature.flink:${DBZ_FLINK_IMAGE_TAG:-2.0.2}
     depends_on:
       - dbz_kafka
     ports:
@@ -529,7 +529,7 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: agr.literature.flink:2.0.2
+    image: agr.literature.flink:${DBZ_FLINK_IMAGE_TAG:-2.0.2}
     depends_on:
       - flink_jobmanager
     command: taskmanager
@@ -598,7 +598,7 @@ services:
       driver: gelf
       options:
         gelf-address: 'udp://logs.alliancegenome.org:12201'
-    image: agr.literature.flink:2.0.2
+    image: agr.literature.flink:${DBZ_FLINK_IMAGE_TAG:-2.0.2}
     depends_on:
       - flink_jobmanager
       - flink_taskmanager
