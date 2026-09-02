@@ -511,7 +511,7 @@ services:
         env.java.opts.all: -Djava.net.preferIPv4Stack=true -XX:+UseParallelGC
         rest.bind-address: 0.0.0.0
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
-        state.backend.type: rocksdb
+        state.backend.type: ${DBZ_FLINK_STATE_BACKEND:-rocksdb}
         restart-strategy: none
         jobmanager.memory.process.size: 1600m
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
@@ -538,6 +538,15 @@ services:
     # replacing ksqlDB's ~115 individually-unbounded stores. Sized for the 30 GB test box; tune per
     # box via env. heartbeat.* must match the JobManager's -- see the note on that service.
     #
+    # state.backend.type: rocksdb spills the 13-way join's state to disk, and that spill is small
+    # random reads -- which is what pins EBS IOPS. Measured on the test box: total IOPS flatlined at
+    # 3008/3012/3011 against a 3000-IOPS gp3 volume while using only ~16 MB/s of a provisioned
+    # 594 MB/s, and raising the volume to 12000 IOPS immediately took it to 7400-8500 and unfroze a
+    # job that had not moved in 25 minutes. Prod is gp3/3000 IOPS and ksqlDB is fine there because it
+    # keeps its ~115 stores in memory and barely touches disk. Set DBZ_FLINK_STATE_BACKEND=hashmap to
+    # get the same in-memory behaviour from Flink (safe here: checkpointing is off, so heap state has
+    # no snapshot cost) and keep the reindex inside prod's IOPS budget instead of buying more IOPS.
+    #
     # SLOT COUNT IS A MEMORY KNOB, not just a concurrency knob. Flink divides managed memory evenly
     # PER SLOT, and this job puts ~40 stateful operators (13 aggregates + ~20 joins) in each slot,
     # every one with its own RocksDB instance sharing that slot's slice. Raising TASK_SLOTS shrinks
@@ -561,7 +570,7 @@ services:
         taskmanager.host: localhost
         taskmanager.numberOfTaskSlots: ${DBZ_FLINK_TASK_SLOTS:-4}
         parallelism.default: ${DBZ_FLINK_PARALLELISM:-2}
-        state.backend.type: rocksdb
+        state.backend.type: ${DBZ_FLINK_STATE_BACKEND:-rocksdb}
         taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.3}
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
