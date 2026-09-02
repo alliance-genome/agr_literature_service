@@ -1,12 +1,27 @@
-# SCRUM-6336: Flink 2.0.x image with the SQL connector jars baked onto the classpath.
-# Flink 2.0.2 is the ceiling supported by the Elasticsearch-7 connector (v4.0.0-2.0); the Kafka
-# connector (4.0.1-2.0) pairs with the same Flink minor. Both coordinates verified present on
-# Maven Central (HTTP 200) before pinning.
-FROM flink:2.0.2-java17
+# SCRUM-6336: Flink image with the SQL connector jars baked onto the classpath.
+#
+# Version is parameterised so the 2.1+ MULTI-JOIN operator (FLIP-516) can be evaluated without
+# disturbing the known-good 2.0.2 build. Defaults reproduce the validated 2.0.2 image exactly.
+#
+# WHY 2.1+ MATTERS HERE: this query is 1 INNER + 12 LEFT joins, every one of them on reference_id.
+# Flink executes that as a chain of BINARY joins, and each link stores its intermediate result in
+# state forever -- so the reference row is materialised ~13 times, once per link, getting wider each
+# time. That is a known Flink limitation, fixed in 2.1 by FLIP-516's StreamingMultiJoinOperator,
+# which stores only the input records ("zero intermediate state"). It requires multiple INNER/LEFT
+# joins sharing at least one common join key -- exactly this query's shape -- and is opt-in via
+#   SET 'table.optimizer.multi-join.enabled' = 'true';
+# Upstream reports 3x-1000x smaller state. Our reindex is IOPS-bound purely because state does not
+# fit the RocksDB block cache, so shrinking state attacks the root cause rather than the symptom.
+#
+# CONNECTOR CONSTRAINT: flink-sql-connector-kafka has 5.0.0-2.1 / 5.0.0-2.2, but
+# flink-sql-connector-elasticsearch7 stops at 4.0.0-2.0 -- there is no 2.1+ build, and the connector
+# repo's newest release branch is v4.0. The 2.0 ES jar is therefore carried onto 2.2 on the
+# assumption that Flink 2.x keeps the Sink V2 connector API stable across minors. UNVERIFIED: if it
+# is wrong the job fails at submission, which is cheap to discover.
+ARG FLINK_IMAGE=flink:2.0.2-java17
+FROM ${FLINK_IMAGE}
 
-# Registry-verified connector coordinates (artifact version = <connector-ver>-<flink-minor>):
-#   flink-sql-connector-kafka           4.0.1-2.0  -> Debezium CDC source (debezium-json format)
-#   flink-sql-connector-elasticsearch7  4.0.0-2.0  -> ES-7 upsert sink -> Elasticsearch 7.10
+# artifact version = <connector-ver>-<flink-minor>
 ARG MAVEN=https://repo1.maven.org/maven2/org/apache/flink
 ARG KAFKA_CONNECTOR=flink-sql-connector-kafka/4.0.1-2.0/flink-sql-connector-kafka-4.0.1-2.0.jar
 ARG ES7_CONNECTOR=flink-sql-connector-elasticsearch7/4.0.0-2.0/flink-sql-connector-elasticsearch7-4.0.0-2.0.jar
