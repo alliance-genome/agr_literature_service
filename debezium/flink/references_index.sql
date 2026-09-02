@@ -263,21 +263,29 @@ SELECT
   obs.obsolete_curies, mrt.mod_reference_types,
   tet.topic_entity_tags, ctag.curation_tags, wf.workflow_tags, rem.reference_emails,
   ip.indexing_priorities, mit.manual_indexing_tags
+-- JOIN ORDER IS ASCENDING BY SOURCE SIZE. Each link materialises everything accumulated so far,
+-- so an aggregate joined first is carried through all 12 remaining links while one joined last is
+-- carried through none. Source rows: obsolete_curie 42, manual_indexing_tag 6,959, curation_status
+-- 23,616, reference_email 40,916, indexing_priority 67,495, reference_mod_referencetype 1.30M,
+-- mod_corpus_association 1.44M (x3 aggregates), workflow_tag 2.14M, topic_entity_tag 3.50M,
+-- cross_reference 4.09M, author 7.78M. The previous order put cross_references and authors FIRST --
+-- the two largest dragged through 12 and 11 links. Ascending order cuts cumulative carried
+-- row-units from ~228.8M to ~72.7M, a ~68% reduction in array bytes held in intermediate state.
 FROM reference r
 JOIN citation cit ON r.citation_id = cit.citation_id
-LEFT JOIN cross_references_agg xref ON r.reference_id = xref.reference_id
-LEFT JOIN authors_agg auth ON r.reference_id = auth.reference_id
+LEFT JOIN obsolete_curies_agg obs ON r.reference_id = obs.reference_id
+LEFT JOIN manual_indexing_tags_agg mit ON r.reference_id = mit.reference_id
+LEFT JOIN curation_tags_agg ctag ON r.reference_id = ctag.reference_id
+LEFT JOIN reference_emails_agg rem ON r.reference_id = rem.reference_id
+LEFT JOIN indexing_priorities_agg ip ON r.reference_id = ip.reference_id
+LEFT JOIN mod_reference_types_agg mrt ON r.reference_id = mrt.reference_id
 LEFT JOIN mods_in_corpus_agg mic ON r.reference_id = mic.reference_id
 LEFT JOIN mods_needs_review_agg mnr ON r.reference_id = mnr.reference_id
 LEFT JOIN mods_in_corpus_or_needs_review_agg mcr ON r.reference_id = mcr.reference_id
-LEFT JOIN obsolete_curies_agg obs ON r.reference_id = obs.reference_id
-LEFT JOIN mod_reference_types_agg mrt ON r.reference_id = mrt.reference_id
-LEFT JOIN topic_entity_tags_agg tet ON r.reference_id = tet.reference_id
-LEFT JOIN curation_tags_agg ctag ON r.reference_id = ctag.reference_id
 LEFT JOIN workflow_tags_agg wf ON r.reference_id = wf.reference_id
-LEFT JOIN reference_emails_agg rem ON r.reference_id = rem.reference_id
-LEFT JOIN indexing_priorities_agg ip ON r.reference_id = ip.reference_id
-LEFT JOIN manual_indexing_tags_agg mit ON r.reference_id = mit.reference_id;
+LEFT JOIN topic_entity_tags_agg tet ON r.reference_id = tet.reference_id
+LEFT JOIN cross_references_agg xref ON r.reference_id = xref.reference_id
+LEFT JOIN authors_agg auth ON r.reference_id = auth.reference_id;
 
 INSERT INTO references_index_sink
 SELECT

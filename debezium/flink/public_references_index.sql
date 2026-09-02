@@ -138,14 +138,17 @@ SELECT
   res.title AS resource_title,
   cl.open_access, cl.name AS copyright_license,
   xref.cross_references, auth.authors, rel.relations, mesh.mesh_terms, mic.mods_in_corpus
+-- Ascending by source size, same reasoning as references_index.sql. Source rows:
+-- copyright_license 8, reference_relation 14,927, resource 45,301, mod_corpus_association 1.44M,
+-- cross_reference 4.09M, author 7.78M, mesh_detail 18.16M (by far the largest -- attached last).
 FROM reference r
 JOIN citation cit ON r.citation_id = cit.citation_id
-JOIN mods_in_corpus_agg mic ON r.reference_id = mic.reference_id   -- INNER: in-corpus only
-LEFT JOIN resource res ON r.resource_id = res.resource_id
 LEFT JOIN copyright_license cl ON r.copyright_license_id = cl.copyright_license_id
+LEFT JOIN reference_relations_agg rel ON r.reference_id = rel.reference_id
+LEFT JOIN resource res ON r.resource_id = res.resource_id
+JOIN mods_in_corpus_agg mic ON r.reference_id = mic.reference_id   -- INNER: in-corpus only
 LEFT JOIN cross_references_agg xref ON r.reference_id = xref.reference_id
 LEFT JOIN authors_agg auth ON r.reference_id = auth.reference_id
-LEFT JOIN reference_relations_agg rel ON r.reference_id = rel.reference_id
 LEFT JOIN mesh_terms_agg mesh ON r.reference_id = mesh.reference_id;
 
 INSERT INTO public_references_index_sink
