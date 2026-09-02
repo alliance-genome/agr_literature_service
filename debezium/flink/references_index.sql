@@ -22,8 +22,14 @@ SET 'table.optimizer.agg-phase-strategy' = 'TWO_PHASE';
 -- insert and the doc is removed for good, so the index shrinks instead of converging (measured on
 -- the dbz-test box at ~1 delete per index op, doc count going backwards). AUTO lets Flink insert the
 -- materializer only for plans that actually need it, so a genuinely safe plan still pays nothing.
--- If its state becomes the memory problem the old comment feared, cut parallelism or raise the TM --
--- do not go back to NONE while parallelism > 1.
+-- If its state becomes the memory problem the old comment feared, raise the TM -- do NOT go back to
+-- NONE, at ANY parallelism. MEASURED 2026-09-02: NONE with an explicit parallelism.default of 1 (so a
+-- genuinely single subtask, not the accident described above) still shrank the index -- doc count went
+-- 27029 -> 18411 -> 23779 within 10 minutes -- and ran ~6x slower than AUTO (10.9 vs 68 docs/s,
+-- projecting 33h vs 4h47m). So "parallelism 1 makes NONE safe" is FALSE; the only safe setting is
+-- AUTO, which costs nothing on plans that do not need the materializer. Dropping the materializer to
+-- reclaim its state also did not hold: host RAM went straight back to 28/30 GiB as the state simply
+-- relocated into the join stores.
 SET 'table.exec.sink.upsert-materialize' = 'AUTO';
 
 -- ============================ SOURCE TABLES (Debezium CDC, full envelope) ============================
