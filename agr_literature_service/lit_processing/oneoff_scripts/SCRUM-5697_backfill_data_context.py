@@ -19,39 +19,56 @@ below rather than one blanket UPDATE.
 Rules, applied in order. Each only ever touches rows still NULL, so an earlier
 rule wins and re-running is safe:
 
-  1. WB, Alliance classification pipelines -> ATP:0000323 data context
-     abc_document_classifier and abc_string_matching_antibody. The root term:
-     the paper was classified for the topic, with no claim about what kind of
-     data that is.
+  1. WB, expression marker -> ATP:0000328
+     Any WB tag whose topic or entity_type is ATP:0000328. Verified against
+     stage 2026-09-02 this matches 0 rows -- no tag in any MOD carries that term
+     as topic or entity_type. It is kept, and kept first, so the carve-out
+     survives if that changes.
 
-  2a. WB, Alliance entity extraction whose topic or entity_type is ATP:0000328
-      expression marker -> ATP:0000328
-  2b. All other WB Alliance entity extraction -> ATP:0000325
-      abc_entity_extractor, including its topic-only "no data" negatives -- they
-      come from the extraction pipeline, so they belong with it rather than with
-      classification. On stage 2a matches 0 rows: no WB tag carries ATP:0000328
-      as a topic or entity_type. It is kept so the carve-out survives if that
-      changes.
+  2. WB, topic-only tags (no entity) -> ATP:0000323 data context
+     The root term: the paper was tagged for the topic, with no claim about what
+     kind of data that is.
 
-  3. FB, any tag -> ATP:0000325
+  3. WB, tags with an entity -> ATP:0000325 experimentally studied data
 
-  4a. WB or FB tags the rules above did not claim -> ATP:0000325
-  4b. All other MODs                              -> ATP:0000325
+     Rules 2 and 3 are Ceri Van Slyke's instruction on SCRUM-5697 (2026-09-01):
+     "For WB entities are always experimentally studied ATP:0000325 ... Topic
+     tags should get the 'ATP:0000323 data context' value. This won't be
+     incorrect and is conservative."
 
-     Same value; split only so the dry-run distinguishes them. 4b is the
-     curators' rule for the remaining MODs. 4a is the WB/FB remainder: WormBase's
-     own pipelines (nnc_*, svm_*, ACKnowledge_*, *_script) and curator/author
-     entry, which are not Alliance tags and so are not covered by rules 1-2.
+     Note the axis: the split is by what the tag *is*, not by which pipeline
+     produced it. That supersedes the earlier source-based split, under which
+     only the three Alliance abc_ sources were treated specially. WormBase's own
+     classifiers (nnc_*, svm_*), the ACKnowledge pipeline, the legacy *_script
+     loaders and curator/author entry now all fall under the same two rules --
+     which is what the question in the ticket asked for, since an nnc_/svm_
+     classification tag is the same kind of claim as an abc_ one.
 
-On identifying "Alliance": data_provider never holds the value "Alliance" -- it
-is always a MOD abbreviation. Verified against stage 2026-09-01, exactly 3 of
-WormBase's 56 sources describe themselves as Alliance pipelines, and they are
-the three abc_-prefixed machine sources named above.
+     One consequence worth naming: abc_entity_extractor emits 62,385 topic-only
+     "no data" negatives alongside its 623,458 entity tags, and rule 2 gives
+     those negatives ATP:0000323 rather than grouping them with the rest of
+     their pipeline's output. That follows the instruction's wording -- it is
+     about the tag, not the producer -- and is the conservative reading it asked
+     for.
 
-Note on the going-forward values, which differ from the backfill on purpose:
-the WB entity-extraction pipelines are configured to send ATP:0000323, whereas
-rule 2 gives historical WB entity tags ATP:0000325. That asymmetry is per
-curator instruction, not an oversight.
+  4. FB, any tag -> ATP:0000325
+     Per the FlyBase note on the ticket that all should be experimentally
+     studied.
+
+  5. All other MODs -> ATP:0000325
+
+     Provisional: this is the ticket description's blanket default, and it
+     stamps ATP:0000325 on AGR, MGI, SGD and ZFIN tags on the strength of
+     reasoning that came from WB and FB. Question 1 of comment 97487 asks the
+     curators to confirm it. Re-check before the real run.
+
+Going-forward values are set per ml_model row rather than in pipeline code, and
+after rules 2/3 they agree in shape with the backfill: a model that emits topic
+tags should carry ATP:0000323, one that emits entity tags ATP:0000325. Two
+places in agr_automated_information_extraction still assume ATP:0000325 for
+classification and need to change with the ml_model values (comment 97488):
+agr_antibody_string_matching_classifier.DATA_CONTEXT, and the
+agr_document_classifier_trainer --data_context default.
 
 Two things make this load-bearing rather than cosmetic:
 
@@ -88,21 +105,10 @@ EXPRESSION_MARKER_DATA_CONTEXT_ATP = "ATP:0000328"
 # create_tag stamps on a tag whose caller omits data_context.
 DEFAULT_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
 
-# "Alliance tags" in the curator instruction. data_provider never holds
-# "Alliance" -- it is always a MOD abbreviation (verified on stage 2026-09-01) --
-# so the Alliance pipelines are identified by source_method. These are exactly
-# the WB sources whose topic_entity_tag_source.description calls them an
-# Alliance pipeline: 3 of 56, all abc_-prefixed and all machine evidence.
-# abc_literature_system is deliberately absent: it is the ABC curator entry form
-# (ATP:0000036), not a pipeline.
-ALLIANCE_CLASSIFICATION_METHODS = ("abc_document_classifier",
-                                   "abc_string_matching_antibody")
-ALLIANCE_ENTITY_EXTRACTION_METHODS = ("abc_entity_extractor",)
-
-
-def _in_list(values):
-    return "(" + ", ".join(f"'{v}'" for v in values) + ")"
-
+# A tag with no entity is a topic tag. On stage every entity-less tag has a true
+# NULL (1,508,213 NULL, 0 empty-string, checked 2026-09-02); the '' arm is
+# defensive, since nothing in the schema stops a loader writing one.
+NO_ENTITY = "(tet.entity IS NULL OR tet.entity = '')"
 
 BATCH_SIZE = 500
 
@@ -111,37 +117,29 @@ BATCH_SIZE = 500
 # tet.data_context IS NULL.
 RULES = [
     (
-        "1. WB / Alliance classification pipelines",
-        DATA_CONTEXT_ROOT,
-        f"m.abbreviation = 'WB' "
-        f"AND tets.source_method IN {_in_list(ALLIANCE_CLASSIFICATION_METHODS)}",
-    ),
-    (
-        "2a. WB / Alliance entity extraction, expression marker",
+        "1. WB / expression marker",
         EXPRESSION_MARKER_DATA_CONTEXT_ATP,
         f"m.abbreviation = 'WB' "
-        f"AND tets.source_method IN {_in_list(ALLIANCE_ENTITY_EXTRACTION_METHODS)} "
         f"AND (coalesce(tet.topic, '') = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}' "
         f"     OR coalesce(tet.entity_type, '') = '{EXPRESSION_MARKER_DATA_CONTEXT_ATP}')",
     ),
     (
-        "2b. WB / Alliance entity extraction, everything else",
-        EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
-        f"m.abbreviation = 'WB' "
-        f"AND tets.source_method IN {_in_list(ALLIANCE_ENTITY_EXTRACTION_METHODS)}",
+        "2. WB / topic tags (no entity)",
+        DATA_CONTEXT_ROOT,
+        f"m.abbreviation = 'WB' AND {NO_ENTITY}",
     ),
     (
-        "3. FB / any tag",
+        "3. WB / tags with an entity",
+        EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
+        "m.abbreviation = 'WB'",
+    ),
+    (
+        "4. FB / any tag",
         EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
         "m.abbreviation = 'FB'",
     ),
     (
-        "4a. WB or FB tags the rules above did not claim",
-        DEFAULT_DATA_CONTEXT,
-        "m.abbreviation IN ('WB', 'FB')",
-    ),
-    (
-        "4b. all other MODs",
+        "5. all other MODs",
         DEFAULT_DATA_CONTEXT,
         "TRUE",
     ),
