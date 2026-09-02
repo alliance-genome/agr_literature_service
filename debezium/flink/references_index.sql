@@ -247,21 +247,16 @@ CREATE TABLE references_index_sink (
   'sink.bulk-flush.backoff.strategy'='CONSTANT','sink.bulk-flush.backoff.max-retries'='5','sink.bulk-flush.backoff.delay'='2s');
 
 -- ============================ FINAL ASSEMBLY: one multi-way join ============================
-INSERT INTO references_index_sink
+-- STATE-SIZE OPTIMISATION. The wide reference columns (abstract ~1.4GB, title 126MB, keywords 29MB
+-- across 1.29M refs -- ~1.6GB total) used to sit on the LEFT side of the join chain, so Flink
+-- materialised them in EVERY intermediate join's state: ~1.6GB x 13 links = ~21GB, against only
+-- 8-13GB of RocksDB block cache. That is the wall every 3000-IOPS run hit in the 47k-112k band --
+-- once state outgrows the cache, each output costs a disk read and the reindex becomes IOPS-bound.
+-- Joining the aggregates onto a NARROW spine (reference_id + join keys) and attaching the wide
+-- columns ONCE at the end stores that text a single time instead of thirteen.
+CREATE TEMPORARY VIEW reference_spine AS
 SELECT
-  r.reference_id, r.curie, r.abstract, r.category,
-  NULLIF(r.date_arrived_in_pubmed, '') AS date_arrived_in_pubmed, r.date_created,
-  NULLIF(r.date_last_modified_in_pubmed, '') AS date_last_modified_in_pubmed,
-  r.date_published, r.date_published_start, r.date_published_end, r.date_updated,
-  r.issue_name, r.keywords, r.`language`, r.page_range, r.plain_language_abstract, r.publisher,
-  r.pubmed_abstract_languages, r.pubmed_publication_status, r.pubmed_types,
-  CASE WHEN r.resource_id IS NULL THEN '__EMPTY__' ELSE r.resource_id END AS resource_id,
-  r.title, r.volume, r.retraction_status, r.can_display_image, r.image_count,
-  CASE r.retraction_status
-    WHEN 'ATP:0000346' THEN 'retracted'
-    WHEN 'ATP:0000347' THEN 'partially retracted'
-    WHEN 'ATP:0000348' THEN 'fully retracted'
-    ELSE NULL END AS retraction_status_name,
+  r.reference_id,
   cit.citation, cit.short_citation,
   xref.cross_references, auth.authors,
   mic.mods_in_corpus, mnr.mods_needs_review, mcr.mods_in_corpus_or_needs_review,
@@ -283,3 +278,27 @@ LEFT JOIN workflow_tags_agg wf ON r.reference_id = wf.reference_id
 LEFT JOIN reference_emails_agg rem ON r.reference_id = rem.reference_id
 LEFT JOIN indexing_priorities_agg ip ON r.reference_id = ip.reference_id
 LEFT JOIN manual_indexing_tags_agg mit ON r.reference_id = mit.reference_id;
+
+INSERT INTO references_index_sink
+SELECT
+  rw.reference_id, rw.curie, rw.abstract, rw.category,
+  NULLIF(rw.date_arrived_in_pubmed, '') AS date_arrived_in_pubmed, rw.date_created,
+  NULLIF(rw.date_last_modified_in_pubmed, '') AS date_last_modified_in_pubmed,
+  rw.date_published, rw.date_published_start, rw.date_published_end, rw.date_updated,
+  rw.issue_name, rw.keywords, rw.`language`, rw.page_range, rw.plain_language_abstract, rw.publisher,
+  rw.pubmed_abstract_languages, rw.pubmed_publication_status, rw.pubmed_types,
+  CASE WHEN rw.resource_id IS NULL THEN '__EMPTY__' ELSE rw.resource_id END AS resource_id,
+  rw.title, rw.volume, rw.retraction_status, rw.can_display_image, rw.image_count,
+  CASE rw.retraction_status
+    WHEN 'ATP:0000346' THEN 'retracted'
+    WHEN 'ATP:0000347' THEN 'partially retracted'
+    WHEN 'ATP:0000348' THEN 'fully retracted'
+    ELSE NULL END AS retraction_status_name,
+  s.citation, s.short_citation,
+  s.cross_references, s.authors,
+  s.mods_in_corpus, s.mods_needs_review, s.mods_in_corpus_or_needs_review,
+  s.obsolete_curies, s.mod_reference_types,
+  s.topic_entity_tags, s.curation_tags, s.workflow_tags, s.reference_emails,
+  s.indexing_priorities, s.manual_indexing_tags
+FROM reference_spine s
+JOIN reference rw ON s.reference_id = rw.reference_id;
