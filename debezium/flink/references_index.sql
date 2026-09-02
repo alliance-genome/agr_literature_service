@@ -160,20 +160,26 @@ CREATE VIEW authors_agg AS
                        'author_order', CAST(author_order AS STRING)]) AS authors
   FROM author GROUP BY reference_id;
 
-CREATE VIEW mods_in_corpus_agg AS
-  SELECT mca.reference_id, ARRAY_AGG(m.abbreviation) AS mods_in_corpus
+-- ONE aggregate over mod_corpus_association instead of three. All three previously scanned the same
+-- 1.44M-row table with the same JOIN and GROUP BY, differing only in their WHERE -- so the table was
+-- aggregated three times and joined into the spine three times, for three separate aggregate states.
+-- Conditional aggregation produces all three arrays in a single pass: 2 fewer joins in the chain and
+-- 2 fewer aggregate states.
+--
+-- NULL SEMANTICS ARE LOAD-BEARING: each column must be NULL (not an empty array) when a reference has
+-- no matching rows, because the original views simply emitted no row and the LEFT JOIN produced NULL.
+-- An empty array is NOT equivalent -- it changes `exists` behaviour in Elasticsearch and would alter
+-- documents silently. FILTER (WHERE ...) aggregates over an empty set and yields NULL, preserving it.
+-- The outer WHERE keeps corpus = FALSE rows out entirely, matching the originals (a reference with
+-- only corpus = FALSE appeared in none of the three views).
+CREATE VIEW mods_agg AS
+  SELECT mca.reference_id,
+    ARRAY_AGG(m.abbreviation) FILTER (WHERE mca.corpus = TRUE)   AS mods_in_corpus,
+    ARRAY_AGG(m.abbreviation) FILTER (WHERE mca.corpus IS NULL)  AS mods_needs_review,
+    ARRAY_AGG(m.abbreviation)                                    AS mods_in_corpus_or_needs_review
   FROM mod_corpus_association mca JOIN `mod` m ON mca.mod_id = m.mod_id
-  WHERE mca.corpus = TRUE GROUP BY mca.reference_id;
-
-CREATE VIEW mods_needs_review_agg AS
-  SELECT mca.reference_id, ARRAY_AGG(m.abbreviation) AS mods_needs_review
-  FROM mod_corpus_association mca JOIN `mod` m ON mca.mod_id = m.mod_id
-  WHERE mca.corpus IS NULL GROUP BY mca.reference_id;
-
-CREATE VIEW mods_in_corpus_or_needs_review_agg AS
-  SELECT mca.reference_id, ARRAY_AGG(m.abbreviation) AS mods_in_corpus_or_needs_review
-  FROM mod_corpus_association mca JOIN `mod` m ON mca.mod_id = m.mod_id
-  WHERE mca.corpus IS NULL OR mca.corpus = TRUE GROUP BY mca.reference_id;
+  WHERE mca.corpus IS NULL OR mca.corpus = TRUE
+  GROUP BY mca.reference_id;
 
 CREATE VIEW obsolete_curies_agg AS
   SELECT new_id AS reference_id, ARRAY_AGG(curie) AS obsolete_curies
@@ -259,7 +265,7 @@ SELECT
   r.reference_id,
   cit.citation, cit.short_citation,
   xref.cross_references, auth.authors,
-  mic.mods_in_corpus, mnr.mods_needs_review, mcr.mods_in_corpus_or_needs_review,
+  mods.mods_in_corpus, mods.mods_needs_review, mods.mods_in_corpus_or_needs_review,
   obs.obsolete_curies, mrt.mod_reference_types,
   tet.topic_entity_tags, ctag.curation_tags, wf.workflow_tags, rem.reference_emails,
   ip.indexing_priorities, mit.manual_indexing_tags
@@ -279,9 +285,7 @@ LEFT JOIN curation_tags_agg ctag ON r.reference_id = ctag.reference_id
 LEFT JOIN reference_emails_agg rem ON r.reference_id = rem.reference_id
 LEFT JOIN indexing_priorities_agg ip ON r.reference_id = ip.reference_id
 LEFT JOIN mod_reference_types_agg mrt ON r.reference_id = mrt.reference_id
-LEFT JOIN mods_in_corpus_agg mic ON r.reference_id = mic.reference_id
-LEFT JOIN mods_needs_review_agg mnr ON r.reference_id = mnr.reference_id
-LEFT JOIN mods_in_corpus_or_needs_review_agg mcr ON r.reference_id = mcr.reference_id
+LEFT JOIN mods_agg mods ON r.reference_id = mods.reference_id
 LEFT JOIN workflow_tags_agg wf ON r.reference_id = wf.reference_id
 LEFT JOIN topic_entity_tags_agg tet ON r.reference_id = tet.reference_id
 LEFT JOIN cross_references_agg xref ON r.reference_id = xref.reference_id
