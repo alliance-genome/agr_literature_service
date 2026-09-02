@@ -556,6 +556,17 @@ services:
     # get the same in-memory behaviour from Flink (safe here: checkpointing is off, so heap state has
     # no snapshot cost) and keep the reindex inside prod's IOPS budget instead of buying more IOPS.
     #
+    # KSQLDB MEMORY MODEL (state.backend.rocksdb.memory.managed=false). Flink pools ALL operators'
+    # RocksDB memory into one bounded managed budget; Kafka Streams/ksqlDB instead gives each of its
+    # ~115 stores its own cache and write buffers, effectively unbounded in aggregate. That is why the
+    # two engines stress opposite dimensions of the SAME volume: measured, ksqlDB is write/bandwidth-
+    # bound (~1788 IOPS at 411 MB/s, pinned at the 594 MB/s ceiling) while Flink is read/IOPS-bound
+    # (~3000 IOPS at only 16-40 MB/s, i.e. 5% of the bandwidth and 100% of the IOPS). Flink's bounded
+    # pool leaves ~57-84MB per store across ~40 operators, so reads miss and every miss costs an IOP.
+    # Setting managed=false reproduces the ksqlDB shape. RISK: that memory sits OUTSIDE the TaskManager
+    # budget, so it can overrun the container and be OOM-killed -- exactly what the bounded pool was
+    # introduced to prevent. Size TM_PROCESS_SIZE down to leave room for it.
+    #
     # SLOT COUNT IS A MEMORY KNOB, not just a concurrency knob. Flink divides managed memory evenly
     # PER SLOT, and this job puts ~40 stateful operators (13 aggregates + ~20 joins) in each slot,
     # every one with its own RocksDB instance sharing that slot's slice. Raising TASK_SLOTS shrinks
@@ -584,6 +595,13 @@ services:
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.3}
         # MEASURED: LZ4+ZSTD is NOT worth it for Flink -- see the A/B note above the environment block.
         state.backend.rocksdb.compression.per.level: ${DBZ_FLINK_ROCKSDB_COMPRESSION:-SNAPPY_COMPRESSION}
+        # ksqlDB memory model (see the note above the environment block). Defaults keep Flink's
+        # bounded managed pool; setting managed=false gives every RocksDB instance its OWN cache and
+        # write buffers, outside Flink's accounting -- which is what Kafka Streams does.
+        state.backend.rocksdb.memory.managed: ${DBZ_FLINK_ROCKSDB_MEMORY_MANAGED:-true}
+        state.backend.rocksdb.block.cache-size: ${DBZ_FLINK_ROCKSDB_BLOCK_CACHE:-8mb}
+        state.backend.rocksdb.writebuffer.size: ${DBZ_FLINK_ROCKSDB_WRITEBUFFER:-64mb}
+        state.backend.rocksdb.writebuffer.count: ${DBZ_FLINK_ROCKSDB_WRITEBUFFER_COUNT:-2}
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
         heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
 
