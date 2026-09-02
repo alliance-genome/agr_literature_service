@@ -573,6 +573,7 @@ services:
         state.backend.type: ${DBZ_FLINK_STATE_BACKEND:-rocksdb}
         taskmanager.memory.process.size: ${DBZ_FLINK_TM_PROCESS_SIZE:-12g}
         taskmanager.memory.managed.fraction: ${DBZ_FLINK_MANAGED_FRACTION:-0.3}
+        state.backend.rocksdb.compression.per.level: ${DBZ_FLINK_ROCKSDB_COMPRESSION:-SNAPPY_COMPRESSION}
         heartbeat.interval: ${DBZ_FLINK_HEARTBEAT_INTERVAL_MS:-30000}
         heartbeat.timeout: ${DBZ_FLINK_HEARTBEAT_TIMEOUT_MS:-180000}
 
