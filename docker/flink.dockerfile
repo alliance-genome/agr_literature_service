@@ -10,8 +10,19 @@
 # which stores only the input records ("zero intermediate state"). It requires multiple INNER/LEFT
 # joins sharing at least one common join key -- exactly this query's shape -- and is opt-in via
 #   SET 'table.optimizer.multi-join.enabled' = 'true';
-# Upstream reports 3x-1000x smaller state. Our reindex is IOPS-bound purely because state does not
-# fit the RocksDB block cache, so shrinking state attacks the root cause rather than the symptom.
+# Upstream reports 3x-1000x smaller state.
+#
+# MEASURED 2026-09-02 AND IT DOES NOT HELP THIS QUERY -- do not reach for it again without new
+# evidence. On 2.2.1 the flag engaged cleanly (0 binary Join[] vertices, 6 MultiJoin vertices, 31
+# vertices vs 44) and the 2.0 ES connector loaded fine on the 2.2 runtime. But throughput COLLAPSED:
+# ~10 docs/s against run 4's ~30 docs/s on the identical binary-join config, projecting ~36h vs ~12h,
+# with IOPS still pinned at the 3000 cap, heap only 73-82% and CPU load 0.42 -- so it was neither
+# heap- nor CPU-bound, just doing far more I/O per output row (~458 IOPS/doc vs ~100).
+# WHY: the multi-join removes STORED intermediate state but must then look up matches across all 13
+# inputs on demand, where the binary chain had them pre-joined at one lookup per link. It trades
+# storage for lookups, and our bottleneck is cache-miss READS -- so less state cost us more IOPS.
+# Note also the optimizer produced SIX MultiJoin operators, not one, so intermediate state persists
+# between them and the FLIP is only partially applied to a 13-way LEFT-join chain.
 #
 # CONNECTOR CONSTRAINT: flink-sql-connector-kafka has 5.0.0-2.1 / 5.0.0-2.2, but
 # flink-sql-connector-elasticsearch7 stops at 4.0.0-2.0 -- there is no 2.1+ build, and the connector
