@@ -86,7 +86,12 @@ def search_references(
     facets_values: Dict[str, List[str]] = None,
     negated_facets_values: Dict[str, List[str]] = None,
     size_result_count: Optional[int] = 10,
-    sort_by_published_date_order: Optional[str] = "desc",
+    # None = caller has no ordering opinion (relevance ordering with a recency
+    # tie-break). Only an explicit "asc"/"desc" — the UI's Oldest/Newest first —
+    # switches to chronological ordering; a "desc" DEFAULT here would make
+    # internal callers that omit the argument (e.g. sort_crud's needs-review
+    # keyword search) silently lose relevance ranking (PR #1290 review).
+    sort_by_published_date_order: Optional[str] = None,
     page: Optional[int] = 1,
     facets_limits: Dict[str, int] = None,
     return_facets_only: bool = False,
@@ -145,8 +150,15 @@ def search_references(
     author_exact_token_for_boost = None
     uses_rescore = False
 
-    # Default recency order
-    order = sort_by_published_date_order if sort_by_published_date_order in ("asc", "desc") else "desc"
+    # Default recency order. An explicit "asc"/"desc" means the user picked
+    # "Oldest first"/"Newest first" and expects chronological ordering, not
+    # relevance ordering with date as a tie-breaker; None/"relevance" keeps
+    # score-first ordering with recency only breaking score ties.
+    explicit_date_sort = sort_by_published_date_order in ("asc", "desc")
+    # "asc" only when explicitly requested; "desc" covers both the explicit case
+    # and the default recency tie-break. (Comparing against the literal keeps
+    # `order` a plain str for mypy, which can't narrow through the flag above.)
+    order = "asc" if sort_by_published_date_order == "asc" else "desc"
 
     # Pagination
     from_entry = (page - 1) * size_result_count
@@ -275,7 +287,12 @@ def search_references(
                                 "terms": {
                                     "field": "workflow_tags.workflow_tag_id.keyword",
                                     "min_doc_count": 0,
-                                    "size": 100
+                                    # Overridable so the advanced-query vocab fetch
+                                    # can request the full per-MOD workflow
+                                    # vocabulary instead of the top-100 (SCRUM-6398).
+                                    "size": facets_limits.get(
+                                        "workflow_tags.workflow_tag_id.keyword", 100
+                                    )
                                 },
                                 "aggs": {"reverse_docs": {"reverse_nested": {}}}
                             }
@@ -368,7 +385,9 @@ def search_references(
         # sub-facets replaces the flat facet path when present. Facet count
         # aggregations can't reflect an arbitrary boolean tree, so they run
         # unfiltered by the tree (counts are not tree-scoped in advanced mode).
-        has_tet_advanced = add_tet_advanced_query(es_body, tet_advanced_query)
+        # The tree may also carry workflow-tag leaves (SCRUM-6398), which are
+        # scoped to the corpus/MOD selection like the flat workflow facet path.
+        has_tet_advanced = add_tet_advanced_query(es_body, tet_advanced_query, wft_mod_abbreviations)
     elif tet_nested_facets_values and (
         "tet_facets_values" in tet_nested_facets_values
         or "tet_facets_negative_values" in tet_nested_facets_values
@@ -685,6 +704,7 @@ def search_references(
                 is_text_search=is_text_search,
                 uses_rescore=uses_rescore,
                 order=order,
+                explicit_date_sort=explicit_date_sort,
             )
 
     # Execute
@@ -1208,15 +1228,45 @@ def _tet_leaf_nested_query(match, negate=False):
     return nested_query
 
 
-def build_tet_advanced_query(node):
+def _wft_leaf_nested_query(match, negate=False, wft_mod_abbreviations=None):
+    """Build the nested query for one workflow-tag leaf condition (SCRUM-6398).
+
+    ``match`` carries ``{"workflow_tag_id": [ATP ids...]}``; values are OR-ed
+    (terms). The tag must belong to one of ``wft_mod_abbreviations`` — the same
+    corpus/MOD scoping the flat workflow facet path applies — when that list is
+    given. When ``negate`` is true the nested query is wrapped in a bool.must_not
+    so the reference is dropped if any of its workflow tags matches
+    (whole-reference exclusion)."""
+    values = [v for v in (match.get("workflow_tag_id") or []) if v]
+    if not values:
+        return None
+    must_conditions: List[Dict[str, Any]] = []
+    if wft_mod_abbreviations:
+        must_conditions.append({"terms": {"workflow_tags.mod_abbreviation": wft_mod_abbreviations}})
+    must_conditions.append({"terms": {"workflow_tags.workflow_tag_id.keyword": values}})
+    nested_query = {
+        "nested": {
+            "path": "workflow_tags",
+            "query": {"bool": {"must": must_conditions}},
+        }
+    }
+    if negate:
+        return {"bool": {"must_not": [nested_query]}}
+    return nested_query
+
+
+def build_tet_advanced_query(node, wft_mod_abbreviations=None):
     """Recursively compile an advanced TET query tree into an Elasticsearch clause.
 
     Leaf nodes -- ``{"type": "tet", "match": {short_name: [values], ...},
-    "negate": bool}`` -- become nested tag queries. Internal nodes --
-    ``{"operator": "AND"|"OR", "children": [...]}`` -- combine their compiled
-    children with bool.must (AND) or bool.should+minimum_should_match:1 (OR).
-    Empty nodes/children collapse away; a node with a single effective child
-    returns that child directly. Returns ``None`` when nothing to add."""
+    "negate": bool}`` -- become nested tag queries; ``{"type": "wft", "match":
+    {"workflow_tag_id": [...]}, "negate": bool}`` leaves become nested
+    workflow_tags queries so topic and workflow conditions mix in one tree
+    (SCRUM-6398). Internal nodes -- ``{"operator": "AND"|"OR", "children":
+    [...]}`` -- combine their compiled children with bool.must (AND) or
+    bool.should+minimum_should_match:1 (OR). Empty nodes/children collapse away;
+    a node with a single effective child returns that child directly. Returns
+    ``None`` when nothing to add."""
     if not node:
         return None
     if node.get("type") == "tet":
@@ -1224,7 +1274,12 @@ def build_tet_advanced_query(node):
         if not match:
             return None
         return _tet_leaf_nested_query(match, node.get("negate", False))
-    children = [build_tet_advanced_query(child) for child in node.get("children", [])]
+    if node.get("type") == "wft":
+        match = node.get("match") or {}
+        if not match:
+            return None
+        return _wft_leaf_nested_query(match, node.get("negate", False), wft_mod_abbreviations)
+    children = [build_tet_advanced_query(child, wft_mod_abbreviations) for child in node.get("children", [])]
     children = [child for child in children if child]
     if not children:
         return None
@@ -1235,11 +1290,11 @@ def build_tet_advanced_query(node):
     return {"bool": {"must": children}}
 
 
-def add_tet_advanced_query(es_body, tet_advanced_query):
+def add_tet_advanced_query(es_body, tet_advanced_query, wft_mod_abbreviations=None):
     """Attach a compiled advanced TET query tree to ``es_body``'s filter, ANDing
     it with any other filters. Returns True when a clause was added, False when
     the tree was empty (so callers can decide whether to keep the filter block)."""
-    compiled = build_tet_advanced_query(tet_advanced_query)
+    compiled = build_tet_advanced_query(tet_advanced_query, wft_mod_abbreviations)
     if compiled is None:
         return False
     if "must" not in es_body["query"]["bool"]["filter"]["bool"]:
