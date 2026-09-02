@@ -32,7 +32,12 @@ SOURCE_JSON="${BASE_DIR}postgres-source-flink.json"
 SOURCE_CONNECTOR="postgres-source-flink"
 SLOT_NAME="debezium_unified"
 CATCHUP_STABLE_SECS="${DBZ_FLINK_CATCHUP_STABLE_SECS:-120}"   # index size unchanged this long == caught up
-STALL_IDLE_SECS="${DBZ_FLINK_STALL_IDLE_SECS:-600}"           # ZERO writes this long == genuinely stalled
+# ZERO writes this long == treated as genuinely stalled. 600s was NOT enough: a compressed run on
+# the test box sat write-idle for >600s at 154534/1295410 docs, this guard aborted it -- and the
+# Flink jobs, which the script does not cancel, went on to finish BOTH indexes at exactly 1295410
+# and 1113157. So a long write-idle gap is survivable mid-backlog and is not proof of a wedge; the
+# real backstop is CATCHUP_MAX_SECS plus the partial-index refusal at the cap.
+STALL_IDLE_SECS="${DBZ_FLINK_STALL_IDLE_SECS:-3600}"
 CATCHUP_MAX_SECS="${DBZ_DATA_PROCESSING_SLEEP:-20000}"        # hard cap
 
 log() { echo "[setup_flink $(date -u +%H:%M:%S)] $*"; }
