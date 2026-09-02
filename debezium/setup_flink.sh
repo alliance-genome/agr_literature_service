@@ -325,29 +325,10 @@ for _t in "$PRIV_TARGET" "$PUB_TARGET"; do
   esac
 done
 preflight_slots
-# SEQUENTIAL BUILD (DBZ_FLINK_SEQUENTIAL_BUILD=1, the default). Submitting both jobs at once makes
-# them fight over one RocksDB memory pool and one IOPS budget, and the CHEAPER job wins: measured on
-# the test box at 62% private / 69% public, public was moving at 80.8 docs/s while private managed
-# 0 docs/s -- public has 7 joins to private's 13, so its state is more cache-resident, and it evicted
-# private's blocks. Gate 2 waits on private FIRST, so the orchestrator was blocked on the job losing
-# the fight while the job it was not waiting for consumed the box.
-# Building one at a time gives each the full cache and IOPS budget. Parallel submission (0) is kept
-# for boxes where the bottleneck is CPU rather than cache -- there it is the better choice.
-if [ "${DBZ_FLINK_SEQUENTIAL_BUILD:-1}" = "1" ]; then
-  log "sequential build: private first, then public (each gets the whole cache/IOPS budget)"
-  flink_submit_file "${SQL_DIR}/references_index.sql"        flink_references_index        "$PRIV_IDX"
-  wait_for_catchup "$PRIV_IDX" references_index        "$RUN_SINCE_MS" "$PRIV_TARGET"
-  log "private caught up; submitting public now"
-  PUB_SINCE_MS=$(( $(date -u +%s) * 1000 ))
-  flink_submit_file "${SQL_DIR}/public_references_index.sql" flink_public_references_index "$PUB_IDX"
-  wait_for_catchup "$PUB_IDX"  public_references_index "$PUB_SINCE_MS" "$PUB_TARGET"
-else
-  log "parallel build: both jobs submitted together"
-  flink_submit_file "${SQL_DIR}/references_index.sql"        flink_references_index        "$PRIV_IDX"
-  flink_submit_file "${SQL_DIR}/public_references_index.sql" flink_public_references_index "$PUB_IDX"
-  wait_for_catchup "$PRIV_IDX" references_index        "$RUN_SINCE_MS" "$PRIV_TARGET"
-  wait_for_catchup "$PUB_IDX"  public_references_index "$RUN_SINCE_MS" "$PUB_TARGET"
-fi
+flink_submit_file "${SQL_DIR}/references_index.sql"        flink_references_index        "$PRIV_IDX"
+flink_submit_file "${SQL_DIR}/public_references_index.sql" flink_public_references_index "$PUB_IDX"
+wait_for_catchup "$PRIV_IDX" references_index        "$RUN_SINCE_MS" "$PRIV_TARGET"
+wait_for_catchup "$PUB_IDX"  public_references_index "$RUN_SINCE_MS" "$PUB_TARGET"
 flip_alias "$PRIVATE_ALIAS" "$PRIV_IDX"
 flip_alias "$PUBLIC_ALIAS"  "$PUB_IDX"
 log "reindex complete: aliases now serve slot ${SLOT}. Old-slot Flink jobs can be cancelled once verified."
