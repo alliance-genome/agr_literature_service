@@ -168,6 +168,12 @@ export PUBLIC_SINK_NAME="elastic-sink-public"
 export SINK_INDEX_NAME="${INDEX_NAME_CURRENT}"
 export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_CURRENT}"
 
+# Clear each sink's committed offsets BEFORE deleting it: the connector goes away but its consumer
+# group does not, and the ksql CTAS topics are reused across rebuilds, so a recreated sink would
+# resume mid-topic and leave the freshly-emptied slot short (see reset_sink_offsets).
+reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${SINK_NAME}" || true
+reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${PUBLIC_SINK_NAME}" || true
+
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${SINK_NAME}
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${PUBLIC_SINK_NAME}
 
