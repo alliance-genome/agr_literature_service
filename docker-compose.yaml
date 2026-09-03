@@ -533,7 +533,14 @@ services:
     depends_on:
       - flink_jobmanager
     command: taskmanager
-    # COMPRESSION A/B (same box, same data, back-to-back): Snappy 4h47m @ 5800 IOPS / 37.5 MB/s read
+    # COMPRESSION IS A DEAD END -- measured negative in BOTH regimes, do not retry.
+    # Second A/B, run 15 vs run 11 (spine+order SQL, 3000 IOPS, ~7 idle cores -- the IOPS-bound
+    # regime where trading CPU for cache density was supposed to pay): identical at 6 min, then
+    # progressively worse -- 11min -21%, 16min -27%, 26min -24%, 31min -33% (221,285 vs 330,472).
+    # The gap WIDENS, so it is a regression and not noise. The reasoning that the first negative
+    # "does not transfer because that run had I/O headroom" was wrong; it transfers.
+    #
+    # FIRST COMPRESSION A/B (same box, same data, back-to-back): Snappy 4h47m @ 5800 IOPS / 37.5 MB/s read
     # / 64.4% util; LZ4+ZSTD-bottommost 5h32m @ 6049 IOPS / 48.4 MB/s read / 76.4% util. Compression
     # lost on every axis (+16% wall-clock). It works for ksqlDB because that engine is THROUGHPUT-
     # bound, pinned at the 594 MB/s ceiling, so cutting bytes relieves the real bottleneck. Flink is
