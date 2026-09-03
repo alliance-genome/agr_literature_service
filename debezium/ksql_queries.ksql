@@ -631,7 +631,7 @@ CREATE TABLE reference_with_resource AS
 -- The original private chain carried the WIDE reference row through every link: reference_xref
 -- restated 30 columns, then 33, 34, 35, 36, ... 43 -- so abstract/title/keywords (~1.6GB of text
 -- across 1.29M references) were materialised again at every step. The identical shape in Flink was
--- the wall: state outgrew the RocksDB block cache and the reindex went IOPS-bound; a narrow spine
+-- the wall: state outgrew the RocksDB block cache and the reindex went IOPS-bound -- a narrow spine
 -- plus ascending join order took it past the wall that had killed every previous attempt.
 --
 -- The spine carries ONLY reference_id + citation + the accumulated arrays. The wide columns are
