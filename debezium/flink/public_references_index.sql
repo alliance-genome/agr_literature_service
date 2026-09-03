@@ -124,23 +124,26 @@ CREATE TABLE public_references_index_sink (
   'sink.bulk-flush.backoff.strategy'='CONSTANT','sink.bulk-flush.backoff.max-retries'='5','sink.bulk-flush.backoff.delay'='2s');
 
 -- ============================ FINAL ASSEMBLY ============================
--- STATE-SIZE OPTIMISATION. The wide reference columns (abstract ~1.4GB, title 126MB, keywords 29MB
--- across 1.29M refs -- ~1.6GB total) used to sit on the LEFT side of the join chain, so Flink
--- materialised them in EVERY intermediate join's state: ~1.6GB x 13 links = ~21GB, against only
--- 8-13GB of RocksDB block cache. That is the wall every 3000-IOPS run hit in the 47k-112k band --
--- once state outgrows the cache, each output costs a disk read and the reindex becomes IOPS-bound.
--- Joining the aggregates onto a NARROW spine (reference_id + join keys) and attaching the wide
--- columns ONCE at the end stores that text a single time instead of thirteen.
-CREATE TEMPORARY VIEW public_reference_spine AS
+-- Ascending by source size, and `reference` stays on the LEFT so its declared PK carries to the sink
+-- (see the note in references_index.sql: a spine view loses key inference and turns updates into
+-- delete+insert). Source rows: copyright_license 8, reference_relation 14,927, resource 45,301,
+-- mod_corpus_association 1.44M, cross_reference 4.09M, author 7.78M, mesh_detail 18.16M (last).
+INSERT INTO public_references_index_sink
 SELECT
-  r.reference_id,
-  cit.citation, cit.short_citation,
-  res.title AS resource_title,
+  r.reference_id, r.curie, r.title, r.abstract, r.category, r.pubmed_types,
+  res.title AS resource_title, r.volume, r.issue_name, r.page_range, r.publisher, r.`language`,
+  r.date_published, r.pubmed_publication_status,
+  NULLIF(r.date_arrived_in_pubmed, '') AS date_arrived_in_pubmed,
+  NULLIF(r.date_last_modified_in_pubmed, '') AS date_last_modified_in_pubmed,
+  r.date_created, r.keywords, cit.citation, cit.short_citation,
   cl.open_access, cl.name AS copyright_license,
+  r.retraction_status,
+  CASE r.retraction_status
+    WHEN 'ATP:0000346' THEN 'retracted'
+    WHEN 'ATP:0000347' THEN 'partially retracted'
+    WHEN 'ATP:0000348' THEN 'fully retracted'
+    ELSE NULL END AS retraction_status_name,
   xref.cross_references, auth.authors, rel.relations, mesh.mesh_terms, mic.mods_in_corpus
--- Ascending by source size, same reasoning as references_index.sql. Source rows:
--- copyright_license 8, reference_relation 14,927, resource 45,301, mod_corpus_association 1.44M,
--- cross_reference 4.09M, author 7.78M, mesh_detail 18.16M (by far the largest -- attached last).
 FROM reference r
 JOIN citation cit ON r.citation_id = cit.citation_id
 LEFT JOIN copyright_license cl ON r.copyright_license_id = cl.copyright_license_id
@@ -150,22 +153,3 @@ JOIN mods_in_corpus_agg mic ON r.reference_id = mic.reference_id   -- INNER: in-
 LEFT JOIN cross_references_agg xref ON r.reference_id = xref.reference_id
 LEFT JOIN authors_agg auth ON r.reference_id = auth.reference_id
 LEFT JOIN mesh_terms_agg mesh ON r.reference_id = mesh.reference_id;
-
-INSERT INTO public_references_index_sink
-SELECT
-  rw.reference_id, rw.curie, rw.title, rw.abstract, rw.category, rw.pubmed_types,
-  s.resource_title, rw.volume, rw.issue_name, rw.page_range, rw.publisher, rw.`language`,
-  rw.date_published, rw.pubmed_publication_status,
-  NULLIF(rw.date_arrived_in_pubmed, '') AS date_arrived_in_pubmed,
-  NULLIF(rw.date_last_modified_in_pubmed, '') AS date_last_modified_in_pubmed,
-  rw.date_created, rw.keywords, s.citation, s.short_citation,
-  s.open_access, s.copyright_license,
-  rw.retraction_status,
-  CASE rw.retraction_status
-    WHEN 'ATP:0000346' THEN 'retracted'
-    WHEN 'ATP:0000347' THEN 'partially retracted'
-    WHEN 'ATP:0000348' THEN 'fully retracted'
-    ELSE NULL END AS retraction_status_name,
-  s.cross_references, s.authors, s.relations, s.mesh_terms, s.mods_in_corpus
-FROM public_reference_spine s
-JOIN reference rw ON s.reference_id = rw.reference_id;
