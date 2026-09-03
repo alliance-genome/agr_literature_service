@@ -247,44 +247,30 @@ CREATE TABLE references_index_sink (
   'sink.bulk-flush.backoff.strategy'='CONSTANT','sink.bulk-flush.backoff.max-retries'='5','sink.bulk-flush.backoff.delay'='2s');
 
 -- ============================ FINAL ASSEMBLY: one multi-way join ============================
--- JOIN ORDER IS ASCENDING BY SOURCE SIZE. Each link materialises everything accumulated so far, so
--- an aggregate joined first is carried through all remaining links and one joined last through none.
--- Source rows: obsolete_reference_curie 42, manual_indexing_tag 6,959, curation_status 23,616,
--- reference_email 40,916, indexing_priority 67,495, reference_mod_referencetype 1.30M,
--- mod_corpus_association 1.44M, workflow_tag 2.14M, topic_entity_tag 3.50M, cross_reference 4.09M,
--- author 7.78M. Ordering ascending cuts cumulative carried row-units ~228.8M -> ~72.7M (~68%).
---
--- WHY `reference` IS BACK ON THE LEFT (do not re-introduce the narrow spine). Routing the joins
--- through a spine view and attaching the wide columns at the end removed ~19GB of duplicated text
--- and cleared the state wall -- but it COST MORE THAN IT SAVED at the sink. A TEMPORARY VIEW cannot
--- declare a primary key, and the spine's first join is on citation_id, so Flink could not prove the
--- result unique per reference_id: the final join ran with JoinRecordStateViews$InputSideHasNoUniqueKey
--- (verified in a thread dump) and therefore emitted -D/+I instead of -U/+U. Measured effect: deletes
--- rose from 10.5% of documents to 25.5%, writes/doc from 1.21 to 1.51, and the SinkMaterializer became
--- the bottleneck at 80% busy while Elasticsearch itself sat idle. Keeping `reference` on the left
--- preserves its declared PK all the way to the sink, so updates stay updates.
--- NOTE: all reference columns are needed downstream -- do not try to prune them.
-INSERT INTO references_index_sink
+-- STATE-SIZE OPTIMISATION. The wide reference columns (abstract ~1.4GB, title 126MB, keywords 29MB
+-- across 1.29M refs -- ~1.6GB total) used to sit on the LEFT side of the join chain, so Flink
+-- materialised them in EVERY intermediate join's state: ~1.6GB x 13 links = ~21GB, against only
+-- 8-13GB of RocksDB block cache. That is the wall every 3000-IOPS run hit in the 47k-112k band --
+-- once state outgrows the cache, each output costs a disk read and the reindex becomes IOPS-bound.
+-- Joining the aggregates onto a NARROW spine (reference_id + join keys) and attaching the wide
+-- columns ONCE at the end stores that text a single time instead of thirteen.
+CREATE TEMPORARY VIEW reference_spine AS
 SELECT
-  r.reference_id, r.curie, r.abstract, r.category,
-  NULLIF(r.date_arrived_in_pubmed, '') AS date_arrived_in_pubmed, r.date_created,
-  NULLIF(r.date_last_modified_in_pubmed, '') AS date_last_modified_in_pubmed,
-  r.date_published, r.date_published_start, r.date_published_end, r.date_updated,
-  r.issue_name, r.keywords, r.`language`, r.page_range, r.plain_language_abstract, r.publisher,
-  r.pubmed_abstract_languages, r.pubmed_publication_status, r.pubmed_types,
-  CASE WHEN r.resource_id IS NULL THEN '__EMPTY__' ELSE r.resource_id END AS resource_id,
-  r.title, r.volume, r.retraction_status, r.can_display_image, r.image_count,
-  CASE r.retraction_status
-    WHEN 'ATP:0000346' THEN 'retracted'
-    WHEN 'ATP:0000347' THEN 'partially retracted'
-    WHEN 'ATP:0000348' THEN 'fully retracted'
-    ELSE NULL END AS retraction_status_name,
+  r.reference_id,
   cit.citation, cit.short_citation,
   xref.cross_references, auth.authors,
   mic.mods_in_corpus, mnr.mods_needs_review, mcr.mods_in_corpus_or_needs_review,
   obs.obsolete_curies, mrt.mod_reference_types,
   tet.topic_entity_tags, ctag.curation_tags, wf.workflow_tags, rem.reference_emails,
   ip.indexing_priorities, mit.manual_indexing_tags
+-- JOIN ORDER IS ASCENDING BY SOURCE SIZE. Each link materialises everything accumulated so far,
+-- so an aggregate joined first is carried through all 12 remaining links while one joined last is
+-- carried through none. Source rows: obsolete_curie 42, manual_indexing_tag 6,959, curation_status
+-- 23,616, reference_email 40,916, indexing_priority 67,495, reference_mod_referencetype 1.30M,
+-- mod_corpus_association 1.44M (x3 aggregates), workflow_tag 2.14M, topic_entity_tag 3.50M,
+-- cross_reference 4.09M, author 7.78M. The previous order put cross_references and authors FIRST --
+-- the two largest dragged through 12 and 11 links. Ascending order cuts cumulative carried
+-- row-units from ~228.8M to ~72.7M, a ~68% reduction in array bytes held in intermediate state.
 FROM reference r
 JOIN citation cit ON r.citation_id = cit.citation_id
 LEFT JOIN obsolete_curies_agg obs ON r.reference_id = obs.reference_id
@@ -300,3 +286,27 @@ LEFT JOIN workflow_tags_agg wf ON r.reference_id = wf.reference_id
 LEFT JOIN topic_entity_tags_agg tet ON r.reference_id = tet.reference_id
 LEFT JOIN cross_references_agg xref ON r.reference_id = xref.reference_id
 LEFT JOIN authors_agg auth ON r.reference_id = auth.reference_id;
+
+INSERT INTO references_index_sink
+SELECT
+  rw.reference_id, rw.curie, rw.abstract, rw.category,
+  NULLIF(rw.date_arrived_in_pubmed, '') AS date_arrived_in_pubmed, rw.date_created,
+  NULLIF(rw.date_last_modified_in_pubmed, '') AS date_last_modified_in_pubmed,
+  rw.date_published, rw.date_published_start, rw.date_published_end, rw.date_updated,
+  rw.issue_name, rw.keywords, rw.`language`, rw.page_range, rw.plain_language_abstract, rw.publisher,
+  rw.pubmed_abstract_languages, rw.pubmed_publication_status, rw.pubmed_types,
+  CASE WHEN rw.resource_id IS NULL THEN '__EMPTY__' ELSE rw.resource_id END AS resource_id,
+  rw.title, rw.volume, rw.retraction_status, rw.can_display_image, rw.image_count,
+  CASE rw.retraction_status
+    WHEN 'ATP:0000346' THEN 'retracted'
+    WHEN 'ATP:0000347' THEN 'partially retracted'
+    WHEN 'ATP:0000348' THEN 'fully retracted'
+    ELSE NULL END AS retraction_status_name,
+  s.citation, s.short_citation,
+  s.cross_references, s.authors,
+  s.mods_in_corpus, s.mods_needs_review, s.mods_in_corpus_or_needs_review,
+  s.obsolete_curies, s.mod_reference_types,
+  s.topic_entity_tags, s.curation_tags, s.workflow_tags, s.reference_emails,
+  s.indexing_priorities, s.manual_indexing_tags
+FROM reference_spine s
+JOIN reference rw ON s.reference_id = rw.reference_id;
