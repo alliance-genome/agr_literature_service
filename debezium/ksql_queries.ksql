@@ -914,10 +914,10 @@ CREATE TABLE reference_joined WITH (
     normalized_copyright_reference.retraction_status \"retraction_status\",
     normalized_copyright_reference.can_display_image \"can_display_image\",
     normalized_copyright_reference.image_count \"image_count\",
-    CASE normalized_copyright_reference.retraction_status
-      WHEN 'ATP:0000346' THEN 'retracted'
-      WHEN 'ATP:0000347' THEN 'partially retracted'
-      WHEN 'ATP:0000348' THEN 'fully retracted'
+    CASE
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
       ELSE NULL
     END AS \"retraction_status_name\",
     spine_auth.CITATION \"citation\",
