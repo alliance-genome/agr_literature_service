@@ -395,6 +395,236 @@ CREATE TABLE reference_with_citation AS
     normalized_copyright_reference.citation_id = citation.citation_id
     EMIT CHANGES;
 
+CREATE TABLE reference_workflow_tag(
+    reference_workflow_tag_id string PRIMARY KEY,
+    reference_id string,
+    workflow_tag_id string,
+    mod_id string,
+    created_by string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.workflow_tag',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+);
+
+CREATE TABLE reference_workflow_tag_with_mod AS
+    SELECT
+        reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
+        reference_workflow_tag.reference_id,
+        reference_workflow_tag.workflow_tag_id,
+        mod.abbreviation AS mod_abbreviation,
+        reference_workflow_tag.created_by
+    FROM reference_workflow_tag
+    JOIN mod
+        ON reference_workflow_tag.mod_id = mod.mod_id;
+
+CREATE TABLE reference_workflow_tags AS
+    SELECT reference_workflow_tag_with_mod.reference_id \"REFERENCE_ID\",
+    collect_list(map('workflow_tag_id':=workflow_tag_id, 'mod_abbreviation':= mod_abbreviation)) \"WORKFLOW_TAGS\"
+    FROM reference_workflow_tag_with_mod
+    GROUP BY reference_workflow_tag_with_mod.reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_relation (
+    ROWKEY string PRIMARY KEY,
+    reference_id_from string,
+    reference_id_to string,
+    reference_relation_type string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference_relation',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE copyright_license (
+    copyright_license_id string PRIMARY KEY,
+    name string,
+    url string,
+    description string,
+    open_access boolean
+  ) WITH (
+    KAFKA_TOPIC='abc.public.copyright_license',
+    VALUE_FORMAT='json',
+    KEY_FORMAT='json'
+  );
+
+INSERT INTO copyright_license (
+  copyright_license_id,
+  name,
+  url,
+  description,
+  open_access
+) VALUES (
+  '__EMPTY__',
+  NULL,
+  NULL,
+  NULL,
+  NULL
+);
+
+CREATE TABLE mesh_detail (
+    mesh_detail_id string PRIMARY KEY,
+    reference_id string,
+    heading_term string,
+    qualifier_term string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.mesh_detail',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE reference_email (
+    reference_email_id string PRIMARY KEY,
+    reference_id string,
+    email_address string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.reference_email',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE indexing_priority (
+    indexing_priority_id string PRIMARY KEY,
+    reference_id string,
+    mod_id string,
+    predicted_indexing_priority string,
+    curator_indexing_priority string,
+    confidence_score double
+  ) WITH (
+    KAFKA_TOPIC='abc.public.indexing_priority',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE manual_indexing_tag (
+    manual_indexing_tag_id string PRIMARY KEY,
+    reference_id string,
+    mod_id string,
+    curation_tag string,
+    confidence_score double,
+    validation_by_biocurator string,
+    note string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.manual_indexing_tag',
+    VALUE_FORMAT='json'
+  );
+
+CREATE TABLE resource (
+    resource_id string PRIMARY KEY,
+    title string,
+    iso_abbreviation string,
+    medline_abbreviation string,
+    issn_print string,
+    issn_electronic string
+  ) WITH (
+    KAFKA_TOPIC='abc.public.resource',
+    VALUE_FORMAT='json'
+  );
+
+INSERT INTO resource (
+  resource_id,
+  title,
+  iso_abbreviation,
+  medline_abbreviation,
+  issn_print,
+  issn_electronic
+) VALUES (
+  '__EMPTY__',
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL
+);
+
+CREATE TABLE reference_relations AS
+    SELECT reference_id_from \"REFERENCE_ID\",
+    collect_list(map('reference_id_to':=reference_id_to, 'reference_relation_type':=reference_relation_type)) \"RELATIONS\"
+    FROM reference_relation
+    GROUP BY reference_id_from
+    EMIT CHANGES;
+
+
+CREATE TABLE mesh_terms AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('heading_term':=heading_term, 'qualifier_term':=qualifier_term)) \"MESH_TERMS\"
+    FROM mesh_detail
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_emails AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(email_address) \"REFERENCE_EMAILS\"
+    FROM reference_email
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE indexing_priority_with_mod AS
+    SELECT
+        indexing_priority.indexing_priority_id AS INDEXING_PRIORITY_ID,
+        indexing_priority.reference_id,
+        indexing_priority.predicted_indexing_priority,
+        indexing_priority.curator_indexing_priority,
+        mod.abbreviation AS mod_abbreviation
+    FROM indexing_priority
+    JOIN mod
+        ON indexing_priority.mod_id = mod.mod_id;
+
+CREATE TABLE indexing_priorities AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('predicted_indexing_priority':=predicted_indexing_priority, 'curator_indexing_priority':=curator_indexing_priority, 'mod_abbreviation':=mod_abbreviation)) \"INDEXING_PRIORITIES\"
+    FROM indexing_priority_with_mod
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE manual_indexing_tag_with_mod AS
+    SELECT
+        manual_indexing_tag.manual_indexing_tag_id AS MANUAL_INDEXING_TAG_ID,
+        manual_indexing_tag.reference_id,
+        manual_indexing_tag.curation_tag,
+        mod.abbreviation AS mod_abbreviation
+    FROM manual_indexing_tag
+    JOIN mod
+        ON manual_indexing_tag.mod_id = mod.mod_id;
+
+CREATE TABLE manual_indexing_tags AS
+    SELECT reference_id \"REFERENCE_ID\",
+    collect_list(map('curation_tag':=curation_tag, 'mod_abbreviation':=mod_abbreviation)) \"MANUAL_INDEXING_TAGS\"
+    FROM manual_indexing_tag_with_mod
+    GROUP BY reference_id
+    EMIT CHANGES;
+
+CREATE TABLE reference_with_resource AS
+    SELECT
+    reference_with_citation.REFERENCE_ID \"REFERENCE_ID\",
+    reference_with_citation.curie,
+    reference_with_citation.abstract,
+    reference_with_citation.category,
+    reference_with_citation.DATE_ARRIVED_IN_PUBMED,
+    reference_with_citation.date_created,
+    reference_with_citation.DATE_LAST_MODIFIED_IN_PUBMED,
+    reference_with_citation.date_published,
+    reference_with_citation.date_published_start,
+    reference_with_citation.date_published_end,
+    reference_with_citation.date_updated,
+    reference_with_citation.issue_name,
+    reference_with_citation.keywords,
+    reference_with_citation.language,
+    reference_with_citation.copyright_license_id,
+    reference_with_citation.page_range,
+    reference_with_citation.plain_language_abstract,
+    reference_with_citation.publisher,
+    reference_with_citation.pubmed_abstract_languages,
+    reference_with_citation.pubmed_publication_status,
+    reference_with_citation.pubmed_types,
+    reference_with_citation.resource_id,
+    reference_with_citation.title \"TITLE\",
+    reference_with_citation.volume,
+    reference_with_citation.retraction_status,
+    reference_with_citation.retraction_status_name,
+    reference_with_citation.CITATION,
+    reference_with_citation.SHORT_CITATION,
+    resource.title \"RESOURCE_TITLE\"
+    FROM reference_with_citation reference_with_citation
+    LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
+    EMIT CHANGES;
+
 -- ==================================================================================================
 -- NARROW SPINE + ASCENDING JOIN ORDER (branch ksqldb-spine-reorder) -- PRIVATE index chain only.
 --
@@ -649,236 +879,6 @@ CREATE TABLE spine_auth AS
     FROM spine_xref spine_xref
     LEFT OUTER JOIN authors authors ON
     spine_xref.REFERENCE_ID = authors.REFERENCE_ID
-    EMIT CHANGES;
-
-CREATE TABLE reference_workflow_tag(
-    reference_workflow_tag_id string PRIMARY KEY,
-    reference_id string,
-    workflow_tag_id string,
-    mod_id string,
-    created_by string
-  ) WITH (
-    KAFKA_TOPIC='abc.public.workflow_tag',
-    VALUE_FORMAT='json',
-    KEY_FORMAT='json'
-);
-
-CREATE TABLE reference_workflow_tag_with_mod AS
-    SELECT
-        reference_workflow_tag.reference_workflow_tag_id AS REFERENCE_WORKFLOW_TAG_ID,
-        reference_workflow_tag.reference_id,
-        reference_workflow_tag.workflow_tag_id,
-        mod.abbreviation AS mod_abbreviation,
-        reference_workflow_tag.created_by
-    FROM reference_workflow_tag
-    JOIN mod
-        ON reference_workflow_tag.mod_id = mod.mod_id;
-
-CREATE TABLE reference_workflow_tags AS
-    SELECT reference_workflow_tag_with_mod.reference_id \"REFERENCE_ID\",
-    collect_list(map('workflow_tag_id':=workflow_tag_id, 'mod_abbreviation':= mod_abbreviation)) \"WORKFLOW_TAGS\"
-    FROM reference_workflow_tag_with_mod
-    GROUP BY reference_workflow_tag_with_mod.reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_relation (
-    ROWKEY string PRIMARY KEY,
-    reference_id_from string,
-    reference_id_to string,
-    reference_relation_type string
-  ) WITH (
-    KAFKA_TOPIC='abc.public.reference_relation',
-    VALUE_FORMAT='json'
-  );
-
-CREATE TABLE copyright_license (
-    copyright_license_id string PRIMARY KEY,
-    name string,
-    url string,
-    description string,
-    open_access boolean
-  ) WITH (
-    KAFKA_TOPIC='abc.public.copyright_license',
-    VALUE_FORMAT='json',
-    KEY_FORMAT='json'
-  );
-
-INSERT INTO copyright_license (
-  copyright_license_id,
-  name,
-  url,
-  description,
-  open_access
-) VALUES (
-  '__EMPTY__',
-  NULL,
-  NULL,
-  NULL,
-  NULL
-);
-
-CREATE TABLE mesh_detail (
-    mesh_detail_id string PRIMARY KEY,
-    reference_id string,
-    heading_term string,
-    qualifier_term string
-  ) WITH (
-    KAFKA_TOPIC='abc.public.mesh_detail',
-    VALUE_FORMAT='json'
-  );
-
-CREATE TABLE reference_email (
-    reference_email_id string PRIMARY KEY,
-    reference_id string,
-    email_address string
-  ) WITH (
-    KAFKA_TOPIC='abc.public.reference_email',
-    VALUE_FORMAT='json'
-  );
-
-CREATE TABLE indexing_priority (
-    indexing_priority_id string PRIMARY KEY,
-    reference_id string,
-    mod_id string,
-    predicted_indexing_priority string,
-    curator_indexing_priority string,
-    confidence_score double
-  ) WITH (
-    KAFKA_TOPIC='abc.public.indexing_priority',
-    VALUE_FORMAT='json'
-  );
-
-CREATE TABLE manual_indexing_tag (
-    manual_indexing_tag_id string PRIMARY KEY,
-    reference_id string,
-    mod_id string,
-    curation_tag string,
-    confidence_score double,
-    validation_by_biocurator string,
-    note string
-  ) WITH (
-    KAFKA_TOPIC='abc.public.manual_indexing_tag',
-    VALUE_FORMAT='json'
-  );
-
-CREATE TABLE resource (
-    resource_id string PRIMARY KEY,
-    title string,
-    iso_abbreviation string,
-    medline_abbreviation string,
-    issn_print string,
-    issn_electronic string
-  ) WITH (
-    KAFKA_TOPIC='abc.public.resource',
-    VALUE_FORMAT='json'
-  );
-
-INSERT INTO resource (
-  resource_id,
-  title,
-  iso_abbreviation,
-  medline_abbreviation,
-  issn_print,
-  issn_electronic
-) VALUES (
-  '__EMPTY__',
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-  NULL
-);
-
-CREATE TABLE reference_relations AS
-    SELECT reference_id_from \"REFERENCE_ID\",
-    collect_list(map('reference_id_to':=reference_id_to, 'reference_relation_type':=reference_relation_type)) \"RELATIONS\"
-    FROM reference_relation
-    GROUP BY reference_id_from
-    EMIT CHANGES;
-
-
-CREATE TABLE mesh_terms AS
-    SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('heading_term':=heading_term, 'qualifier_term':=qualifier_term)) \"MESH_TERMS\"
-    FROM mesh_detail
-    GROUP BY reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_emails AS
-    SELECT reference_id \"REFERENCE_ID\",
-    collect_list(email_address) \"REFERENCE_EMAILS\"
-    FROM reference_email
-    GROUP BY reference_id
-    EMIT CHANGES;
-
-CREATE TABLE indexing_priority_with_mod AS
-    SELECT
-        indexing_priority.indexing_priority_id AS INDEXING_PRIORITY_ID,
-        indexing_priority.reference_id,
-        indexing_priority.predicted_indexing_priority,
-        indexing_priority.curator_indexing_priority,
-        mod.abbreviation AS mod_abbreviation
-    FROM indexing_priority
-    JOIN mod
-        ON indexing_priority.mod_id = mod.mod_id;
-
-CREATE TABLE indexing_priorities AS
-    SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('predicted_indexing_priority':=predicted_indexing_priority, 'curator_indexing_priority':=curator_indexing_priority, 'mod_abbreviation':=mod_abbreviation)) \"INDEXING_PRIORITIES\"
-    FROM indexing_priority_with_mod
-    GROUP BY reference_id
-    EMIT CHANGES;
-
-CREATE TABLE manual_indexing_tag_with_mod AS
-    SELECT
-        manual_indexing_tag.manual_indexing_tag_id AS MANUAL_INDEXING_TAG_ID,
-        manual_indexing_tag.reference_id,
-        manual_indexing_tag.curation_tag,
-        mod.abbreviation AS mod_abbreviation
-    FROM manual_indexing_tag
-    JOIN mod
-        ON manual_indexing_tag.mod_id = mod.mod_id;
-
-CREATE TABLE manual_indexing_tags AS
-    SELECT reference_id \"REFERENCE_ID\",
-    collect_list(map('curation_tag':=curation_tag, 'mod_abbreviation':=mod_abbreviation)) \"MANUAL_INDEXING_TAGS\"
-    FROM manual_indexing_tag_with_mod
-    GROUP BY reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_with_resource AS
-    SELECT
-    reference_with_citation.REFERENCE_ID \"REFERENCE_ID\",
-    reference_with_citation.curie,
-    reference_with_citation.abstract,
-    reference_with_citation.category,
-    reference_with_citation.DATE_ARRIVED_IN_PUBMED,
-    reference_with_citation.date_created,
-    reference_with_citation.DATE_LAST_MODIFIED_IN_PUBMED,
-    reference_with_citation.date_published,
-    reference_with_citation.date_published_start,
-    reference_with_citation.date_published_end,
-    reference_with_citation.date_updated,
-    reference_with_citation.issue_name,
-    reference_with_citation.keywords,
-    reference_with_citation.language,
-    reference_with_citation.copyright_license_id,
-    reference_with_citation.page_range,
-    reference_with_citation.plain_language_abstract,
-    reference_with_citation.publisher,
-    reference_with_citation.pubmed_abstract_languages,
-    reference_with_citation.pubmed_publication_status,
-    reference_with_citation.pubmed_types,
-    reference_with_citation.resource_id,
-    reference_with_citation.title \"TITLE\",
-    reference_with_citation.volume,
-    reference_with_citation.retraction_status,
-    reference_with_citation.retraction_status_name,
-    reference_with_citation.CITATION,
-    reference_with_citation.SHORT_CITATION,
-    resource.title \"RESOURCE_TITLE\"
-    FROM reference_with_citation reference_with_citation
-    LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
     EMIT CHANGES;
 
 -- Wide reference columns attached ONCE here instead of being dragged through 13 links.
