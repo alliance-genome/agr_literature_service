@@ -169,6 +169,22 @@ class TestSchemasResolveUrls:
         assert out["url"] is None
 
     @pytest.mark.parametrize("schema", PERSON_SCHEMAS + LAB_SCHEMAS)
+    def test_page_with_null_name_keeps_positional_alignment(self, schema):
+        """A page name is Optional. It must not be dropped -- the resolved list
+        is zipped positionally against self.pages, so a shorter list would put
+        the wrong url on the wrong page."""
+        seed_wb_and_orcid()
+        payload = person_payload if schema in PERSON_SCHEMAS else lab_payload
+        out = schema.model_validate(payload(pages=[
+            {"name": None, "url": None},
+            {"name": "person", "url": None},
+        ])).model_dump()
+        assert out["pages"] == [
+            {"name": None, "url": None},
+            {"name": "person", "url": "https://wormbase.org/resources/person/WBPerson1"},
+        ]
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS + LAB_SCHEMAS)
     def test_already_resolved_pages_pass_through(self, schema):
         """Re-validating an already-serialized record must not double-wrap pages."""
         seed_wb_and_orcid()

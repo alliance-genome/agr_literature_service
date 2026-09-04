@@ -47,7 +47,10 @@ class ResolvedXrefUrlMixin(BaseModel):
     @model_validator(mode="after")
     def _resolve_urls(self) -> "ResolvedXrefUrlMixin":
         # An explicit url already on the record wins; otherwise derive it.
-        page_names = [p.name for p in self.pages] if self.pages is not None else None
+        # A page's name is Optional; substitute "" rather than dropping it, so
+        # the list stays positionally aligned with self.pages for the zip below.
+        # An empty name matches no descriptor page, so its url stays None.
+        page_names = [p.name or "" for p in self.pages] if self.pages is not None else None
         default_url, resolved = resolve_xref_urls(getattr(self, "curie", "") or "", page_names)
 
         if self.url is None:
