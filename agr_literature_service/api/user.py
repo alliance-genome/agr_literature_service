@@ -145,6 +145,15 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
     result = db.execute(sql, {"email": user_email}).fetchone()
 
     if result is None:
+        # Auto-register first-time Cognito users that carry a recognized ABC
+        # role group (curator/admin/developer/observer): create their person
+        # row with mod_roles set to their Cognito groups, so the recorded
+        # access status matches Cognito (SCRUM-6431). Accounts without any
+        # recognized role keep the explicit contact-an-administrator error.
+        if _has_recognized_role_group(cognito_user):
+            user_id = _create_person_for_cognito_user(db, cognito_user, user_email)
+            _current_user_id.set(user_id)
+            return
         raise HTTPException(
             status_code=403,
             detail=f"No user account linked to email address: {user_email}. "
@@ -153,6 +162,50 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
 
     # Set the current user ID from the query result
     _current_user_id.set(result[0])
+
+
+def _has_recognized_role_group(cognito_user: Dict[str, Any]) -> bool:
+    """True when the user carries at least one Cognito group ABC understands
+    (a MOD curator group, an admin/developer group, or a MOD observer group)."""
+    from agr_cognito_py.cognito_permissions import ADMIN_GROUPS, GROUP_TO_ACCESS
+    from agr_literature_service.api.observer import OBSERVER_GROUP_TO_MOD
+    groups = cognito_user.get("cognito:groups") or []
+    return any(
+        g in GROUP_TO_ACCESS or g in ADMIN_GROUPS or g in OBSERVER_GROUP_TO_MOD
+        or g.endswith("Developer")
+        for g in groups
+    )
+
+
+def _create_person_for_cognito_user(db: Session, cognito_user: Dict[str, Any],
+                                    user_email: str) -> str:
+    """Create the person row (+ email + person-backed users row) for a
+    first-time Cognito login and return the new users.id (the person curie —
+    the same shape manually-registered person users have). ``mod_roles``
+    records the user's Cognito groups so their role/access status is visible
+    on the person record (SCRUM-6431).
+
+    Models are imported lazily: this module sits at the centre of an import
+    cycle (see the NOTE at the top of the file)."""
+    from agr_literature_service.api.models import PersonEmailModel, PersonModel
+    from agr_literature_service.global_utils import get_next_person_curie
+
+    groups = list(cognito_user.get("cognito:groups") or [])
+    display_name = (cognito_user.get("name")
+                    or cognito_user.get("cognito:username")
+                    or user_email)
+    person = PersonModel(
+        display_name=display_name,
+        curie=get_next_person_curie(db),
+        mod_roles=groups or None,
+    )
+    db.add(person)
+    db.flush()
+    db.add(PersonEmailModel(person_id=person.person_id, email_address=user_email))
+    db.commit()
+    db.refresh(person)
+    link_user_to_person(db, person.curie, person.person_id)
+    return person.curie
 
 
 def get_global_user_id() -> Optional[str]:

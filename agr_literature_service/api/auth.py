@@ -25,6 +25,8 @@ from jwt.exceptions import PyJWTError
 
 from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
 
+from agr_literature_service.api.observer import enforce_observer_read_only
+
 # Session cookie name - must match authentication.py
 SESSION_COOKIE_NAME = "agr_session"
 
@@ -275,7 +277,7 @@ class IPAwareCognitoAuth:
         # This takes precedence over IP bypass so authenticated users get their real identity
         if credentials is not None:
             try:
-                return get_cognito_user_swagger(credentials, get_cognito_auth())
+                user = get_cognito_user_swagger(credentials, get_cognito_auth())
             except HTTPException:
                 # Already a clean auth error (e.g. 401 for an expired/invalid-claims token)
                 raise
@@ -285,10 +287,16 @@ class IPAwareCognitoAuth:
                 # PyJWKClient raise a PyJWTError that is not caught downstream. Surface it
                 # as a clean 401 instead of letting it bubble up as a 500 Internal Server Error.
                 raise HTTPException(status_code=401, detail=f"Invalid authentication token: {e}")
+            # Observers are read-only: enforce here, at the shared auth chokepoint,
+            # so every mutating endpoint is covered server-side regardless of UI
+            # behavior (SCRUM-6431). No-op for every other role.
+            enforce_observer_read_only(user, request.method, request.url.path)
+            return user
 
         # Priority 2: Check for session cookie (for direct browser access)
         session_user = self._get_user_from_session_cookie(request)
         if session_user:
+            enforce_observer_read_only(session_user, request.method, request.url.path)
             return session_user
 
         # Priority 3: No credentials provided - check IP bypass rules
