@@ -6,6 +6,8 @@ Person and laboratory cross references stored the same page names but never
 resolved them, so the UI had no link to render. These tests cover the shared
 resolver and the schema mixin that applies it.
 """
+from datetime import timedelta
+
 import pytest
 
 from types import SimpleNamespace
@@ -189,6 +191,35 @@ class TestPrefixMapMemoisation:
         m = rdc.full_prefix_map()
         assert "AAA" not in m and "BBB" in m
 
+    def test_a_refresh_landing_mid_build_does_not_stick(self):
+        """Forces the interleave the stamp ordering guards against.
+
+        The snapshot is replaced *while* the map is being built from it. If the
+        stamp were captured after the build, the pre-refresh map would be stored
+        under the post-refresh stamp and served for the rest of the TTL. With the
+        stamp captured first it is stored stale-under-stale, so the next call
+        rejects it and rebuilds.
+        """
+        old_rd = rdc.ResourceDescriptor(db_prefix="OLD", default_url="https://o/[%s]")
+        new_rd = rdc.ResourceDescriptor(db_prefix="NEW", default_url="https://n/[%s]")
+
+        class RefreshesMidIteration(list):
+            def __iter__(self):
+                # A refresh commits between the stamp read and the build.
+                rdc._state.snapshot = [new_rd]
+                rdc._state.fetched_at = rdc._state.fetched_at + timedelta(seconds=1)
+                return super().__iter__()
+
+        rdc._seed([old_rd])
+        rdc._state.snapshot = RefreshesMidIteration([old_rd])
+
+        first = rdc.full_prefix_map()
+        assert "OLD" in first          # built from what it saw
+
+        second = rdc.full_prefix_map()
+        assert "NEW" in second, "stale map stuck under a post-refresh stamp"
+        assert "OLD" not in second
+
     def test_repeated_calls_return_the_same_object(self):
         rdc._seed([rdc.ResourceDescriptor(db_prefix="AAA", default_url="https://a/[%s]")])
         assert rdc.full_prefix_map() is rdc.full_prefix_map()
@@ -367,10 +398,12 @@ def test_resource_and_reference_curies_replace_ids():
     assert "resource_id" not in out and "reference_id" not in out
 
 
-def test_schema_output_unchanged_by_shape_convergence():
-    """`url: ""` vs `url: None`, and a missing url key, all normalise to the same
-    JSON through CrossReferenceSchemaShow -- so converging the dict shape is not
-    an API change."""
+def test_empty_and_null_page_urls_stay_distinct():
+    """The old code emitted url: "" for a page name the descriptor did not
+    define; this branch emits null. The schema preserves that difference rather
+    than normalising it, as the assertions below show -- so this IS a response
+    change, an intended one. Named and documented here because the first version
+    of this test claimed the opposite."""
     from agr_literature_service.api.schemas.cross_reference_schemas import (
         CrossReferencePageSchemaShow,
     )

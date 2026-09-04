@@ -11,9 +11,14 @@ laboratory record as well as from their own endpoints -- and their CRUD
 functions return ORM objects, so resolving here covers every path with one
 change instead of formatting at each call site.
 
-`pages` is stored as a list of page NAMES; on the way out it becomes a list of
-``{name, url}`` objects, matching ``CrossReferenceSchemaShow``. The write
-schemas keep taking plain name strings, so no payload changes.
+`pages` is stored as a list of strings that are USUALLY descriptor page names,
+resolved against the descriptor's templates -- but not always: the SGD person
+loader writes the colleague's absolute obj_url into that column
+(lit_processing/oneoff_scripts/load_sgd_colleagues.py), and for those rows it is
+the only link they carry. resolve_xref_urls handles both, treating an
+already-absolute entry as its own url. Either way the entry comes out as a
+``{name, url}`` object, matching ``CrossReferenceSchemaShow``. The write schemas
+keep taking plain strings, so no payload changes.
 """
 from typing import Any, List, Optional
 

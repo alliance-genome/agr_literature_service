@@ -160,17 +160,26 @@ _map_cache_stamp: Optional[datetime] = None
 def full_prefix_map() -> Dict[str, "ResourceDescriptor"]:
     """Prefix->descriptor map for the current snapshot, memoised.
 
-    Read without the lock: a stale-stamp race merely rebuilds the same map in
-    two threads, and the assignments below are atomic, so the worst case is
-    duplicated work rather than a wrong answer.
+    The returned dict is the live cache -- callers must not mutate it.
+
+    Deliberately lock-free: this runs once per cross reference during
+    serialization, and that lock is the contention the memo exists to remove.
+    Correctness rests on capturing the stamp BEFORE building from the snapshot.
+    Read the other way round, a refresh committing between the two would store
+    the pre-refresh map under the post-refresh stamp, and every later call would
+    accept it -- serving a stale map, silently, until the next refresh (a 900s
+    TTL). Captured first, a losing thread instead stores a stale map under a
+    stale stamp, which the next call rejects and rebuilds: duplicated work
+    rather than a wrong answer.
     """
     global _map_cache, _map_cache_stamp
     ensure_fresh()
-    cached, stamp = _map_cache, _map_cache_stamp
-    if cached is not None and stamp == _state.fetched_at:
+    cached, cached_stamp = _map_cache, _map_cache_stamp
+    if cached is not None and cached_stamp == _state.fetched_at:
         return cached
+    stamp = _state.fetched_at
     built = {rd.db_prefix: rd for rd in (_state.snapshot or [])}
-    _map_cache, _map_cache_stamp = built, _state.fetched_at
+    _map_cache, _map_cache_stamp = built, stamp
     return built
 
 
