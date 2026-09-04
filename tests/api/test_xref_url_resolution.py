@@ -133,6 +133,71 @@ def lab_payload(**over):
     return base
 
 
+class TestEntityPageResolution:
+    """A person_cross_reference row is always about a person, so the API asks the
+    descriptor for its `person` page rather than requiring every row to store the
+    name. WB's person page yields ...;class=Person, where default_url yields only
+    the generic get?name=. Nothing is read from or written to the row for this.
+    """
+
+    def person_desc(self):
+        rdc._seed([rdc.ResourceDescriptor(
+            db_prefix="WB", name="WormBase",
+            default_url="https://www.wormbase.org/get?name=[%s]",
+            pages=[
+                rdc.DescriptorPage(name="person",
+                                   url="https://www.wormbase.org/db/get?name=[%s];class=Person"),
+                rdc.DescriptorPage(name="laboratory",
+                                   url="https://www.wormbase.org/db/get?name=[%s];class=Laboratory"),
+            ])])
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
+    def test_person_uses_the_person_page(self, schema):
+        self.person_desc()
+        out = schema.model_validate(person_payload(pages=None)).model_dump()
+        assert out["url"] == "https://www.wormbase.org/db/get?name=WBPerson1;class=Person"
+
+    @pytest.mark.parametrize("schema", LAB_SCHEMAS)
+    def test_laboratory_uses_the_laboratory_page(self, schema):
+        self.person_desc()
+        out = schema.model_validate(lab_payload(pages=None)).model_dump()
+        assert out["url"] == "https://www.wormbase.org/db/get?name=WBPerson1;class=Laboratory"
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS + LAB_SCHEMAS)
+    def test_the_row_is_not_rewritten(self, schema):
+        """`pages` stays a faithful copy of the column -- null in, null out."""
+        self.person_desc()
+        payload = person_payload if schema in PERSON_SCHEMAS else lab_payload
+        assert schema.model_validate(payload(pages=None)).model_dump()["pages"] is None
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS + LAB_SCHEMAS)
+    def test_falls_back_to_default_url_without_an_entity_page(self, schema):
+        """SGD has no person/laboratory page; those rows keep default_url."""
+        rdc._seed([rdc.ResourceDescriptor(db_prefix="WB", default_url="https://wb/[%s]")])
+        payload = person_payload if schema in PERSON_SCHEMAS else lab_payload
+        out = schema.model_validate(payload(pages=None)).model_dump()
+        assert out["url"] == "https://wb/WBPerson1"
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
+    def test_stored_pages_still_win_over_the_entity_page(self, schema):
+        """A row that does carry page names is resolved from those, unchanged."""
+        rdc._seed([rdc.ResourceDescriptor(
+            db_prefix="WB", default_url="https://www.wormbase.org/get?name=[%s]",
+            pages=[rdc.DescriptorPage(name="person", url="https://p/[%s]"),
+                   rdc.DescriptorPage(name="strain", url="https://s/[%s]")])])
+        out = schema.model_validate(person_payload(pages=["strain"])).model_dump()
+        assert out["pages"] == [{"name": "strain", "url": "https://s/WBPerson1"}]
+        # url still comes from default_url when the row carries its own pages
+        assert out["url"] == "https://www.wormbase.org/get?name=WBPerson1"
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
+    def test_an_explicit_url_is_never_overridden(self, schema):
+        self.person_desc()
+        out = schema.model_validate(
+            person_payload(pages=None, url="https://explicit/x")).model_dump()
+        assert out["url"] == "https://explicit/x"
+
+
 class TestAbsoluteUrlPageNames:
     """The SGD person loader writes the colleague's absolute obj_url into the
     `pages` column rather than a descriptor page name (load_sgd_colleagues.py:443
@@ -244,12 +309,22 @@ class TestSchemasResolveUrls:
             {"name": "person", "url": "https://wormbase.org/resources/person/WBPerson1"}
         ]
 
-    @pytest.mark.parametrize("schema", PERSON_SCHEMAS + LAB_SCHEMAS)
-    def test_null_pages_still_gets_a_default_url(self, schema):
-        """The live person records have pages=NULL; they must still get a url."""
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
+    def test_null_pages_resolves_via_the_person_page(self, schema):
+        """The live rows have pages=NULL. They still get a url, and because the
+        API knows this is a person xref it uses the descriptor's `person` page
+        rather than the generic default_url."""
         seed_wb_and_orcid()
-        payload = person_payload if schema in PERSON_SCHEMAS else lab_payload
-        out = schema.model_validate(payload(pages=None)).model_dump()
+        out = schema.model_validate(person_payload(pages=None)).model_dump()
+        assert out["url"] == "https://wormbase.org/resources/person/WBPerson1"
+        assert out["pages"] is None
+
+    @pytest.mark.parametrize("schema", LAB_SCHEMAS)
+    def test_null_pages_falls_back_when_no_entity_page_exists(self, schema):
+        """This descriptor defines `person` but not `laboratory`, so a lab xref
+        drops to default_url."""
+        seed_wb_and_orcid()
+        out = schema.model_validate(lab_payload(pages=None)).model_dump()
         assert out["url"] == "https://wormbase.org/species/all/person/WBPerson1"
         assert out["pages"] is None
 
@@ -313,7 +388,8 @@ class TestNestedInParentRecord:
         }).model_dump()
 
         by_prefix = {x["curie_prefix"]: x for x in person["cross_references"]}
-        assert by_prefix["WB"]["url"] == "https://wormbase.org/species/all/person/WBPerson1"
+        # via the descriptor's `person` page, not default_url
+        assert by_prefix["WB"]["url"] == "https://wormbase.org/resources/person/WBPerson1"
         assert by_prefix["ORCID"]["url"] == "https://orcid.org/0000-0002-4689-7314"
 
     def test_laboratory_record_nests_resolved_xrefs(self):

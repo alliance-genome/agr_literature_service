@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional
+from typing import ClassVar, List, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .base_schemas import AuditedObjectModelSchema
@@ -9,6 +9,8 @@ from .xref_url_mixin import ResolvedXrefUrlMixin
 class LaboratoryCrossReferenceSchemaRelated(AuditedObjectModelSchema, ResolvedXrefUrlMixin):
     """Related cross-reference details (embedded under Laboratory)."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    entity_page_name: ClassVar[str] = "laboratory"
 
     laboratory_cross_reference_id: int
     laboratory_curie: Optional[str] = None
@@ -66,6 +68,8 @@ class LaboratoryCrossReferenceSchemaUpdate(BaseModel):
 class LaboratoryCrossReferenceSchemaShow(AuditedObjectModelSchema, ResolvedXrefUrlMixin):
     """Full cross-reference record for detail endpoints."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    entity_page_name: ClassVar[str] = "laboratory"
 
     laboratory_cross_reference_id: int
     laboratory_curie: Optional[str] = None

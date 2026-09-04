@@ -20,7 +20,7 @@ already-absolute entry as its own url. Either way the entry comes out as a
 ``{name, url}`` object, matching ``CrossReferenceSchemaShow``. The write schemas
 keep taking plain strings, so no payload changes.
 """
-from typing import Any, List, Optional
+from typing import Any, ClassVar, List, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -33,6 +33,13 @@ class ResolvedXrefUrlMixin(BaseModel):
     """Adds a resolved `url` and upgrades `pages` names into {name, url}."""
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+    # The descriptor page that describes this kind of record, e.g. "person".
+    # Subclasses set it; a person_cross_reference row is always about a person,
+    # so the page name is fixed by the table rather than stored per row (unlike
+    # reference xrefs, where `pages` genuinely varies row to row). ClassVar, so
+    # pydantic does not treat it as a field.
+    entity_page_name: ClassVar[Optional[str]] = None
 
     url: Optional[str] = None
     pages: Optional[List[CrossReferencePageSchemaShow]] = None
@@ -51,17 +58,37 @@ class ResolvedXrefUrlMixin(BaseModel):
 
     @model_validator(mode="after")
     def _resolve_urls(self) -> "ResolvedXrefUrlMixin":
-        # An explicit url already on the record wins; otherwise derive it.
+        curie = getattr(self, "curie", "") or ""
+
         # A page's name is Optional; substitute "" rather than dropping it, so
         # the list stays positionally aligned with self.pages for the zip below.
         # An empty name matches no descriptor page, so its url stays None.
-        page_names = [p.name or "" for p in self.pages] if self.pages is not None else None
-        default_url, resolved = resolve_xref_urls(getattr(self, "curie", "") or "", page_names)
+        stored_names = (
+            [p.name or "" for p in self.pages] if self.pages is not None else None
+        )
+
+        # With no pages of its own, ask the descriptor for the page describing
+        # this kind of record -- WB's "person" page gives
+        # ...;class=Person where default_url only gives the generic get?name=.
+        # The row stays untouched: `pages` is a faithful copy of the column and
+        # is not synthesised from this lookup.
+        lookup_names = stored_names
+        if not stored_names and self.entity_page_name:
+            lookup_names = [self.entity_page_name]
+
+        default_url, resolved = resolve_xref_urls(curie, lookup_names)
 
         if self.url is None:
-            self.url = default_url
+            entity_url = (
+                resolved[0]["url"]
+                if (not stored_names and resolved and resolved[0].get("url"))
+                else None
+            )
+            # The entity page is the more specific link; default_url is the
+            # fallback when the descriptor does not define one (e.g. SGD).
+            self.url = entity_url or default_url
 
-        if self.pages is not None and resolved is not None:
+        if self.pages is not None and stored_names and resolved is not None:
             for page, res in zip(self.pages, resolved):
                 if page.url is None:
                     page.url = res["url"]
