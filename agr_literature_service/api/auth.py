@@ -27,6 +27,41 @@ from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
 
 from agr_literature_service.api.observer import enforce_observer_read_only
 
+
+def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
+    """Refuse Cognito ACCESS tokens that came from a user-pool sign-in.
+
+    agr_cognito_py treats every token_use=access token as a service account
+    (ALL_ACCESS) and discards its real cognito:groups. A browser session's
+    access token therefore sidesteps every role decision — including the
+    observer read-only boundary (SCRUM-6431 review): an observer could lift
+    the access token from their own session and write with ALL_ACCESS.
+
+    User-pool access tokens are identifiable by the aws.cognito.signin.user.admin
+    scope, which client-credentials (machine) tokens never carry. Optionally,
+    COGNITO_SERVICE_CLIENT_IDS (comma-separated) narrows service tokens to an
+    explicit client_id allowlist. The UI is unaffected: it authenticates with
+    the ID token.
+    """
+    if user.get("token_type") != "access":
+        return
+    scope = user.get("scope") or ""
+    if "aws.cognito.signin.user.admin" in scope:
+        raise HTTPException(
+            status_code=401,
+            detail="User-session access tokens are not accepted; "
+                   "authenticate with your ID token.",
+        )
+    allowed = os.environ.get("COGNITO_SERVICE_CLIENT_IDS", "")
+    if allowed:
+        allowed_ids = {c.strip() for c in allowed.split(",") if c.strip()}
+        if user.get("client_id") not in allowed_ids:
+            raise HTTPException(
+                status_code=401,
+                detail="Access token client is not an authorized service account.",
+            )
+
+
 # Session cookie name - must match authentication.py
 SESSION_COOKIE_NAME = "agr_session"
 
@@ -287,6 +322,10 @@ class IPAwareCognitoAuth:
                 # PyJWKClient raise a PyJWTError that is not caught downstream. Surface it
                 # as a clean 401 instead of letting it bubble up as a 500 Internal Server Error.
                 raise HTTPException(status_code=401, detail=f"Invalid authentication token: {e}")
+            # A user-session access token would masquerade as an ALL_ACCESS
+            # service account (its groups are discarded during validation), so
+            # reject it before any role decision (SCRUM-6431 review).
+            reject_user_session_access_tokens(user)
             # Observers are read-only: enforce here, at the shared auth chokepoint,
             # so every mutating endpoint is covered server-side regardless of UI
             # behavior (SCRUM-6431). No-op for every other role.

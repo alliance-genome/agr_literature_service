@@ -72,6 +72,9 @@ OBSERVER_ALLOWED_POST_PATHS: Set[str] = {
     "/cross_reference/show_all",
     "/topic_entity_tag/by_references",
     "/reference/referencefile/show_main_pdf_ids_for_curies",
+    # Stateless converters (upload in, converted document out; nothing stored).
+    "/xml2md/convert",
+    "/xml2md/validate",
 }
 
 
@@ -83,6 +86,11 @@ def observer_mod(user: Optional[Dict[str, Any]]) -> Optional[str]:
     write-capable access: any curator/admin/developer group or a service-account
     (access) token supersedes observer membership, so granting an observer group
     to an existing curator changes nothing.
+
+    Access tokens reaching this code are genuine service accounts: user-session
+    access tokens (whose real groups agr_cognito_py discards) are rejected
+    up-front by auth.reject_user_session_access_tokens, so the token_type check
+    below is documentation/defense rather than the boundary itself.
     """
     if not user:
         return None

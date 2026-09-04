@@ -59,7 +59,27 @@ POST /ontology/term_details
 POST /cross_reference/show_all
 POST /topic_entity_tag/by_references
 POST /reference/referencefile/show_main_pdf_ids_for_curies
+POST /xml2md/convert
+POST /xml2md/validate
 ```
+
+### User-session access tokens are rejected
+
+`agr_cognito_py` treats every `token_use=access` token as an ALL_ACCESS service
+account and discards its real `cognito:groups`, so a browser session's access
+token would sidestep every role decision — including this read-only boundary.
+The auth layer therefore rejects access tokens carrying the
+`aws.cognito.signin.user.admin` scope (present on every user-pool sign-in
+token, never on client-credentials tokens) with 401. Optionally set
+`COGNITO_SERVICE_CLIENT_IDS` (comma-separated) to additionally restrict service
+tokens to an explicit client_id allowlist. The UI authenticates with the ID
+token and is unaffected.
+
+Known side door: `POST /reference/referencefile/bulk_upload_validate/`
+authenticates via `get_cognito_user_swagger` directly rather than the shared
+dependency, so it skips both this gate and the observer check; it is read-only
+(a validator), so this is accepted — anything added to it beyond validation
+must first move it onto `get_authenticated_user`.
 
 Known limitation (v1): `POST /person_setting/` is not allowlisted, so
 observers cannot persist saved searches/preferences; revisit if the WG wants
@@ -68,12 +88,16 @@ observer preferences.
 ## First-login auto-registration
 
 On the first ID-token request from an email the ABC does not know,
-`set_global_user_from_cognito` auto-creates the person row (with
-`person.mod_roles` set to the user's Cognito groups, recording their access
-status), attaches the login email, and links a person-backed `users` row keyed
-by the person curie. Only accounts carrying a recognized role group
-(curator / admin / developer / observer) are auto-registered; anything else
-still gets the contact-an-administrator 403.
+`set_global_user_from_cognito` registers the user: if an admin pre-registered
+a person with that email, the login links a person-backed `users` row to that
+person (setting `mod_roles` from the Cognito groups only when unset);
+otherwise it creates the person (with `person.mod_roles` recording the Cognito
+groups), the email, and the `users` row in one transaction. Concurrent
+first-login requests are serialized with a per-email advisory lock, so the
+UI's parallel request burst cannot create duplicate persons. Only accounts
+carrying a recognized role group (curator / admin / developer / observer) are
+registered; anything else — and any registration failure — gets the
+contact-an-administrator 403.
 
 ## GET endpoint inventory
 

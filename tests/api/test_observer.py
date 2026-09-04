@@ -130,6 +130,43 @@ class TestReadOnlyEnforcement:
             enforce_observer_read_only(user, "POST", "/topic_entity_tag/")
 
 
+class TestUserSessionAccessTokenGate:
+    """A user-pool ACCESS token masquerades as an ALL_ACCESS service account
+    (agr_cognito_py discards its groups), which would let an observer sidestep
+    the read-only boundary with their own browser token — so the auth layer
+    rejects them outright (SCRUM-6431 review, finding 1)."""
+
+    def test_user_session_access_token_rejected(self):
+        from agr_literature_service.api.auth import reject_user_session_access_tokens
+        user = {"token_type": "access", "client_id": "browserclient",
+                "scope": "aws.cognito.signin.user.admin"}
+        with pytest.raises(HTTPException) as exc:
+            reject_user_session_access_tokens(user)
+        assert exc.value.status_code == 401
+        assert "ID token" in exc.value.detail
+
+    def test_client_credentials_token_accepted(self):
+        from agr_literature_service.api.auth import reject_user_session_access_tokens
+        reject_user_session_access_tokens(
+            {"token_type": "access", "client_id": "m2m", "scope": "abc/read"})
+        reject_user_session_access_tokens({"token_type": "access", "client_id": "m2m"})
+
+    def test_id_tokens_unaffected(self):
+        from agr_literature_service.api.auth import reject_user_session_access_tokens
+        reject_user_session_access_tokens(_id_user("FlyBaseObserver"))
+        reject_user_session_access_tokens(_id_user("FlyBaseCurator"))
+
+    def test_optional_client_id_allowlist(self, monkeypatch):
+        from agr_literature_service.api.auth import reject_user_session_access_tokens
+        monkeypatch.setenv("COGNITO_SERVICE_CLIENT_IDS", "svc-one, svc-two")
+        reject_user_session_access_tokens(
+            {"token_type": "access", "client_id": "svc-one", "scope": "abc/read"})
+        with pytest.raises(HTTPException) as exc:
+            reject_user_session_access_tokens(
+                {"token_type": "access", "client_id": "rogue", "scope": "abc/read"})
+        assert exc.value.status_code == 401
+
+
 class TestAutoRegistrationRoleGate:
     def test_recognized_groups(self):
         assert _has_recognized_role_group(_id_user("FlyBaseObserver")) is True
