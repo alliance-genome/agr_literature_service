@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 from jwt.exceptions import PyJWTError
 
 from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
@@ -55,9 +56,14 @@ def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
     scope = user.get("scope") or ""
     sub = user.get("sub")
     client_id = user.get("client_id")
+    # Missing sub/client_id fails CLOSED (treated as a user session): Cognito
+    # access tokens always carry both, so an access token without them is not
+    # a recognizable service account.
     is_user_session = (
         "aws.cognito.signin.user.admin" in scope
-        or (sub is not None and client_id is not None and sub != client_id)
+        or sub is None
+        or client_id is None
+        or sub != client_id
     )
     if is_user_session:
         raise HTTPException(
@@ -356,14 +362,16 @@ class IPAwareCognitoAuth:
             # so every mutating endpoint is covered server-side regardless of UI
             # behavior (SCRUM-6431). No-op for every other role.
             enforce_observer_read_only(user, request.method, request.url.path)
-            self._ensure_observer_registered(user)
+            # Threadpool: registration can do synchronous curie-service HTTP,
+            # which must not stall the event loop (SCRUM-6431 review).
+            await run_in_threadpool(self._ensure_observer_registered, user)
             return user
 
         # Priority 2: Check for session cookie (for direct browser access)
         session_user = self._get_user_from_session_cookie(request)
         if session_user:
             enforce_observer_read_only(session_user, request.method, request.url.path)
-            self._ensure_observer_registered(session_user)
+            await run_in_threadpool(self._ensure_observer_registered, session_user)
             return session_user
 
         # Priority 3: No credentials provided - check IP bypass rules

@@ -77,8 +77,13 @@ token has the user's UUID as `sub`, while client-credentials tokens have
 dependency, on `POST /auth/login` (so an access token cannot be laundered
 into a 48-hour session cookie), and on `GET /auth/status`. Optionally set
 `COGNITO_SERVICE_CLIENT_IDS` (comma-separated) to additionally restrict
-service tokens to an explicit client_id allowlist. The UI authenticates with
-the ID token and is unaffected.
+service tokens to an explicit client_id allowlist. An access token missing
+`sub` or `client_id` fails closed (treated as a user session). The UI
+authenticates with the ID token and is unaffected.
+
+**Behavior change / release note:** `POST /auth/login` with an access token now
+returns 401. Anyone who pasted an access token into Swagger's "Try it out" to
+mint a browser session must use their ID token instead.
 
 Known side door: `POST /reference/referencefile/bulk_upload_validate/`
 authenticates via `get_cognito_user_swagger` directly rather than the shared
@@ -108,7 +113,10 @@ Observers never reach the mutating handlers where that registration runs
 (their writes are 403'd first), so the auth dependency additionally registers
 observers passively on their first authenticated request: best-effort (a
 failure is logged and never blocks the read), advisory-locked and idempotent,
-and process-cached after first touch.
+process-cached after first touch, run in the threadpool (registration can do
+synchronous curie-service HTTP, which must not stall the event loop), and
+failures are negative-cached for five minutes so a curie-service outage costs
+one attempt per cooldown rather than one per request.
 
 ## GET endpoint inventory
 

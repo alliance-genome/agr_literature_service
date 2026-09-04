@@ -1,4 +1,5 @@
 import logging
+import time
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Optional, Dict, Any, Set
 from fastapi import HTTPException
@@ -327,6 +328,13 @@ def link_user_to_person(db: Session, user_id_str: str, person_id: int) -> None:
 # advisory-locked and idempotent.
 _registered_emails: Set[str] = set()
 
+# email -> monotonic timestamp of the last FAILED registration attempt. A
+# failure (e.g. the MATI curie service down) is negative-cached so an outage
+# costs one attempt per cooldown instead of one blocking round trip per
+# observer request (SCRUM-6431 review).
+_registration_failed_at: Dict[str, float] = {}
+_REGISTRATION_RETRY_SECONDS = 300
+
 
 def ensure_cognito_user_registered(cognito_user: Dict[str, Any]) -> None:
     """Passively register a recognized-role Cognito user if they have no
@@ -336,15 +344,20 @@ def ensure_cognito_user_registered(cognito_user: Dict[str, Any]) -> None:
     observers never reach those (the auth dependency 403s their writes first) —
     so without this hook an observer would never get a person row and their
     Cognito role status would never be recorded. Called from the auth
-    dependency for observers; best-effort by design: a registration failure is
-    logged and never blocks the (read-only) request.
+    dependency for observers (via the threadpool: registration can do
+    synchronous curie-service HTTP); best-effort by design: a failure is
+    logged, negative-cached for _REGISTRATION_RETRY_SECONDS, and never blocks
+    the (read-only) request.
     """
     email = (cognito_user.get("email") or "").strip()
-    if not email or email.lower() in _registered_emails:
+    key = email.lower()
+    if not email or key in _registered_emails:
+        return
+    failed_at = _registration_failed_at.get(key)
+    if failed_at is not None and time.monotonic() - failed_at < _REGISTRATION_RETRY_SECONDS:
         return
     if not _has_recognized_role_group(cognito_user):
         return
-    from agr_literature_service.api.database.main import SessionLocal
     sql = text("""
         SELECT u.id
         FROM users u
@@ -353,15 +366,21 @@ def ensure_cognito_user_registered(cognito_user: Dict[str, Any]) -> None:
         ORDER BY u.id
         LIMIT 1
     """)
-    db = SessionLocal()
+    db = None
     try:
+        from agr_literature_service.api.database.main import SessionLocal
+        db = SessionLocal()
         row = db.execute(sql, {"email": email}).fetchone()
         if row is None:
             _register_cognito_user(db, cognito_user, email, sql)
             logger.info("Auto-registered Cognito user %s", email)
-        _registered_emails.add(email.lower())
+        _registered_emails.add(key)
+        _registration_failed_at.pop(key, None)
     except Exception:
         logger.exception("Passive auto-registration failed for %s", email)
-        db.rollback()
+        _registration_failed_at[key] = time.monotonic()
+        if db is not None:
+            db.rollback()
     finally:
-        db.close()
+        if db is not None:
+            db.close()

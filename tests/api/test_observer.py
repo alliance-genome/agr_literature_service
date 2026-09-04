@@ -169,15 +169,48 @@ class TestUserSessionAccessTokenGate:
         reject_user_session_access_tokens(_id_user("FlyBaseObserver"))
         reject_user_session_access_tokens(_id_user("FlyBaseCurator"))
 
+    def test_missing_sub_or_client_id_fails_closed(self):
+        # Cognito access tokens always carry both; an access token without them
+        # is not a recognizable service account, so it is treated as a user
+        # session (review note: fail closed, not open).
+        from agr_literature_service.api.auth import reject_user_session_access_tokens
+        for user in ({"token_type": "access", "client_id": "m2m"},
+                     {"token_type": "access", "sub": "m2m"},
+                     {"token_type": "access"}):
+            with pytest.raises(HTTPException):
+                reject_user_session_access_tokens(user)
+
     def test_optional_client_id_allowlist(self, monkeypatch):
         from agr_literature_service.api.auth import reject_user_session_access_tokens
         monkeypatch.setenv("COGNITO_SERVICE_CLIENT_IDS", "svc-one, svc-two")
         reject_user_session_access_tokens(
-            {"token_type": "access", "client_id": "svc-one", "scope": "abc/read"})
+            {"token_type": "access", "client_id": "svc-one", "sub": "svc-one",
+             "scope": "abc/read"})
         with pytest.raises(HTTPException) as exc:
             reject_user_session_access_tokens(
-                {"token_type": "access", "client_id": "rogue", "scope": "abc/read"})
+                {"token_type": "access", "client_id": "rogue", "sub": "rogue",
+                 "scope": "abc/read"})
         assert exc.value.status_code == 401
+
+    def test_login_endpoint_applies_the_gate(self):
+        """Pins the highest-severity fix: POST /auth/login must refuse to mint
+        a session cookie from a user-session access token (a refactor of
+        login() that drops the gate call reopens the laundering hole)."""
+        import asyncio
+        from unittest.mock import MagicMock, patch
+        from agr_literature_service.api.routers import authentication as auth_router
+        laundered = {"token_type": "access", "client_id": "webclient",
+                     "sub": "1234-user-uuid",
+                     "scope": "aws.cognito.signin.user.admin"}
+        sessions_before = dict(auth_router._session_store)
+        with patch.object(auth_router, "get_cognito_user_swagger",
+                          return_value=laundered), \
+             patch.object(auth_router, "get_cognito_auth", return_value=MagicMock()):
+            with pytest.raises(HTTPException) as exc:
+                asyncio.run(auth_router.login(response=MagicMock(),
+                                              credentials=MagicMock()))
+        assert exc.value.status_code == 401
+        assert auth_router._session_store == sessions_before
 
 
 class TestPassiveObserverRegistration:
@@ -194,21 +227,37 @@ class TestPassiveObserverRegistration:
             IPAwareCognitoAuth._ensure_observer_registered(_id_user("FlyBaseObserver"))
             reg.assert_called_once()
 
-    def test_registration_failure_never_blocks_the_request(self):
+    def test_registration_failure_never_blocks_and_is_negative_cached(self):
         from unittest.mock import MagicMock, patch
         from agr_literature_service.api import user as user_mod
         user_mod._registered_emails.discard("duncan@example.org")
+        user_mod._registration_failed_at.pop("duncan@example.org", None)
+        observer = {"token_type": "id", "cognito:groups": ["FlyBaseObserver"],
+                    "email": "duncan@example.org"}
         broken_session = MagicMock()
         broken_session.execute.side_effect = RuntimeError("db down")
-        with patch("agr_literature_service.api.database.main.SessionLocal",
-                   return_value=broken_session):
-            # Must not raise.
-            user_mod.ensure_cognito_user_registered(
-                {"token_type": "id", "cognito:groups": ["FlyBaseObserver"],
-                 "email": "duncan@example.org"})
-        assert "duncan@example.org" not in user_mod._registered_emails
-        broken_session.rollback.assert_called_once()
-        broken_session.close.assert_called_once()
+        try:
+            with patch("agr_literature_service.api.database.main.SessionLocal",
+                       return_value=broken_session) as session_factory:
+                # Must not raise.
+                user_mod.ensure_cognito_user_registered(observer)
+                assert "duncan@example.org" not in user_mod._registered_emails
+                broken_session.rollback.assert_called_once()
+                broken_session.close.assert_called_once()
+                # The failure is negative-cached: within the cooldown the next
+                # request must not retry the (blocking) registration at all
+                # (SCRUM-6431 review — a curie-service outage otherwise costs
+                # one blocking round trip per observer request).
+                assert "duncan@example.org" in user_mod._registration_failed_at
+                user_mod.ensure_cognito_user_registered(observer)
+                assert session_factory.call_count == 1
+                # After the cooldown expires, registration is retried.
+                user_mod._registration_failed_at["duncan@example.org"] -= (
+                    user_mod._REGISTRATION_RETRY_SECONDS + 1)
+                user_mod.ensure_cognito_user_registered(observer)
+                assert session_factory.call_count == 2
+        finally:
+            user_mod._registration_failed_at.pop("duncan@example.org", None)
 
     def test_registered_email_cache_short_circuits(self):
         from unittest.mock import patch
