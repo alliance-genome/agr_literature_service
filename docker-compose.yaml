@@ -527,7 +527,12 @@ services:
       # KSQL_KSQL_STREAMS_ROCKSDB_CONFIG_SETTER + KSQL_ROCKSDB_* below.
       # (#5) Compress the bytes ksqlDB producers write to the changelog/repartition topics (Kafka
       # broker disk, same EBS). zstd for best ratio; CPU is spare during the I/O-bound reindex.
-      - KSQL_KSQL_STREAMS_PRODUCER_COMPRESSION_TYPE=zstd
+      # CAVEAT (2026-09-04): that "CPU is spare" premise held when the reindex was disk-bound. On the
+      # spine+reorder chain the regime inverted -- measured 94% us / 0% iowait with only ~1,000 of
+      # 3,000 IOPS used -- so zstd now spends the scarce resource to save the abundant one. Env-
+      # overridable so lz4 (much cheaper CPU, slightly worse ratio) can be A/B-tested without a code
+      # change. Default stays zstd until the A/B says otherwise.
+      - KSQL_KSQL_STREAMS_PRODUCER_COMPRESSION_TYPE=${DBZ_KSQL_PRODUCER_COMPRESSION:-zstd}
       # (#2) Let Kafka Streams reuse source topics as changelogs (skip duplicate changelog topics)
       # and merge repartition topics -> fewer internal-topic writes during the rebuild AND
       # permanently fewer changelog topics on the broker.
