@@ -91,6 +91,14 @@ class MLModel(AuditedModel, Base):
         nullable=True
     )
 
+    # SCRUM-5697. The data_context term the pipelines stamp onto every tag this
+    # model creates, so the curation policy lives on the model row rather than
+    # in pipeline code (same arrangement as data_novelty above).
+    data_context = Column(
+        String,
+        nullable=True
+    )
+
     file_classes = Column(
         ARRAY(String),
         nullable=True

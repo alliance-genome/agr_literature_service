@@ -69,12 +69,23 @@ def _log_tet_batch_timing(message, *args):
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
-TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species']
+TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species',
+                    'data_context']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 
 # SCRUM-6183: data_novelty term "existing data" used on the companion pure entity
 # tag auto-created from a positive mixed topic+entity tag.
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
+
+# SCRUM-5697: the four disjoint data_context terms.
+#   ATP:0000325  experimentally studied data
+#   ATP:0000360  background information
+#   ATP:0000328  expression marker
+#   ATP:0000327  genetic marker
+# "Experimentally studied data" is the default the server applies wherever it
+# synthesises a tag rather than taking one from a client, and is what the
+# pipelines send for the WB topic classifiers.
+EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
 
 # SCRUM-6242 (increment 5): the curator validation written by the grid's
 # Validation column. These mirror exactly what the UI (CellValidationStrip /
@@ -86,9 +97,45 @@ CURATOR_VALIDATION_SOURCE_EVIDENCE_ASSERTION = "ATP:0000036"
 CURATOR_VALIDATION_SOURCE_METHOD = "abc_literature_system"
 CURATOR_VALIDATION_TYPE = "professional_curator"
 CURATOR_VALIDATION_DATA_NOVELTY = "ATP:0000335"
+CURATOR_VALIDATION_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
 CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
     "Trained professional biocurator specializing in curation of model organism "
     "data using the ABC data entry form.")
+
+
+def set_provider_derived_fields(topic_entity_tag_data: dict, source: TopicEntityTagSourceModel):
+    """Fill in the fields the server derives rather than takes from the client.
+
+    SGD is the exception throughout the TET code: its curators' tags carry a
+    generalized topic plus a display_tag, and both data_novelty and data_context
+    are re-derived here from the topic/entity_type shape, so anything the caller
+    sent for those two fields is overwritten. Every other provider supplies
+    data_novelty itself (a 404 if missing, since the column is non-null) and gets
+    its species checked.
+    """
+    if source.secondary_data_provider.abbreviation == "SGD":
+        check_and_set_sgd_display_tag(topic_entity_tag_data)
+        if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
+            topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
+        else:
+            topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
+        topic_entity_tag_data['data_context'] = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+        return
+
+    if topic_entity_tag_data.get('data_novelty') is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail="The 'data_novelty' is not passed in")
+    if topic_entity_tag_data.get('data_context') is None:
+        # SCRUM-5697. data_context is not yet required of clients: the column is
+        # still nullable while the pipelines, the MOD loaders and the UI are
+        # updated. Defaulting keeps every existing caller working AND keeps the
+        # backfilled rows consistent with newly-created ones, which matters
+        # because check_for_duplicate_tags keys on every payload field -- a
+        # mismatch there turns would-be 409s into duplicate rows. Swap this for
+        # the same 404 guard data_novelty has above once every producer sends a
+        # value and the NOT NULL revision has landed.
+        topic_entity_tag_data['data_context'] = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+    check_and_set_species(topic_entity_tag_data)
 
 
 def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
@@ -128,19 +175,11 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     logger.info("Setting display_tag/species based on data provider")
-    if source.secondary_data_provider.abbreviation == "SGD":
-        check_and_set_sgd_display_tag(topic_entity_tag_data)
-        if topic_entity_tag_data['topic'] == topic_entity_tag_data['entity_type']:
-            topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
-        else:
-            topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
-    else:
-        if topic_entity_tag_data.get('data_novelty') is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="The 'data_novelty' is not passed in")
-        check_and_set_species(topic_entity_tag_data)
+    set_provider_derived_fields(topic_entity_tag_data, source)
     # check atp ID's validity
     logger.info("Validating ATP IDs")
-    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type']]
+    atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type'],
+               topic_entity_tag_data.get('data_context')]
     if 'display_tag' in topic_entity_tag_data and topic_entity_tag_data['display_tag'] is not None:
         atp_ids.append(topic_entity_tag_data['display_tag'])
     atp_ids_filtered = [atp_id for atp_id in atp_ids if atp_id is not None]
@@ -261,6 +300,9 @@ def create_entity_tag_for_mixed_tag(db: Session, mixed_tag_data: dict, reference
         entity_tag_data = copy.copy(mixed_tag_data)
         entity_tag_data["topic"] = entity_type
         entity_tag_data["data_novelty"] = EXISTING_DATA_NOVELTY_ATP
+        # The companion asserts the bare entity was studied in the paper, which is
+        # the same data context as the mixed tag it is derived from; carry the
+        # parent's value through rather than resetting it.
         entity_tag_data["negated"] = False
         # The remaining fields describe the topic-specific assertion, not the bare
         # entity, so they are reset on the companion tag.
@@ -2058,6 +2100,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         entity_type=None,
         species=species,
         data_novelty=CURATOR_VALIDATION_DATA_NOVELTY,
+        data_context=CURATOR_VALIDATION_DATA_CONTEXT,
         negated=negated,
         note=note,
         topic_entity_tag_source_id=source.topic_entity_tag_source_id,
@@ -2197,6 +2240,8 @@ def build_curie_to_name_map(db: Session, ref_related_tets):
     source_eco_codes = set()
     for tet in ref_related_tets:
         all_atp_terms.add(tet.topic)
+        if tet.data_context is not None:
+            all_atp_terms.add(tet.data_context)
         if tet.display_tag is not None:
             all_atp_terms.add(tet.display_tag)
         if tet.entity_type is not None:

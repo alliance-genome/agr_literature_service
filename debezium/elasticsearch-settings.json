@@ -509,6 +509,18 @@
           "novel_entity_data": {
             "type": "boolean"
           },
+          "data_context": {
+            "type": "text",
+            "analyzer": "autocompleteAnalyzer",
+            "search_analyzer": "autocompleteSearchAnalyzer",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "normalizer": "sortNormalizer",
+                "ignore_above": 256
+              }
+            }
+          },
 	      "data_provider": {
             "type": "keyword",
             "normalizer": "sortNormalizer"

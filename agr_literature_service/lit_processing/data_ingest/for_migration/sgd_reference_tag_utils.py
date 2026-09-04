@@ -456,7 +456,9 @@ def build_tag_payload(reference_curie: str, topic_atp: str, entity_curie: Option
     otherwise copy date_created onto date_updated. Without a date the audit layer stamps both with the load
     time. The same create_tag branch re-derives data_novelty: ATP:0000334 for
     topic == entity_type tags and ATP:0000335 otherwise (topic-only tags),
-    matching the values set below."""
+    matching the values set below. That branch also sets data_context
+    unconditionally (SCRUM-5697), which is why no data_context is passed here --
+    anything sent would be overwritten."""
     date_updated = datetime.now(tz=pytz.timezone("UTC")) if date_created else None
     topic_only = entity_curie is None
     return TopicEntityTagSchemaPost(
