@@ -14,6 +14,7 @@ from agr_literature_service.api import database
 from agr_literature_service.api.crud import file_conversion_crud, referencefile_crud
 from agr_literature_service.api.deps import s3_auth
 from agr_cognito_py import get_mod_access
+from agr_literature_service.api.observer import visibility_mod_access
 from agr_literature_service.api.schemas.file_conversion_schemas import \
     ConversionStatusResponseSchema
 from agr_literature_service.api.schemas.referencefile_schemas import ReferencefileSchemaShow, \
@@ -130,7 +131,10 @@ def file_upload(reference_curie: str = None,
 def download_file(referencefile_id: int,
                   user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                   db: Session = db_session):
-    return referencefile_crud.download_file(db, referencefile_id, get_mod_access(user) if user else [])
+    # visibility_mod_access (not get_mod_access): a MOD observer may download
+    # their sponsoring MOD's restricted files without gaining any mutation
+    # capability (SCRUM-6431). Identical to get_mod_access for other roles.
+    return referencefile_crud.download_file(db, referencefile_id, visibility_mod_access(user) if user else [])
 
 
 @router.get('/additional_files_tarball/{reference_id}',
@@ -138,7 +142,8 @@ def download_file(referencefile_id: int,
 def download_additional_files_tarball(reference_id: int,
                                       user: Optional[Dict[str, Any]] = Security(get_authenticated_user),
                                       db: Session = db_session):
-    return referencefile_crud.download_additional_files_tarball(db, reference_id, get_mod_access(user) if user else [])
+    return referencefile_crud.download_additional_files_tarball(
+        db, reference_id, visibility_mod_access(user) if user else [])
 
 
 @router.get('/by_md5/{md5sum}',
