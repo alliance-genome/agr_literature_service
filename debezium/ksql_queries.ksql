@@ -353,48 +353,6 @@ CREATE TABLE obsolete_curies AS
     GROUP BY new_id
     EMIT CHANGES;
 
-CREATE TABLE reference_with_citation AS
-    SELECT
-    normalized_copyright_reference.reference_id \"REFERENCE_ID\",
-    normalized_copyright_reference.curie,
-    normalized_copyright_reference.abstract,
-    normalized_copyright_reference.category,
-    NULLIF(normalized_copyright_reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
-    normalized_copyright_reference.date_created,
-    NULLIF(normalized_copyright_reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
-    normalized_copyright_reference.date_published,
-    normalized_copyright_reference.date_published_start,
-    normalized_copyright_reference.date_published_end,
-    normalized_copyright_reference.date_updated,
-    normalized_copyright_reference.issue_name,
-    normalized_copyright_reference.keywords,
-    normalized_copyright_reference.language,
-    normalized_copyright_reference.copyright_license_id,
-    normalized_copyright_reference.page_range,
-    normalized_copyright_reference.plain_language_abstract,
-    normalized_copyright_reference.publisher,
-    normalized_copyright_reference.pubmed_abstract_languages,
-    normalized_copyright_reference.pubmed_publication_status,
-    normalized_copyright_reference.pubmed_types,
-    normalized_copyright_reference.resource_id,
-    normalized_copyright_reference.title,
-    normalized_copyright_reference.volume,
-    normalized_copyright_reference.retraction_status,
-    normalized_copyright_reference.can_display_image,
-    normalized_copyright_reference.image_count,
-    CASE
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
-      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
-      ELSE NULL
-    END AS retraction_status_name,
-    citation.citation \"CITATION\",
-    citation.short_citation \"SHORT_CITATION\"
-    FROM normalized_copyright_reference normalized_copyright_reference
-    JOIN citation citation ON
-    normalized_copyright_reference.citation_id = citation.citation_id
-    EMIT CHANGES;
-
 CREATE TABLE reference_workflow_tag(
     reference_workflow_tag_id string PRIMARY KEY,
     reference_id string,
@@ -590,43 +548,8 @@ CREATE TABLE manual_indexing_tags AS
     GROUP BY reference_id
     EMIT CHANGES;
 
-CREATE TABLE reference_with_resource AS
-    SELECT
-    reference_with_citation.REFERENCE_ID \"REFERENCE_ID\",
-    reference_with_citation.curie,
-    reference_with_citation.abstract,
-    reference_with_citation.category,
-    reference_with_citation.DATE_ARRIVED_IN_PUBMED,
-    reference_with_citation.date_created,
-    reference_with_citation.DATE_LAST_MODIFIED_IN_PUBMED,
-    reference_with_citation.date_published,
-    reference_with_citation.date_published_start,
-    reference_with_citation.date_published_end,
-    reference_with_citation.date_updated,
-    reference_with_citation.issue_name,
-    reference_with_citation.keywords,
-    reference_with_citation.language,
-    reference_with_citation.copyright_license_id,
-    reference_with_citation.page_range,
-    reference_with_citation.plain_language_abstract,
-    reference_with_citation.publisher,
-    reference_with_citation.pubmed_abstract_languages,
-    reference_with_citation.pubmed_publication_status,
-    reference_with_citation.pubmed_types,
-    reference_with_citation.resource_id,
-    reference_with_citation.title \"TITLE\",
-    reference_with_citation.volume,
-    reference_with_citation.retraction_status,
-    reference_with_citation.retraction_status_name,
-    reference_with_citation.CITATION,
-    reference_with_citation.SHORT_CITATION,
-    resource.title \"RESOURCE_TITLE\"
-    FROM reference_with_citation reference_with_citation
-    LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
-    EMIT CHANGES;
-
 -- ==================================================================================================
--- NARROW SPINE + ASCENDING JOIN ORDER (branch ksqldb-spine-reorder) -- PRIVATE index chain only.
+-- NARROW SPINE + ASCENDING JOIN ORDER (branch ksqldb-spine-reorder) -- PRIVATE index chain.
 --
 -- The original private chain carried the WIDE reference row through every link: reference_xref
 -- restated 30 columns, then 33, 34, 35, 36, ... 43 -- so abstract/title/keywords (~1.6GB of text
@@ -645,9 +568,9 @@ CREATE TABLE reference_with_resource AS
 -- 67,495, reference_mod_referencetype 1.30M, mod_corpus_association 1.44M (x3), workflow_tag 2.14M,
 -- topic_entity_tag 3.50M, cross_reference 4.09M, author 7.78M.
 --
--- reference_with_citation is deliberately KEPT above: the PUBLIC chain
--- (reference_with_resource -> reference_with_copyright -> public_reference_joined) still sources its
--- wide columns from it. Only the private chain is restructured here.
+-- The PUBLIC chain gets the same treatment further down, so reference_with_citation,
+-- reference_with_resource and reference_with_copyright are gone entirely -- nothing sources from
+-- them any more.
 -- ==================================================================================================
 
 CREATE TABLE spine_citation AS
@@ -940,76 +863,194 @@ CREATE TABLE reference_joined WITH (
     spine_auth.REFERENCE_ID = normalized_copyright_reference.reference_id
     EMIT CHANGES;
 
-CREATE TABLE reference_with_copyright AS
+-- ==================================================================================================
+-- NARROW SPINE + ASCENDING JOIN ORDER -- PUBLIC index chain.
+--
+-- Same technique as the private spine above. The old public chain carried the WIDE reference row
+-- (abstract/title/keywords) through SEVEN materialisations: reference_with_citation restated 30
+-- columns, reference_with_resource another 30, reference_with_copyright 24, and then the four
+-- left-deep pairwise intermediates ksqlDB builds for the five-way aggregate join -- each one
+-- rewriting those 24 wide columns again. It also dragged plain_language_abstract,
+-- pubmed_abstract_languages, date_published_start, date_published_end and date_updated the whole
+-- way only to drop them at the end.
+--
+-- The spine carries ONLY reference_id + citation + two FK ids + the accumulated arrays. The wide
+-- columns are attached ONCE, in the final join back to normalized_copyright_reference.
+--
+-- ORDER IS ASCENDING BY SOURCE SIZE, measured on the prod copy:
+--   copyright_license 8, reference_relation 14,925, resource 45,300, mod_corpus_association 1.44M,
+--   cross_reference 4.09M, author 7.78M, mesh_detail 18.16M.
+-- The old order was close to the inverse: cross_references and authors joined FIRST, mesh_terms
+-- (much the largest source in the system) fourth, and mods_in_corpus LAST. That last one is an
+-- INNER join and it is what narrows the public index to 1,113,157 of the 1,295,410 references, so
+-- every one of the ~182k rows it discards was carried through all four preceding joins first. It
+-- now filters fourth, before the three biggest aggregates.
+--
+-- Output columns are byte-identical to the previous public_reference_joined.
+-- ==================================================================================================
+
+CREATE TABLE spine_pub_cit AS
     SELECT
-    reference_with_resource.REFERENCE_ID \"REFERENCE_ID\",
-    reference_with_resource.curie,
-    reference_with_resource.TITLE,
-    reference_with_resource.abstract,
-    reference_with_resource.category,
-    reference_with_resource.pubmed_types,
-    reference_with_resource.RESOURCE_TITLE,
-    reference_with_resource.volume,
-    reference_with_resource.issue_name,
-    reference_with_resource.page_range,
-    reference_with_resource.publisher,
-    reference_with_resource.language,
-    reference_with_resource.date_published,
-    reference_with_resource.pubmed_publication_status,
-    reference_with_resource.DATE_ARRIVED_IN_PUBMED,
-    reference_with_resource.DATE_LAST_MODIFIED_IN_PUBMED,
-    reference_with_resource.date_created,
-    reference_with_resource.keywords,
-    reference_with_resource.CITATION,
-    reference_with_resource.SHORT_CITATION,
-    reference_with_resource.retraction_status,
-    reference_with_resource.retraction_status_name,
-    copyright_license.open_access,
-    copyright_license.name \"copyright_license\"
-    FROM reference_with_resource reference_with_resource
-    LEFT OUTER JOIN copyright_license copyright_license ON reference_with_resource.copyright_license_id = copyright_license.copyright_license_id
+    normalized_copyright_reference.reference_id \"REFERENCE_ID\",
+    normalized_copyright_reference.resource_id \"RESOURCE_ID\",
+    normalized_copyright_reference.copyright_license_id \"COPYRIGHT_LICENSE_ID\",
+    citation.citation \"CITATION\",
+    citation.short_citation \"SHORT_CITATION\"
+    FROM normalized_copyright_reference normalized_copyright_reference
+    JOIN citation citation ON
+    normalized_copyright_reference.citation_id = citation.citation_id
     EMIT CHANGES;
 
+CREATE TABLE spine_pub_cl AS
+    SELECT
+    spine_pub_cit.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_cit.RESOURCE_ID \"RESOURCE_ID\",
+    spine_pub_cit.CITATION \"CITATION\",
+    spine_pub_cit.SHORT_CITATION \"SHORT_CITATION\",
+    copyright_license.open_access \"OPEN_ACCESS\",
+    copyright_license.name \"COPYRIGHT_LICENSE\"
+    FROM spine_pub_cit spine_pub_cit
+    LEFT OUTER JOIN copyright_license copyright_license ON
+    spine_pub_cit.COPYRIGHT_LICENSE_ID = copyright_license.copyright_license_id
+    EMIT CHANGES;
+
+CREATE TABLE spine_pub_rel AS
+    SELECT
+    spine_pub_cl.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_cl.RESOURCE_ID \"RESOURCE_ID\",
+    spine_pub_cl.CITATION \"CITATION\",
+    spine_pub_cl.SHORT_CITATION \"SHORT_CITATION\",
+    spine_pub_cl.OPEN_ACCESS \"OPEN_ACCESS\",
+    spine_pub_cl.COPYRIGHT_LICENSE \"COPYRIGHT_LICENSE\",
+    reference_relations.RELATIONS \"RELATIONS\"
+    FROM spine_pub_cl spine_pub_cl
+    LEFT OUTER JOIN reference_relations reference_relations ON
+    spine_pub_cl.REFERENCE_ID = reference_relations.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_pub_res AS
+    SELECT
+    spine_pub_rel.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_rel.CITATION \"CITATION\",
+    spine_pub_rel.SHORT_CITATION \"SHORT_CITATION\",
+    spine_pub_rel.OPEN_ACCESS \"OPEN_ACCESS\",
+    spine_pub_rel.COPYRIGHT_LICENSE \"COPYRIGHT_LICENSE\",
+    spine_pub_rel.RELATIONS \"RELATIONS\",
+    resource.title \"RESOURCE_TITLE\"
+    FROM spine_pub_rel spine_pub_rel
+    LEFT OUTER JOIN resource resource ON
+    spine_pub_rel.RESOURCE_ID = resource.resource_id
+    EMIT CHANGES;
+
+CREATE TABLE spine_pub_mic AS
+    SELECT
+    spine_pub_res.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_res.CITATION \"CITATION\",
+    spine_pub_res.SHORT_CITATION \"SHORT_CITATION\",
+    spine_pub_res.OPEN_ACCESS \"OPEN_ACCESS\",
+    spine_pub_res.COPYRIGHT_LICENSE \"COPYRIGHT_LICENSE\",
+    spine_pub_res.RELATIONS \"RELATIONS\",
+    spine_pub_res.RESOURCE_TITLE \"RESOURCE_TITLE\",
+    mods_in_corpus.MODS_IN_CORPUS \"MODS_IN_CORPUS\"
+    FROM spine_pub_res spine_pub_res
+    JOIN mods_in_corpus mods_in_corpus ON
+    spine_pub_res.REFERENCE_ID = mods_in_corpus.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_pub_xref AS
+    SELECT
+    spine_pub_mic.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_mic.CITATION \"CITATION\",
+    spine_pub_mic.SHORT_CITATION \"SHORT_CITATION\",
+    spine_pub_mic.OPEN_ACCESS \"OPEN_ACCESS\",
+    spine_pub_mic.COPYRIGHT_LICENSE \"COPYRIGHT_LICENSE\",
+    spine_pub_mic.RELATIONS \"RELATIONS\",
+    spine_pub_mic.RESOURCE_TITLE \"RESOURCE_TITLE\",
+    spine_pub_mic.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    cross_references.CROSS_REFERENCES \"CROSS_REFERENCES\"
+    FROM spine_pub_mic spine_pub_mic
+    LEFT OUTER JOIN cross_references cross_references ON
+    spine_pub_mic.REFERENCE_ID = cross_references.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_pub_auth AS
+    SELECT
+    spine_pub_xref.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_xref.CITATION \"CITATION\",
+    spine_pub_xref.SHORT_CITATION \"SHORT_CITATION\",
+    spine_pub_xref.OPEN_ACCESS \"OPEN_ACCESS\",
+    spine_pub_xref.COPYRIGHT_LICENSE \"COPYRIGHT_LICENSE\",
+    spine_pub_xref.RELATIONS \"RELATIONS\",
+    spine_pub_xref.RESOURCE_TITLE \"RESOURCE_TITLE\",
+    spine_pub_xref.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_pub_xref.CROSS_REFERENCES \"CROSS_REFERENCES\",
+    authors.AUTHORS \"AUTHORS\"
+    FROM spine_pub_xref spine_pub_xref
+    LEFT OUTER JOIN authors authors ON
+    spine_pub_xref.REFERENCE_ID = authors.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_pub_mesh AS
+    SELECT
+    spine_pub_auth.REFERENCE_ID \"REFERENCE_ID\",
+    spine_pub_auth.CITATION \"CITATION\",
+    spine_pub_auth.SHORT_CITATION \"SHORT_CITATION\",
+    spine_pub_auth.OPEN_ACCESS \"OPEN_ACCESS\",
+    spine_pub_auth.COPYRIGHT_LICENSE \"COPYRIGHT_LICENSE\",
+    spine_pub_auth.RELATIONS \"RELATIONS\",
+    spine_pub_auth.RESOURCE_TITLE \"RESOURCE_TITLE\",
+    spine_pub_auth.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_pub_auth.CROSS_REFERENCES \"CROSS_REFERENCES\",
+    spine_pub_auth.AUTHORS \"AUTHORS\",
+    mesh_terms.MESH_TERMS \"MESH_TERMS\"
+    FROM spine_pub_auth spine_pub_auth
+    LEFT OUTER JOIN mesh_terms mesh_terms ON
+    spine_pub_auth.REFERENCE_ID = mesh_terms.REFERENCE_ID
+    EMIT CHANGES;
+
+-- Wide reference columns attached ONCE here instead of being dragged through the whole chain.
 CREATE TABLE public_reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'public_reference_joined',
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    reference_with_copyright.REFERENCE_ID \"reference_id\",
-    reference_with_copyright.curie \"curie\",
-    reference_with_copyright.TITLE \"title\",
-    reference_with_copyright.abstract \"abstract\",
-    reference_with_copyright.category \"category\",
-    reference_with_copyright.pubmed_types \"pubmed_types\",
-    reference_with_copyright.RESOURCE_TITLE \"resource_title\",
-    reference_with_copyright.volume \"volume\",
-    reference_with_copyright.issue_name \"issue_name\",
-    reference_with_copyright.page_range \"page_range\",
-    reference_with_copyright.publisher \"publisher\",
-    reference_with_copyright.language \"language\",
-    reference_with_copyright.date_published \"date_published\",
-    reference_with_copyright.pubmed_publication_status \"pubmed_publication_status\",
-    reference_with_copyright.DATE_ARRIVED_IN_PUBMED \"date_arrived_in_pubmed\",
-    reference_with_copyright.DATE_LAST_MODIFIED_IN_PUBMED \"date_last_modified_in_pubmed\",
-    reference_with_copyright.date_created \"date_created\",
-    reference_with_copyright.keywords \"keywords\",
-    reference_with_copyright.CITATION \"citation\",
-    reference_with_copyright.SHORT_CITATION \"short_citation\",
-    reference_with_copyright.open_access \"open_access\",
-    reference_with_copyright.\"copyright_license\" \"copyright_license\",
-    reference_with_copyright.retraction_status \"retraction_status\",
-    reference_with_copyright.retraction_status_name \"retraction_status_name\",
-    cross_references.cross_references \"cross_references\",
-    authors.authors \"authors\",
-    reference_relations.relations \"relations\",
-    mesh_terms.mesh_terms \"mesh_terms\",
-    mods_in_corpus.mods_in_corpus \"mods_in_corpus\"
-    FROM reference_with_copyright reference_with_copyright
-    LEFT OUTER JOIN cross_references cross_references ON reference_with_copyright.REFERENCE_ID = cross_references.REFERENCE_ID
-    LEFT OUTER JOIN authors authors ON reference_with_copyright.REFERENCE_ID = authors.REFERENCE_ID
-    LEFT OUTER JOIN reference_relations reference_relations ON reference_with_copyright.REFERENCE_ID = reference_relations.REFERENCE_ID
-    LEFT OUTER JOIN mesh_terms mesh_terms ON reference_with_copyright.REFERENCE_ID = mesh_terms.REFERENCE_ID
-    INNER JOIN mods_in_corpus mods_in_corpus ON reference_with_copyright.REFERENCE_ID = mods_in_corpus.REFERENCE_ID;
+    spine_pub_mesh.REFERENCE_ID \"reference_id\",
+    normalized_copyright_reference.curie \"curie\",
+    normalized_copyright_reference.title \"title\",
+    normalized_copyright_reference.abstract \"abstract\",
+    normalized_copyright_reference.category \"category\",
+    normalized_copyright_reference.pubmed_types \"pubmed_types\",
+    spine_pub_mesh.RESOURCE_TITLE \"resource_title\",
+    normalized_copyright_reference.volume \"volume\",
+    normalized_copyright_reference.issue_name \"issue_name\",
+    normalized_copyright_reference.page_range \"page_range\",
+    normalized_copyright_reference.publisher \"publisher\",
+    normalized_copyright_reference.language \"language\",
+    normalized_copyright_reference.date_published \"date_published\",
+    normalized_copyright_reference.pubmed_publication_status \"pubmed_publication_status\",
+    NULLIF(normalized_copyright_reference.date_arrived_in_pubmed, '') \"date_arrived_in_pubmed\",
+    NULLIF(normalized_copyright_reference.date_last_modified_in_pubmed, '') \"date_last_modified_in_pubmed\",
+    normalized_copyright_reference.date_created \"date_created\",
+    normalized_copyright_reference.keywords \"keywords\",
+    spine_pub_mesh.CITATION \"citation\",
+    spine_pub_mesh.SHORT_CITATION \"short_citation\",
+    spine_pub_mesh.OPEN_ACCESS \"open_access\",
+    spine_pub_mesh.COPYRIGHT_LICENSE \"copyright_license\",
+    normalized_copyright_reference.retraction_status \"retraction_status\",
+    CASE
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
+      ELSE NULL
+    END \"retraction_status_name\",
+    spine_pub_mesh.CROSS_REFERENCES \"cross_references\",
+    spine_pub_mesh.AUTHORS \"authors\",
+    spine_pub_mesh.RELATIONS \"relations\",
+    spine_pub_mesh.MESH_TERMS \"mesh_terms\",
+    spine_pub_mesh.MODS_IN_CORPUS \"mods_in_corpus\"
+    FROM spine_pub_mesh spine_pub_mesh
+    JOIN normalized_copyright_reference normalized_copyright_reference ON
+    spine_pub_mesh.REFERENCE_ID = normalized_copyright_reference.reference_id;
 ",
 "streamsProperties": {}}
