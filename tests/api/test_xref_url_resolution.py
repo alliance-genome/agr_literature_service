@@ -131,6 +131,69 @@ def lab_payload(**over):
     return base
 
 
+class TestAbsoluteUrlPageNames:
+    """The SGD person loader writes the colleague's absolute obj_url into the
+    `pages` column rather than a descriptor page name (load_sgd_colleagues.py:443
+    and :668). That URL is the only link those rows carry, so it must survive as
+    the page's url instead of being reinterpreted as a name that matches nothing.
+    """
+
+    SGD_URL = "https://www.yeastgenome.org/colleague/1234"
+
+    def test_absolute_page_name_becomes_its_own_url(self):
+        seed_wb_and_orcid()
+        _, pages = resolve_xref_urls("SGD:Colleague_1234", [self.SGD_URL])
+        assert pages == [{"name": self.SGD_URL, "url": self.SGD_URL}]
+
+    def test_works_when_the_prefix_has_no_descriptor(self):
+        """SGD may have no descriptor at all; the passthrough must still apply."""
+        rdc._seed([])
+        url, pages = resolve_xref_urls("SGD:Colleague_1234", [self.SGD_URL])
+        assert url is None
+        assert pages == [{"name": self.SGD_URL, "url": self.SGD_URL}]
+
+    def test_http_as_well_as_https(self):
+        rdc._seed([])
+        _, pages = resolve_xref_urls("SGD:Colleague_1", ["http://example.org/x"])
+        assert pages == [{"name": "http://example.org/x", "url": "http://example.org/x"}]
+
+    def test_a_plain_page_name_is_still_treated_as_a_name(self):
+        seed_wb_and_orcid()
+        _, pages = resolve_xref_urls("WB:WBPerson1", ["person"])
+        assert pages == [{"name": "person", "url": "https://wormbase.org/resources/person/WBPerson1"}]
+
+    def test_descriptor_template_still_wins_for_named_pages(self):
+        """A descriptor match and an absolute name cannot collide (an absolute URL
+        matches no page name), but pin the ordering anyway."""
+        seed_wb_and_orcid()
+        _, pages = resolve_xref_urls("WB:WBPerson1", [self.SGD_URL, "person"])
+        assert pages == [
+            {"name": self.SGD_URL, "url": self.SGD_URL},
+            {"name": "person", "url": "https://wormbase.org/resources/person/WBPerson1"},
+        ]
+
+    def test_sgd_xref_through_the_person_schema(self):
+        seed_wb_and_orcid()
+        out = PersonCrossReferenceSchemaShow.model_validate(person_payload(
+            curie="SGD:Colleague_1234", curie_prefix="SGD", pages=[self.SGD_URL],
+        )).model_dump()
+        assert out["pages"] == [{"name": self.SGD_URL, "url": self.SGD_URL}]
+
+
+class TestPrefixMapMemoisation:
+    def test_map_reflects_a_reseed(self):
+        """The memo must not outlive the snapshot it was built from."""
+        rdc._seed([rdc.ResourceDescriptor(db_prefix="AAA", default_url="https://a/[%s]")])
+        assert rdc.full_prefix_map()["AAA"].default_url == "https://a/[%s]"
+        rdc._seed([rdc.ResourceDescriptor(db_prefix="BBB", default_url="https://b/[%s]")])
+        m = rdc.full_prefix_map()
+        assert "AAA" not in m and "BBB" in m
+
+    def test_repeated_calls_return_the_same_object(self):
+        rdc._seed([rdc.ResourceDescriptor(db_prefix="AAA", default_url="https://a/[%s]")])
+        assert rdc.full_prefix_map() is rdc.full_prefix_map()
+
+
 class TestSchemasResolveUrls:
     @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
     def test_person_schema_gains_url_and_page_objects(self, schema):
@@ -266,7 +329,10 @@ def test_default_url_and_pages():
     assert out["pages"] == [{"name": "person", "url": "https://wormbase.org/person/WBPerson1"}]
 
 
-def test_page_not_in_descriptor_gets_empty_url():
+def test_page_not_in_descriptor_gets_null_url():
+    """Deliberate change: this used to serialise as url: "" because the old loop
+    seeded page_url = "". It is now null, matching the person/lab side. Both are
+    falsy in JS, but the JSON does change."""
     out = format_cross_reference_data(None, xref_obj("WB:WBPerson1"),
                                       data("WB:WBPerson1", ["nope"]), {"WB": WB_RD})
     assert out["pages"] == [{"name": "nope", "url": None}]
