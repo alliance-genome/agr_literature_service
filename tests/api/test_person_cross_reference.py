@@ -407,7 +407,9 @@ class TestPersonCrossReferenceUrls:
             )
             assert res.status_code == status.HTTP_200_OK
             wb = [x for x in res.json() if x["curie"] == "WB:WBPerson12345"][0]
-            assert wb["url"] == "https://wormbase.org/species/all/person/WBPerson12345"
+            # url comes from the `person` entity page, not default_url: the row
+            # is a person cross reference, so the API asks for that page by name.
+            assert wb["url"] == "https://wormbase.org/resources/person/WBPerson12345"
             assert wb["pages"] == [{
                 "name": "person",
                 "url": "https://wormbase.org/resources/person/WBPerson12345",
