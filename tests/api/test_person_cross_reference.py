@@ -329,10 +329,14 @@ class TestPersonCrossReference:
 
 
 class TestPersonCrossReferenceUrls:
-    """A person cross reference must come back with a resolved `url` (and page
-    names upgraded to {name, url}) from the A-team resource descriptors, the way
-    reference cross references always have. Without it the UI has nothing to
-    link to -- the stored `pages` are page names, not URLs.
+    """A person cross reference must come back with a resolved `url` (and any
+    stored page entries upgraded to {name, url}) from the A-team resource
+    descriptors, the way reference cross references always have. Without it the
+    UI has nothing to link to.
+
+    Stored page entries are usually descriptor page names, but not always -- the
+    SGD loader writes an absolute obj_url there. See xref_url_mixin for the
+    precedence url follows.
     """
 
     def test_show_resolves_url_from_descriptor(self, auth_headers, test_person_xref):  # noqa

@@ -179,16 +179,17 @@ class TestEntityPageResolution:
         assert out["url"] == "https://wb/WBPerson1"
 
     @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
-    def test_stored_pages_still_win_over_the_entity_page(self, schema):
-        """A row that does carry page names is resolved from those, unchanged."""
+    def test_entity_page_wins_even_when_the_row_stores_other_pages(self, schema):
+        """The row's table says it is a person whatever else it stores, so `url`
+        is the person page. Stored pages are still resolved in place -- they
+        describe sub-pages, not the record's own link."""
         rdc._seed([rdc.ResourceDescriptor(
             db_prefix="WB", default_url="https://www.wormbase.org/get?name=[%s]",
             pages=[rdc.DescriptorPage(name="person", url="https://p/[%s]"),
                    rdc.DescriptorPage(name="strain", url="https://s/[%s]")])])
         out = schema.model_validate(person_payload(pages=["strain"])).model_dump()
         assert out["pages"] == [{"name": "strain", "url": "https://s/WBPerson1"}]
-        # url still comes from default_url when the row carries its own pages
-        assert out["url"] == "https://www.wormbase.org/get?name=WBPerson1"
+        assert out["url"] == "https://p/WBPerson1"
 
     @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
     def test_an_explicit_url_is_never_overridden(self, schema):
@@ -247,6 +248,39 @@ class TestAbsoluteUrlPageNames:
         assert out["pages"] == [{"name": self.SGD_URL, "url": self.SGD_URL}]
 
 
+class TestSgdUrlPrecedence:
+    """SGD's default_url is the bare https://www.yeastgenome.org/ -- no [%s] --
+    so substituting into it hands every colleague the same homepage. The absolute
+    obj_url the loader stores in `pages` is the only per-colleague link, and url
+    must prefer it. Confirmed against the live descriptor.
+    """
+
+    SGD_URL = "https://www.yeastgenome.org/colleague/1234"
+
+    def seed_sgd(self):
+        rdc._seed([rdc.ResourceDescriptor(
+            db_prefix="SGD", name="SGD genes",
+            default_url="https://www.yeastgenome.org/", pages=[])])
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
+    def test_absolute_stored_page_becomes_the_url(self, schema):
+        self.seed_sgd()
+        out = schema.model_validate(person_payload(
+            curie="SGD:Colleague_1234", curie_prefix="SGD", pages=[self.SGD_URL],
+        )).model_dump()
+        assert out["url"] == self.SGD_URL
+        assert out["pages"] == [{"name": self.SGD_URL, "url": self.SGD_URL}]
+
+    @pytest.mark.parametrize("schema", PERSON_SCHEMAS)
+    def test_homepage_fallback_when_no_stored_page(self, schema):
+        """Without an obj_url there is nothing better; the homepage is fine."""
+        self.seed_sgd()
+        out = schema.model_validate(person_payload(
+            curie="SGD:Colleague_1234", curie_prefix="SGD", pages=None,
+        )).model_dump()
+        assert out["url"] == "https://www.yeastgenome.org/"
+
+
 class TestPrefixMapMemoisation:
     def test_map_reflects_a_reseed(self):
         """The memo must not outlive the snapshot it was built from."""
@@ -295,7 +329,8 @@ class TestSchemasResolveUrls:
     def test_person_schema_gains_url_and_page_objects(self, schema):
         seed_wb_and_orcid()
         out = schema.model_validate(person_payload()).model_dump()
-        assert out["url"] == "https://wormbase.org/species/all/person/WBPerson1"
+        # the person page, not default_url -- this fixture defines one
+        assert out["url"] == "https://wormbase.org/resources/person/WBPerson1"
         assert out["pages"] == [
             {"name": "person", "url": "https://wormbase.org/resources/person/WBPerson1"}
         ]

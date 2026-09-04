@@ -11,20 +11,33 @@ laboratory record as well as from their own endpoints -- and their CRUD
 functions return ORM objects, so resolving here covers every path with one
 change instead of formatting at each call site.
 
-`pages` is stored as a list of strings that are USUALLY descriptor page names,
-resolved against the descriptor's templates -- but not always: the SGD person
-loader writes the colleague's absolute obj_url into that column
-(lit_processing/oneoff_scripts/load_sgd_colleagues.py), and for those rows it is
-the only link they carry. resolve_xref_urls handles both, treating an
-already-absolute entry as its own url. Either way the entry comes out as a
-``{name, url}`` object, matching ``CrossReferenceSchemaShow``. The write schemas
-keep taking plain strings, so no payload changes.
+`url` is chosen in three steps, most specific first:
+
+1. The ENTITY PAGE. A person_cross_reference row is always about a person, so
+   the descriptor's "person" page is asked for by name -- WB answers
+   ``...;class=Person`` where default_url only gives the generic ``get?name=``.
+   Subclasses name their kind in `entity_page_name`. This is the main path for
+   person and laboratory records, whose `pages` column is NULL in practice.
+2. An ABSOLUTE STORED PAGE. `pages` usually holds descriptor page names, but the
+   SGD person loader writes the colleague's absolute obj_url there
+   (lit_processing/oneoff_scripts/load_sgd_colleagues.py). That is the only real
+   link those rows carry, and SGD's default_url has no ``[%s]`` at all, so step 3
+   would hand every colleague the same homepage.
+3. default_url, for a prefix whose descriptor defines no entity page.
+
+Any explicit url already on the record wins over all three. `pages` entries come
+out as ``{name, url}`` objects, matching ``CrossReferenceSchemaShow``, and are a
+faithful copy of the column -- never synthesised from the entity-page lookup. The
+write schemas keep taking plain strings, so no payload changes.
 """
 from typing import Any, ClassVar, List, Optional
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from agr_literature_service.api.resource_descriptor_cache import resolve_xref_urls
+from agr_literature_service.api.resource_descriptor_cache import (
+    is_absolute_url,
+    resolve_xref_urls,
+)
 
 from .cross_reference_schemas import CrossReferencePageSchemaShow
 
@@ -67,26 +80,38 @@ class ResolvedXrefUrlMixin(BaseModel):
             [p.name or "" for p in self.pages] if self.pages is not None else None
         )
 
-        # With no pages of its own, ask the descriptor for the page describing
-        # this kind of record -- WB's "person" page gives
-        # ...;class=Person where default_url only gives the generic get?name=.
-        # The row stays untouched: `pages` is a faithful copy of the column and
-        # is not synthesised from this lookup.
-        lookup_names = stored_names
-        if not stored_names and self.entity_page_name:
-            lookup_names = [self.entity_page_name]
+        # Resolve the row's own pages and this record's entity page in one call:
+        # the entity page is appended, so `resolved` stays aligned with
+        # self.pages over its first len(stored_names) entries.
+        lookup = list(stored_names or [])
+        entity_index = None
+        if self.entity_page_name:
+            entity_index = len(lookup)
+            lookup.append(self.entity_page_name)
 
-        default_url, resolved = resolve_xref_urls(curie, lookup_names)
+        default_url, resolved = resolve_xref_urls(curie, lookup or None)
 
         if self.url is None:
-            entity_url = (
-                resolved[0]["url"]
-                if (not stored_names and resolved and resolved[0].get("url"))
-                else None
+            # 1. The entity page: this row's table already says what kind of
+            #    record it is, so WB gives ...;class=Person rather than the
+            #    generic get?name=. True whether or not the row stores pages.
+            entity_url = None
+            if entity_index is not None and resolved is not None:
+                entity_url = resolved[entity_index].get("url")
+
+            # 2. A stored page that is itself an absolute URL -- the SGD loader
+            #    writes the colleague's obj_url there, and it is the only real
+            #    link those rows have. SGD's default_url carries no [%s] at all,
+            #    so substituting into it yields the bare homepage for everyone.
+            #    Read from `name`: when the entry is absolute the name IS the
+            #    link, and page.url is not populated until the loop below.
+            absolute_url = next(
+                (p.name for p in (self.pages or []) if is_absolute_url(p.name)),
+                None,
             )
-            # The entity page is the more specific link; default_url is the
-            # fallback when the descriptor does not define one (e.g. SGD).
-            self.url = entity_url or default_url
+
+            # 3. default_url last.
+            self.url = entity_url or absolute_url or default_url
 
         if self.pages is not None and stored_names and resolved is not None:
             for page, res in zip(self.pages, resolved):

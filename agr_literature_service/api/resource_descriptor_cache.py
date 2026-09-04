@@ -145,7 +145,7 @@ def get_map(prefixes: Optional[Iterable[str]] = None) -> Dict[str, ResourceDescr
     return {rd.db_prefix: rd for rd in all_rd}
 
 
-def _is_absolute_url(value: Optional[str]) -> bool:
+def is_absolute_url(value: Optional[str]) -> bool:
     return isinstance(value, str) and value.startswith(("http://", "https://"))
 
 
@@ -213,7 +213,7 @@ def resolve_xref_urls(
     # Done here, before the prefix/descriptor early returns, so it still applies
     # when the prefix has no descriptor at all.
     pages: Optional[List[Dict[str, Optional[str]]]] = (
-        [{"name": n, "url": n if _is_absolute_url(n) else None} for n in names]
+        [{"name": n, "url": n if is_absolute_url(n) else None} for n in names]
         if names is not None else None
     )
 
