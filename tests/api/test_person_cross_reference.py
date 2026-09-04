@@ -5,6 +5,7 @@ import pytest
 from starlette.testclient import TestClient
 from fastapi import status
 
+import agr_literature_service.api.resource_descriptor_cache as rdc
 from agr_literature_service.api.main import app
 from agr_literature_service.api.models import (
     PersonModel,
@@ -325,3 +326,101 @@ class TestPersonCrossReference:
             }
             prefixes = {x["curie_prefix"] for x in xrefs}
             assert prefixes == {"ORCID", "WB", "ZFIN"}
+
+
+class TestPersonCrossReferenceUrls:
+    """A person cross reference must come back with a resolved `url` (and page
+    names upgraded to {name, url}) from the A-team resource descriptors, the way
+    reference cross references always have. Without it the UI has nothing to
+    link to -- the stored `pages` are page names, not URLs.
+    """
+
+    def test_show_resolves_url_from_descriptor(self, auth_headers, test_person_xref):  # noqa
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="ORCID", name="ORCID",
+                                       default_url="https://orcid.org/[%s]"),
+            ])
+            res = client.get(
+                f"/person_cross_reference/{test_person_xref.new_person_cross_reference_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["url"] == "https://orcid.org/0000-0001-2345-6789"
+
+    def test_list_for_person_resolves_url(self, auth_headers, seeded_person, test_person_xref):  # noqa
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="ORCID", name="ORCID",
+                                       default_url="https://orcid.org/[%s]"),
+            ])
+            res = client.get(
+                f"/person_cross_reference/person/{seeded_person['person_id']}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            urls = [x["url"] for x in res.json()]
+            assert "https://orcid.org/0000-0001-2345-6789" in urls
+
+    def test_unknown_prefix_leaves_url_null(self, auth_headers, test_person_xref):  # noqa
+        """No descriptor for the prefix must not fail the request."""
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="SOMETHINGELSE",
+                                       default_url="https://example.org/[%s]"),
+            ])
+            res = client.get(
+                f"/person_cross_reference/{test_person_xref.new_person_cross_reference_id}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            assert res.json()["url"] is None
+
+    def test_pages_become_name_url_objects(self, db, auth_headers, seeded_person):  # noqa
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(
+                    db_prefix="WB", name="WormBase",
+                    default_url="https://wormbase.org/species/all/person/[%s]",
+                    pages=[rdc.DescriptorPage(
+                        name="person",
+                        url="https://wormbase.org/resources/person/[%s]")],
+                ),
+            ])
+            created = client.post(
+                url="/person_cross_reference/",
+                json={
+                    "person_curie": str(seeded_person["person_id"]),
+                    "curie": "WB:WBPerson12345",
+                    "pages": ["person"],
+                },
+                headers=auth_headers,
+            )
+            assert created.status_code == status.HTTP_201_CREATED
+            res = client.get(
+                f"/person_cross_reference/person/{seeded_person['person_id']}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            wb = [x for x in res.json() if x["curie"] == "WB:WBPerson12345"][0]
+            assert wb["url"] == "https://wormbase.org/species/all/person/WBPerson12345"
+            assert wb["pages"] == [{
+                "name": "person",
+                "url": "https://wormbase.org/resources/person/WBPerson12345",
+            }]
+
+    def test_nested_in_person_record(self, auth_headers, seeded_person, test_person_xref):  # noqa
+        """The UI reads xrefs from GET /person/{curie}, so resolution must reach
+        the nested copy, not just the cross-reference endpoints."""
+        with TestClient(app) as client:
+            rdc._seed([
+                rdc.ResourceDescriptor(db_prefix="ORCID", name="ORCID",
+                                       default_url="https://orcid.org/[%s]"),
+            ])
+            res = client.get(
+                f"/person/{seeded_person['person_id']}",
+                headers=auth_headers,
+            )
+            assert res.status_code == status.HTTP_200_OK
+            urls = [x["url"] for x in res.json()["cross_references"]]
+            assert "https://orcid.org/0000-0001-2345-6789" in urls

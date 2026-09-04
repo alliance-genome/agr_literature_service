@@ -3,9 +3,10 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .base_schemas import AuditedObjectModelSchema
+from .xref_url_mixin import ResolvedXrefUrlMixin
 
 
-class LaboratoryCrossReferenceSchemaRelated(AuditedObjectModelSchema):
+class LaboratoryCrossReferenceSchemaRelated(AuditedObjectModelSchema, ResolvedXrefUrlMixin):
     """Related cross-reference details (embedded under Laboratory)."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -13,7 +14,6 @@ class LaboratoryCrossReferenceSchemaRelated(AuditedObjectModelSchema):
     laboratory_curie: Optional[str] = None
     curie: str
     curie_prefix: str
-    pages: Optional[List[str]] = None
     is_obsolete: bool = False
 
     @field_validator("curie")
@@ -63,7 +63,7 @@ class LaboratoryCrossReferenceSchemaUpdate(BaseModel):
         return v
 
 
-class LaboratoryCrossReferenceSchemaShow(AuditedObjectModelSchema):
+class LaboratoryCrossReferenceSchemaShow(AuditedObjectModelSchema, ResolvedXrefUrlMixin):
     """Full cross-reference record for detail endpoints."""
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -71,7 +71,6 @@ class LaboratoryCrossReferenceSchemaShow(AuditedObjectModelSchema):
     laboratory_curie: Optional[str] = None
     curie: str
     curie_prefix: str
-    pages: Optional[List[str]] = None
     is_obsolete: bool = False
 
     @field_validator("curie")
