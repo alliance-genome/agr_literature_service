@@ -25,7 +25,7 @@ from jwt.exceptions import PyJWTError
 
 from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
 
-from agr_literature_service.api.observer import enforce_observer_read_only
+from agr_literature_service.api.observer import enforce_observer_read_only, is_observer
 
 
 def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
@@ -45,8 +45,21 @@ def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
     """
     if user.get("token_type") != "access":
         return
+    # Two discriminators, either sufficient (SCRUM-6431 review):
+    # - aws.cognito.signin.user.admin scope: present on InitiateAuth
+    #   (SRP/USER_PASSWORD_AUTH) access tokens, never on client-credentials.
+    # - sub != client_id: hosted-UI authorization-code access tokens carry only
+    #   the requested OAuth scopes (openid email profile), but any USER token
+    #   has the user's UUID as sub, while client-credentials tokens have
+    #   sub == client_id.
     scope = user.get("scope") or ""
-    if "aws.cognito.signin.user.admin" in scope:
+    sub = user.get("sub")
+    client_id = user.get("client_id")
+    is_user_session = (
+        "aws.cognito.signin.user.admin" in scope
+        or (sub is not None and client_id is not None and sub != client_id)
+    )
+    if is_user_session:
         raise HTTPException(
             status_code=401,
             detail="User-session access tokens are not accepted; "
@@ -303,6 +316,19 @@ class IPAwareCognitoAuth:
         from agr_literature_service.api.routers.authentication import get_session_user
         return get_session_user(session_id)
 
+    @staticmethod
+    def _ensure_observer_registered(user: Dict[str, Any]) -> None:
+        """Observers never reach the mutating handlers where
+        set_global_user_from_cognito registers first-time users (their writes
+        are 403'd above), so register them from the auth path instead
+        (SCRUM-6431 review). Process-cached after first touch; best-effort —
+        never blocks the request. Import is lazy to keep auth free of the
+        user/models import cycle."""
+        if not is_observer(user):
+            return
+        from agr_literature_service.api.user import ensure_cognito_user_registered
+        ensure_cognito_user_registered(user)
+
     async def __call__(
         self,
         request: Request,
@@ -330,12 +356,14 @@ class IPAwareCognitoAuth:
             # so every mutating endpoint is covered server-side regardless of UI
             # behavior (SCRUM-6431). No-op for every other role.
             enforce_observer_read_only(user, request.method, request.url.path)
+            self._ensure_observer_registered(user)
             return user
 
         # Priority 2: Check for session cookie (for direct browser access)
         session_user = self._get_user_from_session_cookie(request)
         if session_user:
             enforce_observer_read_only(session_user, request.method, request.url.path)
+            self._ensure_observer_registered(session_user)
             return session_user
 
         # Priority 3: No credentials provided - check IP bypass rules

@@ -68,12 +68,17 @@ POST /xml2md/validate
 `agr_cognito_py` treats every `token_use=access` token as an ALL_ACCESS service
 account and discards its real `cognito:groups`, so a browser session's access
 token would sidestep every role decision — including this read-only boundary.
-The auth layer therefore rejects access tokens carrying the
-`aws.cognito.signin.user.admin` scope (present on every user-pool sign-in
-token, never on client-credentials tokens) with 401. Optionally set
-`COGNITO_SERVICE_CLIENT_IDS` (comma-separated) to additionally restrict service
-tokens to an explicit client_id allowlist. The UI authenticates with the ID
-token and is unaffected.
+The auth layer therefore rejects user-session access tokens with 401, using
+two discriminators (either sufficient): the `aws.cognito.signin.user.admin`
+scope (InitiateAuth/SRP tokens), and `sub != client_id` (hosted-UI
+authorization-code tokens carry only the requested OAuth scopes, but any USER
+token has the user's UUID as `sub`, while client-credentials tokens have
+`sub == client_id`). The gate runs on the Bearer branch of the auth
+dependency, on `POST /auth/login` (so an access token cannot be laundered
+into a 48-hour session cookie), and on `GET /auth/status`. Optionally set
+`COGNITO_SERVICE_CLIENT_IDS` (comma-separated) to additionally restrict
+service tokens to an explicit client_id allowlist. The UI authenticates with
+the ID token and is unaffected.
 
 Known side door: `POST /reference/referencefile/bulk_upload_validate/`
 authenticates via `get_cognito_user_swagger` directly rather than the shared
@@ -97,7 +102,13 @@ first-login requests are serialized with a per-email advisory lock, so the
 UI's parallel request burst cannot create duplicate persons. Only accounts
 carrying a recognized role group (curator / admin / developer / observer) are
 registered; anything else — and any registration failure — gets the
-contact-an-administrator 403.
+contact-an-administrator 403 (failures are logged with a stack trace).
+
+Observers never reach the mutating handlers where that registration runs
+(their writes are 403'd first), so the auth dependency additionally registers
+observers passively on their first authenticated request: best-effort (a
+failure is logged and never blocks the read), advisory-locked and idempotent,
+and process-cached after first touch.
 
 ## GET endpoint inventory
 

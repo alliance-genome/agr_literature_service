@@ -1,9 +1,12 @@
+import logging
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Optional, Dict, Any
+from typing import TYPE_CHECKING, Optional, Dict, Any, Set
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from agr_literature_service.api.models.user_model import UserModel
@@ -157,6 +160,7 @@ def set_global_user_from_cognito(db: Session, cognito_user: Optional[Dict[str, A
             try:
                 user_id = _register_cognito_user(db, cognito_user, user_email, sql)
             except Exception:
+                logger.exception("Auto-registration failed for %s", user_email)
                 db.rollback()
                 raise HTTPException(
                     status_code=403,
@@ -232,9 +236,13 @@ def _register_cognito_user(db: Session, cognito_user: Dict[str, Any],
                {"email": user_email})
 
     # Re-check now that we hold the lock: a concurrent request may have just
-    # finished registering this user.
+    # finished registering this user. Commit before returning — the advisory
+    # lock is transaction-scoped and would otherwise be held for the rest of
+    # the request, serializing the racers end-to-end instead of just past the
+    # insert.
     row = db.execute(user_lookup_sql, {"email": user_email}).fetchone()
     if row:
+        db.commit()
         return row[0]
 
     groups = list(cognito_user.get("cognito:groups") or [])
@@ -311,3 +319,49 @@ def link_user_to_person(db: Session, user_id_str: str, person_id: int) -> None:
         db.add(u)
         db.commit()
         db.refresh(u)
+
+
+# Emails already confirmed registered this process — makes the per-request
+# observer registration hook a set lookup after first touch. Re-checked against
+# the DB on process restart, and safe across workers: registration itself is
+# advisory-locked and idempotent.
+_registered_emails: Set[str] = set()
+
+
+def ensure_cognito_user_registered(cognito_user: Dict[str, Any]) -> None:
+    """Passively register a recognized-role Cognito user if they have no
+    account yet (SCRUM-6431 review, finding C).
+
+    set_global_user_from_cognito only runs inside mutating route handlers, and
+    observers never reach those (the auth dependency 403s their writes first) —
+    so without this hook an observer would never get a person row and their
+    Cognito role status would never be recorded. Called from the auth
+    dependency for observers; best-effort by design: a registration failure is
+    logged and never blocks the (read-only) request.
+    """
+    email = (cognito_user.get("email") or "").strip()
+    if not email or email.lower() in _registered_emails:
+        return
+    if not _has_recognized_role_group(cognito_user):
+        return
+    from agr_literature_service.api.database.main import SessionLocal
+    sql = text("""
+        SELECT u.id
+        FROM users u
+        JOIN person_email e ON u.person_id = e.person_id
+        WHERE lower(e.email_address) = lower(:email)
+        ORDER BY u.id
+        LIMIT 1
+    """)
+    db = SessionLocal()
+    try:
+        row = db.execute(sql, {"email": email}).fetchone()
+        if row is None:
+            _register_cognito_user(db, cognito_user, email, sql)
+            logger.info("Auto-registered Cognito user %s", email)
+        _registered_emails.add(email.lower())
+    except Exception:
+        logger.exception("Passive auto-registration failed for %s", email)
+        db.rollback()
+    finally:
+        db.close()

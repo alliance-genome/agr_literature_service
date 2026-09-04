@@ -147,9 +147,22 @@ class TestUserSessionAccessTokenGate:
 
     def test_client_credentials_token_accepted(self):
         from agr_literature_service.api.auth import reject_user_session_access_tokens
+        # client_credentials tokens have sub == client_id.
         reject_user_session_access_tokens(
-            {"token_type": "access", "client_id": "m2m", "scope": "abc/read"})
-        reject_user_session_access_tokens({"token_type": "access", "client_id": "m2m"})
+            {"token_type": "access", "client_id": "m2m", "sub": "m2m", "scope": "abc/read"})
+        reject_user_session_access_tokens(
+            {"token_type": "access", "client_id": "m2m", "sub": "m2m"})
+
+    def test_hosted_ui_access_token_rejected_via_sub_mismatch(self):
+        # Hosted-UI (authorization-code) access tokens carry only the requested
+        # OAuth scopes — no aws.cognito.signin.user.admin — but their sub is the
+        # user's UUID, not the client_id (SCRUM-6431 review, finding B).
+        from agr_literature_service.api.auth import reject_user_session_access_tokens
+        user = {"token_type": "access", "client_id": "webclient",
+                "sub": "1234-user-uuid", "scope": "openid email profile"}
+        with pytest.raises(HTTPException) as exc:
+            reject_user_session_access_tokens(user)
+        assert exc.value.status_code == 401
 
     def test_id_tokens_unaffected(self):
         from agr_literature_service.api.auth import reject_user_session_access_tokens
@@ -165,6 +178,50 @@ class TestUserSessionAccessTokenGate:
             reject_user_session_access_tokens(
                 {"token_type": "access", "client_id": "rogue", "scope": "abc/read"})
         assert exc.value.status_code == 401
+
+
+class TestPassiveObserverRegistration:
+    """The auth dependency registers observers passively (they never reach the
+    mutating handlers where registration otherwise happens) — best-effort,
+    cached, and never blocking the request (SCRUM-6431 review, finding C)."""
+
+    def test_hook_only_fires_for_observers(self):
+        from unittest.mock import patch
+        from agr_literature_service.api.auth import IPAwareCognitoAuth
+        with patch("agr_literature_service.api.user.ensure_cognito_user_registered") as reg:
+            IPAwareCognitoAuth._ensure_observer_registered(_id_user("FlyBaseCurator"))
+            reg.assert_not_called()
+            IPAwareCognitoAuth._ensure_observer_registered(_id_user("FlyBaseObserver"))
+            reg.assert_called_once()
+
+    def test_registration_failure_never_blocks_the_request(self):
+        from unittest.mock import MagicMock, patch
+        from agr_literature_service.api import user as user_mod
+        user_mod._registered_emails.discard("duncan@example.org")
+        broken_session = MagicMock()
+        broken_session.execute.side_effect = RuntimeError("db down")
+        with patch("agr_literature_service.api.database.main.SessionLocal",
+                   return_value=broken_session):
+            # Must not raise.
+            user_mod.ensure_cognito_user_registered(
+                {"token_type": "id", "cognito:groups": ["FlyBaseObserver"],
+                 "email": "duncan@example.org"})
+        assert "duncan@example.org" not in user_mod._registered_emails
+        broken_session.rollback.assert_called_once()
+        broken_session.close.assert_called_once()
+
+    def test_registered_email_cache_short_circuits(self):
+        from unittest.mock import patch
+        from agr_literature_service.api import user as user_mod
+        user_mod._registered_emails.add("cached@example.org")
+        try:
+            with patch("agr_literature_service.api.database.main.SessionLocal") as sess:
+                user_mod.ensure_cognito_user_registered(
+                    {"token_type": "id", "cognito:groups": ["FlyBaseObserver"],
+                     "email": "Cached@Example.org"})
+                sess.assert_not_called()
+        finally:
+            user_mod._registered_emails.discard("cached@example.org")
 
 
 class TestAutoRegistrationRoleGate:
