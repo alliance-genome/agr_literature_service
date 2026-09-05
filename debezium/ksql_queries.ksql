@@ -395,289 +395,6 @@ CREATE TABLE reference_with_citation AS
     normalized_copyright_reference.citation_id = citation.citation_id
     EMIT CHANGES;
 
-CREATE TABLE reference_xref AS
-    SELECT
-    reference.reference_id \"REFERENCE_ID\",
-    reference.curie,
-    reference.abstract,
-    reference.category,
-    NULLIF(reference.date_arrived_in_pubmed, '') \"DATE_ARRIVED_IN_PUBMED\",
-    reference.date_created,
-    NULLIF(reference.date_last_modified_in_pubmed, '') \"DATE_LAST_MODIFIED_IN_PUBMED\",
-    reference.date_published,
-    reference.date_published_start,
-    reference.date_published_end,
-    reference.date_updated,
-    reference.issue_name,
-    reference.keywords,
-    reference.language,
-    reference.copyright_license_id,
-    reference.page_range,
-    reference.plain_language_abstract,
-    reference.publisher,
-    reference.pubmed_abstract_languages,
-    reference.pubmed_publication_status,
-    reference.pubmed_types,
-    reference.resource_id,
-    reference.title,
-    reference.volume,
-    reference.retraction_status,
-    reference.can_display_image,
-    reference.image_count,
-    reference.retraction_status_name,
-    reference.citation,
-    reference.short_citation,
-    cross_references.cross_references
-    FROM reference_with_citation reference
-    LEFT OUTER JOIN cross_references cross_references ON
-    reference.reference_id = cross_references.reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_xref_author AS
-    SELECT
-    reference_xref.reference_id \"REFERENCE_ID\",
-    reference_xref.curie,
-    reference_xref.abstract,
-    reference_xref.category,
-    reference_xref.date_arrived_in_pubmed,
-    reference_xref.date_created,
-    reference_xref.date_last_modified_in_pubmed,
-    reference_xref.date_published,
-    reference_xref.date_published_start,
-    reference_xref.date_published_end,
-    reference_xref.date_updated,
-    reference_xref.issue_name,
-    reference_xref.keywords,
-    reference_xref.language,
-    reference_xref.copyright_license_id,
-    reference_xref.page_range,
-    reference_xref.plain_language_abstract,
-    reference_xref.publisher,
-    reference_xref.pubmed_abstract_languages,
-    reference_xref.pubmed_publication_status,
-    reference_xref.pubmed_types,
-    reference_xref.resource_id,
-    reference_xref.title,
-    reference_xref.volume,
-    reference_xref.retraction_status,
-    reference_xref.can_display_image,
-    reference_xref.image_count,
-    reference_xref.retraction_status_name,
-    reference_xref.citation,
-    reference_xref.short_citation,
-    reference_xref.cross_references,
-    authors.authors
-    FROM reference_xref reference_xref
-    LEFT OUTER JOIN authors authors ON
-    reference_xref.reference_id = authors.reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_xref_author_mods_in_corpus AS
-    SELECT
-    reference_xref_author.reference_id \"REFERENCE_ID\",
-    reference_xref_author.curie,
-    reference_xref_author.abstract,
-    reference_xref_author.category,
-    reference_xref_author.date_arrived_in_pubmed,
-    reference_xref_author.date_created,
-    reference_xref_author.date_last_modified_in_pubmed,
-    reference_xref_author.date_published,
-    reference_xref_author.date_published_start,
-    reference_xref_author.date_published_end,
-    reference_xref_author.date_updated,
-    reference_xref_author.issue_name,
-    reference_xref_author.keywords,
-    reference_xref_author.language,
-    reference_xref_author.copyright_license_id,
-    reference_xref_author.page_range,
-    reference_xref_author.plain_language_abstract,
-    reference_xref_author.publisher,
-    reference_xref_author.pubmed_abstract_languages,
-    reference_xref_author.pubmed_publication_status,
-    reference_xref_author.pubmed_types,
-    reference_xref_author.resource_id,
-    reference_xref_author.title,
-    reference_xref_author.volume,
-    reference_xref_author.retraction_status,
-    reference_xref_author.can_display_image,
-    reference_xref_author.image_count,
-    reference_xref_author.retraction_status_name,
-    reference_xref_author.citation,
-    reference_xref_author.short_citation,
-    reference_xref_author.cross_references,
-    reference_xref_author.authors,
-    mods_in_corpus.mods_in_corpus
-    FROM reference_xref_author reference_xref_author
-    LEFT OUTER JOIN mods_in_corpus mods_in_corpus ON
-    reference_xref_author.reference_id = mods_in_corpus.reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_xref_author_mods_in_corpus_mods_needs_review AS
-    SELECT
-    reference_xref_author_mods_in_corpus.reference_id \"REFERENCE_ID\",
-    reference_xref_author_mods_in_corpus.curie,
-    reference_xref_author_mods_in_corpus.abstract,
-    reference_xref_author_mods_in_corpus.category,
-    reference_xref_author_mods_in_corpus.date_arrived_in_pubmed,
-    reference_xref_author_mods_in_corpus.date_created,
-    reference_xref_author_mods_in_corpus.date_last_modified_in_pubmed,
-    reference_xref_author_mods_in_corpus.date_published,
-    reference_xref_author_mods_in_corpus.date_published_start,
-    reference_xref_author_mods_in_corpus.date_published_end,
-    reference_xref_author_mods_in_corpus.date_updated,
-    reference_xref_author_mods_in_corpus.issue_name,
-    reference_xref_author_mods_in_corpus.keywords,
-    reference_xref_author_mods_in_corpus.language,
-    reference_xref_author_mods_in_corpus.copyright_license_id,
-    reference_xref_author_mods_in_corpus.page_range,
-    reference_xref_author_mods_in_corpus.plain_language_abstract,
-    reference_xref_author_mods_in_corpus.publisher,
-    reference_xref_author_mods_in_corpus.pubmed_abstract_languages,
-    reference_xref_author_mods_in_corpus.pubmed_publication_status,
-    reference_xref_author_mods_in_corpus.pubmed_types,
-    reference_xref_author_mods_in_corpus.resource_id,
-    reference_xref_author_mods_in_corpus.title,
-    reference_xref_author_mods_in_corpus.volume,
-    reference_xref_author_mods_in_corpus.retraction_status,
-    reference_xref_author_mods_in_corpus.can_display_image,
-    reference_xref_author_mods_in_corpus.image_count,
-    reference_xref_author_mods_in_corpus.retraction_status_name,
-    reference_xref_author_mods_in_corpus.citation,
-    reference_xref_author_mods_in_corpus.short_citation,
-    reference_xref_author_mods_in_corpus.cross_references,
-    reference_xref_author_mods_in_corpus.authors,
-    reference_xref_author_mods_in_corpus.mods_in_corpus,
-    mods_needs_review.mods_needs_review
-    FROM reference_xref_author_mods_in_corpus reference_xref_author_mods_in_corpus
-    LEFT OUTER JOIN mods_needs_review mods_needs_review ON
-    reference_xref_author_mods_in_corpus.reference_id = mods_needs_review.reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_xref_all_mods_corpus AS
-    SELECT
-    reference_xref_author_mods_in_corpus_mods_needs_review.reference_id \"REFERENCE_ID\",
-    reference_xref_author_mods_in_corpus_mods_needs_review.curie,
-    reference_xref_author_mods_in_corpus_mods_needs_review.abstract,
-    reference_xref_author_mods_in_corpus_mods_needs_review.category,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_arrived_in_pubmed,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_created,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_last_modified_in_pubmed,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_published,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_published_start,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_published_end,
-    reference_xref_author_mods_in_corpus_mods_needs_review.date_updated,
-    reference_xref_author_mods_in_corpus_mods_needs_review.issue_name,
-    reference_xref_author_mods_in_corpus_mods_needs_review.keywords,
-    reference_xref_author_mods_in_corpus_mods_needs_review.language,
-    reference_xref_author_mods_in_corpus_mods_needs_review.copyright_license_id,
-    reference_xref_author_mods_in_corpus_mods_needs_review.page_range,
-    reference_xref_author_mods_in_corpus_mods_needs_review.plain_language_abstract,
-    reference_xref_author_mods_in_corpus_mods_needs_review.publisher,
-    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_abstract_languages,
-    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_publication_status,
-    reference_xref_author_mods_in_corpus_mods_needs_review.pubmed_types,
-    reference_xref_author_mods_in_corpus_mods_needs_review.resource_id,
-    reference_xref_author_mods_in_corpus_mods_needs_review.title,
-    reference_xref_author_mods_in_corpus_mods_needs_review.volume,
-    reference_xref_author_mods_in_corpus_mods_needs_review.retraction_status,
-    reference_xref_author_mods_in_corpus_mods_needs_review.can_display_image,
-    reference_xref_author_mods_in_corpus_mods_needs_review.image_count,
-    reference_xref_author_mods_in_corpus_mods_needs_review.retraction_status_name,
-    reference_xref_author_mods_in_corpus_mods_needs_review.citation,
-    reference_xref_author_mods_in_corpus_mods_needs_review.short_citation,
-    reference_xref_author_mods_in_corpus_mods_needs_review.cross_references,
-    reference_xref_author_mods_in_corpus_mods_needs_review.authors,
-    reference_xref_author_mods_in_corpus_mods_needs_review.mods_in_corpus,
-    reference_xref_author_mods_in_corpus_mods_needs_review.mods_needs_review,
-    mods_in_corpus_or_needs_review.mods_in_corpus_or_needs_review
-    FROM reference_xref_author_mods_in_corpus_mods_needs_review reference_xref_author_mods_in_corpus_mods_needs_review
-    LEFT OUTER JOIN mods_in_corpus_or_needs_review mods_in_corpus_or_needs_review ON
-    reference_xref_author_mods_in_corpus_mods_needs_review.reference_id = mods_in_corpus_or_needs_review.reference_id
-    EMIT CHANGES;
-
-CREATE TABLE reference_obsolete_curies AS SELECT
-    reference_xref_all_mods_corpus.reference_id \"REFERENCE_ID\",
-    reference_xref_all_mods_corpus.curie,
-    reference_xref_all_mods_corpus.abstract,
-    reference_xref_all_mods_corpus.category,
-    reference_xref_all_mods_corpus.date_arrived_in_pubmed,
-    reference_xref_all_mods_corpus.date_created,
-    reference_xref_all_mods_corpus.date_last_modified_in_pubmed,
-    reference_xref_all_mods_corpus.date_published,
-    reference_xref_all_mods_corpus.date_published_start,
-    reference_xref_all_mods_corpus.date_published_end,
-    reference_xref_all_mods_corpus.date_updated,
-    reference_xref_all_mods_corpus.issue_name,
-    reference_xref_all_mods_corpus.keywords,
-    reference_xref_all_mods_corpus.language,
-    reference_xref_all_mods_corpus.copyright_license_id,
-    reference_xref_all_mods_corpus.page_range,
-    reference_xref_all_mods_corpus.plain_language_abstract,
-    reference_xref_all_mods_corpus.publisher,
-    reference_xref_all_mods_corpus.pubmed_abstract_languages,
-    reference_xref_all_mods_corpus.pubmed_publication_status,
-    reference_xref_all_mods_corpus.pubmed_types,
-    reference_xref_all_mods_corpus.resource_id,
-    reference_xref_all_mods_corpus.title,
-    reference_xref_all_mods_corpus.volume,
-    reference_xref_all_mods_corpus.retraction_status,
-    reference_xref_all_mods_corpus.can_display_image,
-    reference_xref_all_mods_corpus.image_count,
-    reference_xref_all_mods_corpus.retraction_status_name,
-    reference_xref_all_mods_corpus.citation,
-    reference_xref_all_mods_corpus.short_citation,
-    reference_xref_all_mods_corpus.cross_references,
-    reference_xref_all_mods_corpus.authors,
-    reference_xref_all_mods_corpus.mods_in_corpus,
-    reference_xref_all_mods_corpus.mods_needs_review,
-    reference_xref_all_mods_corpus.mods_in_corpus_or_needs_review,
-    obsolete_curies.obsolete_curies
-    FROM reference_xref_all_mods_corpus reference_xref_all_mods_corpus
-    LEFT OUTER JOIN obsolete_curies obsolete_curies ON
-    reference_xref_all_mods_corpus.reference_id = obsolete_curies.reference_id;
-
-CREATE TABLE reference_mod_reference_types AS SELECT
-    reference_obsolete_curies.reference_id \"REFERENCE_ID\",
-    reference_obsolete_curies.curie,
-    reference_obsolete_curies.abstract,
-    reference_obsolete_curies.category,
-    reference_obsolete_curies.date_arrived_in_pubmed,
-    reference_obsolete_curies.date_created,
-    reference_obsolete_curies.date_last_modified_in_pubmed,
-    reference_obsolete_curies.date_published,
-    reference_obsolete_curies.date_published_start,
-    reference_obsolete_curies.date_published_end,
-    reference_obsolete_curies.date_updated,
-    reference_obsolete_curies.issue_name,
-    reference_obsolete_curies.keywords,
-    reference_obsolete_curies.language,
-    reference_obsolete_curies.copyright_license_id,
-    reference_obsolete_curies.page_range,
-    reference_obsolete_curies.plain_language_abstract,
-    reference_obsolete_curies.publisher,
-    reference_obsolete_curies.pubmed_abstract_languages,
-    reference_obsolete_curies.pubmed_publication_status,
-    reference_obsolete_curies.pubmed_types,
-    reference_obsolete_curies.resource_id,
-    reference_obsolete_curies.title,
-    reference_obsolete_curies.volume,
-    reference_obsolete_curies.retraction_status,
-    reference_obsolete_curies.can_display_image,
-    reference_obsolete_curies.image_count,
-    reference_obsolete_curies.retraction_status_name,
-    reference_obsolete_curies.citation,
-    reference_obsolete_curies.short_citation,
-    reference_obsolete_curies.cross_references,
-    reference_obsolete_curies.authors,
-    reference_obsolete_curies.mods_in_corpus,
-    reference_obsolete_curies.mods_needs_review,
-    reference_obsolete_curies.mods_in_corpus_or_needs_review,
-    reference_obsolete_curies.obsolete_curies,
-    mod_referencetype_referencetype_full.label
-    FROM reference_obsolete_curies reference_obsolete_curies
-    LEFT OUTER JOIN mod_referencetype_referencetype_full mod_referencetype_referencetype_full ON
-    reference_obsolete_curies.reference_id = mod_referencetype_referencetype_full.reference_id;
-
 CREATE TABLE reference_workflow_tag(
     reference_workflow_tag_id string PRIMARY KEY,
     reference_id string,
@@ -908,61 +625,319 @@ CREATE TABLE reference_with_resource AS
     LEFT OUTER JOIN resource resource ON reference_with_citation.resource_id = resource.resource_id
     EMIT CHANGES;
 
+-- ==================================================================================================
+-- NARROW SPINE + ASCENDING JOIN ORDER (branch ksqldb-spine-reorder) -- PRIVATE index chain only.
+--
+-- The original private chain carried the WIDE reference row through every link: reference_xref
+-- restated 30 columns, then 33, 34, 35, 36, ... 43 -- so abstract/title/keywords (~1.6GB of text
+-- across 1.29M references) were materialised again at every step. The identical shape in Flink was
+-- the wall: state outgrew the RocksDB block cache and the reindex went IOPS-bound -- a narrow spine
+-- plus ascending join order took it past the wall that had killed every previous attempt.
+--
+-- The spine carries ONLY reference_id + citation + the accumulated arrays. The wide columns are
+-- attached ONCE, in the final join back to normalized_copyright_reference.
+--
+-- ORDER IS ASCENDING BY SOURCE SIZE: each link materialises everything accumulated so far, so an
+-- aggregate joined first is carried through every remaining link and one joined last through none.
+-- The original joined cross_references (4.09M) and authors (7.78M) FIRST -- the two largest, dragged
+-- through the whole chain. Source rows, smallest first: obsolete_reference_curie 42,
+-- manual_indexing_tag 6,959, curation_status 23,616, reference_email 40,916, indexing_priority
+-- 67,495, reference_mod_referencetype 1.30M, mod_corpus_association 1.44M (x3), workflow_tag 2.14M,
+-- topic_entity_tag 3.50M, cross_reference 4.09M, author 7.78M.
+--
+-- reference_with_citation is deliberately KEPT above: the PUBLIC chain
+-- (reference_with_resource -> reference_with_copyright -> public_reference_joined) still sources its
+-- wide columns from it. Only the private chain is restructured here.
+-- ==================================================================================================
+
+CREATE TABLE spine_citation AS
+    SELECT
+    normalized_copyright_reference.reference_id \"REFERENCE_ID\",
+    citation.citation \"CITATION\",
+    citation.short_citation \"SHORT_CITATION\"
+    FROM normalized_copyright_reference normalized_copyright_reference
+    JOIN citation citation ON
+    normalized_copyright_reference.citation_id = citation.citation_id
+    EMIT CHANGES;
+
+CREATE TABLE spine_obs AS
+    SELECT
+    spine_citation.REFERENCE_ID \"REFERENCE_ID\",
+    spine_citation.CITATION \"CITATION\",
+    spine_citation.SHORT_CITATION \"SHORT_CITATION\",
+    obsolete_curies.OBSOLETE_CURIES \"OBSOLETE_CURIES\"
+    FROM spine_citation spine_citation
+    LEFT OUTER JOIN obsolete_curies obsolete_curies ON
+    spine_citation.REFERENCE_ID = obsolete_curies.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_mit AS
+    SELECT
+    spine_obs.REFERENCE_ID \"REFERENCE_ID\",
+    spine_obs.CITATION \"CITATION\",
+    spine_obs.SHORT_CITATION \"SHORT_CITATION\",
+    spine_obs.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    manual_indexing_tags.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\"
+    FROM spine_obs spine_obs
+    LEFT OUTER JOIN manual_indexing_tags manual_indexing_tags ON
+    spine_obs.REFERENCE_ID = manual_indexing_tags.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_ctag AS
+    SELECT
+    spine_mit.REFERENCE_ID \"REFERENCE_ID\",
+    spine_mit.CITATION \"CITATION\",
+    spine_mit.SHORT_CITATION \"SHORT_CITATION\",
+    spine_mit.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_mit.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    curation_tags.CURATION_TAGS \"CURATION_TAGS\"
+    FROM spine_mit spine_mit
+    LEFT OUTER JOIN curation_tags curation_tags ON
+    spine_mit.REFERENCE_ID = curation_tags.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_rem AS
+    SELECT
+    spine_ctag.REFERENCE_ID \"REFERENCE_ID\",
+    spine_ctag.CITATION \"CITATION\",
+    spine_ctag.SHORT_CITATION \"SHORT_CITATION\",
+    spine_ctag.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_ctag.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_ctag.CURATION_TAGS \"CURATION_TAGS\",
+    reference_emails.REFERENCE_EMAILS \"REFERENCE_EMAILS\"
+    FROM spine_ctag spine_ctag
+    LEFT OUTER JOIN reference_emails reference_emails ON
+    spine_ctag.REFERENCE_ID = reference_emails.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_ip AS
+    SELECT
+    spine_rem.REFERENCE_ID \"REFERENCE_ID\",
+    spine_rem.CITATION \"CITATION\",
+    spine_rem.SHORT_CITATION \"SHORT_CITATION\",
+    spine_rem.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_rem.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_rem.CURATION_TAGS \"CURATION_TAGS\",
+    spine_rem.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    indexing_priorities.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\"
+    FROM spine_rem spine_rem
+    LEFT OUTER JOIN indexing_priorities indexing_priorities ON
+    spine_rem.REFERENCE_ID = indexing_priorities.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_mrt AS
+    SELECT
+    spine_ip.REFERENCE_ID \"REFERENCE_ID\",
+    spine_ip.CITATION \"CITATION\",
+    spine_ip.SHORT_CITATION \"SHORT_CITATION\",
+    spine_ip.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_ip.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_ip.CURATION_TAGS \"CURATION_TAGS\",
+    spine_ip.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_ip.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    mod_referencetype_referencetype_full.LABEL \"LABEL\"
+    FROM spine_ip spine_ip
+    LEFT OUTER JOIN mod_referencetype_referencetype_full mod_referencetype_referencetype_full ON
+    spine_ip.REFERENCE_ID = mod_referencetype_referencetype_full.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_mic AS
+    SELECT
+    spine_mrt.REFERENCE_ID \"REFERENCE_ID\",
+    spine_mrt.CITATION \"CITATION\",
+    spine_mrt.SHORT_CITATION \"SHORT_CITATION\",
+    spine_mrt.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_mrt.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_mrt.CURATION_TAGS \"CURATION_TAGS\",
+    spine_mrt.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_mrt.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_mrt.LABEL \"LABEL\",
+    mods_in_corpus.MODS_IN_CORPUS \"MODS_IN_CORPUS\"
+    FROM spine_mrt spine_mrt
+    LEFT OUTER JOIN mods_in_corpus mods_in_corpus ON
+    spine_mrt.REFERENCE_ID = mods_in_corpus.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_mnr AS
+    SELECT
+    spine_mic.REFERENCE_ID \"REFERENCE_ID\",
+    spine_mic.CITATION \"CITATION\",
+    spine_mic.SHORT_CITATION \"SHORT_CITATION\",
+    spine_mic.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_mic.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_mic.CURATION_TAGS \"CURATION_TAGS\",
+    spine_mic.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_mic.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_mic.LABEL \"LABEL\",
+    spine_mic.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    mods_needs_review.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\"
+    FROM spine_mic spine_mic
+    LEFT OUTER JOIN mods_needs_review mods_needs_review ON
+    spine_mic.REFERENCE_ID = mods_needs_review.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_mcr AS
+    SELECT
+    spine_mnr.REFERENCE_ID \"REFERENCE_ID\",
+    spine_mnr.CITATION \"CITATION\",
+    spine_mnr.SHORT_CITATION \"SHORT_CITATION\",
+    spine_mnr.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_mnr.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_mnr.CURATION_TAGS \"CURATION_TAGS\",
+    spine_mnr.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_mnr.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_mnr.LABEL \"LABEL\",
+    spine_mnr.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_mnr.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
+    mods_in_corpus_or_needs_review.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\"
+    FROM spine_mnr spine_mnr
+    LEFT OUTER JOIN mods_in_corpus_or_needs_review mods_in_corpus_or_needs_review ON
+    spine_mnr.REFERENCE_ID = mods_in_corpus_or_needs_review.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_wf AS
+    SELECT
+    spine_mcr.REFERENCE_ID \"REFERENCE_ID\",
+    spine_mcr.CITATION \"CITATION\",
+    spine_mcr.SHORT_CITATION \"SHORT_CITATION\",
+    spine_mcr.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_mcr.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_mcr.CURATION_TAGS \"CURATION_TAGS\",
+    spine_mcr.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_mcr.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_mcr.LABEL \"LABEL\",
+    spine_mcr.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_mcr.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
+    spine_mcr.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
+    reference_workflow_tags.WORKFLOW_TAGS \"WORKFLOW_TAGS\"
+    FROM spine_mcr spine_mcr
+    LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON
+    spine_mcr.REFERENCE_ID = reference_workflow_tags.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_tet AS
+    SELECT
+    spine_wf.REFERENCE_ID \"REFERENCE_ID\",
+    spine_wf.CITATION \"CITATION\",
+    spine_wf.SHORT_CITATION \"SHORT_CITATION\",
+    spine_wf.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_wf.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_wf.CURATION_TAGS \"CURATION_TAGS\",
+    spine_wf.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_wf.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_wf.LABEL \"LABEL\",
+    spine_wf.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_wf.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
+    spine_wf.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
+    spine_wf.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
+    topic_entity_tags.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\"
+    FROM spine_wf spine_wf
+    LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON
+    spine_wf.REFERENCE_ID = topic_entity_tags.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_xref AS
+    SELECT
+    spine_tet.REFERENCE_ID \"REFERENCE_ID\",
+    spine_tet.CITATION \"CITATION\",
+    spine_tet.SHORT_CITATION \"SHORT_CITATION\",
+    spine_tet.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_tet.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_tet.CURATION_TAGS \"CURATION_TAGS\",
+    spine_tet.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_tet.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_tet.LABEL \"LABEL\",
+    spine_tet.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_tet.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
+    spine_tet.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
+    spine_tet.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
+    spine_tet.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\",
+    cross_references.CROSS_REFERENCES \"CROSS_REFERENCES\"
+    FROM spine_tet spine_tet
+    LEFT OUTER JOIN cross_references cross_references ON
+    spine_tet.REFERENCE_ID = cross_references.REFERENCE_ID
+    EMIT CHANGES;
+
+CREATE TABLE spine_auth AS
+    SELECT
+    spine_xref.REFERENCE_ID \"REFERENCE_ID\",
+    spine_xref.CITATION \"CITATION\",
+    spine_xref.SHORT_CITATION \"SHORT_CITATION\",
+    spine_xref.OBSOLETE_CURIES \"OBSOLETE_CURIES\",
+    spine_xref.MANUAL_INDEXING_TAGS \"MANUAL_INDEXING_TAGS\",
+    spine_xref.CURATION_TAGS \"CURATION_TAGS\",
+    spine_xref.REFERENCE_EMAILS \"REFERENCE_EMAILS\",
+    spine_xref.INDEXING_PRIORITIES \"INDEXING_PRIORITIES\",
+    spine_xref.LABEL \"LABEL\",
+    spine_xref.MODS_IN_CORPUS \"MODS_IN_CORPUS\",
+    spine_xref.MODS_NEEDS_REVIEW \"MODS_NEEDS_REVIEW\",
+    spine_xref.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"MODS_IN_CORPUS_OR_NEEDS_REVIEW\",
+    spine_xref.WORKFLOW_TAGS \"WORKFLOW_TAGS\",
+    spine_xref.TOPIC_ENTITY_TAGS \"TOPIC_ENTITY_TAGS\",
+    spine_xref.CROSS_REFERENCES \"CROSS_REFERENCES\",
+    authors.AUTHORS \"AUTHORS\"
+    FROM spine_xref spine_xref
+    LEFT OUTER JOIN authors authors ON
+    spine_xref.REFERENCE_ID = authors.REFERENCE_ID
+    EMIT CHANGES;
+
+-- Wide reference columns attached ONCE here instead of being dragged through 13 links.
 CREATE TABLE reference_joined WITH (
     PARTITIONS = 1,
     KAFKA_TOPIC = 'reference_joined',
     VALUE_FORMAT='JSON',
     KEY_FORMAT='JSON'
   ) AS SELECT
-    reference_mod_reference_types.reference_id \"reference_id\",
-    reference_mod_reference_types.curie \"curie\",
-    reference_mod_reference_types.abstract \"abstract\",
-    reference_mod_reference_types.category \"category\",
-    reference_mod_reference_types.date_arrived_in_pubmed \"date_arrived_in_pubmed\",
-    reference_mod_reference_types.date_created \"date_created\",
-    reference_mod_reference_types.date_last_modified_in_pubmed \"date_last_modified_in_pubmed\",
-    reference_mod_reference_types.date_published \"date_published\",
-    reference_mod_reference_types.date_published_start \"date_published_start\",
-    reference_mod_reference_types.date_published_end \"date_published_end\",
-    reference_mod_reference_types.date_updated \"date_updated\",
-    reference_mod_reference_types.issue_name \"issue_name\",
-    reference_mod_reference_types.keywords \"keywords\",
-    reference_mod_reference_types.language \"language\",
-    reference_mod_reference_types.page_range \"page_range\",
-    reference_mod_reference_types.plain_language_abstract \"plain_language_abstract\",
-    reference_mod_reference_types.publisher \"publisher\",
-    reference_mod_reference_types.pubmed_abstract_languages \"pubmed_abstract_languages\",
-    reference_mod_reference_types.pubmed_publication_status \"pubmed_publication_status\",
-    reference_mod_reference_types.pubmed_types \"pubmed_types\",
-    reference_mod_reference_types.resource_id \"resource_id\",
-    reference_mod_reference_types.title \"title\",
-    reference_mod_reference_types.volume \"volume\",
-    reference_mod_reference_types.retraction_status \"retraction_status\",
-    reference_mod_reference_types.can_display_image \"can_display_image\",
-    reference_mod_reference_types.image_count \"image_count\",
-    reference_mod_reference_types.retraction_status_name \"retraction_status_name\",
-    reference_mod_reference_types.citation \"citation\",
-    reference_mod_reference_types.short_citation \"short_citation\",
-    reference_mod_reference_types.cross_references \"cross_references\",
-    reference_mod_reference_types.authors \"authors\",
-    reference_mod_reference_types.mods_in_corpus \"mods_in_corpus\",
-    reference_mod_reference_types.mods_needs_review \"mods_needs_review\",
-    reference_mod_reference_types.mods_in_corpus_or_needs_review \"mods_in_corpus_or_needs_review\",
-    reference_mod_reference_types.obsolete_curies \"obsolete_curies\",
-    reference_mod_reference_types.label \"mod_reference_types\",
-    topic_entity_tags.topic_entity_tags \"topic_entity_tags\",
-    curation_tags.curation_tags \"curation_tags\",
-    reference_workflow_tags.workflow_tags \"workflow_tags\",
-    reference_emails.reference_emails \"reference_emails\",
-    indexing_priorities.indexing_priorities \"indexing_priorities\",
-    manual_indexing_tags.manual_indexing_tags \"manual_indexing_tags\"
-    FROM reference_mod_reference_types reference_mod_reference_types
-    LEFT OUTER JOIN topic_entity_tags topic_entity_tags ON reference_mod_reference_types.reference_id = topic_entity_tags.reference_id
-    LEFT OUTER JOIN curation_tags curation_tags ON reference_mod_reference_types.reference_id = curation_tags.reference_id
-    LEFT OUTER JOIN reference_workflow_tags reference_workflow_tags ON reference_mod_reference_types.reference_id = reference_workflow_tags.reference_id
-    LEFT OUTER JOIN reference_emails reference_emails ON reference_mod_reference_types.reference_id = reference_emails.reference_id
-    LEFT OUTER JOIN indexing_priorities indexing_priorities ON reference_mod_reference_types.reference_id = indexing_priorities.reference_id
-    LEFT OUTER JOIN manual_indexing_tags manual_indexing_tags ON reference_mod_reference_types.reference_id = manual_indexing_tags.reference_id
+    spine_auth.REFERENCE_ID \"reference_id\",
+    normalized_copyright_reference.curie \"curie\",
+    normalized_copyright_reference.abstract \"abstract\",
+    normalized_copyright_reference.category \"category\",
+    NULLIF(normalized_copyright_reference.date_arrived_in_pubmed, '') \"date_arrived_in_pubmed\",
+    normalized_copyright_reference.date_created \"date_created\",
+    NULLIF(normalized_copyright_reference.date_last_modified_in_pubmed, '') \"date_last_modified_in_pubmed\",
+    normalized_copyright_reference.date_published \"date_published\",
+    normalized_copyright_reference.date_published_start \"date_published_start\",
+    normalized_copyright_reference.date_published_end \"date_published_end\",
+    normalized_copyright_reference.date_updated \"date_updated\",
+    normalized_copyright_reference.issue_name \"issue_name\",
+    normalized_copyright_reference.keywords \"keywords\",
+    normalized_copyright_reference.language \"language\",
+    normalized_copyright_reference.page_range \"page_range\",
+    normalized_copyright_reference.plain_language_abstract \"plain_language_abstract\",
+    normalized_copyright_reference.publisher \"publisher\",
+    normalized_copyright_reference.pubmed_abstract_languages \"pubmed_abstract_languages\",
+    normalized_copyright_reference.pubmed_publication_status \"pubmed_publication_status\",
+    normalized_copyright_reference.pubmed_types \"pubmed_types\",
+    normalized_copyright_reference.resource_id \"resource_id\",
+    normalized_copyright_reference.title \"title\",
+    normalized_copyright_reference.volume \"volume\",
+    normalized_copyright_reference.retraction_status \"retraction_status\",
+    normalized_copyright_reference.can_display_image \"can_display_image\",
+    normalized_copyright_reference.image_count \"image_count\",
+    CASE
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000346' THEN 'retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000347' THEN 'partially retracted'
+      WHEN normalized_copyright_reference.retraction_status = 'ATP:0000348' THEN 'fully retracted'
+      ELSE NULL
+    END AS \"retraction_status_name\",
+    spine_auth.CITATION \"citation\",
+    spine_auth.SHORT_CITATION \"short_citation\",
+    spine_auth.OBSOLETE_CURIES \"obsolete_curies\",
+    spine_auth.MANUAL_INDEXING_TAGS \"manual_indexing_tags\",
+    spine_auth.CURATION_TAGS \"curation_tags\",
+    spine_auth.REFERENCE_EMAILS \"reference_emails\",
+    spine_auth.INDEXING_PRIORITIES \"indexing_priorities\",
+    spine_auth.LABEL \"mod_reference_types\",
+    spine_auth.MODS_IN_CORPUS \"mods_in_corpus\",
+    spine_auth.MODS_NEEDS_REVIEW \"mods_needs_review\",
+    spine_auth.MODS_IN_CORPUS_OR_NEEDS_REVIEW \"mods_in_corpus_or_needs_review\",
+    spine_auth.WORKFLOW_TAGS \"workflow_tags\",
+    spine_auth.TOPIC_ENTITY_TAGS \"topic_entity_tags\",
+    spine_auth.CROSS_REFERENCES \"cross_references\",
+    spine_auth.AUTHORS \"authors\"
+    FROM spine_auth spine_auth
+    JOIN normalized_copyright_reference normalized_copyright_reference ON
+    spine_auth.REFERENCE_ID = normalized_copyright_reference.reference_id
     EMIT CHANGES;
 
 CREATE TABLE reference_with_copyright AS
