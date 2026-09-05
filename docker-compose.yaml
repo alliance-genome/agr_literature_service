@@ -481,16 +481,17 @@ services:
       # --- SCRUM-6231: reindex was disk-write-bound (ksqlDB RocksDB ~405 MB/s saturating EBS) ---
       # cache.max.bytes.buffering=0 forced ksqlDB to flush every record straight to RocksDB.
       # Re-enable the Kafka Streams record cache to batch/dedupe writes before they hit disk.
-      # NOTE: this cache is PER persistent query (~32 CTAS in ksql_queries.ksql), so total
-      # on-heap cache ~= 32 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
-      #   150 MB/query x ~32 ~= 4.8 GB of the 16 GB ksqlDB heap (bumped below).
+      # NOTE: this cache is PER persistent query (41 CTAS in ksql_queries.ksql -- was 34 before the
+      # SCRUM-6519 spine split the private chain into 14 narrow links), so total on-heap cache
+      # ~= 41 x value. Sized for the m5.4xlarge (16 vCPU / 64 GB):
+      #   150 MB/query x 41 ~= 6.2 GB of the 16 GB ksqlDB heap (bumped below).
       # Raised 100->150 MB to coalesce/dedupe more state-store updates in memory during the
       # ramp-up rebuild before they reach RocksDB (fewer SST writes). Steady-state latency is
       # unaffected: the 3s commit interval still bounds flush staleness. Can push toward 200 MB
       # (and heap to 24 GB) IF `free -g` shows headroom alongside Kafka/ES/connector on the box.
       # Env-overridable (default = dev m5.4xlarge sizing). Scale DOWN with the heap on smaller boxes:
-      # the cache is PER persistent query (~32), so total on-heap cache ~= 32 x this value. Prod
-      # m5.2xlarge (8g heap) uses DBZ_KSQL_CACHE_MAX_BYTES=78643200 (75 MiB -> ~2.4 GB across queries).
+      # the cache is PER persistent query (41), so total on-heap cache ~= 41 x this value. Prod
+      # m5.2xlarge (8g heap) uses DBZ_KSQL_CACHE_MAX_BYTES=78643200 (75 MiB -> ~3.0 GB across queries).
       - KSQL_KSQL_STREAMS_CACHE_MAX_BYTES_BUFFERING=${DBZ_KSQL_CACHE_MAX_BYTES:-157286400}
       # Commit/flush interval, balancing two MEASURED constraints from the dev reindex:
       #   - 10s added too much per-hop latency -> real-time CDC sync took >30s to reach ES and
@@ -562,7 +563,7 @@ services:
       - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_DISK_MAX_BYTES_PER_SEC=${DBZ_ROCKSDB_DISK_MAX_BYTES_PER_SEC:-622854144}
       - KSQL_KSQL_STREAMS_ROCKSDB_RATELIMIT_FRACTION=0.8
       # SCRUM-6318: hard cap on RocksDB OFF-HEAP memory (block caches + memtables) across all
-      # ~32 queries' stores -- unbounded it grew several GB past the heap during full reindexes
+      # 41 queries' stores -- unbounded it grew several GB past the heap during full reindexes
       # and OOM-killed processes on swapless boxes. 0 = auto-size: (RAM visible to the container,
       # cgroup-aware) x fraction, floor 512 MiB. Set DBZ_ROCKSDB_TOTAL_OFFHEAP_BYTES to pin an
       # explicit cap instead; fraction default 0.15 (~4.8 GB on a 32 GB box).

@@ -171,8 +171,14 @@ export PUBLIC_SINK_INDEX_NAME="${PUBLIC_INDEX_NAME_CURRENT}"
 # Clear each sink's committed offsets BEFORE deleting it: the connector goes away but its consumer
 # group does not, and the ksql CTAS topics are reused across rebuilds, so a recreated sink would
 # resume mid-topic and leave the freshly-emptied slot short (see reset_sink_offsets).
-reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${SINK_NAME}" || true
-reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${PUBLIC_SINK_NAME}" || true
+# Carry the outcome to the promotion decision below. A failed reset leaves the recreated sink
+# resuming mid-topic, so the slot finishes SHORT with the connector RUNNING, 0 failed tasks and
+# lag 0. The doc-count guard cannot catch that -- the measured 906,714-of-1,113,157 case is still
+# "> 0" -- so without this flag a truncated index would be force-merged and promoted over a
+# healthy one.
+OFFSETS_RESET_OK=1
+reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${SINK_NAME}" || OFFSETS_RESET_OK=0
+reset_sink_offsets "${DEBEZIUM_CONNECTOR_HOST}" "${DEBEZIUM_CONNECTOR_PORT}" "${PUBLIC_SINK_NAME}" || OFFSETS_RESET_OK=0
 
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${SINK_NAME}
 curl -i -X DELETE http://${DEBEZIUM_CONNECTOR_HOST}:${DEBEZIUM_CONNECTOR_PORT}/connectors/${PUBLIC_SINK_NAME}
@@ -234,7 +240,7 @@ DATA_PROCESSING_DURATION=$((DATA_PROCESSING_END - SETUP_END))
 # it. The old slot stays as the instant-rollback backup (overwritten on the next rebuild). Same
 # path for test and prod. Guard: never flip to an empty slot, so a failed/empty build can never
 # replace a healthy live index.
-if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
+if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]] && [[ $OFFSETS_RESET_OK -eq 1 ]]; then
     set_reindex_status "reindexing" "{\"phase\": \"optimize_and_flip\", \"slot\": \"${SLOT}\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
 
     # Optimize + warm OFF the serving path (the alias still points at the old slot here). These are
@@ -258,6 +264,14 @@ if [[ $new_index_doc_count -gt 0 ]] && [[ $public_index_doc_count -gt 0 ]]; then
         set_reindex_status "error" "{\"message\": \"alias flip failed; live index unchanged\", \"slot\": \"${SLOT}\"}"
         exit 1
     fi
+elif [[ $OFFSETS_RESET_OK -ne 1 ]]; then
+    # The sink offsets could not be cleared, so this slot was built by a sink that resumed
+    # mid-topic and is short by an unknown amount. Refusing to flip is the safe side: a stale but
+    # complete live index beats a fresh truncated one. Same frozen-slot caveat as the empty case.
+    echo "ERROR: sink offsets were NOT reset (see reset_sink_offsets output above); build slot _${SLOT} is likely INCOMPLETE (private=${new_index_doc_count}, public=${public_index_doc_count}). NOT flipping alias."
+    echo "The previous slot keeps serving but is now FROZEN (its sink moved to this slot) until a rebuild succeeds. If this is Kafka Connect < 3.6, DELETE /offsets is unsupported and the sinks must be recreated under a new connector name instead."
+    set_reindex_status "error" "{\"message\": \"sink offset reset failed; slot likely short; alias not flipped; served slot frozen\", \"private_index_docs\": $new_index_doc_count, \"public_index_docs\": $public_index_doc_count}"
+    exit 1
 else
     # A 0-doc build means the pipeline produced nothing. Do NOT flip (this guard protects the live
     # slot). NOTE: the sink was already repointed at this (empty) build slot above, so the previous
