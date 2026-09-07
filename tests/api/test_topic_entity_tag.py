@@ -37,6 +37,7 @@ def test_topic_entity_tag(db, auth_headers, test_reference, test_topic_entity_ta
             "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
             "negated": False,
             "data_novelty": "ATP:0000334",
+            "data_context": "ATP:0000325",
             "note": "test note",
             "created_by": "WBPerson1",
             "date_created": "2020-01-01"
@@ -104,6 +105,7 @@ class TestTopicEntityTag:
                 "entity_id_validation": "alliance",
                 "display_tag": None,
                 "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000325",
                 "negated": False,
                 "species": "NCBITaxon:6239"
             }
@@ -669,6 +671,7 @@ class TestTopicEntityTag:
                 "entity_id_validation": "alliance",
                 "display_tag": None,
                 "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000360",
                 "negated": False,
                 "species": "NCBITaxon:6239"
             }
@@ -1689,6 +1692,160 @@ class TestTopicEntityTag:
             tag_data2 = get_resp2.json()
             # Check that data_novelty is updated
             assert tag_data2["data_novelty"] == "ATP:0000334"
+
+    def test_data_context_field(self, test_reference, auth_headers, test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: data_context round-trips through create, show and patch,
+        and accepts each of the four disjoint terms."""
+        load_name_to_atp_and_relationships_mock()
+        data_context_terms = [
+            "ATP:0000325",  # experimentally studied data
+            "ATP:0000360",  # background information
+            "ATP:0000328",  # expression marker
+            "ATP:0000327",  # genetic marker
+        ]
+        with TestClient(app) as client:
+            for index, term in enumerate(data_context_terms):
+                new_tag = {
+                    "reference_curie": test_reference.new_ref_curie,
+                    "topic": "ATP:0000122",
+                    "species": "NCBITaxon:6239",
+                    "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                    "negated": False,
+                    "data_novelty": "ATP:0000334",
+                    "data_context": term,
+                    # Distinct notes keep these four from colliding in
+                    # check_for_duplicate_tags on anything but data_context.
+                    "note": f"data context case {index}",
+                }
+                create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+                assert create_resp.status_code == status.HTTP_201_CREATED
+                tag_id = create_resp.json()["topic_entity_tag_id"]
+
+                get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+                assert get_resp.status_code == status.HTTP_200_OK
+                assert get_resp.json()["data_context"] == term
+
+            # Patching data_context to another term takes effect.
+            patch_resp = client.patch(f"/topic_entity_tag/{tag_id}",
+                                      json={"data_context": "ATP:0000360"},
+                                      headers=auth_headers)
+            assert patch_resp.status_code == status.HTTP_200_OK
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == "ATP:0000360"
+
+    def test_data_context_accepts_intermediate_terms(self, test_reference, auth_headers,  # noqa
+                                                     test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: data_context is a hierarchy, not a flat set of four leaves --
+        ATP:0000323 (data context) has two intermediate groupings, ATP:0000324
+        (mentioned data) and ATP:0000326 (marker data), above the leaves. Those
+        are legitimate, less-specific values, so the ATP validity check must
+        accept them. See docs/validation.md."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            for index, term in enumerate(["ATP:0000324", "ATP:0000326"]):
+                new_tag = {
+                    "reference_curie": test_reference.new_ref_curie,
+                    "topic": "ATP:0000122",
+                    "species": "NCBITaxon:6239",
+                    "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                    "negated": False,
+                    "data_novelty": "ATP:0000334",
+                    "data_context": term,
+                    "note": f"intermediate data context {index}",
+                }
+                create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+                assert create_resp.status_code == status.HTTP_201_CREATED, create_resp.json()
+                tag_id = create_resp.json()["topic_entity_tag_id"]
+                get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+                assert get_resp.json()["data_context"] == term
+
+    def test_data_context_defaults_when_omitted(self, test_reference, auth_headers,  # noqa
+                                                test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: while the column is still nullable, a caller that omits
+        data_context gets the "experimentally studied data" default rather than a
+        NULL. This is what keeps the backfilled rows and newly-created ones
+        agreeing, which check_for_duplicate_tags depends on."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "note": "no data context supplied",
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == "ATP:0000325"
+
+    def test_data_context_invalid_curie_rejected(self, test_reference, auth_headers,  # noqa
+                                                 test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: data_context joins the ATP validity check in create_tag,
+        so a curie that is not in the ontology is a 422 rather than a stored
+        garbage value."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:9999999",
+            }
+            response = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_data_context_participates_in_duplicate_detection(self, test_reference, auth_headers,  # noqa
+                                                              test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: check_for_duplicate_tags filters on every payload field, so
+        data_context is part of a tag's identity -- two tags that differ only in
+        data_context are distinct rows, and an exact repeat is still a 409.
+
+        This is the rollout hazard worth locking down: if the backfilled value
+        disagreed with what the producers send, every re-sent tag would land as a
+        new row instead of being recognised as a duplicate."""
+        load_name_to_atp_and_relationships_mock()
+        base_tag = {
+            "reference_curie": test_reference.new_ref_curie,
+            "topic": "ATP:0000122",
+            "species": "NCBITaxon:6239",
+            "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+            "negated": False,
+            "data_novelty": "ATP:0000334",
+            "data_context": "ATP:0000325",
+        }
+        # The 409-detail construction on the repeat POST calls get_tet_with_names ->
+        # get_curie_to_name_from_all_tets, which would instantiate the
+        # AGRCurationAPIClient and trip an empty-URL Pydantic error in the test
+        # environment. Patched like the other 409-branch tests in this file.
+        with TestClient(app) as client, \
+                patch("agr_literature_service.api.crud.topic_entity_tag_crud.get_curie_to_name_from_all_tets") as \
+                mock_get_curie_to_name_from_all_tets:
+            mock_get_curie_to_name_from_all_tets.return_value = {
+                "ATP:0000122": "ATP:0000122",
+                "ATP:0000325": "experimentally studied data",
+                "NCBITaxon:6239": "Caenorhabditis elegans",
+            }
+            first = client.post(url="/topic_entity_tag/", json=base_tag, headers=auth_headers)
+            assert first.status_code == status.HTTP_201_CREATED
+
+            # Identical payload -> duplicate.
+            repeat = client.post(url="/topic_entity_tag/", json=base_tag, headers=auth_headers)
+            assert repeat.status_code == status.HTTP_409_CONFLICT
+            assert repeat.json()["detail"]["reason"] == "duplicate"
+
+            # Same tag but a different data_context -> a separate assertion.
+            other = dict(base_tag, data_context="ATP:0000360")
+            other_resp = client.post(url="/topic_entity_tag/", json=other, headers=auth_headers)
+            assert other_resp.status_code == status.HTTP_201_CREATED
+            assert (other_resp.json()["topic_entity_tag_id"]
+                    != first.json()["topic_entity_tag_id"])
 
     def test_data_novelty_branch_separation(self):
         """Test that novel data and existing data branches are properly separated."""

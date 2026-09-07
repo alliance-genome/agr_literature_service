@@ -81,6 +81,7 @@ def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
         production=request.production,
         species=request.species,
         data_novelty=request.data_novelty,
+        data_context=request.data_context,
         negated=request.negated,
         file_classes=request.file_classes,
         description=request.description,
@@ -183,6 +184,7 @@ def get_model_schema_from_orm(model: MLModel):
         "production": model.production,
         "species": model.species,
         "data_novelty": model.data_novelty,
+        "data_context": model.data_context,
         "negated": model.negated,
         "file_classes": model.file_classes,
         "description": model.description,
@@ -208,7 +210,9 @@ def get_all_models(db: Session, mod_abbreviation: Optional[str] = None):
         mod = get_mod(db, mod_abbreviation)
         query = query.filter(MLModel.mod_id == mod.mod_id)
     models = query.order_by(MLModel.ml_model_id).all()
-    atp_ids = {m.topic for m in models if m.topic} | {m.data_novelty for m in models if m.data_novelty}
+    atp_ids = ({m.topic for m in models if m.topic}
+               | {m.data_novelty for m in models if m.data_novelty}
+               | {m.data_context for m in models if m.data_context})
     species_ids = {m.species for m in models if m.species}
     atp_to_name = map_curies_to_names('atpterm', atp_ids) if atp_ids else {}
     species_to_name = map_curies_to_names('species', species_ids) if species_ids else {}
@@ -219,6 +223,7 @@ def get_all_models(db: Session, mod_abbreviation: Optional[str] = None):
             **base.model_dump(),
             topic_name=atp_to_name.get(m.topic) if m.topic else None,
             data_novelty_name=atp_to_name.get(m.data_novelty) if m.data_novelty else None,
+            data_context_name=atp_to_name.get(m.data_context) if m.data_context else None,
             species_name=species_to_name.get(m.species) if m.species else None,
         ))
     return result

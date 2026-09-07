@@ -380,7 +380,8 @@ class MockDataFactory:
             topic_entity_tag_source_id=source.topic_entity_tag_source_id,
             species="NCBITaxon:10090",
             negated=False,
-            data_novelty="ATP:0000334"
+            data_novelty="ATP:0000334",
+            data_context="ATP:0000325"
         )
         db_session.add(tag)
         return tag

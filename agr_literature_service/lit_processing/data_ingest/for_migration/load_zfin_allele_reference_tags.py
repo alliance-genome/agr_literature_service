@@ -52,6 +52,7 @@ from agr_literature_service.lit_processing.data_ingest.for_migration.zfin_refere
     DANIO_RERIO_TAXON,
     ENTITY_ID_VALIDATION,
     EXISTING_DATA_NOVELTY_ATP,
+    EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
     MAX_ASSOCIATIONS_PER_PAPER,
     PROGRESS_LOG_INTERVAL,
     build_zfin_corpus_ref_curies,
@@ -150,6 +151,7 @@ def _build_tag_payload(reference_curie: str, allele_curie: str, species_curie: s
         entity_id_validation=ENTITY_ID_VALIDATION,
         species=species_curie,
         data_novelty=EXISTING_DATA_NOVELTY_ATP,
+        data_context=EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP,
         negated=False,
         topic_entity_tag_source_id=source_id,
     )
