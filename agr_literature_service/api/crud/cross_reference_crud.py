@@ -130,33 +130,19 @@ def format_cross_reference_data(db: Session, cross_reference_object: CrossRefere
         cross_reference_data["reference_curie"] = reference_curie or cross_reference_object.reference.curie
     del cross_reference_data["reference_id"]
 
-    curie_parts = cross_reference_object.curie.split(":", 1)
-    if len(curie_parts) != 2:
-        return cross_reference_data
-    [db_prefix, local_id] = curie_parts
-    resource_descriptor = resource_desc_prefix_obj_map[db_prefix] if db_prefix in resource_desc_prefix_obj_map else None
-    if resource_descriptor:
-        default_url = resource_descriptor.default_url.replace("[%s]", local_id)
+    # Shared with the person and laboratory cross-reference schemas, which need
+    # the same [%s] template substitution but cannot call this function (it is
+    # welded to the reference/resource model above). The prefix map built by the
+    # batch callers is passed through so this stays one lookup, not one per curie.
+    default_url, pages = resource_descriptor_cache.resolve_xref_urls(
+        cross_reference_object.curie,
+        cross_reference_data.get("pages"),
+        descriptor_map=resource_desc_prefix_obj_map,
+    )
+    if default_url is not None:
         cross_reference_data["url"] = default_url
-
-        if cross_reference_data["pages"]:
-            pages_data = []
-            for cr_page in cross_reference_data["pages"]:
-                page_url = ""
-                for rd_page in resource_descriptor.pages:
-                    if rd_page.name == cr_page:
-                        page_url = rd_page.url
-                        break
-                pages_data.append({
-                    "name": cr_page,
-                    "url": page_url.replace("[%s]", local_id)
-                })
-            cross_reference_data["pages"] = pages_data
-    elif cross_reference_data["pages"]:
-        pages_data = []
-        for cr_page in cross_reference_data["pages"]:
-            pages_data.append({"name": cr_page})
-        cross_reference_data["pages"] = pages_data
+    if pages is not None:
+        cross_reference_data["pages"] = pages
     return cross_reference_data
 
 

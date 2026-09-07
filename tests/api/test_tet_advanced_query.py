@@ -238,6 +238,91 @@ class TestBuildTetAdvancedQuery:
         )
 
 
+def _wft_leaf(values, negate=False):
+    node = {"type": "wft", "match": {"workflow_tag_id": values}}
+    if negate:
+        node["negate"] = True
+    return node
+
+
+class TestWorkflowLeaves:
+    """Workflow-tag leaves mixed into the same advanced tree (SCRUM-6398)."""
+
+    def test_single_wft_leaf_becomes_nested_workflow_query(self):
+        tree = _wft_leaf(["ATP:0000162"])
+        assert build_tet_advanced_query(tree) == {
+            "nested": {
+                "path": "workflow_tags",
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"terms": {"workflow_tags.workflow_tag_id.keyword": ["ATP:0000162"]}}
+                        ]
+                    }
+                },
+            }
+        }
+
+    def test_wft_leaf_scopes_to_mods_when_given(self):
+        tree = _wft_leaf(["ATP:0000162"])
+        must = build_tet_advanced_query(tree, ["SGD"])["nested"]["query"]["bool"]["must"]
+        assert must == [
+            {"terms": {"workflow_tags.mod_abbreviation": ["SGD"]}},
+            {"terms": {"workflow_tags.workflow_tag_id.keyword": ["ATP:0000162"]}},
+        ]
+
+    def test_wft_values_or_within_leaf(self):
+        tree = _wft_leaf(["ATP:0000162", "ATP:0000163"])
+        must = build_tet_advanced_query(tree)["nested"]["query"]["bool"]["must"]
+        assert must == [
+            {"terms": {"workflow_tags.workflow_tag_id.keyword": ["ATP:0000162", "ATP:0000163"]}}
+        ]
+
+    def test_negated_wft_leaf_wraps_in_must_not(self):
+        compiled = build_tet_advanced_query(_wft_leaf(["ATP:0000162"], negate=True))
+        assert list(compiled["bool"].keys()) == ["must_not"]
+        assert compiled["bool"]["must_not"][0]["nested"]["path"] == "workflow_tags"
+
+    def test_mixed_tet_and_wft_tree(self):
+        """The ticket's ask: topic and workflow criteria combined in one query."""
+        tree = {
+            "operator": "AND",
+            "children": [
+                _leaf({"topic": ["ATP:0000018"]}),
+                _wft_leaf(["ATP:0000162"]),
+            ],
+        }
+        compiled = build_tet_advanced_query(tree, ["WB"])
+        top_must = compiled["bool"]["must"]
+        assert len(top_must) == 2
+        assert top_must[0]["nested"]["path"] == "topic_entity_tags"
+        assert top_must[1]["nested"]["path"] == "workflow_tags"
+        # MOD scoping applies to the workflow leaf only.
+        assert {"terms": {"workflow_tags.mod_abbreviation": ["WB"]}} in \
+            top_must[1]["nested"]["query"]["bool"]["must"]
+        assert all("mod_abbreviation" not in str(c) for c in
+                   top_must[0]["nested"]["query"]["bool"]["must"])
+
+    def test_or_of_tet_and_wft(self):
+        tree = {
+            "operator": "OR",
+            "children": [
+                _leaf({"topic": ["ATP:0000018"]}),
+                _wft_leaf(["ATP:0000162"]),
+            ],
+        }
+        compiled = build_tet_advanced_query(tree)
+        assert compiled["bool"]["minimum_should_match"] == 1
+        paths = [c["nested"]["path"] for c in compiled["bool"]["should"]]
+        assert paths == ["topic_entity_tags", "workflow_tags"]
+
+    def test_empty_wft_leaf_collapses(self):
+        assert build_tet_advanced_query(_wft_leaf([])) is None
+        assert build_tet_advanced_query({"type": "wft", "match": {}}) is None
+        # Falsy values are dropped; nothing left -> leaf collapses.
+        assert build_tet_advanced_query(_wft_leaf(["", None])) is None
+
+
 class TestAddTetAdvancedQuery:
 
     def test_appends_clause_and_returns_true(self):

@@ -530,14 +530,29 @@ def apply_scoring_and_sort(
     *,
     is_text_search: bool,
     uses_rescore: bool,
-    order: str = "desc"
+    order: str = "desc",
+    explicit_date_sort: bool = False
 ) -> None:
     """
     Centralized policy:
+      - Explicit date sort (user picked "Newest first"/"Oldest first"): pure
+        chronological ordering with score only as a tie-breaker, even for text
+        searches. The recency boost is skipped (it would only perturb the
+        tie-breaker) and any rescore block is dropped because ES rejects an
+        explicit sort combined with rescore.
       - Text searches: apply recency + score-first ordering (unless rescore -> score-only).
       - Non-text searches (facets-only/dates): pure recency-first ordering.
     """
-    if is_text_search:
+    date_first_sort = [
+        {"date_published_start": {"order": order, "missing": "_last"}},
+        {"date_created": {"order": order, "missing": "_last"}},
+        {"_score": {"order": "desc"}},
+        {"curie.keyword": {"order": "asc"}},
+    ]
+    if explicit_date_sort:
+        es_body.pop("rescore", None)
+        es_body["sort"] = date_first_sort
+    elif is_text_search:
         apply_balanced_recency_boost(es_body)
         if uses_rescore:
             es_body.pop("sort", None)  # ES: score-only ordering when rescore exists
@@ -549,12 +564,7 @@ def apply_scoring_and_sort(
                 {"curie.keyword": {"order": "asc"}},
             ]
     else:
-        es_body["sort"] = [
-            {"date_published_start": {"order": order, "missing": "_last"}},
-            {"date_created": {"order": order, "missing": "_last"}},
-            {"_score": {"order": "desc"}},
-            {"curie.keyword": {"order": "asc"}},
-        ]
+        es_body["sort"] = date_first_sort
 
 
 # --------------------------- Content-word gating (optional filter) ---------------------------

@@ -1,6 +1,6 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, Security
+from fastapi import APIRouter, Body, Depends, Security
 from sqlalchemy.orm import Session
 
 from agr_literature_service.api import database
@@ -53,6 +53,13 @@ def search_descendants(ancestor_curie: str,
                        include_names: bool = False,
                        user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
     return ateam_db_helpers.atp_get_all_descendants(ancestor_curie, direct_children_only, include_self, include_names)
+
+
+@router.post('/term_details',
+             status_code=200)
+def term_details(curies: List[str] = Body(..., embed=True),
+                 user: Optional[Dict[str, Any]] = Security(get_authenticated_user)):
+    return ateam_db_helpers.get_topic_term_details(curies)
 
 
 @router.get('/search_species/{species}',

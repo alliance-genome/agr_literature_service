@@ -114,6 +114,44 @@ def search_atp_descendants(ancestor_curie: str) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(data))
 
 
+# Upper bound on curies per /ontology/term_details request. The Quick Topic
+# Addition UI sends one MOD's topic list (tens of curies); the cap keeps a
+# single request from fanning an arbitrary number of lookups to the A-team API.
+MAX_TERM_DETAILS_CURIES = 500
+
+
+def get_topic_term_details(curies: List[str]) -> JSONResponse:
+    """Return name/definition/synonyms for a list of ontology term curies.
+
+    Used by the Quick Topic Addition UI to show each topic's definition and
+    synonyms alongside its name (SCRUM-6168). Returns a mapping keyed by curie;
+    curies with no matching (non-obsolete) term are omitted.
+    """
+    if not curies:
+        return JSONResponse(content={})
+    if len(curies) > MAX_TERM_DETAILS_CURIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"too many curies: {len(curies)} > {MAX_TERM_DETAILS_CURIES}",
+        )
+    cli = _get_client()
+    try:
+        terms = cli.get_ontology_terms(curies) or {}
+    except AGRAPIError as e:
+        raise HTTPException(status_code=502, detail=f"Ontology term lookup failed: {e}")
+    data: Dict[str, dict] = {}
+    for curie, term in terms.items():
+        if term is None:
+            continue
+        data[curie] = {
+            "curie": term.curie,
+            "name": term.name,
+            "definition": term.definition,
+            "synonyms": term.synonyms or [],
+        }
+    return JSONResponse(content=jsonable_encoder(data))
+
+
 def search_species(species: str) -> JSONResponse:
     """Search NCBITaxonTerm via client (by name or CURIE)."""
     cli = _get_client()
@@ -182,7 +220,7 @@ def _fetch_atp_names(missing_curies: List[str]) -> None:
     cli = _get_client()
     try:
         # If the client provides a helper, call it; otherwise silently skip.
-        curie_to_name = cli.get_ontology_terms(missing_curies)  # type: ignore[attr-defined]
+        curie_to_name = cli.get_ontology_terms(missing_curies)
         ontology_term: OntologyTermResult
         for curie, ontology_term in (curie_to_name or {}).items():
             atp_to_name[curie] = ontology_term.name
