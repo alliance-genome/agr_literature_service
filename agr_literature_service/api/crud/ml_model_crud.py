@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from starlette.background import BackgroundTask
 from starlette.responses import FileResponse
 
-from agr_literature_service.api.crud.ateam_db_helpers import map_curies_to_names
+from agr_literature_service.api.crud.ateam_db_helpers import atp_return_invalid_ids, map_curies_to_names
 from agr_literature_service.api.models import ModModel
 from agr_literature_service.api.models.ml_model_model import MLModel
 from agr_literature_service.api.s3.upload import upload_file_to_bucket
@@ -39,7 +39,33 @@ def get_ml_model_s3_folder(task_type: str, mod_abbreviation: str, topic: str):
     return folder
 
 
+def validate_data_context(data_context: Optional[str]) -> None:
+    """Reject a data_context that is not a real ATP term, at upload time.
+
+    SCRUM-5697. ``ml_model.data_context`` is read by ``create_tag``
+    (``resolve_default_data_context``) and joins the tag's ATP validity check, so
+    a typo stored here would 422 every tag the model's pipeline creates -- a
+    failure a long way from its cause. Checking on the way in turns that into one
+    rejected upload.
+
+    ``data_novelty`` is deliberately not checked: it is not part of create_tag's
+    ATP validation, so a bad value there fails differently (silently stored
+    rather than blocking tags), and adding a check would newly reject uploads
+    that succeed today. Worth doing, but as its own change.
+    """
+    if data_context is None:
+        return
+    if atp_return_invalid_ids([data_context]):
+        raise HTTPException(
+            status_code=422,
+            detail=f"data_context '{data_context}' is not a valid ATP term")
+
+
 def upload(db: Session, request: MLModelSchemaPost, file: UploadFile):
+    # Before anything is written or mutated: the production-flag flip below
+    # clears the previous model's flag, so a late rejection would leave the MOD
+    # with no production model for this task/topic.
+    validate_data_context(request.data_context)
     mod = get_mod(db, request.mod_abbreviation)
     if request.version_num is None or request.version_num <= 0:
         latest_version_num = db.query(MLModel.version_num).filter(
