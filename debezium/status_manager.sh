@@ -512,26 +512,90 @@ resolve_inactive_suffix() {
     return 0
 }
 
+# Wait until no merge is in flight for <index>, i.e. the force_merge has finished server-side.
+# Returns 0 once quiet, 1 on timeout.
+#
+# SCRUM-6520: the success signal is the MERGE finishing, NOT the index reaching one segment. On a
+# continuously-written index one segment is an instantaneous condition, not a stable state: the
+# sink keeps writing into the slot being promoted, and the first refresh after the next write
+# creates a second segment. Polling for segments.count == 1 would therefore hang through its whole
+# cap during an active CDC window and then report failure on a merge that actually succeeded --
+# exactly the false warning this replaces. Measured 2026-09-08: both build slots did reach 1
+# segment, but only because CDC was idle (index_total unchanged across the flip); the previous
+# slots, force-merged by earlier runs and then written to, sat at 2 and 20 segments.
+#
+# merges.current counts background merges too, so a single 0 can be a gap between merges rather
+# than the end -- hence require several consecutive quiet polls. Works on any ES that serves
+# _stats/merge (verified on the AGR domains, ES 7.10.2).
+wait_for_merge_quiet() {
+    local base=$1 index=$2 max_wait=${3:-2700} interval=${4:-15} need_quiet=${5:-3}
+    local deadline=$(( $(date +%s) + max_wait ))
+    local quiet=0 cur
+
+    # Check first, sleep after: an index that is already quiet (small index, test mode) confirms in
+    # (need_quiet - 1) intervals instead of paying a full interval before the first look.
+    while :; do
+        cur=$(curl -s -m 15 "${base}/${index}/_stats/merge" \
+            | jq -r '._all.primaries.merges.current // empty' 2>/dev/null)
+        # An unreadable poll is not evidence of quiet -- reset rather than count it.
+        if [[ ! "$cur" =~ ^[0-9]+$ ]]; then
+            quiet=0
+        elif [[ "$cur" -eq 0 ]]; then
+            quiet=$((quiet + 1))
+            [[ $quiet -ge $need_quiet ]] && return 0
+        else
+            quiet=0
+        fi
+        [[ $(date +%s) -ge $deadline ]] && return 1
+        sleep "$interval"
+    done
+}
+
+# Echo the current segment count for <index>, or "?" if unreadable. Informational only: never gate
+# the flip on it (see wait_for_merge_quiet for why one segment is not a stable state).
+index_segment_count() {
+    local base=$1 index=$2 segs
+    segs=$(curl -s -m 15 "${base}/_cat/indices/${index}?h=segments.count" 2>/dev/null | tr -d '[:space:]')
+    [[ "$segs" =~ ^[0-9]+$ ]] && printf '%s' "$segs" || printf '?'
+}
+
 # Force-merge an index to a single segment (optimize + expunge upsert tombstones) and warm it
 # (page-cache + global ordinals) BEFORE it serves traffic. Runs OFF the serving path (the alias
-# still points at the old slot). The force_merge is launched as a BACKGROUND task
-# (wait_for_completion=false) and polled via the Tasks API to TRUE completion, so a long merge on a
-# big index can never be cut short by an endpoint/idle timeout on a blocking HTTP call -- the alias
-# must never flip onto a still-merging index. Falls back to a blocking force_merge on older servers
-# that do not support the async param. Best-effort: a force_merge failure leaves the index correct
-# but unoptimized and does NOT block the flip (always logged, never silently swallowed).
+# still points at the old slot) -- though note that is not off the WRITE path: the sink is already
+# pointed at this slot, so segment count drifts up again afterwards under live CDC.
+#
+# The force_merge is launched as a BACKGROUND task (wait_for_completion=false) and polled via the
+# Tasks API to TRUE completion, so a long merge on a big index can never be cut short by an
+# endpoint/idle timeout on a blocking HTTP call -- the alias must never flip onto a still-merging
+# index.
+#
+# SCRUM-6520: on servers before ES 7.16 the async param does not exist and is rejected with a 400
+# (the AGR domains are ES 7.10.2, so that is the path taken EVERY run). The old fallback then
+# issued a blocking force_merge and read its response -- but AWS ES sits behind a load balancer
+# that closes the connection after ~60s, far short of a multi-GB merge, so the body came back
+# EMPTY and every rebuild logged "did not confirm success: " with no reason while the merge went on
+# to finish server-side. We no longer try to confirm over a long-lived request: fire the merge,
+# expect the disconnect, and poll the cluster's own merge stats instead.
+#
+# Best-effort: a force_merge failure leaves the index correct but unoptimized and does NOT block
+# the flip (always logged, never silently swallowed).
 optimize_and_warm_index() {
     local es_host=$1 es_port=$2 index=$3
     local base="http://${es_host}:${es_port}"
-    local resp code task completed n
+    local resp code task completed n rc body merging wait_ok
 
     echo "Optimizing ${index} (force_merge max_num_segments=1, async + task poll)..."
-    # No -m on this POST: with wait_for_completion=false it returns a task id instantly; if the
-    # server ignores the param it blocks until done and returns the merge result instead.
-    resp=$(curl -s -X POST \
+    # -m 30 is generous for the handshake alone: a server that honours the param returns a task id
+    # in milliseconds, and one that rejects it 400s just as fast. If instead the server IGNORES the
+    # param it blocks for the whole merge -- treat that timeout as "merge is running" and poll,
+    # rather than hanging here or firing a second merge.
+    resp=$(curl -s -m 30 -w $'\n%{http_code}' -X POST \
         "${base}/${index}/_forcemerge?max_num_segments=1&wait_for_completion=false" \
         -H "Content-Type: application/json")
-    task=$(printf '%s' "$resp" | jq -r '.task // empty' 2>/dev/null)
+    rc=$?
+    code=$(printf '%s' "$resp" | tail -n1)
+    body=$(printf '%s' "$resp" | sed '$d')
+    task=$(printf '%s' "$body" | jq -r '.task // empty' 2>/dev/null)
 
     if [[ -n "$task" ]]; then
         echo "force_merge task ${task} started for ${index}; polling until complete..."
@@ -556,16 +620,52 @@ optimize_and_warm_index() {
             fi
         done
         [[ $n -ge 720 ]] && echo "WARNING: force_merge of ${index} still running after ~3h; proceeding (merge continues server-side)." >&2
-    elif printf '%s' "$resp" | jq -e '._shards.failed == 0' >/dev/null 2>&1; then
-        echo "force_merge of ${index} completed synchronously (server ignored wait_for_completion)."
+    elif printf '%s' "$body" | jq -e '._shards.failed == 0' >/dev/null 2>&1; then
+        # Small enough that the merge was already done when the request returned.
+        echo "force_merge of ${index} completed synchronously (segments=$(index_segment_count "$base" "$index"))."
     else
-        # Param rejected (e.g. 400 on older ES) or some other error -> retry a plain blocking
-        # force_merge so the index still gets optimized.
-        echo "force_merge async start unavailable for ${index} (${resp}); retrying a blocking force_merge..." >&2
-        resp=$(curl -s -X POST "${base}/${index}/_forcemerge?max_num_segments=1" -H "Content-Type: application/json")
-        printf '%s' "$resp" | jq -e '._shards.failed == 0' >/dev/null 2>&1 \
-            && echo "force_merge of ${index} completed (blocking)." \
-            || echo "WARNING: force_merge of ${index} did not confirm success: ${resp} (continuing; index is correct but unoptimized)" >&2
+        # No task id. Three distinguishable cases -- only the last is a genuine failure:
+        #   HTTP 400  -> pre-7.16 server rejected wait_for_completion, so NO merge has started yet
+        #                and we must issue a plain one (the AGR ES 7.10.2 path, every run).
+        #   cut off   -> the server ignored the param and is merging right now; issuing a second
+        #                force_merge here would be redundant work on a live cluster.
+        #   other     -> a real error worth surfacing; nothing to poll for.
+        merging=0
+        if [[ "$code" == "400" ]]; then
+            echo "force_merge of ${index}: server rejected wait_for_completion (needs ES >= 7.16);" \
+                 "issuing a plain force_merge and polling merge stats instead..."
+            # Deliberately short -m and output discarded: this request is EXPECTED to be cut off by
+            # the endpoint idle timeout. The merge continues server-side, so its response carries no
+            # information -- reading it is what produced the old empty "did not confirm success".
+            curl -s -m 10 -o /dev/null -X POST "${base}/${index}/_forcemerge?max_num_segments=1" \
+                -H "Content-Type: application/json" || true
+            merging=1
+        elif [[ $rc -ne 0 || "$code" == "000" ]]; then
+            echo "force_merge of ${index}: no task id and the request was cut off;" \
+                 "merge is running server-side, polling merge stats..."
+            merging=1
+        else
+            echo "WARNING: force_merge of ${index} did not start: HTTP '${code}' ${body}" \
+                 "(continuing; index is correct but unoptimized)" >&2
+        fi
+
+        if [[ $merging -eq 1 ]]; then
+            # Keep CI fast: test-mode indexes are tiny and merge instantly.
+            if [[ "${ENV_STATE}" == "test" ]]; then
+                wait_ok=0; wait_for_merge_quiet "$base" "$index" 120 5 2 || wait_ok=1
+            else
+                wait_ok=0; wait_for_merge_quiet "$base" "$index" || wait_ok=1
+            fi
+            if [[ $wait_ok -eq 0 ]]; then
+                echo "force_merge of ${index} completed (no merge in flight;" \
+                     "segments=$(index_segment_count "$base" "$index"))."
+            else
+                # Honest and actionable, unlike the empty message this replaces: the merge is still
+                # going, so the flip lands on a partly-merged index and it converges shortly after.
+                echo "WARNING: force_merge of ${index} still in flight at the poll cap; proceeding" \
+                     "(merge continues server-side; segments=$(index_segment_count "$base" "$index"))." >&2
+            fi
+        fi
     fi
 
     echo "Warming ${index} (match_all to page in caches)..."
@@ -677,6 +777,8 @@ export -f save_completion_metrics
 export -f wait_for_source_topics_ready
 export -f wait_for_pipeline_drained
 export -f resolve_inactive_suffix
+export -f wait_for_merge_quiet
+export -f index_segment_count
 export -f optimize_and_warm_index
 export -f flip_alias
 export -f reset_sink_offsets
