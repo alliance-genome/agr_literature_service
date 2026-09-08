@@ -28,6 +28,14 @@ class TestDataContextFor:
         assert mod.data_context_for(
             "ZFIN", "biocuration_pretriage_priority_classification") == "ATP:0000325"
 
+    def test_an_unrecognised_task_type_is_left_unset(self):
+        """Allow-list, not deny-list: a task type this script has never seen
+        cannot be assumed to create tags, so it gets nothing rather than the
+        default. backfill_ml_model_file_classes.py takes the same stance on the
+        same table."""
+        assert mod.data_context_for("WB", "biocuration_embedding_generation") is None
+        assert mod.data_context_for("FB", "some_future_metadata_only_task") is None
+
     def test_vectorizer_is_left_unset(self):
         """A tfidf_vectorization row is an artifact, not a tag producer, so it
         has no data context to carry."""
