@@ -3467,6 +3467,48 @@ class TestMixedTagCompanionEntityTag:
             # SGD is excluded everywhere, so no companion entity tag is created
             assert self._companions(db, mixed.reference_id, "ATP:0000005", "WB:WBGene00003001") == []
 
+    def test_sgd_keeps_an_explicit_data_context(self, db, auth_headers, test_reference):  # noqa
+        """SCRUM-5697: SGD's branch re-derives data_novelty from the tag shape,
+        but data_context is a default rather than an override -- curators may
+        record whatever term they judge right, and the server only fills one in
+        when they say nothing."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            sgd_mod = client.post(url="/mod/", json={"abbreviation": "SGD", "short_name": "SGD",
+                                                     "full_name": "Saccharomyces Genome Database"},
+                                  headers=auth_headers)
+            assert sgd_mod.status_code in (status.HTTP_201_CREATED, status.HTTP_409_CONFLICT)
+            sgd_source = client.post(url="/topic_entity_tag/source", json={
+                "source_evidence_assertion": "ATP:0000036",
+                "source_method": "abc_literature_system",
+                "validation_type": "professional_biocurator",
+                "description": "SGD curator",
+                "data_provider": "SGD",
+                "secondary_data_provider_abbreviation": "SGD",
+            }, headers=auth_headers)
+            assert sgd_source.status_code == status.HTTP_201_CREATED
+            source_id = sgd_source.json()["topic_entity_tag_source_id"]
+            payload = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "entity_type": "ATP:0000005",
+                "entity": "WB:WBGene00003001",
+                "entity_id_validation": "alliance",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": source_id,
+                "negated": False,
+                "data_context": "ATP:0000360",
+                "created_by": self.HUMAN_CURATOR,
+            }
+            resp = self._post_tag(client, auth_headers, payload)
+            assert resp.status_code == status.HTTP_201_CREATED
+            tag = db.query(TopicEntityTagModel).filter(
+                TopicEntityTagModel.topic_entity_tag_id
+                == resp.json()["topic_entity_tag_id"]).one()
+            assert tag.data_context == "ATP:0000360"
+            # data_novelty is still derived from the shape, as it always was.
+            assert tag.data_novelty == "ATP:0000335"
+
     def test_pipeline_mixed_tag_creates_no_companion(self, db, auth_headers, test_reference,  # noqa
                                                      test_topic_entity_tag_source, test_mod):  # noqa
         """A positive mixed tag created by a pipeline/script (created_by is not an

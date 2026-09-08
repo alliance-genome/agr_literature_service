@@ -131,12 +131,12 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
     """Fill in the fields the server derives rather than takes from the client.
 
     SGD is the exception throughout the TET code: its curators' tags carry a
-    generalized topic plus a display_tag, and both data_novelty and data_context
-    are re-derived here from the topic/entity_type shape, so anything the caller
-    sent for those two fields is overwritten -- including any ml_model policy,
-    since SGD's tags come from its loaders and curation form rather than from a
-    model. Every other provider supplies data_novelty itself (a 404 if missing,
-    since the column is non-null) and gets its species checked.
+    generalized topic plus a display_tag, and data_novelty is re-derived here
+    from the topic/entity_type shape, so anything the caller sent for that field
+    is overwritten. data_context is NOT: curators may record whatever term they
+    judge right, and the server only supplies the common default when they say
+    nothing. Every other provider supplies data_novelty itself (a 404 if
+    missing, since the column is non-null) and gets its species checked.
     """
     if source.secondary_data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
@@ -144,7 +144,11 @@ def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
             topic_entity_tag_data['data_novelty'] = 'ATP:0000334'
         else:
             topic_entity_tag_data['data_novelty'] = 'ATP:0000335'
-        topic_entity_tag_data['data_context'] = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+        # A default, not an override (unlike data_novelty above): an SGD curator's
+        # explicit data_context is theirs to choose and is left alone.
+        if topic_entity_tag_data.get('data_context') is None:
+            topic_entity_tag_data['data_context'] = resolve_default_data_context(
+                db, topic_entity_tag_data)
         return
 
     if topic_entity_tag_data.get('data_novelty') is None:
