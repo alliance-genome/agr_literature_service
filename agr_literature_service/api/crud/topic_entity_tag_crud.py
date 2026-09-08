@@ -103,15 +103,40 @@ CURATOR_VALIDATION_SOURCE_DESCRIPTION = (
     "data using the ABC data entry form.")
 
 
-def set_provider_derived_fields(topic_entity_tag_data: dict, source: TopicEntityTagSourceModel):
+def resolve_default_data_context(db: Session, topic_entity_tag_data: dict) -> str:
+    """The data_context to store when the client sent none.
+
+    SCRUM-5697. The ml_model row is authoritative. A pipeline's data-context
+    policy is curation policy, decided per MOD and per model kind (WB's topic
+    classifiers carry ATP:0000323, its entity extractors ATP:0000325), so it
+    belongs on ``ml_model.data_context`` rather than in each producer's code.
+    Reading it here means a tag created from a model inherits that policy even
+    when the producer never sends the field, and changing the policy is an
+    ml_model update rather than a release of every pipeline.
+
+    Falls back to the module constant in the two cases where a model cannot
+    answer: the tag was not created from a model at all (curator and author
+    entry, the MOD loaders), or the model carries no data_context of its own.
+    """
+    ml_model_id = topic_entity_tag_data.get('ml_model_id')
+    if ml_model_id is not None:
+        ml_model = db.get(MLModel, ml_model_id)
+        if ml_model is not None and ml_model.data_context:
+            return str(ml_model.data_context)
+    return EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+
+
+def set_provider_derived_fields(db: Session, topic_entity_tag_data: dict,
+                                source: TopicEntityTagSourceModel):
     """Fill in the fields the server derives rather than takes from the client.
 
     SGD is the exception throughout the TET code: its curators' tags carry a
     generalized topic plus a display_tag, and both data_novelty and data_context
     are re-derived here from the topic/entity_type shape, so anything the caller
-    sent for those two fields is overwritten. Every other provider supplies
-    data_novelty itself (a 404 if missing, since the column is non-null) and gets
-    its species checked.
+    sent for those two fields is overwritten -- including any ml_model policy,
+    since SGD's tags come from its loaders and curation form rather than from a
+    model. Every other provider supplies data_novelty itself (a 404 if missing,
+    since the column is non-null) and gets its species checked.
     """
     if source.secondary_data_provider.abbreviation == "SGD":
         check_and_set_sgd_display_tag(topic_entity_tag_data)
@@ -126,15 +151,15 @@ def set_provider_derived_fields(topic_entity_tag_data: dict, source: TopicEntity
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="The 'data_novelty' is not passed in")
     if topic_entity_tag_data.get('data_context') is None:
-        # SCRUM-5697. data_context is not yet required of clients: the column is
+        # SCRUM-5697. data_context is not required of clients: the column is
         # still nullable while the pipelines, the MOD loaders and the UI are
         # updated. Defaulting keeps every existing caller working AND keeps the
         # backfilled rows consistent with newly-created ones, which matters
         # because check_for_duplicate_tags keys on every payload field -- a
-        # mismatch there turns would-be 409s into duplicate rows. Swap this for
-        # the same 404 guard data_novelty has above once every producer sends a
-        # value and the NOT NULL revision has landed.
-        topic_entity_tag_data['data_context'] = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
+        # mismatch there turns would-be 409s into duplicate rows. An explicit
+        # value from the client always wins; this only fills a gap.
+        topic_entity_tag_data['data_context'] = resolve_default_data_context(
+            db, topic_entity_tag_data)
     check_and_set_species(topic_entity_tag_data)
 
 
@@ -175,7 +200,7 @@ def create_tag(db: Session, topic_entity_tag: TopicEntityTagSchemaPost,
     if source is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cannot find the specified source")
     logger.info("Setting display_tag/species based on data provider")
-    set_provider_derived_fields(topic_entity_tag_data, source)
+    set_provider_derived_fields(db, topic_entity_tag_data, source)
     # check atp ID's validity
     logger.info("Validating ATP IDs")
     atp_ids = [topic_entity_tag_data['topic'], topic_entity_tag_data['entity_type'],

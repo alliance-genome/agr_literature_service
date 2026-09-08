@@ -1847,6 +1847,90 @@ class TestTopicEntityTag:
             assert (other_resp.json()["topic_entity_tag_id"]
                     != first.json()["topic_entity_tag_id"])
 
+    def test_data_context_comes_from_the_ml_model_when_omitted(self, db, test_reference,  # noqa
+                                                               auth_headers, test_ml_model,  # noqa
+                                                               test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: the ml_model row is authoritative for data_context.
+
+        A tag created from a model that omits the field inherits the model's
+        value rather than the module constant, so a MOD's policy (WB's topic
+        classifiers carry ATP:0000323, its entity extractors ATP:0000325) lives
+        on the model row instead of being duplicated in every pipeline."""
+        from agr_literature_service.api.models import MLModel
+        load_name_to_atp_and_relationships_mock()
+        model = db.query(MLModel).filter(
+            MLModel.ml_model_id == test_ml_model["ml_model_id"]).one()
+        model.data_context = "ATP:0000360"
+        db.commit()
+        with TestClient(app) as client:
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "ml_model_id": test_ml_model["ml_model_id"],
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == "ATP:0000360"
+
+    def test_data_context_falls_back_when_the_model_has_none(self, test_reference, auth_headers,  # noqa
+                                                             test_ml_model,  # noqa
+                                                             test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: a model with no data_context of its own cannot answer, so
+        the module constant fills the gap. The test_ml_model fixture uploads no
+        data_context, which is the state every historical ml_model row is in
+        until the SCRUM-5697 rollout populates them."""
+        load_name_to_atp_and_relationships_mock()
+        with TestClient(app) as client:
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "ml_model_id": test_ml_model["ml_model_id"],
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == "ATP:0000325"
+
+    def test_explicit_data_context_wins_over_the_ml_model(self, db, test_reference, auth_headers,  # noqa
+                                                          test_ml_model,  # noqa
+                                                          test_topic_entity_tag_source):  # noqa
+        """SCRUM-5697: the model supplies a default, not an override. A caller
+        that states a data_context keeps it, which is what lets a curator correct
+        a machine-written tag through the editor."""
+        from agr_literature_service.api.models import MLModel
+        load_name_to_atp_and_relationships_mock()
+        model = db.query(MLModel).filter(
+            MLModel.ml_model_id == test_ml_model["ml_model_id"]).one()
+        model.data_context = "ATP:0000360"
+        db.commit()
+        with TestClient(app) as client:
+            new_tag = {
+                "reference_curie": test_reference.new_ref_curie,
+                "topic": "ATP:0000122",
+                "species": "NCBITaxon:6239",
+                "topic_entity_tag_source_id": test_topic_entity_tag_source.new_source_id,
+                "negated": False,
+                "data_novelty": "ATP:0000334",
+                "data_context": "ATP:0000327",
+                "ml_model_id": test_ml_model["ml_model_id"],
+            }
+            create_resp = client.post(url="/topic_entity_tag/", json=new_tag, headers=auth_headers)
+            assert create_resp.status_code == status.HTTP_201_CREATED
+            tag_id = create_resp.json()["topic_entity_tag_id"]
+            get_resp = client.get(f"/topic_entity_tag/{tag_id}", headers=auth_headers)
+            assert get_resp.json()["data_context"] == "ATP:0000327"
+
     def test_data_novelty_branch_separation(self):
         """Test that novel data and existing data branches are properly separated."""
         load_name_to_atp_and_relationships_mock()
