@@ -619,6 +619,53 @@ flip_alias() {
     return 1
 }
 
+reset_sink_offsets() {
+    local ck_host=$1 ck_port=$2 connector=$3
+    local base="http://${ck_host}:${ck_port}/connectors/${connector}"
+    local code state resp i
+
+    # A rebuild empties the ES slot, but deleting the sink CONNECTOR does not delete the consumer
+    # group that backs it -- Connect keeps the committed offsets keyed by connector name. The ksql
+    # CTAS topics are reused across rebuilds (they are named explicitly), so a recreated sink
+    # resumes mid-topic and replays ONLY the records appended by this run. Every document whose
+    # last record sits before that offset is then never written, and the build finishes short with
+    # the connector RUNNING, 0 failed tasks and lag 0 -- silent, and invisible to the drain gate.
+    # Measured 2026-09-03: public sink resumed at 1228022 of 2183112, indexed 955090 records and
+    # produced 906714 of 1113157 docs. Reset the offsets (KIP-875, Connect >= 3.6) so the recreated
+    # sink starts from the beginning of the topic and repopulates the slot in full.
+    code=$(curl -s -m 10 -o /dev/null -w '%{http_code}' "${base}/status" 2>/dev/null)
+    if [[ "$code" == "404" ]]; then
+        echo "reset_sink_offsets: connector '${connector}' does not exist; nothing to reset"
+        return 0
+    fi
+    if [[ "$code" != "200" ]]; then
+        echo "reset_sink_offsets: status of '${connector}' returned HTTP '${code}'; skipping reset" >&2
+        return 1
+    fi
+
+    # Offsets can only be deleted while the connector is STOPPED (not merely PAUSED).
+    curl -s -m 30 -o /dev/null -X PUT "${base}/stop"
+    for i in $(seq 1 30); do
+        state=$(curl -s -m 10 "${base}/status" 2>/dev/null | jq -r '.connector.state // empty' 2>/dev/null)
+        [[ "$state" == "STOPPED" ]] && break
+        sleep 2
+    done
+    if [[ "$state" != "STOPPED" ]]; then
+        echo "reset_sink_offsets: '${connector}' did not reach STOPPED (last state '${state}'); NOT resetting offsets" >&2
+        return 1
+    fi
+
+    resp=$(curl -s -m 60 -w $'\n%{http_code}' -X DELETE "${base}/offsets" 2>/dev/null)
+    code=$(printf '%s' "$resp" | tail -n1)
+    if [[ "$code" == "200" ]]; then
+        echo "reset_sink_offsets: committed offsets for '${connector}' cleared; it will rebuild from the start of its topic"
+        return 0
+    fi
+    # Loud on purpose: without the reset the rebuild silently produces a short index.
+    echo "reset_sink_offsets: DELETE ${base}/offsets returned HTTP '${code}' (needs Kafka Connect >= 3.6); the rebuilt index may be INCOMPLETE" >&2
+    return 1
+}
+
 # Export functions for use in other scripts
 export -f get_timestamp
 export -f seconds_since
@@ -632,3 +679,4 @@ export -f wait_for_pipeline_drained
 export -f resolve_inactive_suffix
 export -f optimize_and_warm_index
 export -f flip_alias
+export -f reset_sink_offsets
