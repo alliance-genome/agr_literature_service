@@ -25,6 +25,7 @@ class MLModelSchemaBase(BaseModel):
     production: Optional[bool] = None
     negated: Optional[bool] = None
     data_novelty: Optional[str] = None
+    data_context: Optional[str] = None
     species: Optional[str] = None
     file_classes: Optional[List[str]] = None
     description: Optional[str] = None
@@ -48,7 +49,9 @@ class MLModelSchemaShow(MLModelSchemaBase):
 
 
 class MLModelSchemaShowWithNames(MLModelSchemaShow):
-    """Schema for list endpoints; adds human-readable names parallel to topic/data_novelty/species."""
+    """Schema for list endpoints; adds human-readable names parallel to
+    topic/data_novelty/data_context/species."""
     topic_name: Optional[str] = None
     data_novelty_name: Optional[str] = None
+    data_context_name: Optional[str] = None
     species_name: Optional[str] = None

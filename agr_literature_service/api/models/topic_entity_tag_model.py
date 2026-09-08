@@ -148,6 +148,19 @@ class TopicEntityTagModel(AuditedModel, Base):
         index=True
     )
 
+    # SCRUM-5697. What kind of data the tag represents, as one of four disjoint
+    # ATP terms: experimentally studied data (ATP:0000325), background
+    # information (ATP:0000360), expression marker (ATP:0000328), genetic marker
+    # (ATP:0000327). Declared non-null to match data_novelty; the database
+    # constraint lands in a follow-up revision once every producer sends a value
+    # and the existing rows have been backfilled.
+    data_context = Column(
+        String(),
+        nullable=False,
+        unique=False,
+        index=True
+    )
+
     validated_by = relationship(
         "TopicEntityTagModel",
         secondary=topic_entity_tag_validation,

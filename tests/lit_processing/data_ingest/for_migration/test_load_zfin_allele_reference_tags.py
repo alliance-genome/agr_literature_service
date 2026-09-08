@@ -89,6 +89,7 @@ class TestBuildTagPayload:
         assert data["entity_id_validation"] == mod.ENTITY_ID_VALIDATION
         assert data["species"] == "NCBITaxon:7955"
         assert data["data_novelty"] == mod.EXISTING_DATA_NOVELTY_ATP
+        assert data["data_context"] == mod.EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
         assert data["negated"] is False
         assert data["topic_entity_tag_source_id"] == 229
         assert data.get("created_by") is None
