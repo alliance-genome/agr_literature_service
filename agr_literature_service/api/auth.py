@@ -21,9 +21,65 @@ from typing import Any, Callable, Dict, List, Optional
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.concurrency import run_in_threadpool
 from jwt.exceptions import PyJWTError
 
 from agr_cognito_py import get_cognito_auth, get_cognito_user_swagger
+
+from agr_literature_service.api.observer import enforce_observer_read_only, is_observer
+
+
+def reject_user_session_access_tokens(user: Dict[str, Any]) -> None:
+    """Refuse Cognito ACCESS tokens that came from a user-pool sign-in.
+
+    agr_cognito_py treats every token_use=access token as a service account
+    (ALL_ACCESS) and discards its real cognito:groups. A browser session's
+    access token therefore sidesteps every role decision — including the
+    observer read-only boundary (SCRUM-6431 review): an observer could lift
+    the access token from their own session and write with ALL_ACCESS.
+
+    User-pool access tokens are identifiable by the aws.cognito.signin.user.admin
+    scope, which client-credentials (machine) tokens never carry. Optionally,
+    COGNITO_SERVICE_CLIENT_IDS (comma-separated) narrows service tokens to an
+    explicit client_id allowlist. The UI is unaffected: it authenticates with
+    the ID token.
+    """
+    if user.get("token_type") != "access":
+        return
+    # Two discriminators, either sufficient (SCRUM-6431 review):
+    # - aws.cognito.signin.user.admin scope: present on InitiateAuth
+    #   (SRP/USER_PASSWORD_AUTH) access tokens, never on client-credentials.
+    # - sub != client_id: hosted-UI authorization-code access tokens carry only
+    #   the requested OAuth scopes (openid email profile), but any USER token
+    #   has the user's UUID as sub, while client-credentials tokens have
+    #   sub == client_id.
+    scope = user.get("scope") or ""
+    sub = user.get("sub")
+    client_id = user.get("client_id")
+    # Missing sub/client_id fails CLOSED (treated as a user session): Cognito
+    # access tokens always carry both, so an access token without them is not
+    # a recognizable service account.
+    is_user_session = (
+        "aws.cognito.signin.user.admin" in scope
+        or sub is None
+        or client_id is None
+        or sub != client_id
+    )
+    if is_user_session:
+        raise HTTPException(
+            status_code=401,
+            detail="User-session access tokens are not accepted; "
+                   "authenticate with your ID token.",
+        )
+    allowed = os.environ.get("COGNITO_SERVICE_CLIENT_IDS", "")
+    if allowed:
+        allowed_ids = {c.strip() for c in allowed.split(",") if c.strip()}
+        if user.get("client_id") not in allowed_ids:
+            raise HTTPException(
+                status_code=401,
+                detail="Access token client is not an authorized service account.",
+            )
+
 
 # Session cookie name - must match authentication.py
 SESSION_COOKIE_NAME = "agr_session"
@@ -266,6 +322,19 @@ class IPAwareCognitoAuth:
         from agr_literature_service.api.routers.authentication import get_session_user
         return get_session_user(session_id)
 
+    @staticmethod
+    def _ensure_observer_registered(user: Dict[str, Any]) -> None:
+        """Observers never reach the mutating handlers where
+        set_global_user_from_cognito registers first-time users (their writes
+        are 403'd above), so register them from the auth path instead
+        (SCRUM-6431 review). Process-cached after first touch; best-effort —
+        never blocks the request. Import is lazy to keep auth free of the
+        user/models import cycle."""
+        if not is_observer(user):
+            return
+        from agr_literature_service.api.user import ensure_cognito_user_registered
+        ensure_cognito_user_registered(user)
+
     async def __call__(
         self,
         request: Request,
@@ -275,7 +344,7 @@ class IPAwareCognitoAuth:
         # This takes precedence over IP bypass so authenticated users get their real identity
         if credentials is not None:
             try:
-                return get_cognito_user_swagger(credentials, get_cognito_auth())
+                user = get_cognito_user_swagger(credentials, get_cognito_auth())
             except HTTPException:
                 # Already a clean auth error (e.g. 401 for an expired/invalid-claims token)
                 raise
@@ -285,10 +354,24 @@ class IPAwareCognitoAuth:
                 # PyJWKClient raise a PyJWTError that is not caught downstream. Surface it
                 # as a clean 401 instead of letting it bubble up as a 500 Internal Server Error.
                 raise HTTPException(status_code=401, detail=f"Invalid authentication token: {e}")
+            # A user-session access token would masquerade as an ALL_ACCESS
+            # service account (its groups are discarded during validation), so
+            # reject it before any role decision (SCRUM-6431 review).
+            reject_user_session_access_tokens(user)
+            # Observers are read-only: enforce here, at the shared auth chokepoint,
+            # so every mutating endpoint is covered server-side regardless of UI
+            # behavior (SCRUM-6431). No-op for every other role.
+            enforce_observer_read_only(user, request.method, request.url.path)
+            # Threadpool: registration can do synchronous curie-service HTTP,
+            # which must not stall the event loop (SCRUM-6431 review).
+            await run_in_threadpool(self._ensure_observer_registered, user)
+            return user
 
         # Priority 2: Check for session cookie (for direct browser access)
         session_user = self._get_user_from_session_cookie(request)
         if session_user:
+            enforce_observer_read_only(session_user, request.method, request.url.path)
+            await run_in_threadpool(self._ensure_observer_registered, session_user)
             return session_user
 
         # Priority 3: No credentials provided - check IP bypass rules
