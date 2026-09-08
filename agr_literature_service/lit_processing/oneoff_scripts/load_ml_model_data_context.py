@@ -36,8 +36,10 @@ The rules, from the curators (Jira SCRUM-5697, comments 97488 and 97529):
      FB's topic classifiers, and ZFIN's. It is also what the server falls back
      to, so these rows make explicit what would otherwise be implicit.
 
-  3. ``tfidf_vectorization`` rows are left NULL. They are vectorizer artifacts
-     that create no tags, so there is no data context to record.
+  3. Anything whose task_type is not a known tag producer is left NULL --
+     ``tfidf_vectorization`` in today's production set, which is a vectorizer
+     artifact that creates no tags. The list is an allow-list, so a task type
+     added later is left alone until somebody decides what it should carry.
 
 Agreement is load-bearing, not cosmetic: ``check_for_duplicate_tags`` filters on
 every field of an incoming payload, so a model whose data_context disagrees with
@@ -78,8 +80,18 @@ DEFAULT_DATA_CONTEXT = EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP
 
 TOPIC_CLASSIFICATION_TASK_TYPE = "biocuration_topic_classification"
 
-# Task types that produce no topic entity tags, so carry no data context.
-NO_TAG_TASK_TYPES = frozenset({"tfidf_vectorization"})
+# The task types known to create topic entity tags. An allow-list rather than a
+# deny-list on purpose: a task type this script has never seen cannot be assumed
+# to produce tags, so it is left NULL rather than stamped with the default -- the
+# same stance backfill_ml_model_file_classes.py takes on this table, where
+# "all other task_types -> NULL (metadata-only models)". tfidf_vectorization is
+# the one currently in production that is deliberately absent: it is a vectorizer
+# artifact and sends no tags.
+TAG_CREATING_TASK_TYPES = frozenset({
+    "biocuration_topic_classification",
+    "biocuration_entity_extraction",
+    "biocuration_pretriage_priority_classification",
+})
 
 # MODs whose topic classifiers take the root term rather than the default.
 # WB only, per Ceri's answer; FB's and ZFIN's take the default.
@@ -103,7 +115,7 @@ class UpdatePlan(NamedTuple):
 
 def data_context_for(abbreviation: str, task_type: str) -> Optional[str]:
     """The data_context a model should carry, or None to leave it unset."""
-    if task_type in NO_TAG_TASK_TYPES:
+    if task_type not in TAG_CREATING_TASK_TYPES:
         return None
     if (abbreviation in ROOT_TERM_TOPIC_CLASSIFIER_MODS
             and task_type == TOPIC_CLASSIFICATION_TASK_TYPE):
