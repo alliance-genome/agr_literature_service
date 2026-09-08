@@ -34,6 +34,7 @@ class TestBuildPayloads:
         assert data["topic"] == mod.PROTEIN_STRUCTURE_ATP
         assert data["topic_entity_tag_source_id"] == 42
         assert data["data_novelty"] == mod.DATA_NOVELTY_NOT_NEW
+        assert data["data_context"] == mod.DATA_CONTEXT_EXPERIMENTALLY_STUDIED
         assert data["negated"] is False
         assert data.get("entity") is None
         assert data.get("entity_type") is None

@@ -101,6 +101,38 @@ which includes self so exact equality still matches), and `data_novelty`. All th
 agree on direction. Cross-branch novelty — "existing data" `ATP:0000334` versus "novel
 data" `ATP:0000321` — blocks validation outright.
 
+**`data_context` is a fifth ATP field that validation does not yet use.** SCRUM-5697
+added it to every tag. It is stored, indexed, exported to Elasticsearch and editable,
+but `validate_tags` ignores it entirely — so today tags validate each other freely
+across data contexts.
+
+It is a **hierarchy**, not a flat set:
+
+```
+ATP:0000323  data context
+├── ATP:0000324  mentioned data
+│   ├── ATP:0000360  background information
+│   └── ATP:0000325  experimentally studied data
+└── ATP:0000326  marker data
+    ├── ATP:0000328  expression marker
+    └── ATP:0000327  genetic marker
+```
+
+That matters for SCRUM-5746. SCRUM-5746's own description calls the terms "disjoint"
+and lists only the four leaves; the ontology (confirmed 2026-08-31) has a root and two
+intermediate groupings above them. So `data_context` is walkable by exactly the same
+`get_ancestors`/`get_descendants` machinery as `topic`, `entity_type` and
+`data_novelty` — adding it as a fifth dimension is mechanically the same change as the
+existing three, not a special case. A tag marked `ATP:0000324` (mentioned data) is
+genuinely *more generic* than one marked `ATP:0000325` (experimentally studied data).
+
+The open question for SCRUM-5746 is therefore semantic, not structural: whether
+"mentioned data" and "marker data" are the right generalisation boundaries for
+validation, and what should happen across the two branches — does an
+expression-marker tag have any bearing on an experimentally-studied one? Note the
+cross-branch precedent already set by `data_novelty`, where "existing data" versus
+"novel data" blocks validation outright.
+
 **Species is the fourth dimension**, and it follows the same generic/specific logic
 without an ontology behind it (`:612`, `:644`, `:684`, `:691`). Read a **null species as
 "more generic"** — the assertion applies regardless of organism — and a **specific species

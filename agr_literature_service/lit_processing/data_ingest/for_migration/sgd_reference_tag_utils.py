@@ -456,7 +456,11 @@ def build_tag_payload(reference_curie: str, topic_atp: str, entity_curie: Option
     otherwise copy date_created onto date_updated. Without a date the audit layer stamps both with the load
     time. The same create_tag branch re-derives data_novelty: ATP:0000334 for
     topic == entity_type tags and ATP:0000335 otherwise (topic-only tags),
-    matching the values set below."""
+    matching the values set below. data_context is not passed here either, but
+    for a different reason: the SGD branch fills one in only when the caller
+    sends nothing (SCRUM-5697), so the loader gets the server's default rather
+    than having a value overwritten. Send one here if SGD ever wants these
+    loader tags to carry something other than the default."""
     date_updated = datetime.now(tz=pytz.timezone("UTC")) if date_created else None
     topic_only = entity_curie is None
     return TopicEntityTagSchemaPost(
