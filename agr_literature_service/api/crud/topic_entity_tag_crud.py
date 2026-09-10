@@ -77,14 +77,19 @@ TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
 # tag auto-created from a positive mixed topic+entity tag.
 EXISTING_DATA_NOVELTY_ATP = "ATP:0000334"
 
-# SCRUM-5697: the four disjoint data_context terms.
-#   ATP:0000325  experimentally studied data
-#   ATP:0000360  background information
-#   ATP:0000328  expression marker
-#   ATP:0000327  genetic marker
+# SCRUM-5697: data_context is a hierarchy, not a flat set of alternatives.
+#     ATP:0000323  data context
+#     |-- ATP:0000324  mentioned data
+#     |   |-- ATP:0000360  background information
+#     |   +-- ATP:0000325  experimentally studied data
+#     +-- ATP:0000326  marker data
+#         |-- ATP:0000328  expression marker
+#         +-- ATP:0000327  genetic marker
+# The four leaves are what the editor offers as curation choices, but they are
+# not the only values stored: WB topic tags legitimately carry the ATP:0000323
+# root (see resolve_default_data_context below).
 # "Experimentally studied data" is the default the server applies wherever it
-# synthesises a tag rather than taking one from a client, and is what the
-# pipelines send for the WB topic classifiers.
+# synthesises a tag rather than taking one from a client.
 EXPERIMENTALLY_STUDIED_DATA_CONTEXT_ATP = "ATP:0000325"
 
 # SCRUM-6242 (increment 5): the curator validation written by the grid's

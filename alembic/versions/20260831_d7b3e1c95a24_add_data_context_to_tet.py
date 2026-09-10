@@ -5,12 +5,18 @@ Revises: 9a1c7f2e4d10
 Create Date: 2026-08-31
 
 SCRUM-5697. ``data_context`` records what kind of data a topic entity tag
-represents, using four disjoint ATP terms:
+represents. The ATP terms are a hierarchy, not a flat set:
 
-    ATP:0000325  experimentally studied data
-    ATP:0000360  background information
-    ATP:0000328  expression marker
-    ATP:0000327  genetic marker
+    ATP:0000323  data context
+    |-- ATP:0000324  mentioned data
+    |   |-- ATP:0000360  background information
+    |   +-- ATP:0000325  experimentally studied data
+    +-- ATP:0000326  marker data
+        |-- ATP:0000328  expression marker
+        +-- ATP:0000327  genetic marker
+
+The four leaves are what the editor offers as curation choices; the interior
+terms are groupings, and WB topic tags store the ATP:0000323 root.
 
 The column is added **nullable** here on purpose. Every TET-creating client
 (the extraction pipelines, the MOD loaders in this repo, WB's own scripts,

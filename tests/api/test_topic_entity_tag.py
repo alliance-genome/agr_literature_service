@@ -1695,7 +1695,7 @@ class TestTopicEntityTag:
 
     def test_data_context_field(self, test_reference, auth_headers, test_topic_entity_tag_source):  # noqa
         """SCRUM-5697: data_context round-trips through create, show and patch,
-        and accepts each of the four disjoint terms."""
+        and accepts each of the four leaf terms."""
         load_name_to_atp_and_relationships_mock()
         data_context_terms = [
             "ATP:0000325",  # experimentally studied data
