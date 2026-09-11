@@ -95,13 +95,14 @@ Despite the names, these are **not** ATP ids — they are `validation_type` stri
 - Special case: a mixed topic+entity tag also validates the pure **entity-only** tag for
   the same entity (`:617`, `:648`, `:694`, `:703`).
 
-"More generic / more specific" is evaluated **simultaneously across three ATP
+"More generic / more specific" is evaluated **simultaneously across four ATP
 hierarchies** — `topic`, `entity_type` (via `atp_hierarchy_with_self`, `:580`, SCRUM-6188,
 which includes self so exact equality still matches), `data_novelty`, and `data_context`
 (SCRUM-5746). All four must agree on direction. Cross-branch novelty — "existing data"
 `ATP:0000334` versus "novel data" `ATP:0000321` — blocks validation outright.
 
-**`data_context` became the fourth ATP dimension in SCRUM-5746.** SCRUM-5697 added the
+**`data_context` became the fourth ATP hierarchy — the fifth dimension overall, after
+species — in SCRUM-5746.** SCRUM-5697 added the
 column to every tag; SCRUM-5746 made `validate_tags` read it, through
 `data_context_compatible` at each of the eight `add_validation_to_db` guard sites.
 
@@ -375,22 +376,22 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 
 | Symbol | Location |
 |---|---|
-| `calculate_validation_value_for_tag` | `topic_entity_tag_crud.py:396` |
-| `atp_hierarchy_with_self` | `topic_entity_tag_crud.py:580` |
+| `calculate_validation_value_for_tag` | `topic_entity_tag_crud.py:472` |
+| `atp_hierarchy_with_self` | `topic_entity_tag_crud.py:656` |
 | `data_context_compatible` | `topic_entity_tag_crud.py:672` (SCRUM-5746) |
-| `validate_tags_already_in_db_with_positive_tag` | `topic_entity_tag_crud.py:596` |
-| `validate_tags_already_in_db_with_negative_tag` | `topic_entity_tag_crud.py:628` |
-| `validate_new_tag_with_existing_tags` | `topic_entity_tag_crud.py:660` |
-| `add_validation_to_db` | `topic_entity_tag_crud.py:714` |
-| `validate_tags` | `topic_entity_tag_crud.py:739` |
-| `set_validation_values_to_tag` | `topic_entity_tag_crud.py:810` |
-| `revalidate_all_tags` | `topic_entity_tag_crud.py:817` |
-| `_is_curator_source_tag` | `topic_entity_tag_crud.py:1466` |
-| `_build_validation_details` | `topic_entity_tag_crud.py:1594` |
-| `_build_filter_flags` | `topic_entity_tag_crud.py:1670` |
-| `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:1923` |
-| `_recompute_validation_cell` | `topic_entity_tag_crud.py:1979` |
-| `validate_topic` | `topic_entity_tag_crud.py:1999` |
+| `validate_tags_already_in_db_with_positive_tag` | `topic_entity_tag_crud.py:693` |
+| `validate_tags_already_in_db_with_negative_tag` | `topic_entity_tag_crud.py:729` |
+| `validate_new_tag_with_existing_tags` | `topic_entity_tag_crud.py:765` |
+| `add_validation_to_db` | `topic_entity_tag_crud.py:831` |
+| `validate_tags` | `topic_entity_tag_crud.py:856` |
+| `set_validation_values_to_tag` | `topic_entity_tag_crud.py:931` |
+| `revalidate_all_tags` | `topic_entity_tag_crud.py:938` |
+| `_is_curator_source_tag` | `topic_entity_tag_crud.py:1587` |
+| `_build_validation_details` | `topic_entity_tag_crud.py:1715` |
+| `_build_filter_flags` | `topic_entity_tag_crud.py:1791` |
+| `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:2044` |
+| `_recompute_validation_cell` | `topic_entity_tag_crud.py:2100` |
+| `validate_topic` | `topic_entity_tag_crud.py:2120` |
 
 ---
 
