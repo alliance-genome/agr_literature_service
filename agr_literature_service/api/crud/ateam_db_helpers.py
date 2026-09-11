@@ -398,7 +398,14 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     from root terms using _get_atp_children for consistent caching.
     """
     if start_terms is None:
-        start_terms = ['ATP:0000177', 'ATP:0000335']
+        # One entry per top-level ATP branch the application traverses:
+        #   ATP:0000177 workflow process, ATP:0000335 data novelty,
+        #   ATP:0000323 data context (SCRUM-5746).
+        # A branch left out here is not merely uncached -- atp_get_all_ancestors falls
+        # back to the ontology client only when atp_to_parent is *entirely* empty, so in
+        # any warm worker a missing branch silently resolves to no ancestors, and the
+        # hierarchy-aware validation checks degrade to exact equality.
+        start_terms = ['ATP:0000177', 'ATP:0000335', 'ATP:0000323']
 
     # Clear and (re)build
     atp_to_name.clear()
