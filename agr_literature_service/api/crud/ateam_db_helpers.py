@@ -398,7 +398,25 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     from root terms using _get_atp_children for consistent caching.
     """
     if start_terms is None:
-        start_terms = ['ATP:0000177', 'ATP:0000335']
+        # ATP:0000177 workflow process, ATP:0000335 data novelty, ATP:0000323 data
+        # context (SCRUM-5746). NOT an exhaustive list of the branches the application
+        # traverses: ATP:0000002, the topic/entity_type root, is reached through the same
+        # get_ancestors path and is deliberately absent, being a far larger subtree that
+        # costs one round trip per node to walk.
+        #
+        # A branch left out here is not merely uncached. atp_get_all_ancestors falls back
+        # to the ontology client only when atp_to_parent is *entirely* empty, so in any
+        # warm worker a missing branch resolves to however much of the chain happens to
+        # have been cached as a side effect of earlier descendant lookups -- silently, and
+        # differently per worker. For data_context, whose terms are never walked as
+        # descendants in normal operation, that meant no ancestors at all and a
+        # hierarchy check that degraded to exact equality.
+        #
+        # Order matters: frontier.pop() is LIFO and atp_to_parent uses setdefault
+        # (first write wins), so the LAST entry here is walked FIRST and claims the
+        # parent pointer for any term reachable from two roots. New branches go at the
+        # front, leaving the pre-existing precedence between 335 and 177 untouched.
+        start_terms = ['ATP:0000323', 'ATP:0000177', 'ATP:0000335']
 
     # Clear and (re)build
     atp_to_name.clear()
