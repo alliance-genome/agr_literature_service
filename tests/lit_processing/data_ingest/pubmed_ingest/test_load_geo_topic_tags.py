@@ -56,6 +56,15 @@ class TestGetOrCreateSource:
         assert mod.get_or_create_source(db, "FB") == 99
         db.add.assert_not_called()
 
+    def test_reports_a_missing_source_without_creating_it_when_asked_not_to(self):
+        """A dry run must leave the database untouched, and creating the source
+        row is a write like any other."""
+        db = self._db_returning(None)
+
+        assert mod.get_or_create_source(db, "FB", create=False) is None
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
+
     def test_creates_the_source_with_the_values_the_ticket_specifies(self):
         db = self._db_returning(None)
 
@@ -131,6 +140,22 @@ class TestLoad:
 
         assert counts == {**EMPTY_COUNTS, "refs_scanned": 2, "tet_created": 2}
         mock_create_tag.assert_not_called()
+
+    @patch.object(mod, "create_tag")
+    def test_dry_run_writes_nothing_at_all(self, mock_create_tag):
+        """Not just no tags: no automation user row and no source row either.
+        set_global_user_id and get_or_create_source both INSERT."""
+        db = MagicMock()
+        db.query.return_value.filter_by.return_value.one_or_none.return_value = None
+
+        with patch.object(mod, "set_global_user_id") as mock_set_uid:
+            counts = mod.load(db=db, references=REFERENCES, dry_run=True)
+
+        assert counts == {**EMPTY_COUNTS, "refs_scanned": 2, "tet_created": 2}
+        mock_create_tag.assert_not_called()
+        mock_set_uid.assert_not_called()
+        db.add.assert_not_called()
+        db.commit.assert_not_called()
 
     @patch.object(mod, "create_tag", return_value=(123, False))
     @patch.object(mod, "get_or_create_source", return_value=42)

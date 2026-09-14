@@ -74,8 +74,13 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION) -> int:
-    """Return the topic_entity_tag_source.id for the GEO pipeline, creating it if absent."""
+def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
+                         create: bool = True) -> Optional[int]:
+    """Return the topic_entity_tag_source.id for the GEO pipeline, creating it if absent.
+
+    ``create=False`` (what --dry-run passes) reports a missing source instead of
+    inserting one, so a dry run leaves the database exactly as it found it.
+    """
     mod = db.query(ModModel).filter_by(abbreviation=mod_abbreviation).one()
     existing = db.query(TopicEntityTagSourceModel).filter_by(
         source_evidence_assertion=ECO_AUTOMATIC_ASSERTION,
@@ -85,6 +90,10 @@ def get_or_create_source(db: Session, mod_abbreviation: str = DEFAULT_MOD_ABBREV
     ).one_or_none()
     if existing:
         return existing.topic_entity_tag_source_id
+    if not create:
+        logger.info("No GEO pipeline TET source for %s yet; a live run would create it",
+                    mod_abbreviation)
+        return None
     source = TopicEntityTagSourceModel(
         source_evidence_assertion=ECO_AUTOMATIC_ASSERTION,
         source_method=SOURCE_METHOD,
@@ -143,7 +152,7 @@ def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntit
     )
 
 
-def _create_topic_tet(db: Session, source_id: int, reference_curie: str,
+def _create_topic_tet(db: Session, source_id: Optional[int], reference_curie: str,
                       dry_run: bool, counts: Dict[str, int]) -> None:
     """Add the topic-only tag for one reference.
 
@@ -156,6 +165,7 @@ def _create_topic_tet(db: Session, source_id: int, reference_curie: str,
                     HIGH_THROUGHPUT_ASSAY_ATP, reference_curie)
         counts["tet_created"] += 1
         return
+    assert source_id is not None  # only a dry run runs without a source
     try:
         _tag_id, was_upsert = create_tag(db, _build_topic_tet_payload(reference_curie, source_id))
     except HTTPException as e:
@@ -190,10 +200,13 @@ def load(mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
     if own_session:
         db = create_postgres_session(False)
     assert db is not None
-    set_global_user_id(db, path.basename(__file__).replace(".py", ""))
+    if not dry_run:
+        # Registers the automation user that stamps created_by -- an INSERT, so
+        # a dry run skips it along with every other write.
+        set_global_user_id(db, path.basename(__file__).replace(".py", ""))
     counts = {"refs_scanned": 0, "tet_created": 0, "tet_skipped_duplicate": 0, "errors": 0}
     try:
-        source_id = get_or_create_source(db, mod_abbreviation)
+        source_id = get_or_create_source(db, mod_abbreviation, create=not dry_run)
         if references is None:
             references = _references_with_geo_xref(db, mod_abbreviation=mod_abbreviation,
                                                    limit=limit, since_days=since_days)
