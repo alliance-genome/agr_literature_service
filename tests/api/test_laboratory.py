@@ -6,6 +6,7 @@ from starlette.testclient import TestClient
 from fastapi import status
 
 from agr_literature_service.api.main import app
+from agr_literature_service.api.schemas.laboratory_schemas import LaboratorySchemaShow
 from agr_literature_service.api.models import (
     LaboratoryModel,
     LaboratoryCrossReferenceModel,
@@ -71,6 +72,10 @@ class TestLaboratory:
         assert curie.startswith("AGRKB:104")
         suffix = curie[len("AGRKB:104"):]
         assert len(suffix) == 12 and suffix.isdigit()
+        # Since one is always allocated and the column is NOT NULL, the response
+        # schema must declare it required. It said Optional, which published a
+        # nullable curie to every client reading the OpenAPI spec.
+        assert LaboratorySchemaShow.model_fields["curie"].is_required()
 
     def test_lookup_by_curie(self, auth_headers, test_laboratory):  # noqa
         with TestClient(app) as client:
