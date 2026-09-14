@@ -16,6 +16,7 @@ from agr_literature_service.lit_processing.data_ingest.pubmed_ingest import (
 
 EMPTY_COUNTS = {
     "refs_scanned": 0, "tet_created": 0, "tet_skipped_duplicate": 0, "errors": 0,
+    "aborted": 0,
 }
 
 REFERENCES = [(1, "AGRKB:101000000000001"), (2, "AGRKB:101000000000002")]
@@ -140,6 +141,58 @@ class TestLoad:
 
         assert counts == {**EMPTY_COUNTS, "refs_scanned": 2, "tet_created": 2}
         mock_create_tag.assert_not_called()
+
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    def test_gives_up_after_a_run_of_consecutive_failures(self, _uid, _source):
+        """A misconfigured A-team connection makes every ATP id look invalid, so
+        every tag fails for the same reason. Stop and say so rather than logging
+        the same failure thousands of times."""
+        references = [(i, f"AGRKB:10100000000{i:04d}") for i in range(20)]
+        invalid = HTTPException(status_code=422, detail="ATP:0000150 is not valid.")
+
+        with patch.object(mod, "create_tag", side_effect=invalid) as mock_create_tag:
+            counts = mod.load(db=MagicMock(), references=references)
+
+        assert mock_create_tag.call_count == mod.MAX_CONSECUTIVE_ERRORS
+        assert counts["errors"] == mod.MAX_CONSECUTIVE_ERRORS
+        assert counts["aborted"] == 1
+        assert counts["tet_created"] == 0
+
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    def test_failures_broken_up_by_successes_do_not_abort(self, _uid, _source):
+        """Only an unbroken run means something systemic; scattered failures are
+        ordinary and must not stop the run."""
+        references = [(i, f"AGRKB:10100000000{i:04d}") for i in range(20)]
+        boom = HTTPException(status_code=422, detail="nope")
+        # Four failures, one success, repeating: never MAX_CONSECUTIVE_ERRORS in a row.
+        side_effects = []
+        for i in range(20):
+            side_effects.append((123, False) if i % 5 == 4 else boom)
+
+        with patch.object(mod, "create_tag", side_effect=side_effects) as mock_create_tag:
+            counts = mod.load(db=MagicMock(), references=references)
+
+        assert mock_create_tag.call_count == 20
+        assert counts["aborted"] == 0
+        assert counts["tet_created"] == 4
+        assert counts["errors"] == 16
+
+    @patch.object(mod, "get_or_create_source", return_value=42)
+    @patch.object(mod, "set_global_user_id")
+    def test_duplicate_skips_are_not_failures(self, _uid, _source):
+        """A long run of 409s is the expected shape of a re-run, not a reason to
+        abort."""
+        references = [(i, f"AGRKB:10100000000{i:04d}") for i in range(20)]
+        dup = HTTPException(status_code=409, detail="duplicate")
+
+        with patch.object(mod, "create_tag", side_effect=dup) as mock_create_tag:
+            counts = mod.load(db=MagicMock(), references=references)
+
+        assert mock_create_tag.call_count == 20
+        assert counts["aborted"] == 0
+        assert counts["tet_skipped_duplicate"] == 20
 
     @patch.object(mod, "create_tag")
     def test_dry_run_writes_nothing_at_all(self, mock_create_tag):

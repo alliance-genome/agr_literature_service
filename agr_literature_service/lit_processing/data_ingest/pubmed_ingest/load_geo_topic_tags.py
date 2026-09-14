@@ -24,6 +24,7 @@ authoritative "no longer in GEO" set to delete against.
 """
 import argparse
 import logging
+import sys
 from os import path
 from typing import Dict, List, Optional, Tuple
 
@@ -64,6 +65,13 @@ DATA_NOVELTY_NOT_NEW = "ATP:0000335"
 DATA_CONTEXT_EXPERIMENTALLY_STUDIED = "ATP:0000325"
 SOURCE_METHOD = "GEO dataset association pipeline"
 SOURCE_DATA_PROVIDER = "GEO"
+# A run of failures this long means something systemic rather than a bad row --
+# most likely the A-team curation DB (PERSISTENT_STORE_DB_*) is unreachable, which
+# makes create_tag report every ATP id, even ones production uses constantly, as
+# "is not valid". Stop there instead of repeating the same failure thousands of
+# times; 409 duplicate skips are not failures and never trip this.
+MAX_CONSECUTIVE_ERRORS = 5
+
 SOURCE_DESCRIPTION = (
     "High throughput data from the GEO database associated with references via "
     "load_geo_topic_tags.py. The GEO accessions themselves live in cross_reference."
@@ -153,29 +161,29 @@ def _build_topic_tet_payload(reference_curie: str, source_id: int) -> TopicEntit
 
 
 def _create_topic_tet(db: Session, source_id: Optional[int], reference_curie: str,
-                      dry_run: bool, counts: Dict[str, int]) -> None:
-    """Add the topic-only tag for one reference.
+                      dry_run: bool, counts: Dict[str, int]) -> bool:
+    """Add the topic-only tag for one reference. Returns False on failure.
 
     ``create_tag`` is idempotent: it raises HTTPException(409) for a true
     duplicate and returns ``(tag_id, was_upsert=True)`` when an existing tag
-    absorbed the request -- neither writes a new row.
+    absorbed the request -- neither writes a new row, and neither is a failure.
     """
     if dry_run:
         logger.info("DRY-RUN would create %s tag for %s",
                     HIGH_THROUGHPUT_ASSAY_ATP, reference_curie)
         counts["tet_created"] += 1
-        return
+        return True
     assert source_id is not None  # only a dry run runs without a source
     try:
         _tag_id, was_upsert = create_tag(db, _build_topic_tet_payload(reference_curie, source_id))
     except HTTPException as e:
         if e.status_code == 409:
             counts["tet_skipped_duplicate"] += 1
-            return
+            return True
         db.rollback()
         counts["errors"] += 1
         logger.warning("TET create failed for %s: %s", reference_curie, e.detail)
-        return
+        return False
     except Exception as e:
         # create_tag only rolls back on IntegrityError; any other failure
         # (OperationalError, deadlock, connection blip) would leave the
@@ -183,11 +191,12 @@ def _create_topic_tet(db: Session, source_id: Optional[int], reference_curie: st
         db.rollback()
         counts["errors"] += 1
         logger.warning("TET create failed for %s: %s", reference_curie, e)
-        return
+        return False
     if was_upsert:
         counts["tet_skipped_duplicate"] += 1
     else:
         counts["tet_created"] += 1
+    return True
 
 
 def load(mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
@@ -204,7 +213,8 @@ def load(mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
         # Registers the automation user that stamps created_by -- an INSERT, so
         # a dry run skips it along with every other write.
         set_global_user_id(db, path.basename(__file__).replace(".py", ""))
-    counts = {"refs_scanned": 0, "tet_created": 0, "tet_skipped_duplicate": 0, "errors": 0}
+    counts = {"refs_scanned": 0, "tet_created": 0, "tet_skipped_duplicate": 0,
+              "errors": 0, "aborted": 0}
     try:
         source_id = get_or_create_source(db, mod_abbreviation, create=not dry_run)
         if references is None:
@@ -216,13 +226,28 @@ def load(mod_abbreviation: str = DEFAULT_MOD_ABBREVIATION,
             scope_msg += f" whose GEO xref was added in the last {since_days} day(s)"
         logger.info("Found %d references with a GEO xref%s", len(references), scope_msg)
 
+        consecutive_errors = 0
         for _reference_id, reference_curie in references:
-            _create_topic_tet(db, source_id, reference_curie, dry_run, counts)
+            if _create_topic_tet(db, source_id, reference_curie, dry_run, counts):
+                consecutive_errors = 0
+                continue
+            consecutive_errors += 1
+            if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
+                counts["aborted"] = 1
+                logger.error(
+                    "Giving up after %d consecutive failures with %d of %d references "
+                    "processed. The same failure for every reference points at the "
+                    "environment rather than the data -- check that the A-team curation "
+                    "DB (PERSISTENT_STORE_DB_*) is reachable, since ATP validation "
+                    "reports every id invalid when it is not.",
+                    consecutive_errors, counts["tet_created"] + counts["tet_skipped_duplicate"]
+                    + counts["errors"], counts["refs_scanned"])
+                break
 
         logger.info("GEO topic tag pipeline done: refs_scanned=%d tet_created=%d "
-                    "tet_skipped_duplicate=%d errors=%d",
+                    "tet_skipped_duplicate=%d errors=%d aborted=%d",
                     counts["refs_scanned"], counts["tet_created"],
-                    counts["tet_skipped_duplicate"], counts["errors"])
+                    counts["tet_skipped_duplicate"], counts["errors"], counts["aborted"])
         return counts
     finally:
         if own_session:
@@ -243,8 +268,11 @@ def main() -> None:  # pragma: no cover
     parser.add_argument("--dry-run", action="store_true",
                         help="Log intended tags but write nothing")
     args = parser.parse_args()
-    load(mod_abbreviation=args.mod, limit=args.limit,
-         since_days=args.since_days, dry_run=args.dry_run)
+    counts = load(mod_abbreviation=args.mod, limit=args.limit,
+                  since_days=args.since_days, dry_run=args.dry_run)
+    if counts["aborted"]:
+        # Non-zero exit so a cron failure is visible rather than buried in the log.
+        sys.exit(1)
 
 
 if __name__ == "__main__":  # pragma: no cover
