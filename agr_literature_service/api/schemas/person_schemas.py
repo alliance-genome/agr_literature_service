@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict
 
 from .base_schemas import AuditedObjectModelSchema
 from .person_email_schemas import PersonEmailSchemaCreate, PersonEmailSchemaRelated
+from .person_institution_schemas import (
+    PersonInstitutionSchemaCreate,
+    PersonInstitutionSchemaRelated,
+)
 from .person_cross_reference_schemas import (
     PersonCrossReferenceSchemaCreate,
     PersonCrossReferenceSchemaRelated,
@@ -24,7 +28,6 @@ class PersonSchemaPost(BaseModel):
     display_name: str
     # curie is server-generated, not accepted from clients
     mod_roles: Optional[List[str]] = None
-    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: ActiveStatus = "active"
     privacy: Privacy = "hide_email"
@@ -37,6 +40,7 @@ class PersonSchemaPost(BaseModel):
     unsubscribe: bool = False
     # forward-ref strings
     emails: Optional[List["PersonEmailSchemaCreate"]] = None
+    institutions: Optional[List["PersonInstitutionSchemaCreate"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaCreate"]] = None
     names: Optional[List["PersonNameSchemaCreate"]] = None
     notes: Optional[List["PersonNoteSchemaCreate"]] = None
@@ -52,7 +56,6 @@ class PersonSchemaUpdate(BaseModel):
     display_name: Optional[str] = None
     # curie is server-generated, not modifiable by clients
     mod_roles: Optional[List[str]] = None
-    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: Optional[ActiveStatus] = None
     privacy: Optional[Privacy] = None
@@ -72,7 +75,6 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     display_name: str
     curie: str  # required
     mod_roles: Optional[List[str]] = None
-    institution: Optional[List[str]] = None
     webpage: Optional[List[str]] = None
     active_status: str = "active"
     privacy: str = "hide_email"
@@ -85,6 +87,7 @@ class PersonSchemaShow(AuditedObjectModelSchema):
     biography_research_interest: Optional[str] = None
     unsubscribe: bool = False
     emails: Optional[List["PersonEmailSchemaRelated"]] = None
+    institutions: Optional[List["PersonInstitutionSchemaRelated"]] = None
     cross_references: Optional[List["PersonCrossReferenceSchemaRelated"]] = None
     names: Optional[List["PersonNameSchemaRelated"]] = None
     notes: Optional[List["PersonNoteSchemaRelated"]] = None

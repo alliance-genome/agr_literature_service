@@ -68,31 +68,22 @@ class TestPersonFields:
             fetched = client.get(f"/person/{person_id}", headers=auth_headers)
             assert fetched.json()["webpage"] == urls
 
-    def test_create_person_with_institution_array(self, auth_headers):  # noqa
-        with TestClient(app) as client:
-            institutions = ["Caltech", "MIT", "Stanford"]
-            payload = {
-                "display_name": "Institution Person",
-                "institution": institutions,
-            }
-            res = client.post("/person/", json=payload, headers=auth_headers)
-            assert res.status_code == status.HTTP_201_CREATED
-            person_id = client.get(f"/person/{res.json()['curie']}", headers=auth_headers).json()["person_id"]
+    # The person.institution ARRAY(String) column was replaced by the
+    # person_institution child table (migration a7c3e5d91f26), so that a
+    # person's former institutions can be recorded the way person_email records
+    # old addresses. Institution coverage now lives in
+    # tests/api/test_person_institution.py; the two tests that exercised the
+    # array column here (create + patch) moved there.
 
-            fetched = client.get(f"/person/{person_id}", headers=auth_headers)
-            assert fetched.json()["institution"] == institutions
-
-    def test_patch_institution(self, auth_headers, test_person_id):  # noqa
+    def test_patch_person_rejects_the_removed_institution_field(self, auth_headers, test_person_id):  # noqa
+        """extra='forbid' makes the removed field a 422, not a silent no-op."""
         with TestClient(app) as client:
-            institutions = ["Caltech"]
             res = client.patch(
                 f"/person/{test_person_id}",
-                json={"institution": institutions},
+                json={"institution": ["Caltech"]},
                 headers=auth_headers,
             )
-            assert res.status_code == status.HTTP_200_OK
-            fetched = client.get(f"/person/{test_person_id}", headers=auth_headers)
-            assert fetched.json()["institution"] == institutions
+            assert res.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_create_person_with_active_status(self, auth_headers):  # noqa
         with TestClient(app) as client:
