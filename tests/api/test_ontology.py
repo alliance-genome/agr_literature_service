@@ -36,7 +36,8 @@ class TestOntology:
 class TestAtpBfsStartTerms:
     """SCRUM-5746: the ATP cache must cover every root the validation rules traverse."""
 
-    # Three top-level branches plus the data_context subtree, as the ontology returns them.
+    # Every top-level branch the validation rules traverse, plus enough of each subtree
+    # to climb: data_context (SCRUM-5746) and the topic tree under ATP:0000002.
     FAKE_ONTOLOGY = {
         "ATP:0000177": [("ATP:0000172", "workflow subprocess")],
         "ATP:0000335": [("ATP:0000334", "existing data"), ("ATP:0000321", "novel data")],
@@ -45,6 +46,9 @@ class TestAtpBfsStartTerms:
                         ("ATP:0000325", "experimentally studied data")],
         "ATP:0000326": [("ATP:0000328", "expression marker"),
                         ("ATP:0000327", "genetic marker")],
+        "ATP:0000002": [("ATP:0000009", "phenotype"), ("ATP:0000010", "gene expression")],
+        "ATP:0000009": [("ATP:0000079", "phenotype subtopic")],
+        "ATP:0000079": [("ATP:0000082", "phenotype leaf")],
     }
 
     def test_default_start_terms_resolve_data_context_ancestors(self, monkeypatch):
@@ -83,5 +87,38 @@ class TestAtpBfsStartTerms:
             assert helpers.atp_get_all_ancestors("ATP:0000325") == [
                 "ATP:0000324", "ATP:0000323"], \
                 "data_context ancestors must resolve from the default start terms"
+        finally:
+            helpers.set_globals(*saved)
+
+    def test_default_start_terms_resolve_topic_ancestors(self, monkeypatch):
+        """SCRUM-6474: the topic tree under ATP:0000002 must be cached too.
+
+        Topics and entity_types live under ATP:0000002 -> ATP:0000001, a branch reachable
+        from neither ATP:0000177 nor ATP:0000335. Verified against the real ontology:
+        0 of the 67 distinct topics and 0 of the 10 distinct entity_types in
+        topic_entity_tag descend from those two roots. So without ATP:0000002 here,
+        get_ancestors(topic) resolves to nothing in a warm worker and every
+        "more generic" topic check silently degrades to exact equality.
+
+        Worse than a plain empty result: _get_atp_children populates atp_to_parent via
+        setdefault, so an unrelated get_descendants() call earlier in the same process
+        leaks partial parent pointers and the answer varies with call order.
+        """
+        from agr_literature_service.api.crud import ateam_db_helpers as helpers
+
+        class FakeClient:
+            def get_atp_descendants(self, ancestor_curie, direct_children_only=False):
+                return [{"curie": c, "name": n}
+                        for c, n in TestAtpBfsStartTerms.FAKE_ONTOLOGY.get(ancestor_curie, [])]
+
+        saved = (dict(helpers.atp_to_name), dict(helpers.name_to_atp),
+                 dict(helpers.atp_to_children), dict(helpers.atp_to_parent))
+        monkeypatch.setattr(helpers, "_get_client", lambda: FakeClient())
+        monkeypatch.setattr(helpers, "_fetch_atp_names", lambda curies: None)
+        try:
+            helpers.load_name_to_atp_and_relationships()   # default start terms
+            assert helpers.atp_get_all_ancestors("ATP:0000082") == [
+                "ATP:0000079", "ATP:0000009", "ATP:0000002"], \
+                "topic ancestors must resolve from the default start terms"
         finally:
             helpers.set_globals(*saved)

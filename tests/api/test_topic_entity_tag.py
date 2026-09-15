@@ -3881,3 +3881,58 @@ class TestDataContextCompatible:
         assert self._fn()(
             "ATP:0000328", "ATP:0000325",
             {"ATP:0000325", "ATP:0000324", "ATP:0000323"}) is False
+
+
+class TestTopicHierarchyContainers:
+    """SCRUM-6474: ATP:0000002/ATP:0000001 are containers, not topics.
+
+    ATP:0000002 "topic tag" sits above every topic (124 descendants in the real
+    ontology) and ATP:0000001 above that, alongside workflow and bibliographic tags.
+    SGD tags papers with ATP:0000002 itself -- 11,807 tags in production -- and curators
+    asked that such a tag take no part in the hierarchy.
+
+    This matters precisely because ATP:0000002 is now a BFS start term: with ancestors
+    resolving, an unguarded walk would make every one of those tags a universal
+    validator for its reference.
+    """
+
+    @staticmethod
+    def _fn():
+        from agr_literature_service.api.crud.topic_entity_tag_crud import topic_hierarchy_with_self
+        return topic_hierarchy_with_self
+
+    @staticmethod
+    def _stub(monkeypatch, ancestors=(), descendants=()):
+        from agr_literature_service.api.crud import topic_entity_tag_crud as crud
+        monkeypatch.setattr(crud, "get_ancestors", lambda onto_node: list(ancestors))
+        monkeypatch.setattr(crud, "get_descendants", lambda onto_node: list(descendants))
+
+    def test_container_does_not_validate_its_descendants(self, monkeypatch):
+        # would fail without the guard: descendants of 002 are every topic there is
+        self._stub(monkeypatch, descendants=["ATP:0000009", "ATP:0000079"])
+        assert self._fn()("ATP:0000002", ancestors=False) == {"ATP:0000002"}
+
+    def test_container_is_not_validated_by_its_descendants(self, monkeypatch):
+        self._stub(monkeypatch, ancestors=["ATP:0000001"])
+        assert self._fn()("ATP:0000002", ancestors=True) == {"ATP:0000002"}
+
+    def test_containers_stripped_from_a_real_topic_ancestry(self, monkeypatch):
+        # the ATP:0000082 -> 079 -> 009 -> 002 -> 001 chain, containers removed
+        self._stub(monkeypatch,
+                   ancestors=["ATP:0000079", "ATP:0000009", "ATP:0000002", "ATP:0000001"])
+        assert self._fn()("ATP:0000082", ancestors=True) == {
+            "ATP:0000082", "ATP:0000079", "ATP:0000009"}
+
+    def test_real_subtopics_are_kept(self, monkeypatch):
+        self._stub(monkeypatch, descendants=["ATP:0000082", "ATP:0000352"])
+        assert self._fn()("ATP:0000079", ancestors=False) == {
+            "ATP:0000079", "ATP:0000082", "ATP:0000352"}
+
+    def test_two_container_tags_still_match_exactly(self, monkeypatch):
+        # severing the hierarchy must not stop 002 validating another 002
+        self._stub(monkeypatch)
+        assert "ATP:0000002" in self._fn()("ATP:0000002", ancestors=True)
+
+    def test_none_topic_yields_empty_set(self, monkeypatch):
+        self._stub(monkeypatch)
+        assert self._fn()(None, ancestors=True) == set()

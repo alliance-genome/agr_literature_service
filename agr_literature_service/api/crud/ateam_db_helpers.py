@@ -398,11 +398,13 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
     from root terms using _get_atp_children for consistent caching.
     """
     if start_terms is None:
-        # ATP:0000177 workflow process, ATP:0000335 data novelty, ATP:0000323 data
-        # context (SCRUM-5746). NOT an exhaustive list of the branches the application
-        # traverses: ATP:0000002, the topic/entity_type root, is reached through the same
-        # get_ancestors path and is deliberately absent, being a far larger subtree that
-        # costs one round trip per node to walk.
+        # ATP:0000002 topic/entity_type root (SCRUM-6474), ATP:0000323 data context
+        # (SCRUM-5746), ATP:0000177 workflow process, ATP:0000335 data novelty.
+        #
+        # ATP:0000002 costs ~125 extra round trips to walk (one per node), but leaving it
+        # out did not make topic ancestry cheap, it made it WRONG: see below. Validation
+        # reads it on every rule, so it has to be here. Its container terms are excluded
+        # from matching separately, in topic_hierarchy_with_self.
         #
         # A branch left out here is not merely uncached. atp_get_all_ancestors falls back
         # to the ontology client only when atp_to_parent is *entirely* empty, so in any
@@ -416,7 +418,7 @@ def load_name_to_atp_and_relationships(start_terms: Optional[List[str]] = None):
         # (first write wins), so the LAST entry here is walked FIRST and claims the
         # parent pointer for any term reachable from two roots. New branches go at the
         # front, leaving the pre-existing precedence between 335 and 177 untouched.
-        start_terms = ['ATP:0000323', 'ATP:0000177', 'ATP:0000335']
+        start_terms = ['ATP:0000002', 'ATP:0000323', 'ATP:0000177', 'ATP:0000335']
 
     # Clear and (re)build
     atp_to_name.clear()
