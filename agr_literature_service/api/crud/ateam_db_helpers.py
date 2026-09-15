@@ -468,6 +468,12 @@ def atp_get_all_ancestors(curie: str) -> List[str]:
     """
     Climb parent pointers we built. For strict ancestry, we can fall back to the client.
     """
+    # SCRUM-6474: build the cache first. Without this a cold cache fell through to the
+    # client on every call AND never populated the maps, so the "fallback" silently became
+    # the permanent path at ~520ms a call. The API hid it because create_tag calls
+    # atp_return_invalid_ids (which does _ensure_atp_loaded) before any rule runs, but
+    # revalidate_all_tags reaches get_ancestors first -- so the sweep paid it per tag.
+    _ensure_atp_loaded()
     if not atp_to_parent:
         try:
             return _get_client().search_ontology_ancestors_or_descendants(ontology_node=curie, direction="ancestors")
@@ -527,8 +533,14 @@ def _get_atp_children(parent_curie: str) -> List[str]:
         atp_to_parent.setdefault(curie, parent_curie)
         child_curies.append(curie)
 
-    if child_curies:
-        atp_to_children[parent_curie] = child_curies
+    # SCRUM-6474: cache the empty result too. Leaf terms have no children, so the old
+    # `if child_curies:` guard never cached them -- and 144 of the 176 ATP terms are
+    # leaves. Every get_descendants() on a leaf therefore re-hit the A-Team API, at
+    # ~600ms a call, and validate_tags calls get_descendants several times per tag (topic,
+    # data_novelty and entity_type, on both the negative and the new-tag rule paths).
+    # A miss is not distinguishable from "no children" here anyway: the AGRAPIError branch
+    # above already returns [] without caching, so a genuine failure still retries.
+    atp_to_children[parent_curie] = child_curies
     return child_curies
 
 
