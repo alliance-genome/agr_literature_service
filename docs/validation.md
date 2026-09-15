@@ -95,16 +95,16 @@ Despite the names, these are **not** ATP ids — they are `validation_type` stri
 - Special case: a mixed topic+entity tag also validates the pure **entity-only** tag for
   the same entity (`:617`, `:648`, `:694`, `:703`).
 
-"More generic / more specific" is evaluated **simultaneously across three ATP
+"More generic / more specific" is evaluated **simultaneously across four ATP
 hierarchies** — `topic`, `entity_type` (via `atp_hierarchy_with_self`, `:580`, SCRUM-6188,
-which includes self so exact equality still matches), and `data_novelty`. All three must
-agree on direction. Cross-branch novelty — "existing data" `ATP:0000334` versus "novel
-data" `ATP:0000321` — blocks validation outright.
+which includes self so exact equality still matches), `data_novelty`, and `data_context`
+(SCRUM-5746). All four must agree on direction. Cross-branch novelty — "existing data"
+`ATP:0000334` versus "novel data" `ATP:0000321` — blocks validation outright.
 
-**`data_context` is a fifth ATP field that validation does not yet use.** SCRUM-5697
-added it to every tag. It is stored, indexed, exported to Elasticsearch and editable,
-but `validate_tags` ignores it entirely — so today tags validate each other freely
-across data contexts.
+**`data_context` became the fourth ATP hierarchy — the fifth dimension overall, after
+species — in SCRUM-5746.** SCRUM-5697 added the
+column to every tag; SCRUM-5746 made `validate_tags` read it, through
+`data_context_compatible` at each of the eight `add_validation_to_db` guard sites.
 
 It is a **hierarchy**, not a flat set:
 
@@ -126,12 +126,32 @@ intermediate groupings above them. So `data_context` is walkable by exactly the 
 existing three, not a special case. A tag marked `ATP:0000324` (mentioned data) is
 genuinely *more generic* than one marked `ATP:0000325` (experimentally studied data).
 
-The open question for SCRUM-5746 is therefore semantic, not structural: whether
-"mentioned data" and "marker data" are the right generalisation boundaries for
-validation, and what should happen across the two branches — does an
-expression-marker tag have any bearing on an experimentally-studied one? Note the
-cross-branch precedent already set by `data_novelty`, where "existing data" versus
-"novel data" blocks validation outright.
+**Cross-branch blocks, following the `data_novelty` precedent.** "Mentioned data" and
+"marker data" are in neither each other's ancestors nor descendants, so an
+expression-marker tag and an experimentally-studied one make no claim about each other in
+either direction. That falls out of the hierarchy walk rather than needing a rule. It is
+the conservative reading; allowing cross-branch validation would take an explicit rule.
+The question was put to curators on SCRUM-5746 (comment 97789) and is hypothetical until
+someone picks a marker or background-information term — see the usage note below.
+
+**A NULL `data_context` does not block.** The model declares the column non-null, but the
+database column stays nullable until revision `e4f9a2c81b57`, so between `d7b3e1c95a24`
+and the backfill a real database holds rows with no value. Blocking on those would
+silently stop validating every row the backfill has not reached.
+
+**In practice this changed nothing yet.** Measured against the stage copy on 2026-09-11,
+none of the 608,773 existing validation edges are removed by the new dimension. Only two
+of the seven terms are in use anywhere — `ATP:0000325` (2,173,086 tags) and `ATP:0000323`
+(1,323,656); `324`, `326`, `327`, `328` and `360` have zero. WormBase's `323`/`325` split
+tracks topic-only versus has-entity exactly, and the two pairings the new check would
+block are already impossible under the `entity_type` rules.
+
+**The ATP cache must know the branch.** `atp_get_all_ancestors` falls back to the ontology
+client only when `atp_to_parent` is *entirely* empty, so a top-level branch missing from
+`load_name_to_atp_and_relationships`'s `start_terms` resolves to no ancestors in any warm
+worker, degrading a hierarchy check to exact equality. `ATP:0000323` is a separate
+top-level branch from `ATP:0000177` and `ATP:0000335` and is therefore listed there
+explicitly; `tests/api/test_ontology.py::TestAtpBfsStartTerms` guards it.
 
 **Species is the fourth dimension**, and it follows the same generic/specific logic
 without an ontology behind it (`:612`, `:644`, `:684`, `:691`). Read a **null species as
@@ -356,21 +376,22 @@ All tracked in Jira: SCRUM-6470 through SCRUM-6475.
 
 | Symbol | Location |
 |---|---|
-| `calculate_validation_value_for_tag` | `topic_entity_tag_crud.py:396` |
-| `atp_hierarchy_with_self` | `topic_entity_tag_crud.py:580` |
-| `validate_tags_already_in_db_with_positive_tag` | `topic_entity_tag_crud.py:596` |
-| `validate_tags_already_in_db_with_negative_tag` | `topic_entity_tag_crud.py:628` |
-| `validate_new_tag_with_existing_tags` | `topic_entity_tag_crud.py:660` |
-| `add_validation_to_db` | `topic_entity_tag_crud.py:714` |
-| `validate_tags` | `topic_entity_tag_crud.py:739` |
-| `set_validation_values_to_tag` | `topic_entity_tag_crud.py:810` |
-| `revalidate_all_tags` | `topic_entity_tag_crud.py:817` |
-| `_is_curator_source_tag` | `topic_entity_tag_crud.py:1466` |
-| `_build_validation_details` | `topic_entity_tag_crud.py:1594` |
-| `_build_filter_flags` | `topic_entity_tag_crud.py:1670` |
-| `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:1923` |
-| `_recompute_validation_cell` | `topic_entity_tag_crud.py:1979` |
-| `validate_topic` | `topic_entity_tag_crud.py:1999` |
+| `calculate_validation_value_for_tag` | `topic_entity_tag_crud.py:472` |
+| `atp_hierarchy_with_self` | `topic_entity_tag_crud.py:656` |
+| `data_context_compatible` | `topic_entity_tag_crud.py:672` (SCRUM-5746) |
+| `validate_tags_already_in_db_with_positive_tag` | `topic_entity_tag_crud.py:693` |
+| `validate_tags_already_in_db_with_negative_tag` | `topic_entity_tag_crud.py:729` |
+| `validate_new_tag_with_existing_tags` | `topic_entity_tag_crud.py:765` |
+| `add_validation_to_db` | `topic_entity_tag_crud.py:831` |
+| `validate_tags` | `topic_entity_tag_crud.py:856` |
+| `set_validation_values_to_tag` | `topic_entity_tag_crud.py:931` |
+| `revalidate_all_tags` | `topic_entity_tag_crud.py:938` |
+| `_is_curator_source_tag` | `topic_entity_tag_crud.py:1587` |
+| `_build_validation_details` | `topic_entity_tag_crud.py:1715` |
+| `_build_filter_flags` | `topic_entity_tag_crud.py:1791` |
+| `get_or_create_curator_validation_source` | `topic_entity_tag_crud.py:2044` |
+| `_recompute_validation_cell` | `topic_entity_tag_crud.py:2100` |
+| `validate_topic` | `topic_entity_tag_crud.py:2120` |
 
 ---
 
