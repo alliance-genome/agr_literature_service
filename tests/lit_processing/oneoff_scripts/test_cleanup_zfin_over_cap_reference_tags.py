@@ -137,7 +137,7 @@ class TestCleanupOrchestration:
         db.commit.assert_called()
         # Reference 11 is affected by both types but revalidated once.
         assert counts["affected_references"] == 1
-        mock_reval.assert_called_once_with(curie_or_reference_id="11")
+        mock_reval.assert_called_once_with(curie_or_reference_id="11", db=db)
 
     @patch.object(mod, "count_affected_dataset_entries", return_value=0)
     @patch.object(mod, "revalidate_all_tags")

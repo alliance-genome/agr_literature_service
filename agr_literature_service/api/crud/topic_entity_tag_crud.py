@@ -71,6 +71,12 @@ def _log_tet_batch_timing(message, *args):
 ATP_ID_SOURCE_AUTHOR = "author"
 ATP_ID_SOURCE_CURATOR = "professional_biocurator"
 
+# SCRUM-6475: namespace for this module's PostgreSQL advisory locks. Advisory locks are
+# global to the database, so the first key keeps ours distinct from any other subsystem's;
+# the second key is the reference id, or SWEEP_KEY for the whole-table sweep.
+TET_REVALIDATION_LOCK_NAMESPACE = 6475
+TET_REVALIDATION_SWEEP_KEY = 0
+
 TET_CURIE_FIELDS = ['topic', 'entity_type', 'display_tag', 'entity', 'species',
                     'data_context']
 TET_SOURCE_CURIE_FIELDS = ['source_evidence_assertion']
@@ -639,7 +645,7 @@ def patch_tag(db: Session, topic_entity_tag_id: int, patch_data: TopicEntityTagS
     for key, value in patch_data_dict.items():
         setattr(topic_entity_tag, key, value)
     db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id))
+    revalidate_all_tags(curie_or_reference_id=str(topic_entity_tag.reference_id), db=db)
     return {"message": "updated"}
 
 
@@ -673,7 +679,8 @@ def destroy_tag(db: Session, topic_entity_tag_id: int, mod_access: ModAccess):
     reference_id = topic_entity_tag.reference_id
     db.delete(topic_entity_tag)
     db.commit()
-    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False, validation_values_only=False)
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), delete_all_first=False,
+                        validation_values_only=False, db=db)
 
 
 def atp_hierarchy_with_self(atp_id: Optional[str], ancestors: bool) -> Set[str]:
@@ -1041,69 +1048,30 @@ def set_validation_values_to_tag(tag: TopicEntityTagModel):
 
 
 def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie_or_reference_id: str = None,
-                        validation_values_only: bool = False):
-    engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
-    new_session = sessionmaker(bind=engine, autoflush=True)
-    db = new_session()
-    reference_query_filter = ""
-    query_tags = (db.query(TopicEntityTagModel)
-                  .join(TopicEntityTagModel.topic_entity_tag_source)
-                  .options(joinedload(TopicEntityTagModel.topic_entity_tag_source))
-                  .options(joinedload(TopicEntityTagModel.validated_by))
-                  .options(noload(TopicEntityTagModel.reference))
-                  .order_by(TopicEntityTagModel.reference_id,
-                            TopicEntityTagModel.topic_entity_tag_source_id,
-                            TopicEntityTagSourceModel.secondary_data_provider_id))
-    if not validation_values_only:
-        if curie_or_reference_id:
-            delete_all_first = True
-            reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
-            if not reference_id:
-                reference_id = db.query(ReferenceModel.reference_id).filter(ReferenceModel.curie == curie_or_reference_id)
-            all_tag_ids_for_reference = [res[0] for res in db.query(
-                TopicEntityTagModel.topic_entity_tag_id).filter(TopicEntityTagModel.reference_id == reference_id).all()]
-            if not all_tag_ids_for_reference:
-                return
-            all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
-            reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
-                                      f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
-            query_tags = query_tags.filter(TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
-        if delete_all_first:
-            db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
-            db.commit()
-        curr_ref_tags_in_db = None
-        curr_reference_id = None
-        curr_mod_id = None
-        for tag_counter, tag in enumerate(query_tags.all()):
-            if tag.reference_id != curr_reference_id or tag.topic_entity_tag_source.secondary_data_provider_id != curr_mod_id:
-                curr_reference_id = tag.reference_id
-                curr_mod_id = tag.topic_entity_tag_source.secondary_data_provider_id
-                curr_ref_tags_in_db = None
-            logger.info(f"Processing tag # {str(tag_counter)}")
-            if not delete_all_first:
-                db.execute(text(f"DELETE FROM topic_entity_tag_validation "
-                                f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
-            curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False, commit_changes=False,
-                                                calculate_validation_values=False,
-                                                related_tags_in_db=curr_ref_tags_in_db)
-            if tag_counter > 0 and tag_counter % 200 == 0:
-                db.commit()
-        db.commit()
-    offset = 0
-    batch_size = 200
-    tag_counter = 0
-    while True:
-        batch_tags = query_tags.offset(offset).limit(batch_size).all()
-        if not batch_tags:
-            break  # All tags processed
-        for tag in batch_tags:
-            tag_counter += 1
-            logger.info(f"Setting validation values for tag #{tag_counter}")
-            set_validation_values_to_tag(tag)
-        db.commit()
-        offset += batch_size
-    db.commit()
-    db.close()
+                        validation_values_only: bool = False, db: Optional[Session] = None):
+    """Rebuild validation edges and/or recompute rollup values.
+
+    ``db``: pass the caller's session when this runs inside a request -- patch_tag,
+    destroy_tag, validate_topic and the reference merge all call it synchronously. Omit it
+    for the background sweep, which the router runs inside a forked Process: a forked child
+    must never reuse the parent's pooled connections, so that path gets a private engine.
+    """
+    if db is not None:
+        run_revalidation(db, delete_all_first, curie_or_reference_id, validation_values_only)
+    else:
+        # SCRUM-6475: this engine (and its pool) used to leak on every single call --
+        # db.close() only returns the connection to the pool, it does not dispose the pool.
+        # Since the interactive callers above invoke this synchronously, every PATCH and
+        # DELETE of a tag opened a brand new backend connection rather than reusing the
+        # application pool. It is now disposed in the finally below, and request-context
+        # callers pass their own session so they never reach this branch at all.
+        engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"options": "-c timezone=utc"})
+        own_db = sessionmaker(bind=engine, autoflush=True)()
+        try:
+            run_revalidation(own_db, delete_all_first, curie_or_reference_id, validation_values_only)
+        finally:
+            own_db.close()
+            engine.dispose()
 
     if email:
         email_recipients = email
@@ -1115,6 +1083,214 @@ def revalidate_all_tags(email: str = None, delete_all_first: bool = False, curie
             email_body += " for reference " + str(curie_or_reference_id)
         send_email("Alliance ABC notification: all tags re-validated", email_recipients, email_body, sender_email,
                    sender_password, reply_to)
+
+
+def resolve_revalidation_reference_id(db: Session, curie_or_reference_id: str):
+    """Resolve a curie or numeric id to a reference_id, or None when it matches nothing."""
+    reference_id = int(curie_or_reference_id) if curie_or_reference_id.isdigit() else None
+    if reference_id is None:
+        # SCRUM-6471: resolve the curie to a real id. Assigning the Query object itself
+        # relied on SQLAlchemy implicitly coercing it to a scalar subquery, which is
+        # deprecated in 2.0 (it warns today and is slated for removal). It also failed
+        # silently: an unmatched curie made the subquery NULL, so the filter matched
+        # nothing and the whole call became a no-op instead of reporting the bad reference.
+        reference_id = db.query(ReferenceModel.reference_id).filter(
+            ReferenceModel.curie == curie_or_reference_id).scalar()
+    return reference_id
+
+
+def run_revalidation(db: Session, delete_all_first: bool, curie_or_reference_id: Optional[str],
+                     validation_values_only: bool):      # noqa: C901
+    """Body of revalidate_all_tags, split out so the session/engine lifecycle above is
+    guaranteed by a single try/finally regardless of how this returns or raises."""
+    single_reference = bool(curie_or_reference_id)
+    sweep_lock_held = False
+    reference_query_filter = ""
+    query_tags = (db.query(TopicEntityTagModel)
+                  .join(TopicEntityTagModel.topic_entity_tag_source)
+                  .options(joinedload(TopicEntityTagModel.topic_entity_tag_source))
+                  .options(noload(TopicEntityTagModel.reference))
+                  # SCRUM-6475: MOD before source id. secondary_data_provider_id is
+                  # functionally determined by topic_entity_tag_source_id, so as the third
+                  # key it was inert -- yet the rebuild loop drops its cached related-tags
+                  # list whenever the MOD changes, so tags of one MOD were not contiguous
+                  # and the cache was reset far more often than necessary. The trailing
+                  # topic_entity_tag_id makes the ordering total, which matters because a
+                  # non-unique ORDER BY lets rows move between pages.
+                  .order_by(TopicEntityTagModel.reference_id,
+                            TopicEntityTagSourceModel.secondary_data_provider_id,
+                            TopicEntityTagModel.topic_entity_tag_source_id,
+                            TopicEntityTagModel.topic_entity_tag_id))
+    try:
+        if curie_or_reference_id:
+            reference_id = resolve_revalidation_reference_id(db, curie_or_reference_id)
+            if reference_id is None:
+                logger.warning("revalidate_all_tags: no reference matches %r; nothing to do",
+                               curie_or_reference_id)
+                return
+            # SCRUM-6475: serialise concurrent revalidations of the SAME reference. Two
+            # interactive writes on one paper (a PATCH and a DELETE) could otherwise
+            # interleave one's DELETE FROM topic_entity_tag_validation with the other's
+            # rebuild. Transaction-scoped so it is released automatically on commit or
+            # rollback: a session-scoped advisory lock would survive db.close(), and since
+            # returning a connection to the pool only issues a ROLLBACK, an unreleased one
+            # would poison that pooled connection for good.
+            # Full sweeps are deliberately NOT excluded by this lock -- a sweep runs for
+            # hours and must not block curation.
+            db.execute(select(func.pg_advisory_xact_lock(
+                TET_REVALIDATION_LOCK_NAMESPACE, reference_id)))
+            all_tag_ids_for_reference = [res[0] for res in db.query(
+                TopicEntityTagModel.topic_entity_tag_id).filter(
+                    TopicEntityTagModel.reference_id == reference_id).all()]
+            if not all_tag_ids_for_reference:
+                return
+            all_tag_ids_str = [str(tag_id) for tag_id in all_tag_ids_for_reference]
+            reference_query_filter = (f" WHERE validating_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)}) "
+                                      f"OR validated_topic_entity_tag_id IN ({', '.join(all_tag_ids_str)})")
+            # SCRUM-6475: this filter used to sit inside `if not validation_values_only`,
+            # so a values-only request scoped to a single reference silently recomputed
+            # every tag in the database instead of that one paper's.
+            query_tags = query_tags.filter(
+                TopicEntityTagModel.topic_entity_tag_id.in_(all_tag_ids_for_reference))
+        else:
+            # SCRUM-6475: single-flight for the full sweep, held in the database so it
+            # covers every worker, host and container. The router's multiprocessing.Value
+            # does work across one master's forked workers (preload_app=True shares the
+            # mmap) but not across hosts, and it does not cover the direct callers at all.
+            sweep_lock_held = bool(db.execute(select(func.pg_try_advisory_lock(
+                TET_REVALIDATION_LOCK_NAMESPACE, TET_REVALIDATION_SWEEP_KEY))).scalar())
+            if not sweep_lock_held:
+                logger.warning("revalidate_all_tags: a full sweep is already running; skipping this one")
+                return
+
+        if not validation_values_only:
+            if single_reference:
+                delete_all_first = True
+            if delete_all_first:
+                db.execute(text("DELETE FROM topic_entity_tag_validation" + reference_query_filter))
+                if not single_reference:
+                    db.commit()
+                # For a single reference the DELETE deliberately stays in the same
+                # transaction as the rebuild below, so a concurrent reader never observes
+                # the window in which that paper's validation edges are missing.
+            rebuild_validation_edges(db, query_tags, delete_all_first, single_reference)
+
+        recompute_validation_values(db, query_tags, single_reference)
+        db.commit()
+    finally:
+        if sweep_lock_held:
+            # Session-scoped, so it survived the batch commits above and must be released
+            # explicitly. Best-effort: if we are unwinding from an error the transaction is
+            # already aborted and the unlock cannot run, but the sweep owns its engine and
+            # disposing it closes the connection, which makes PostgreSQL drop the lock
+            # anyway. Swallowing here keeps the original exception as the one that
+            # propagates.
+            try:
+                db.execute(select(func.pg_advisory_unlock(
+                    TET_REVALIDATION_LOCK_NAMESPACE, TET_REVALIDATION_SWEEP_KEY)))
+            except Exception as unlock_error:
+                logger.warning("Could not release the revalidation sweep lock: %s", unlock_error)
+
+
+def iter_sweep_tags(db: Session, query_tags, single_reference: bool, page_size: int = 500):
+    """Yield the sweep's tags in order, one page of references at a time.
+
+    SCRUM-6475: this used to be a flat ``query_tags.all()``. At 3.5M tags that materialises
+    roughly 15GB of ORM objects -- more than the API box has -- and the size of the
+    resulting heap is itself the problem: every garbage-collection pass has to traverse the
+    whole live object graph, so allocation-heavy work in the loop slows down by more than
+    an order of magnitude as the heap grows.
+
+    References are the natural page boundary because validation edges never cross a
+    reference, so a reference is never split and the per-(reference, MOD) related-tags cache
+    keeps working. The page is fully consumed before the caller commits and expunges, so no
+    tag is ever touched after being detached.
+    """
+    if single_reference:
+        # Already filtered to a single paper's tags, so it is bounded by construction.
+        yield query_tags.all(), True
+        return
+    last_reference_id = -1
+    while True:
+        reference_ids = [row[0] for row in
+                         db.query(TopicEntityTagModel.reference_id)
+                         .filter(TopicEntityTagModel.reference_id > last_reference_id)
+                         .distinct()
+                         .order_by(TopicEntityTagModel.reference_id)
+                         .limit(page_size).all()]
+        if not reference_ids:
+            return
+        yield query_tags.filter(
+            TopicEntityTagModel.reference_id.in_(reference_ids)).all(), False
+        last_reference_id = reference_ids[-1]
+
+
+def rebuild_validation_edges(db: Session, query_tags, delete_all_first: bool, single_reference: bool):
+    """Re-derive the validation edges for every tag in ``query_tags``."""
+    curr_ref_tags_in_db = None
+    curr_reference_id = None
+    curr_mod_id = None
+    tag_counter = 0
+    for page, is_single in iter_sweep_tags(db, query_tags, single_reference):
+        for tag in page:
+            if tag.reference_id != curr_reference_id or tag.topic_entity_tag_source.secondary_data_provider_id != curr_mod_id:
+                curr_reference_id = tag.reference_id
+                curr_mod_id = tag.topic_entity_tag_source.secondary_data_provider_id
+                curr_ref_tags_in_db = None
+            if tag_counter % 5000 == 0:
+                # Throttled: at one line per tag this printed millions of lines per sweep.
+                logger.info("Rebuilding validation edges, tag #%s", tag_counter)
+            if not delete_all_first:
+                db.execute(text(f"DELETE FROM topic_entity_tag_validation "
+                                f"WHERE validating_topic_entity_tag_id = {tag.topic_entity_tag_id}"))
+            curr_ref_tags_in_db = validate_tags(db=db, new_tag_obj=tag, validate_new_tag=False,
+                                                commit_changes=False,
+                                                calculate_validation_values=False,
+                                                related_tags_in_db=curr_ref_tags_in_db)
+            tag_counter += 1
+        if not is_single:
+            # Commit and drop the page from the identity map before loading the next one,
+            # so neither the session nor the Python heap grows with the size of the table.
+            db.commit()
+            db.expunge_all()
+            curr_ref_tags_in_db = None
+            curr_reference_id = None
+            curr_mod_id = None
+    if not single_reference:
+        db.commit()
+
+
+def recompute_validation_values(db: Session, query_tags, single_reference: bool):
+    """Recompute both rollup columns for every tag in ``query_tags``.
+
+    SCRUM-6474/6475: uses the preloaded edge map rather than walking the ``validated_by``
+    relationship per tag, which lazy-loaded a collection at every node of every tag's
+    closure -- twice over, once per validation axis.
+
+    Pages by ``topic_entity_tag_id`` rather than OFFSET: OFFSET re-scans and discards every
+    preceding row, which over millions of tags is quadratic, and it is only stable if the
+    ordering is total. Keyset paging is linear and immune to rows shifting between pages.
+    """
+    batch_size = 200
+    values_query = query_tags.order_by(None).order_by(TopicEntityTagModel.topic_entity_tag_id)
+    last_tag_id = 0
+    processed = 0
+    while True:
+        batch_tags = values_query.filter(
+            TopicEntityTagModel.topic_entity_tag_id > last_tag_id).limit(batch_size).all()
+        if not batch_tags:
+            break
+        recompute_validation_values_for_tags(
+            db, {tag.topic_entity_tag_id for tag in batch_tags})
+        last_tag_id = batch_tags[-1].topic_entity_tag_id
+        processed += len(batch_tags)
+        if processed % 5000 < batch_size:
+            logger.info("Set validation values for %s tag(s)", processed)
+        if not single_reference:
+            db.commit()
+            # See iter_sweep_tags: without this the identity map -- and so the heap the GC
+            # must walk on every pass -- grows to the size of the whole table.
+            db.expunge_all()
 
 
 def create_source(db: Session, source: TopicEntityTagSourceSchemaCreate):
@@ -2291,7 +2467,7 @@ def validate_topic(db: Session, reference_curie: str, topic: str, mod_abbreviati
         force_insertion=True,
     )
     tag_id, _ = create_tag(db, tag, validate_on_insert=False)
-    revalidate_all_tags(curie_or_reference_id=str(reference_id))
+    revalidate_all_tags(curie_or_reference_id=str(reference_id), db=db)
     db.expire_all()
     cell = _recompute_validation_cell(db, reference_id, topic)
     return {
